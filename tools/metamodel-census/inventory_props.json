@@ -1,0 +1,3921 @@
+{
+ "meta::pure::runtime::ExecutionContext": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store/grammar/runtime.pure",
+  "line": 34,
+  "extends": "",
+  "own": [
+   {
+    "name": "queryTimeOutInSeconds",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "enableConstraints",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::core::runtime::Runtime": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store/grammar/runtime.pure",
+  "line": 17,
+  "extends": "",
+  "own": [
+   {
+    "name": "preprocessFunction",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "connectionStores",
+    "kind": "property",
+    "type": "ConnectionStore",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::external::store::relational::runtime::TestDatabaseConnection": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/relationalRuntime.pure",
+  "line": 101,
+  "extends": "meta::external::store::relational::runtime::DatabaseConnection",
+  "own": [
+   {
+    "name": "testDataSetupCsv",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "testDataSetupSqls",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "testDataSchemas",
+    "kind": "property",
+    "type": "meta::relational::metamodel::Schema",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "type",
+    "kind": "property",
+    "type": "meta::relational::runtime::DatabaseType",
+    "mult": "1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "debug",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "timeZone",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "quoteIdentifiers",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryTimeOutInSeconds",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "sqlQueryPostProcessors",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "sqlQueryPostProcessorsConnectionAware",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryPostProcessors",
+    "kind": "property",
+    "type": "PostProcessors",
+    "mult": "*",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryPostProcessorsWithParameter",
+    "kind": "property",
+    "type": "PostProcessorWithParameter",
+    "mult": "*",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryGenerationConfigs",
+    "kind": "property",
+    "type": "RelationalQueryGenerationConfig",
+    "mult": "*",
+    "params": "",
+    "from": "DatabaseConnection"
+   }
+  ]
+ },
+ "meta::relational::mapping::RootRelationalInstanceSetImplementation": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relationalMapping.pure",
+  "line": 46,
+  "extends": "RelationalInstanceSetImplementation, RelationalMappingSpecification",
+  "own": [],
+  "inherited": [
+   {
+    "name": "primaryKey",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "RelationalInstanceSetImplementation"
+   },
+   {
+    "name": "mappingClass",
+    "kind": "property",
+    "type": "MappingClass<Any>",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "aggregateSpecification",
+    "kind": "property",
+    "type": "AggregateSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "root",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<Any>",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "superSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "parent",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "stores",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   },
+   {
+    "name": "propertyMappings",
+    "kind": "property",
+    "type": "PropertyMapping",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   },
+   {
+    "name": "userDefinedPrimaryKey",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "filter",
+    "kind": "property",
+    "type": "FilterMapping",
+    "mult": "0..1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "distinct",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "groupBy",
+    "kind": "property",
+    "type": "GroupByMapping",
+    "mult": "0..1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "mainTableAlias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   }
+  ]
+ },
+ "meta::pure::graphFetch::RootGraphFetchTree": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-graph/legend-pure-m2-dsl-graph-pure/src/main/resources/platform_dsl_graph/graph.pure",
+  "line": 34,
+  "extends": "GraphFetchTree, Referenceable",
+  "own": [
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<T>",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "subTrees",
+    "kind": "property",
+    "type": "GraphFetchTree",
+    "mult": "*",
+    "params": "",
+    "from": "GraphFetchTree"
+   },
+   {
+    "name": "subTypeTrees",
+    "kind": "property",
+    "type": "SubTypeGraphFetchTree",
+    "mult": "*",
+    "params": "",
+    "from": "GraphFetchTree"
+   }
+  ]
+ },
+ "meta::core::runtime::ConnectionStore": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store/grammar/runtime.pure",
+  "line": 24,
+  "extends": "",
+  "own": [
+   {
+    "name": "connection",
+    "kind": "property",
+    "type": "Connection",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "element",
+    "kind": "property",
+    "type": "Any",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::mapping::RelationalPropertyMapping": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relationalMapping.pure",
+  "line": 66,
+  "extends": "PropertyMapping",
+  "own": [
+   {
+    "name": "relationalOperationElement",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "transformer",
+    "kind": "property",
+    "type": "ValueTransformer<Any>",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "owner",
+    "kind": "property",
+    "type": "PropertyMappingsImplementation",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "targetSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "sourceSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "property",
+    "kind": "property",
+    "type": "Property<Nil,Any|*>",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "localMappingProperty",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "localMappingPropertyType",
+    "kind": "property",
+    "type": "Type",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "localMappingPropertyMultiplicity",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "store",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   }
+  ]
+ },
+ "meta::relational::metamodel::Literal": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 509,
+  "extends": "meta::relational::metamodel::RelationalOperationElement",
+  "own": [
+   {
+    "name": "value",
+    "kind": "property",
+    "type": "Any",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::external::store::relational::runtime::RelationalDatabaseConnection": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/connection.pure",
+  "line": 29,
+  "extends": "meta::external::store::relational::runtime::DatabaseConnection",
+  "own": [
+   {
+    "name": "datasourceSpecification",
+    "kind": "property",
+    "type": "meta::pure::alloy::connections::alloy::specification::DatasourceSpecification",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "authenticationStrategy",
+    "kind": "property",
+    "type": "meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "postProcessors",
+    "kind": "property",
+    "type": "meta::pure::alloy::connections::PostProcessor",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "type",
+    "kind": "property",
+    "type": "meta::relational::runtime::DatabaseType",
+    "mult": "1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "debug",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "timeZone",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "quoteIdentifiers",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryTimeOutInSeconds",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "0..1",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "sqlQueryPostProcessors",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "sqlQueryPostProcessorsConnectionAware",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryPostProcessors",
+    "kind": "property",
+    "type": "PostProcessors",
+    "mult": "*",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryPostProcessorsWithParameter",
+    "kind": "property",
+    "type": "PostProcessorWithParameter",
+    "mult": "*",
+    "params": "",
+    "from": "DatabaseConnection"
+   },
+   {
+    "name": "queryGenerationConfigs",
+    "kind": "property",
+    "type": "RelationalQueryGenerationConfig",
+    "mult": "*",
+    "params": "",
+    "from": "DatabaseConnection"
+   }
+  ]
+ },
+ "meta::relational::metamodel::relation::Table": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 92,
+  "extends": "NamedRelation, AnnotatedElement",
+  "own": [
+   {
+    "name": "schema",
+    "kind": "property",
+    "type": "Schema",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "primaryKey",
+    "kind": "property",
+    "type": "Column",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "milestoning",
+    "kind": "property",
+    "type": "Milestoning",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "temporaryTable",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "NamedRelation"
+   },
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   },
+   {
+    "name": "annotations",
+    "kind": "property",
+    "type": "meta::external::language::java::metamodel::Annotation",
+    "mult": "*",
+    "params": "",
+    "from": "AnnotatedElement"
+   },
+   {
+    "name": "javaDoc",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "AnnotatedElement"
+   }
+  ]
+ },
+ "meta::external::store::relational::runtime::DatabaseConnection": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/relationalRuntime.pure",
+  "line": 26,
+  "extends": "Connection",
+  "own": [
+   {
+    "name": "type",
+    "kind": "property",
+    "type": "meta::relational::runtime::DatabaseType",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "debug",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "timeZone",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "quoteIdentifiers",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "queryTimeOutInSeconds",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "sqlQueryPostProcessors",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "sqlQueryPostProcessorsConnectionAware",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "queryPostProcessors",
+    "kind": "property",
+    "type": "PostProcessors",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "queryPostProcessorsWithParameter",
+    "kind": "property",
+    "type": "PostProcessorWithParameter",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "queryGenerationConfigs",
+    "kind": "property",
+    "type": "RelationalQueryGenerationConfig",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::DynaFunction": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 316,
+  "extends": "Operation",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "parameters",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::mapping::Mapping": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure",
+  "line": 26,
+  "extends": "PackageableElement, Testable",
+  "own": [
+   {
+    "name": "includes",
+    "kind": "property",
+    "type": "MappingInclude",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "classMappings",
+    "kind": "property",
+    "type": "SetImplementation",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "enumerationMappings",
+    "kind": "property",
+    "type": "EnumerationMapping<Any>",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "associationMappings",
+    "kind": "property",
+    "type": "AssociationImplementation",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "package",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "sourceInformation",
+    "kind": "property",
+    "type": "SourceInformation",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   }
+  ]
+ },
+ "meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/datasourceSpecification.pure",
+  "line": 34,
+  "extends": "meta::pure::alloy::connections::alloy::specification::DatasourceSpecification",
+  "own": [
+   {
+    "name": "testDataSetupCsv",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "testDataSetupSqls",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "disableDatabaseToUpper",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::json::JSONObject": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources/core_functions_json/json.pure",
+  "line": 61,
+  "extends": "JSONElement",
+  "own": [
+   {
+    "name": "keyValuePairs",
+    "kind": "property",
+    "type": "JSONKeyValue",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::Database": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 29,
+  "extends": "meta::pure::store::set::SetBasedStore, AnnotatedElement",
+  "own": [
+   {
+    "name": "schemas",
+    "kind": "property",
+    "type": "Schema",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "joins",
+    "kind": "property",
+    "type": "Join",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "filters",
+    "kind": "property",
+    "type": "Filter",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "namespaces",
+    "kind": "property",
+    "type": "Namespace",
+    "mult": "*",
+    "params": "",
+    "from": "SetBasedStore"
+   },
+   {
+    "name": "includes",
+    "kind": "property",
+    "type": "Store",
+    "mult": "*",
+    "params": "",
+    "from": "Store"
+   },
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "package",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "sourceInformation",
+    "kind": "property",
+    "type": "SourceInformation",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "annotations",
+    "kind": "property",
+    "type": "meta::external::language::java::metamodel::Annotation",
+    "mult": "*",
+    "params": "",
+    "from": "AnnotatedElement"
+   },
+   {
+    "name": "javaDoc",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "AnnotatedElement"
+   }
+  ]
+ },
+ "meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/authenticationStrategy.pure",
+  "line": 48,
+  "extends": "meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::Column": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 214,
+  "extends": "meta::relational::metamodel::RelationalOperationElement, meta::pure::store::set::SetColumn, AnnotatedElement",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "type",
+    "kind": "property",
+    "type": "meta::relational::metamodel::datatype::DataType",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "nullable",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "owner",
+    "kind": "property",
+    "type": "Relation",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "annotations",
+    "kind": "property",
+    "type": "meta::external::language::java::metamodel::Annotation",
+    "mult": "*",
+    "params": "",
+    "from": "AnnotatedElement"
+   },
+   {
+    "name": "javaDoc",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "AnnotatedElement"
+   }
+  ]
+ },
+ "meta::external::store::model::ModelStore": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure",
+  "line": 37,
+  "extends": "meta::pure::store::Store",
+  "own": [],
+  "inherited": [
+   {
+    "name": "includes",
+    "kind": "property",
+    "type": "Store",
+    "mult": "*",
+    "params": "",
+    "from": "Store"
+   },
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "package",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "sourceInformation",
+    "kind": "property",
+    "type": "SourceInformation",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   }
+  ]
+ },
+ "meta::relational::metamodel::datatype::Integer": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 408,
+  "extends": "meta::relational::metamodel::datatype::CoreDataType",
+  "own": [],
+  "inherited": []
+ },
+ "meta::json::JSONArray": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources/core_functions_json/json.pure",
+  "line": 56,
+  "extends": "JSONElement",
+  "own": [
+   {
+    "name": "values",
+    "kind": "property",
+    "type": "JSONElement",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::mapping::RelationalInstantiationExecutionNode": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/executionPlan.pure",
+  "line": 88,
+  "extends": "ExecutionNode",
+  "own": [],
+  "inherited": [
+   {
+    "name": "fromCluster",
+    "kind": "property",
+    "type": "ClusteredValueSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "resultType",
+    "kind": "property",
+    "type": "ResultType",
+    "mult": "1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "resultSizeRange",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "executionNodes",
+    "kind": "property",
+    "type": "ExecutionNode",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "authDependent",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "kerberos",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "supportFunctions",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "requiredVariableInputs",
+    "kind": "property",
+    "type": "VariableInput",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "implementation",
+    "kind": "property",
+    "type": "PlatformImplementation",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   }
+  ]
+ },
+ "meta::relational::mapping::SQLExecutionNode": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/executionPlan.pure",
+  "line": 63,
+  "extends": "ExecutionNode",
+  "own": [
+   {
+    "name": "sqlComment",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "sqlQuery",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "onConnectionCloseCommitQuery",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "onConnectionCloseRollbackQuery",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "resultColumns",
+    "kind": "property",
+    "type": "SQLResultColumn",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "connection",
+    "kind": "property",
+    "type": "DatabaseConnection",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "metadata",
+    "kind": "property",
+    "type": "QueryMetadata",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "isResultColumnsDynamic",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "isMutationSQL",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "fromCluster",
+    "kind": "property",
+    "type": "ClusteredValueSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "resultType",
+    "kind": "property",
+    "type": "ResultType",
+    "mult": "1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "resultSizeRange",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "executionNodes",
+    "kind": "property",
+    "type": "ExecutionNode",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "authDependent",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "kerberos",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "supportFunctions",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "requiredVariableInputs",
+    "kind": "property",
+    "type": "VariableInput",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "implementation",
+    "kind": "property",
+    "type": "PlatformImplementation",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   }
+  ]
+ },
+ "meta::external::store::model::ModelChainConnection": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure",
+  "line": 82,
+  "extends": "Connection",
+  "own": [
+   {
+    "name": "mappings",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::TableAliasColumn": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 376,
+  "extends": "meta::relational::metamodel::RelationalOperationElement",
+  "own": [
+   {
+    "name": "setMappingOwner",
+    "kind": "property",
+    "type": "PropertyMappingsImplementation",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "columnName",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "alias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "column",
+    "kind": "property",
+    "type": "Column",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::LiteralList": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 514,
+  "extends": "meta::relational::metamodel::RelationalOperationElement",
+  "own": [
+   {
+    "name": "values",
+    "kind": "property",
+    "type": "Literal",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/authenticationStrategy.pure",
+  "line": 52,
+  "extends": "meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy",
+  "own": [
+   {
+    "name": "apiToken",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/datasourceSpecification.pure",
+  "line": 19,
+  "extends": "meta::pure::alloy::connections::alloy::specification::DatasourceSpecification",
+  "own": [
+   {
+    "name": "host",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "port",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "databaseName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::Schema": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 36,
+  "extends": "meta::pure::store::set::Namespace, AnnotatedElement",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "database",
+    "kind": "property",
+    "type": "Database",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "tables",
+    "kind": "property",
+    "type": "Table",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "views",
+    "kind": "property",
+    "type": "View",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "tabularFunctions",
+    "kind": "property",
+    "type": "TabularFunction",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "relations",
+    "kind": "property",
+    "type": "SetRelation",
+    "mult": "*",
+    "params": "",
+    "from": "Namespace"
+   },
+   {
+    "name": "annotations",
+    "kind": "property",
+    "type": "meta::external::language::java::metamodel::Annotation",
+    "mult": "*",
+    "params": "",
+    "from": "AnnotatedElement"
+   },
+   {
+    "name": "javaDoc",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "AnnotatedElement"
+   }
+  ]
+ },
+ "meta::relational::metamodel::TableAlias": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 205,
+  "extends": "Alias",
+  "own": [
+   {
+    "name": "setMappingOwner",
+    "kind": "property",
+    "type": "PropertyMappingsImplementation",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "database",
+    "kind": "property",
+    "type": "Database",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "schema",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "Alias"
+   },
+   {
+    "name": "relationalElement",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "1",
+    "params": "",
+    "from": "Alias"
+   }
+  ]
+ },
+ "meta::relational::metamodel::relation::SelectSQLQuery": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 240,
+  "extends": "Relation, SQLQuery",
+  "own": [
+   {
+    "name": "distinct",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "data",
+    "kind": "property",
+    "type": "RootJoinTreeNode",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "filteringOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "groupBy",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "pivot",
+    "kind": "property",
+    "type": "Pivot",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "havingOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "qualifyOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "orderBy",
+    "kind": "property",
+    "type": "OrderBy",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "fromRow",
+    "kind": "property",
+    "type": "meta::relational::metamodel::Literal",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "toRow",
+    "kind": "property",
+    "type": "meta::relational::metamodel::Literal",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "leftSideOfFilter",
+    "kind": "property",
+    "type": "RelationalTreeNode",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "savedFilteringOperation",
+    "kind": "property",
+    "type": "Pair<RelationalTreeNode, RelationalOperationElement>",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "extraFilteringOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "preIsolationCurrentTreeNode",
+    "kind": "property",
+    "type": "RelationalTreeNode",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "commonTableExpressions",
+    "kind": "property",
+    "type": "CommonTableExpression",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   },
+   {
+    "name": "comment",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "SQLQuery"
+   }
+  ]
+ },
+ "meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/authenticationStrategy.pure",
+  "line": 57,
+  "extends": "meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+  "own": [],
+  "inherited": []
+ },
+ "meta::pure::graphFetch::execution::AlloySerializationConfig": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/graphFetch/graphFetch.pure",
+  "line": 89,
+  "extends": "",
+  "own": [
+   {
+    "name": "typeKeyName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "includeType",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "includeEnumType",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "dateTimeFormat",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "removePropertiesWithNullValues",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "removePropertiesWithEmptySets",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "fullyQualifiedTypePath",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "includeObjectReference",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::datatype::DataType": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 222,
+  "extends": "",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::datatype::Varchar": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 432,
+  "extends": "meta::relational::metamodel::datatype::CoreDataType",
+  "own": [
+   {
+    "name": "size",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/metamodel.pure",
+  "line": 6,
+  "extends": "RelationalOperationElement",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "propertyPath",
+    "kind": "property",
+    "type": "Property<Nil,Any|*>",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "type",
+    "kind": "property",
+    "type": "Type",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "multiplicity",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::RelationalOperationElement": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 236,
+  "extends": "",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::join::JoinTreeNode": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 148,
+  "extends": "RelationalTreeNode",
+  "own": [
+   {
+    "name": "setMappingOwner",
+    "kind": "property",
+    "type": "PropertyMappingsImplementation",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "database",
+    "kind": "property",
+    "type": "Database",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "joinName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "join",
+    "kind": "property",
+    "type": "Join",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "joinType",
+    "kind": "property",
+    "type": "JoinType",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "lateral",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "alias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": "",
+    "from": "RelationalTreeNode"
+   },
+   {
+    "name": "childrenData",
+    "kind": "property",
+    "type": "TreeNode",
+    "mult": "*",
+    "params": "",
+    "from": "TreeNode"
+   }
+  ]
+ },
+ "meta::relational::metamodel::join::Join": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 173,
+  "extends": "",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "database",
+    "kind": "property",
+    "type": "Database",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "target",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "aliases",
+    "kind": "property",
+    "type": "Pair<TableAlias,TableAlias>",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "operation",
+    "kind": "property",
+    "type": "Operation",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::json::JSONString": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources/core_functions_json/json.pure",
+  "line": 41,
+  "extends": "JSONElement",
+  "own": [
+   {
+    "name": "value",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::extension::Extension": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/extensions/extension.pure",
+  "line": 29,
+  "extends": "",
+  "own": [
+   {
+    "name": "type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "executionPlan_execution_allNodes",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "executionPlan_execution_buildVariableTemplateString",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "serializerExtensionByProtocolVersion",
+    "kind": "property",
+    "type": "Pair<String, SerializerExtension>",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::runtime::RelationalExecutionContext": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/executionContext/executionContext.pure",
+  "line": 25,
+  "extends": "meta::pure::runtime::ExecutionContext",
+  "own": [
+   {
+    "name": "addDriverTablePkForProject",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "insertDriverTablePkInTempTable",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "useTempTableAsDriver",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "preserveJoinOrder",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "importDataFlow",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "importDataFlowAddFks",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "importDataFlowFksByTable",
+    "kind": "property",
+    "type": "Map<Relation, List<Column>>",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "importDataFlowImplementationCount",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "queryTimeOutInSeconds",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionContext"
+   },
+   {
+    "name": "enableConstraints",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionContext"
+   }
+  ]
+ },
+ "meta::pure::mapping::PropertyMappingsImplementation": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure",
+  "line": 68,
+  "extends": "PropertyOwnerImplementation",
+  "own": [
+   {
+    "name": "stores",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "propertyMappings",
+    "kind": "property",
+    "type": "PropertyMapping",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "superSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "parent",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   }
+  ]
+ },
+ "meta::pure::metamodel::relation::TDS": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-tds/legend-pure-m2-dsl-tds-pure/src/main/resources/platform_dsl_tds/tds.pure",
+  "line": 17,
+  "extends": "meta::pure::metamodel::relation::Relation<T> // T is of RelationType kind",
+  "own": [
+   {
+    "name": "csv",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::core::runtime::Connection": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store/grammar/runtime.pure",
+  "line": 30,
+  "extends": "",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::DropTableSQL": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/metamodel/metamodel.pure",
+  "line": 123,
+  "extends": "SQLQuery",
+  "own": [
+   {
+    "name": "table",
+    "kind": "property",
+    "type": "Table",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "comment",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "SQLQuery"
+   }
+  ]
+ },
+ "meta::relational::metamodel::CreateTableSQL": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/metamodel/metamodel.pure",
+  "line": 116,
+  "extends": "SQLQuery",
+  "own": [
+   {
+    "name": "table",
+    "kind": "property",
+    "type": "Table",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "applyConstraints",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "isTempTable",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "comment",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "SQLQuery"
+   }
+  ]
+ },
+ "meta::relational::metamodel::LoadTableSQL": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/metamodel/metamodel.pure",
+  "line": 128,
+  "extends": "SQLQuery",
+  "own": [
+   {
+    "name": "table",
+    "kind": "property",
+    "type": "Table",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "columnsToLoad",
+    "kind": "property",
+    "type": "Column",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "parsedData",
+    "kind": "property",
+    "type": "List<List<String>>",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "absolutePathToFile",
+    "kind": "property",
+    "type": "meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "comment",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "SQLQuery"
+   }
+  ]
+ },
+ "meta::relational::metamodel::datatype::Timestamp": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 459,
+  "extends": "meta::relational::metamodel::datatype::CoreDataType",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::datatype::Float": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 424,
+  "extends": "meta::relational::metamodel::datatype::CoreDataType",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::datatype::Date": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 463,
+  "extends": "meta::relational::metamodel::datatype::CoreDataType",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::functions::pureToSqlQuery::metamodel::VarSetPlaceHolder": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/metamodel.pure",
+  "line": 14,
+  "extends": "TdsSelectSqlQuery",
+  "own": [
+   {
+    "name": "varName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "distinct",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "data",
+    "kind": "property",
+    "type": "RootJoinTreeNode",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "filteringOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "groupBy",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "pivot",
+    "kind": "property",
+    "type": "Pivot",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "havingOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "qualifyOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "orderBy",
+    "kind": "property",
+    "type": "OrderBy",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "fromRow",
+    "kind": "property",
+    "type": "meta::relational::metamodel::Literal",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "toRow",
+    "kind": "property",
+    "type": "meta::relational::metamodel::Literal",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "leftSideOfFilter",
+    "kind": "property",
+    "type": "RelationalTreeNode",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "savedFilteringOperation",
+    "kind": "property",
+    "type": "Pair<RelationalTreeNode, RelationalOperationElement>",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "extraFilteringOperation",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "preIsolationCurrentTreeNode",
+    "kind": "property",
+    "type": "RelationalTreeNode",
+    "mult": "0..1",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "commonTableExpressions",
+    "kind": "property",
+    "type": "CommonTableExpression",
+    "mult": "*",
+    "params": "",
+    "from": "SelectSQLQuery"
+   },
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   },
+   {
+    "name": "comment",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "SQLQuery"
+   },
+   {
+    "name": "paths",
+    "kind": "property",
+    "type": "Pair<String, PathInformation>",
+    "mult": "*",
+    "params": "",
+    "from": "RelationalTds"
+   }
+  ]
+ },
+ "meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/metamodel.pure",
+  "line": 19,
+  "extends": "Table",
+  "own": [
+   {
+    "name": "varName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "crossSetImplementation",
+    "kind": "property",
+    "type": "CrossSetImplementation",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "Table"
+   },
+   {
+    "name": "lineageTag",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "Table"
+   },
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "Column",
+    "mult": "*",
+    "params": "",
+    "from": "Table"
+   },
+   {
+    "name": "partition",
+    "kind": "property",
+    "type": "Partition",
+    "mult": "1",
+    "params": "",
+    "from": "Table"
+   }
+  ]
+ },
+ "meta::pure::router::clustering::CrossSetImplementation": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/cluster.pure",
+  "line": 43,
+  "extends": "InstanceSetImplementation",
+  "own": [
+   {
+    "name": "targetStore",
+    "kind": "property",
+    "type": "Store",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "varName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "mappingClass",
+    "kind": "property",
+    "type": "MappingClass<Any>",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "aggregateSpecification",
+    "kind": "property",
+    "type": "AggregateSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "root",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<Any>",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "superSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "parent",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "stores",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   },
+   {
+    "name": "propertyMappings",
+    "kind": "property",
+    "type": "PropertyMapping",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   }
+  ]
+ },
+ "meta::relational::metamodel::SQLNull": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 524,
+  "extends": "",
+  "own": [],
+  "inherited": []
+ },
+ "meta::relational::metamodel::TableAliasColumnName": {
+  "file": "legend-engine:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/metamodel.pure",
+  "line": 67,
+  "extends": "meta::relational::metamodel::RelationalOperationElement",
+  "own": [
+   {
+    "name": "alias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "columnName",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::relation::CommonTableExpressionReference": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 265,
+  "extends": "meta::relational::metamodel::relation::Relation",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   }
+  ]
+ },
+ "meta::relational::metamodel::ColumnName": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 358,
+  "extends": "meta::relational::metamodel::RelationalOperationElement",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::router::metamodel::clustering::ClusteredValueSpecification": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/metamodel/clustering.pure",
+  "line": 16,
+  "extends": "ValueSpecification",
+  "own": [
+   {
+    "name": "executable",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "exeCtx",
+    "kind": "property",
+    "type": "meta::pure::runtime::ExecutionContext",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "val",
+    "kind": "property",
+    "type": "ValueSpecification",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "ValueSpecification"
+   },
+   {
+    "name": "sourceInformation",
+    "kind": "property",
+    "type": "SourceInformation",
+    "mult": "0..1",
+    "params": "",
+    "from": "ValueSpecification"
+   }
+  ]
+ },
+ "meta::pure::router::store::metamodel::StoreMappingRoutedValueSpecification": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/metamodel.pure",
+  "line": 31,
+  "extends": "StoreRoutedValueSpecification",
+  "own": [
+   {
+    "name": "mapping",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "processedChainSets",
+    "kind": "property",
+    "type": "SetImplementation",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "sets",
+    "kind": "property",
+    "type": "SetImplementation",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "propertyMapping",
+    "kind": "property",
+    "type": "PropertyMapping",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "store",
+    "kind": "property",
+    "type": "Store",
+    "mult": "0..1",
+    "params": "",
+    "from": "StoreRoutedValueSpecification"
+   },
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "ExtendedRoutedValueSpecification"
+   },
+   {
+    "name": "executionContext",
+    "kind": "property",
+    "type": "meta::pure::runtime::ExecutionContext",
+    "mult": "1",
+    "params": "",
+    "from": "ExtendedRoutedValueSpecification"
+   },
+   {
+    "name": "routingStrategy",
+    "kind": "property",
+    "type": "RoutingStrategy",
+    "mult": "1",
+    "params": "",
+    "from": "ExtendedRoutedValueSpecification"
+   },
+   {
+    "name": "value",
+    "kind": "property",
+    "type": "ValueSpecification",
+    "mult": "1",
+    "params": "",
+    "from": "RoutedValueSpecification"
+   },
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "ValueSpecification"
+   },
+   {
+    "name": "sourceInformation",
+    "kind": "property",
+    "type": "SourceInformation",
+    "mult": "0..1",
+    "params": "",
+    "from": "ValueSpecification"
+   }
+  ]
+ },
+ "meta::relational::metamodel::join::RootJoinTreeNode": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 144,
+  "extends": "RelationalTreeNode, Relation",
+  "own": [],
+  "inherited": [
+   {
+    "name": "alias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": "",
+    "from": "RelationalTreeNode"
+   },
+   {
+    "name": "childrenData",
+    "kind": "property",
+    "type": "TreeNode",
+    "mult": "*",
+    "params": "",
+    "from": "TreeNode"
+   },
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   }
+  ]
+ },
+ "meta::relational::metamodel::join::RelationalTreeNode": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 139,
+  "extends": "TreeNode",
+  "own": [
+   {
+    "name": "alias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "childrenData",
+    "kind": "property",
+    "type": "TreeNode",
+    "mult": "*",
+    "params": "",
+    "from": "TreeNode"
+   }
+  ]
+ },
+ "meta::relational::metamodel::relation::View": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 114,
+  "extends": "NamedRelation, RelationalMappingSpecification, AnnotatedElement",
+  "own": [
+   {
+    "name": "schema",
+    "kind": "property",
+    "type": "Schema",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "primaryKey",
+    "kind": "property",
+    "type": "Column",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "columnMappings",
+    "kind": "property",
+    "type": "ColumnMapping",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "NamedRelation"
+   },
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   },
+   {
+    "name": "userDefinedPrimaryKey",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "filter",
+    "kind": "property",
+    "type": "FilterMapping",
+    "mult": "0..1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "distinct",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "groupBy",
+    "kind": "property",
+    "type": "GroupByMapping",
+    "mult": "0..1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "mainTableAlias",
+    "kind": "property",
+    "type": "TableAlias",
+    "mult": "1",
+    "params": "",
+    "from": "RelationalMappingSpecification"
+   },
+   {
+    "name": "annotations",
+    "kind": "property",
+    "type": "meta::external::language::java::metamodel::Annotation",
+    "mult": "*",
+    "params": "",
+    "from": "AnnotatedElement"
+   },
+   {
+    "name": "javaDoc",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "AnnotatedElement"
+   }
+  ]
+ },
+ "meta::relational::metamodel::relation::NamedRelation": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 50,
+  "extends": "meta::relational::metamodel::relation::Relation",
+  "own": [
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "Relation"
+   },
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   }
+  ]
+ },
+ "meta::core::runtime::EngineRuntime": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/runtime/runtimeExtension.pure",
+  "line": 20,
+  "extends": "Runtime",
+  "own": [
+   {
+    "name": "mappings",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "preprocessFunction",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "Runtime"
+   },
+   {
+    "name": "connectionStores",
+    "kind": "property",
+    "type": "ConnectionStore",
+    "mult": "*",
+    "params": "",
+    "from": "Runtime"
+   }
+  ]
+ },
+ "meta::external::store::model::JsonModelConnection": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure",
+  "line": 58,
+  "extends": "PureModelConnection",
+  "own": [
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<Any>",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "url",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::executionPlan::ExecutionPlan": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan.pure",
+  "line": 61,
+  "extends": "",
+  "own": [
+   {
+    "name": "func",
+    "kind": "property",
+    "type": "FunctionDefinition<Any>",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "mapping",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "runtime",
+    "kind": "property",
+    "type": "Runtime",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "rootExecutionNode",
+    "kind": "property",
+    "type": "ExecutionNode",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "processingTemplateFunctions",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "authDependent",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "kerberos",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "globalImplementationSupport",
+    "kind": "property",
+    "type": "PlatformImplementation",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::executionPlan::FunctionParametersValidationNode": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan.pure",
+  "line": 178,
+  "extends": "meta::pure::executionPlan::ExecutionNode",
+  "own": [
+   {
+    "name": "functionParameters",
+    "kind": "property",
+    "type": "FunctionParameter",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "parameterValidationContext",
+    "kind": "property",
+    "type": "ParameterValidationContext",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "fromCluster",
+    "kind": "property",
+    "type": "ClusteredValueSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "resultType",
+    "kind": "property",
+    "type": "ResultType",
+    "mult": "1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "resultSizeRange",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "executionNodes",
+    "kind": "property",
+    "type": "ExecutionNode",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "authDependent",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "kerberos",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "supportFunctions",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "requiredVariableInputs",
+    "kind": "property",
+    "type": "VariableInput",
+    "mult": "*",
+    "params": "",
+    "from": "ExecutionNode"
+   },
+   {
+    "name": "implementation",
+    "kind": "property",
+    "type": "PlatformImplementation",
+    "mult": "0..1",
+    "params": "",
+    "from": "ExecutionNode"
+   }
+  ]
+ },
+ "meta::pure::router::routing::RoutingState": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/routing/router_routing.pure",
+  "line": 35,
+  "extends": "",
+  "own": [
+   {
+    "name": "counter",
+    "kind": "property",
+    "type": "Integer",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "depth",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "lambdaContext",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "pathPrefix",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "propertyMap",
+    "kind": "property",
+    "type": "PropertyMap",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "routed",
+    "kind": "property",
+    "type": "ExtendedRoutedValueSpecification",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "routingStrategy",
+    "kind": "property",
+    "type": "RoutingStrategy",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "shouldBeRouted",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "value",
+    "kind": "property",
+    "type": "Any",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "executionContext",
+    "kind": "property",
+    "type": "meta::pure::runtime::ExecutionContext[1] = ^meta::pure::runtime::ExecutionContext()",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "graphFetchFlow",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "functionExpressionStack",
+    "kind": "property",
+    "type": "FunctionExpression",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::protocols::pure::vX_X_X::metamodel::PureModelContextData": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/executionPlan.pure",
+  "line": 322,
+  "extends": "meta::protocols::pure::vX_X_X::metamodel::PureModelContext",
+  "own": [
+   {
+    "name": "origin",
+    "kind": "property",
+    "type": "meta::protocols::pure::vX_X_X::metamodel::PureModelContextPointer",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "elements",
+    "kind": "property",
+    "type": "meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElement",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PureModelContext"
+   },
+   {
+    "name": "serializer",
+    "kind": "property",
+    "type": "Protocol",
+    "mult": "1",
+    "params": "",
+    "from": "PureModelContext"
+   }
+  ]
+ },
+ "meta::protocols::pure::vX_X_X::metamodel::m3::type::Class": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/core/m3.pure",
+  "line": 83,
+  "extends": "meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElement, meta::protocols::pure::vX_X_X::metamodel::m3::extensio",
+  "own": [
+   {
+    "name": "superTypes",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "constraints",
+    "kind": "property",
+    "type": "meta::protocols::pure::vX_X_X::metamodel::m3::constraint::Constraint",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "properties",
+    "kind": "property",
+    "type": "meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "qualifiedProperties",
+    "kind": "property",
+    "type": "meta::protocols::pure::vX_X_X::metamodel::m3::function::property::QualifiedProperty",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "originalMilestonedProperties",
+    "kind": "property",
+    "type": "meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "_type",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "name",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "package",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   },
+   {
+    "name": "sourceInformation",
+    "kind": "property",
+    "type": "SourceInformation",
+    "mult": "0..1",
+    "params": "",
+    "from": "PackageableElement"
+   }
+  ]
+ },
+ "meta::pure::mapping::SetImplementation": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure",
+  "line": 61,
+  "extends": "PropertyOwnerImplementation",
+  "own": [
+   {
+    "name": "root",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<Any>",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "superSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "parent",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   }
+  ]
+ },
+ "meta::pure::mapping::PropertyMapping": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure",
+  "line": 119,
+  "extends": "",
+  "own": [
+   {
+    "name": "owner",
+    "kind": "property",
+    "type": "PropertyMappingsImplementation",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "targetSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "sourceSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "property",
+    "kind": "property",
+    "type": "Property<Nil,Any|*>",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "localMappingProperty",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "localMappingPropertyType",
+    "kind": "property",
+    "type": "Type",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "localMappingPropertyMultiplicity",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "store",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::pure::executionPlan::ExecutionNode": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan.pure",
+  "line": 74,
+  "extends": "",
+  "own": [
+   {
+    "name": "fromCluster",
+    "kind": "property",
+    "type": "ClusteredValueSpecification",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "resultType",
+    "kind": "property",
+    "type": "ResultType",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "resultSizeRange",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "executionNodes",
+    "kind": "property",
+    "type": "ExecutionNode",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "authDependent",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "kerberos",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "supportFunctions",
+    "kind": "property",
+    "type": "String",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "requiredVariableInputs",
+    "kind": "property",
+    "type": "VariableInput",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "implementation",
+    "kind": "property",
+    "type": "PlatformImplementation",
+    "mult": "0..1",
+    "params": ""
+   }
+  ],
+  "inherited": []
+ },
+ "meta::relational::metamodel::relation::Relation": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relational.pure",
+  "line": 45,
+  "extends": "meta::relational::metamodel::RelationalOperationElement, meta::pure::store::set::SetRelation",
+  "own": [
+   {
+    "name": "columns",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "setColumns",
+    "kind": "property",
+    "type": "SetColumn",
+    "mult": "*",
+    "params": "",
+    "from": "SetRelation"
+   }
+  ]
+ },
+ "meta::pure::router::store::metamodel::StoreMappingRoutingStrategy": {
+  "file": "legend-engine:legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/metamodel.pure",
+  "line": 51,
+  "extends": "StoreRoutingStrategy",
+  "own": [
+   {
+    "name": "mapping",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "sets",
+    "kind": "property",
+    "type": "PermutationSet",
+    "mult": "*",
+    "params": ""
+   },
+   {
+    "name": "setsByDepth",
+    "kind": "property",
+    "type": "Map<String,PermutationSet>",
+    "mult": "1",
+    "params": ""
+   },
+   {
+    "name": "toChooseSet",
+    "kind": "property",
+    "type": "SetImplementation",
+    "mult": "0..1",
+    "params": ""
+   },
+   {
+    "name": "classMappingsByClass",
+    "kind": "property",
+    "type": "Map<Class<Any>,List<SetImplementation>>",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "store",
+    "kind": "property",
+    "type": "Store",
+    "mult": "0..1",
+    "params": "",
+    "from": "StoreRoutingStrategy"
+   },
+   {
+    "name": "runtime",
+    "kind": "property",
+    "type": "Runtime",
+    "mult": "1",
+    "params": "",
+    "from": "StoreRoutingStrategy"
+   },
+   {
+    "name": "processRelationStoreAccessor",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "RoutingStrategy"
+   },
+   {
+    "name": "toString",
+    "kind": "property",
+    "type": "Function<",
+    "mult": "",
+    "params": "",
+    "from": "RoutingStrategy"
+   }
+  ]
+ },
+ "meta::relational::mapping::EmbeddedRelationalInstanceSetImplementation": {
+  "file": "legend-pure:legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/grammar/relationalMapping.pure",
+  "line": 50,
+  "extends": "EmbeddedSetImplementation, RelationalInstanceSetImplementation",
+  "own": [
+   {
+    "name": "setMappingOwner",
+    "kind": "property",
+    "type": "RootRelationalInstanceSetImplementation",
+    "mult": "1",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "mappingClass",
+    "kind": "property",
+    "type": "MappingClass<Any>",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "aggregateSpecification",
+    "kind": "property",
+    "type": "AggregateSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "root",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<Any>",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "superSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "parent",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "stores",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   },
+   {
+    "name": "propertyMappings",
+    "kind": "property",
+    "type": "PropertyMapping",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   },
+   {
+    "name": "owner",
+    "kind": "property",
+    "type": "PropertyMappingsImplementation",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "targetSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "sourceSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "property",
+    "kind": "property",
+    "type": "Property<Nil,Any|*>",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "localMappingProperty",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "localMappingPropertyType",
+    "kind": "property",
+    "type": "Type",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "localMappingPropertyMultiplicity",
+    "kind": "property",
+    "type": "Multiplicity",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "store",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyMapping"
+   },
+   {
+    "name": "primaryKey",
+    "kind": "property",
+    "type": "RelationalOperationElement",
+    "mult": "*",
+    "params": "",
+    "from": "RelationalInstanceSetImplementation"
+   }
+  ]
+ },
+ "meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation": {
+  "file": "legend-pure:legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure",
+  "line": 236,
+  "extends": "InstanceSetImplementation",
+  "own": [
+   {
+    "name": "relationFunction",
+    "kind": "property",
+    "type": "FunctionDefinition<",
+    "mult": "",
+    "params": ""
+   },
+   {
+    "name": "primaryKey",
+    "kind": "property",
+    "type": "meta::pure::metamodel::relation::Column<Nil,Any|*>",
+    "mult": "*",
+    "params": ""
+   }
+  ],
+  "inherited": [
+   {
+    "name": "mappingClass",
+    "kind": "property",
+    "type": "MappingClass<Any>",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "aggregateSpecification",
+    "kind": "property",
+    "type": "AggregateSpecification",
+    "mult": "0..1",
+    "params": "",
+    "from": "InstanceSetImplementation"
+   },
+   {
+    "name": "root",
+    "kind": "property",
+    "type": "Boolean",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "class",
+    "kind": "property",
+    "type": "Class<Any>",
+    "mult": "1",
+    "params": "",
+    "from": "SetImplementation"
+   },
+   {
+    "name": "id",
+    "kind": "property",
+    "type": "String",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "superSetImplementationId",
+    "kind": "property",
+    "type": "String",
+    "mult": "0..1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "parent",
+    "kind": "property",
+    "type": "Mapping",
+    "mult": "1",
+    "params": "",
+    "from": "PropertyOwnerImplementation"
+   },
+   {
+    "name": "stores",
+    "kind": "property",
+    "type": "meta::pure::store::Store",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   },
+   {
+    "name": "propertyMappings",
+    "kind": "property",
+    "type": "PropertyMapping",
+    "mult": "*",
+    "params": "",
+    "from": "PropertyMappingsImplementation"
+   }
+  ]
+ }
+}

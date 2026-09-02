@@ -1,0 +1,474 @@
+{
+ "meta::relational::extension::relationalExtensions": {
+  "kind": "pure",
+  "lines": 4,
+  "closure_fns": 683,
+  "closure_lines": 21192,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/extensions/extension.pure"
+ },
+ "meta::pure::lineage::scanRelations::scanRelations": {
+  "kind": "pure",
+  "lines": 1600,
+  "closure_fns": 735,
+  "closure_lines": 22290,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelations.pure"
+ },
+ "meta::relational::metamodel::Literal": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::runtime::ExecutionContext": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::metamodel::datatype::dataTypeToSqlText": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::functions::typeInference::inferRelationalType": {
+  "kind": "pure",
+  "lines": 260,
+  "closure_fns": 8,
+  "closure_lines": 385,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/relationalExtension.pure"
+ },
+ "meta::legend::executeLegendQuery": {
+  "kind": "pure",
+  "lines": 20,
+  "closure_fns": 1,
+  "closure_lines": 20,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/legend/tools/devUtils.pure"
+ },
+ "meta::legend::compileLegendValueSpecification": {
+  "kind": "pure",
+  "lines": 6,
+  "closure_fns": 1,
+  "closure_lines": 6,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/legend/tools/devUtils.pure"
+ },
+ "meta::pure::mapping::from": {
+  "kind": "pure",
+  "lines": 64,
+  "closure_fns": 1,
+  "closure_lines": 64,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/mappingExtension.pure"
+ },
+ "meta::relational::metamodel::DynaFunction": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::external::store::relational::runtime::TestDatabaseConnection": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::core::runtime::Runtime": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::executionPlan::toString::planToString": {
+  "kind": "pure",
+  "lines": 16,
+  "closure_fns": 33,
+  "closure_lines": 916,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan_print.pure"
+ },
+ "meta::core::runtime::ConnectionStore": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::metamodel::execute::executeInDb": {
+  "kind": "pure",
+  "lines": 30,
+  "closure_fns": 1,
+  "closure_lines": 30,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/relationalExtension.pure"
+ },
+ "meta::relational::functions::sqlQueryToString::sqlQueryToString": {
+  "kind": "pure",
+  "lines": 100,
+  "closure_fns": 264,
+  "closure_lines": 8324,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbExtension.pure"
+ },
+ "meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::graphFetch::execution::AlloySerializationConfig": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::legend::compileLegendGrammar": {
+  "kind": "pure",
+  "lines": 6,
+  "closure_fns": 1,
+  "closure_lines": 6,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/legend/tools/devUtils.pure"
+ },
+ "meta::protocols::pure::vX_X_X::transformation::fromPureGraph::domain::transformAssociation": {
+  "kind": "pure",
+  "lines": 18,
+  "closure_fns": 61,
+  "closure_lines": 2930,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/transfers/metamodel.pure"
+ },
+ "meta::pure::graphFetch::execution::graphFetch": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::executionPlan::executionPlan": {
+  "kind": "pure",
+  "lines": 1034,
+  "closure_fns": 42,
+  "closure_lines": 1973,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan_generation.pure"
+ },
+ "meta::relational::testDataGeneration::executionPlan::planTestDataGeneration": {
+  "kind": "pure",
+  "lines": 388,
+  "closure_fns": 773,
+  "closure_lines": 23449,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/testDataGeneration.pure"
+ },
+ "meta::relational::functions::toDDL::dropAndCreateTableInDb": {
+  "kind": "pure",
+  "lines": 396,
+  "closure_fns": 2,
+  "closure_lines": 397,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/helperFunctions/toDDL.pure"
+ },
+ "meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::router::preeval::preval": {
+  "kind": "pure",
+  "lines": 276,
+  "closure_fns": 82,
+  "closure_lines": 3854,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/preeval/preeval.pure"
+ },
+ "meta::external::store::model::ModelStore": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::testDataGeneration::createRowIdentifier": {
+  "kind": "pure",
+  "lines": 5,
+  "closure_fns": 1,
+  "closure_lines": 5,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/testDataGeneration.pure"
+ },
+ "meta::relational::functions::sqlQueryToString::ddlSqlQueryToString": {
+  "kind": "pure",
+  "lines": 6,
+  "closure_fns": 1,
+  "closure_lines": 6,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbExtension.pure"
+ },
+ "meta::relational::metamodel::datatype::Integer": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::functions::sqlstring::toSQL": {
+  "kind": "pure",
+  "lines": 9,
+  "closure_fns": 1,
+  "closure_lines": 9,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/toSQLString.pure"
+ },
+ "meta::pure::tds::filter": {
+  "kind": "pure",
+  "lines": 3,
+  "closure_fns": 1,
+  "closure_lines": 3,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/tds/tds.pure"
+ },
+ "meta::pure::router::execute": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::milestoning::concatenateTemporalTdsQueries": {
+  "kind": "pure",
+  "lines": 1,
+  "closure_fns": 1,
+  "closure_lines": 1,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/milestoning.pure"
+ },
+ "meta::external::store::model::ModelChainConnection": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::json::parseJSON": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::metamodel::datatype::Varchar": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::testDataGeneration::createTableRowIdentifiers": {
+  "kind": "pure",
+  "lines": 28,
+  "closure_fns": 4,
+  "closure_lines": 40,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/testDataGeneration.pure"
+ },
+ "meta::alloy::test::mayExecuteAlloyTest": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::pure::router::printer::asString": {
+  "kind": "pure",
+  "lines": 420,
+  "closure_fns": 16,
+  "closure_lines": 695,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/printer/printer.pure"
+ },
+ "meta::relational::metamodel::datatype::DataType": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::functions::pureToSqlQuery::toSQLQuery": {
+  "kind": "pure",
+  "lines": 30,
+  "closure_fns": 653,
+  "closure_lines": 17673,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure"
+ },
+ "meta::pure::executionPlan::platformBinding::localBinding::extractClasspathExtensions": {
+  "kind": "pure",
+  "lines": 10,
+  "closure_fns": 1,
+  "closure_lines": 10,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/platformBinding/platformBinding.pure"
+ },
+ "meta::relational::runtime::RelationalExecutionContext": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::functions::sqlstring::toSQLString": {
+  "kind": "pure",
+  "lines": 36,
+  "closure_fns": 1,
+  "closure_lines": 36,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/toSQLString.pure"
+ },
+ "meta::relational::mapping::inferPrimaryKeyColumnNames": {
+  "kind": "pure",
+  "lines": 6,
+  "closure_fns": 10,
+  "closure_lines": 286,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/helperFunctions/helperFunctions.pure"
+ },
+ "meta::pure::mapping::allSuperSetImplementations": {
+  "kind": "pure",
+  "lines": 11,
+  "closure_fns": 1,
+  "closure_lines": 11,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/mappingExtension.pure"
+ },
+ "meta::relational::metamodel::LiteralList": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::metamodel::execute::executeInDbToTDS": {
+  "kind": "pure",
+  "lines": 1,
+  "closure_fns": 1,
+  "closure_lines": 1,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/relationalExtension.pure"
+ },
+ "meta::relational::metamodel::datatype::Float": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::metamodel::datatype::Timestamp": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::metamodel::datatype::Date": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::external::store::relational::runtime::DatabaseConnection": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::external::query::sql::metamodel::Table": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::relational::postProcessor::postprocess": {
+  "kind": "pure",
+  "lines": 1,
+  "closure_fns": 1,
+  "closure_lines": 1,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/postProcessor.pure"
+ },
+ "meta::relational::postProcessor::reAliasColumnName::trimColumnName": {
+  "kind": "pure",
+  "lines": 42,
+  "closure_fns": 32,
+  "closure_lines": 2064,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/defaultPostProcessor/trimColumnNamePostProcessor.pure"
+ },
+ "meta::external::store::relational::runtime::RelationalDatabaseConnection": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::json::getValue": {
+  "kind": "pure",
+  "lines": 5,
+  "closure_fns": 1,
+  "closure_lines": 5,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/external/format/json/jsonExtension.pure"
+ },
+ "meta::pure::graphFetch::execution::serialize": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap": {
+  "kind": "pure",
+  "lines": 10,
+  "closure_fns": 36,
+  "closure_lines": 1610,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/legend/objectReference/objectReference.pure"
+ },
+ "meta::relational::contract::relationalStoreContract": {
+  "kind": "pure",
+  "lines": 149,
+  "closure_fns": 68,
+  "closure_lines": 1780,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/contract/storeContract.pure"
+ },
+ "meta::pure::router::routing::routeFunctionExpressionFunctionDefinition": {
+  "kind": "pure",
+  "lines": 242,
+  "closure_fns": 123,
+  "closure_lines": 5598,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/routing/router_routing.pure"
+ },
+ "meta::pure::executionPlan::execute": {
+  "kind": "pure",
+  "lines": 6,
+  "closure_fns": 3,
+  "closure_lines": 28,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan_execution.pure"
+ },
+ "meta::json::tdsToJSONKeyValueObjectString": {
+  "kind": "pure",
+  "lines": 4,
+  "closure_fns": 5,
+  "closure_lines": 31,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/external/format/json/toJSON.pure"
+ },
+ "meta::protocols::Protocol": {
+  "kind": "class-or-native-ctor",
+  "lines": 0,
+  "closure_fns": 0,
+  "closure_lines": 0
+ },
+ "meta::protocols::pure::vX_X_X::transformation::fromPureGraph::mapping::transformMapping": {
+  "kind": "pure",
+  "lines": 18,
+  "closure_fns": 79,
+  "closure_lines": 3370,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/transfers/mapping.pure"
+ },
+ "meta::alloy::metadataServer::alloyToJSON": {
+  "kind": "pure",
+  "lines": 5,
+  "closure_fns": 6,
+  "closure_lines": 376,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/protocol.pure"
+ },
+ "meta::relational::transform::autogen::classesAssociationsAndMappingFromDatabase": {
+  "kind": "pure",
+  "lines": 6,
+  "closure_fns": 35,
+  "closure_lines": 700,
+  "file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/autogeneration/relationalToPure.pure"
+ },
+ "meta::protocols::pure::vX_X_X::transformation::fromPureGraph::domain::transformClass": {
+  "kind": "pure",
+  "lines": 48,
+  "closure_fns": 63,
+  "closure_lines": 3002,
+  "file": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/transfers/metamodel.pure"
+ }
+}

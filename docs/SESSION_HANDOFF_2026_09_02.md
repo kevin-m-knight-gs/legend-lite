@@ -312,3 +312,76 @@ conviction, not menus.
 - **Memory files** (`~/.claude/projects/-Users-neema-legend/memory/`)
   `harness-deletion-program`, `sqltext-row-verdict-charter`, `MEMORY.md`
   reflect HEAD; `metamodel-in-database-ruling` is the standing ruling.
+
+## 5. FIRST STEPS FOR THE METAMODEL SESSION — exact entry points (added 2026-09-02, after the homework)
+
+Read first: `docs/METAMODEL_AS_RELATIONS_HOMEWORK_2026_09_02.md` (§7 decisions,
+§8 open questions, §9 prototype order, §11 worries). The census scripts and
+their outputs are in `tools/metamodel-census/` (`build.py <sweep.log>` then
+`scan2.py`, `scan3.py`, `closure.py`, `props.py`; inputs = an
+`LL_TMP_DEBUG=1` sweep log + `target/wholetest-flipped.txt`).
+
+**Step 1 — census dump (half a session).** `WholeTestFlip.java:60-110` holds
+`BUCKETS` (bucket → count) and `WITNESSES` (bucket → one test). Add a
+`bucket → all test names` map written to `target/wholetest-flip-buckets.txt`
+at the same shutdown hook. That names the ~88 HN-vocabulary tests the
+homework could only count by bucket. Harness-only; no pin moves.
+
+**Step 2 — run-time branch choice on a row's type column (one session).**
+Today: `MatchChecker.java:18-70` selects a `match` arm STATICALLY by the
+input's compile-time type; when an arm is a strict subtype of the input
+type it keeps all arms in a `TypedMatchRuntime` "for the host channel";
+`lowering/MatchFold.java` folds that node statically and says verbatim
+"a genuinely polymorphic input (class hierarchies) stays a loud wall";
+`CollectionLanes.java:199-200` refuses both node kinds; `instanceOf` folds
+only when statically decided (`Scalars.instanceOfFold`, :2508). Rows from
+inheritance/union mappings already carry a subtype column
+(`ClassMapping.isSubTypeColumn` :62, `UnionSynthesis`, `subType(@X)` reads
+in ClassSources). Build: lower a `TypedMatchRuntime` whose input row has a
+discriminator into `CASE <kind> WHEN … THEN <arm body> …` for VALUE arms,
+with each arm's parameter bound to the narrowed row (the subtype's columns);
+`instanceOf` → `kind = '…'`; `cast(@Sub)` → the narrowed row (a wall if the
+kind does not match at run time is acceptable for v1, documented). Witness:
+a NEW unit test on an ordinary user inheritance mapping (no corpus test in
+tests/mapping/inheritance or extends uses `->match` — grep confirmed), plus
+the metamodel navigations themselves (`mainTable` = match Table/View). Row-
+returning arms (UNION of arms) are step 4's problem, not this one's.
+
+**Step 3 — prototype 1, testMainTableForB1 (one session).** Witness:
+`tests/mapping/extend/testExtendsForMainTable.pure` (`B1Mapping->classMappingById('b1')->cast(@RootRelationalInstanceSetImplementation)->map(x|$x->mainTable())` equals the super mapping's). Pieces:
+- Seed tables, grown from `SystemMetamodel.java` (its `SOURCE` is the Pure
+  text of the store + mapping; `seedStatements` renders DDL+INSERT from the
+  active `ModelContext`; injected at `Compiler.java:232/267`; resolver hook
+  `StoreResolver.java:1244`): add `metamodel.mappings(fqn PK)`,
+  `metamodel.class_mappings(mapping_fqn, id, class_fqn, root, super_set_id,
+  main_db, main_schema, main_table)`, `metamodel.mapping_includes_closure
+  (mapping_fqn, included_fqn)`. Source of the rows: `MappingDefinition
+  .ClassBinding` (:89, Relational carries `RelationalSource.Table`),
+  `classBindingsWithIncludes`, `MappingNormalizer.mainTableDefOf`.
+- Map `meta::pure::mapping::Mapping` and `RootRelationalInstanceSetImplementation`
+  in the system mapping (inheritance mapping with a `kind` column for the
+  set-implementation subtypes; `~primaryKey` = mapping_fqn + id).
+- Natives implemented as queries (spec = the engine bodies cited in the
+  homework §2b): `classMappingById` (closure over includes),
+  `rootClassMappingByClass`, `mainTable` (Table vs View arm). Register in
+  the native catalog (`Pure.java`; the catalog golden line diff is the
+  conscious registration; verify signatures against
+  `legend-pure/…/platform_dsl_mapping/functions_Mapping.pure:61/74` and
+  `platform_store_relational/functions.pure:277`).
+- Verdict: `assertEquals` of two Table rows → row equality in the DB.
+- Pins that move: `CanonicalDivergence.METAMODEL_QUARANTINE` (:513) and
+  the runner's quarantine counts (172 witness rows / 20 wall tests,
+  `RelationalCorpusRunner.java` ~:1219/:1223) shrink; the flip ratchet
+  moves +tests; Java-eval ledger rows for `MetamodelWalk` (1307) /
+  `MetamodelSteps` (196) must NOT grow — the whole point.
+- Acceptance = the verdict lands with zero test-specific Java; then
+  `testMainTableForB2..` and the 5 extends tests follow for free.
+
+**Step 4 — prototype 2, testDynaAndOrInference** (homework §9 item 2), then
+plan-nodes-as-rows, then the tree half — each decided on its own receipt.
+
+Rules unchanged: one gate chain per batch, tree frozen during runs, pins
+move only with their burn and a written justification, paired same-tree
+sweeps byte-identical, save `core/target` rosters before a chain (G8
+cleans), GMT test clock, no engine pure source in the platform, every
+native signature verified against the real .pure.

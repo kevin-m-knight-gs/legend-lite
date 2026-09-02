@@ -1,0 +1,3882 @@
+{
+"per_test": {
+"meta::relational::validation::tests::milestoning::testValidateQueryWithUnion": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure",
+"line": 189,
+"types": [
+"meta::relational::runtime::RelationalExecutionContext"
+],
+"chains": []
+},
+"meta::external::store::relational::tests::testRuntime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1208,
+"types": [
+"meta::core::runtime::Runtime"
+],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 184,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::testRuntime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 548,
+"types": [
+"meta::core::runtime::Runtime"
+],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::wtd": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 512,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::ytd": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 507,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::dateFilter": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 291,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::getReportingEndDate": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 533,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::groupBy::datePeriods::getReportingStartDate": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure",
+"line": 538,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::tds::sort::testSimpleSortAscWithPreval": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testSort.pure",
+"line": 33,
+"types": [],
+"chains": [
+".values.rows"
+]
+},
+"meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateWithNestedDerivedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBusinessDateMilestoning.pure",
+"line": 156,
+"types": [],
+"chains": [
+".rows"
+]
+},
+"meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBusinessDateMilestoning.pure",
+"line": 144,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::milestoning::businessdate::testConcatenationOfTemporalTdsQueriesWithGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBusinessDateMilestoning.pure",
+"line": 1134,
+"types": [],
+"chains": [
+".rows"
+]
+},
+"meta::relational::tests::milestoning::businessdate::testConcatenationOfTemporalTdsQueries": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBusinessDateMilestoning.pure",
+"line": 1115,
+"types": [],
+"chains": [
+".rows"
+]
+},
+"meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testConcatenate.pure",
+"line": 102,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::projection::concatenate::tdsQueries::testRuntime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testConcatenate.pure",
+"line": 147,
+"types": [
+"meta::core::runtime::Runtime"
+],
+"chains": []
+},
+"meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithFilterAndGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testConcatenate.pure",
+"line": 120,
+"types": [],
+"chains": [
+".values->at(0).rows"
+]
+},
+"meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testConcatenate.pure",
+"line": 83,
+"types": [],
+"chains": [
+".values->at(0).rows"
+]
+},
+"meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueries": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testConcatenate.pure",
+"line": 65,
+"types": [],
+"chains": [
+".values->at(0).rows"
+]
+},
+"meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableAndQueryChainingOnIntegerColumn": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testIn.pure",
+"line": 319,
+"types": [],
+"chains": [
+".values->cast(@TabularDataSet).rows",
+".values->cast(@TabularDataSet).rows.getString"
+]
+},
+"meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableAndQueryChaining": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testIn.pure",
+"line": 304,
+"types": [],
+"chains": [
+".values->cast(@TabularDataSet).rows",
+".values->cast(@TabularDataSet).rows.getString"
+]
+},
+"meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullWithIn": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFilters.pure",
+"line": 241,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::filter::equal::buildQueryWithIn": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFilters.pure",
+"line": 252,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullPlanSql": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFilters.pure",
+"line": 217,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::filter::equal::expectedSqlForValueThatCanBeNull": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFilters.pure",
+"line": 223,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::filter::equal::buildQuery": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFilters.pure",
+"line": 228,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::fromMapping::testMappingFromQueriesViaMappingWithAssociationsOnly": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFrom.pure",
+"line": 25,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": [
+".values.rows.values"
+]
+},
+"meta::relational::tests::fromMapping::testFromWithMappingAndIntermediateFuncCall": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFrom.pure",
+"line": 86,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": [
+".values.rows.values"
+]
+},
+"meta::relational::tests::fromMapping::testFromWithMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFrom.pure",
+"line": 74,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": [
+".values.rows.values"
+]
+},
+"meta::relational::tests::fromMapping::testClassMappingsWithUnions": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFrom.pure",
+"line": 53,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": [
+".values.rows.values"
+]
+},
+"meta::relational::tests::fromMapping::testClassMappingsAreCorrectlyIsolated": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFrom.pure",
+"line": 36,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": [
+".values.rows.values"
+]
+},
+"meta::pure::executionPlan::m2m2r::tests::planGraphFetchWithNestedDerivedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 167,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::planToString": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 230,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::getM2M2RRuntime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 361,
+"types": [
+"meta::core::runtime::Runtime"
+],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::getRelationalConnectionStore": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 335,
+"types": [
+"meta::core::runtime::ConnectionStore"
+],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::getH2Connection": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 318,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection",
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::getM2M2RConnectionStore": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 343,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::external::store::model::ModelStore"
+],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::getModelChainConnection": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 325,
+"types": [
+"meta::external::store::model::ModelChainConnection"
+],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::planGraphFetchWithDerivedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 37,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testLegacyNullUnsafeEquals.pure",
+"line": 55,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultOptionalParamIsNullSafe": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testLegacyNullUnsafeEquals.pure",
+"line": 66,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithEnumPushDown.pure",
+"line": 41,
+"types": [
+"meta::json::JSONObject"
+],
+"chains": [
+".key.value"
+]
+},
+"meta::relational::tests::platform::operations::testIsNotEmptyForRelational_returnsTrue": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure",
+"line": 7,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::platform::operations::runtime::testRuntimeUS": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testSetup.pure",
+"line": 67,
+"types": [
+"meta::core::runtime::Runtime"
+],
+"chains": []
+},
+"meta::relational::tests::platform::operations::testDatabaseConnectionPerson": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testSetup.pure",
+"line": 72,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::relational::metamodel::Database"
+],
+"chains": []
+},
+"meta::relational::tests::platform::operations::createTablesAndFillDbUS": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testSetup.pure",
+"line": 9,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::platform::operations::testIsNotEmptyForRelational_returnsFalse": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure",
+"line": 25,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::platform::operations::testIsEmptyForRelational_returnsTrue": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure",
+"line": 65,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::platform::operations::testIsEmptyForRelational_returnsFalse": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure",
+"line": 45,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/tests.pure",
+"line": 1340,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSortLimitFilterRename": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 273,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::pkOfFunc": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 25,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSort": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 63,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSlice": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 57,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSelectWithCols": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 81,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSelectThenRenameThenFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 219,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSelectNoArgs": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 93,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughSelectDroppingPK": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 87,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughRenameThenSelectKeepingPK": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 177,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughRenameThenSelectDroppingPK": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 183,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughRenameThenGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 249,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughRename": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 75,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughLimitThenSelectKeepingPK": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 159,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughLimit": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 45,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughJoinThenGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 255,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughJoinThenFilterSort": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 207,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughJoinExtendFilterSelect": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 225,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughGroupByThenSelectDroppingPK": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 231,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughGroupByThenRename": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 201,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughGroupByThenFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 195,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughGroupByExtendFilterSelect": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 267,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughFilterThenRename": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 243,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughFilterThenLimit": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 153,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughFilterSortLimit": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 171,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughFilterExtendDistinct": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 261,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 39,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughExtendThenSelectDroppingPK": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 237,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughExtend": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 69,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughDrop": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 51,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughDoubleRename": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 189,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughDistinctWithCols": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 105,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughDistinctThenFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 213,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughDistinctNoArgs": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 99,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughComposedJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 288,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughComposedGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 294,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKThroughComposedFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 282,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKFromJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 117,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKFromInnerJoinWithExtend": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 165,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKFromGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 111,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKFromBareAccessor": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 33,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKEmptyForPivot": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 137,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKEmptyForNonAccessorLeaf": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 143,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKEmptyForConcatenate": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 131,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::relation::testAutoInferPKEmptyForAggregate": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure",
+"line": 125,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::subType::testSubTypeMappingValidWhenMappedExplicitly": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inheritance/testSubtypeMapping.pure",
+"line": 68,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::include::testStoreSubstitution": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/include/testStoreSubstitution.pure",
+"line": 19,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::extend::primaryKey::testPrimaryKeyForB": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForPrimaryKey.pure",
+"line": 238,
+"types": [
+"meta::relational::mapping::RootRelationalInstanceSetImplementation",
+"meta::relational::metamodel::TableAliasColumn"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::extend::mainTable::testSuperSetIdsAreCollected": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForMainTable.pure",
+"line": 106,
+"types": [
+"meta::pure::mapping::PropertyMappingsImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::extend::mainTable::testMainTableForC2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForMainTable.pure",
+"line": 98,
+"types": [
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::extend::mainTable::testMainTableForC1": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForMainTable.pure",
+"line": 91,
+"types": [
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::extend::mainTable::testMainTableForB2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForMainTable.pure",
+"line": 84,
+"types": [
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::extend::mainTable::testMainTableForB1": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForMainTable.pure",
+"line": 77,
+"types": [
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::enumeration::testEnumMappingsWithInclude": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure",
+"line": 180,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::enumeration::testEnumMappings": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure",
+"line": 166,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::mapping::enumeration::testEnumInRelation": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure",
+"line": 133,
+"types": [
+"meta::pure::metamodel::relation::TDS"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::enumeration::enumTestRuntime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure",
+"line": 89,
+"types": [
+"meta::core::runtime::Runtime"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testViewOnViewInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 303,
+"types": [],
+"chains": [
+".columnName"
+]
+},
+"meta::relational::tests::typeInference::testTranslateDbType": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 143,
+"types": [
+"meta::relational::metamodel::datatype::DataType",
+"meta::relational::metamodel::datatype::Varchar"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testTableAliasColumnInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 154,
+"types": [],
+"chains": [
+".columnName"
+]
+},
+"meta::relational::tests::typeInference::testSumAggregationWithJoinInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 186,
+"types": [],
+"chains": [
+".columnName"
+]
+},
+"meta::relational::tests::typeInference::testSQLNullWithinCaseTypeInference2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 326,
+"types": [
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::Literal"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testSQLNullWithinCaseTypeInference1": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 318,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testSQLNullTypeInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 311,
+"types": [
+"meta::relational::metamodel::DynaFunction"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testRelOpWithJoinInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 162,
+"types": [],
+"chains": [
+".columnName"
+]
+},
+"meta::relational::tests::typeInference::testNotTypeInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 335,
+"types": [
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::Literal",
+"meta::relational::metamodel::LiteralList"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testMaxIntAggregationInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 170,
+"types": [],
+"chains": [
+".columnName"
+]
+},
+"meta::relational::tests::typeInference::testMaxDateAggregationInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 178,
+"types": [],
+"chains": [
+".columnName"
+]
+},
+"meta::relational::tests::typeInference::testMathOperationPlusInference_Double_Integer": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 267,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testMathOperationMinusInference_Double_Integer": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 249,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testJoinStringsTypeInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 344,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation",
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::Literal"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaComplexInference2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 294,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaComplexInference1": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 285,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaCaseWithDecimalInference_Decimal_Numeric": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 236,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaCaseWithDecimalInference_Decimal_Integer": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 210,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaCaseWithDecimalInference_Decimal_Double": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 223,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaCaseInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 202,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::tests::typeInference::testDynaAndOrInference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 194,
+"types": [
+"meta::relational::mapping::RelationalPropertyMapping",
+"meta::relational::mapping::RootRelationalInstanceSetImplementation"
+],
+"chains": []
+},
+"meta::relational::metamodel::execute::tests::testExecuteInDbToTDS": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 132,
+"types": [],
+"chains": [
+".rows->at(0).get"
+]
+},
+"meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSpecSameAuthDiff": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 113,
+"types": [
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification"
+],
+"chains": []
+},
+"meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 28,
+"types": [
+"meta::core::runtime::Connection",
+"meta::external::store::relational::runtime::RelationalDatabaseConnection"
+],
+"chains": [
+".connectionEquality"
+]
+},
+"meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSameSpecDiff": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 94,
+"types": [
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification"
+],
+"chains": []
+},
+"meta::relational::metamodel::execute::tests::testConnectionEqualityTypeDiff": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 74,
+"types": [
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification",
+"meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification"
+],
+"chains": []
+},
+"meta::relational::metamodel::execute::tests::testConnectionEqualityAllSameStatic": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 38,
+"types": [
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification"
+],
+"chains": []
+},
+"meta::relational::metamodel::execute::tests::testConnectionEqualityAllButOnePropertySame": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/testRelationalExtension.pure",
+"line": 56,
+"types": [
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification"
+],
+"chains": []
+},
+"meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure",
+"line": 2414,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": [
+"->cast(@String)->toOne()"
+]
+},
+"meta::relational::tests::createTablesAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1367,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::createtestClassTableAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1334,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::createtestTableAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1324,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::createTradeTableAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1291,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::createProductSchemaTablesAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1344,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::createFirmTableAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1280,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::createPersonTableAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure",
+"line": 1260,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::testDataGeneration::tests::alloy::testErrorDueToNoSeedForRoot": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure",
+"line": 2338,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::mapping::inheritance::createTablesAndFillDb": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inheritance/testInheritanceRelational.pure",
+"line": 180,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure",
+"line": 1816,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": [
+"->cast(@String)->toOne()"
+]
+},
+"meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumnsForViews": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure",
+"line": 3113,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::tds::window::routing::testExecutionPlanGeneration": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testCanRouteWrappedFunctions.pure",
+"line": 28,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::tds::window::routing::function3": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testCanRouteWrappedFunctions.pure",
+"line": 68,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::tds::window::routing::function2": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testCanRouteWrappedFunctions.pure",
+"line": 63,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::tds::window::routing::function1": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testCanRouteWrappedFunctions.pure",
+"line": 54,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::tds::sort::testSortQuotes": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testSort.pure",
+"line": 173,
+"types": [],
+"chains": []
+},
+"meta::relational::functions::sqlQueryToString::tests::testTempTableSqlStatementsForH2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure",
+"line": 115,
+"types": [],
+"chains": []
+},
+"meta::relational::functions::sqlQueryToString::tests::compareSqls": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure",
+"line": 104,
+"types": [],
+"chains": []
+},
+"meta::relational::functions::sqlQueryToString::tests::getTempTableSqlStatements": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure",
+"line": 91,
+"types": [
+"meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder",
+"meta::relational::metamodel::Column",
+"meta::relational::metamodel::CreateTableSQL",
+"meta::relational::metamodel::DropTableSQL",
+"meta::relational::metamodel::LoadTableSQL"
+],
+"chains": [
+".columns->cast(@Column)"
+]
+},
+"meta::relational::functions::sqlQueryToString::tests::createTable": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure",
+"line": 23,
+"types": [
+"meta::external::store::relational::runtime::DatabaseConnection",
+"meta::relational::metamodel::Column",
+"meta::relational::metamodel::Database",
+"meta::relational::metamodel::Schema",
+"meta::relational::metamodel::datatype::Date",
+"meta::relational::metamodel::datatype::Float",
+"meta::relational::metamodel::datatype::Integer",
+"meta::relational::metamodel::datatype::Timestamp",
+"meta::relational::metamodel::datatype::Varchar",
+"meta::relational::metamodel::relation::Table"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertVarSetPlaceHolder": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 151,
+"types": [
+"meta::relational::functions::pureToSqlQuery::metamodel::VarSetPlaceHolder"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::assertConversion": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 118,
+"types": [
+"meta::relational::metamodel::RelationalOperationElement"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertVarPlaceHolder": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 146,
+"types": [
+"meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertVarCrossSetPlaceHolder": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 156,
+"types": [
+"meta::pure::router::clustering::CrossSetImplementation",
+"meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertLiteralList": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 338,
+"types": [
+"meta::relational::metamodel::Literal",
+"meta::relational::metamodel::LiteralList"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertLiteral": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 326,
+"types": [
+"meta::relational::metamodel::Literal",
+"meta::relational::metamodel::SQLNull"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertDynaFnToPredicate": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 279,
+"types": [
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::Literal",
+"meta::relational::metamodel::LiteralList"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::getColumn": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 113,
+"types": [
+"meta::relational::metamodel::TableAlias",
+"meta::relational::metamodel::TableAliasColumnName"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::getTable": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 108,
+"types": [
+"meta::relational::metamodel::relation::Table"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertDynaFnToLogicalExpression": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 201,
+"types": [
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::Literal"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertDynaFnToFunctionCall": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 224,
+"types": [
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::Literal"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertCommonTableExpressionReference": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 345,
+"types": [
+"meta::relational::metamodel::relation::CommonTableExpressionReference"
+],
+"chains": []
+},
+"meta::relational::functions::toPostgresModel::tests::testConvertColumnName": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlDialectTranslation/tests.pure",
+"line": 141,
+"types": [
+"meta::relational::metamodel::ColumnName"
+],
+"chains": []
+},
+"meta::relational::tests::query::routing::testRoutingOfSimpleQualifiedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure",
+"line": 187,
+"types": [
+"meta::pure::router::metamodel::clustering::ClusteredValueSpecification",
+"meta::pure::router::store::metamodel::StoreMappingRoutedValueSpecification",
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": [
+"->cast(@StoreMappingRoutedValueSpecification).sets.class.name",
+"->cast(@StoreMappingRoutedValueSpecification).value",
+".expressionSequence->cast(@FunctionExpression)",
+".expressionSequence->cast(@FunctionExpression).func",
+".expressionSequence->evaluateAndDeactivate()->cast(@meta::pure::router::metamodel::clustering::ClusteredValueSpecification).val->toOne()",
+".parametersValues->cast(@InstanceValue).values"
+]
+},
+"meta::relational::tests::query::routing::testCompositionInMultiStatementPureExpressions": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure",
+"line": 482,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::routing::plusOne": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure",
+"line": 254,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::routing::routeInternal": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure",
+"line": 341,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure",
+"line": 234,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure",
+"line": 220,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::functions::pureToSqlQuery::testReAliasMergedJoinOperations": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 156,
+"types": [
+"meta::relational::metamodel::join::Join",
+"meta::relational::metamodel::join::JoinTreeNode",
+"meta::relational::metamodel::join::RootJoinTreeNode"
+],
+"chains": [
+".childrenData->at(0)->cast(@JoinTreeNode)"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::buildTableAlias": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 235,
+"types": [
+"meta::relational::metamodel::Database",
+"meta::relational::metamodel::Schema",
+"meta::relational::metamodel::TableAlias",
+"meta::relational::metamodel::relation::Table"
+],
+"chains": []
+},
+"meta::relational::tests::functions::pureToSqlQuery::buildJoinTreeNode": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 224,
+"types": [
+"meta::relational::metamodel::Column",
+"meta::relational::metamodel::Database",
+"meta::relational::metamodel::DynaFunction",
+"meta::relational::metamodel::TableAliasColumn",
+"meta::relational::metamodel::datatype::DataType",
+"meta::relational::metamodel::join::Join",
+"meta::relational::metamodel::join::JoinTreeNode",
+"meta::relational::metamodel::join::RelationalTreeNode"
+],
+"chains": [
+".alias"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::testFindFunctionSequenceMultiplicity": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 29,
+"types": [],
+"chains": [
+".first.func",
+".functionName"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::testFindAliasMappingBySchemaName": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 204,
+"types": [
+"meta::relational::metamodel::Database",
+"meta::relational::metamodel::Schema",
+"meta::relational::metamodel::TableAlias",
+"meta::relational::metamodel::relation::SelectSQLQuery",
+"meta::relational::metamodel::relation::Table",
+"meta::relational::metamodel::relation::View"
+],
+"chains": [
+"->toOne().second.relation",
+".relation"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::tesIsToOneDataTypeFunctionExpressionSequenceWithQualifiers": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 74,
+"types": [],
+"chains": [
+".expressionSequence->at(0)->cast(@FunctionExpression).parametersValues->at(0)",
+".expressionSequence->at(1)->cast(@FunctionExpression).parametersValues->at(0)"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::tesIsToOneDataTypeFunctionExpressionSequenceWithCastExpressions": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 137,
+"types": [],
+"chains": [
+".events->toOne().eventType->cast(@String)",
+".expressionSequence->at(0)->cast(@FunctionExpression).parametersValues->at(0)"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::tesIsToOneDataTypeFunctionExpressionSequence": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 54,
+"types": [],
+"chains": [
+".expressionSequence->at(0)->cast(@FunctionExpression).parametersValues->at(0)",
+".expressionSequence->at(1)->cast(@FunctionExpression).parametersValues->at(0)",
+".expressionSequence->at(2)->cast(@FunctionExpression).parametersValues->at(0)",
+".expressionSequence->at(3)->cast(@FunctionExpression).parametersValues->at(0)",
+".expressionSequence->at(4)->cast(@FunctionExpression).parametersValues->at(0)"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::simpleFunctionExpressionTranslationNow": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 239,
+"types": [],
+"chains": [
+".expressionSequence->cast(@FunctionExpression)->toOne()"
+]
+},
+"meta::relational::tests::functions::pureToSqlQuery::simpleFunctionExpressionTranslationAdjust": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testPureToSql.pure",
+"line": 257,
+"types": [],
+"chains": [
+".expressionSequence->cast(@FunctionExpression)->toOne()"
+]
+},
+"meta::relational::tests::postProcessor::testPostProcessTransformJoinOp": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/tests/testPostProcessor.pure",
+"line": 439,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::relational::metamodel::Literal",
+"meta::relational::metamodel::RelationalOperationElement",
+"meta::relational::metamodel::TableAliasColumn",
+"meta::relational::metamodel::datatype::Integer",
+"meta::relational::metamodel::relation::SelectSQLQuery"
+],
+"chains": [
+".connection->cast(@meta::external::store::relational::runtime::TestDatabaseConnection)",
+".connectionStores->at(0)"
+]
+},
+"meta::relational::tests::postProcessor::testDb2ColumnRename": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/tests/testPostProcessor.pure",
+"line": 432,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::relational::metamodel::relation::SelectSQLQuery"
+],
+"chains": []
+},
+"meta::relational::tests::postProcessor::filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/tests/testPostProcessor.pure",
+"line": 398,
+"types": [],
+"chains": []
+},
+"meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::testWithHardcodedDate": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/nonMilestonedSourceToMilestonedTargetProperty.pure",
+"line": 25,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::test_ViaAllVersionsMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToNonMilestonedTargetProperty.pure",
+"line": 100,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaHardcodedDateMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToNonMilestonedTargetProperty.pure",
+"line": 232,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaAllVersionsMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToNonMilestonedTargetProperty.pure",
+"line": 201,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::testWithHardcodedDate": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure",
+"line": 25,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::tests::milestoning::union::testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testUnionOperationWithHybridMilestoningAcrossTables.pure",
+"line": 74,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::milestoning::union::testHybridMilestoningUnionOperationWithTemporalRootWithPropagation": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testUnionOperationWithHybridMilestoningAcrossTables.pure",
+"line": 94,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::milestoning::union::testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testUnionOperationWithHybridMilestoningAcrossTables.pure",
+"line": 40,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::milestoning::union::testHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testUnionOperationWithHybridMilestoningAcrossTables.pure",
+"line": 62,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testViewEmbeddedInChainedJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 564,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnionWithJoinToOneTable": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 290,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnionViewOnView": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 513,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnionToUnionMultipleLevels": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 363,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnionToUnionMultiple": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 329,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnionToUnion": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 303,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnionToSameTableWithDiffKeys": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 413,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testUnion": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 266,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTree_Inheritance_2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 51,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTree_Inheritance_1": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 25,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeWithMappingFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 181,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeTwoFilters": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 133,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeQualifier": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 160,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeMultiJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 76,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeMilestoning_ChainJoins": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 220,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeMilestoningWithLet": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 244,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableTreeMilestoning": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 199,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithSort": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 840,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithRestrict": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 748,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithProject": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 718,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithOLAPGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 976,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithMultipleJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 940,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithJoinToSameTable": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 960,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithJoinAndUnion": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 920,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 904,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithGroupBy": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 855,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithFilterAndProjectOperatingOnSameColumns": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 794,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithFilterAndProject": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 778,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 763,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithExtend": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 810,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithDuplicateProjectColumns": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 733,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithDistinctAndTake": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 826,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithCrossJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 995,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsWithConcatenateUsingDifferentTables": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 887,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableToTdsSimple": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 704,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testTableInQualifiedPropertiesInGraphFetchTree": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 665,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testSimpleViewRootToJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 454,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testSimpleViewRoot": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 427,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testSimpleTableToViewJoin": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 484,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testSelectOnLeftSide": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 112,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testSameRelationsAtSameLevel": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 591,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testRelationalTreeCalculationWithViewInAnotherSchema": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTestWithViewsAndUnions.pure",
+"line": 36,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testRelationalTreeCalculation": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTestWithViewsAndUnions.pure",
+"line": 19,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testMultipleTablesInQualifiedPropertiesInGraphFetchTree": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 682,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testFunctionWithGraphFetchNoDefaults": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 642,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testFunctionWithGraphFetch": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 618,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanRelations::test::testConstant": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure",
+"line": 96,
+"types": [],
+"chains": []
+},
+"meta::pure::lineage::scanColumns::test::testView": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanColumns/scanColumnsTests.pure",
+"line": 88,
+"types": [
+"meta::relational::metamodel::relation::NamedRelation"
+],
+"chains": [
+".column.owner->cast(@NamedRelation).name->toOne()"
+]
+},
+"meta::pure::lineage::scanColumns::test::testSubType": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanColumns/scanColumnsTests.pure",
+"line": 23,
+"types": [
+"meta::relational::metamodel::relation::Table"
+],
+"chains": [
+".column.owner->cast(@Table).name->toOne()"
+]
+},
+"meta::pure::lineage::scanColumns::test::testQualifier": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanColumns/scanColumnsTests.pure",
+"line": 38,
+"types": [
+"meta::relational::metamodel::relation::Table"
+],
+"chains": [
+".column.owner->cast(@Table).name->toOne()"
+]
+},
+"meta::pure::lineage::scanColumns::test::testNonDataTypeProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanColumns/scanColumnsTests.pure",
+"line": 64,
+"types": [
+"meta::relational::metamodel::relation::Table"
+],
+"chains": [
+".column.owner->cast(@Table).name->toOne()"
+]
+},
+"meta::pure::lineage::scanColumns::test::testEmbeddedMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanColumns/scanColumnsTests.pure",
+"line": 76,
+"types": [
+"meta::relational::metamodel::relation::Table"
+],
+"chains": [
+".column.owner->cast(@Table).name->toOne()"
+]
+},
+"meta::pure::lineage::scanColumns::test::testAssociationMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanColumns/scanColumnsTests.pure",
+"line": 52,
+"types": [
+"meta::relational::metamodel::relation::Table"
+],
+"chains": [
+".column.owner->cast(@Table).name->toOne()"
+]
+},
+"meta::relational::tests::ddl::testCreateTempTableStatement": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/helperFunctions/tests/testDdlGeneration.pure",
+"line": 69,
+"types": [
+"meta::relational::metamodel::Column",
+"meta::relational::metamodel::datatype::Integer"
+],
+"chains": []
+},
+"meta::relational::tests::ddl::dropAndCreateTempTable": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/helperFunctions/tests/testDdlGeneration.pure",
+"line": 75,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::relational::metamodel::Column",
+"meta::relational::metamodel::datatype::Integer"
+],
+"chains": [
+".columnNames"
+]
+},
+"meta::relational::graphFetch::tests::union::rootLevel::testSpecialUnion_m2m2r": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/union/testUnionRootLevel_relational.pure",
+"line": 674,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::EngineRuntime",
+"meta::external::store::model::ModelChainConnection",
+"meta::external::store::model::ModelStore",
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testUnionMappingWithoutSubType": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 426,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithSimpleProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 87,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 218,
+"types": [
+"meta::json::JSONArray",
+"meta::json::JSONObject",
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": [
+"->cast(@JSONObject)"
+]
+},
+"meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 149,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithComplexProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 114,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithAlloySerializationConfig": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 255,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree",
+"meta::pure::graphFetch::execution::AlloySerializationConfig"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testMultipleSubTypeAtRootLevel": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 180,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testInheritanceMappingWithoutSubType": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 399,
+"types": [
+"meta::json::JSONArray",
+"meta::json::JSONObject",
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": [
+"->cast(@JSONObject)"
+]
+},
+"meta::relational::graphFetch::tests::subType::testCommonPropertyAtSubTypeLevelWithSubTypeSpecificMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 368,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::testCommonPropertyAtRootLevelWithSubTypeSpecificMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 337,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::subTypeWithQualifiedPropertyUnionMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 576,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 498,
+"types": [],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMappingImpl": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 507,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 487,
+"types": [],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 540,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::subType::RootSubTypeWithRootPropertyUnion": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSubTypeGraphFetch.pure",
+"line": 451,
+"types": [
+"meta::pure::graphFetch::RootGraphFetchTree"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::simple::testObjectReferenceInUsingResultReferences": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testSimpleRelationalGraphFetch.pure",
+"line": 453,
+"types": [
+"meta::json::JSONArray",
+"meta::json::JSONObject",
+"meta::json::JSONString"
+],
+"chains": []
+},
+"meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testGraphFetchMilestoning.pure",
+"line": 654,
+"types": [],
+"chains": []
+},
+"meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_Checked": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testGraphFetchMilestoning.pure",
+"line": 693,
+"types": [],
+"chains": []
+},
+"meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testGraphFetchMilestoning.pure",
+"line": 614,
+"types": [],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 495,
+"types": [
+"meta::pure::graphFetch::execution::AlloySerializationConfig"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 263,
+"types": [
+"meta::pure::graphFetch::execution::AlloySerializationConfig"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 256,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::runtimeM2M2R": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 189,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::model::ModelChainConnection",
+"meta::external::store::model::ModelStore",
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::CrossStoreGraphFetchWithRelationalMilestonedFlowDown": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 238,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::runtime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 159,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::model::JsonModelConnection",
+"meta::external::store::model::ModelStore",
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+"meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy",
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::CrossStoreGraphFetchWithRelationalMilestonedAllversions": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 247,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::pure::graphFetch::tests::XStore::milestoning::CrossStoreGraphFetchWithRelationalMilestoned": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetchMilestoning.pure",
+"line": 231,
+"types": [
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": []
+},
+"meta::relational::graphFetch::domain::tests::testGraphFetch": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/domain/domainManagementTests.pure",
+"line": 53,
+"types": [],
+"chains": []
+},
+"meta::relational::graphFetch::domain::tests::checkPlans": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/domain/domainManagementTests.pure",
+"line": 88,
+"types": [
+"meta::pure::executionPlan::ExecutionPlan"
+],
+"chains": []
+},
+"meta::relational::graphFetch::domain::tests::testRuntime": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/domain/domainManagementTests.pure",
+"line": 181,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::projection::filter::testParametrizedEnumFilter": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testFilter.pure",
+"line": 106,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": [
+".connection->cast(@meta::external::store::relational::runtime::TestDatabaseConnection)",
+".connectionStores->at(0)"
+]
+},
+"meta::relational::tests::loadCsv::testLoadCsv": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/loadCsvToDbTable/testLoadCsv.pure",
+"line": 22,
+"types": [
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::relational::tests::query::take::testTakeWithVariables": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testSliceTakeLimitDrop.pure",
+"line": 154,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::slice::testSliceWithVariables": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testSliceTakeLimitDrop.pure",
+"line": 136,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::paginate::testPaginatedWithVariables": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testPaginated.pure",
+"line": 124,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::paginate::testPaginated": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testPaginated.pure",
+"line": 88,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::limit::testLimitWithVariables": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testSliceTakeLimitDrop.pure",
+"line": 160,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::query::drop::testDropWithVariables": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testSliceTakeLimitDrop.pure",
+"line": 148,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferneceInWithMilestonedRootClass": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 123,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithObjReferenceOutput": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 284,
+"types": [
+"meta::json::JSONArray",
+"meta::json::JSONObject",
+"meta::json::JSONString"
+],
+"chains": [
+"->cast(@JSONObject)"
+]
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithMilestonedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 150,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithEmptyLists": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 183,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithBiTemporalMilestoning": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 249,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInSimple": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 62,
+"types": [],
+"chains": []
+},
+"meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInEmbeddedMapping": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testObjectReferenceIn.pure",
+"line": 93,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::tests::testTemporalDateVariableInPropertySequence": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 2093,
+"types": [
+"meta::relational::mapping::RelationalInstantiationExecutionNode",
+"meta::relational::mapping::SQLExecutionNode"
+],
+"chains": [
+".rootExecutionNode.executionNodes",
+".sqlQuery"
+]
+},
+"meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 2119,
+"types": [
+"meta::relational::mapping::RelationalInstantiationExecutionNode",
+"meta::relational::mapping::SQLExecutionNode"
+],
+"chains": [
+".rootExecutionNode.executionNodes",
+".sqlQuery"
+]
+},
+"meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpression": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 2106,
+"types": [
+"meta::relational::mapping::RelationalInstantiationExecutionNode",
+"meta::relational::mapping::SQLExecutionNode"
+],
+"chains": [
+".rootExecutionNode.executionNodes",
+".sqlQuery"
+]
+},
+"meta::pure::executionPlan::tests::testTemporalDateVariableAtRoot": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 2080,
+"types": [
+"meta::relational::mapping::RelationalInstantiationExecutionNode",
+"meta::relational::mapping::SQLExecutionNode"
+],
+"chains": [
+".rootExecutionNode.executionNodes",
+".sqlQuery"
+]
+},
+"meta::pure::executionPlan::tests::testSupportStreamFlagGraphFetchSimple": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 2525,
+"types": [
+"meta::pure::executionPlan::FunctionParametersValidationNode"
+],
+"chains": [
+".rootExecutionNode"
+]
+},
+"meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 1522,
+"types": [
+"meta::pure::extension::Extension",
+"meta::pure::router::routing::RoutingState",
+"meta::pure::runtime::ExecutionContext"
+],
+"chains": [
+".availableStores",
+".func"
+]
+},
+"meta::pure::executionPlan::tests::withContext": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 1517,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 2619,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::pure::executionPlan::tests::testLessThanGreaterThanEqualsWithOptionalParameter_H2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 654,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::tests::assertPlanGenerationForOptionalParameterWithGreaterThanLessThan": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 79,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::tests::testGreaterThanLessThanEqualsWithOptionalParameter_H2": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 631,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 966,
+"types": [],
+"chains": [
+".first.processingTemplateFunctions"
+]
+},
+"meta::pure::executionPlan::tests::datetime::executionPlanForQueryWithDateTimeVariableForDatabaseConnectionTimeZone": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 992,
+"types": [
+"meta::core::runtime::ConnectionStore",
+"meta::core::runtime::Runtime",
+"meta::external::store::relational::runtime::TestDatabaseConnection"
+],
+"chains": []
+},
+"meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure",
+"line": 976,
+"types": [],
+"chains": [
+".first.processingTemplateFunctions"
+]
+},
+"meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 120,
+"types": [],
+"chains": []
+},
+"meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure",
+"line": 236,
+"types": [
+"meta::core::runtime::Runtime",
+"meta::pure::mapping::Mapping"
+],
+"chains": [
+".connectionStores->at(1)"
+]
+},
+"meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase": {
+"tier": "T",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/autogeneration/tests/relationalToPure.pure",
+"line": 5,
+"types": [
+"meta::protocols::pure::vX_X_X::metamodel::PureModelContextData"
+],
+"chains": []
+},
+"meta::relational::transform::autogen::tests::transformClass": {
+"tier": "H",
+"file": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/autogeneration/tests/relationalToPure.pure",
+"line": 30,
+"types": [
+"meta::protocols::pure::vX_X_X::metamodel::m3::type::Class",
+"meta::pure::extension::Extension"
+],
+"chains": [
+".superTypes"
+]
+}
+},
+"type_refs": [
+[
+"meta::pure::runtime::ExecutionContext",
+24
+],
+[
+"meta::core::runtime::Runtime",
+22
+],
+[
+"meta::external::store::relational::runtime::TestDatabaseConnection",
+16
+],
+[
+"meta::relational::mapping::RootRelationalInstanceSetImplementation",
+16
+],
+[
+"meta::pure::graphFetch::RootGraphFetchTree",
+14
+],
+[
+"meta::core::runtime::ConnectionStore",
+13
+],
+[
+"meta::relational::mapping::RelationalPropertyMapping",
+11
+],
+[
+"meta::relational::metamodel::Literal",
+9
+],
+[
+"meta::external::store::relational::runtime::RelationalDatabaseConnection",
+9
+],
+[
+"meta::relational::metamodel::relation::Table",
+9
+],
+[
+"meta::external::store::relational::runtime::DatabaseConnection",
+8
+],
+[
+"meta::relational::metamodel::DynaFunction",
+8
+],
+[
+"meta::pure::mapping::Mapping",
+7
+],
+[
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification",
+6
+],
+[
+"meta::json::JSONObject",
+5
+],
+[
+"meta::relational::metamodel::Database",
+5
+],
+[
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy",
+5
+],
+[
+"meta::relational::metamodel::Column",
+5
+],
+[
+"meta::external::store::model::ModelStore",
+4
+],
+[
+"meta::relational::metamodel::datatype::Integer",
+4
+],
+[
+"meta::json::JSONArray",
+4
+],
+[
+"meta::relational::mapping::RelationalInstantiationExecutionNode",
+4
+],
+[
+"meta::relational::mapping::SQLExecutionNode",
+4
+],
+[
+"meta::external::store::model::ModelChainConnection",
+3
+],
+[
+"meta::relational::metamodel::TableAliasColumn",
+3
+],
+[
+"meta::relational::metamodel::LiteralList",
+3
+],
+[
+"meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy",
+3
+],
+[
+"meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification",
+3
+],
+[
+"meta::relational::metamodel::Schema",
+3
+],
+[
+"meta::relational::metamodel::TableAlias",
+3
+],
+[
+"meta::relational::metamodel::relation::SelectSQLQuery",
+3
+],
+[
+"meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy",
+3
+],
+[
+"meta::pure::graphFetch::execution::AlloySerializationConfig",
+3
+],
+[
+"meta::relational::metamodel::datatype::DataType",
+2
+],
+[
+"meta::relational::metamodel::datatype::Varchar",
+2
+],
+[
+"meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder",
+2
+],
+[
+"meta::relational::metamodel::RelationalOperationElement",
+2
+],
+[
+"meta::relational::metamodel::join::JoinTreeNode",
+2
+],
+[
+"meta::relational::metamodel::join::Join",
+2
+],
+[
+"meta::json::JSONString",
+2
+],
+[
+"meta::pure::extension::Extension",
+2
+],
+[
+"meta::relational::runtime::RelationalExecutionContext",
+1
+],
+[
+"meta::pure::mapping::PropertyMappingsImplementation",
+1
+],
+[
+"meta::pure::metamodel::relation::TDS",
+1
+],
+[
+"meta::core::runtime::Connection",
+1
+],
+[
+"meta::relational::metamodel::DropTableSQL",
+1
+],
+[
+"meta::relational::metamodel::CreateTableSQL",
+1
+],
+[
+"meta::relational::metamodel::LoadTableSQL",
+1
+],
+[
+"meta::relational::metamodel::datatype::Timestamp",
+1
+],
+[
+"meta::relational::metamodel::datatype::Float",
+1
+],
+[
+"meta::relational::metamodel::datatype::Date",
+1
+],
+[
+"meta::relational::functions::pureToSqlQuery::metamodel::VarSetPlaceHolder",
+1
+],
+[
+"meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder",
+1
+],
+[
+"meta::pure::router::clustering::CrossSetImplementation",
+1
+],
+[
+"meta::relational::metamodel::SQLNull",
+1
+],
+[
+"meta::relational::metamodel::TableAliasColumnName",
+1
+],
+[
+"meta::relational::metamodel::relation::CommonTableExpressionReference",
+1
+],
+[
+"meta::relational::metamodel::ColumnName",
+1
+],
+[
+"meta::pure::router::metamodel::clustering::ClusteredValueSpecification",
+1
+],
+[
+"meta::pure::router::store::metamodel::StoreMappingRoutedValueSpecification",
+1
+],
+[
+"meta::relational::metamodel::join::RootJoinTreeNode",
+1
+],
+[
+"meta::relational::metamodel::join::RelationalTreeNode",
+1
+],
+[
+"meta::relational::metamodel::relation::View",
+1
+],
+[
+"meta::relational::metamodel::relation::NamedRelation",
+1
+],
+[
+"meta::core::runtime::EngineRuntime",
+1
+],
+[
+"meta::external::store::model::JsonModelConnection",
+1
+],
+[
+"meta::pure::executionPlan::ExecutionPlan",
+1
+],
+[
+"meta::pure::executionPlan::FunctionParametersValidationNode",
+1
+],
+[
+"meta::pure::router::routing::RoutingState",
+1
+],
+[
+"meta::protocols::pure::vX_X_X::metamodel::PureModelContextData",
+1
+],
+[
+"meta::protocols::pure::vX_X_X::metamodel::m3::type::Class",
+1
+]
+],
+"type_ex": {
+"meta::relational::runtime::RelationalExecutionContext": [
+"testValidateQueryWithUnion"
+],
+"meta::core::runtime::Runtime": [
+"enumTestRuntime",
+"executionPlanForQueryWithDateTimeVariableForDatabaseConnectionTimeZone",
+"generateAndExecutePlan",
+"getM2M2RRuntime"
+],
+"meta::pure::mapping::Mapping": [
+"generateAndExecutePlan",
+"planToString",
+"testClassMappingsAreCorrectlyIsolated",
+"testClassMappingsWithUnions"
+],
+"meta::core::runtime::ConnectionStore": [
+"executionPlanForQueryWithDateTimeVariableForDatabaseConnectionTimeZone",
+"getM2M2RConnectionStore",
+"getRelationalConnectionStore",
+"runtime"
+],
+"meta::external::store::relational::runtime::DatabaseConnection": [
+"createFirmTableAndFillDb",
+"createPersonTableAndFillDb",
+"createProductSchemaTablesAndFillDb",
+"createTable"
+],
+"meta::external::store::relational::runtime::TestDatabaseConnection": [
+"createTablesAndFillDb",
+"createTablesAndFillDbUS",
+"dropAndCreateTempTable",
+"executionPlanForQueryWithDateTimeVariableForDatabaseConnectionTimeZone"
+],
+"meta::external::store::model::ModelStore": [
+"getM2M2RConnectionStore",
+"runtime",
+"runtimeM2M2R",
+"testSpecialUnion_m2m2r"
+],
+"meta::external::store::model::ModelChainConnection": [
+"getModelChainConnection",
+"runtimeM2M2R",
+"testSpecialUnion_m2m2r"
+],
+"meta::json::JSONObject": [
+"testInheritanceMappingWithoutSubType",
+"testObjectReferenceInUsingResultReferences",
+"testObjectReferenceInWithObjReferenceOutput",
+"testPushDownProjectWithParameter"
+],
+"meta::pure::runtime::ExecutionContext": [
+"CrossStoreGraphFetchWithRelationalMilestoned",
+"CrossStoreGraphFetchWithRelationalMilestonedAllversions",
+"CrossStoreGraphFetchWithRelationalMilestonedFlowDown",
+"CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M"
+],
+"meta::relational::metamodel::Database": [
+"buildJoinTreeNode",
+"buildTableAlias",
+"createTable",
+"testDatabaseConnectionPerson"
+],
+"meta::relational::mapping::RootRelationalInstanceSetImplementation": [
+"testDynaAndOrInference",
+"testDynaCaseInference",
+"testDynaCaseWithDecimalInference_Decimal_Double",
+"testDynaCaseWithDecimalInference_Decimal_Integer"
+],
+"meta::relational::metamodel::TableAliasColumn": [
+"buildJoinTreeNode",
+"testPostProcessTransformJoinOp",
+"testPrimaryKeyForB"
+],
+"meta::pure::mapping::PropertyMappingsImplementation": [
+"testSuperSetIdsAreCollected"
+],
+"meta::pure::metamodel::relation::TDS": [
+"testEnumInRelation"
+],
+"meta::relational::metamodel::datatype::DataType": [
+"buildJoinTreeNode",
+"testTranslateDbType"
+],
+"meta::relational::metamodel::datatype::Varchar": [
+"createTable",
+"testTranslateDbType"
+],
+"meta::relational::metamodel::DynaFunction": [
+"buildJoinTreeNode",
+"testConvertDynaFnToFunctionCall",
+"testConvertDynaFnToLogicalExpression",
+"testConvertDynaFnToPredicate"
+],
+"meta::relational::metamodel::Literal": [
+"testConvertDynaFnToFunctionCall",
+"testConvertDynaFnToLogicalExpression",
+"testConvertDynaFnToPredicate",
+"testConvertLiteral"
+],
+"meta::relational::mapping::RelationalPropertyMapping": [
+"testDynaAndOrInference",
+"testDynaCaseInference",
+"testDynaCaseWithDecimalInference_Decimal_Double",
+"testDynaCaseWithDecimalInference_Decimal_Integer"
+],
+"meta::relational::metamodel::LiteralList": [
+"testConvertDynaFnToPredicate",
+"testConvertLiteralList",
+"testNotTypeInference"
+],
+"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification": [
+"runtime",
+"runtimeM2M2R",
+"testConnectionEqualityTypeDiff",
+"testConnectionEqualityTypeSameSpecDiff"
+],
+"meta::pure::alloy::connections::alloy::authentication::ApiTokenAuthenticationStrategy": [
+"testConnectionEqualityAllButOnePropertySame",
+"testConnectionEqualityTypeDiff",
+"testConnectionEqualityTypeSpecSameAuthDiff"
+],
+"meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy": [
+"testConnectionEqualityAllButOnePropertySame",
+"testConnectionEqualityAllSameStatic",
+"testConnectionEqualityTypeDiff",
+"testConnectionEqualityTypeSameSpecDiff"
+],
+"meta::external::store::relational::runtime::RelationalDatabaseConnection": [
+"runRelationalRouterExtensionConnectionEquality",
+"runtime",
+"runtimeM2M2R",
+"testConnectionEqualityAllButOnePropertySame"
+],
+"meta::core::runtime::Connection": [
+"runRelationalRouterExtensionConnectionEquality"
+],
+"meta::pure::alloy::connections::alloy::specification::StaticDatasourceSpecification": [
+"testConnectionEqualityAllButOnePropertySame",
+"testConnectionEqualityAllSameStatic",
+"testConnectionEqualityTypeDiff"
+],
+"meta::relational::metamodel::Column": [
+"buildJoinTreeNode",
+"createTable",
+"dropAndCreateTempTable",
+"getTempTableSqlStatements"
+],
+"meta::relational::metamodel::DropTableSQL": [
+"getTempTableSqlStatements"
+],
+"meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder": [
+"getTempTableSqlStatements",
+"testConvertVarPlaceHolder"
+],
+"meta::relational::metamodel::CreateTableSQL": [
+"getTempTableSqlStatements"
+],
+"meta::relational::metamodel::LoadTableSQL": [
+"getTempTableSqlStatements"
+],
+"meta::relational::metamodel::datatype::Timestamp": [
+"createTable"
+],
+"meta::relational::metamodel::Schema": [
+"buildTableAlias",
+"createTable",
+"testFindAliasMappingBySchemaName"
+],
+"meta::relational::metamodel::relation::Table": [
+"buildTableAlias",
+"createTable",
+"getTable",
+"testAssociationMapping"
+],
+"meta::relational::metamodel::datatype::Float": [
+"createTable"
+],
+"meta::relational::metamodel::datatype::Date": [
+"createTable"
+],
+"meta::relational::metamodel::datatype::Integer": [
+"createTable",
+"dropAndCreateTempTable",
+"testCreateTempTableStatement",
+"testPostProcessTransformJoinOp"
+],
+"meta::relational::functions::pureToSqlQuery::metamodel::VarSetPlaceHolder": [
+"testConvertVarSetPlaceHolder"
+],
+"meta::relational::metamodel::RelationalOperationElement": [
+"assertConversion",
+"testPostProcessTransformJoinOp"
+],
+"meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder": [
+"testConvertVarCrossSetPlaceHolder"
+],
+"meta::pure::router::clustering::CrossSetImplementation": [
+"testConvertVarCrossSetPlaceHolder"
+],
+"meta::relational::metamodel::SQLNull": [
+"testConvertLiteral"
+],
+"meta::relational::metamodel::TableAliasColumnName": [
+"getColumn"
+],
+"meta::relational::metamodel::TableAlias": [
+"buildTableAlias",
+"getColumn",
+"testFindAliasMappingBySchemaName"
+],
+"meta::relational::metamodel::relation::CommonTableExpressionReference": [
+"testConvertCommonTableExpressionReference"
+],
+"meta::relational::metamodel::ColumnName": [
+"testConvertColumnName"
+],
+"meta::pure::router::metamodel::clustering::ClusteredValueSpecification": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+"meta::pure::router::store::metamodel::StoreMappingRoutedValueSpecification": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+"meta::relational::metamodel::join::JoinTreeNode": [
+"buildJoinTreeNode",
+"testReAliasMergedJoinOperations"
+],
+"meta::relational::metamodel::join::RootJoinTreeNode": [
+"testReAliasMergedJoinOperations"
+],
+"meta::relational::metamodel::join::Join": [
+"buildJoinTreeNode",
+"testReAliasMergedJoinOperations"
+],
+"meta::relational::metamodel::join::RelationalTreeNode": [
+"buildJoinTreeNode"
+],
+"meta::relational::metamodel::relation::View": [
+"testFindAliasMappingBySchemaName"
+],
+"meta::relational::metamodel::relation::SelectSQLQuery": [
+"testDb2ColumnRename",
+"testFindAliasMappingBySchemaName",
+"testPostProcessTransformJoinOp"
+],
+"meta::relational::metamodel::relation::NamedRelation": [
+"testView"
+],
+"meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy": [
+"runtime",
+"runtimeM2M2R",
+"testSpecialUnion_m2m2r"
+],
+"meta::core::runtime::EngineRuntime": [
+"testSpecialUnion_m2m2r"
+],
+"meta::pure::graphFetch::RootGraphFetchTree": [
+"RootSubTypeWithRootPropertyUnion",
+"RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping",
+"RootSubTypeWithSubtypeLevelPropertyUnionMappingImpl",
+"subTypeWithQualifiedPropertyUnionMapping"
+],
+"meta::json::JSONArray": [
+"testInheritanceMappingWithoutSubType",
+"testObjectReferenceInUsingResultReferences",
+"testObjectReferenceInWithObjReferenceOutput",
+"testSubTypeAtRootLevelWithInheritanceMapping"
+],
+"meta::pure::graphFetch::execution::AlloySerializationConfig": [
+"testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint",
+"testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne",
+"testSubTypeAtRootLevelWithAlloySerializationConfig"
+],
+"meta::json::JSONString": [
+"testObjectReferenceInUsingResultReferences",
+"testObjectReferenceInWithObjReferenceOutput"
+],
+"meta::external::store::model::JsonModelConnection": [
+"runtime"
+],
+"meta::pure::executionPlan::ExecutionPlan": [
+"checkPlans"
+],
+"meta::relational::mapping::RelationalInstantiationExecutionNode": [
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression",
+"testTemporalDateVariableInFunctionExpressionWithPropagation",
+"testTemporalDateVariableInPropertySequence"
+],
+"meta::relational::mapping::SQLExecutionNode": [
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression",
+"testTemporalDateVariableInFunctionExpressionWithPropagation",
+"testTemporalDateVariableInPropertySequence"
+],
+"meta::pure::executionPlan::FunctionParametersValidationNode": [
+"testSupportStreamFlagGraphFetchSimple"
+],
+"meta::pure::router::routing::RoutingState": [
+"testRoutingContextBuilderFunctions"
+],
+"meta::pure::extension::Extension": [
+"testRoutingContextBuilderFunctions",
+"transformClass"
+],
+"meta::protocols::pure::vX_X_X::metamodel::PureModelContextData": [
+"testClassesAssociationsAndMappingFromDatabase"
+],
+"meta::protocols::pure::vX_X_X::metamodel::m3::type::Class": [
+"transformClass"
+]
+},
+"chains": [
+[
+".columnName",
+6
+],
+[
+".values.rows.values",
+5
+],
+[
+".column.owner->cast(@Table).name->toOne()",
+5
+],
+[
+".sqlQuery",
+4
+],
+[
+".rootExecutionNode.executionNodes",
+4
+],
+[
+".rows",
+3
+],
+[
+".values->at(0).rows",
+3
+],
+[
+".expressionSequence->at(0)->cast(@FunctionExpression).parametersValues->at(0)",
+3
+],
+[
+"->cast(@JSONObject)",
+3
+],
+[
+".values->cast(@TabularDataSet).rows.getString",
+2
+],
+[
+".values->cast(@TabularDataSet).rows",
+2
+],
+[
+"->cast(@String)->toOne()",
+2
+],
+[
+".expressionSequence->at(1)->cast(@FunctionExpression).parametersValues->at(0)",
+2
+],
+[
+".expressionSequence->cast(@FunctionExpression)->toOne()",
+2
+],
+[
+".connectionStores->at(0)",
+2
+],
+[
+".connection->cast(@meta::external::store::relational::runtime::TestDatabaseConnection)",
+2
+],
+[
+".first.processingTemplateFunctions",
+2
+],
+[
+".values.rows",
+1
+],
+[
+".key.value",
+1
+],
+[
+".rows->at(0).get",
+1
+],
+[
+".connectionEquality",
+1
+],
+[
+".columns->cast(@Column)",
+1
+],
+[
+".parametersValues->cast(@InstanceValue).values",
+1
+],
+[
+".expressionSequence->cast(@FunctionExpression).func",
+1
+],
+[
+"->cast(@StoreMappingRoutedValueSpecification).value",
+1
+],
+[
+"->cast(@StoreMappingRoutedValueSpecification).sets.class.name",
+1
+],
+[
+".expressionSequence->evaluateAndDeactivate()->cast(@meta::pure::router::metamodel::clustering::ClusteredValueSpecification).val->toOne()",
+1
+],
+[
+".expressionSequence->cast(@FunctionExpression)",
+1
+],
+[
+".childrenData->at(0)->cast(@JoinTreeNode)",
+1
+],
+[
+".alias",
+1
+],
+[
+".functionName",
+1
+],
+[
+".first.func",
+1
+],
+[
+"->toOne().second.relation",
+1
+],
+[
+".relation",
+1
+],
+[
+".events->toOne().eventType->cast(@String)",
+1
+],
+[
+".expressionSequence->at(2)->cast(@FunctionExpression).parametersValues->at(0)",
+1
+],
+[
+".expressionSequence->at(4)->cast(@FunctionExpression).parametersValues->at(0)",
+1
+],
+[
+".expressionSequence->at(3)->cast(@FunctionExpression).parametersValues->at(0)",
+1
+],
+[
+".column.owner->cast(@NamedRelation).name->toOne()",
+1
+],
+[
+".columnNames",
+1
+],
+[
+".rootExecutionNode",
+1
+],
+[
+".availableStores",
+1
+],
+[
+".func",
+1
+],
+[
+".connectionStores->at(1)",
+1
+],
+[
+".superTypes",
+1
+]
+],
+"chain_ex": {
+".values.rows": [
+"testSimpleSortAscWithPreval"
+],
+".rows": [
+"testConcatenationOfTemporalTdsQueries",
+"testConcatenationOfTemporalTdsQueriesWithGroupBy",
+"testMilestonedThisBusinessDateWithNestedDerivedProperty"
+],
+".values->at(0).rows": [
+"testConcatenationOfTdsQueries",
+"testConcatenationOfTdsQueriesWithFilter",
+"testConcatenationOfTdsQueriesWithFilterAndGroupBy"
+],
+".values->cast(@TabularDataSet).rows.getString": [
+"testInExecutionWithTempTableAndQueryChaining",
+"testInExecutionWithTempTableAndQueryChainingOnIntegerColumn"
+],
+".values->cast(@TabularDataSet).rows": [
+"testInExecutionWithTempTableAndQueryChaining",
+"testInExecutionWithTempTableAndQueryChainingOnIntegerColumn"
+],
+".values.rows.values": [
+"testClassMappingsAreCorrectlyIsolated",
+"testClassMappingsWithUnions",
+"testFromWithMapping"
+],
+".key.value": [
+"testPushDownProjectWithParameter"
+],
+".columnName": [
+"testMaxDateAggregationInference",
+"testMaxIntAggregationInference",
+"testRelOpWithJoinInference"
+],
+".rows->at(0).get": [
+"testExecuteInDbToTDS"
+],
+".connectionEquality": [
+"runRelationalRouterExtensionConnectionEquality"
+],
+"->cast(@String)->toOne()": [
+"testConstant_Alloy",
+"testViewChild_Alloy"
+],
+".columns->cast(@Column)": [
+"getTempTableSqlStatements"
+],
+".parametersValues->cast(@InstanceValue).values": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+".expressionSequence->cast(@FunctionExpression).func": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+"->cast(@StoreMappingRoutedValueSpecification).value": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+"->cast(@StoreMappingRoutedValueSpecification).sets.class.name": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+".expressionSequence->evaluateAndDeactivate()->cast(@meta::pure::router::metamodel::clustering::ClusteredValueSpecification).val->toOne()": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+".expressionSequence->cast(@FunctionExpression)": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+".childrenData->at(0)->cast(@JoinTreeNode)": [
+"testReAliasMergedJoinOperations"
+],
+".alias": [
+"buildJoinTreeNode"
+],
+".functionName": [
+"testFindFunctionSequenceMultiplicity"
+],
+".first.func": [
+"testFindFunctionSequenceMultiplicity"
+],
+"->toOne().second.relation": [
+"testFindAliasMappingBySchemaName"
+],
+".relation": [
+"testFindAliasMappingBySchemaName"
+],
+".expressionSequence->at(0)->cast(@FunctionExpression).parametersValues->at(0)": [
+"tesIsToOneDataTypeFunctionExpressionSequence",
+"tesIsToOneDataTypeFunctionExpressionSequenceWithCastExpressions",
+"tesIsToOneDataTypeFunctionExpressionSequenceWithQualifiers"
+],
+".expressionSequence->at(1)->cast(@FunctionExpression).parametersValues->at(0)": [
+"tesIsToOneDataTypeFunctionExpressionSequence",
+"tesIsToOneDataTypeFunctionExpressionSequenceWithQualifiers"
+],
+".events->toOne().eventType->cast(@String)": [
+"tesIsToOneDataTypeFunctionExpressionSequenceWithCastExpressions"
+],
+".expressionSequence->at(2)->cast(@FunctionExpression).parametersValues->at(0)": [
+"tesIsToOneDataTypeFunctionExpressionSequence"
+],
+".expressionSequence->at(4)->cast(@FunctionExpression).parametersValues->at(0)": [
+"tesIsToOneDataTypeFunctionExpressionSequence"
+],
+".expressionSequence->at(3)->cast(@FunctionExpression).parametersValues->at(0)": [
+"tesIsToOneDataTypeFunctionExpressionSequence"
+],
+".expressionSequence->cast(@FunctionExpression)->toOne()": [
+"simpleFunctionExpressionTranslationAdjust",
+"simpleFunctionExpressionTranslationNow"
+],
+".connectionStores->at(0)": [
+"testParametrizedEnumFilter",
+"testPostProcessTransformJoinOp"
+],
+".connection->cast(@meta::external::store::relational::runtime::TestDatabaseConnection)": [
+"testParametrizedEnumFilter",
+"testPostProcessTransformJoinOp"
+],
+".column.owner->cast(@NamedRelation).name->toOne()": [
+"testView"
+],
+".column.owner->cast(@Table).name->toOne()": [
+"testAssociationMapping",
+"testEmbeddedMapping",
+"testNonDataTypeProperty"
+],
+".columnNames": [
+"dropAndCreateTempTable"
+],
+"->cast(@JSONObject)": [
+"testInheritanceMappingWithoutSubType",
+"testObjectReferenceInWithObjReferenceOutput",
+"testSubTypeAtRootLevelWithInheritanceMapping"
+],
+".sqlQuery": [
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression",
+"testTemporalDateVariableInFunctionExpressionWithPropagation"
+],
+".rootExecutionNode.executionNodes": [
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression",
+"testTemporalDateVariableInFunctionExpressionWithPropagation"
+],
+".rootExecutionNode": [
+"testSupportStreamFlagGraphFetchSimple"
+],
+".availableStores": [
+"testRoutingContextBuilderFunctions"
+],
+".func": [
+"testRoutingContextBuilderFunctions"
+],
+".first.processingTemplateFunctions": [
+"testPlanForDateTimeVariableESTTimeZone",
+"testPlanForDateTimeVariableNoTimeZone"
+],
+".connectionStores->at(1)": [
+"generateAndExecutePlan"
+],
+".superTypes": [
+"transformClass"
+]
+},
+"chain_prop": [
+[
+"rows",
+20
+],
+[
+"columnName",
+6
+],
+[
+"relation",
+5
+],
+[
+"rootExecutionNode",
+5
+],
+[
+"executionNodes",
+4
+],
+[
+"sqlQuery",
+4
+],
+[
+"func",
+3
+],
+[
+"alias",
+3
+],
+[
+"connectionStores",
+3
+],
+[
+"connection",
+2
+],
+[
+"processingTemplateFunctions",
+2
+],
+[
+"key",
+1
+],
+[
+"get",
+1
+],
+[
+"connectionEquality",
+1
+],
+[
+"sets",
+1
+],
+[
+"functionName",
+1
+],
+[
+"columnNames",
+1
+],
+[
+"availableStores",
+1
+],
+[
+"superTypes",
+1
+]
+],
+"prop_ex": {
+"rows": [
+"testClassMappingsAreCorrectlyIsolated",
+"testClassMappingsWithUnions",
+"testConcatenationOfTdsQueries"
+],
+"key": [
+"testPushDownProjectWithParameter"
+],
+"columnName": [
+"testMaxDateAggregationInference",
+"testMaxIntAggregationInference",
+"testRelOpWithJoinInference"
+],
+"get": [
+"testExecuteInDbToTDS"
+],
+"connectionEquality": [
+"runRelationalRouterExtensionConnectionEquality"
+],
+"func": [
+"testFindFunctionSequenceMultiplicity",
+"testRoutingContextBuilderFunctions",
+"testRoutingOfSimpleQualifiedProperty"
+],
+"sets": [
+"testRoutingOfSimpleQualifiedProperty"
+],
+"alias": [
+"buildJoinTreeNode"
+],
+"functionName": [
+"testFindFunctionSequenceMultiplicity"
+],
+"relation": [
+"testFindAliasMappingBySchemaName"
+],
+"connectionStores": [
+"generateAndExecutePlan",
+"testParametrizedEnumFilter",
+"testPostProcessTransformJoinOp"
+],
+"connection": [
+"testParametrizedEnumFilter",
+"testPostProcessTransformJoinOp"
+],
+"columnNames": [
+"dropAndCreateTempTable"
+],
+"rootExecutionNode": [
+"testSupportStreamFlagGraphFetchSimple",
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression"
+],
+"executionNodes": [
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression",
+"testTemporalDateVariableInFunctionExpressionWithPropagation"
+],
+"sqlQuery": [
+"testTemporalDateVariableAtRoot",
+"testTemporalDateVariableInFunctionExpression",
+"testTemporalDateVariableInFunctionExpressionWithPropagation"
+],
+"availableStores": [
+"testRoutingContextBuilderFunctions"
+],
+"processingTemplateFunctions": [
+"testPlanForDateTimeVariableESTTimeZone",
+"testPlanForDateTimeVariableNoTimeZone"
+],
+"superTypes": [
+"transformClass"
+]
+},
+"mm_only_props_count": 2192
+}
