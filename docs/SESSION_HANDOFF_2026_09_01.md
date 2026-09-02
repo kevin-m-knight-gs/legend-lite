@@ -1,5 +1,9 @@
 # Harness-Deletion Burn — Session Handoff (2026-09-01)
 
+> SUPERSEDED by `docs/SESSION_HANDOFF_2026_09_02.md` (state, the
+> Option A/B decision, the full per-leg burn map, the metamodel design
+> brief). This file stays as the audit trail of the day.
+
 ## UPDATE (later the same day) — STEP 1+2 DONE, foundation sound
 The diagnose-first probe ran (record: `docs/PLATFORM_FAIL_ADJUDICATION_2026_09_01.md`).
 - **Null-vs-value (3): ENGINE DEFECT, not ours.** Hand-computed from the seed rows + mapping, our `Fabrice,Oliver` is the Pure answer; the golden binds `$e.age` to the ROOT person (the engine corpus itself carries a `test.ToFix` sibling admitting the column "fails to resolve against inner relation"). Stays a counted platform-fail row.
