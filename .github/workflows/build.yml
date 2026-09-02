@@ -1,0 +1,54 @@
+# BUILD — the every-branch build. gate.yml fires only on pushes to main and
+# on pull requests, so work on a topic branch gets no CI at all until it
+# opens a PR. This workflow runs on every branch push, and widens the
+# PLATFORM the core suite is proven on: linux/windows/macos x JDK 21/25.
+#
+# ITS SCOPE IS gate.yml's, and just as honest: the core suite only (NullAway
+# null gate + guardrails on a cold compile). The corpus sweep and the PCT
+# suites need the local oracle checkouts (legend-engine / legend-pure) and
+# CANNOT run here — the standing full gate is LOCAL: tools/allgates.sh with
+# LEGEND_ENGINE_ROOT/LEGEND_PURE_ROOT at the baselined checkouts.
+#
+# The poms compile at release 21, so 21 is the floor and 25 the ceiling we
+# claim to support; fail-fast is off so one platform's red does not suppress
+# the other five verdicts.
+name: build
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+# Six jobs a push, so supersede the previous run on the same branch.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: core (${{ matrix.os }}, JDK ${{ matrix.java }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        java: [21, 25]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      # One invocation, not two: gate.yml's `clean test` + `install -DskipTests`
+      # is a split whose reason no longer exists — the install step was born as
+      # "install core for engine", feeding a `-pl engine` step that needed core
+      # resolvable from the local repo. The engine module is gone, so nothing
+      # reads the installed artifact. `clean install` is a strict superset of
+      # the pair: clean is load-bearing (the null gate and the guardrails run
+      # only on a cold compile), and package still exercises the shade plugin
+      # that `test` alone never reaches.
+      - name: core (null gate + suite + shade)
+        run: mvn -B -e -pl core clean install
+      - name: corpus + PCT NOT RUN here (oracle checkouts absent)
+        run: echo "::warning ::Corpus sweep and PCT are NOT run in CI - they require the local legend-engine/legend-pure oracle checkouts. The standing full gate is tools/allgates.sh run locally against the baselined roots."
