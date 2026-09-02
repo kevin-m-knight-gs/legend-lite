@@ -605,8 +605,41 @@ above is closed; 3, 4, 5 remain (plus the two named below).
   exec-passing 345; core suite green; the global-compile failure of
   `pureToSqlQuery::getGroupBy` ("Unknown type GroupByMapping") is gone.
 
-**Residue after batch 5**: views as main tables; `parent` from the union
-side; assert failure MESSAGE rendering over instances; (new) the
+**Batch 6 — residues (2026-09-02).** `parent` from the union side reads
+(closed by batch 5's dispatch/depth fixes — `SetImplementation.all()
+.parent.name`, probed). Assert failure MESSAGE over instance rows renders
+the spec's `<id instanceOf Type>` (toRepresentation.pure:28; id = the
+synthetic site identity when carried, else the row's property values in
+wire order — identity as data; T = the side's static class, `?` when the
+side is not class-typed); pinned in `MetamodelMappingStoreTest.
+instanceFailureMessageRenders`; corpus: `testSelfJoinPropertyMapping`
+moved from the "toRepresentation … not modeled" wall to an honest
+platform-fail with its message (ratchet unchanged 841/1732, paired
+sweeps byte-identical). PureAsserts ledger pin 311 → 313 (message text,
+no verdict).
+
+**VIEWS AS MAIN TABLES — chartered, NOT built** (no corpus witness: the
+only corpus caller of `mainTable()` is the extends file, 23/23). The real
+body is `$_this.mainTableAlias.relationalElement->match([t:Table[1]|$t,
+v:View[1]|$v->mainTable()])`; the honest relational model is View rows
+(+ a view alias row keyed by the view, base table resolved transitively
+at seed time — the extends-closure pattern) with `relationalElement`
+routed to Table OR View, which makes the read a PARTIAL-membership
+dispatch in CHAIN position. The mechanism gap (batch 2 built the
+instance-variable form only), exact walls: "class query under
+TypedMatchRuntime is not resolvable yet" (`chain->match([...])`),
+"object-space expression node TypedMatchRuntime is not substitutable yet"
+(`->map(x|$x.nav->match([...]))`), and for the cast form "->cast(@T)
+over a chain of U whose mapped members do not all conform (partial
+membership) is not supported in chain position yet" — that last one HAS a
+corpus witness: `meta::relational::validation::tests::milestoning::
+testValidateQueryWithUnion` (`->cast(@RelationalActivity)` over
+Activity). Semantics to build: retype the chain to the member set, gate
+each read on the witness with fail('Cast exception') for non-conforming
+rows (never a silent filter), reads of member properties through the
+SUBTYPE_KEY dispatch. Then the View rows land on top.
+
+**Residue after batch 6**: views as main tables (above); (new) the
 composed-row prefix scheme `<slot>_<column>` can COLLIDE with a physical
 column of that spelling (two system-store columns were renamed around it:
 `pk_column`, `super_mapping_fqn`/`super_id` — a user model with column

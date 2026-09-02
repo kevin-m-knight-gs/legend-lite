@@ -291,7 +291,7 @@ final class AssertVerdicts {
                         byteVerdict == null ? "" : byteVerdict.detail(),
                         () -> incidental
                                 ? PureAsserts.assertSameElements(e, a)
-                                : PureAsserts.assertEquals(e, a),
+                                : PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()),
                         "byte-verdict: canonical renders differ (host"
                                 + " lattice agreed — dual-verdict"
                                 + " divergence, see [canon] census)");

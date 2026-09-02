@@ -181,7 +181,13 @@ class JavaEvalLedgerTest {
             // EMISSION (the compensating utcLocal arm was deleted the
             // same day). On the audit's compile-through eviction path
             // (docs/HOST_LOGIC_AUDIT_2026_08_20.md fix queue 3).
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 311),
+            // 311 -> 313 (metamodel-as-relations batch 6, 2026-09-02):
+            // toRepresentation's INSTANCE form (toRepresentation.pure:28,
+            // `<id instanceOf T>`) for a FAILED assert's message over
+            // instance rows — spec message text, no verdict is computed
+            // here (the verdict rode the database; the message used to
+            // wall "toRepresentation for LinkedHashMap is not modeled").
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 313),
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
             // in the database (StatementExecutor.evalValue); this file

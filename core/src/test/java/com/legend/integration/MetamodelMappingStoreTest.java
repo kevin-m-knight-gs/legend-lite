@@ -227,6 +227,17 @@ class MetamodelMappingStoreTest {
     }
 
     @Test
+    @DisplayName("a FAILING assert over instance rows renders the spec's <id instanceOf Type> form")
+    void instanceFailureMessageRenders() {
+        var ex = assertThrows(com.legend.error.AssertFailed.class, () -> run(
+                "{| assertEquals(ext::AMapping->" + BY_ID + "('a'), ext::B1Mapping->"
+                        + BY_ID + "('b1')); }"));
+        assertTrue(ex.getMessage().contains(" instanceOf meta::pure::mapping::SetImplementation>"),
+                ex.getMessage());
+        assertTrue(ex.getMessage().contains("expected: <a|"), ex.getMessage());
+    }
+
+    @Test
     @DisplayName("a user class with no execution context keeps the loud wall (D1 boundary)")
     void userClassWithoutContextStillWalls() {
         var ex = assertThrows(com.legend.error.MappingResolutionException.class,

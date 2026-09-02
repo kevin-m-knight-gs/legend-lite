@@ -56,11 +56,26 @@ public final class PureAsserts {
      * joined collections. */
     public static @com.legend.Nullable String assertEquals(
             List<Object> expected, List<Object> actual) {
+        return assertEquals(expected, actual, null, null);
+    }
+
+    /** With each side's STATIC type (the {@code instanceOf Type} half of
+     * an instance's representation — the wire map carries no type). */
+    public static @com.legend.Nullable String assertEquals(
+            List<Object> expected, List<Object> actual,
+            com.legend.compiler.element.type.@com.legend.Nullable Type expectedType,
+            com.legend.compiler.element.type.@com.legend.Nullable Type actualType) {
         if (equal(expected, actual)) {
             return null;
         }
-        return "\nexpected: " + reprSide(expected)
-                + "\nactual:   " + reprSide(actual);
+        return "\nexpected: " + reprSide(expected, classFqnOf(expectedType))
+                + "\nactual:   " + reprSide(actual, classFqnOf(actualType));
+    }
+
+    private static @com.legend.Nullable String classFqnOf(
+            com.legend.compiler.element.type.@com.legend.Nullable Type t) {
+        return t instanceof com.legend.compiler.element.type.Type.ClassType c
+                ? c.fqn() : null;
     }
 
     /** {@code assertSameElements(expected, actual)}
@@ -370,10 +385,35 @@ public final class PureAsserts {
 
     /** Pure {@code toRepresentation(any:Any[1])}: strings
      * backslash-escape, temporals take the {@code %} literal form,
-     * Decimal the {@code D} suffix. Class instances would take the
-     * {@code <id instanceOf T>} form — LOUD until a consumer needs it
-     * (never guess an id). */
+     * Decimal the {@code D} suffix. A class INSTANCE (a wire map) takes
+     * the spec's {@code <id instanceOf T>} form (toRepresentation.pure:
+     * 28): the id is the synthetic site identity when the wire carries
+     * one (F13), else the row's property values in wire order — the
+     * identity a value wire can observe (identity as data); T is the
+     * side's static class. A NAMED packageable element would render as
+     * its path (toRepresentation.pure:27) — a wire map carries no path
+     * (named gap, grows by witness). */
     public static String repr(@com.legend.Nullable Object v) {
+        return repr(v, null);
+    }
+
+    public static String repr(@com.legend.Nullable Object v,
+            @com.legend.Nullable String instanceClass) {
+        if (v instanceof java.util.Map<?, ?> m) {
+            String id = wireId(v);
+            if (id == null) {
+                StringBuilder sb = new StringBuilder();
+                for (Object val : m.values()) {
+                    if (sb.length() > 0) {
+                        sb.append('|');
+                    }
+                    sb.append(val);
+                }
+                id = sb.toString();
+            }
+            return "<" + id + " instanceOf "
+                    + (instanceClass == null ? "?" : instanceClass) + ">";
+        }
         return switch (v) {
             case null -> "[]";   // an empty [0..1] renders as empty
             case String s -> "'" + s.replace("\\", "\\\\")
@@ -395,7 +435,22 @@ public final class PureAsserts {
     /** The spec's single-value message side ({@code %r}) or the
      * collection form ({@code joinStrings('[', ', ', ']')}). */
     private static String reprSide(List<Object> side) {
-        return side.size() == 1 ? repr(side.get(0)) : joined(side);
+        return reprSide(side, null);
+    }
+
+    private static String reprSide(List<Object> side,
+            @com.legend.Nullable String instanceClass) {
+        if (side.size() == 1) {
+            return repr(side.get(0), instanceClass);
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < side.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(repr(side.get(i), instanceClass));
+        }
+        return sb.append(']').toString();
     }
 
     private static String joined(List<Object> side) {
