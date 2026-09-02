@@ -165,7 +165,7 @@ them as `'_'`):
 | `assertEquals/2` + `/4` + `assertEqWithinTolerance/3` reaching the SCALAR lowerer | 42 | asserts in expression position (inside `->map(p\|…)` loops over driver pairs, or over instance-carrier navigations like `removeDuplicates().firstName->sort()->makeString`) — a VERDICT-PLACEMENT leg (the arm sees only statement-root asserts), not a native port |
 | `rootClassMappingByClass/2`, `classMappingById/2`, `_classMappingByClass/2`, `view/2`, `inferRelationalType/1`, `toPostgresModel::newState/0` | 43 | mapping-METAMODEL queries — the quarantined metamodel-as-relations family ([[metamodel-in-database-ruling]]) |
 | `enumValues/1` | 1 | one real native |
-| unknown function `getInteger` (+ siblings) | 25 | NOT an unported native: `TDS_ROW_GETTERS` exist; the receiver is a row parameter of the legacy TDS `join(tds, tds, JoinType, {a,b\|…})` predicate, which does not type as a TDS row — ONE typed-form leg (tdsJoin family) |
+| unknown function `getInteger` (+ siblings) | 25 | NOT an unported native: `TDS_ROW_GETTERS` exist; 23 pass the join kind through `let type = JoinType.X` and the legacy desugar matched a literal only — **LANDED same day** (`JoinChecker.resolveLetBoundArgs`, +23 flips); 2 bind the condition lambda through a let with nominal `TDSRow` params — walls at the let, deferred-kind candidate (bind-once charter) |
 | `meta::legend::executeLegendQuery` / `compileLegendValueSpecification` / `compileLegendGrammar` | 42 | harness vocabulary (metaprogramming bodies) — walk-routed by design |
 | `generateObjectReferences` 7, `routeFunction` 4, `repeat` 2, `toDomainValue` 2, `column` 1, `resolveStore` 1, misc 3 | 20 | small named legs |
 

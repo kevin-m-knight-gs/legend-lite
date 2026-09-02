@@ -52,6 +52,7 @@ final class JoinChecker {
         if (af.function().contains("::")) {
             af = new AppliedFunction("join", af.parameters());
         }
+        af = resolveLetBoundArgs(af, env);
         TypedSpec shared = sharedKeyLegacyJoin(t, af, env);
         if (shared != null) {
             return shared;
@@ -76,6 +77,34 @@ final class JoinChecker {
         }
         return new TypedJoin(a.args().get(0), a.args().get(1), kind, cond,
                 Optional.empty(), null, a.out(), true /* USER lambda */);
+    }
+
+    /** The legacy TDS join's KIND through the let-alias channel: the
+     * corpus parameterizes {@code let type = JoinType.LEFT_OUTER; ...
+     * ->join(tds2, $type, {a,b|...})} (23 tdsJoin tests). The legacy
+     * desugars below match a literal EnumValue only, so the let-bound
+     * spelling fell to the modern signature with an untyped row
+     * parameter and walled "unknown function 'getInteger'".
+     * {@link Env#resolveAlias} is the ONE lookup mechanism (bind-once
+     * leg); the kind position is read-only structural consumption, so
+     * adoption is sound (pure lets are single-assignment). NOT the
+     * condition: a let-bound {@code {a:TDSRow[1], b:TDSRow[1]|...}}
+     * lambda walls at its OWN let (the declared nominal TDSRow has no
+     * columns to read — it only means something against the consuming
+     * join's rows), so it is a deferred-kind candidate for the bind-once
+     * charter, not an alias chase here (2 tests, named). */
+    private static AppliedFunction resolveLetBoundArgs(AppliedFunction af, Env env) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() < 3 || !(ps.get(2) instanceof Variable kindVar)) {
+            return af;
+        }
+        ValueSpecification r = env.resolveAlias(kindVar);
+        if (r == kindVar || !(r instanceof EnumValue)) {
+            return af;
+        }
+        List<ValueSpecification> np = new java.util.ArrayList<>(ps);
+        np.set(2, r);
+        return af.withParameters(np);
     }
 
     /** ENGINE-LEGACY tolerance: a TDS join condition's {@code get*('col')}

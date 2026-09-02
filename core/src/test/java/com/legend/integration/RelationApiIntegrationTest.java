@@ -650,6 +650,32 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         // ==================== Explicit join() Tests ====================
 
         @Test
+        @DisplayName("legacy TDS ->join(tds, $type, {a,b|get*}) with a let-bound JoinType")
+        void testLegacyTdsJoinWithLetBoundJoinType() throws SQLException {
+            // The corpus's tdsJoin family parameterizes the join kind
+            // through a let (23 tests) — JoinChecker.resolveLetBoundArgs
+            // chases $type through the alias channel so the legacy
+            // desugar (JoinType -> JoinKind, get*('col') reads by name)
+            // fires exactly as for the literal spelling.
+            String pureQuery = """
+                    {|
+                      let type = JoinType.LEFT_OUTER;
+                      model::Person.all()
+                        ->project([col(p|$p.firstName, 'name'), col(p|$p.age, 'age')])
+                        ->join(
+                            model::Person.all()->project([col(p|$p.age, 'age2'), col(p|$p.lastName, 'last')]),
+                            $type,
+                            {a, b | $a.getInteger('age') == $b.getInteger('age2')}
+                        );
+                    }
+                    """;
+            String sql = generateSql(pureQuery);
+            assertTrue(sql.contains("LEFT OUTER JOIN"), "let-bound LEFT_OUTER must desugar to LEFT: " + sql);
+            var result = executeRelation(pureQuery);
+            assertEquals(3, result.rows().size(), "self-join on age keeps one row per person");
+        }
+
+        @Test
         @DisplayName("Explicit ->join() with INNER join type - E2E execution")
         void testExplicitInnerJoin() throws SQLException {
             // Join Person with Address where firstName matches city (no matches expected)

@@ -585,6 +585,20 @@ legitimate forever.
    fan-out cardinality, TDSNull cross-carrier encoding, connection
    timeZone at execution (2), inline MapperPostProcessor (1), identity
    leak on multi-pk map (1).
+   **LEGACY TDS JOIN, LET-BOUND JoinType — LANDED 2026-09-01 (ratchet
+   871/1702 -> 848/1725).** The census had filed 25 tdsJoin tests
+   under "unported native getInteger"; the getters existed — the
+   tests parameterize the kind (`let type = JoinType.LEFT_OUTER; ...
+   ->join(tds, $type, {a,b|$a.getInteger(..) == $b.getInteger(..)})`)
+   and JoinChecker's legacy desugars matched a literal EnumValue only.
+   JoinChecker.resolveLetBoundArgs chases the kind through
+   Env.resolveAlias (the ONE alias channel); +23 flips, oracle roster
+   byte-identical, unit test in RelationApiIntegrationTest. Residue 2
+   (testJoinLambdaAsVariable, testJoinWithLiteralColumn): a let-bound
+   `{a:TDSRow[1], b:TDSRow[1]|...}` condition walls at its OWN let —
+   a nominal TDSRow has no columns to read; it only types against the
+   consuming join's rows — a deferred-kind candidate for the bind-once
+   charter (family A), NOT an alias chase.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

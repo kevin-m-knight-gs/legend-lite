@@ -1128,10 +1128,20 @@ public class RelationalCorpusRunner {
             // diverged bucket 10 -> 5, oracle verdict roster
             // byte-identical, exec-passing unchanged, paired sweeps
             // byte-identical on all three rosters.
-            org.junit.jupiter.api.Assertions.assertEquals(871L,
+            // 871/1702 -> 848/1725 (legacy TDS join, let-bound JoinType):
+            // JoinChecker.resolveLetBoundArgs chases `let type =
+            // JoinType.X; ->join(tds, $type, {a,b|get*})` through the ONE
+            // alias channel so the legacy desugar fires (the 23-test
+            // tdsJoin cohort walled "unknown function 'getInteger'" —
+            // the census had misfiled it as an unported native; the
+            // getters existed all along). +23 flips, oracle roster
+            // byte-identical. Residue 2, named: a let-bound
+            // {a:TDSRow[1],b:TDSRow[1]|...} condition walls at its own
+            // let (deferred-kind candidate, bind-once charter).
+            org.junit.jupiter.api.Assertions.assertEquals(848L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1702L,
+            org.junit.jupiter.api.Assertions.assertEquals(1725L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
