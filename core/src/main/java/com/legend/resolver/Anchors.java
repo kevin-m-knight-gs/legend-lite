@@ -42,8 +42,16 @@ final class Anchors {
     private final java.util.function.Predicate<
             com.legend.compiler.spec.typed.TypedPackageableRef> elementRef;
 
+    /** A constructed metamodel instance the store carries as rows
+     * (ConstructedInstances) anchors exactly like an element reference. */
+    private final java.util.function.Predicate<
+            com.legend.compiler.spec.typed.TypedNewInstance> constructedRow;
+
     Anchors(java.util.function.Predicate<
-            com.legend.compiler.spec.typed.TypedPackageableRef> elementRef) {
+            com.legend.compiler.spec.typed.TypedPackageableRef> elementRef,
+            java.util.function.Predicate<
+                    com.legend.compiler.spec.typed.TypedNewInstance> constructedRow) {
+        this.constructedRow = constructedRow;
         this.elementRef = elementRef;
     }
 
@@ -71,6 +79,11 @@ final class Anchors {
                         break;
                     }
                     continue;
+                }
+                if (c instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                        && constructedRow.test(ni) && navigatesSource(n, c)) {
+                    v = true;
+                    break;
                 }
                 if (anchored(c)) {
                     v = true;
@@ -133,6 +146,9 @@ final class Anchors {
             // an element REFERENCE of a tracked metaclass IS its row (D3)
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when elementRef.test(pr) -> true;
+            // a CONSTRUCTED metamodel instance the store carries as rows
+            case com.legend.compiler.spec.typed.TypedNewInstance ni
+                    when constructedRow.test(ni) -> true;
             // a CLASS-typed property HOP over an object-space chain IS
             // object space (the auto-map flatten re-roots at its target)
             case TypedPropertyAccess pa

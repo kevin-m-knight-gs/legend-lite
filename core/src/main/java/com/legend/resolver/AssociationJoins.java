@@ -581,6 +581,28 @@ final class AssociationJoins {
             if (rw != null) {
                 out = out.withCondition(rw);
             }
+            // the hop's SOURCE-side key reads must ride the UNION parent's
+            // projection (a demand-pruned routed union projects its inbound
+            // route keys only): widen the parent's member threads for them
+            // (group F burn 2026-09-02 — a silent miss surfaced as a SQL
+            // binder error on the composed key column)
+            TypedLambda cond = java.util.Objects.requireNonNull(out.condition());
+            Set<String> srcReads = new LinkedHashSet<>();
+            for (TypedSpec b : cond.body()) {
+                Pipelines.collectVarReads(b, cond.parameters().get(0), srcReads);
+            }
+            if (!srcReads.isEmpty() && Pipelines.containsConcatenate(paj.targetPipeline())) {
+                TypedSpec widened = Pipelines.widenConcatenateForKeys(
+                        paj.targetPipeline(), srcReads);
+                if (widened != paj.targetPipeline()) {
+                    AssocJoin npaj = paj.withTargetPipeline(widened);
+                    joinsByChain.put(parentKey, npaj);
+                    int at = assocJoins.indexOf(paj);
+                    if (at >= 0) {
+                        assocJoins.set(at, npaj);
+                    }
+                }
+            }
         }
         return out;
     }
@@ -879,6 +901,61 @@ final class AssociationJoins {
 
     void setNavMaterializer(NavMaterializer nm) {
         this.navMaterializer = nm;
+    }
+
+    /** The SOURCE-side key columns an association end mapped on the MEMBER
+     * sets of a union / inheritance target reads: the union target itself
+     * carries no hoisted binding for {@code head} (each member routes it
+     * on its own), so the outer association join's condition reads the
+     * members' key columns off the composed row — they must be demanded
+     * through the union projection (group F burn 2026-09-02: a silent
+     * miss surfaced as a SQL binder error, never a wall). Empty when no
+     * member maps the end. */
+    Set<String> memberAssocKeyReads(String mappingFqn, ClassSource unionTarget,
+            String head) {
+        Set<String> reads = new LinkedHashSet<>();
+        String real = SyntheticHeads.realHead(head);
+        var md = ctx.findMapping(mappingFqn).orElse(null);
+        if (md == null) {
+            return reads;
+        }
+        Set<String> members = new LinkedHashSet<>();
+        List<String> declared = ctx.unionMemberClasses(mappingFqn, unionTarget.classFqn());
+        if (declared != null) {
+            members.addAll(declared);
+        }
+        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
+            if (!cb.classFqn().equals(unionTarget.classFqn())
+                    && ctx.isSubtype(cb.classFqn(), unionTarget.classFqn())) {
+                members.add(cb.classFqn());
+            }
+        }
+        for (String m : members) {
+            ClassSource ms;
+            try {
+                ms = sources.get(mappingFqn, m);
+            } catch (com.legend.error.MappingResolutionException e) {
+                continue;
+            }
+            TypedSpec b = ms.bindings().get(real);
+            if (b == null) {
+                continue;
+            }
+            // the end is a NAV SLOT in the member pipeline: the key columns
+            // are the slot's join-condition reads on the member row
+            var steps = Pipelines.navSteps(ms.pipeline());
+            String alias = InnerDemand.navSlotAlias(b, ms.rowVar(), steps.keySet());
+            var step = alias == null ? null : steps.get(alias);
+            if (step != null && step.predicate().parameters().size() == 2) {
+                for (TypedSpec pb : step.predicate().body()) {
+                    Pipelines.collectVarReads(pb, step.predicate().parameters().get(0), reads);
+                }
+            } else {
+                CorrelatedSubselects.collectAliasReads(b, ms.rowVar(),
+                        Pipelines.slotAliases(ms.pipeline()), reads);
+            }
+        }
+        return reads;
     }
 
     /** The class an ASSOCIATION end named {@code prop} on {@code classFqn}

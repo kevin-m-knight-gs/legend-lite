@@ -128,6 +128,7 @@ final class NavMaterializer {
         Map<String, List<List<String>>> subTails =
                 new LinkedHashMap<>();
         Map<String, Set<String>> assocSubLeaves = new LinkedHashMap<>();
+        Set<String> memberKeyDemand = new LinkedHashSet<>();
         for (List<String> tail : tails) {
             if (tail.isEmpty()) {
                 continue;
@@ -135,39 +136,8 @@ final class NavMaterializer {
             TypedSpec b = t.bindings().get(
                     SyntheticHeads.realHead(tail.get(0)));
             if (b == null) {
-                // ASSOC-SUB (union V3): the tail continues through an
-                // ASSOCIATION end on this target (head y is a nav slot, z
-                // on plain Y realizes via the association route). One extra
-                // hop only; deeper tails and context-less temporal targets
-                // keep their loud walls.
-                if (tail.size() == 2) {
-                    // a SYNTHETIC (filter-lifted) sub-head resolves by its
-                    // REAL property; associationJoin below parks the pred
-                    // on the sub-target (#70 — testQualifierInLambdaDeep)
-                    var subClsOpt = assocs.assocTargetClassOf(
-                            targetClassFqn,
-                            SyntheticHeads.realHead(tail.get(0)));
-                    // a UNION-mapped assoc target needs per-member routed
-                    // conditions (V4) — the plain predicate returns PARTIAL
-                    // rows; stays loud until that rung is built
-                    if (subClsOpt.isPresent()
-                            && !Pipelines.containsConcatenate(sources
-                                    .get(mappingFqn, subClsOpt.get())
-                                    .pipeline())) {
-                        String subChain = chainPrefix == null ? tail.get(0)
-                                : chainPrefix + "." + tail.get(0);
-                        // temporal sub-target: liftable when its chain-keyed
-                        // spec (explicit hop date) OR the propagated context
-                        // can stamp it — the nav-slot sub gate's condition
-                        if (temporal.temporalStrategy(subClsOpt.get()) == null
-                                || temporal.spec(subChain) != null
-                                || !temporal.contextAt(subChain,
-                                        subClsOpt.get(), hopCtx).isEmpty()) {
-                            assocSubLeaves.computeIfAbsent(tail.get(0),
-                                    k -> new LinkedHashSet<>()).add(tail.get(1));
-                        }
-                    }
-                }
+                demandUnboundTail(temporal, t, tail, mappingFqn, targetClassFqn,
+                        chainPrefix, hopCtx, tDemand, memberKeyDemand, assocSubLeaves);
                 continue;
             }
             CorrelatedSubselects.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
@@ -243,7 +213,14 @@ final class NavMaterializer {
         // rewritten to hop-1's oriented condition — the sibling slot
         // never joins at parent level (1:N explosion, probed).
         java.util.Map<String, TypedSpec> compositeByAlias = new java.util.LinkedHashMap<>();
+        // a union target's member threads carry the demanded association
+        // keys through the union projection (engine partial-union goldens)
         TypedSpec pipelineForMat = t.pipeline();
+        if (Pipelines.containsConcatenate(pipelineForMat)) {
+            Set<String> unionDemand = new LinkedHashSet<>(tDemand);
+            unionDemand.addAll(memberKeyDemand);
+            pipelineForMat = Pipelines.widenConcatenateForKeys(pipelineForMat, unionDemand);
+        }
         for (String na : new java.util.ArrayList<>(tNavs)) {
             var st = tNavSteps.get(na);
             if (st == null || st.predicate().parameters().size() != 2) {
@@ -348,6 +325,62 @@ final class NavMaterializer {
                 ? temporal.filterMilestonedJoinTargets(matM.pipeline(),
                         slotCtx, chainPrefix)
                 : matM.pipeline();
+    }
+
+    /** A tail whose head has NO binding on the target: an association end
+     * mapped on the member sets (key demand through the union projection)
+     * or the one-hop assoc-sub route (extracted seam of
+     * navTargetMaterialized). */
+    private void demandUnboundTail(TemporalFrame temporal, ClassSource t,
+            List<String> tail, String mappingFqn, String targetClassFqn,
+            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx,
+            Set<String> tDemand, Set<String> memberKeyDemand,
+            Map<String, Set<String>> assocSubLeaves) {
+            // an ASSOCIATION end mapped on the MEMBER sets of this
+            // union / inheritance target (no hoisted binding): the
+            // outer association join reads the members' key columns
+            // off this row — demand them through the union projection
+            // (group F burn 2026-09-02)
+            if (tail.size() == 1 && assocs.assocTargetClassOf(targetClassFqn,
+                    SyntheticHeads.realHead(tail.get(0))).isPresent()) {
+                Set<String> keyReads = assocs.memberAssocKeyReads(
+                        mappingFqn, t, tail.get(0));
+                tDemand.addAll(keyReads);
+                memberKeyDemand.addAll(keyReads);
+            }
+            // ASSOC-SUB (union V3): the tail continues through an
+            // ASSOCIATION end on this target (head y is a nav slot, z
+            // on plain Y realizes via the association route). One extra
+            // hop only; deeper tails and context-less temporal targets
+            // keep their loud walls.
+            if (tail.size() == 2) {
+                // a SYNTHETIC (filter-lifted) sub-head resolves by its
+                // REAL property; associationJoin below parks the pred
+                // on the sub-target (#70 — testQualifierInLambdaDeep)
+                var subClsOpt = assocs.assocTargetClassOf(
+                        targetClassFqn,
+                        SyntheticHeads.realHead(tail.get(0)));
+                // a UNION-mapped assoc target needs per-member routed
+                // conditions (V4) — the plain predicate returns PARTIAL
+                // rows; stays loud until that rung is built
+                if (subClsOpt.isPresent()
+                        && !Pipelines.containsConcatenate(sources
+                                .get(mappingFqn, subClsOpt.get())
+                                .pipeline())) {
+                    String subChain = chainPrefix == null ? tail.get(0)
+                            : chainPrefix + "." + tail.get(0);
+                    // temporal sub-target: liftable when its chain-keyed
+                    // spec (explicit hop date) OR the propagated context
+                    // can stamp it — the nav-slot sub gate's condition
+                    if (temporal.temporalStrategy(subClsOpt.get()) == null
+                            || temporal.spec(subChain) != null
+                            || !temporal.contextAt(subChain,
+                                    subClsOpt.get(), hopCtx).isEmpty()) {
+                        assocSubLeaves.computeIfAbsent(tail.get(0),
+                                k -> new LinkedHashSet<>()).add(tail.get(1));
+                    }
+                }
+            }
     }
 
     /** ONE demanded sub-nav target pipeline: recursive materialization,

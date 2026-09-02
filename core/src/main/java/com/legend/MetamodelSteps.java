@@ -96,14 +96,6 @@ final class MetamodelSteps {
                                     new java.util.TreeMap<>(java.util.Map
                                             .of("queryBody", body)));
                 }
-                case "meta::relational::metamodel::view" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString vn) {
-                        return com.legend.exec.MetamodelWalk.view(recv,
-                                vn.value());
-                    }
-                }
                 case "meta::pure::functions::collection::map" -> {
                     if (recv instanceof java.util.List<?> l
                             && c.args().get(1) instanceof
@@ -111,37 +103,6 @@ final class MetamodelSteps {
                                             .TypedLambda ml) {
                         return walkMapOver(l, ml, specs, env);
                     }
-                }
-                case "meta::pure::mapping::_classMappingByClass" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedPackageableRef cref2) {
-                        return com.legend.exec.MetamodelWalk
-                                .classMappingsByClass(recv, cref2.fullPath());
-                    }
-                }
-                case "meta::pure::mapping::rootClassMappingByClass" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedPackageableRef cref) {
-                        return com.legend.exec.MetamodelWalk
-                                .rootClassMappingByClass(recv,
-                                        cref.fullPath());
-                    }
-                }
-                case "meta::pure::mapping::propertyMappingsByPropertyName" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedCString pn) {
-                        return com.legend.exec.MetamodelWalk
-                                .propertyMappingsByName(recv, pn.value());
-                    }
-                }
-                case "meta::relational::functions::typeInference::inferRelationalType" -> {
-                    return com.legend.exec.MetamodelWalk.infer(recv);
-                }
-                case "meta::relational::metamodel::datatype::dataTypeToSqlText" -> {
-                    return com.legend.exec.MetamodelWalk.sqlText(recv);
                 }
                 default -> {
                     return WALK_UNRECOGNIZED;

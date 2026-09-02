@@ -465,6 +465,11 @@ legitimate forever.
    text-rescued flags cleared — the chartered §0 accounting, as in
    3b-3d). Rescue ceiling ratcheted 901 -> 165 (measured); M1 floors
    85/246 -> 83/204; exec-passing 389 -> 345 (emission census +44).
+   Group F burn (2026-09-02, harness burn-down batch 7): exec-passing
+   345 -> 344 and M1 verified 83 -> 82 — testSubTypeMappingValidWhen
+   MappedExplicitly flipped (its _classMappingByClass is a Pure body over
+   the metamodel store); its assertSameSQL row-verifies via the platform
+   arm — a lane move, not lost verification. Ratchet 841/1732 -> 820/1753.
    TXN-VISIBILITY note: tdgSqlReplay's our-side read runs on the
    SESSION connection when it carries an open transaction (a
    duplicate is a separate snapshot — the attempt's writes are

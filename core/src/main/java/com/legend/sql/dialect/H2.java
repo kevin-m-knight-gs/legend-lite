@@ -179,6 +179,15 @@ public class H2 extends AnsiSqlRenderer {
                     .toUpperCase(java.util.Locale.ROOT) + " FROM "
                     + expr(a.get(1), 0) + ")";
         }
+        // format(template, args…) over a LITERAL template: H2 has no printf
+        // (probed absent, 2026-07-31) — the template is a concatenation of
+        // its text segments with each %d / %s slot CAST to VARCHAR (the
+        // metamodel's dataTypeToSqlText: 'VARCHAR(%d)', 'DECIMAL(%d, %d)');
+        // any other specifier is a capability gap, loud.
+        if (c.fn() == SqlFn.FORMAT && !a.isEmpty()
+                && a.get(0) instanceof SqlExpr.StringLit tpl) {
+            return formatAsConcat(tpl.value(), a.subList(1, a.size()));
+        }
         // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
         // incl. '%' in the prefix: no LIKE-escaping hazard)
         if (c.fn() == SqlFn.STARTS_WITH) {
@@ -360,6 +369,54 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected String rowOrderColumn() {
         return "_ROWID_";
+    }
+
+    /** {@code format} with a literal template as {@code ||} concatenation
+     * (see {@link #call}). */
+    private String formatAsConcat(String template, List<SqlExpr> args) {
+        StringBuilder out = new StringBuilder("(");
+        StringBuilder text = new StringBuilder();
+        int slot = 0;
+        boolean first = true;
+        for (int i = 0; i < template.length(); i++) {
+            char ch = template.charAt(i);
+            if (ch != '%') {
+                text.append(ch);
+                continue;
+            }
+            if (i + 1 >= template.length()) {
+                throw new DialectCapability("format template ends in a bare"
+                        + " '%' — no H2 spelling");
+            }
+            char spec = template.charAt(++i);
+            if (spec == '%') {
+                text.append('%');
+                continue;
+            }
+            if (spec != 'd' && spec != 's') {
+                throw new DialectCapability("format specifier '%" + spec
+                        + "' reached H2, which has no printf — only %d / %s"
+                        + " concatenate");
+            }
+            if (slot >= args.size()) {
+                throw new DialectCapability("format template has more slots"
+                        + " than arguments");
+            }
+            if (text.length() > 0) {
+                out.append(first ? "" : " || ").append("'")
+                        .append(text.toString().replace("'", "''")).append("'");
+                first = false;
+                text.setLength(0);
+            }
+            out.append(first ? "" : " || ").append("CAST(")
+                    .append(expr(args.get(slot++), 0)).append(" AS VARCHAR)");
+            first = false;
+        }
+        if (text.length() > 0 || first) {
+            out.append(first ? "" : " || ").append("'")
+                    .append(text.toString().replace("'", "''")).append("'");
+        }
+        return out.append(")").toString();
     }
 
     // (The NULLS-LAST bare-key override is GONE — §7 slice-2 burn,

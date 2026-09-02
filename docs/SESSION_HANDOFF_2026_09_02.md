@@ -700,11 +700,119 @@ union rows to `View[vw]` on the member's key thread), so the chain
 continues natively with the member's slots. No corpus witness yet; the
 metamodel witness is the real `mainTable` body verbatim.
 
+**Harness burn-down — GROUP F LANDED (2026-09-02, batch 7): 841/1732 →
+**820/1753** (+21 flipped: 16 typeInference row-navigated tests, the 4 constructed-instance tests incl. joinStrings, testSubTypeMappingValidWhenMappedExplicitly); paired sweeps 5/6 byte-identical rosters at the landed state; scoreboard `tests` family 33/39 unchanged, corpus total unchanged; exec-passing 345 → 344 and M1 verified 83 → 82 (lane move, charter §8.3); metamodel quarantine 151 rows / 20 walls → 125 / 9 (the four refusal spellings retired); dual-channel 613 agree / 0 disagree.** The 20 typeInference tests of testRelationalExtension.pure +
+testSubTypeMappingValidWhenMappedExplicitly are platform-scored; every
+function they compose is a Pure body under its REAL name over seeded rows
+(the six natives DELETED; the walk's mapping / set / property-mapping /
+view / type handles DELETED; MetamodelSteps' six cases DELETED; the four
+quarantine spellings retired).
+- **Rows (MetamodelSeeds + OpSeeds → `RelationalOpRows`)**: `databases`,
+  `schemas` (+ the engine's `default` for top-level tables/views),
+  `properties` (class-declared stored properties + association ends a
+  mapping binds), `data_types` (one row per column declared type and per
+  inferred node type, m3 subclass simple name + size/precision/scale),
+  `relational_ops` (every mapping / view expression as a NODE TREE: kind,
+  parent, ordinal, dyna name, literal, column reference, inferred type,
+  and the compiled primary-key columns as TableAliasColumn nodes owned by
+  their set — `primary_keys` and the second `TableAliasColumn` set are
+  GONE), `view_column_mappings`, `property_mappings` (effective across the
+  extends chain, `declared_depth` says own vs inherited);
+  `class_mappings.root` (the `*` set, else the class's sole own set —
+  MappingValidator.validateStar), `mapping_includes_closure.include_rank`
+  (the engine's visit order: includes first, the viewer last).
+  Physical columns renamed around the composed-row prefix collision
+  (`mapped_class_fqn`, `prop_owner_fqn`/`prop_name`, `col_*`, `itype_id`,
+  `dtype_id`).
+- **Metaclasses**: `CoreDataType` + 21 datatype kinds (real
+  relational.pure:392-520), `Property` (name), `SetImplementation.root:
+  Boolean[1]` + `class: Class[1]` (declared RAW — the normalizer classifies
+  class-typed properties by NameRef; the generic form is a normalizer leg),
+  `PropertyMappingsImplementation.propertyMappings`,
+  `PropertyMapping.property`. DataType is an inheritance op over 21
+  FILTERED sets of one table (the engine's single-table-hierarchy idiom);
+  the op-node kinds likewise (5 filtered sets of `relational_ops`).
+- **Bodies**: `_classMappingByClass` =
+  `$_this.visibility->sortBy(v|$v.includeRank).visible.classMappings->filter(cm|$cm.class == $class)`;
+  `rootClassMappingByClass` = real (`->filter(root)->last()`); `view` =
+  real; `allPropertyMappings` = `->cast(@Root).effectivePropertyMappings`;
+  both `propertyMappingsByPropertyName` overloads = real filter over it;
+  `inferRelationalType` = `$rop.inferredType` (the compiler's stamp — the
+  include-closure precedent; the engine recurses the type lattice per
+  query, ours reads the compile-time fact; the recursive form over the
+  node rows is the honest end state and is NOT built); `dataTypeToSqlText`
+  = the real match over the 21 subclass rows.
+- **Mechanisms (all general, each forced by a named test)**: M3 primitive
+  names win in name resolution (a class called Integer/Date is reachable
+  only qualified — `NameResolver`); a property-less inheritance member
+  still gets its membership witness (`UnionSynthesis`); `last()` over a
+  sorted chain = `first()` over the reversed sort (`ChainNormalizer`);
+  element identity equality `$x.cls == Element` = the navigation's
+  FOREIGN-KEY IDENTITY pseudo-binding `$fk:<prop>` (registered beside
+  `$pk:` when the slot's join is one equality on the target's key —
+  `ForeignKeyIdentity`; a plain row read, resolves in every scope);
+  three union-projection gaps (association keys through union member
+  threads — `AssociationJoins.memberAssocKeyReads`; nested union targets
+  widened for downstream hops — `NestedUnionKeys`; hoisted steps over a
+  union source — `Pipelines.widenConcatenateBelow`); a stripped slot in a
+  nested scope splices the class's own step (`CorrelatedSubselects` ←
+  `NavProvenance.spliceOwnStep`); sibling key typing reads the member's
+  SOURCE row (`Pipelines.widenUnionMember` bug); system function bodies
+  REPLACE a same-signature model function (the corpus carries the
+  engine's own `inferRelationalType` source; resolve → inject → resolve,
+  types compared by spelling); the metamodel seeds skip a corpus class
+  that does not compile (one dangling protocol type broke every
+  store-reading test); `innerizeFlattenJoin` descends a spliced sort; H2 spells
+  `format(<literal template>, …)` as `||` concatenation with `%d`/`%s`
+  slots CAST to VARCHAR (H2 has no printf — `H2.formatAsConcat`); a
+  FILTERED single-table hierarchy (one ~filter per subclass set — the
+  engine's own idiom, the datatype metamodel's 21 kinds) synthesizes as
+  ONE scan with filter-gated columns and witnesses, the thread restricted
+  to rows some member claims (`UnionSynthesis.mergedScan`; H2's planner
+  re-evaluated the 21-arm union derived table per outer row over the
+  corpus-sized store and hung — DuckDB hash-joined it); a lone projected
+  thread widens for join keys like a union member
+  (`Pipelines.widenConcatenateForKeys`).
+- **Constructed instances as ROWS (the ruling's side-output rows)**: a
+  query's `^DynaFunction(...)` / `^Literal(...)` / `^LiteralList(...)` tree
+  over constants becomes `relational_ops` rows (ONE builder,
+  `RelationalOpRows`) keyed by a content id, the expression becomes the
+  member class's extent filtered on that id (`ConstructedInstances`,
+  anchored like an element reference), and the rows ride the resolver →
+  `ExecEnv.constructedSeeds` → the execution setup seeds them after the
+  model's own. A row-valued argument (a navigated element) is admitted
+  only under an argument-free type rule (`joinStrings` = VARCHAR(4000)
+  whatever it joins) and seeds no child row.
+- **Pinned**: `MetamodelQueryFunctionsTest` (7 cases: schemas/views, view
+  column inference incl. join and view-on-view, class mappings by class
+  through includes and `*`, property mappings by name incl. inherited and
+  association ends, property inference incl. concat/plus/case, constructed
+  instances, Column.type + dataTypeToSqlText).
+- **Pins moved**: ratchet EXACT 841/1732 → 820/1753; exec-passing lane
+  345 → 344 (charter §8.3 record); metamodel quarantine 151 rows / 20
+  walls → 125 / 9; required-over-nullable ceiling 520 → 529 (the
+  single-table hierarchies' kind-specific columns, non-null on their own
+  set's rows); H2 lane pass floor 1329 held; M1 h2-exec verified floor 83 → 82
+  (testSubTypeMappingValidWhenMappedExplicitly's assertSameSQL row-verifies
+  through the oracle SPI now — lane move); native class count 213 → 236;
+  native catalog −6; Java-eval ledger StatementExecutor 2571 → 2594
+  (ExecEnv carries the side-output rows, no evaluation), OpSeeds
+  registered; reach-back census MetamodelWalk 2 → gone, MetamodelSeeds 1
+  (property mappings live only on the parse artifact).
+- **Named residue**: embedded / inline-embedded / otherwise-embedded and
+  local-property mappings seed no rows; a join-slot mapping seeds its
+  terminal column only (no JoinTreeNode rows); `Mapping.associationMappings`
+  and the aggregation-aware half of `_classMappingByClass` are unseeded;
+  `SetImplementation.class` is raw `Class[1]`; `dataTypeToSqlText` omits
+  the Boolean / Json / DbSpecificDataType arms (no store type models them);
+  `inferRelationalType` reads a stamp, not a recursive query;
+  `testTranslateDbType` (extension-lambda `TranslationContext`) stays a wall.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 841 fallbacks / 1732 flipped, exec-passing 345, quarantine
-151 rows / 20 walls, all at 6840fba6 (pushed).
-1. **Group F — mapping-metamodel query functions (27 tests; §1 of the
+legs).** State: 820 fallbacks / 1753 flipped (group F LANDED — batch 7
+above), exec-passing 344, quarantine 125 rows / 9 walls.
+1. **Group F — DONE (batch 7).** Was: mapping-metamodel query functions (27 tests; §1 of the
    homework: testRelationalExtension.pure 20, testExtendsForMainTable 5
    [DONE], testExtendsForPrimaryKey 1 [DONE], testSubtypeMapping 1)**:
    `_classMappingByClass` / `rootClassMappingByClass` / `view` as Pure

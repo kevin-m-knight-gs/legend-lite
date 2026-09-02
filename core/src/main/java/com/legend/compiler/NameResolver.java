@@ -533,6 +533,12 @@ public final class NameResolver {
      * overload candidates and the Typer picks by signature (real pure's
      * function matching collects across imports).
      */
+    /** The M3 primitive type names (meta::pure::metamodel::type::*, the
+     * platform's {@code Type.Primitive} roster). */
+    private static final Set<String> PRIMITIVE_TYPE_NAMES = Set.of(
+            "Number", "Integer", "Float", "Decimal", "String", "Boolean",
+            "Byte", "Date", "StrictDate", "DateTime", "LatestDate", "StrictTime");
+
     private static List<String> resolveNameMulti(String name, Scope scope) {
         if (name == null || name.isEmpty()) return java.util.Collections.singletonList(name);
         // Type-parameter shadowing: a NameRef matching an in-scope type
@@ -540,6 +546,19 @@ public final class NameResolver {
         // reference, not a Pure FQN. Skip import resolution.
         if (scope.typeParams().contains(name)) return List.of(name);
         if (name.contains("::")) return List.of(name);
+        // M3 PRIMITIVES are reserved bare names (real pure): a class that
+        // happens to be called Integer / Date / Binary (the relational
+        // datatype metamodel, meta::relational::metamodel::datatype::*) is
+        // reachable ONLY by its qualified name — never through a wildcard
+        // import or the prelude fallback. The engine's own sources spell
+        // those classes qualified for exactly this reason.
+        if (PRIMITIVE_TYPE_NAMES.contains(name)) {
+            // the prelude tier spells the m3 FQN (as it always did for the
+            // primitive metaclasses); without it the bare name passes
+            // through for the primitive fallback, unchanged
+            return scope.prelude()
+                    ? List.of("meta::pure::metamodel::type::" + name) : List.of(name);
+        }
         // PRECEDENCE (real pure; NAME_RESOLUTION_BUG.md remediation):
         // 1. the file's wildcards + the element's OWN package (implicit
         //    same-package import) over the declared+platform universe

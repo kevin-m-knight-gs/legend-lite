@@ -78,6 +78,7 @@ import java.util.function.Function;
 public final class StoreResolver {
 
     private final ClassSources sources;
+    private final ConstructedInstances constructed;   // instances as rows
     private final SpecCompiler specs;
     private int freshVarCounter;
     /** Synthetic head registry ('#f'/'#d'/'#c') — append-only. */
@@ -116,6 +117,7 @@ public final class StoreResolver {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
+        this.constructed = new ConstructedInstances(ctx, sources);
         this.synthetics = new SyntheticHeads(ctx);
         // an EMPTY frame until the op-chain phase constructs the real one —
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
@@ -127,6 +129,7 @@ public final class StoreResolver {
         this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
         this.dottedExists = new DottedExists(sources, assocMaterial, ctx, synthetics);
         this.navProvenance = new NavProvenance(sources, assocMaterial);
+        this.corrSubs.setOwnStepSplicer(navProvenance::spliceOwnStep);
         this.chainDispatch = new ChainDispatch(ctx, this::failCallee,
                 () -> freshVarCounter++);
         this.navMaterializer = new NavMaterializer(sources, assocMaterial,
@@ -170,7 +173,9 @@ public final class StoreResolver {
                 : driverRuntimeFqn == null ? Context.NONE
                 : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
-        for (TypedSpec stmt : body) {
+        for (TypedSpec stmt0 : body) {
+            TypedSpec stmt = ChainNormalizer.normalize(stmt0, ctx,
+                    pr -> java.util.Optional.ofNullable(trackedElementClass(pr)));
             // milestoning-date let env (engine inScopeVars, M:648):
             // shared by reference with every TemporalFrame
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet l) {
@@ -737,6 +742,7 @@ public final class StoreResolver {
      * re-pointed through the slot prefix. */
     private ClassSource flattenNavSlot(ClassSource src, String alias,
             TypedNavigate step, Set<String> downstreamHeads,
+            Set<List<String>> downstreamPaths,
             Map<String, Substitution.AssocSub> provOut,
             List<TypedSpec> belowOps, Context context,
             boolean rowPreserving) {
@@ -813,6 +819,16 @@ public final class StoreResolver {
                 }
             }
         }
+        // a UNION source: the step's condition reads its source-side keys
+        // off the union row — the member threads must project them
+        if (Pipelines.containsConcatenate(spliced)) {
+            Set<String> stepSrcReads = new LinkedHashSet<>();
+            for (TypedSpec pb : step.predicate().body()) {
+                Pipelines.collectVarReads(pb, step.predicate().parameters().get(0),
+                        stepSrcReads);
+            }
+            spliced = Pipelines.widenConcatenateBelow(spliced, stepSrcReads);
+        }
         Pipelines.Materialized m = Pipelines.materialize(
                 spliced,
                 Pipelines.closeOverConditions(spliced, srcSlotDemand),
@@ -825,7 +841,8 @@ public final class StoreResolver {
                             tc.equals(targetClass) ? fNavDemand : java.util.Set.of(),
                             tc,
                             (a2, tc2) -> Pipelines.materialize(
-                                    sources.get(src.mappingFqn(), tc2).pipeline(),
+                                    NestedUnionKeys.pipeline(sources, src.mappingFqn(), tc2,
+                                            a2, headNavAlias, downstreamPaths),
                                     java.util.Set.of(), tc2).pipeline());
                     if (tc.equals(targetClass)) {
                         innerM[0] = im;
@@ -949,10 +966,16 @@ public final class StoreResolver {
         var navSteps = Pipelines.navSteps(src.pipeline());
         String alias = hopBinding == null ? null
                 : InnerDemand.navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
+        Set<List<String>> navTails = new LinkedHashSet<>();
+        for (String h : heads) {
+            navTails.add(List.of(h));
+        }
+        navTails.addAll(FlattenOps.downstreamPaths(ops, top));
+        navTails.addAll(extraTails);
         if (alias != null) {
             return flattenNavSlot(src, alias, java.util.Objects
                     .requireNonNull(navSteps.get(alias), "navSteps.get(alias)"),
-                    heads, provOut, belowOps, context, rowPreserving);
+                    heads, navTails, provOut, belowOps, context, rowPreserving);
         }
         // a NAVIGATE-SLOT hop off a COMPOSED source whose step was
         // stripped inside an earlier hop's target: the class's OWN step
@@ -963,7 +986,7 @@ public final class StoreResolver {
             String oa = java.util.Objects.requireNonNull(
                     ((TypedNavigate) withStep.pipeline()).alias().orElse(null));
             return flattenNavSlot(withStep, oa, (TypedNavigate) withStep.pipeline(),
-                    heads, provOut, belowOps, context, rowPreserving);
+                    heads, navTails, provOut, belowOps, context, rowPreserving);
         }
         // DOWNSTREAM nav demand through an ASSOCIATION hop (the depth leg,
         // 2026-09-02): heads read off the re-rooted target that are the
@@ -972,12 +995,6 @@ public final class StoreResolver {
         // NEXT hop / a leaf path through them re-roots on the composed
         // columns instead of asking the target for a step it no longer
         // carries. Non-slot heads pass through the tail loop untouched.
-        Set<List<String>> navTails = new LinkedHashSet<>();
-        for (String h : heads) {
-            navTails.add(List.of(h));
-        }
-        navTails.addAll(FlattenOps.downstreamPaths(ops, top));
-        navTails.addAll(extraTails);
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
                 temporal, src, hop, context, false, heads, hop, navTails);
         for (var sn : aj.targetSubNavs().entrySet()) {
@@ -1343,7 +1360,14 @@ public final class StoreResolver {
 
     /** Anchor reachability, memoized per pass — see {@link Anchors}. */
     private final Anchors anchors = new Anchors(
-            pr -> trackedElementClass(pr) != null);
+            pr -> trackedElementClass(pr) != null, this::constructedRow);
+
+    private boolean constructedRow(com.legend.compiler.spec.typed.TypedNewInstance ni) {
+        return constructed.convertible(ni);
+    }
+
+    /** table -> rows the resolved body's constructed instances contribute. */
+    public java.util.Map<String, List<List<String>>> constructedSeeds() { return constructed.seeds(); }
     /** D3 element references + the chain-position cast rules (built on
      * first use: ctx/sources are constructor-assigned). */
     private @com.legend.Nullable ElementReferences elementsRef;
@@ -1383,6 +1407,8 @@ public final class StoreResolver {
                 && trackedElementClass(pr) != null) {
             out.add(java.util.Objects.requireNonNull(trackedElementClass(pr)));
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
+                && constructed.convertible(cni)) { out.add(cni.classFqn()); }
         for (TypedSpec c : n.children()) {
             collectGetAllClasses(c, out);
         }
@@ -2531,6 +2557,13 @@ public final class StoreResolver {
                     && trackedElementClass(pr) != null) {
                 cur = elements().elementRow(pr, java.util.Objects.requireNonNull(
                         trackedElementClass(pr)), chainContext,
+                        () -> "_el" + (freshVarCounter++));
+                continue;
+            }
+            if (cur instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
+                    && constructed.rowId(cni) != null) {
+                cur = elements().elementRowByKey(java.util.Objects.requireNonNull(
+                        constructed.rowId(cni)), cni.classFqn(), chainContext,
                         () -> "_el" + (freshVarCounter++));
                 continue;
             }

@@ -874,6 +874,12 @@ final class UnionSynthesis {
             for (String target : selfAndAncestorsBelow(memberClass, className,
                     model)) {
                 ClassDefinition tcd = MappingNormalizer.classDef(model, target).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#6 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + target));
+                // every cast target is a DISPATCH target even when the
+                // member maps no scalar property of its own (a property-
+                // less subtype — the datatype metamodel's Integer / Bit
+                // rows, a marker subclass): its thread still needs the
+                // membership witness below for instanceOf / match / cast
+                subTypeProps.computeIfAbsent(target, k -> new LinkedHashSet<>());
                 for (String prop : parts.get(j).fields().keySet()) {
                     TypeExpression t = mcd == null ? null
                             : MappingNormalizer.findPropertyTypeDeep(mcd, prop, model);
@@ -1184,9 +1190,94 @@ final class UnionSynthesis {
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
         ValueSpecification union = null;
-        int ordinal = -1;
-        for (MappingNormalizer.RelationalParts pp : parts) {
-            ordinal++;
+        // SINGLE-SCAN groups: FILTERED members over ONE physical table (the
+        // engine's single-table-hierarchy idiom — one ~filter per subclass
+        // set) synthesize as ONE thread over the unfiltered table, every
+        // column gated by its member's filter predicate, the thread itself
+        // restricted to rows some member claims. Row-identical to the
+        // per-member threads (the filters partition the table), and a plain
+        // indexed join for the database instead of a k-way union derived
+        // table re-evaluated per outer row (H2's planner hung on the 21-kind
+        // datatype hierarchy of the metamodel store — group F burn,
+        // 2026-09-02).
+        Map<String, List<Integer>> scanGroups = new LinkedHashMap<>();
+        for (int o = 0; o < parts.size(); o++) {
+            FilteredScan fs = filteredScan(parts.get(o));
+            boolean eligible = fs != null && !chainsByOrdinal.containsKey(o)
+                    && members.get(o) instanceof ClassMapping.Relational mrx
+                    && !mrx.distinct() && mrx.groupBy().isEmpty();
+            String key = eligible && fs != null ? fs.source().toString() : "#" + o;
+            scanGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(o);
+        }
+        for (List<Integer> group : scanGroups.values()) {
+            ValueSpecification projected;
+            if (group.size() == 1) {
+                int ordinal = group.get(0);
+                Thread t = threadOf(ordinal, parts.get(ordinal), members, common, owner,
+                        className, embSubs, embInner, subTypeProps, srcKeysByOrdinal,
+                        chainsByOrdinal, md, model);
+                projected = new AppliedFunction("project",
+                        List.of(t.pipe(), new ColSpecArray(t.cols())));
+            } else {
+                projected = mergedScan(group, parts, members, common, owner, className,
+                        embSubs, embInner, subTypeProps, srcKeysByOrdinal, chainsByOrdinal,
+                        md, model);
+            }
+            union = union == null ? projected
+                    : new AppliedFunction("concatenate", List.of(union, projected));
+        }
+        // the lifted navigations sit ABOVE the concatenate — one slot per
+        // property, exactly the standard nav-slot pipeline shape
+        for (NavLift lf : lifts) {
+            ColSpec slot = new ColSpec(lf.property(), new LambdaFunction(List.of(),
+                    List.of(new AppliedFunction("getAll", List.of(
+                            new PackageableElementPtr(lf.targetClassFqn()))))),
+                    null);
+            union = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
+                    lf.pairedCondition() == null
+                            ? List.of(union, slot, lf.targetRows(), lf.condition())
+                            : List.of(union, slot, lf.targetRows(), lf.condition(),
+                                    lf.pairedCondition()));
+        }
+        return recomposeUnionRoot(className, union, common, lifts, embTops,
+                emb, model);
+    }
+
+    /** The normalizer's own filter form (the member pipeline a ~filter
+     * emits) — matched by name in the parse-level spec, as the rest of
+     * this synthesis does. */
+    private static final String FILTER_FORM = "filter";
+
+    record Thread(ValueSpecification pipe, List<ColSpec> cols) {
+    }
+
+    /** A member whose pipeline is exactly {@code filter(<source>, row|pred)}. */
+    record FilteredScan(ValueSpecification source, Variable row, ValueSpecification pred) {
+    }
+
+    private static @com.legend.Nullable FilteredScan filteredScan(
+            MappingNormalizer.RelationalParts pp) {
+        if (pp.pipeline() instanceof AppliedFunction f && FILTER_FORM.equals(f.function())
+                && f.parameters().size() == 2
+                && f.parameters().get(1) instanceof LambdaFunction l
+                && l.parameters().size() == 1 && l.body().size() == 1) {
+            return new FilteredScan(f.parameters().get(0), l.parameters().get(0),
+                    l.body().get(0));
+        }
+        return null;
+    }
+
+    /** One member thread's pipeline + column specs (the per-member emission
+     * of synthMemberUnion, extracted so a single-scan group can merge
+     * several members' columns over one source). */
+    private static Thread threadOf(int ordinal, MappingNormalizer.RelationalParts pp,
+            List<ClassMapping> members, List<String> common,
+            @com.legend.Nullable ClassDefinition owner, String className,
+            Map<String, LinkedHashSet<String>> embSubs, Map<String, String> embInner,
+            Map<String, LinkedHashSet<String>> subTypeProps,
+            Map<Integer, Map<String, String>> srcKeysByOrdinal,
+            Map<Integer, List<LiftChain>> chainsByOrdinal,
+            LegacyMappingDefinition md, ModelBuilder model) {
             List<ColSpec> cols = new ArrayList<>(common.size());
             for (String prop : common) {
                 // member sets may disagree on the COLUMN kind (String col in
@@ -1261,26 +1352,68 @@ final class UnionSynthesis {
                 }
             }
             addChainedLiftCols(chainsByOrdinal, ordinal, pp, md, model, cols);
-            ValueSpecification projected = new AppliedFunction("project",
-                    List.of(threadPipe, new ColSpecArray(cols)));
-            union = union == null ? projected
-                    : new AppliedFunction("concatenate", List.of(union, projected));
+            return new Thread(threadPipe, cols);
+    }
+
+    /** The single-scan thread of a filtered same-table group: each column
+     * is the member-gated if-chain over the members' own values, the source
+     * is the shared unfiltered scan restricted to rows any member claims. */
+    private static ValueSpecification mergedScan(List<Integer> group,
+            List<MappingNormalizer.RelationalParts> parts, List<ClassMapping> members,
+            List<String> common, @com.legend.Nullable ClassDefinition owner,
+            String className, Map<String, LinkedHashSet<String>> embSubs,
+            Map<String, String> embInner,
+            Map<String, LinkedHashSet<String>> subTypeProps,
+            Map<Integer, Map<String, String>> srcKeysByOrdinal,
+            Map<Integer, List<LiftChain>> chainsByOrdinal,
+            LegacyMappingDefinition md, ModelBuilder model) {
+        List<FilteredScan> scans = new ArrayList<>();
+        List<Thread> threads = new ArrayList<>();
+        for (int o : group) {
+            scans.add(java.util.Objects.requireNonNull(filteredScan(parts.get(o))));
+            threads.add(threadOf(o, parts.get(o), members, common, owner, className,
+                    embSubs, embInner, subTypeProps, srcKeysByOrdinal, chainsByOrdinal,
+                    md, model));
         }
-        // the lifted navigations sit ABOVE the concatenate — one slot per
-        // property, exactly the standard nav-slot pipeline shape
-        for (NavLift lf : lifts) {
-            ColSpec slot = new ColSpec(lf.property(), new LambdaFunction(List.of(),
-                    List.of(new AppliedFunction("getAll", List.of(
-                            new PackageableElementPtr(lf.targetClassFqn()))))),
-                    null);
-            union = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
-                    lf.pairedCondition() == null
-                            ? List.of(union, slot, lf.targetRows(), lf.condition())
-                            : List.of(union, slot, lf.targetRows(), lf.condition(),
-                                    lf.pairedCondition()));
+        Variable row = scans.get(0).row();
+        ValueSpecification any = null;
+        for (FilteredScan fs : scans) {
+            any = any == null ? fs.pred() : new AppliedFunction("or", List.of(any, fs.pred()));
         }
-        return recomposeUnionRoot(className, union, common, lifts, embTops,
-                emb, model);
+        ValueSpecification pipe = new AppliedFunction("filter", List.of(scans.get(0).source(),
+                new LambdaFunction(List.of(row), List.of(java.util.Objects.requireNonNull(any)))));
+        List<ColSpec> cols = new ArrayList<>();
+        for (int c = 0; c < threads.get(0).cols().size(); c++) {
+            String name = threads.get(0).cols().get(c).name();
+            // the if-chain: member k's value where its filter holds; the last
+            // member's value is the (unreachable — the thread is guarded)
+            // terminal else
+            ValueSpecification value = unwrapTrustOne(java.util.Objects.requireNonNull(
+                    threads.get(threads.size() - 1).cols().get(c).function1()).body().get(0));
+            for (int k = threads.size() - 2; k >= 0; k--) {
+                ValueSpecification own = unwrapTrustOne(java.util.Objects.requireNonNull(
+                        threads.get(k).cols().get(c).function1()).body().get(0));
+                if (own.toString().equals(value.toString())) {
+                    continue;   // the same value either way (a typed NULL no member owns)
+                }
+                value = new AppliedFunction("if", List.of(scans.get(k).pred(),
+                        new LambdaFunction(List.of(), List.of(own)),
+                        new LambdaFunction(List.of(), List.of(value))));
+            }
+            // the alignment wrap OUTSIDE the chain: every thread's column
+            // types [1] (lowering is erasure — the CASE stays nullable)
+            value = new AppliedFunction(Pure.Lite.TRUST_ONE, List.of(value));
+            cols.add(new ColSpec(name, new LambdaFunction(List.of(row), List.of(value)), null));
+        }
+        return new AppliedFunction("project", List.of(pipe, new ColSpecArray(cols)));
+    }
+
+    /** A member column's value without its {@code trustOne} alignment wrap
+     * — the merged if-chain is a nullable CASE (the union's columns are
+     * nullable by contract; a [1] stamp over it trips the stamp invariant). */
+    private static ValueSpecification unwrapTrustOne(ValueSpecification v) {
+        return v instanceof AppliedFunction f && f.function().equals(Pure.Lite.TRUST_ONE)
+                && f.parameters().size() == 1 ? f.parameters().get(0) : v;
     }
 
     /** The union root's recomposed ctor over the finished union pipeline:

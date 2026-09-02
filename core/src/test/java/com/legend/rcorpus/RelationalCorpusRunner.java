@@ -780,8 +780,14 @@ public class RelationalCorpusRunner {
                     // rows=pass is the only path these took. Their data
                     // is ALSO platform-judged by each test's own value
                     // asserts (expected-TDS vs actual rows).
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 83,
-                    "M1 h2-exec verified fell below the 83 floor: "
+                    // 83 -> 82 (metamodel-as-relations group F burn,
+                    // 2026-09-02): testSubTypeMappingValidWhenMappedExplicitly
+                    // flipped to the platform (its _classMappingByClass is a
+                    // Pure body over the store) — its assertSameSQL now
+                    // row-verifies through the oracle SPI like every other
+                    // flipped sql-assert (lane move, not lost verification).
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 82,
+                    "M1 h2-exec verified fell below the 82 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -951,7 +957,11 @@ public class RelationalCorpusRunner {
                     + " fallbacks="
                     + com.legend.harness.WholeTestFlip.fallbackCount()
                     + " exec-passing=" + execPassing);
-            org.junit.jupiter.api.Assertions.assertEquals(345, execPassing,
+            // 345 -> 344 (metamodel-as-relations group F burn, 2026-09-02):
+            // testSubTypeMappingValidWhenMappedExplicitly flipped — its
+            // assertSameSQL row-verifies via the platform arm (charter
+            // §8.3 lane move; the M1 floor moved 83 -> 82 with it).
+            org.junit.jupiter.api.Assertions.assertEquals(344, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1184,10 +1194,26 @@ public class RelationalCorpusRunner {
             // passing unchanged, paired sweeps byte-identical on all four
             // rosters; quarantine witness rows 172 -> 151 (the
             // classMappingById refusal spelling is DEAD), walls 20.
-            org.junit.jupiter.api.Assertions.assertEquals(841L,
+            // 841/1732 -> 820/1753 (harness burn-down batch 7 — GROUP F,
+            // 2026-09-02): rootClassMappingByClass / _classMappingByClass /
+            // view / propertyMappingsByPropertyName / allPropertyMappings /
+            // inferRelationalType / dataTypeToSqlText are Pure bodies over
+            // the metamodel store (schemas, properties, data types, the
+            // relational-operation node trees with the compiler's inferred
+            // type stamped, property mappings across the extends chain,
+            // set root / class, include visit rank); a query's constructed
+            // ^DynaFunction(...) trees are rows too (the resolver's
+            // side-output seeds). +21 flips = the 20 typeInference tests
+            // of testRelationalExtension.pure (16 row-navigated + 4
+            // constructed) and testSubTypeMappingValidWhenMappedExplicitly;
+            // the six natives and the walk's mapping / set / property-
+            // mapping / view / type arms are gone. Lane moves in-pin:
+            // exec-passing 345 -> 344, M1 verified 83 -> 82; quarantine
+            // 151/20 -> 125/9 (four refusal spellings retired).
+            org.junit.jupiter.api.Assertions.assertEquals(820L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1732L,
+            org.junit.jupiter.api.Assertions.assertEquals(1753L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1306,14 +1332,19 @@ public class RelationalCorpusRunner {
             // longer exists (its vocabulary entry is retired); the 21 rows
             // it owned resolve through the database. The other spellings
             // are untouched (151 rows).
-            org.junit.jupiter.api.Assertions.assertEquals(151,
+            // 151/20 -> 125/9 (harness burn-down batch 7 — GROUP F,
+            // 2026-09-02): the rootClassMappingByClass / _classMappingByClass
+            // / view / inferRelationalType refusal spellings are DEAD (Pure
+            // bodies over the metamodel store; the natives are deleted) —
+            // their rows and wall tests resolve through the database.
+            org.junit.jupiter.api.Assertions.assertEquals(125,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
-                    "metamodel quarantine (witness rows) moved off 151 —"
+                    "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
-            org.junit.jupiter.api.Assertions.assertEquals(20,
+            org.junit.jupiter.api.Assertions.assertEquals(9,
                     com.legend.exec.CanonicalDivergence
                             .v7QuarantinedWallCount(),
-                    "metamodel quarantine (wall tests) moved off 20 —"
+                    "metamodel quarantine (wall tests) moved off 9 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10h");
             // 117 -> 111 (TDG lane S1): the census folds in the CHECKER
             // — the 6 necessaryColumns asserts route and AGREE.
@@ -1951,10 +1982,21 @@ public class RelationalCorpusRunner {
                     // engine-fixture model debt the future dialect-split
                     // warning will name, and the static slice of the
                     // 925 wire-breach census. Ceiling, down-only.
+                    // 520 -> 529 (metamodel-as-relations group F burn,
+                    // 2026-09-02): the metamodel store's SINGLE-TABLE
+                    // hierarchies — datatype kinds over data_types
+                    // (Varchar/Char/Binary/Varbinary.size, Decimal/
+                    // Numeric.precision+scale) and DynaFunction.name over
+                    // relational_ops — one ~filter per subclass set (the
+                    // engine idiom): each column is non-null on every row of
+                    // its own set and NULL on the other kinds' rows by
+                    // construction, so the [1] declaration is exact and the
+                    // column is nullable at the table level. 9 witnesses,
+                    // all "direct", all metamodel-store.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            reqNullAdjudicated() <= 520,
+                            reqNullAdjudicated() <= 529,
                             "required-over-nullable pairings grew past"
-                                    + " the pinned ceiling 520 — a new"
+                                    + " the pinned ceiling 529 — a new"
                                     + " [1]-property over a nullable"
                                     + " column entered the corpus"
                                     + " models"),

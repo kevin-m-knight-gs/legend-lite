@@ -62,6 +62,107 @@ public final class SystemMetamodel {
     private static final String INHERITANCE_OP =
             "meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_()";
 
+    /** The SQL data-type kinds the store models — m3 datatype class simple
+     * names, one filtered set per kind over {@code data_types} (the engine
+     * idiom for a hierarchy over one table); the seed writes the same
+     * spelling in {@code dt_kind} ({@code OpSeeds.kindOf}). */
+    static final String[] DATA_TYPE_KINDS = {"BigInt", "SmallInt", "TinyInt",
+        "Integer", "Float", "Double", "Real", "Bit", "Timestamp", "Date", "Distinct",
+        "Other", "SemiStructured", "Varchar", "Char", "Binary", "Varbinary",
+        "Decimal", "Numeric", "Array", "Object"};
+
+    /** The relational-operation node kinds the store models: {m3 class
+     * simple name, set id, property lines}. */
+    static final String[][] OP_KINDS = {
+        {"DynaFunction", "opDyna", "name: " + S + " metamodel.relational_ops.dyna_name"},
+        {"Literal", "opLit", ""},
+        {"LiteralList", "opLitList", ""},
+        {"TableAliasColumn", "opTac", "columnName: " + S + " metamodel.relational_ops.col_name,\n"
+            + "                    column[col]: " + S + "@OpToColumn"},
+        {"RelationalOperationElementWithJoin", "opJoin", ""},
+    };
+
+    private static String filters() {
+        StringBuilder sb = new StringBuilder();
+        for (String k : DATA_TYPE_KINDS) {
+            sb.append("                Filter Dt").append(k)
+                    .append("(metamodel.data_types.dt_kind = '").append(k).append("')\n");
+        }
+        for (String[] k : OP_KINDS) {
+            sb.append("                Filter Op").append(k[0])
+                    .append("(metamodel.relational_ops.kind = '").append(k[0]).append("')\n");
+        }
+        return sb.toString();
+    }
+
+    private static String dataTypeSets() {
+        StringBuilder sb = new StringBuilder();
+        for (String k : DATA_TYPE_KINDS) {
+            boolean sized = k.equals("Varchar") || k.equals("Char") || k.equals("Binary")
+                    || k.equals("Varbinary");
+            boolean scaled = k.equals("Decimal") || k.equals("Numeric");
+            String props = sized
+                    ? "\n                    size: " + S + " metamodel.data_types.type_size"
+                    : scaled
+                    ? "\n                    precision: " + S + " metamodel.data_types.type_precision,"
+                        + "\n                    scale: " + S + " metamodel.data_types.type_scale"
+                    : "";
+            sb.append("                meta::relational::metamodel::datatype::").append(k)
+                    .append("[dt").append(k).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Dt").append(k).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.data_types.id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.data_types")
+                    .append(props).append("\n")
+                    .append("                }\n");
+        }
+        return sb.toString();
+    }
+
+    private static String opSets() {
+        StringBuilder sb = new StringBuilder();
+        for (String[] k : OP_KINDS) {
+            sb.append("                meta::relational::metamodel::").append(k[0])
+                    .append("[").append(k[1]).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Op").append(k[0]).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.relational_ops.id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.relational_ops")
+                    .append(k[2].isEmpty() ? "" : "\n                    " + k[2]).append("\n")
+                    .append("                }\n");
+        }
+        return sb.toString();
+    }
+
+    /** {@code prop[opX]: @Join} per operation kind — a property typed
+     * RelationalOperationElement routes to every member set. */
+    private static String opRoutes(String prop, String join) {
+        List<String> lines = new ArrayList<>();
+        for (String[] k : OP_KINDS) {
+            lines.add("                    " + prop + "[" + k[1] + "]: " + S + "@" + join);
+        }
+        return String.join(",\n", lines);
+    }
+
+    private static String typeRoutes() {
+        List<String> lines = new ArrayList<>();
+        for (String k : DATA_TYPE_KINDS) {
+            lines.add("                    type[dt" + k + "]: " + S + "@ColumnToType");
+        }
+        return String.join(",\n", lines);
+    }
+
+    private static String inferredTypeEnds() {
+        List<String> lines = new ArrayList<>();
+        for (String[] op : OP_KINDS) {
+            for (String k : DATA_TYPE_KINDS) {
+                lines.add("                        inferredType[" + op[1] + ", dt" + k + "]: " + S + "@OpToType");
+                lines.add("                        inferredTypeOf[dt" + k + ", " + op[1] + "]: " + S + "@OpToType");
+            }
+        }
+        return String.join(",\n", lines);
+    }
+
     /** Schema (charter &sect;4 + step 3); grow BY WITNESS ONLY. */
     private static final String SOURCE = """
             ###Relational
@@ -83,19 +184,21 @@ public final class SystemMetamodel {
                     Table mapping_includes_closure
                     (
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
-                        included_fqn VARCHAR(1024) PRIMARY KEY
+                        included_fqn VARCHAR(1024) PRIMARY KEY,
+                        include_rank INTEGER NOT NULL
                     )
                     Table class_mappings
                     (
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
                         id VARCHAR(256) PRIMARY KEY,
-                        class_fqn VARCHAR(1024) NOT NULL,
+                        mapped_class_fqn VARCHAR(1024) NOT NULL,
                         super_set_id VARCHAR(256),
                         main_db VARCHAR(1024),
                         main_schema VARCHAR(256),
                         main_table VARCHAR(256),
                         distinct_set BIT,
-                        user_defined_pk BIT NOT NULL
+                        user_defined_pk BIT NOT NULL,
+                        root BIT NOT NULL
                     )
                     Table set_ancestry
                     (
@@ -110,22 +213,70 @@ public final class SystemMetamodel {
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
                         id VARCHAR(256) PRIMARY KEY
                     )
-                    Table primary_keys
-                    (
-                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
-                        id VARCHAR(256) PRIMARY KEY,
-                        ordinal INTEGER PRIMARY KEY,
-                        db_fqn VARCHAR(1024) NOT NULL,
-                        schema_name VARCHAR(256) NOT NULL,
-                        table_name VARCHAR(256) NOT NULL,
-                        pk_column VARCHAR(256) NOT NULL
-                    )
                     Table columns
                     (
                         db_fqn VARCHAR(1024) PRIMARY KEY,
                         schema_name VARCHAR(256) PRIMARY KEY,
                         table_name VARCHAR(256) PRIMARY KEY,
+                        name VARCHAR(256) PRIMARY KEY,
+                        dtype_id VARCHAR(2048) NOT NULL
+                    )
+                    Table databases
+                    (
+                        fqn VARCHAR(1024) PRIMARY KEY,
+                        name VARCHAR(256) NOT NULL
+                    )
+                    Table schemas
+                    (
+                        db_fqn VARCHAR(1024) PRIMARY KEY,
                         name VARCHAR(256) PRIMARY KEY
+                    )
+                    Table properties
+                    (
+                        owner_fqn VARCHAR(1024) PRIMARY KEY,
+                        name VARCHAR(256) PRIMARY KEY
+                    )
+                    Table data_types
+                    (
+                        id VARCHAR(2048) PRIMARY KEY,
+                        dt_kind VARCHAR(32) NOT NULL,
+                        type_size INTEGER,
+                        type_precision INTEGER,
+                        type_scale INTEGER
+                    )
+                    Table relational_ops
+                    (
+                        id VARCHAR(2048) PRIMARY KEY,
+                        kind VARCHAR(64) NOT NULL,
+                        parent_id VARCHAR(2048),
+                        ordinal INTEGER,
+                        dyna_name VARCHAR(256),
+                        literal_value VARCHAR(4000),
+                        col_db VARCHAR(1024),
+                        col_schema VARCHAR(256),
+                        col_table VARCHAR(256),
+                        col_name VARCHAR(256),
+                        itype_id VARCHAR(2048),
+                        pk_mapping_fqn VARCHAR(1024),
+                        pk_set_id VARCHAR(256)
+                    )
+                    Table view_column_mappings
+                    (
+                        db_fqn VARCHAR(1024) PRIMARY KEY,
+                        schema_name VARCHAR(256) PRIMARY KEY,
+                        view_name VARCHAR(256) PRIMARY KEY,
+                        column_name VARCHAR(256) PRIMARY KEY,
+                        op_id VARCHAR(2048) NOT NULL
+                    )
+                    Table property_mappings
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        id VARCHAR(256) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        prop_owner_fqn VARCHAR(1024),
+                        prop_name VARCHAR(256) NOT NULL,
+                        op_id VARCHAR(2048) NOT NULL,
+                        declared_depth INTEGER NOT NULL
                     )
                     Table table_aliases
                     (
@@ -178,19 +329,34 @@ public final class SystemMetamodel {
                     and metamodel.set_ancestry.super_id = metamodel.class_mappings.id)
                 Join SetToGroupBy(metamodel.class_mappings.mapping_fqn = metamodel.group_by_mappings.mapping_fqn
                     and metamodel.class_mappings.id = metamodel.group_by_mappings.id)
-                Join SetToPrimaryKeys(metamodel.class_mappings.mapping_fqn = metamodel.primary_keys.mapping_fqn
-                    and metamodel.class_mappings.id = metamodel.primary_keys.id)
-                Join PrimaryKeyToAlias(metamodel.primary_keys.mapping_fqn = metamodel.table_aliases.mapping_fqn
-                    and metamodel.primary_keys.id = metamodel.table_aliases.id)
-                Join PrimaryKeyToColumn(metamodel.primary_keys.db_fqn = metamodel.columns.db_fqn
-                    and metamodel.primary_keys.schema_name = metamodel.columns.schema_name
-                    and metamodel.primary_keys.table_name = metamodel.columns.table_name
-                    and metamodel.primary_keys.pk_column = metamodel.columns.name)
+                Join SetToPrimaryKeyOps(metamodel.class_mappings.mapping_fqn = metamodel.relational_ops.pk_mapping_fqn
+                    and metamodel.class_mappings.id = metamodel.relational_ops.pk_set_id)
+                Join DbToSchemas(metamodel.databases.fqn = metamodel.schemas.db_fqn)
+                Join SchemaToViews(metamodel.schemas.db_fqn = metamodel.views.db_fqn
+                    and metamodel.schemas.name = metamodel.views.schema_name)
+                Join ViewToColumnMappings(metamodel.views.db_fqn = metamodel.view_column_mappings.db_fqn
+                    and metamodel.views.schema_name = metamodel.view_column_mappings.schema_name
+                    and metamodel.views.name = metamodel.view_column_mappings.view_name)
+                Join ColumnMappingToOp(metamodel.view_column_mappings.op_id = metamodel.relational_ops.id)
+                Join ClassMappingsToClass(metamodel.class_mappings.mapped_class_fqn = metamodel.classes.fqn)
+                Join SetToPropertyMappings(metamodel.class_mappings.mapping_fqn = metamodel.property_mappings.mapping_fqn
+                    and metamodel.class_mappings.id = metamodel.property_mappings.id)
+                Join PropertyMappingToOp(metamodel.property_mappings.op_id = metamodel.relational_ops.id)
+                Join PropertyMappingToProperty(metamodel.property_mappings.prop_owner_fqn = metamodel.properties.owner_fqn
+                    and metamodel.property_mappings.prop_name = metamodel.properties.name)
+                Join ColumnToType(metamodel.columns.dtype_id = metamodel.data_types.id)
+                Join OpToType(metamodel.relational_ops.itype_id = metamodel.data_types.id)
+                Join OpToColumn(metamodel.relational_ops.col_db = metamodel.columns.db_fqn
+                    and metamodel.relational_ops.col_schema = metamodel.columns.schema_name
+                    and metamodel.relational_ops.col_table = metamodel.columns.table_name
+                    and metamodel.relational_ops.col_name = metamodel.columns.name)
+            %3$s
             )
 
             ###Pure
             Class meta::lite::metamodel::MappingVisibility
             {
+                includeRank: Integer[1];
             }
 
             Association meta::lite::metamodel::MappingVisibilities
@@ -234,6 +400,80 @@ public final class SystemMetamodel {
                 ancestryOf: meta::lite::metamodel::SetAncestry[*];
             }
 
+            Association meta::lite::metamodel::InferredTypes
+            {
+                inferredType: meta::relational::metamodel::datatype::DataType[0..1];
+                inferredTypeOf: meta::relational::metamodel::RelationalOperationElement[*];
+            }
+
+            Association meta::lite::metamodel::EffectivePropertyMappings
+            {
+                effectivePropertyMappings: meta::relational::mapping::RelationalPropertyMapping[*];
+                allPropertyMappingsOf: meta::relational::mapping::RootRelationalInstanceSetImplementation[1];
+            }
+
+            function meta::pure::mapping::_classMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[*]
+            {
+                $_this.visibility->sortBy(v|$v.includeRank).visible.classMappings->filter(cm|$cm.class == $class)
+            }
+
+            function meta::pure::mapping::rootClassMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[0..1]
+            {
+                $_this->meta::pure::mapping::_classMappingByClass($class)->filter(s|$s.root == true)->last()
+            }
+
+            function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:String[1]):meta::relational::metamodel::relation::View[0..1]
+            {
+                $_this.views->filter(t|$t.name == $name)->first()
+            }
+
+            function meta::pure::mapping::allPropertyMappings(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMapping[*]
+            {
+                $_this->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).effectivePropertyMappings
+            }
+
+            function meta::pure::mapping::propertyMappingsByPropertyName(_this:meta::pure::mapping::PropertyMappingsImplementation[1], s:String[1]):meta::pure::mapping::PropertyMapping[*]
+            {
+                $_this->meta::pure::mapping::allPropertyMappings()->filter(pm|$pm.property.name == $s)
+            }
+
+            function meta::pure::mapping::propertyMappingsByPropertyName(i:meta::pure::mapping::InstanceSetImplementation[1], propertyName:String[1]):meta::pure::mapping::PropertyMapping[*]
+            {
+                $i->meta::pure::mapping::allPropertyMappings()->filter(pm|$pm.property.name == $propertyName)
+            }
+
+            function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1]):meta::relational::metamodel::datatype::DataType[0..1]
+            {
+                $rop.inferredType
+            }
+
+            function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):String[1]
+            {
+                $type->match([
+                    i : meta::relational::metamodel::datatype::Integer[1] | 'INT',
+                    f : meta::relational::metamodel::datatype::Float[1] | 'FLOAT',
+                    v : meta::relational::metamodel::datatype::Varchar[1] | format('VARCHAR(%%d)', $v.size),
+                    c : meta::relational::metamodel::datatype::Char[1] | format('CHAR(%%d)', $c.size),
+                    d : meta::relational::metamodel::datatype::Decimal[1] | format('DECIMAL(%%d, %%d)', [$d.precision, $d.scale]),
+                    t : meta::relational::metamodel::datatype::Timestamp[1] | 'TIMESTAMP',
+                    d : meta::relational::metamodel::datatype::Date[1] | 'DATE',
+                    b : meta::relational::metamodel::datatype::BigInt[1] | 'BIGINT',
+                    s : meta::relational::metamodel::datatype::SmallInt[1] | 'SMALLINT',
+                    t : meta::relational::metamodel::datatype::TinyInt[1] | 'TINYINT',
+                    d : meta::relational::metamodel::datatype::Double[1] | 'DOUBLE',
+                    n : meta::relational::metamodel::datatype::Numeric[1] | format('NUMERIC(%%d, %%d)', [$n.precision, $n.scale]),
+                    d : meta::relational::metamodel::datatype::Distinct[1] | 'DISTINCT',
+                    o : meta::relational::metamodel::datatype::Other[1] | 'OTHER',
+                    b : meta::relational::metamodel::datatype::Bit[1] | 'BIT',
+                    b : meta::relational::metamodel::datatype::Binary[1] | format('BINARY(%%d)', $b.size),
+                    r : meta::relational::metamodel::datatype::Real[1] | 'REAL',
+                    a : meta::relational::metamodel::datatype::Array[1] | 'ARRAY',
+                    v : meta::relational::metamodel::datatype::Varbinary[1] | format('VARBINARY(%%d)', $v.size),
+                    s : meta::relational::metamodel::datatype::SemiStructured[1] | 'SEMISTRUCTURED',
+                    o : meta::relational::metamodel::datatype::Object[1] | 'OBJECT'
+                ])
+            }
+
             function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {
                 $_this.visibility.visible.classMappings->filter(cm|$cm.id == $id)->first()
@@ -262,7 +502,7 @@ public final class SystemMetamodel {
             ###Mapping
             Mapping meta::lite::metamodel::MetamodelMapping
             (
-                *meta::pure::metamodel::type::Class: Relational
+                *meta::pure::metamodel::type::Class[cls]: Relational
                 {
                     ~primaryKey(%1$s metamodel.classes.fqn)
                     ~mainTable %1$s metamodel.classes
@@ -279,6 +519,7 @@ public final class SystemMetamodel {
                 {
                     ~primaryKey(%1$s metamodel.mapping_includes_closure.mapping_fqn, %1$s metamodel.mapping_includes_closure.included_fqn)
                     ~mainTable %1$s metamodel.mapping_includes_closure
+                    includeRank: %1$s metamodel.mapping_includes_closure.include_rank
                 }
                 *meta::pure::mapping::SetImplementation: Operation
                 {
@@ -289,13 +530,15 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.class_mappings.mapping_fqn, %1$s metamodel.class_mappings.id)
                     ~mainTable %1$s metamodel.class_mappings
                     id: %1$s metamodel.class_mappings.id,
+                    root: %1$s metamodel.class_mappings.root,
+                    class[cls]: %1$s@ClassMappingsToClass,
                     superSetImplementationId: %1$s metamodel.class_mappings.super_set_id,
                     distinct: %1$s metamodel.class_mappings.distinct_set,
                     userDefinedPrimaryKey: %1$s metamodel.class_mappings.user_defined_pk,
                     parent: %1$s@ClassMappingsToMappings,
                     mainTableAlias: %1$s@ClassMappingsToAlias,
                     groupBy[gbm]: %1$s@SetToGroupBy,
-                    primaryKey[tac]: %1$s@SetToPrimaryKeys
+                    primaryKey[opTac]: %1$s@SetToPrimaryKeyOps
                 }
                 meta::relational::mapping::GroupByMapping[gbm]: Relational
                 {
@@ -321,8 +564,52 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.views.db_fqn, %1$s metamodel.views.schema_name, %1$s metamodel.views.name)
                     ~mainTable %1$s metamodel.views
                     name: %1$s metamodel.views.name,
-                    mainTableAlias[alias]: %1$s@ViewToAlias
+                    mainTableAlias[alias]: %1$s@ViewToAlias,
+                    columnMappings[vcm]: %1$s@ViewToColumnMappings
                 }
+                *meta::relational::metamodel::Database[db]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.databases.fqn)
+                    ~mainTable %1$s metamodel.databases
+                    name: %1$s metamodel.databases.name,
+                    schemas[schema]: %1$s@DbToSchemas
+                }
+                *meta::relational::metamodel::Schema[schema]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.schemas.db_fqn, %1$s metamodel.schemas.name)
+                    ~mainTable %1$s metamodel.schemas
+                    name: %1$s metamodel.schemas.name,
+                    views[vw]: %1$s@SchemaToViews
+                }
+                *meta::relational::mapping::ColumnMapping[vcm]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.view_column_mappings.db_fqn, %1$s metamodel.view_column_mappings.schema_name, %1$s metamodel.view_column_mappings.view_name, %1$s metamodel.view_column_mappings.column_name)
+                    ~mainTable %1$s metamodel.view_column_mappings
+                    columnName: %1$s metamodel.view_column_mappings.column_name,
+            %5$s
+                }
+                *meta::pure::metamodel::function::property::Property[prop]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.properties.owner_fqn, %1$s metamodel.properties.name)
+                    ~mainTable %1$s metamodel.properties
+                    name: %1$s metamodel.properties.name
+                }
+                *meta::pure::mapping::PropertyMapping: Operation
+                {
+                    %2$s
+                }
+                meta::relational::mapping::RelationalPropertyMapping[rpm]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.property_mappings.mapping_fqn, %1$s metamodel.property_mappings.id, %1$s metamodel.property_mappings.ordinal)
+                    ~mainTable %1$s metamodel.property_mappings
+                    property[prop]: %1$s@PropertyMappingToProperty,
+            %6$s
+                }
+                *meta::relational::metamodel::datatype::DataType: Operation
+                {
+                    %2$s
+                }
+            %4$s
                 *meta::relational::metamodel::RelationalOperationElement: Operation
                 {
                     %2$s
@@ -333,19 +620,28 @@ public final class SystemMetamodel {
                     ~mainTable %1$s metamodel.tables
                     name: %1$s metamodel.tables.name
                 }
-                meta::relational::metamodel::TableAliasColumn[tac]: Relational
-                {
-                    ~primaryKey(%1$s metamodel.primary_keys.mapping_fqn, %1$s metamodel.primary_keys.id, %1$s metamodel.primary_keys.ordinal)
-                    ~mainTable %1$s metamodel.primary_keys
-                    columnName: %1$s metamodel.primary_keys.pk_column,
-                    alias[alias]: %1$s@PrimaryKeyToAlias,
-                    column[col]: %1$s@PrimaryKeyToColumn
-                }
                 meta::relational::metamodel::Column[col]: Relational
                 {
                     ~primaryKey(%1$s metamodel.columns.db_fqn, %1$s metamodel.columns.schema_name, %1$s metamodel.columns.table_name, %1$s metamodel.columns.name)
                     ~mainTable %1$s metamodel.columns
-                    name: %1$s metamodel.columns.name
+                    name: %1$s metamodel.columns.name,
+            %7$s
+                }
+            %8$s
+                meta::lite::metamodel::InferredTypes: Relational
+                {
+                    AssociationMapping
+                    (
+            %9$s
+                    )
+                }
+                meta::lite::metamodel::EffectivePropertyMappings: Relational
+                {
+                    AssociationMapping
+                    (
+                        effectivePropertyMappings[rootRel, rpm]: %1$s@SetToPropertyMappings,
+                        allPropertyMappingsOf[rpm, rootRel]: %1$s@SetToPropertyMappings
+                    )
                 }
                 meta::lite::metamodel::AliasBaseTables: Relational
                 {
@@ -396,7 +692,10 @@ public final class SystemMetamodel {
                     )
                 }
             )
-            """.formatted(S, INHERITANCE_OP);
+            """.formatted(S, INHERITANCE_OP, filters(), dataTypeSets(),
+                    opRoutes("relationalOperationElement", "ColumnMappingToOp"),
+                    opRoutes("relationalOperationElement", "PropertyMappingToOp"),
+                    typeRoutes(), opSets(), inferredTypeEnds());
 
     /** A model element shadows a system element of the same qualified
      * name — for FUNCTIONS only when the parameter types agree too: a
@@ -413,13 +712,26 @@ public final class SystemMetamodel {
                 return false;
             }
             for (int i = 0; i < f.parameters().size(); i++) {
-                if (!String.valueOf(f.parameters().get(i).type()).equals(
-                        String.valueOf(g.parameters().get(i).type()))) {
+                if (!spelling(f.parameters().get(i).type()).equals(
+                        spelling(g.parameters().get(i).type()))) {
                     return false;
                 }
             }
         }
         return true;
+    }
+
+    /** A parameter type's spelling without source positions (a resolved
+     * model type carries its parse position; the system source carries
+     * none — the record text never compared equal). */
+    private static String spelling(com.legend.protocol.TypeExpression t) {
+        return switch (t) {
+            case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
+            case com.legend.protocol.TypeExpression.Generic g -> g.name() + "<"
+                    + g.arguments().stream().map(SystemMetamodel::spelling)
+                            .collect(java.util.stream.Collectors.joining(",")) + ">";
+            default -> String.valueOf(t);
+        };
     }
 
     /** The system Pure source (tests inspect it; never edited at run time). */
@@ -443,6 +755,17 @@ public final class SystemMetamodel {
         List<PackageableElement> merged =
                 new ArrayList<>(parsed.elements());
         for (PackageableElement el : ELEMENTS) {
+            if (el instanceof com.legend.model.FunctionDefinition) {
+                // a system FUNCTION body is the platform's implementation
+                // of a real engine function; a same-signature function in
+                // the model is the ENGINE'S OWN SOURCE riding in the corpus
+                // universe (relationalExtension.pure's inferRelationalType)
+                // — spec material, never our runtime (user-ratified
+                // 2026-08-18): the system body replaces it
+                merged.removeIf(e -> shadows(e, el));
+                merged.add(el);
+                continue;
+            }
             boolean shadowed = parsed.elements().stream().anyMatch(
                     e -> shadows(e, el));
             if (!shadowed) {

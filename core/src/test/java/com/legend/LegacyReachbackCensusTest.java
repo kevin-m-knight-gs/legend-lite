@@ -70,7 +70,14 @@ class LegacyReachbackCensusTest {
             // classMappingById/superMapping/allSuperSetImplementations/
             // resolvePrimaryKey arms are Pure bodies over the metamodel
             // store — classMappingByIdIn (one reach) is gone with them
-            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 2,
+            // MetamodelWalk 2 -> GONE (group F burn, 2026-09-02): the
+            // mapping/set/property-mapping handles are Pure bodies over the
+            // metamodel store
+            // SEED DERIVATION (group F burn): a set's property mappings live
+            // only on the parse artifact (the compiled binding is a lifted
+            // function) — the store's property_mappings rows read them
+            // there, the ONE reach the walk's arms used to make
+            "core/src/main/java/com/legend/MetamodelSeeds.java", 1,
             // SURFACE CONTRACT: engine scanRelations is "static form off
             // the mapping" (#44, feature map §14.1) — join-NAME vocabulary
             // exists only on the authored surface (SCAN-1 reclassified)

@@ -1135,6 +1135,16 @@ private static boolean referencesVar(TypedSpec n, String var) {
     record NestedMaterials(TypedSpec pipe,
             Map<String, Substitution.AssocSub> assocs) {}
 
+    /** The flatten route's own-step splicer (NavProvenance.spliceOwnStep),
+     * wired by the resolver; null until then. */
+    private java.util.function.@com.legend.Nullable BiFunction<ClassSource, String, ClassSource>
+            ownStepSplicer;
+
+    void setOwnStepSplicer(
+            java.util.function.BiFunction<ClassSource, String, ClassSource> splicer) {
+        this.ownStepSplicer = splicer;
+    }
+
     NestedMaterials nestedAssocMaterials(TemporalFrame temporal,
             StoreResolver.Context context, ClassSource t,
             TypedSpec targetPipe,
@@ -1190,6 +1200,18 @@ private static boolean referencesVar(TypedSpec n, String var) {
             TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
             boolean slotBacked = hb != null
                     && InnerDemand.navSlotAlias(hb, t.rowVar(), tNavSteps.keySet()) != null;
+            // a slot STRIPPED inside an earlier hop's target (the scope's
+            // source is a composed row carrying no step for it): the
+            // class's own step splices onto the composed row, exactly as
+            // the flatten route does for a hop (group F burn 2026-09-02)
+            ClassSource th = t;
+            if (hb != null && !slotBacked && ownStepSplicer != null) {
+                ClassSource ws = ownStepSplicer.apply(t, SyntheticHeads.realHead(h));
+                if (ws != null) {
+                    th = ws;
+                    slotBacked = true;
+                }
+            }
             if (!slotBacked && (hb != null
                     || !hasAssoc.test(t.classFqn(),
                             SyntheticHeads.realHead(h)))) {
@@ -1218,7 +1240,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             // heads route through the navigate slot; associations fall
             // through to the assoc route)
             AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
-                    temporal, t, h, context, hLeaves, hNavTails);
+                    temporal, th, h, context, hLeaves, hNavTails);
             List<Type.Column> cols = new ArrayList<>(
                     (Type.requireRelationSchema(pipe.info().type())).columns());
             for (Type.Column c : aj2.targetRow().columns()) {

@@ -535,7 +535,12 @@ class NativeFunctionTest {
         // 212 -> 213 (metamodel-as-relations batch 5, 2026-09-02):
         // GroupByMapping (real relationalMapping.pure) — resolvePrimaryKey's
         // precedence reads a set's ~groupBy as a row.
-        assertEquals(213, Pure.allNativeClasses().size(),
+        // 213 -> 236 (metamodel-as-relations group F burn, 2026-09-02):
+        // +CoreDataType and the 21 relational datatype kinds the store
+        // models (real relational.pure:392-520 — Varchar/Char/Binary/
+        // Varbinary/Decimal/Numeric carry their size/precision/scale) and
+        // +Property (real m3 — the property-mapping rows' property end).
+        assertEquals(236, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -833,9 +838,29 @@ class NativeFunctionTest {
                     "meta::pure::router::clustering::CrossSetImplementation",
                     List.of("targetStore", "varName")),
                     java.util.Map.entry(
+                    // + class (group F burn 2026-09-02): real mapping.pure:61-65
+                    // — the Class row the class_mappings rows navigate to
                     "meta::pure::mapping::SetImplementation",
-                    List.of("root", "id", "parent",
+                    List.of("root", "class", "id", "parent",
                             "superSetImplementationId")),
+                    // real mapping.pure:68-72 (group F burn)
+                    java.util.Map.entry(
+                    "meta::pure::mapping::PropertyMappingsImplementation",
+                    List.of("propertyMappings")),
+                    // real mapping.pure:119-129 (group F burn): the property end
+                    java.util.Map.entry(
+                    "meta::pure::mapping::PropertyMapping",
+                    List.of("property")),
+                    // the SQL datatype hierarchy (real relational.pure:392-520,
+                    // group F burn): the sized / scaled kinds
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Varchar", List.of("size")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Char", List.of("size")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Binary", List.of("size")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Varbinary", List.of("size")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Decimal", List.of("precision", "scale")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Numeric", List.of("precision", "scale")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Array", List.of("type")),
+                    java.util.Map.entry("meta::relational::metamodel::datatype::Object", List.of("keyType", "valueType")),
                     // real relationalMapping.pure RelationalMappingSpecification:
                     // mainTableAlias — the metamodel store's mainTable()
                     // witness (step 3, 2026-09-02); userDefinedPrimaryKey /
@@ -848,9 +873,7 @@ class NativeFunctionTest {
                     java.util.Map.entry(
                     "meta::relational::mapping::GroupByMapping",
                     List.of("columns")),
-                    java.util.Map.entry(
-                    "meta::pure::mapping::InstanceSetImplementation",
-                    List.of("class")),
+
                     java.util.Map.entry(
                     "meta::relational::mapping"
                             + "::RelationalInstanceSetImplementation",
@@ -988,6 +1011,9 @@ class NativeFunctionTest {
                     // classMappings (mapping.pure:26) — the metamodel
                     // store's witness (step 3, 2026-09-02)
                     "meta::pure::mapping::Mapping", List.of("name", "classMappings"),
+                    // real m3 Property (group F burn 2026-09-02): the
+                    // property-mapping rows' property end — name only
+                    "meta::pure::metamodel::function::property::Property", List.of("name"),
                     // core/pure/tds/tds.pure:18-23
                     "meta::pure::tds::TabularDataSet", List.of("columns", "rows"),
                     // tds.pure:25-45

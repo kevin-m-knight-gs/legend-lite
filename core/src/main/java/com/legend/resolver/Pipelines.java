@@ -1100,6 +1100,38 @@ public final class Pipelines {
      * the column is LOUD (the per-member suffixed/NULL-filled form is the
      * union-to-union rung).
      */
+    /** {@link #widenConcatenateForKeys} applied to the concatenate BENEATH
+     * a pipeline's navigate / join-slot / filter steps (a union source
+     * carrying hoisted steps): the steps rebuild over the widened union. */
+    static TypedSpec widenConcatenateBelow(TypedSpec pipeline, Set<String> cols) {
+        if (cols.isEmpty()) {
+            return pipeline;
+        }
+        return switch (pipeline) {
+            case TypedConcatenate cat -> widenConcatenateForKeys(cat, cols);
+            case TypedFilter f -> {
+                TypedSpec inner = widenConcatenateBelow(f.source(), cols);
+                yield inner == f.source() ? pipeline
+                        : new TypedFilter(inner, f.predicate(),
+                                new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
+            }
+            case TypedNavigate nav -> {
+                TypedSpec inner = widenConcatenateBelow(nav.source(), cols);
+                yield inner == nav.source() ? pipeline
+                        : new TypedNavigate(inner, nav.alias(), nav.target(),
+                                nav.predicate(), nav.pairedPredicate(), nav.frameName(),
+                                nav.form(), nav.info());
+            }
+            case TypedJoinSlot js -> {
+                TypedSpec inner = widenConcatenateBelow(js.source(), cols);
+                yield inner == js.source() ? pipeline
+                        : new TypedJoinSlot(inner, js.alias(), js.target(),
+                                js.condition(), js.frameName(), js.info());
+            }
+            default -> pipeline;
+        };
+    }
+
     static TypedSpec widenConcatenateForKeys(TypedSpec pipeline, Set<String> cols) {
         if (pipeline instanceof TypedFilter f) {
             TypedSpec inner = widenConcatenateForKeys(f.source(), cols);
@@ -1108,6 +1140,21 @@ public final class Pipelines {
             }
             return new TypedFilter(inner, f.predicate(),
                     new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
+        }
+        // a ONE-thread union: every member of a filtered single-table
+        // hierarchy merged into one scan (UnionSynthesis single-scan
+        // groups) — the projection hides the physical keys exactly as a
+        // concatenate's threads do, so it widens as the one member
+        if (pipeline instanceof TypedProject lone) {
+            Type.RelationType lrow = Type.requireRelationSchema(lone.info().type());
+            List<String> lmissing = new ArrayList<>();
+            for (String c : cols) {
+                if (lrow.columns().stream().noneMatch(x -> x.name().equals(c))) {
+                    lmissing.add(c);
+                }
+            }
+            return lmissing.isEmpty() ? pipeline
+                    : widenUnionMember(lone, 0, List.of(lone), lmissing);
         }
         if (!(pipeline instanceof TypedConcatenate cat)) {
             return pipeline;
@@ -1213,9 +1260,13 @@ public final class Pipelines {
                 // its rows can never match the navigation join, exactly
                 // the engine's un-routed-thread semantics. The type comes
                 // from a SIBLING that does carry the column.
+                // — read off the sibling's SOURCE row (its projection is
+                // the aligned union schema, which is exactly what lacks
+                // the column; group F burn 2026-09-02)
                 Type sibling = null;
                 for (TypedSpec m : members) {
-                    if (Type.relationSchema(m.info().type()) instanceof Type.RelationType mr) {
+                    TypedSpec msrc = m instanceof TypedProject mp ? mp.source() : m;
+                    if (Type.relationSchema(msrc.info().type()) instanceof Type.RelationType mr) {
                         Type.Column mc = columnOf(mr, c);
                         if (mc != null) {
                             sibling = mc.type();

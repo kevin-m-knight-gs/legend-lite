@@ -512,12 +512,10 @@ public final class CanonicalDivergence {
      * repromotes the row to the active burn. */
     private static final List<String> METAMODEL_QUARANTINE = List.of(
             // mapping/store reflection — the no-scalar overload refusals
-            // (classMappingById RETIRED 2026-09-02: it is a Pure body over
-            // the metamodel store now — metamodel-as-relations batch 5)
-            "resolved overload 'meta::pure::mapping::rootClassMappingByClass'",
-            "resolved overload 'meta::pure::mapping::_classMappingByClass'",
-            "resolved overload 'meta::relational::metamodel::view'",
-            "resolved overload 'meta::relational::functions::typeInference::inferRelationalType'",
+            // (classMappingById RETIRED 2026-09-02 — batch 5;
+            // rootClassMappingByClass / _classMappingByClass / view /
+            // inferRelationalType RETIRED 2026-09-02 — group F burn: Pure
+            // bodies over the metamodel store, natives deleted)
             // toPostgresModel conversion family (newState + the stamp
             // invariant's 17 in-family witnesses + the SQLNull layout)
             "resolved overload 'meta::relational::functions::toPostgresModel::newState'",

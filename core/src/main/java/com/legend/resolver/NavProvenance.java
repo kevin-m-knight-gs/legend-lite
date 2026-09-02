@@ -48,7 +48,7 @@ final class NavProvenance {
         TypedSpec ob = own.bindings().get(hop);
         String oa = ob == null ? null
                 : InnerDemand.navSlotAlias(ob, own.rowVar(), ownSteps.keySet());
-        if (oa == null) {
+        if (oa == null || ob == null) {
             return null;
         }
         TypedNavigate st = java.util.Objects.requireNonNull(ownSteps.get(oa));
@@ -62,8 +62,16 @@ final class NavProvenance {
         TypedNavigate st2 = new TypedNavigate(src.pipeline(), st.alias(), st.target(),
                 new TypedLambda(pred.parameters(), List.of(body), pred.info()),
                 st.pairedPredicate(), st.frameName(), st.form(), src.pipeline().info());
+        // the hop's binding re-reads the spliced slot off the composed row
+        // var (a nested scope's slot route finds the step through it —
+        // group F burn 2026-09-02)
+        java.util.Map<String, TypedSpec> bindings = new java.util.LinkedHashMap<>(src.bindings());
+        bindings.put(hop, new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                new TypedVariable(src.rowVar(), new ExprType(composedRow,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                oa, ob.info()));
         return new ClassSource(src.mappingFqn(), src.classFqn(), src.setId(), st2,
-                src.rowVar(), src.bindings(), src.rowType(), src.sourceClass(),
+                src.rowVar(), bindings, src.rowType(), src.sourceClass(),
                 src.deferredWalls(), src.composedPrefix());
     }
 

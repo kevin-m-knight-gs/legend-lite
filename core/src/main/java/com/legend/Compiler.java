@@ -228,8 +228,14 @@ public final class Compiler {
     public static ModelContext buildModel(ParsedModel parsed) {
         // the system metamodel store rides EVERY build (charter §4: one
         // owner, parsed elements, no parallel lane)
+        // resolve BEFORE injection so a same-signature model function is
+        // recognized by its resolved parameter types (the corpus carries
+        // the engine's own inferRelationalType), then resolve the system
+        // elements (an FQN resolves to itself: the second pass is identity
+        // on the model's elements)
         ParsedModel resolved = NameResolver.resolve(
-                com.legend.builtin.SystemMetamodel.injectInto(parsed));
+                com.legend.builtin.SystemMetamodel.injectInto(
+                        NameResolver.resolve(parsed)));
         NormalizedModel normalized = ModelNormalizer.normalize(resolved);
         return PureModelContext.from(normalized);
     }
@@ -264,7 +270,8 @@ public final class Compiler {
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         ParsedModel resolved = NameResolver.resolve(
-                com.legend.builtin.SystemMetamodel.injectInto(parsed), walls);
+                com.legend.builtin.SystemMetamodel.injectInto(
+                        NameResolver.resolve(parsed, walls)), walls);
         NormalizedModel normalized = ModelNormalizer.normalize(resolved, walls);
         PureModelContext ctx = PureModelContext.from(normalized, walls);
         return new BuiltModule(ctx, walls);

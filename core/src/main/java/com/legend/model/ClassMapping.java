@@ -96,6 +96,19 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
     }
 
     /**
+     * Pseudo-prop of the FOREIGN-KEY IDENTITY of a to-one class-typed
+     * navigation {@code prop}: when the slot's join is one equality between a
+     * row column and the target set's declared key column, the target's
+     * identity (D2) IS that row column — element identity equality
+     * ({@code $x.cls == SomeElement}) reads it without the join, in every
+     * scope a plain row read resolves. Registered beside the primary-key
+     * pseudo-binding (ClassSources); never a real property name.
+     */
+    static String foreignKeyBinding(String prop) {
+        return "$fk:" + prop;
+    }
+
+    /**
      * Pseudo-prop of the MEMBERSHIP WITNESS column (emitted only for cast
      * targets with PARTIAL membership; never a real property name).
      */

@@ -469,7 +469,12 @@ class JavaEvalLedgerTest {
             // ExecEnv carries the SqlReplayOracle beside the listener
             // (same seam, same nullable carriage, same env-not-static
             // discipline). Registration plumbing only — no evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2571),
+            // 2571 -> 2594 (metamodel-as-relations group F burn,
+            // 2026-09-02): ExecEnv carries the resolver's side-output
+            // seed rows (constructed metamodel instances as rows) and
+            // the execution setup seeds them after the model's own —
+            // the same env-not-static carriage; no evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2594),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -792,6 +797,12 @@ class JavaEvalLedgerTest {
                     // verdict reads (tenet #1: Java orchestrates, the
                     // database executes)
                     "MetamodelSeeds.java",
+                    // group F burn (2026-09-02): the relational-operation
+                    // TREE seeds (mapping / view expressions as node rows,
+                    // types stamped) — the same seed-derivation class of
+                    // fact as MetamodelSeeds; nothing a verdict reads is
+                    // computed here
+                    "OpSeeds.java",
                     "PlanAllocations.java", "PlanEnvelope.java",
                     "SeedSqlForms.java",
                     // SQLTEXT charter slice 3a (2026-09-01): the

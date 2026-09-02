@@ -79,7 +79,31 @@ final class StatementExecutor {
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            java.util.Map<String, java.util.List<java.util.List<String>>> constructedSeeds) {
+        /** The pre-side-output shape (constructed seeds: none). */
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                boolean addDriverTablePk,
+                java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, String> tableReplace,
+                com.legend.exec.InstanceIds instanceIds,
+                com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+                com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk, queryLets,
+                    tableReplace, instanceIds, assertListener, replayOracle,
+                    java.util.Map.of());
+        }
+
+        /** The resolver's side-output rows (constructed metamodel
+         * instances) — seeded after the model's own, per table. */
+        ExecEnv withConstructedSeeds(
+                java.util.Map<String, java.util.List<java.util.List<String>>> seeds) {
+            return seeds.isEmpty() ? this : new ExecEnv(ctx, runtimeFqn, dialect,
+                    connection, addDriverTablePk, queryLets, tableReplace,
+                    instanceIds, assertListener, replayOracle, seeds);
+        }
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -204,11 +228,12 @@ final class StatementExecutor {
                         // Phase H runs HERE too (remediation T1.9): an
                         // effect arg derived from a class query must not
                         // reach the Lowerer with TypedGetAll intact
-                        inlined = new com.legend.resolver.StoreResolver(
-                                env.ctx(), specs)
-                                .withLetBindings(env.queryLets())
-                                .resolve(inlined, env.runtimeFqn());
-                        executeTyped(inlined, env);
+                        com.legend.resolver.StoreResolver letResolver =
+                                new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                                        .withLetBindings(env.queryLets());
+                        inlined = letResolver.resolve(inlined, env.runtimeFqn());
+                        executeTyped(inlined, env.withConstructedSeeds(
+                                letResolver.constructedSeeds()));
                     }
                     continue;
                 }
@@ -311,9 +336,10 @@ final class StatementExecutor {
                 result = walkResult(walked, preRoot.info().type());
                 continue;
             }
-            body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                    .withLetBindings(env.queryLets())
-                    .resolve(body, env.runtimeFqn());                     // Phase H
+            com.legend.resolver.StoreResolver resolver =
+                    new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                            .withLetBindings(env.queryLets());
+            body = resolver.resolve(body, env.runtimeFqn());              // Phase H
             // C2.2: stores bound to DIFFERENT connections cannot share
             // the one session connection — wall, never wrong-database rows
             CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
@@ -325,7 +351,7 @@ final class StatementExecutor {
                         body, env.ctx());
             }
             result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
-                    env));
+                    env).withConstructedSeeds(resolver.constructedSeeds()));
         }
         return result;
     }
@@ -1188,11 +1214,8 @@ final class StatementExecutor {
         if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr9) {
             // a Database ELEMENT in value position: the store-metamodel
             // walk surface (typeInference family)
-            Object dbh = com.legend.exec.MetamodelWalk.database(env.ctx(),
+            return com.legend.exec.MetamodelWalk.database(env.ctx(),
                     pr9.fullPath());
-            return dbh != null ? dbh
-                    : com.legend.exec.MetamodelWalk.mapping(env.ctx(),
-                            pr9.fullPath());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNewInstance ni9
                 && (ni9.classFqn().startsWith(
@@ -1979,18 +2002,18 @@ final class StatementExecutor {
             // the inliner consumed the query's lets; graph-tree date args
             // still spell the variables (serialize-key source form) — the
             // resolver's let env resolves them (engine inScopeVars)
-            java.util.List<TypedSpec> body =
+            com.legend.resolver.StoreResolver chainResolver =
                     new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                            .withLetBindings(env.queryLets())
-                            .resolve(java.util.List.of(assembled.chain()),
-                                    env.runtimeFqn());
+                            .withLetBindings(env.queryLets());
+            java.util.List<TypedSpec> body = chainResolver.resolve(
+                    java.util.List.of(assembled.chain()), env.runtimeFqn());
             // the engine's RelationalExecutionContext option: driver-table
             // PK columns join every projection (#45 validation)
             if (env.addDriverTablePk()) {
                 body = com.legend.resolver.DriverPkAppend.apply(
                         body, env.ctx());
             }
-            run = executeTyped(body, env);
+            run = executeTyped(body, env.withConstructedSeeds(chainResolver.constructedSeeds()));
         }
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
@@ -2490,9 +2513,16 @@ final class StatementExecutor {
                         + " not in the model — injection regressed"));
         for (var schema : store.schemas()) {
             for (var def : schema.tables()) {
-                for (String stmt : Ddl.metamodelSeed(def, schema.name(),
-                        MetamodelSeeds.rows(
-                                def.name(), env.ctx()),
+                java.util.List<java.util.List<String>> rows =
+                        MetamodelSeeds.rows(def.name(), env.ctx());
+                // the query's CONSTRUCTED instances (resolver side output)
+                java.util.List<java.util.List<String>> extra =
+                        env.constructedSeeds().get(def.name());
+                if (extra != null && !extra.isEmpty()) {
+                    rows = new java.util.ArrayList<>(rows);
+                    rows.addAll(extra);
+                }
+                for (String stmt : Ddl.metamodelSeed(def, schema.name(), rows,
                         !env.dialect().rawH2IsNative())) {
                     Executor.executeRaw(env.connection(), stmt);
                 }
@@ -2620,9 +2650,10 @@ final class StatementExecutor {
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
-        body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                .withLetBindings(env.queryLets())
-                .resolve(body, env.runtimeFqn());
+        com.legend.resolver.StoreResolver sideResolver =
+                new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                        .withLetBindings(env.queryLets());
+        body = sideResolver.resolve(body, env.runtimeFqn());
         // the addDriverTablePkForProject option is part of the EXECUTION
         // ENV — a verdict side must project the same columns the generic
         // statement path projects (#45; the validation-family probe
@@ -2630,7 +2661,8 @@ final class StatementExecutor {
         if (env.addDriverTablePk()) {
             body = com.legend.resolver.DriverPkAppend.apply(body, env.ctx());
         }
-        return executeTyped(body, env, rider, identity);
+        return executeTyped(body, env.withConstructedSeeds(sideResolver.constructedSeeds()),
+                rider, identity);
     }
 
     static ExecutionResult executeTyped(

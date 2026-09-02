@@ -51,7 +51,18 @@ public final class MetamodelSeeds {
             case "views" -> views(ctx);
             case "set_ancestry" -> setAncestry(ctx);
             case "group_by_mappings" -> groupByMappings(ctx);
-            case "primary_keys" -> primaryKeys(ctx);
+            case "databases" -> databases(ctx);
+            case "schemas" -> schemas(ctx);
+            case "properties" -> properties(ctx);
+            // the relational-operation TREES (mapping expressions, view
+            // column expressions) with the compiler's inferred type stamped
+            // per node, the property-mapping and view-column-mapping rows
+            // that own them, and every data-type row (columns' declared
+            // types + inferred types) — ONE walk, four tables
+            case "data_types" -> OpSeeds.of(ctx).dataTypes;
+            case "relational_ops" -> OpSeeds.of(ctx).ops;
+            case "view_column_mappings" -> OpSeeds.of(ctx).viewColumnMappings;
+            case "property_mappings" -> OpSeeds.of(ctx).propertyMappings;
             default -> throw new IllegalStateException(
                     "system metamodel table '" + table + "' has no seed"
                     + " derivation — SOURCE and seedRows grow together");
@@ -87,37 +98,50 @@ public final class MetamodelSeeds {
      * sets and every included mapping's (engine
      * {@code _classMappingByIdRecursive}); bare include paths resolve in
      * the includer's package (the {@code classBindingsWithIncludes}
-     * rule); cycle-safe. */
+     * rule); cycle-safe. The third cell is the engine's VISIT ORDER
+     * ({@code include_rank}): includes first, depth-first, the viewer
+     * itself last — {@code _classMappingByClass} concatenates the
+     * includes' sets before its own, and {@code rootClassMappingByClass}
+     * takes the LAST root, so the rank is the fact that ordering reads. */
     private static List<List<String>> includesClosure(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
         for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
-            Set<String> seen = new LinkedHashSet<>();
-            java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
-            work.add(fqn);
-            while (!work.isEmpty()) {
-                String cur = work.poll();
-                if (!seen.add(cur)) {
-                    continue;
-                }
-                rows.add(List.of(fqn, cur));
-                MappingDefinition md = ctx.findMapping(cur).orElse(null);
-                if (md == null) {
-                    continue;
-                }
-                for (var inc : md.includes()) {
-                    String path = inc.mappingPath();
-                    if (!path.contains("::") && cur.contains("::")) {
-                        String inPkg = cur.substring(0, cur.lastIndexOf("::"))
-                                + "::" + path;
-                        if (ctx.findMapping(inPkg).isPresent()) {
-                            path = inPkg;
-                        }
-                    }
-                    work.add(path);
-                }
+            List<String> order = new ArrayList<>();
+            visitIncludes(ctx, fqn, order, new LinkedHashSet<>());
+            for (int i = 0; i < order.size(); i++) {
+                rows.add(List.of(fqn, order.get(i), Integer.toString(i)));
             }
         }
         return rows;
+    }
+
+    /** Post-order include walk: a mapping is listed after every mapping
+     * it includes (first visit wins on a diamond). */
+    private static void visitIncludes(ModelContext ctx, String cur,
+            List<String> order, Set<String> seen) {
+        if (!seen.add(cur)) {
+            return;
+        }
+        MappingDefinition md = ctx.findMapping(cur).orElse(null);
+        if (md != null) {
+            for (var inc : md.includes()) {
+                visitIncludes(ctx, resolveIncludePath(ctx, cur, inc.mappingPath()),
+                        order, seen);
+            }
+        }
+        order.add(cur);
+    }
+
+    private static String resolveIncludePath(ModelContext ctx, String includer,
+            String path) {
+        if (!path.contains("::") && includer.contains("::")) {
+            String inPkg = includer.substring(0, includer.lastIndexOf("::"))
+                    + "::" + path;
+            if (ctx.findMapping(inPkg).isPresent()) {
+                return inPkg;
+            }
+        }
+        return path;
     }
 
     /** One row per RELATIONAL class binding a mapping DECLARES (included
@@ -147,10 +171,16 @@ public final class MetamodelSeeds {
                 int dot = t.table().indexOf('.');
                 String schema = dot < 0 ? "default" : t.table().substring(0, dot);
                 String name = dot < 0 ? t.table() : t.table().substring(dot + 1);
+                // m3 SetImplementation.root: the '*' set, else the class's
+                // SOLE set among the mapping's OWN sets (MappingValidator.
+                // validateStar — includes do not count)
+                long own = md.classBindings().stream()
+                        .filter(b -> b.classFqn().equals(cb.classFqn())).count();
                 rows.add(java.util.Arrays.asList(fqn, id, cb.classFqn(),
                         cb.extendsSetId(), t.database(), schema, name,
                         rel.declared().distinct() ? "true" : null,
-                        rel.declared().primaryKeyColumns().isEmpty() ? "false" : "true"));
+                        rel.declared().primaryKeyColumns().isEmpty() ? "false" : "true",
+                        cb.root() || own == 1 ? "true" : "false"));
             }
         }
         return rows;
@@ -158,7 +188,7 @@ public final class MetamodelSeeds {
 
     /** The relational sets of every mapping, keyed (mapping, id), with
      * their Phase-E binding — the seed derivations below share it. */
-    private record SetRow(String mappingFqn, String id,
+    record SetRow(String mappingFqn, String id,
             MappingDefinition.ClassBinding.Relational binding,
             MappingDefinition.RelationalSource.Table table) {
     }
@@ -239,35 +269,25 @@ public final class MetamodelSeeds {
         return rows;
     }
 
-    /** The set's COMPILED {@code primaryKey} (the relational mapping
+    /** The set's COMPILED {@code primaryKey} columns (the relational mapping
      * compiler's population rule, engine RelationalInstanceSetImplementation
      * processing): the user's ~primaryKey columns, else the ~groupBy
      * columns, else — ~distinct — every mapped column, else the main
-     * table's PRIMARY KEY; one TableAliasColumn row per column on the
-     * set's main table alias. */
-    private static List<List<String>> primaryKeys(ModelContext ctx) {
-        List<List<String>> rows = new ArrayList<>();
-        for (SetRow set : relationalSets(ctx)) {
-            MappingDefinition.ClassBinding.DeclaredKeys b = set.binding().declared();
-            List<String> cols;
-            if (!b.primaryKeyColumns().isEmpty()) {
-                cols = b.primaryKeyColumns();
-            } else if (!b.groupByColumns().isEmpty()) {
-                cols = b.groupByColumns();
-            } else if (b.distinct()) {
-                cols = b.mappedColumns();
-            } else {
-                cols = tablePrimaryKey(ctx, set.table());
-            }
-            int dot = set.table().table().indexOf('.');
-            String schema = dot < 0 ? "default" : set.table().table().substring(0, dot);
-            String name = dot < 0 ? set.table().table() : set.table().table().substring(dot + 1);
-            for (int i = 0; i < cols.size(); i++) {
-                rows.add(List.of(set.mappingFqn(), set.id(), Integer.toString(i),
-                        set.table().database(), schema, name, cols.get(i)));
-            }
+     * table's PRIMARY KEY. One TableAliasColumn node per column, seeded by
+     * {@code OpSeeds} as relational-operation rows owned by the set
+     * ({@code pk_mapping_fqn} / {@code pk_set_id}). */
+    static List<String> primaryKeyColumns(ModelContext ctx, SetRow set) {
+        MappingDefinition.ClassBinding.DeclaredKeys b = set.binding().declared();
+        if (!b.primaryKeyColumns().isEmpty()) {
+            return b.primaryKeyColumns();
         }
-        return rows;
+        if (!b.groupByColumns().isEmpty()) {
+            return b.groupByColumns();
+        }
+        if (b.distinct()) {
+            return b.mappedColumns();
+        }
+        return tablePrimaryKey(ctx, set.table());
     }
 
     private static List<String> tablePrimaryKey(ModelContext ctx,
@@ -351,14 +371,17 @@ public final class MetamodelSeeds {
             }
             for (DatabaseDefinition.TableDefinition t : db.tables()) {
                 for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
-                    rows.add(List.of(dbFqn, "default", t.name(), c.name()));
+                    rows.add(List.of(dbFqn, "default", t.name(), c.name(),
+                            OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name())));
                 }
             }
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (DatabaseDefinition.TableDefinition t : s.tables()) {
                     for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
-                        rows.add(List.of(dbFqn, s.name(), t.name(), c.name()));
-                        rows.remove(List.of(dbFqn, "default", t.name(), c.name()));
+                        rows.add(List.of(dbFqn, s.name(), t.name(), c.name(),
+                                OpSeeds.columnTypeId(dbFqn, s.name(), t.name(), c.name())));
+                        rows.remove(List.of(dbFqn, "default", t.name(), c.name(),
+                                OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name())));
                     }
                 }
             }
@@ -463,5 +486,129 @@ public final class MetamodelSeeds {
             }
         }
         return new ArrayList<>(rows);
+    }
+
+    /** Every store as a row (the Database metaclass extent). */
+    private static List<List<String>> databases(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+            int cut = dbFqn.lastIndexOf("::");
+            rows.add(List.of(dbFqn, cut < 0 ? dbFqn : dbFqn.substring(cut + 2)));
+        }
+        return rows;
+    }
+
+    /** Every schema of every store; the engine's {@code default} schema
+     * exists when a table or view is declared outside any schema (the
+     * parser also lists a schema's tables in the flat list — those do
+     * not make a default schema). */
+    private static List<List<String>> schemas(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+            DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+            if (db == null) {
+                continue;
+            }
+            if (hasDefaultSchema(db)) {
+                rows.add(List.of(dbFqn, "default"));
+            }
+            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+                if (!DEFAULT_SCHEMA.equals(s.name()) || !hasDefaultSchema(db)) {
+                    rows.add(List.of(dbFqn, s.name()));
+                }
+            }
+        }
+        return rows;
+    }
+
+    private static final String DEFAULT_SCHEMA = "default";
+
+    static boolean hasDefaultSchema(DatabaseDefinition db) {
+        Set<String> inSchemas = new java.util.HashSet<>();
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            if (DEFAULT_SCHEMA.equals(s.name())) {
+                return true;
+            }
+            for (var t : s.tables()) {
+                inSchemas.add("t:" + t.name());
+            }
+            for (var v : s.views()) {
+                inSchemas.add("v:" + v.name());
+            }
+        }
+        for (var t : db.tables()) {
+            if (!inSchemas.contains("t:" + t.name())) {
+                return true;
+            }
+        }
+        for (var v : db.views()) {
+            if (!inSchemas.contains("v:" + v.name())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Every STORED property as a row keyed by its owner: a class's own
+     * declared properties (m3 Class.properties — derived ones are
+     * QualifiedProperties, not Property rows), and the ends of every
+     * association a property mapping binds (owner = the association;
+     * {@code OpSeeds} collects them while it walks the mappings). */
+    private static List<List<String>> properties(ModelContext ctx) {
+        Set<List<String>> rows = new LinkedHashSet<>();
+        for (String fqn : extent(ctx,
+                com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)) {
+            var tc = OpSeeds.classOrNull(ctx, fqn);
+            if (tc == null) {
+                continue;
+            }
+            for (var p : tc.properties()) {
+                if (p instanceof com.legend.compiler.element.Property.Stored) {
+                    rows.add(List.of(fqn, p.name()));
+                }
+            }
+        }
+        rows.addAll(OpSeeds.of(ctx).associationProperties);
+        return new ArrayList<>(rows);
+    }
+
+    /** The relational sets' LEGACY class mappings (property mappings
+     * live there; the compiled binding is a lifted function), keyed like
+     * {@link SetRow}. */
+    static com.legend.model.ClassMapping.@com.legend.Nullable Relational legacySet(
+            ModelContext ctx, String mappingFqn, String id) {
+        var lm = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        if (lm == null) {
+            return null;
+        }
+        for (var cm : lm.classMappings()) {
+            if (cm instanceof com.legend.model.ClassMapping.Relational r) {
+                String rid = r.setId() != null ? r.setId()
+                        : r.className().replace("::", "_");
+                if (rid.equals(id)) {
+                    return r;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The extends chain of a set, this set first (depth 0), as the
+     * seed's own rows would list it. */
+    static List<SetRow> ancestry(ModelContext ctx, SetRow set) {
+        List<SetRow> all = relationalSets(ctx);
+        List<List<String>> closure = includesClosure(ctx);
+        List<SetRow> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        SetRow cur = set;
+        while (cur != null && seen.add(cur.mappingFqn() + "$" + cur.id())) {
+            out.add(cur);
+            cur = superOf(cur, all, closure);
+        }
+        return out;
+    }
+
+    static List<SetRow> relationalSetsOf(ModelContext ctx) {
+        return relationalSets(ctx);
     }
 }

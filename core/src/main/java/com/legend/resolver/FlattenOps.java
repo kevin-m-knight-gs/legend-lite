@@ -288,6 +288,12 @@ final class FlattenOps {
             return src == null ? null : new com.legend.compiler.spec.typed
                     .TypedDistinct(src, d.columns(), d.info());
         }
+        // a sort spliced below the hop (sortBy(...).visible — group F burn)
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedSortBy sb) {
+            TypedSpec src = innerizeOrNull(sb.source(), prefix, acc);
+            return src == null ? null : new com.legend.compiler.spec.typed
+                    .TypedSortBy(src, sb.key(), sb.ascending(), sb.keyAlias(), sb.info());
+        }
         return null;
     }
 

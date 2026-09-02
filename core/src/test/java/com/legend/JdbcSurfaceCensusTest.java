@@ -179,6 +179,10 @@ class JdbcSurfaceCensusTest {
             // JSON is the assertion (NULL-predicate unable-to-evaluate
             // arm vs violation arm vs null-safe equality)
             "core/src/test/java/com/legend/integration/GraphFetchCheckedIntegrationTest.java",
+            // group F burn (2026-09-02): the mapping-metamodel query
+            // functions as Pure bodies over store rows — the in-memory
+            // DuckDB IS the database the rows are the verdict on
+            "core/src/test/java/com/legend/integration/MetamodelQueryFunctionsTest.java",
             // slice-3 exit criterion: byte-decidable Any equality pins
             // execute ON THE DATABASE (dedup verdicts computed in SQL —
             // the carrier's disjoint spellings are the assertion)

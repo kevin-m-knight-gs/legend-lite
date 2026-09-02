@@ -741,6 +741,9 @@ public final class ClassSources {
             }
         }
 
+        ForeignKeyIdentity.register(bindings, ctor, mapper.parameters().get(0),
+                pipeline, rowType, mapping, ctx);
+
         // SAME-SOURCE SUBTYPE DISPATCH for nav targets (#71, extends
         // family): a subclass mapped over the SAME root table (F[f]
         // extends [e]) contributes stc_<F>___<prop> pseudo-bindings from

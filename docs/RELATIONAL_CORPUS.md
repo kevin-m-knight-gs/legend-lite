@@ -55,7 +55,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor/tests | 30 | 25 | 1 | 4 | 0 | 0 | 0 | 0 | 3 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 5 |
-| sqlDialectTranslation | 21 | 1 | 0 | 20 | 0 | 0 | 0 | 0 | 0 |
+| sqlDialectTranslation | 21 | 1 | 0 | 10 | 10 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
@@ -87,7 +87,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/relation | 109 | 105 | 3 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/relation | 109 | 105 | 2 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,14 +99,13 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2351** | 52 | 134 | 38 | 12 | 14 | 30 | 165 |
+| **total** | 2575 | **2351** | 51 | 125 | 48 | 12 | 14 | 30 | 165 |
 
 SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 165; flags overlap — the union is 206).
 
 ### mapping walls (dropped at assembly)
 
 - global meta::relational::mapping::BuilderInfo => Unknown type: 'KeyValue' is not a known primitive, class, or enum
-- global meta::relational::translation::TranslationContext => Unknown type: 'meta::relational::metamodel::datatype::CoreDataType' is not a known primitive, class, or enum
 - global meta::pure::executionPlan::tests::DummyExecutionOption => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - global meta::pure::executionPlan::tests::OtherDummyExecutionOption => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - global meta::relational::extension::RelationalExtension => Unknown type: 'meta::relational::metamodel::operation::Operation' is not a known primitive, class, or enum
@@ -270,7 +269,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - global meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- global meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
 - global meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - global meta::pure::mapping::modelToModel::test::units::dest::HealthProfile => Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
 - global meta::pure::mapping::modelToModel::test::units::dest::HealthProfile_ExtendedPrimitives => Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
@@ -344,7 +342,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - global meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - global meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - global meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
-- global meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - global meta::pure::lineage::scanColumns::scanColumns => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - global meta::pure::lineage::scanColumns::enrichPropertyPathTreeWithDataSetMapping => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - global meta::pure::lineage::scanColumns::enrichAnyPropertyWithDataSetMapping => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
@@ -1081,13 +1078,12 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 ### top error buckets
 
 - 13x execution activities are not recorded
-- 10x no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
+- 9x no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - 9x host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - 8x Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], pos=SourceInfo[sourceId=, startLine=139, startColumn=121, endLine=139, endColumn=143]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=GenericType[rawFqn=meta::pure::metamodel::function::LambdaFunction, arguments=[FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]
 - 3x unbound variable '$_nr2'
 - 2x unbound variable '$collection'
-- 2x unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -1110,6 +1106,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - 1x project expects ~[…] column specifications
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=meta::legend::lite::trustOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 
 ### per-test outcomes (non-passing)
 
@@ -1191,8 +1188,8 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - FAIL testCheckedWithCircularConstraints [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0 | expected [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[{path=[{propertyNam..., got [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[], value={firstName...
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm A, employees=[{firstName=Fabrice...
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}...
-- ERROR dropAndCreateTempTable [helperFunctions/tests]: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
-- ERROR testCreateTempTableStatement [helperFunctions/tests]: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
+- ERROR dropAndCreateTempTable [helperFunctions/tests]: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- ERROR testCreateTempTableStatement [helperFunctions/tests]: no overload of 'meta::pure::functions::lang::eval' accepts 4 argument(s)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
@@ -1235,27 +1232,27 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testCompositionInMultiStatementPureExpressions [router/tests]: in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testRoutingOfSimpleQualifiedProperty [router/tests]: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
-- ERROR testConvertAlias [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertAlias
+- SHAPE testConvertAlias [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testConvertColumnName [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - ERROR testConvertCommonTableExpressionReference [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - ERROR testConvertDynaFnToFunctionCall [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - ERROR testConvertDynaFnToLogicalExpression [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - ERROR testConvertDynaFnToPredicate [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
-- ERROR testConvertJoinStrings [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertJoinStrings
-- ERROR testConvertJoinTreeNode [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertJoinTreeNode
+- SHAPE testConvertJoinStrings [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testConvertJoinTreeNode [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testConvertLiteral [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - ERROR testConvertLiteralList [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
-- ERROR testConvertSelectSQLQuery [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertSelectSQLQue
-- ERROR testConvertTable [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertTable
-- ERROR testConvertTableAliasColumn [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertTableAliasCo
-- ERROR testConvertTableAliasColumnName [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertTableAliasCo
-- ERROR testConvertTabularFunction [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertTabularFunct
-- ERROR testConvertUnion [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertUnion
-- ERROR testConvertVarCrossSetPlaceHolder [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
+- SHAPE testConvertSelectSQLQuery [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- ERROR testConvertTable [sqlDialectTranslation]: property 'tables' of class 'meta::relational::metamodel::Schema' is not mapped in mapping 'meta::lite::metamodel::MetamodelMapping'
+- SHAPE testConvertTableAliasColumn [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testConvertTableAliasColumnName [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testConvertTabularFunction [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testConvertUnion [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testConvertVarCrossSetPlaceHolder [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testConvertVarPlaceHolder [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - ERROR testConvertVarSetPlaceHolder [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
-- ERROR testConvertWindowColumn [sqlDialectTranslation]: MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program, docs/STAMP_DISCIPLINE_PROGRAM.md): ONE-STAMP/LIST-SHAPE mult=[1..1] sql=Call node=TypedNativeCall callee=meta::pure::functions::multiplicity::toOne arg0=TypedFilter test=meta::relational::functions::toPostgresModel::tests::testConvertWindowColumn
-- ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: Unknown type: 'CoreDataType' is not a known primitive, class, or enum
+- SHAPE testConvertWindowColumn [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: 'Enum' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSomeAST_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - ERROR testWhenCaseEqualBooleanLit_thenBothWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - ERROR testWhenCaseEqualTrue_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
@@ -1288,7 +1285,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - SHAPE testExecuteInDbToTDS [tests]: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - ERROR testResultToJsonStream [tests]: class 'meta::pure::tds::TDSColumn' has no property 'type'
 - ERROR testExtractDBsWithSubstituition [tests]: in function 'meta::relational::runtime::extractDBs': class meta::pure::mapping::Mapping has no property 'includes'
-- ERROR testTranslateDbType [tests]: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
+- ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension'
 - FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n
 - ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: no scalar lowering registered for resolved overload 'meta::json::toJSON' with 1 parameter(s)
@@ -1311,7 +1308,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - ERROR testSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
-- FAIL testMixedMappingWithFilterInProject [tests/mapping/relation]: assertEquals: expected #TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#, got #TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#
+- ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: a navigation join over this union demands key column 'firm_ID', which NO union member carries
 - ERROR testRelationStoreAccessorOnView [tests/mapping/relation]: Catalog Error: Table with name personView does not exist! | Did you mean "personWithAddressTable"? |  | LINE 5: ... END) AS _tds_line FROM ( SELECT t1.ID, t1.age, t1.name FROM personView AS t1 ) AS t0 ) AS t0_a), '"sql":"select \"perso... |                                                            
 - FAIL testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: assertEquals: expected #TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#, got #TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#
 - ERROR testProject [tests/mapping/sqlFunction]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)

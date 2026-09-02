@@ -73,6 +73,13 @@ final class ElementReferences {
      * has no element spelling — loud. */
     TypedSpec elementRow(TypedPackageableRef pr, String classFqn,
             StoreResolver.Context context, Supplier<String> freshVar) {
+        return elementRowByKey(pr.fullPath(), classFqn, context, freshVar);
+    }
+
+    /** {@code classFqn}'s extent restricted to the row keyed {@code key}
+     * (an element's path, a constructed instance's content id). */
+    TypedSpec elementRowByKey(String key, String classFqn,
+            StoreResolver.Context context, Supplier<String> freshVar) {
         String mappingFqn = dispatch.apply(context, classFqn);
         List<String> pk = new ArrayList<>();
         var md = ctx.findMapping(mappingFqn).orElse(null);
@@ -86,7 +93,7 @@ final class ElementReferences {
         }
         if (pk.size() != 1) {
             throw new NotImplementedException("element reference '"
-                    + pr.fullPath() + "': the metaclass row of " + classFqn
+                    + key + "': the metaclass row of " + classFqn
                     + " keys on " + pk + " — one FQN key column is required");
         }
         var one = Multiplicity.Bounded.ONE;
@@ -100,7 +107,7 @@ final class ElementReferences {
                 new ExprType(Type.Primitive.STRING, one));
         TypedSpec pred = new TypedNativeCall(java.util.Objects.requireNonNull(
                 equalCallee.get(), "resolver bug: no equal registration"),
-                List.of(keyRead, new TypedCString(pr.fullPath(),
+                List.of(keyRead, new TypedCString(key,
                         new ExprType(Type.Primitive.STRING, one))),
                 new ExprType(Type.Primitive.BOOLEAN, one));
         var fn = new Type.FunctionType(List.of(new Type.Param(ct, one)),
