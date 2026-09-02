@@ -162,7 +162,7 @@ them as `'_'`):
 
 | bucket | count | what it really is |
 |---|---|---|
-| `assertEquals/2` + `/4` + `assertEqWithinTolerance/3` reaching the SCALAR lowerer | 42 | asserts in expression position (inside `->map(p\|…)` loops over driver pairs, or over instance-carrier navigations like `removeDuplicates().firstName->sort()->makeString`) — a VERDICT-PLACEMENT leg (the arm sees only statement-root asserts), not a native port |
+| `assertEquals/2` + `/4` + `assertEqWithinTolerance/3` reaching the SCALAR lowerer | 42 | 29 = the TDG cohort (`assertSqlEquals`/`assertTestData` over `$testData.sqls`) — **LANDED same day**: the folded `TestDataGenResult` literal is now recognized as the producer and TDG routes first (12 decline by name "chained fetch", 7 → plan-execute values-binding); 13 = dialect loops (`$expected->map(p\|… assertEquals …)`, testToSQLString.pure) — a map-over-literal unroll in the verdict layer |
 | `rootClassMappingByClass/2`, `classMappingById/2`, `_classMappingByClass/2`, `view/2`, `inferRelationalType/1`, `toPostgresModel::newState/0` | 43 | mapping-METAMODEL queries — the quarantined metamodel-as-relations family ([[metamodel-in-database-ruling]]) |
 | `enumValues/1` | 1 | one real native |
 | unknown function `getInteger` (+ siblings) | 25 | NOT an unported native: `TDS_ROW_GETTERS` exist; 23 pass the join kind through `let type = JoinType.X` and the legacy desugar matched a literal only — **LANDED same day** (`JoinChecker.resolveLetBoundArgs`, +23 flips); 2 bind the condition lambda through a let with nominal `TDSRow` params — walls at the let, deferred-kind candidate (bind-once charter) |

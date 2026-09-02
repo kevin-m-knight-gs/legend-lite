@@ -599,6 +599,28 @@ legitimate forever.
    a nominal TDSRow has no columns to read; it only types against the
    consuming join's rows — a deferred-kind candidate for the bind-once
    charter (family A), NOT an alias chase.
+   **TDG ARM REACH — LANDED 2026-09-01 (zero net flips, honest
+   movement; ratchet EXACT 848/1725).** The handoff's STEP 4 ("register
+   the TDG carrier in execFrames — frame-path work") was a
+   misdiagnosis: the generator carrier IS executed and FOLDED to a
+   TestDataGenResult instance literal per statement
+   (TestDataGenerationNatives.foldCensus, S2); the verdict layer's
+   hasTdgProducer recognized only the unfolded carrier, and the
+   corpus's assertSqlEquals inlines to assertEquals over
+   sqlRemoveFormatting on both sides, so findSqlRead claimed the
+   actual side as an exec-read (a Result frame it never was) and the
+   TDG route was unreachable. SqlTextVerdicts now recognizes the
+   folded literal and routes TDG FIRST in tryArmExecRead. Movement:
+   "no scalar lowering (assertEquals)" 66 -> 51; the 3 dialect
+   TOP/LIMIT platform-fails (testConstant cohort) dissolve; 12 rows
+   decline BY NAME "chained fetch — generator temp tables not
+   replayable" (the walk's own compile-time decline surfaced through
+   the SPI; §3.7 text contract, text differs by dialect → counted
+   fail); 7 rows join plan-execute values-binding (10 -> 17).
+   mirror-detaches 0 -> 1 deterministic (arm replays on the mirror,
+   attempt fails on text, rollback detaches — failure hygiene by
+   design). NEXT for this cohort: replay the generator's temp tables
+   on the oracle (the chained-fetch decline) — a real oracle leg.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

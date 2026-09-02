@@ -519,7 +519,15 @@ class JavaEvalLedgerTest {
             // rides the SPI (verifyFetchTexts); both sides execute in
             // their databases, this file sequences and judges. Same
             // class, same vocabulary ban.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 585),
+            // 585 -> 592 (TDG arm reach, 2026-09-01): hasTdgProducer
+            // recognizes the generator carrier's FOLDED form (the
+            // TestDataGenResult literal the orchestrator leaves in the
+            // let) and the TDG door moves AHEAD of the exec-read claim
+            // in tryArmExecRead (the old in-branch copy deleted — one
+            // door). Routing + recognition only: both sides still
+            // execute in their databases through verifyFetchTexts; no
+            // judgment or evaluation added.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 592),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

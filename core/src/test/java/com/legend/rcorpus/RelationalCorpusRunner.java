@@ -1138,6 +1138,24 @@ public class RelationalCorpusRunner {
             // byte-identical. Residue 2, named: a let-bound
             // {a:TDSRow[1],b:TDSRow[1]|...} condition walls at its own
             // let (deferred-kind candidate, bind-once charter).
+            // 848/1725 EXACT again (TDG arm reach, zero net flips —
+            // honest movement): the generator carrier is FOLDED to a
+            // TestDataGenResult literal per statement by the time the
+            // verdict layer looks, and the corpus's assertSqlEquals
+            // inlines to assertEquals over sqlRemoveFormatting on BOTH
+            // sides, so hasTdgProducer never saw a producer and the
+            // exec-read arm claimed the string read as a Result frame —
+            // the 29-test TDG cohort fell through to the scalar lowerer.
+            // SqlTextVerdicts recognizes the folded literal and routes
+            // TDG first: "no scalar lowering" 66 -> 51, the 3 dialect
+            // TOP/LIMIT platform-fails dissolve, 12 rows now decline BY
+            // NAME (chained fetch — generator temp tables not
+            // replayable; the walk's own compile-time decline, text is
+            // the contract) and 7 join plan-execute values-binding.
+            // mirror-detaches 0 -> 1, deterministic across three sweeps:
+            // the arm replays on the mirror, the attempt then fails on
+            // the text contract, rollback detaches the ahead-running
+            // mirror — failure-path hygiene by design.
             org.junit.jupiter.api.Assertions.assertEquals(848L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");

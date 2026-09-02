@@ -300,6 +300,21 @@ final class SqlTextVerdicts {
             String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        // TDG FIRST: a generator fetch text on exactly one side is the
+        // fetch-text verdict whatever wraps it — the corpus's
+        // assertSqlEquals inlines to assertEquals over
+        // sqlRemoveFormatting on BOTH sides, and that string read used
+        // to claim the side as an exec-read (a Result frame it never
+        // was), so the TDG route below was unreachable for the whole
+        // let-bound cohort.
+        boolean tdg0 = hasTdgProducer(args.get(0), letPrefix);
+        boolean tdg1 = hasTdgProducer(args.get(1), letPrefix);
+        if (tdg0 != tdg1) {
+            return tryArmTdgSql(name,
+                    tdg0 ? args.get(1) : args.get(0),
+                    tdg0 ? args.get(0) : args.get(1),
+                    letPrefix, specs, env, hook);
+        }
         com.legend.compiler.spec.typed.TypedUserCall r0 =
                 findSqlRead(args.get(0), letPrefix);
         com.legend.compiler.spec.typed.TypedUserCall r1 =
@@ -317,18 +332,8 @@ final class SqlTextVerdicts {
                             q0 != null ? args.get(0) : args.get(1),
                             letPrefix, specs, env, hook);
                 }
-                // TDG flip: the plain-assertEquals spelling of the
-                // generator fetch-text compare — the SAME verdict as
-                // the assertSqlEquals root (a text compare of
-                // generated SQL must never judge as text)
-                boolean t0 = hasTdgProducer(args.get(0), letPrefix);
-                boolean t1 = hasTdgProducer(args.get(1), letPrefix);
-                if (t0 != t1) {
-                    return tryArmTdgSql(name,
-                            t0 ? args.get(1) : args.get(0),
-                            t0 ? args.get(0) : args.get(1),
-                            letPrefix, specs, env, hook);
-                }
+                // (the plain-assertEquals TDG spelling routes ABOVE,
+                // before the exec-read claim — one TDG door)
             }
             return null;
         }
@@ -605,8 +610,20 @@ final class SqlTextVerdicts {
         };
     }
 
+    /** The folded (S2) form of the generator carrier — what a let holds
+     * once the orchestrator ran the extraction
+     * ({@code CsvCensusChecker.literalTestData}). */
+    private static final String TDG_RESULT_FQN =
+            "meta::relational::testDataGeneration::TestDataGenResult";
+
     /** A generateTestData producer under {@code t} — the typed carrier
-     * node or the exact platform FQN, LET-AWARE. */
+     * node, the exact platform FQN, OR the carrier's FOLDED instance
+     * literal (the orchestrator replaces the carrier with its executed
+     * result per statement, so by verdict time a let-bound
+     * {@code $testData} reads as a TestDataGenResult literal — the
+     * 29-test TDG cohort had walled on that, its asserts falling through
+     * to the scalar lowerer as "no scalar lowering for assertEquals"),
+     * LET-AWARE. */
     private static boolean hasTdgProducer(TypedSpec t,
             List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
@@ -616,6 +633,11 @@ final class SqlTextVerdicts {
             TypedSpec cur = work.poll();
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedTestDataGen) {
+                return true;
+            }
+            if (cur instanceof com.legend.compiler.spec.typed
+                    .TypedNewInstance ni
+                    && TDG_RESULT_FQN.equals(ni.classFqn())) {
                 return true;
             }
             if (cur instanceof TypedNativeCall nc
