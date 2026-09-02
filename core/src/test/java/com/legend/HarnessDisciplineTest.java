@@ -165,8 +165,11 @@ class HarnessDisciplineTest {
             Map.entry("SqlTextShapes.java", 1),
             // §8.3b wobbler attribution: the flipped-test roster dump
             // sorts test names for a DIFFABLE file (display ordering,
-            // the h2-verdicts class; no comparison flows through it)
-            Map.entry("WholeTestFlip.java", 1));
+            // the h2-verdicts class; no comparison flows through it).
+            // 1 -> 3 (metamodel handoff §5 step 1, 2026-09-02): the
+            // bucket→tests roster dump sorts bucket names and, within
+            // a bucket, test names — the same display-only class
+            Map.entry("WholeTestFlip.java", 3));
 
     /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
      * original audit's probe 12 — {@code Collections.max} in the

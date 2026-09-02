@@ -65,6 +65,15 @@ public final class WholeTestFlip {
      * names only fallbacks. Dumped beside it at shutdown. */
     private static final java.util.concurrent.ConcurrentLinkedQueue<String>
             FLIPPED_TESTS = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    /** Bucket → EVERY fallback test (the per-bucket roster; metamodel
+     * handoff 2026-09-02 §5 step 1): the fallback file names ONE
+     * witness per bucket, so a bucket whose wall prints no per-test
+     * debug line (the two HN-vocabulary buckets, ~88 tests) could be
+     * counted but not named. Dumped beside the other two rosters at
+     * shutdown as {@code target/wholetest-flip-buckets.txt}. */
+    private static final Map<String,
+            java.util.concurrent.ConcurrentLinkedQueue<String>> BUCKET_TESTS =
+            new ConcurrentHashMap<>();
 
     /** Runner-pin accessors (the shrink-only migration ratchet). */
     public static long flippedCount() {
@@ -110,6 +119,23 @@ public final class WholeTestFlip {
                             FLIPPED_TESTS.stream().sorted()
                                     .collect(java.util.stream.Collectors
                                             .joining("\n")) + "\n");
+                    // bucket roster: buckets by name, tests by name —
+                    // display ordering for a DIFFABLE file (the
+                    // flipped-roster class; no comparison flows here)
+                    StringBuilder bk = new StringBuilder();
+                    BUCKET_TESTS.keySet().stream().sorted().forEach(k -> {
+                        java.util.List<String> tests = BUCKET_TESTS.get(k)
+                                .stream().sorted().toList();
+                        bk.append(String.format("%6d  %s%n",
+                                tests.size(), k));
+                        for (String t : tests) {
+                            bk.append("        ").append(t).append('\n');
+                        }
+                    });
+                    java.nio.file.Files.writeString(
+                            java.nio.file.Path.of(
+                                    "target/wholetest-flip-buckets.txt"),
+                            bk.toString());
                 } catch (Throwable ignored) {
                     // census write best-effort at shutdown
                 }
@@ -141,7 +167,7 @@ public final class WholeTestFlip {
             return tryFlipInner(ctx, statements, imports, runtimeFqn, conn,
                     emptinessUnverifiable, seedFailures, test);
         } catch (Throwable t) {
-            fallback("flip-error: " + t.getClass().getSimpleName(),
+            fallback("flip-error: " + t.getClass().getSimpleName(), test,
                     test + " :: " + t.getMessage());
             return null;
         }
@@ -355,10 +381,21 @@ public final class WholeTestFlip {
     }
 
     private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(
-            String bucket, String witness) {
+            String bucket, String test) {
+        return fallback(bucket, test, test);
+    }
+
+    /** {@code test} = the roster row (the test's name only);
+     * {@code witness} = the e.g. line of the census file (may carry the
+     * error message after the name). */
+    private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(
+            String bucket, String test, String witness) {
         BUCKETS.computeIfAbsent(bucket, k -> new AtomicLong())
                 .incrementAndGet();
         WITNESSES.putIfAbsent(bucket, witness);
+        BUCKET_TESTS.computeIfAbsent(bucket,
+                k -> new java.util.concurrent.ConcurrentLinkedQueue<>())
+                .add(test);
         return null;
     }
 

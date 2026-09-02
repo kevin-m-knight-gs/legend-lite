@@ -25,6 +25,22 @@ verdict path; the end-state is metamodel AS RELATIONS in the database.
   make `WholeTestFlip`'s census dump `bucket → test names` (it already
   holds `BUCKETS`/`WITNESSES`, `WholeTestFlip.java:60-110`). Do that
   before chartering the plan-walk leg; nothing below depends on it.
+  **CLOSED (§5 step 1, same day):** `WholeTestFlip` now dumps
+  `target/wholetest-flip-buckets.txt` (bucket → every test, names
+  sorted) beside the two rosters; the HN-vocabulary rows are copied to
+  `tools/metamodel-census/hn_vocabulary_tests.json`. Receipt at 848/1725:
+  **117** HN-vocabulary fallbacks in 6 buckets (TypedMap 65,
+  `mapping::sql` 45, TypedPropertyAccess 3, TypedGraphFetch 2, two
+  singletons); only 17 were among the 261 named tests, so **100 tests
+  are newly named**. By package: TypedMap = executionPlan::tests 20 +
+  relationalMapper 10 + mapping::union(+extend) 16 + tdsUnion 6 +
+  modelJoins 5 + concatenate 4 + 4 singletons; `mapping::sql` =
+  query::routing 16 + aggregationAware rewrite 12 + fromMapping 5 +
+  businessdate milestoning 5 + tds::groupBy 3 + 4 singletons. The
+  relationalMapper/union/tdsUnion rows are plan-walk bodies over
+  ordinary queries (e.g. `relationalMapperSqlQuery(...)`,
+  `allNodes()->filter(instanceOf(SQLExecutionNode))`), which is leg 1's
+  shape; their per-test shapes are NOT re-classified here.
 - Object inventory = import-aware resolution of every `cast(@X)`,
   `instanceOf(X)`, `^X(…)`, type annotation and match arm in the 261 test
   bodies PLUS their transitive corpus helpers (316 bodies), against a
