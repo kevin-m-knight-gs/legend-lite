@@ -3748,11 +3748,14 @@ class MappingNormalizerTest {
     }
 
     @Test
-    @DisplayName("groupByPerRowFormulaOutsideKeyRejected (R4.1)")
+    @DisplayName("groupByPerRowFormulaOutsideKeyWithheld (R4.1, stage-1 withhold)")
     void groupByPerRowFormulaOutsideKeyRejected() {
-        // PM `extra: T.K + '_x'` is a per-row formula. It's neither an
-        // aggregate nor a declared groupBy key, so the normalizer must
-        // refuse — otherwise SQL would reject the GROUP BY clause.
+        // PM `extra: T.K + '_x'` is a per-row formula, neither an
+        // aggregate nor a declared groupBy key. The engine's compiler
+        // ACCEPTS such a mapping (the extends/primaryKey corpus fixtures
+        // map `id` beside ~groupBy(aName)); only a query reading the
+        // property fails, on the database. The normalizer WITHHOLDS the
+        // property (the Join-PM rule) and keeps the set — no poison.
         ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::P { k: String[1]; extra: String[1]; total: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -3768,10 +3771,8 @@ class MappingNormalizerTest {
                         + "  } "
                         + ")");
         String exMsg = poisonReasons(parsed);
-        assertTrue(exMsg.contains("extra"),
-                () -> "Expected error to name the orphan PM; got: " + exMsg);
-        assertTrue(exMsg.contains("~groupBy"),
-                () -> "Expected error to reference ~groupBy; got: " + exMsg);
+        assertTrue(exMsg.isEmpty(),
+                () -> "the set must compile with the orphan PM withheld; got: " + exMsg);
     }
 
     @Test

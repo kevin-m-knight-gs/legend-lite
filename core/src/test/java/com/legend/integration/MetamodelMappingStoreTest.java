@@ -22,9 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code class_mappings} (the compiler's extends-resolved main table),
  * the include closure as a row entity, {@code tables} &mdash; and the
  * engine's navigation FUNCTIONS ({@code classMappingById},
- * {@code mainTable} — under their LITE names until the corpus witnesses
- * flip; the real-name natives still feed the legacy walk) are Pure bodies
- * over those rows, inlined and lowered through the ONE router. Nothing here is test-specific Java: every
+ * {@code mainTable}, under their REAL names — the natives and the legacy
+ * walk's arms are gone) are Pure bodies over those rows, inlined and
+ * lowered through the ONE router. Nothing here is test-specific Java: every
  * verdict is a query the database answers.
  *
  * <p>Pinned mechanisms: the inheritance Operation over a metaclass
@@ -50,12 +50,24 @@ class MetamodelMappingStoreTest {
             Mapping ext::B1Mapping ( include ext::AMapping  ext::B[b1] extends [a] : Relational { } )
             Mapping ext::B2Mapping ( include ext::AMapping  ext::B[b2] extends [a] : Relational { aName : concat('bName_', [ext::testDatabase]ABC.aName), bName : [ext::testDatabase]ABC.bName } )
             Mapping ext::C1Mapping ( include ext::B1Mapping  ext::C[c1] extends [b1] : Relational { } )
+            Mapping ext::AGroupBy ( ext::A[a] : Relational { ~groupBy([ext::testDatabase]ABC.aName) id : [ext::testDatabase]ABC.id, aName : [ext::testDatabase]ABC.aName } )
+            Mapping ext::BDistinctAGroupBy ( include ext::AGroupBy  ext::B[b] extends [a] : Relational { ~distinct } )
+            Mapping ext::BNothingANothing ( include ext::AMapping  ext::B[b] extends [a] : Relational { } )
+            Mapping ext::BUserPkANothing ( include ext::AMapping  ext::B[b] extends [a] : Relational { ~primaryKey([ext::testDatabase]ABC.bName) bName : [ext::testDatabase]ABC.bName } )
+            Mapping ext::AMappingWithGroupBy ( ext::A[a] : Relational { ~groupBy([ext::testDatabase]ABC.aName) id : [ext::testDatabase]ABC.id, aName : [ext::testDatabase]ABC.aName } )
+            Mapping ext::AMappingWithUserDefinedPrimaryKey ( ext::A[a] : Relational { ~primaryKey([ext::testDatabase]ABC.aName) id : [ext::testDatabase]ABC.id, aName : [ext::testDatabase]ABC.aName } )
+            Mapping ext::BMappingWithDistinctAMappingWithGroupBy ( include AMappingWithGroupBy  ext::B[b] extends [a] : Relational { ~distinct bName : [ext::testDatabase]ABC.bName } )
+            Mapping ext::BMappingWithUserDefinedPrimaryKeyAMappingWithGroupBy ( include AMappingWithGroupBy  ext::B[b] extends [a] : Relational { ~primaryKey([ext::testDatabase]ABC.bName) bName : [ext::testDatabase]ABC.bName } )
+            Mapping ext::BMappingWithNothingAMappingWithGroupBy ( include AMappingWithGroupBy  ext::B[b] extends [a] : Relational { bName : [ext::testDatabase]ABC.bName } )
+            Mapping ext::BMappingWithNothingAMappingWithUserDefinedPrimaryKey ( include AMappingWithUserDefinedPrimaryKey  ext::B[b] extends [a] : Relational { bName : [ext::testDatabase]ABC.bName } )
+            Mapping ext::AMappingWithDistinct ( ext::A[a] : Relational { ~distinct id : [ext::testDatabase]ABC.id, aName : [ext::testDatabase]ABC.aName } )
+            Mapping ext::BMappingWithNothingAMappingWithDistinct ( include AMappingWithDistinct  ext::B[b] extends [a] : Relational { bName : [ext::testDatabase]ABC.bName } )
             """;
 
     private static final String ROOT_SET =
             "meta::relational::mapping::RootRelationalInstanceSetImplementation";
-    private static final String BY_ID = "meta::lite::metamodel::classMappingById";
-    private static final String MAIN_TABLE = "meta::lite::metamodel::mainTable";
+    private static final String BY_ID = "meta::pure::mapping::classMappingById";
+    private static final String MAIN_TABLE = "meta::relational::metamodel::mainTable";
 
     private Connection connection;
 
@@ -162,6 +174,56 @@ class MetamodelMappingStoreTest {
         // the main-table instances themselves, as rows
         assertEquals(List.of("ABC"), values("ext::C1Mapping->" + BY_ID
                 + "('c1')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "()).name"));
+    }
+
+    private static final String PMI = "meta::pure::mapping::PropertyMappingsImplementation";
+
+    @Test
+    @DisplayName("superMapping / allSuperSetImplementations read the extends chain as ancestry rows")
+    void extendsChainAsRows() throws SQLException {
+        assertEquals(List.of("b1"), values("ext::C1Mapping->" + BY_ID
+                + "('c1')->cast(@" + PMI + ")->toOne()->meta::pure::mapping::superMapping().id"));
+        List<Object> supers = values("meta::pure::mapping::allSuperSetImplementations("
+                + "ext::C1Mapping->" + BY_ID + "('c1')->toOne()->cast(@" + PMI + "), ext::C1Mapping).id");
+        assertEquals(List.of("a", "b1"),
+                supers.stream().map(String::valueOf).sorted().toList());
+        assertEquals(List.of(), values("ext::AMapping->" + BY_ID
+                + "('a')->cast(@" + PMI + ")->toOne()->meta::pure::mapping::superMapping().id"),
+                "a root set has no super");
+    }
+
+    @Test
+    @DisplayName("resolvePrimaryKey: the engine's this-vs-super precedence over the compiled keys, as rows")
+    void resolvePrimaryKeyPrecedence() throws SQLException {
+        String tac = "meta::relational::metamodel::TableAliasColumn";
+        String pk = "->cast(@" + ROOT_SET + ")->toOne()->meta::relational::mapping::resolvePrimaryKey()"
+                + "->cast(@" + tac + ").column.name";
+        assertEquals(List.of("aName"),
+                values("ext::BDistinctAGroupBy->" + BY_ID + "('b')" + pk),
+                "the super's ~groupBy beats this set's ~distinct");
+        assertEquals(List.of("bName"),
+                values("ext::BUserPkANothing->" + BY_ID + "('b')" + pk),
+                "this set's ~primaryKey");
+        assertEquals(List.of("id"),
+                values("ext::BNothingANothing->" + BY_ID + "('b')" + pk),
+                "nothing anywhere: the main table's PRIMARY KEY");
+        assertEquals(List.of("aName"),
+                values("ext::AGroupBy->" + BY_ID + "('a')" + pk),
+                "a root set: its own compiled key (~groupBy columns)");
+        // the engine's testPrimaryKeyForB shapes, bare include paths
+        assertEquals(List.of("aName"),
+                values("ext::BMappingWithDistinctAMappingWithGroupBy->" + BY_ID + "('b')" + pk));
+        assertEquals(List.of("aName"),
+                values("ext::BMappingWithUserDefinedPrimaryKeyAMappingWithGroupBy->" + BY_ID + "('b')" + pk));
+        assertEquals(List.of("aName"),
+                values("ext::BMappingWithNothingAMappingWithGroupBy->" + BY_ID + "('b')" + pk));
+        assertEquals(List.of("aName"),
+                values("ext::BMappingWithNothingAMappingWithUserDefinedPrimaryKey->" + BY_ID + "('b')" + pk));
+        List<Object> superDistinct = values(
+                "ext::BMappingWithNothingAMappingWithDistinct->" + BY_ID + "('b')" + pk);
+        assertEquals(List.of("aName", "id"),
+                superDistinct.stream().map(String::valueOf).sorted().toList(),
+                "the super's ~distinct key is EVERY column it maps");
     }
 
     @Test

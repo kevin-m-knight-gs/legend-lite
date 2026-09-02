@@ -129,13 +129,6 @@ final class MetamodelSteps {
                                         cref.fullPath());
                     }
                 }
-                case "meta::pure::mapping::classMappingById",
-                        "meta::pure::mapping::superMapping",
-                        "meta::pure::mapping::allSuperSetImplementations",
-                        "meta::relational::metamodel::mainTable",
-                        "meta::relational::mapping::resolvePrimaryKey" -> {
-                    return mappingNav(fqn, recv, c, specs, env);
-                }
                 case "meta::pure::mapping::propertyMappingsByPropertyName" -> {
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
@@ -202,34 +195,6 @@ final class MetamodelSteps {
             return outM;
         }
         return null;
-    }
-
-    /** The extends-chain mapping-metamodel natives (classMappingById /
-     * superMapping / allSuperSetImplementations / mainTable /
-     * resolvePrimaryKey) — recv-dispatched to MetamodelWalk. */
-    private static @com.legend.Nullable Object mappingNav(String fqn, Object recv,
-            com.legend.compiler.spec.typed.TypedNativeCall c,
-            com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
-        return switch (fqn) {
-            case "meta::pure::mapping::classMappingById" -> c.args().size() == 2
-                    && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed.TypedCString mid
-                    ? com.legend.exec.MetamodelWalk.classMappingById(recv,
-                            mid.value())
-                    : null;
-            case "meta::pure::mapping::superMapping" ->
-                    com.legend.exec.MetamodelWalk.superMapping(recv);
-            case "meta::pure::mapping::allSuperSetImplementations" -> c.args().size() == 2
-                    ? com.legend.exec.MetamodelWalk
-                            .allSuperSetImplementations(recv,
-                                    StatementExecutor.planWalk(c.args().get(1), specs, env))
-                    : null;
-            case "meta::relational::metamodel::mainTable" ->
-                    com.legend.exec.MetamodelWalk.mainTable(recv);
-            case "meta::relational::mapping::resolvePrimaryKey" ->
-                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(recv);
-            default -> null;
-        };
     }
 
 }

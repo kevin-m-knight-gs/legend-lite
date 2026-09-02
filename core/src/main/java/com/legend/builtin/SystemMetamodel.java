@@ -93,7 +93,39 @@ public final class SystemMetamodel {
                         super_set_id VARCHAR(256),
                         main_db VARCHAR(1024),
                         main_schema VARCHAR(256),
-                        main_table VARCHAR(256)
+                        main_table VARCHAR(256),
+                        distinct_set BIT,
+                        user_defined_pk BIT NOT NULL
+                    )
+                    Table set_ancestry
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        id VARCHAR(256) PRIMARY KEY,
+                        super_mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        super_id VARCHAR(256) PRIMARY KEY,
+                        depth INTEGER NOT NULL
+                    )
+                    Table group_by_mappings
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        id VARCHAR(256) PRIMARY KEY
+                    )
+                    Table primary_keys
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        id VARCHAR(256) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        db_fqn VARCHAR(1024) NOT NULL,
+                        schema_name VARCHAR(256) NOT NULL,
+                        table_name VARCHAR(256) NOT NULL,
+                        pk_column VARCHAR(256) NOT NULL
+                    )
+                    Table columns
+                    (
+                        db_fqn VARCHAR(1024) PRIMARY KEY,
+                        schema_name VARCHAR(256) PRIMARY KEY,
+                        table_name VARCHAR(256) PRIMARY KEY,
+                        name VARCHAR(256) PRIMARY KEY
                     )
                     Table table_aliases
                     (
@@ -119,6 +151,20 @@ public final class SystemMetamodel {
                 Join AliasToTables(metamodel.table_aliases.main_db = metamodel.tables.db_fqn
                     and metamodel.table_aliases.main_schema = metamodel.tables.schema_name
                     and metamodel.table_aliases.main_table = metamodel.tables.name)
+                Join SetToAncestry(metamodel.class_mappings.mapping_fqn = metamodel.set_ancestry.mapping_fqn
+                    and metamodel.class_mappings.id = metamodel.set_ancestry.id)
+                Join AncestryToAncestor(metamodel.set_ancestry.super_mapping_fqn = metamodel.class_mappings.mapping_fqn
+                    and metamodel.set_ancestry.super_id = metamodel.class_mappings.id)
+                Join SetToGroupBy(metamodel.class_mappings.mapping_fqn = metamodel.group_by_mappings.mapping_fqn
+                    and metamodel.class_mappings.id = metamodel.group_by_mappings.id)
+                Join SetToPrimaryKeys(metamodel.class_mappings.mapping_fqn = metamodel.primary_keys.mapping_fqn
+                    and metamodel.class_mappings.id = metamodel.primary_keys.id)
+                Join PrimaryKeyToAlias(metamodel.primary_keys.mapping_fqn = metamodel.table_aliases.mapping_fqn
+                    and metamodel.primary_keys.id = metamodel.table_aliases.id)
+                Join PrimaryKeyToColumn(metamodel.primary_keys.db_fqn = metamodel.columns.db_fqn
+                    and metamodel.primary_keys.schema_name = metamodel.columns.schema_name
+                    and metamodel.primary_keys.table_name = metamodel.columns.table_name
+                    and metamodel.primary_keys.pk_column = metamodel.columns.name)
             )
 
             ###Pure
@@ -144,14 +190,46 @@ public final class SystemMetamodel {
                 visibleSets: meta::relational::mapping::RootRelationalInstanceSetImplementation[*];
             }
 
-            function meta::lite::metamodel::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
+            Class meta::lite::metamodel::SetAncestry
+            {
+                depth: Integer[1];
+            }
+
+            Association meta::lite::metamodel::SetAncestries
+            {
+                descendant: meta::relational::mapping::RootRelationalInstanceSetImplementation[1];
+                ancestry: meta::lite::metamodel::SetAncestry[*];
+            }
+
+            Association meta::lite::metamodel::SetAncestors
+            {
+                ancestor: meta::relational::mapping::RootRelationalInstanceSetImplementation[1];
+                ancestryOf: meta::lite::metamodel::SetAncestry[*];
+            }
+
+            function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {
                 $_this.visibility.visible.classMappings->filter(cm|$cm.id == $id)->first()
             }
 
-            function meta::lite::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1]
+            function meta::relational::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1]
             {
                 $_this.mainTableAlias.relationalElement->cast(@meta::relational::metamodel::relation::Table)
+            }
+
+            function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::SetImplementation[0..1]
+            {
+                $_this->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).ancestry->filter(a|$a.depth == 1).ancestor->first()
+            }
+
+            function meta::pure::mapping::allSuperSetImplementations(set:meta::pure::mapping::PropertyMappingsImplementation[1], m:meta::pure::mapping::Mapping[1]):meta::pure::mapping::PropertyMappingsImplementation[*]
+            {
+                $set->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).ancestry->filter(a|$a.depth > 0).ancestor
+            }
+
+            function meta::relational::mapping::resolvePrimaryKey(_this:meta::relational::mapping::RootRelationalInstanceSetImplementation[1]):meta::relational::metamodel::RelationalOperationElement[*]
+            {
+                $_this.ancestry->filter(a|$a.depth == 0 || !$a.ancestor.groupBy->isEmpty() || $a.ancestor.distinct == true || $a.ancestor.userDefinedPrimaryKey == true)->sortBy(a|if(!$a.ancestor.groupBy->isEmpty(), |0, |if($a.ancestor.distinct == true, |1000, |if($a.ancestor.userDefinedPrimaryKey == true, |2000, |3000))) + $a.depth)->first().ancestor.primaryKey
             }
 
             ###Mapping
@@ -185,8 +263,23 @@ public final class SystemMetamodel {
                     ~mainTable %1$s metamodel.class_mappings
                     id: %1$s metamodel.class_mappings.id,
                     superSetImplementationId: %1$s metamodel.class_mappings.super_set_id,
+                    distinct: %1$s metamodel.class_mappings.distinct_set,
+                    userDefinedPrimaryKey: %1$s metamodel.class_mappings.user_defined_pk,
                     parent: %1$s@ClassMappingsToMappings,
-                    mainTableAlias: %1$s@ClassMappingsToAlias
+                    mainTableAlias: %1$s@ClassMappingsToAlias,
+                    groupBy[gbm]: %1$s@SetToGroupBy,
+                    primaryKey[tac]: %1$s@SetToPrimaryKeys
+                }
+                meta::relational::mapping::GroupByMapping[gbm]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.group_by_mappings.mapping_fqn, %1$s metamodel.group_by_mappings.id)
+                    ~mainTable %1$s metamodel.group_by_mappings
+                }
+                meta::lite::metamodel::SetAncestry[anc]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.set_ancestry.mapping_fqn, %1$s metamodel.set_ancestry.id, %1$s metamodel.set_ancestry.super_mapping_fqn, %1$s metamodel.set_ancestry.super_id)
+                    ~mainTable %1$s metamodel.set_ancestry
+                    depth: %1$s metamodel.set_ancestry.depth
                 }
                 meta::relational::metamodel::TableAlias[alias]: Relational
                 {
@@ -204,6 +297,36 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.tables.db_fqn, %1$s metamodel.tables.schema_name, %1$s metamodel.tables.name)
                     ~mainTable %1$s metamodel.tables
                     name: %1$s metamodel.tables.name
+                }
+                meta::relational::metamodel::TableAliasColumn[tac]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.primary_keys.mapping_fqn, %1$s metamodel.primary_keys.id, %1$s metamodel.primary_keys.ordinal)
+                    ~mainTable %1$s metamodel.primary_keys
+                    columnName: %1$s metamodel.primary_keys.pk_column,
+                    alias[alias]: %1$s@PrimaryKeyToAlias,
+                    column[col]: %1$s@PrimaryKeyToColumn
+                }
+                meta::relational::metamodel::Column[col]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.columns.db_fqn, %1$s metamodel.columns.schema_name, %1$s metamodel.columns.table_name, %1$s metamodel.columns.name)
+                    ~mainTable %1$s metamodel.columns
+                    name: %1$s metamodel.columns.name
+                }
+                meta::lite::metamodel::SetAncestries: Relational
+                {
+                    AssociationMapping
+                    (
+                        descendant[anc, rootRel]: %1$s@SetToAncestry,
+                        ancestry[rootRel, anc]: %1$s@SetToAncestry
+                    )
+                }
+                meta::lite::metamodel::SetAncestors: Relational
+                {
+                    AssociationMapping
+                    (
+                        ancestor[anc, rootRel]: %1$s@AncestryToAncestor,
+                        ancestryOf[rootRel, anc]: %1$s@AncestryToAncestor
+                    )
                 }
                 meta::lite::metamodel::MappingVisibilities: Relational
                 {
@@ -232,6 +355,30 @@ public final class SystemMetamodel {
             )
             """.formatted(S, INHERITANCE_OP);
 
+    /** A model element shadows a system element of the same qualified
+     * name — for FUNCTIONS only when the parameter types agree too: a
+     * same-name function over other parameter types is an OVERLOAD (the
+     * engine's own {@code resolvePrimaryKey(rsi:RelationalInstanceSet
+     * Implementation)} beside the root-set body), never a shadow. */
+    private static boolean shadows(PackageableElement e, PackageableElement sys) {
+        if (!e.qualifiedName().equals(sys.qualifiedName())) {
+            return false;
+        }
+        if (e instanceof com.legend.model.FunctionDefinition f
+                && sys instanceof com.legend.model.FunctionDefinition g) {
+            if (f.parameters().size() != g.parameters().size()) {
+                return false;
+            }
+            for (int i = 0; i < f.parameters().size(); i++) {
+                if (!String.valueOf(f.parameters().get(i).type()).equals(
+                        String.valueOf(g.parameters().get(i).type()))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /** The system Pure source (tests inspect it; never edited at run time). */
     public static String source() {
         return SOURCE;
@@ -254,7 +401,7 @@ public final class SystemMetamodel {
                 new ArrayList<>(parsed.elements());
         for (PackageableElement el : ELEMENTS) {
             boolean shadowed = parsed.elements().stream().anyMatch(
-                    e -> e.qualifiedName().equals(el.qualifiedName()));
+                    e -> shadows(e, el));
             if (!shadowed) {
                 merged.add(el);
             }

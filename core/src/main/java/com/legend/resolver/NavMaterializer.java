@@ -225,7 +225,7 @@ final class NavMaterializer {
                         for (TypedLambda sp : synthetics.allPreds(tail.get(0))) {
                             Set<List<String>> spp = new LinkedHashSet<>();
                             for (TypedSpec sb : sp.body()) {
-                                StoreResolver.consumedPaths(sb,
+                                FlattenOps.consumedPaths(sb,
                                         sp.parameters().get(0), spp);
                             }
                             xt.addAll(spp);
@@ -544,7 +544,7 @@ final class NavMaterializer {
                 for (TypedLambda sp : synthetics.allPreds(tail.get(0))) {
                     Set<List<String>> spp = new LinkedHashSet<>();
                     for (TypedSpec sb : sp.body()) {
-                        StoreResolver.consumedPaths(sb,
+                        FlattenOps.consumedPaths(sb,
                                 sp.parameters().get(0), spp);
                     }
                     subTails.get(subAlias).addAll(spp);

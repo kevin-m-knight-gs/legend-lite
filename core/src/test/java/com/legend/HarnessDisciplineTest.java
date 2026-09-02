@@ -152,11 +152,9 @@ class HarnessDisciplineTest {
             // the SAME display-ordering class; no comparison flows
             // through it (FULL_RESIDUE_CENSUS_2026_08_30.md §0).
             Map.entry("CanonicalDivergence.java", 7),
-            // MetamodelWalk: `.distinct()` here is the RECORD ACCESSOR
-            // cm().distinct() (a mapping fact), not a stream reorder —
-            // counted because the spelling matches; the honest fix is
-            // reading the register, not renaming the accessor
-            Map.entry("MetamodelWalk.java", 3),
+            // (MetamodelWalk.java: its 3 record-accessor `.distinct()`
+            // sites left with the resolvePrimaryKey arm — metamodel-as-
+            // relations batch 5, 2026-09-02)
             // SQLTEXT slice-3 step 0 (2026-09-01): the shape census's
             // TreeMap is a deterministic-iteration REGISTRY (stable
             // shape-combination keys for the diffable census file, the

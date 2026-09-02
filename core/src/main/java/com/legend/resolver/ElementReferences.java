@@ -168,4 +168,30 @@ final class ElementReferences {
         }
         return any;
     }
+    /** "intrinsic" = bound in the SYSTEM mapping (the registry's extents
+     * are a subset: every seeded metaclass is mapped there, and so are
+     * the metaclasses reached by navigation — SetImplementation, Table —
+     * whose rows the seed derives). */
+    boolean intrinsicClass(String classFqn) {
+        if (ctx.classifierInstances(classFqn) != null || sources.binds(
+                com.legend.builtin.SystemMetamodel.MAPPING_FQN, classFqn)) {
+            return true;
+        }
+        // an ABSTRACT metaclass between an inheritance op and its bound
+        // member (PropertyMappingsImplementation): its extent is its
+        // bound subclasses' — the same store
+        var md = ctx.findMapping(com.legend.builtin.SystemMetamodel.MAPPING_FQN)
+                .orElse(null);
+        if (md == null || ctx.findClass(classFqn).isEmpty()) {
+            return false;
+        }
+        for (var cb : md.classBindings()) {
+            if (!cb.classFqn().equals(classFqn)
+                    && ctx.isSubtype(cb.classFqn(), classFqn)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

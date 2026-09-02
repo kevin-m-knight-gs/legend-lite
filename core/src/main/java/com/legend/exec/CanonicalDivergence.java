@@ -512,7 +512,8 @@ public final class CanonicalDivergence {
      * repromotes the row to the active burn. */
     private static final List<String> METAMODEL_QUARANTINE = List.of(
             // mapping/store reflection — the no-scalar overload refusals
-            "resolved overload 'meta::pure::mapping::classMappingById'",
+            // (classMappingById RETIRED 2026-09-02: it is a Pure body over
+            // the metamodel store now — metamodel-as-relations batch 5)
             "resolved overload 'meta::pure::mapping::rootClassMappingByClass'",
             "resolved overload 'meta::pure::mapping::_classMappingByClass'",
             "resolved overload 'meta::relational::metamodel::view'",

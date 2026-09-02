@@ -66,7 +66,11 @@ class LegacyReachbackCensusTest {
             // SURFACE CONTRACT: the Pure metamodel API presents the
             // AUTHORED mapping (includes + own lists; .pure navigation
             // does its own traversal)
-            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 3,
+            // 3 -> 2 (metamodel-as-relations batch 5, 2026-09-02): the
+            // classMappingById/superMapping/allSuperSetImplementations/
+            // resolvePrimaryKey arms are Pure bodies over the metamodel
+            // store — classMappingByIdIn (one reach) is gone with them
+            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 2,
             // SURFACE CONTRACT: engine scanRelations is "static form off
             // the mapping" (#44, feature map §14.1) — join-NAME vocabulary
             // exists only on the authored surface (SCAN-1 reclassified)

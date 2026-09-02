@@ -532,7 +532,10 @@ class NativeFunctionTest {
         //     verbatim router_extension.pure:22 / mapping.pure:40)
         // 211 -> 212 (metamodel-as-relations step 3, 2026-09-02):
         // +PackageableElement (real m3; the elementToPath domain)
-        assertEquals(212, Pure.allNativeClasses().size(),
+        // 212 -> 213 (metamodel-as-relations batch 5, 2026-09-02):
+        // GroupByMapping (real relationalMapping.pure) — resolvePrimaryKey's
+        // precedence reads a set's ~groupBy as a row.
+        assertEquals(213, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -832,10 +835,16 @@ class NativeFunctionTest {
                             "superSetImplementationId")),
                     // real relationalMapping.pure RelationalMappingSpecification:
                     // mainTableAlias — the metamodel store's mainTable()
-                    // witness (step 3, 2026-09-02); the rest grow by witness
+                    // witness (step 3, 2026-09-02); userDefinedPrimaryKey /
+                    // distinct / groupBy — resolvePrimaryKey's precedence
+                    // (batch 5); `filter` grows by witness
                     java.util.Map.entry(
                     "meta::relational::metamodel::RelationalMappingSpecification",
-                    List.of("mainTableAlias")),
+                    List.of("userDefinedPrimaryKey", "distinct", "groupBy",
+                            "mainTableAlias")),
+                    java.util.Map.entry(
+                    "meta::relational::mapping::GroupByMapping",
+                    List.of("columns")),
                     java.util.Map.entry(
                     "meta::pure::mapping::InstanceSetImplementation",
                     List.of("class")),

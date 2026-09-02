@@ -983,6 +983,18 @@ public final class InferenceKernel {
                 // module definitions alone stays loud.
                 List<TypedFunction> nativeWinners = winners.stream()
                         .filter(TypedFunction::isNative).toList();
+                // MOST-SPECIFIC rule (real pure: resolvePrimaryKey(Root) /
+                // (RelationalInstanceSetImplementation) / (InstanceSet
+                // Implementation) all match a Root argument and the engine
+                // binds the Root one): a module candidate whose class-typed
+                // parameters are all subtypes of every other candidate's
+                // wins the tie among module definitions.
+                if (nativeWinners.isEmpty()) {
+                    TypedFunction specific = mostSpecific(winners);
+                    if (specific != null) {
+                        return resolveChosen(specific, args, name);
+                    }
+                }
                 if (nativeWinners.size() != 1) {
                     // ENGINE bottom-value rule (GenericTypeMatch
                     // MATCH_CAUTIOUSLY): a []-born argument is real pure's
@@ -1595,4 +1607,54 @@ public final class InferenceKernel {
     private static TypeInferenceException fail(Type formal, Type actual) {
         return new TypeInferenceException("expected " + formal.typeName() + ", got " + actual.typeName());
     }
+
+    /** The one candidate whose parameter types are pairwise at least as
+     * specific as every other's, strictly more specific than each in at
+     * least one class-typed position; null when no such candidate. */
+    private @com.legend.Nullable TypedFunction mostSpecific(List<TypedFunction> cands) {
+        TypedFunction best = null;
+        for (TypedFunction c : cands) {
+            boolean beatsAll = true;
+            for (TypedFunction o : cands) {
+                if (o == c) {
+                    continue;
+                }
+                if (!moreSpecific(c, o)) {
+                    beatsAll = false;
+                    break;
+                }
+            }
+            if (beatsAll) {
+                if (best != null) {
+                    return null;
+                }
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    private boolean moreSpecific(TypedFunction a, TypedFunction b) {
+        boolean strict = false;
+        for (int i = 0; i < a.parameters().size() && i < b.parameters().size(); i++) {
+            Type pa = a.parameters().get(i).type();
+            Type pb = b.parameters().get(i).type();
+            if (!(pa instanceof Type.ClassType ca) || !(pb instanceof Type.ClassType cb)) {
+                if (!pa.equals(pb)) {
+                    return false;
+                }
+                continue;
+            }
+            if (ca.fqn().equals(cb.fqn())) {
+                continue;
+            }
+            if (ctx.isSubtype(ca.fqn(), cb.fqn())) {
+                strict = true;
+            } else {
+                return false;
+            }
+        }
+        return strict;
+    }
+
 }

@@ -224,13 +224,13 @@ final class InnerDemand {
         Set<List<String>> paths = new LinkedHashSet<>();
         if (corrPred != null) {
             for (TypedSpec b : corrPred.body()) {
-                StoreResolver.consumedPaths(b, corrPred.parameters().get(0),
+                FlattenOps.consumedPaths(b, corrPred.parameters().get(0),
                         paths);
             }
         }
         for (TypedLambda cp : parkedPreds) {
             for (TypedSpec b : cp.body()) {
-                StoreResolver.consumedPaths(b, cp.parameters().get(0), paths);
+                FlattenOps.consumedPaths(b, cp.parameters().get(0), paths);
             }
         }
         for (List<String> pp : paths) {
@@ -759,4 +759,5 @@ final class InnerDemand {
         }
         return out;
     }
+
 }

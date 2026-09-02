@@ -177,6 +177,23 @@ class NavigationDepthTest {
     }
 
     @Test
+    @DisplayName("a to-many navigation after first()/sortBy joins ABOVE the limit (the limit counts source rows)")
+    void toManyAfterRowCountOps() throws SQLException {
+        assertEquals(List.of("t1", "t2"),
+                rows("n::A.all()->filter(a|$a.name == 'x')->first().links.tag"),
+                "both links of the first A, not the first fanned row");
+        assertEquals(List.of("t1", "t2"),
+                rows("n::A.all()->sortBy(a|$a.name)->first().links.tag"),
+                "a sort below the hop orders the rows the limit counts");
+        assertEquals(List.of("b1", "b2"),
+                rows("n::A.all()->filter(a|$a.name == 'x')->first().links.rs.id"));
+        assertEquals(List.of("t2"),
+                rows("n::A.all()->filter(a|$a.name == 'x')->first().links->filter(l|$l.tag == 't2').tag"));
+        assertEquals(List.of("t1"),
+                rows("n::A.all()->filter(a|$a.name == 'x')->first().links->first().tag"));
+    }
+
+    @Test
     @DisplayName("association ends whose target is inheritance-mapped keep their binding under filters")
     void inheritanceMappedAssociationEnds() throws SQLException {
         assertEquals(List.of("b1", "b2"), rows("n::A.all()->filter(a|$a.name == 'x').links.bs.id"));

@@ -12,6 +12,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.NotImplementedException;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -57,7 +58,7 @@ final class FlattenOps {
                     continue;
                 }
                 for (TypedSpec b : bl.body()) {
-                    StoreResolver.consumedPaths(b,
+                    consumedPaths(b,
                             bl.parameters().get(0), opPaths);
                 }
             }
@@ -134,6 +135,13 @@ final class FlattenOps {
                 case TypedDrop d -> new TypedDrop(p, d.count(), p.info());
                 case TypedSlice sl ->
                         new TypedSlice(p, sl.start(), sl.stop(), p.info());
+                // a sort below the hop orders the source rows the limit
+                // family counts (sortBy->first() before a to-many hop):
+                // its key reads the row like a filter predicate
+                case com.legend.compiler.spec.typed.TypedSortBy sb ->
+                        new com.legend.compiler.spec.typed.TypedSortBy(p,
+                                sub.apply(sb.key()), sb.ascending(),
+                                sb.keyAlias(), p.info());
                 default -> throw new NotImplementedException(
                         "object-space " + op.getClass().getSimpleName()
                         + " below a class-flatten hop is not supported yet");
@@ -192,7 +200,7 @@ final class FlattenOps {
         for (TypedSpec n : nodes) {
             if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
                 for (TypedSpec b : lam.body()) {
-                    StoreResolver.consumedPaths(b, lam.parameters().get(0), out);
+                    consumedPaths(b, lam.parameters().get(0), out);
                 }
             }
             collectLambdaPaths(n.children(), out);
@@ -283,6 +291,37 @@ final class FlattenOps {
         return null;
     }
 
+    /** Whether a row-count op (limit / drop / slice / first-like / static
+     * at) sits directly under a chain position, through the row-
+     * preserving wrappers (filter, sort, cast, from). */
+    static boolean rowCountOpBelow(TypedSpec n) {
+        TypedSpec cur = n;
+        while (true) {
+            switch (cur) {
+                case com.legend.compiler.spec.typed.TypedLimit ignored -> { return true; }
+                case com.legend.compiler.spec.typed.TypedDrop ignored -> { return true; }
+                case com.legend.compiler.spec.typed.TypedSlice ignored -> { return true; }
+                case com.legend.compiler.spec.typed.TypedNativeCall nc when StoreResolver.isFirstLike(nc) || StoreResolver.isStaticAt(nc) -> {
+                    return true;
+                }
+                case com.legend.compiler.spec.typed.TypedFilter f -> cur = f.source();
+                case com.legend.compiler.spec.typed.TypedSortBy sb -> cur = sb.source();
+                case com.legend.compiler.spec.typed.TypedCast c -> cur = c.source();
+                case com.legend.compiler.spec.typed.TypedFrom fr -> cur = fr.source();
+                default -> { return false; }
+            }
+        }
+    }
+
+
+    /** A row-COUNT-sensitive op: limit / drop / slice / distinct. */
+    static boolean isRowSetOp(TypedSpec op) {
+        return op instanceof com.legend.compiler.spec.typed.TypedLimit
+                || op instanceof com.legend.compiler.spec.typed.TypedDrop
+                || op instanceof com.legend.compiler.spec.typed.TypedSlice
+                || op instanceof com.legend.compiler.spec.typed.TypedDistinct;
+    }
+
     /** One re-pointed binding for the flatten's composed source: scalar
      * bindings ride {@link Pipelines#prefixColumns}; an EMBEDDED binding
      * (TypedNewInstance ctor over parent-alias columns) re-points each
@@ -312,4 +351,34 @@ final class FlattenOps {
                 v -> new com.legend.compiler.spec.typed.TypedVariable(
                         newRowVar, rowInfo));
     }
+
+    /**
+     * A lifted head's user predicate, substituted over the TARGET's
+     * bindings (the {@code rewriteExists} cfSub pattern applied at the
+     * materialization site) and wrapped around the finished target
+     * pipeline — the join's composite right side carries the filter
+     * INSIDE (engine JTN parity), so unmatched parents keep their NULL
+     * row and the outer join-stamping never double-stamps.
+     */
+        /** As above with the target's MATERIALIZED nav-step SubNavs: a pred's
+     * depth-2 reads through class-typed slot heads ($e.address.name — the
+     * Fork family) dispatch through AssocSub registries built from them
+     * (the corrPredOnJoinedRow pass-1 rule, shared). */
+            /** The demand half of the shared funnel: every $p.<path> read in a lambda. */
+    static void consumedPaths(TypedSpec n, String userVar,
+                                      Set<List<String>> out) {
+        List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null) {
+            out.add(path);
+        }
+        InnerDemand.composeAutoMapPaths(n, userVar, out, FlattenOps::consumedPaths);
+        InnerDemand.scanTdsContainsFns(n, userVar, (b, pv) -> consumedPaths(b, pv, out));
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;   // shadowing: the substitution stops here too (one funnel)
+        }
+        for (TypedSpec c : n.children()) {
+            consumedPaths(c, userVar, out);
+        }
+    }
+
 }

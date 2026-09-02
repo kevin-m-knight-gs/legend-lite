@@ -47,6 +47,10 @@ public final class MetamodelSeeds {
             // join and never a self-join)
             case "table_aliases" -> tableAliases(ctx);
             case "tables" -> tables(ctx);
+            case "columns" -> columns(ctx);
+            case "set_ancestry" -> setAncestry(ctx);
+            case "group_by_mappings" -> groupByMappings(ctx);
+            case "primary_keys" -> primaryKeys(ctx);
             default -> throw new IllegalStateException(
                     "system metamodel table '" + table + "' has no seed"
                     + " derivation — SOURCE and seedRows grow together");
@@ -143,10 +147,183 @@ public final class MetamodelSeeds {
                 String schema = dot < 0 ? "default" : t.table().substring(0, dot);
                 String name = dot < 0 ? t.table() : t.table().substring(dot + 1);
                 rows.add(java.util.Arrays.asList(fqn, id, cb.classFqn(),
-                        cb.extendsSetId(), t.database(), schema, name));
+                        cb.extendsSetId(), t.database(), schema, name,
+                        rel.declared().distinct() ? "true" : null,
+                        rel.declared().primaryKeyColumns().isEmpty() ? "false" : "true"));
             }
         }
         return rows;
+    }
+
+    /** The relational sets of every mapping, keyed (mapping, id), with
+     * their Phase-E binding — the seed derivations below share it. */
+    private record SetRow(String mappingFqn, String id,
+            MappingDefinition.ClassBinding.Relational binding,
+            MappingDefinition.RelationalSource.Table table) {
+    }
+
+    private static List<SetRow> relationalSets(ModelContext ctx) {
+        List<SetRow> out = new ArrayList<>();
+        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+            MappingDefinition md = ctx.findMapping(fqn).orElse(null);
+            if (md == null) {
+                continue;
+            }
+            for (MappingDefinition.ClassBinding cb : md.classBindings()) {
+                if (cb instanceof MappingDefinition.ClassBinding.Relational rel
+                        && rel.source()
+                                instanceof MappingDefinition.RelationalSource.Table t) {
+                    String id = cb.setId() != null ? cb.setId()
+                            : cb.classFqn().replace("::", "_");
+                    out.add(new SetRow(fqn, id, rel, t));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The set a set EXTENDS: the super id resolved in the declaring
+     * mapping's include closure (the engine's classMappingById walk —
+     * own sets first, then the includes in order). */
+    private static @com.legend.Nullable SetRow superOf(SetRow set,
+            List<SetRow> all, List<List<String>> closure) {
+        String superId = set.binding().extendsSetId();
+        if (superId == null) {
+            return null;
+        }
+        for (List<String> inc : closure) {
+            if (!inc.get(0).equals(set.mappingFqn())) {
+                continue;
+            }
+            for (SetRow cand : all) {
+                if (cand.mappingFqn().equals(inc.get(1))
+                        && cand.id().equals(superId)) {
+                    return cand;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The REFLEXIVE-transitive extends closure of every relational set
+     * with its depth (0 = the set itself): superMapping /
+     * allSuperSetImplementations / resolvePrimaryKey read the chain as
+     * rows instead of recursing; cycle-safe. */
+    private static List<List<String>> setAncestry(ModelContext ctx) {
+        List<SetRow> all = relationalSets(ctx);
+        List<List<String>> closure = includesClosure(ctx);
+        List<List<String>> rows = new ArrayList<>();
+        for (SetRow set : all) {
+            Set<String> seen = new LinkedHashSet<>();
+            SetRow cur = set;
+            int depth = 0;
+            while (cur != null && seen.add(cur.mappingFqn() + "$" + cur.id())) {
+                rows.add(List.of(set.mappingFqn(), set.id(), cur.mappingFqn(),
+                        cur.id(), Integer.toString(depth)));
+                cur = superOf(cur, all, closure);
+                depth++;
+            }
+        }
+        return rows;
+    }
+
+    /** One row per set that WROTE ~groupBy (m3: its GroupByMapping). */
+    private static List<List<String>> groupByMappings(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        for (SetRow set : relationalSets(ctx)) {
+            if (!set.binding().declared().groupByColumns().isEmpty()) {
+                rows.add(List.of(set.mappingFqn(), set.id()));
+            }
+        }
+        return rows;
+    }
+
+    /** The set's COMPILED {@code primaryKey} (the relational mapping
+     * compiler's population rule, engine RelationalInstanceSetImplementation
+     * processing): the user's ~primaryKey columns, else the ~groupBy
+     * columns, else — ~distinct — every mapped column, else the main
+     * table's PRIMARY KEY; one TableAliasColumn row per column on the
+     * set's main table alias. */
+    private static List<List<String>> primaryKeys(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        for (SetRow set : relationalSets(ctx)) {
+            MappingDefinition.ClassBinding.DeclaredKeys b = set.binding().declared();
+            List<String> cols;
+            if (!b.primaryKeyColumns().isEmpty()) {
+                cols = b.primaryKeyColumns();
+            } else if (!b.groupByColumns().isEmpty()) {
+                cols = b.groupByColumns();
+            } else if (b.distinct()) {
+                cols = b.mappedColumns();
+            } else {
+                cols = tablePrimaryKey(ctx, set.table());
+            }
+            int dot = set.table().table().indexOf('.');
+            String schema = dot < 0 ? "default" : set.table().table().substring(0, dot);
+            String name = dot < 0 ? set.table().table() : set.table().table().substring(dot + 1);
+            for (int i = 0; i < cols.size(); i++) {
+                rows.add(List.of(set.mappingFqn(), set.id(), Integer.toString(i),
+                        set.table().database(), schema, name, cols.get(i)));
+            }
+        }
+        return rows;
+    }
+
+    private static List<String> tablePrimaryKey(ModelContext ctx,
+            MappingDefinition.RelationalSource.Table t) {
+        DatabaseDefinition db = ctx.findDatabase(t.database()).orElse(null);
+        if (db == null) {
+            return List.of();
+        }
+        int dot = t.table().indexOf('.');
+        String schema = dot < 0 ? null : t.table().substring(0, dot);
+        String name = dot < 0 ? t.table() : t.table().substring(dot + 1);
+        List<DatabaseDefinition.TableDefinition> cands = new ArrayList<>();
+        if (schema == null) {
+            cands.addAll(db.tables());
+        }
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            if (schema == null || s.name().equals(schema)) {
+                cands.addAll(s.tables());
+            }
+        }
+        List<String> out = new ArrayList<>();
+        for (DatabaseDefinition.TableDefinition td : cands) {
+            if (td.name().equals(name)) {
+                for (DatabaseDefinition.ColumnDefinition c : td.columns()) {
+                    if (c.primaryKey()) {
+                        out.add(c.name());
+                    }
+                }
+                break;
+            }
+        }
+        return out;
+    }
+
+    /** Every column of every table (the {@code tables} rule for schemas). */
+    private static List<List<String>> columns(ModelContext ctx) {
+        Set<List<String>> rows = new LinkedHashSet<>();
+        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+            DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+            if (db == null) {
+                continue;
+            }
+            for (DatabaseDefinition.TableDefinition t : db.tables()) {
+                for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
+                    rows.add(List.of(dbFqn, "default", t.name(), c.name()));
+                }
+            }
+            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+                for (DatabaseDefinition.TableDefinition t : s.tables()) {
+                    for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
+                        rows.add(List.of(dbFqn, s.name(), t.name(), c.name()));
+                        rows.remove(List.of(dbFqn, "default", t.name(), c.name()));
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(rows);
     }
 
     private static List<List<String>> tableAliases(ModelContext ctx) {

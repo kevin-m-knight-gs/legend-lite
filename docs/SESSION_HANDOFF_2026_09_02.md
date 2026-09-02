@@ -545,12 +545,75 @@ and 2 above are closed; 3, 4, 5, 6 remain (see the list below).
   ledger rows unchanged (the walk still scores the extends witnesses
   under the real names — next batch).
 
-**Residue after the depth leg** (items 3–6 of the list above, unchanged):
-views as main tables; `parent` from the union side; assert failure
-MESSAGE rendering over instances; the real-name switch that deletes the
-`classMappingById`/`mainTable` walk arms and flips the four
-`testMainTableFor*` witnesses (`superMapping`, `allSuperSetImplementations`,
-`resolvePrimaryKey` stay walk arms until they get bodies).
+**Batch 5 — the REAL-NAME switch — LANDED (2026-09-02).** Residue item 6
+above is closed; 3, 4, 5 remain (plus the two named below).
+- **Pure bodies under the real names** (SystemMetamodel):
+  `meta::pure::mapping::classMappingById`, `meta::relational::metamodel::
+  mainTable`, `meta::pure::mapping::superMapping`, `meta::pure::mapping::
+  allSuperSetImplementations`, `meta::relational::mapping::resolvePrimaryKey`
+  (the engine's this-vs-super precedence as ONE chain over the ancestry
+  rows: filter by any key fact, sort by rank×1000+depth, first, then
+  `.ancestor.primaryKey`). The five natives, the `MetamodelSteps` arms
+  and `MetamodelWalk`'s classMappingById/superMapping/
+  allSuperSetImplementations/resolvePrimaryKey/primaryKeyOf/mainTable/
+  tableHandle(3)/classMappingByIdIn are DELETED (reach-back census 3→2).
+- **New rows**: `set_ancestry` (reflexive-transitive extends closure with
+  depth — `meta::lite::metamodel::SetAncestry` + associations
+  `ancestry`/`ancestor`), `group_by_mappings` (m3 GroupByMapping, new
+  native class), `primary_keys` (the compiler's population rule — user
+  ~primaryKey, else ~groupBy columns, else ~distinct → own mapped
+  columns, else the main table's PRIMARY KEY — one TableAliasColumn row
+  per column), `columns` (Column rows); `class_mappings` gained
+  `distinct_set`/`user_defined_pk`. `RelationalMappingSpecification`
+  gained `userDefinedPrimaryKey`/`distinct`/`groupBy` (real
+  relationalMapping.pure).
+- **Compiled artifact**: `MappingDefinition.ClassBinding.Relational.declared`
+  (`DeclaredKeys`: the set's OWN ~distinct/~groupBy/~primaryKey/column
+  PMs, captured BEFORE the extends pre-pass merges the parent in —
+  `SetKeyFacts`); a function-form binding declares NONE (named gap).
+  `GroupBySynthesis`: a per-row PM outside the ~groupBy key list is
+  WITHHELD (the Join-PM rule), no longer a poison — the engine compiles
+  such mappings (the primaryKey fixtures map `id` beside ~groupBy(aName)).
+- **Resolver (general, not metamodel-specific)**: D1 dispatch — an
+  intrinsic metaclass (bound in the system mapping, or an abstract class
+  whose subclass is) dispatches to the system mapping under an EXPLICIT
+  user mapping too (the corpus runs every test under its mapping);
+  `InferenceKernel.mostSpecific` — same-name module overloads resolve
+  to the most specific class-typed parameters (the engine's
+  `resolvePrimaryKey(RISI)` / `(ISI)` sit beside the root-set body);
+  `SystemMetamodel.injectInto` shadows FUNCTIONS by signature (a same-
+  name overload is not a shadow); a TO-MANY navigation after `first()`
+  / limit / drop / slice stays in the chain and joins ABOVE the op
+  (`A.all()->first().links.tag` returned ONE link — `rowCountOpBelow`,
+  the tail/extra-head rules keep to-many tails out of a target beneath a
+  row-count op); a sort below a flatten hop splices (`applyBelow`); a
+  TO-ONE hop with ops below it joins FIRST and IS the below scope's
+  material for its head (`preJoins` — the second join doubled every
+  column name); a slot hop off a composed source whose step was
+  stripped splices the class's own step (`NavProvenance.spliceOwnStep`).
+  Extractions for the file guardrail: `NavProvenance`, `SetKeyFacts`,
+  `FlattenOps.consumedPaths/rowCountOpBelow`, `Pipelines.
+  widenPipeForJoinKeys`.
+- **Pinned**: `MetamodelMappingStoreTest` (+extendsChainAsRows,
+  +resolvePrimaryKeyPrecedence with the engine's own mapping shapes),
+  `NavigationDepthTest.toManyAfterRowCountOps`.
+- **Receipts**: extends 23/23 — ALL SIX formerly walk-scored tests now
+  platform-scored; ratchet 847/1726 → **841/1732** (+6, exactly those
+  six); quarantine witness rows 172 → **151** (the classMappingById
+  refusal spelling retired), walls 20; H2 verdict roster byte-identical;
+  paired sweeps byte-identical on all four rosters; dual-channel 613/0;
+  exec-passing 345; core suite green; the global-compile failure of
+  `pureToSqlQuery::getGroupBy` ("Unknown type GroupByMapping") is gone.
+
+**Residue after batch 5**: views as main tables; `parent` from the union
+side; assert failure MESSAGE rendering over instances; (new) the
+composed-row prefix scheme `<slot>_<column>` can COLLIDE with a physical
+column of that spelling (two system-store columns were renamed around it:
+`pk_column`, `super_mapping_fqn`/`super_id` — a user model with column
+`ancestor_id` beside an association `ancestor` would hit
+"duplicate column ... in relation type"); (new) a function-form mapping's
+key facts are NONE (no text to read; an analysis of the lifted body would
+derive them).
 
 **Step 4 — prototype 2, testDynaAndOrInference** (homework §9 item 2), then
 plan-nodes-as-rows, then the tree half — each decided on its own receipt.

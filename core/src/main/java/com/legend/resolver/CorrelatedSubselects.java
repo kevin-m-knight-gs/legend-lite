@@ -93,7 +93,7 @@ final class CorrelatedSubselects {
                 leaves.addAll(dm.demandLeaves());
                 if (dm.mapper() != null) {
                     for (TypedSpec b : dm.mapper().body()) {
-                        StoreResolver.consumedPaths(b, dm.mapper().parameters().get(0),
+                        FlattenOps.consumedPaths(b, dm.mapper().parameters().get(0),
                                 mapperPaths);
                     }
                 }
@@ -473,7 +473,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
             names.removeAll(corr.parameters());
             for (String v : names) {
                 for (TypedSpec b : corr.body()) {
-                    StoreResolver.consumedPaths(b, v, outerPaths);
+                    FlattenOps.consumedPaths(b, v, outerPaths);
                 }
             }
         }
@@ -1141,12 +1141,38 @@ private static boolean referencesVar(TypedSpec n, String var) {
             java.util.Set<List<String>> innerPaths,
             java.util.Set<List<String>> innerFullPaths,
             java.util.function.BiPredicate<String, String> hasAssoc) {
+        return nestedAssocMaterials(temporal, context, t, targetPipe,
+                innerPaths, innerFullPaths, hasAssoc, Map.of());
+    }
+
+    /** {@code preJoins}: heads ALREADY joined onto {@code targetPipe} by
+     * the caller (a to-one flatten hop whose below-ops read it — the
+     * hop's own join IS the scope's material for that head; joining it
+     * again doubled every column name). */
+    NestedMaterials nestedAssocMaterials(TemporalFrame temporal,
+            StoreResolver.Context context, ClassSource t,
+            TypedSpec targetPipe,
+            java.util.Set<List<String>> innerPaths,
+            java.util.Set<List<String>> innerFullPaths,
+            java.util.function.BiPredicate<String, String> hasAssoc,
+            Map<String, AssociationJoins.AssocJoin> preJoins) {
         // nested ASSOC materials (leaf reads): widen the exists relation
         // with each demanded association's LEFT join, prefix-renamed —
         // the same descriptor->emission fold the root pipeline uses
         Map<String, Substitution.AssocSub> nestedAssocs = new LinkedHashMap<>();
         Map<String, AssociationJoins.AssocJoin> nestedByHead =
                 new LinkedHashMap<>();
+        for (var pe : preJoins.entrySet()) {
+            AssociationJoins.AssocJoin pj = pe.getValue();
+            nestedAssocs.put(pe.getKey(), new Substitution.AssocSub(pj.prefix(),
+                    pj.target().rowVar(), pj.target().bindings(),
+                    pj.target().classFqn(),
+                    Pipelines.slotAliases(pj.target().pipeline()),
+                    pj.targetSlotPrefixes(),
+                    /*readVar*/ null, /*readRowType*/ null,
+                    Map.of(), pj.targetSubNavs()));
+            nestedByHead.put(pe.getKey(), pj);
+        }
         TypedSpec pipe = targetPipe;
         var tNavSteps = Pipelines.navSteps(t.pipeline());
         for (List<String> path : innerPaths) {
@@ -1720,7 +1746,7 @@ static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
 
 static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         for (TypedSpec b : lambda.body()) {
-            StoreResolver.consumedPaths(b, lambda.parameters().get(0), out);
+            FlattenOps.consumedPaths(b, lambda.parameters().get(0), out);
         }
     }
 
@@ -2324,7 +2350,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 String mv = tm.mapper().parameters().get(0);
                 Set<List<String>> mp = new LinkedHashSet<>();
                 for (TypedSpec b : tm.mapper().body()) {
-                    StoreResolver.consumedPaths(b, mv, mp);
+                    FlattenOps.consumedPaths(b, mv, mp);
                 }
                 for (List<String> lp : mp) {
                     List<String> full = new ArrayList<>();

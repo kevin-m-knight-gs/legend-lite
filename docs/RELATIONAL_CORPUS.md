@@ -876,7 +876,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - global meta::relational::functions::pureToSqlQuery::processJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::findSupportedFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::isFunctionSupportedForCluster => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- global meta::relational::functions::pureToSqlQuery::getGroupBy => Unknown type: 'GroupByMapping' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::getFilter => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::genericTypeToDataType => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum

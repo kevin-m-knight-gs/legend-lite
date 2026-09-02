@@ -174,11 +174,14 @@ final class GroupBySynthesis {
                 }
             }
             if (matchIdx < 0) {
-                throw new NotImplementedException(
-                        "PM '" + pm.propertyName() + "' is a per-row expression that is "
-                      + "neither an aggregate nor a declared ~groupBy key; ~groupBy "
-                      + "mappings forbid per-row formulas outside the key list. Mapping="
-                      + md.qualifiedName());
+                // a PER-ROW PM outside the key list (id: ABC.id under
+                // ~groupBy(ABC.aName)): the engine's compiler ACCEPTS the
+                // mapping (the extends/primaryKey corpus fixtures are
+                // written this way) and only the query that reads the
+                // property fails, on the database. Same stage-1 rule as
+                // the Join PM above: WITHHOLD the property, keep the set
+                // — a read raises the ordinary not-mapped wall, loud.
+                continue;
             }
             claimedKeys.add(matchIdx);
             keyNames[matchIdx] = pm.propertyName();

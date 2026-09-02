@@ -1708,4 +1708,36 @@ public final class Pipelines {
         }
         return false;
     }
+
+
+    /** 2a' JOIN-KEY WIDENING body (extracted from resolveObject): every
+     * demanded join/exists condition's source-side key columns must
+     * survive the mapping ~distinct narrowing select and the union
+     * projection (engine L5135 / partial-union goldens). */
+    static TypedSpec widenPipeForJoinKeys(TypedSpec materializedPipe,
+            List<AssociationJoins.AssocJoin> assocJoins,
+            Map<String, AssociationJoins.AssocJoin> aggMaterials,
+            Map<String, Substitution.ExistsSub> existsSubs) {
+        Set<String> joinKeyReads = new LinkedHashSet<>();
+        for (AssociationJoins.AssocJoin aj : assocJoins) {
+            var ajCondR = aj.condition();
+            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
+        }
+        for (AssociationJoins.AssocJoin aj : aggMaterials.values()) {
+            var ajCondR = aj.condition();
+            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
+        }
+        for (Substitution.ExistsSub ex : existsSubs.values()) {
+            CorrelatedSubselects.collectParamColumnReads(ex.orientedCond(), joinKeyReads);
+        }
+        if (joinKeyReads.isEmpty()) {
+            return materializedPipe;
+        }
+        // UNION root: member threads carry the demanded join keys
+        // through the union projection (engine partial-union goldens)
+        return Pipelines.widenConcatenateForKeys(
+                Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads),
+                joinKeyReads);
+    }
+
 }

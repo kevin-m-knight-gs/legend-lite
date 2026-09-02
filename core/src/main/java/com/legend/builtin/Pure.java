@@ -426,7 +426,11 @@ public final class Pure {
     // mainTableAlias: TableAlias[1] — real platform_store_relational/grammar/
     // relationalMapping.pure (RelationalMappingSpecification), grown by the
     // metamodel-store witness (mainTable() navigates it).
-    public static final ClassDefinition RELATIONAL_MAPPING_SPECIFICATION = nativeClass("native Class meta::relational::metamodel::RelationalMappingSpecification extends meta::pure::metamodel::type::Any { mainTableAlias: meta::relational::metamodel::TableAlias[1]; }");
+    public static final ClassDefinition RELATIONAL_MAPPING_SPECIFICATION = nativeClass("native Class meta::relational::metamodel::RelationalMappingSpecification extends meta::pure::metamodel::type::Any { userDefinedPrimaryKey: meta::pure::metamodel::type::Boolean[1]; distinct: meta::pure::metamodel::type::Boolean[0..1]; groupBy: meta::relational::mapping::GroupByMapping[0..1]; mainTableAlias: meta::relational::metamodel::TableAlias[1]; }");
+    // Real platform_store_relational relationalMapping.pure GroupByMapping
+    // (setMappingOwner elided — grow by witness): the metamodel store maps
+    // one row per ~groupBy set (resolvePrimaryKey's precedence reads it).
+    public static final ClassDefinition GROUP_BY_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::GroupByMapping extends meta::pure::metamodel::type::Any { columns: meta::relational::metamodel::RelationalOperationElement[*]; }");
     public static final ClassDefinition RELATIONAL_INSTANCE_SET_IMPL = nativeClass("native Class meta::relational::mapping::RelationalInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation { primaryKey: meta::relational::metamodel::RelationalOperationElement[*]; }");
     public static final ClassDefinition ROOT_RELATIONAL_SET_IMPL = nativeClass("native Class meta::relational::mapping::RootRelationalInstanceSetImplementation extends meta::relational::mapping::RelationalInstanceSetImplementation, meta::relational::metamodel::RelationalMappingSpecification {}");
     public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any {}");
@@ -1636,11 +1640,6 @@ public final class Pure {
     // .pure:19, engine mappingExtension.pure:163, platform_store_
     // relational/functions.pure:277/:191 — ordinary pure there; typed
     // natives here, evaluated K-side over the compiled model)
-    // (metamodel-as-relations step 3: the platform's OWN implementation is
-    // a Pure body over the metamodel store, meta::lite::metamodel::
-    // classMappingById; this native stays until the corpus witnesses flip
-    // — the legacy walk still scores 6 extends tests through it)
-    public static final NativeFunctionDefinition CLASS_MAPPING_BY_ID = signature("native function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:meta::pure::metamodel::type::String[1]):meta::pure::mapping::SetImplementation[0..1];");
     // Real platform_dsl_mapping/functions_Mapping.pure:19.
     public static final NativeFunctionDefinition ENUMERATION_MAPPING_BY_NAME = signature("native function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:meta::pure::metamodel::type::String[1]):meta::pure::mapping::EnumerationMapping<meta::pure::metamodel::type::Any>[0..1];");
     // Real core/pure/extensions/extension.pure:46 — Extension's
@@ -1654,12 +1653,6 @@ public final class Pure {
     // debug-print of a routed function (testRouting composition tests
     // assert its text).
     public static final NativeFunctionDefinition ROUTER_PRINTER_AS_STRING = signature("native function meta::pure::router::printer::asString(f:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition SUPER_MAPPING = signature("native function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMappingsImplementation[0..1];");
-    public static final NativeFunctionDefinition ALL_SUPER_SET_IMPLEMENTATIONS = signature("native function meta::pure::mapping::allSuperSetImplementations(set:meta::pure::mapping::PropertyMappingsImplementation[1], m:meta::pure::mapping::Mapping[1]):meta::pure::mapping::PropertyMappingsImplementation[*];");
-    // (step 3: the platform's own implementation is meta::lite::metamodel::
-    // mainTable, a Pure body over the metamodel store — see above)
-    public static final NativeFunctionDefinition MAIN_TABLE = signature("native function meta::relational::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1];");
-    public static final NativeFunctionDefinition RESOLVE_PRIMARY_KEY = signature("native function meta::relational::mapping::resolvePrimaryKey(_this:meta::relational::mapping::RootRelationalInstanceSetImplementation[1]):meta::relational::metamodel::RelationalOperationElement[*];");
     public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");
     // Real platform_store_relational/grammar/relational.pure:211 —
     // TableAlias.relation() qualified property (relationalElement cast).

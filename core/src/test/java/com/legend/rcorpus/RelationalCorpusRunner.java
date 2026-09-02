@@ -1170,10 +1170,24 @@ public class RelationalCorpusRunner {
             // driver re-pinned 1.5.0.0 -> 1.4.4.0 in the same batch
             // (upstream LIMIT-in-derived-table defect, root pom): the
             // corpus is INDIFFERENT to it (same rosters).
-            org.junit.jupiter.api.Assertions.assertEquals(847L,
+            // 847/1726 -> 841/1732 (metamodel-as-relations batch 5,
+            // 2026-09-02, the REAL-NAME switch): classMappingById /
+            // mainTable / superMapping / allSuperSetImplementations /
+            // resolvePrimaryKey are Pure bodies over the metamodel store
+            // (extends chain + compiled primary keys + columns seeded as
+            // rows; declared per-set key facts stamped at Phase E); the
+            // natives and the MetamodelWalk/MetamodelSteps arms are gone.
+            // +6 flips = the six extends tests the walk used to score
+            // (testMainTableForB1/B2/C1/C2, testSuperSetIdsAreCollected,
+            // testPrimaryKeyForB), all "no scalar lowering for resolved
+            // overload" before. H2 verdict roster byte-identical, exec-
+            // passing unchanged, paired sweeps byte-identical on all four
+            // rosters; quarantine witness rows 172 -> 151 (the
+            // classMappingById refusal spelling is DEAD), walls 20.
+            org.junit.jupiter.api.Assertions.assertEquals(841L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1726L,
+            org.junit.jupiter.api.Assertions.assertEquals(1732L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1284,9 +1298,17 @@ public class RelationalCorpusRunner {
             // the verdict path. The deferred program keeps this list;
             // any future burn must come from the program's own design,
             // not a routing of walk output.
-            org.junit.jupiter.api.Assertions.assertEquals(172,
+            // 172 -> 151 (metamodel-as-relations batch 5, 2026-09-02):
+            // the program's OWN design burned the first family — the
+            // mapping-metamodel navigation functions are Pure bodies over
+            // seeded rows under their real names, so the "resolved
+            // overload 'meta::pure::mapping::classMappingById'" refusal no
+            // longer exists (its vocabulary entry is retired); the 21 rows
+            // it owned resolve through the database. The other spellings
+            // are untouched (151 rows).
+            org.junit.jupiter.api.Assertions.assertEquals(151,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
-                    "metamodel quarantine (witness rows) moved off 172 —"
+                    "metamodel quarantine (witness rows) moved off 151 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
             org.junit.jupiter.api.Assertions.assertEquals(20,
                     com.legend.exec.CanonicalDivergence

@@ -85,7 +85,13 @@ public record MappingDefinition(
         String functionFqn();
         List<String> primaryKeyColumns();
 
-        /** A relational class binding; {@code source} is never null. */
+        /** A relational class binding; {@code source} is never null.
+         * {@code primaryKeyColumns} is the extends-RESOLVED key (child's
+         * else parent's — user-space identity); {@code declared} is the
+         * set's OWN key text, stamped at Phase E before the extends
+         * pre-pass merges the parent in (the reach-back razor): the
+         * metamodel's per-set facts, which the engine's resolvePrimaryKey
+         * precedence walks across the extends chain. */
         record Relational(
                 String classFqn,
                 @com.legend.Nullable String setId,
@@ -93,13 +99,38 @@ public record MappingDefinition(
                 boolean root,
                 String functionFqn,
                 List<String> primaryKeyColumns,
+                DeclaredKeys declared,
                 RelationalSource source) implements ClassBinding {
             public Relational {
                 Objects.requireNonNull(classFqn, "classFqn");
                 Objects.requireNonNull(functionFqn, "functionFqn");
                 Objects.requireNonNull(source, "source");
+                Objects.requireNonNull(declared, "declared");
                 primaryKeyColumns = primaryKeyColumns == null ? List.of()
                         : List.copyOf(primaryKeyColumns);
+            }
+        }
+
+        /** The key text a relational set DECLARED itself (m3: the set's
+         * own {@code distinct} / {@code groupBy} / {@code primaryKey} /
+         * property mappings): {@code distinct} = ~distinct written;
+         * {@code groupByColumns} = the ~groupBy column names;
+         * {@code primaryKeyColumns} = the ~primaryKey column names;
+         * {@code mappedColumns} = the direct column property mappings'
+         * columns in declaration order (a ~distinct set's compiled key).
+         * A function-form binding declares none ({@link #NONE}). */
+        record DeclaredKeys(boolean distinct, List<String> groupByColumns,
+                List<String> primaryKeyColumns, List<String> mappedColumns) {
+            public static final DeclaredKeys NONE =
+                    new DeclaredKeys(false, List.of(), List.of(), List.of());
+
+            public DeclaredKeys {
+                groupByColumns = groupByColumns == null ? List.of()
+                        : List.copyOf(groupByColumns);
+                primaryKeyColumns = primaryKeyColumns == null ? List.of()
+                        : List.copyOf(primaryKeyColumns);
+                mappedColumns = mappedColumns == null ? List.of()
+                        : List.copyOf(mappedColumns);
             }
         }
 

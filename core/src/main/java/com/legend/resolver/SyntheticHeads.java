@@ -1363,7 +1363,7 @@ final class SyntheticHeads {
             for (TypedLambda liftedPred : allPreds(pcpt)) {
                 Set<List<String>> predPaths = new java.util.LinkedHashSet<>();
                 for (TypedSpec b : liftedPred.body()) {
-                    StoreResolver.consumedPaths(b, liftedPred.parameters().get(0),
+                    FlattenOps.consumedPaths(b, liftedPred.parameters().get(0),
                             predPaths);
                 }
                 predTails.addAll(predPaths);
@@ -1385,7 +1385,7 @@ final class SyntheticHeads {
         String uv = fn.parameters().get(0);
         for (TypedLambda corr : allCorrelatedPreds()) {
             for (TypedSpec b : corr.body()) {
-                StoreResolver.consumedPaths(b, uv, out);
+                FlattenOps.consumedPaths(b, uv, out);
             }
         }
     }

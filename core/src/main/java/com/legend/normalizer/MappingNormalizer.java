@@ -248,6 +248,14 @@ public final class MappingNormalizer {
         // property mappings into each child mapping (child overrides on
         // property-name conflict; multi-level resolves recursively). See
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
+        // the sets' OWN key text, captured BEFORE the extends pre-pass
+        // merges the parent's in (metamodel facts, ClassBinding.declared)
+        Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys = new HashMap<>();
+        for (ClassMapping cm0 : md.classMappings()) {
+            if (cm0 instanceof ClassMapping.Relational r0) {
+                declaredKeys.put(SetKeyFacts.setKey(r0), SetKeyFacts.declaredKeysOf(r0));
+            }
+        }
         md = resolveExtends(md, model);
         md = ImplicitInheritance.apply(md, model);
 
@@ -311,6 +319,8 @@ public final class MappingNormalizer {
                                         cm.extendsSetId(), /*root*/ false,
                                         setFn.qualifiedName(),
                                         declaredPrimaryKeyColumns(cm),
+                                        declaredKeys.getOrDefault(SetKeyFacts.setKey(rSrc),
+                                                MappingDefinition.ClassBinding.DeclaredKeys.NONE),
                                         relationalSourceOf(rSrc))
                                 : new MappingDefinition.ClassBinding.Pure(
                                         cm.className(), cm.setId(),
@@ -352,6 +362,8 @@ public final class MappingNormalizer {
                             cm.className(), cm.setId(), cm.extendsSetId(),
                             cm.root(), fn.qualifiedName(),
                             declaredPrimaryKeyColumns(cm),
+                            declaredKeys.getOrDefault(SetKeyFacts.setKey(rSrc),
+                                    MappingDefinition.ClassBinding.DeclaredKeys.NONE),
                             relationalSourceOf(rSrc))
                     : new MappingDefinition.ClassBinding.Pure(
                             cm.className(), cm.setId(), cm.extendsSetId(),
@@ -416,6 +428,7 @@ public final class MappingNormalizer {
                             rcm.setId(), rcm.extendsSetId(), rcm.root(),
                             fn.qualifiedName(),
                             declaredPrimaryKeyColumns(rcm),
+                            SetKeyFacts.declaredKeysOf(rcm),
                             relationalSourceOf(rcm)));
                 }
             }
@@ -511,9 +524,13 @@ public final class MappingNormalizer {
                             cb.classFqn(), model);
                     seen.add(fnFqn);
                 }
+                // a FUNCTION-FORM binding declares no key text (no
+                // ~distinct / ~groupBy / ~primaryKey): its key facts are
+                // the body's — not stamped here (grow by witness)
                 classBindings.add(new MappingDefinition.ClassBinding.Relational(
                         cb.classFqn(), cb.setId(), cb.extendsSetId(),
                         cb.root(), fnFqn, cb.primaryKeyColumns(),
+                        MappingDefinition.ClassBinding.DeclaredKeys.NONE,
                         inlineRootSource(srcBody, model, md.qualifiedName(),
                                 cb.classFqn(), seen)));
             } else {

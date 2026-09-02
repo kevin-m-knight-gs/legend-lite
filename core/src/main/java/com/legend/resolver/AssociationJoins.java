@@ -192,7 +192,7 @@ final class AssociationJoins {
         Set<List<String>> predPaths = new LinkedHashSet<>(tgtNavPaths);
         if (corrN != null) {
             for (TypedSpec b : corrN.body()) {
-                StoreResolver.consumedPaths(b,
+                FlattenOps.consumedPaths(b,
                         corrN.parameters().get(0), predPaths);
             }
         }
@@ -203,7 +203,7 @@ final class AssociationJoins {
         // exactly like a correlated pred's reads (task #78)
         for (TypedLambda sp : synthetics.allPreds(head)) {
             for (TypedSpec b : sp.body()) {
-                StoreResolver.consumedPaths(b,
+                FlattenOps.consumedPaths(b,
                         sp.parameters().get(0), predPaths);
             }
         }
@@ -1559,7 +1559,7 @@ final class AssociationJoins {
         for (String outer : free) {
             Set<List<String>> paths = new LinkedHashSet<>();
             for (TypedSpec b : pred.body()) {
-                StoreResolver.consumedPaths(b, outer, paths);
+                FlattenOps.consumedPaths(b, outer, paths);
             }
             for (List<String> p : paths) {
                 if (p.size() >= 2) {
