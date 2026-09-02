@@ -1740,4 +1740,71 @@ public final class Pipelines {
                 joinKeyReads);
     }
 
+
+    /** &beta;-substitute a one-param lambda's variable with {@code read} —
+     * via the inliner's LET reduction (one substitution engine, no second
+     * walker). */
+    static TypedSpec substituteParam(com.legend.compiler.spec.SpecCompiler specs,
+            TypedLambda lam, TypedSpec read) {
+        // audit 21b F6 (named wall): the let-reduction splices `read` at
+        // EVERY param read. For a row-rooted read that is plain multi-eval;
+        // for a source CHAIN it is DECORRELATION — a second fresh extent
+        // replaces the row-correlated value. Refusing here is by design,
+        // not an accident of downstream vocabulary walls.
+        if (!rowRootedRead(read)) {
+            int reads = 0;
+            for (TypedSpec b : lam.body()) {
+                reads += countParamReads(b, lam.parameters().get(0));
+            }
+            if (reads > 1) {
+                throw new NotImplementedException("class-result mapper reads"
+                        + " its parameter " + reads + " times; splicing the"
+                        + " source chain at each read would decorrelate the"
+                        + " later reads (a fresh extent replaces the"
+                        + " row-correlated value)");
+            }
+            if (reads == 0) {
+                // audit 22a L7: a mapper that IGNORES its parameter has
+                // per-element semantics in pure (one result per source
+                // element); the let-splice collapses that to ONE evaluation
+                // — wrong cardinality, silently.
+                throw new NotImplementedException("class-result mapper"
+                        + " ignores its parameter — the splice would collapse"
+                        + " per-element semantics to one evaluation");
+            }
+        }
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>();
+        body.add(new com.legend.compiler.spec.typed.TypedLet(
+                lam.parameters().get(0), read, read.info()));
+        body.addAll(lam.body());
+        return new com.legend.compiler.spec.UserCallInliner(specs)
+                .inlineBody(body).get(0);
+    }
+
+
+    /** A read rooted at a VARIABLE (row-correlated): duplication is
+     * multi-eval of the same row's value, never decorrelation. */
+    static boolean rowRootedRead(TypedSpec read) {
+        return switch (read) {
+            case TypedVariable ignored -> true;
+            case TypedPropertyAccess pa -> rowRootedRead(pa.source());
+            default -> false;
+        };
+    }
+
+    /** Shadow-aware count of {@code $var} reads beneath {@code n}. */
+    static int countParamReads(TypedSpec n, String var) {
+        if (n instanceof TypedVariable v) {
+            return v.name().equals(var) ? 1 : 0;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return 0;
+        }
+        int c = 0;
+        for (TypedSpec ch : n.children()) {
+            c += countParamReads(ch, var);
+        }
+        return c;
+    }
+
 }

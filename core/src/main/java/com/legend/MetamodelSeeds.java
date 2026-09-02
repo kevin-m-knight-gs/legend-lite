@@ -48,6 +48,7 @@ public final class MetamodelSeeds {
             case "table_aliases" -> tableAliases(ctx);
             case "tables" -> tables(ctx);
             case "columns" -> columns(ctx);
+            case "views" -> views(ctx);
             case "set_ancestry" -> setAncestry(ctx);
             case "group_by_mappings" -> groupByMappings(ctx);
             case "primary_keys" -> primaryKeys(ctx);
@@ -301,6 +302,45 @@ public final class MetamodelSeeds {
         return out;
     }
 
+    /** Every view of every store (the {@code tables} schema rule). */
+    private static List<List<String>> views(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+            DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+            if (db == null) {
+                continue;
+            }
+            for (SchemaView sv : schemaViews(db)) {
+                rows.add(List.of(dbFqn, sv.schema(), sv.view().name()));
+            }
+        }
+        return rows;
+    }
+
+    /** {schema, table} the view's columns read, through views of views;
+     * null when unresolvable (a non-column column mapping). */
+    private static String @com.legend.Nullable [] viewBaseTable(DatabaseDefinition db,
+            DatabaseDefinition.ViewDefinition v, Set<String> seen) {
+        if (!seen.add(v.name())) {
+            return null;
+        }
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm : v.columnMappings()) {
+            if (!(cm.expression() instanceof com.legend.model.RelationalOperation.ColumnRef cr)) {
+                continue;
+            }
+            int dot = cr.table().indexOf('.');
+            String schema = dot < 0 ? "default" : cr.table().substring(0, dot);
+            String name = dot < 0 ? cr.table() : cr.table().substring(dot + 1);
+            for (SchemaView sv : schemaViews(db)) {
+                if (sv.view().name().equals(name) && sv.schema().equals(schema)) {
+                    return viewBaseTable(db, sv.view(), seen);
+                }
+            }
+            return new String[] {schema, name};
+        }
+        return null;
+    }
+
     /** Every column of every table (the {@code tables} rule for schemas). */
     private static List<List<String>> columns(ModelContext ctx) {
         Set<List<String>> rows = new LinkedHashSet<>();
@@ -326,14 +366,79 @@ public final class MetamodelSeeds {
         return new ArrayList<>(rows);
     }
 
+    /** Every main-table ALIAS in the store: one per relational set (owned
+     * by the set: mapping_fqn + id) and one per VIEW (owned by the view:
+     * its database + {@code view:<schema>.<name>}, the view identity in
+     * the view_* columns) — a view's alias names its base TABLE, resolved
+     * transitively through views of views at seed time (the extends-
+     * closure pattern: the engine's {@code mainTable()} recurses; here one
+     * hop reads the seeded base). */
     private static List<List<String>> tableAliases(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
         for (List<String> cm : classMappings(ctx)) {
-            // (mapping_fqn, id, class_fqn, super_set_id, main_db, main_schema, main_table)
+            // (mapping_fqn, id, class_fqn, super_set_id, main_db, main_schema, main_table, …)
+            String[] base = baseTableOf(ctx, cm.get(4), cm.get(5), cm.get(6));
             rows.add(java.util.Arrays.asList(cm.get(0), cm.get(1), cm.get(6),
-                    cm.get(4), cm.get(5), cm.get(6)));
+                    cm.get(4), cm.get(5), cm.get(6), null, null, null,
+                    base == null ? null : cm.get(4),
+                    base == null ? null : base[0],
+                    base == null ? null : base[1]));
+        }
+        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+            DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+            if (db == null) {
+                continue;
+            }
+            for (var sv : schemaViews(db)) {
+                String[] base = viewBaseTable(db, sv.view(), new LinkedHashSet<>());
+                rows.add(java.util.Arrays.asList(dbFqn,
+                        "view:" + sv.schema() + "." + sv.view().name(),
+                        base == null ? sv.view().name() : base[1],
+                        dbFqn, sv.schema(), sv.view().name(),
+                        dbFqn, sv.schema(), sv.view().name(),
+                        base == null ? null : dbFqn,
+                        base == null ? null : base[0],
+                        base == null ? null : base[1]));
+            }
         }
         return rows;
+    }
+
+    private record SchemaView(String schema, DatabaseDefinition.ViewDefinition view) {
+    }
+
+    /** Every view with its schema — top-level views sit in {@code default}. */
+    private static List<SchemaView> schemaViews(DatabaseDefinition db) {
+        List<SchemaView> out = new ArrayList<>();
+        for (DatabaseDefinition.ViewDefinition v : db.views()) {
+            out.add(new SchemaView("default", v));
+        }
+        for (DatabaseDefinition.SchemaDefinition sd : db.schemas()) {
+            for (DatabaseDefinition.ViewDefinition v : sd.views()) {
+                out.add(new SchemaView(sd.name(), v));
+            }
+        }
+        return out;
+    }
+
+    /** {schema, table}: the base TABLE behind a main-table name — the
+     * table itself, or a view's base resolved through views of views. */
+    private static String @com.legend.Nullable [] baseTableOf(ModelContext ctx,
+            @com.legend.Nullable String dbFqn, @com.legend.Nullable String schema,
+            @com.legend.Nullable String name) {
+        if (dbFqn == null || schema == null || name == null) {
+            return null;
+        }
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return null;
+        }
+        for (SchemaView sv : schemaViews(db)) {
+            if (sv.schema().equals(schema) && sv.view().name().equals(name)) {
+                return viewBaseTable(db, sv.view(), new LinkedHashSet<>());
+            }
+        }
+        return new String[] {schema, name};
     }
 
     /** Every table of every store: schema-less tables sit in the engine's

@@ -127,6 +127,14 @@ class ChainTypeDispatchTest {
     }
 
     @Test
+    @DisplayName("match with ROW arms is the union of one filtered, cast branch per arm")
+    void chainMatchWithRowArms() throws SQLException {
+        assertEquals(List.of("Hatch", "Roadster", "Sedan"),
+                rows("rt::Vehicle.all()->match([c:rt::Car[1]|$c, b:rt::Bicycle[1]|$b]).name")
+                        .stream().sorted().toList());
+    }
+
+    @Test
     @DisplayName("dispatch over a navigation routed to TWO sets: chain match, map-body match, chain cast")
     void dispatchOverATwoRouteNavigation() throws SQLException {
         assertEquals(List.of("V8", "bike"),

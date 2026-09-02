@@ -1103,7 +1103,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - 1x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - 1x class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
-- 1x Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_filter([list_concat((SELECT CAST(CASE WHEN COUNT(*) = 1 THEN MIN... |                                    ^
+- 1x lowering not yet implemented for TypedSerializeGraph
 - 1x zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)']
@@ -1167,7 +1167,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - SHAPE testBuildFilterWithValueThatCanBeNullPlanSql [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
-- ERROR testAll [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_filter([list_concat((SELECT CAST(CASE WHEN COUNT(*) = 1 THEN 
+- ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
 - ERROR testSQLComments [functions/tests]: execution activities are not recorded
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']

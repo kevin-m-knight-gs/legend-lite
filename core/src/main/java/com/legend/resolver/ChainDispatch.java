@@ -64,6 +64,80 @@ final class ChainDispatch {
         return to.fqn();
     }
 
+    /** Whether the match has ROW-returning arms (a class-typed body). */
+    static boolean rowArms(TypedMatchRuntime mr) {
+        return mr.arms().stream().anyMatch(a -> a.body().info().type()
+                instanceof Type.ClassType);
+    }
+
+    /** {@code chain->match([a:A[1]|rowsA, b:B[1]|rowsB])} with ROW arms
+     * is the UNION of one branch per arm: the chain filtered to the
+     * arm's run-time type, cast to it (the gated chain cast), mapped
+     * through the arm's body — exactly one branch accepts each row. */
+    TypedSpec chainMatchAsUnion(TypedMatchRuntime mr, Type rowClass) {
+        TypedFunction concatCallee = concatCallee();
+        TypedFunction instanceOf = instanceOfCallee();
+        TypedSpec out = null;
+        for (TypedMatchRuntime.Arm arm : mr.arms()) {
+            Type.ClassType armType = (Type.ClassType) ctx.findType(arm.typeFqn())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "match arm names an unknown type '" + arm.typeFqn() + "'"));
+            String v = "_ma" + fresh.getAsInt();
+            TypedVariable var = new TypedVariable(v, ExprType.one(rowClass));
+            ExprType boolOne = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
+            TypedSpec test = new TypedNativeCall(instanceOf, List.of(var,
+                    new TypedTypeRef(armType, ExprType.one(armType))), boolOne);
+            TypedLambda pred = new TypedLambda(List.of(v), List.of(test),
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(rowClass, Multiplicity.Bounded.ONE)),
+                            new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
+                            Multiplicity.Bounded.ONE));
+            TypedSpec filtered = new TypedFilter(mr.input(), pred, mr.input().info());
+            TypedSpec cast = new com.legend.compiler.spec.typed.TypedCast(filtered, armType,
+                    new ExprType(armType, mr.input().info().multiplicity()),
+                    /*wire*/ false);
+            TypedLambda body = new TypedLambda(List.of(arm.param()), List.of(arm.body()),
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(armType, Multiplicity.Bounded.ONE)),
+                            new Type.Param(arm.body().info().type(),
+                                    arm.body().info().multiplicity())),
+                            Multiplicity.Bounded.ONE));
+            TypedSpec branch = new TypedMap(cast, body, mr.info());
+            out = out == null ? branch
+                    : new TypedNativeCall(concatCallee, List.of(out, branch), mr.info());
+        }
+        return java.util.Objects.requireNonNull(out, "a match has at least one arm");
+    }
+
+    /** Post-order normalization of ROW-arm matches under {@code n}: a
+     * match over an object-space chain becomes its union of branches; a
+     * class-result {@code map(x|…)} whose spliced body is such a match
+     * becomes the union too (the flatten IS the body with the source
+     * spliced). The chain walk then sees a class-collection concatenate
+     * at the root, which the distribute rules own. */
+    TypedSpec normalizeRowMatches(TypedSpec n,
+            java.util.function.Predicate<TypedSpec> objectSpace,
+            java.util.function.Function<TypedSpec, Type> sourceClass,
+            java.util.function.BiFunction<TypedLambda, TypedSpec, TypedSpec> splice) {
+        TypedSpec r = n.mapChildren(c -> normalizeRowMatches(c, objectSpace,
+                sourceClass, splice));
+        if (r instanceof TypedMatchRuntime mr && rowArms(mr)
+                && objectSpace.test(mr.input())) {
+            return chainMatchAsUnion(mr, sourceClass.apply(mr.input()));
+        }
+        if (r instanceof TypedMap m && objectSpace.test(m.source())
+                && m.mapper().functionType().result().type() instanceof Type.ClassType
+                && m.mapper().body().size() == 1
+                && m.mapper().body().get(0) instanceof TypedMatchRuntime bm
+                && rowArms(bm)) {
+            TypedSpec spliced = splice.apply(m.mapper(), m.source());
+            if (spliced instanceof TypedMatchRuntime sm && objectSpace.test(sm.input())) {
+                return chainMatchAsUnion(sm, sourceClass.apply(sm.input()));
+            }
+        }
+        return r;
+    }
+
     /** {@code chain->match([...])} as {@code chain->map(v|$v->match([...]))}. */
     TypedMap chainMatchAsMap(TypedMatchRuntime mr, Type rowClass) {
         String v = "_mv" + fresh.getAsInt();
@@ -133,6 +207,29 @@ final class ChainDispatch {
                 .stream().filter(f -> f.parameters().size() == 2)
                 .findFirst().orElseThrow(() -> new IllegalStateException(
                         "resolver bug: no instanceOf(Any, Type) registration"));
+    }
+
+    /** The 1-arg fail overload — the RAISE arm of run-time branch choice
+     * over a discriminated row (a match no arm accepts, a cast the row's
+     * run-time type does not satisfy: pure raises, so does the SQL). */
+    static boolean containsRowMatch(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr
+                && rowArms(mr)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsRowMatch(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private TypedFunction concatCallee() {
+        return ctx.findFunction(StoreResolver.CONCAT_FQN).stream()
+                .filter(f -> f.parameters().size() == 2).findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no concatenate(a, b) registration"));
     }
 
 }

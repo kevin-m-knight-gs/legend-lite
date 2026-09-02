@@ -663,8 +663,44 @@ the inlined `validate` body) moved to its next wall (the plan/text
 family). Named: a partial cast BELOW a flatten hop, or a second cast on
 one chain, stays loud.
 
-**Residue after leg 1**: views as main tables (the View rows on top of
-this mechanism — next); (new) the
+**Harness burn-down leg 2 — views as main tables + ROW-arm match —
+LANDED (2026-09-02).** `View` native = the real class (NamedRelation +
+RelationalMappingSpecification; schema/primaryKey/columnMappings); View
+rows (`views`, top-level views in `default`); ONE alias table for every
+main-table alias — owned by a set (mapping_fqn + id) or by a VIEW (its
+database + `view:<schema>.<name>`, identity in view_* columns) — with the
+BASE TABLE resolved transitively through views of views at seed time
+(base_* columns; the extends-closure pattern) read through the lite
+association `TableAlias.base` (`AliasBaseTables`); `relationalElement`
+routed to Table OR View (`relationalElement[tbl]`/`[vw]` — the proven
+two-route shape); `mainTable` body = `$_this.mainTableAlias.base` (the
+engine body `match([t:Table|$t, v:View|$v->mainTable()])` recurses; ours
+reads the seeded base — the classMappingById/include-closure precedent).
+`chain->match([...])` with ROW arms = the UNION of one filtered, cast
+branch per arm (`ChainDispatch.chainMatchAsUnion`; normalized before the
+chain walk, also for a class-result `map(x|…)` whose spliced body is such
+a match); a scalar map and the whole-instance terminal DISTRIBUTE over a
+class concatenate like project does. Pinned: `viewAsMainTable`
+(relationalElement->cast(@View).name = AV; mainTable().name = ABC),
+`ChainTypeDispatchTest.chainMatchWithRowArms`. Corpus: ratchet unchanged
+841/1732, paired sweeps byte-identical; `concatenate::testAll` moved from
+a wrong-SQL platform-fail to the named wall "lowering not yet implemented
+for TypedSerializeGraph" (whole-instance over a concatenate now reaches
+the graph lowering).
+
+**CHARTERED — cast then navigate through the member's own slot (re-root
+at the member set).** The union-ROW form carries member properties as
+thread-local columns but NOT a member's join slots, so
+`chain->cast(@View).mainTableAlias…` (the real mainTable body's view
+arm) cannot navigate on the row. Exact wall: "->cast(@View) over a chain
+of RelationalOperationElement (partial membership) below a flatten hop,
+or a second cast on one chain, is not supported yet". The mechanism:
+re-root the gated chain on the member SET's own extent (inner-join the
+union rows to `View[vw]` on the member's key thread), so the chain
+continues natively with the member's slots. No corpus witness yet; the
+metamodel witness is the real `mainTable` body verbatim.
+
+**Residue after leg 2**: (new) the
 composed-row prefix scheme `<slot>_<column>` can COLLIDE with a physical
 column of that spelling (two system-store columns were renamed around it:
 `pk_column`, `super_mapping_fqn`/`super_id` — a user model with column

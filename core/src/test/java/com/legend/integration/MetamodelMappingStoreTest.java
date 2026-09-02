@@ -44,7 +44,7 @@ class MetamodelMappingStoreTest {
             Class ext::B extends ext::A { bName: String[1]; }
             Class ext::C extends ext::B { cName: String[1]; }
             ###Relational
-            Database ext::testDatabase ( Table ABC (id INTEGER PRIMARY KEY, aName VARCHAR(20), bName VARCHAR(20), cName VARCHAR(20)) )
+            Database ext::testDatabase ( Table ABC (id INTEGER PRIMARY KEY, aName VARCHAR(20), bName VARCHAR(20), cName VARCHAR(20)) View AV ( id : ABC.id PRIMARY KEY, aName : ABC.aName ) )
             ###Mapping
             Mapping ext::AMapping ( ext::A[a] : Relational { id : [ext::testDatabase]ABC.id, aName : [ext::testDatabase]ABC.aName } )
             Mapping ext::B1Mapping ( include ext::AMapping  ext::B[b1] extends [a] : Relational { } )
@@ -60,6 +60,7 @@ class MetamodelMappingStoreTest {
             Mapping ext::BMappingWithUserDefinedPrimaryKeyAMappingWithGroupBy ( include AMappingWithGroupBy  ext::B[b] extends [a] : Relational { ~primaryKey([ext::testDatabase]ABC.bName) bName : [ext::testDatabase]ABC.bName } )
             Mapping ext::BMappingWithNothingAMappingWithGroupBy ( include AMappingWithGroupBy  ext::B[b] extends [a] : Relational { bName : [ext::testDatabase]ABC.bName } )
             Mapping ext::BMappingWithNothingAMappingWithUserDefinedPrimaryKey ( include AMappingWithUserDefinedPrimaryKey  ext::B[b] extends [a] : Relational { bName : [ext::testDatabase]ABC.bName } )
+            Mapping ext::AOnView ( ext::A[a] : Relational { ~mainTable [ext::testDatabase]AV id : [ext::testDatabase]AV.id, aName : [ext::testDatabase]AV.aName } )
             Mapping ext::AMappingWithDistinct ( ext::A[a] : Relational { ~distinct id : [ext::testDatabase]ABC.id, aName : [ext::testDatabase]ABC.aName } )
             Mapping ext::BMappingWithNothingAMappingWithDistinct ( include AMappingWithDistinct  ext::B[b] extends [a] : Relational { bName : [ext::testDatabase]ABC.bName } )
             """;
@@ -224,6 +225,19 @@ class MetamodelMappingStoreTest {
         assertEquals(List.of("aName", "id"),
                 superDistinct.stream().map(String::valueOf).sorted().toList(),
                 "the super's ~distinct key is EVERY column it maps");
+    }
+
+    @Test
+    @DisplayName("a VIEW as main table: the alias's element is the View row; mainTable() is the view's base TABLE (the real match body)")
+    void viewAsMainTable() throws SQLException {
+        assertEquals(List.of("AV"), values("ext::AOnView->" + BY_ID
+                + "('a')->cast(@" + ROOT_SET + ").mainTableAlias.relationalElement"
+                + "->cast(@meta::relational::metamodel::relation::View).name"));
+        assertEquals(List.of("ABC"), values("ext::AOnView->" + BY_ID
+                + "('a')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "()).name"));
+        assertEquals(List.of("ABC"), values("ext::AMapping->" + BY_ID
+                + "('a')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "()).name"),
+                "a table-backed set still reads its table");
     }
 
     @Test

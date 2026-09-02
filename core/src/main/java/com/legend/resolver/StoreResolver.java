@@ -331,7 +331,7 @@ public final class StoreResolver {
             return n;
         }
         return n instanceof TypedMap m
-                ? resolveNode(substituteParam(m.mapper(), m.source()), context)
+                ? resolveNode(Pipelines.substituteParam(specs, m.mapper(), m.source()), context)
                 : resolveChain(n, context);
     }
 
@@ -339,7 +339,14 @@ public final class StoreResolver {
      * beneath — chain TERMINALS first, then relation-space wrappers; an
      * unhandled variant is the NAMED H2-vocabulary wall, never a silent
      * pass-through. */
-    private TypedSpec anchoredNode(TypedSpec n, Context context) {
+    private TypedSpec anchoredNode(TypedSpec n0, Context context) {
+        // ROW-arm matches normalize to their union of branches first
+        // (harness burn-down leg 2): the chain then roots on a class
+        // concatenate the distribute rules below own
+        TypedSpec n = ChainDispatch.containsRowMatch(n0)
+                ? chainDispatch.normalizeRowMatches(n0, this::objectSpace,
+                        StoreResolver::sourceClassType, (l, r) -> Pipelines.substituteParam(specs, l, r))
+                : n0;
         return switch (n) {
             case TypedProject p when objectSpace(p.source()) ->
                     resolveChain(p, context);
@@ -380,8 +387,28 @@ public final class StoreResolver {
             // parameter (batch 2) — the chain form IS map(v|$v->match(...))
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr
                     when objectSpace(mr.input()) ->
-                    resolveNode(chainDispatch.chainMatchAsMap(mr,
-                            sourceClassType(mr.input())), context);
+                    resolveNode(ChainDispatch.rowArms(mr)
+                            ? chainDispatch.chainMatchAsUnion(mr,
+                                    sourceClassType(mr.input()))
+                            : chainDispatch.chainMatchAsMap(mr,
+                                    sourceClassType(mr.input())), context);
+            // a SCALAR map DISTRIBUTES over a class-collection concatenate
+            // exactly as project does
+            case TypedMap m when classConcatOf(m.source()) != null -> {
+                TypedNativeCall c = java.util.Objects.requireNonNull(
+                        classConcatOf(m.source()));
+                yield new TypedConcatenate(
+                        resolveNode(new TypedMap(c.args().get(0), m.mapper(), m.info()), context),
+                        resolveNode(new TypedMap(c.args().get(1), m.mapper(), m.info()), context),
+                        m.info());
+            }
+            // a class-collection CONCATENATE as the whole-instance terminal
+            // (a row-arm match's branches): each side resolves as its own
+            // object-space chain; UNION ALL of the same class layout
+            case TypedNativeCall c when classConcatOf(c) != null
+                    && c.info().type() instanceof Type.ClassType ->
+                    new TypedConcatenate(resolveNode(c.args().get(0), context),
+                            resolveNode(c.args().get(1), context), c.info());
             // ->map(o|$o.nav->match([...])) — a SCALAR map whose body is a
             // match over a navigation off the parameter: the flatten IS
             // the body with the source spliced for the parameter (the
@@ -392,7 +419,7 @@ public final class StoreResolver {
                             instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr0
                     && ChainDispatch.navRootedAt(mr0.input(), m.mapper().parameters().get(0))
                     && ChainDispatch.countVarReads(mr0, m.mapper().parameters().get(0)) == 1 ->
-                    resolveNode(substituteParam(m.mapper(), m.source()), context);
+                    resolveNode(Pipelines.substituteParam(specs, m.mapper(), m.source()), context);
             case TypedMap m when objectSpace(m.source()) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
                 yield resolvedScalarMapProject(m2.source(), m2.mapper(),
@@ -1206,37 +1233,14 @@ public final class StoreResolver {
                 new com.legend.compiler.spec.typed.TypedVariable(
                         "r", ExprType.one(rt)),
                 col.name(), new ExprType(col.type(), col.multiplicity()));
-        TypedSpec pred = substituteParam(f.predicate(), rowRead);
+        TypedSpec pred = Pipelines.substituteParam(specs, f.predicate(), rowRead);
         TypedLambda fn = new TypedLambda(List.of("r"), List.of(pred),
                 f.predicate().info());
         return new TypedFilter(rel, fn, rel.info());
     }
 
 
-    /** A read rooted at a VARIABLE (row-correlated): duplication is
-     * multi-eval of the same row's value, never decorrelation. */
-    private static boolean rowRootedRead(TypedSpec read) {
-        return switch (read) {
-            case TypedVariable ignored -> true;
-            case TypedPropertyAccess pa -> rowRootedRead(pa.source());
-            default -> false;
-        };
-    }
 
-    /** Shadow-aware count of {@code $var} reads beneath {@code n}. */
-    private static int countParamReads(TypedSpec n, String var) {
-        if (n instanceof TypedVariable v) {
-            return v.name().equals(var) ? 1 : 0;
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
-            return 0;
-        }
-        int c = 0;
-        for (TypedSpec ch : n.children()) {
-            c += countParamReads(ch, var);
-        }
-        return c;
-    }
 
     /** The node is (part of) an object-space chain — see {@link Anchors#spaceOf}. */
     private boolean objectSpace(TypedSpec s) {
@@ -1266,7 +1270,7 @@ public final class StoreResolver {
     private static final String SORT_FQN = "meta::pure::functions::collection::sort";
     private static final String SORT_BY_FQN = "meta::pure::functions::collection::sortBy";
     private static final String SORT_BY_REV_FQN = "meta::pure::functions::collection::sortByReversed";
-    private static final String CONCAT_FQN =
+    static final String CONCAT_FQN =
             "meta::pure::functions::collection::concatenate";
     private static final String COMPARE_FQN = "meta::pure::functions::lang::compare";
     private static final String EQUAL_FQN = "meta::pure::functions::boolean::equal";
@@ -2611,7 +2615,7 @@ public final class StoreResolver {
             if (cur instanceof TypedMap cm
                     && cm.mapper().functionType().result()
                             .type() instanceof Type.ClassType) {
-                cur = substituteParam(cm.mapper(), cm.source());
+                cur = Pipelines.substituteParam(specs, cm.mapper(), cm.source());
                 continue;
             }
             // CLASS-TERMINAL ASSOCIATION HOP: the flatten boundary — the
@@ -3339,9 +3343,9 @@ public final class StoreResolver {
         return ctx.findFunction("meta::pure::functions::boolean::" + n2).get(0);
     }
 
-    /** The 1-arg fail overload — the RAISE arm of run-time branch choice
-     * over a discriminated row (a match no arm accepts, a cast the row's
-     * run-time type does not satisfy: pure raises, so does the SQL). */
+
+
+
     private com.legend.compiler.element.TypedFunction failCallee() {
         return ctx.findFunction("meta::pure::functions::asserts::fail")
                 .stream().filter(f -> f.parameters().size() == 1)
@@ -3458,43 +3462,5 @@ public final class StoreResolver {
         }
     }
 
-    /** &beta;-substitute a one-param lambda's variable with {@code read} —
-     * via the inliner's LET reduction (one substitution engine, no second
-     * walker). */
-    private TypedSpec substituteParam(TypedLambda lam, TypedSpec read) {
-        // audit 21b F6 (named wall): the let-reduction splices `read` at
-        // EVERY param read. For a row-rooted read that is plain multi-eval;
-        // for a source CHAIN it is DECORRELATION — a second fresh extent
-        // replaces the row-correlated value. Refusing here is by design,
-        // not an accident of downstream vocabulary walls.
-        if (!rowRootedRead(read)) {
-            int reads = 0;
-            for (TypedSpec b : lam.body()) {
-                reads += countParamReads(b, lam.parameters().get(0));
-            }
-            if (reads > 1) {
-                throw new NotImplementedException("class-result mapper reads"
-                        + " its parameter " + reads + " times; splicing the"
-                        + " source chain at each read would decorrelate the"
-                        + " later reads (a fresh extent replaces the"
-                        + " row-correlated value)");
-            }
-            if (reads == 0) {
-                // audit 22a L7: a mapper that IGNORES its parameter has
-                // per-element semantics in pure (one result per source
-                // element); the let-splice collapses that to ONE evaluation
-                // — wrong cardinality, silently.
-                throw new NotImplementedException("class-result mapper"
-                        + " ignores its parameter — the splice would collapse"
-                        + " per-element semantics to one evaluation");
-            }
-        }
-        java.util.List<TypedSpec> body = new java.util.ArrayList<>();
-        body.add(new com.legend.compiler.spec.typed.TypedLet(
-                lam.parameters().get(0), read, read.info()));
-        body.addAll(lam.body());
-        return new com.legend.compiler.spec.UserCallInliner(specs)
-                .inlineBody(body).get(0);
-    }
 
 }

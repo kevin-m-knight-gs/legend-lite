@@ -616,9 +616,12 @@ class NativeFunctionTest {
                     // real relationalRuntime.pure:104,118 (cluster 60:
                     // testDataSetupSqls is engine-populated, never manual)
                     List.of("testDataSetupCsv", "testDataSetupSqls")),
+                    // real relational.pure View: NamedRelation +
+                    // RelationalMappingSpecification (a view's mainTable
+                    // — harness burn-down leg 2, views as main tables)
                     java.util.Map.entry(
                     "meta::relational::metamodel::relation::View",
-                    List.of("columnMappings")),
+                    List.of("schema", "primaryKey", "columnMappings")),
                     java.util.Map.entry(
                     "meta::relational::mapping::ColumnMapping",
                     List.of("columnName", "relationalOperationElement")),

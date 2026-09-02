@@ -310,7 +310,7 @@ public final class Pure {
     // The VIEW/inference metamodel surface (real relational.pure:114-137
     // + relationalExtension.pure:120): host-evaluated over OUR
     // DatabaseDefinition — the typeInference family's whole vocabulary
-    public static final ClassDefinition VIEW_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::View extends meta::pure::metamodel::ModelElement { columnMappings: meta::relational::mapping::ColumnMapping[*]; }");
+    public static final ClassDefinition VIEW_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::View extends meta::relational::metamodel::relation::NamedRelation, meta::relational::metamodel::RelationalMappingSpecification { schema: meta::relational::metamodel::Schema[1]; primaryKey: meta::relational::metamodel::Column[*]; columnMappings: meta::relational::mapping::ColumnMapping[*]; }");
     public static final ClassDefinition COLUMN_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::ColumnMapping extends meta::pure::metamodel::type::Any { columnName: meta::pure::metamodel::type::String[1]; relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     public static final ClassDefinition RELATIONAL_OPERATION_ELEMENT = nativeClass("native Class meta::relational::metamodel::RelationalOperationElement extends meta::pure::metamodel::type::Any {}");
     // CONSTRUCTED relational-op instances (^DynaFunction(...) in the

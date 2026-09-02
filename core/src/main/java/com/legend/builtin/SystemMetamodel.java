@@ -134,9 +134,21 @@ public final class SystemMetamodel {
                         name VARCHAR(256) NOT NULL,
                         main_db VARCHAR(1024),
                         main_schema VARCHAR(256),
-                        main_table VARCHAR(256)
+                        main_table VARCHAR(256),
+                        view_db VARCHAR(1024),
+                        view_schema VARCHAR(256),
+                        view_name VARCHAR(256),
+                        base_db VARCHAR(1024),
+                        base_schema VARCHAR(256),
+                        base_table VARCHAR(256)
                     )
                     Table tables
+                    (
+                        db_fqn VARCHAR(1024) PRIMARY KEY,
+                        schema_name VARCHAR(256) PRIMARY KEY,
+                        name VARCHAR(256) PRIMARY KEY
+                    )
+                    Table views
                     (
                         db_fqn VARCHAR(1024) PRIMARY KEY,
                         schema_name VARCHAR(256) PRIMARY KEY,
@@ -151,6 +163,15 @@ public final class SystemMetamodel {
                 Join AliasToTables(metamodel.table_aliases.main_db = metamodel.tables.db_fqn
                     and metamodel.table_aliases.main_schema = metamodel.tables.schema_name
                     and metamodel.table_aliases.main_table = metamodel.tables.name)
+                Join AliasToViews(metamodel.table_aliases.main_db = metamodel.views.db_fqn
+                    and metamodel.table_aliases.main_schema = metamodel.views.schema_name
+                    and metamodel.table_aliases.main_table = metamodel.views.name)
+                Join AliasToBaseTable(metamodel.table_aliases.base_db = metamodel.tables.db_fqn
+                    and metamodel.table_aliases.base_schema = metamodel.tables.schema_name
+                    and metamodel.table_aliases.base_table = metamodel.tables.name)
+                Join ViewToAlias(metamodel.views.db_fqn = metamodel.table_aliases.view_db
+                    and metamodel.views.schema_name = metamodel.table_aliases.view_schema
+                    and metamodel.views.name = metamodel.table_aliases.view_name)
                 Join SetToAncestry(metamodel.class_mappings.mapping_fqn = metamodel.set_ancestry.mapping_fqn
                     and metamodel.class_mappings.id = metamodel.set_ancestry.id)
                 Join AncestryToAncestor(metamodel.set_ancestry.super_mapping_fqn = metamodel.class_mappings.mapping_fqn
@@ -190,6 +211,12 @@ public final class SystemMetamodel {
                 visibleSets: meta::relational::mapping::RootRelationalInstanceSetImplementation[*];
             }
 
+            Association meta::lite::metamodel::AliasBaseTables
+            {
+                base: meta::relational::metamodel::relation::Table[1];
+                baseOf: meta::relational::metamodel::TableAlias[*];
+            }
+
             Class meta::lite::metamodel::SetAncestry
             {
                 depth: Integer[1];
@@ -214,7 +241,7 @@ public final class SystemMetamodel {
 
             function meta::relational::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1]
             {
-                $_this.mainTableAlias.relationalElement->cast(@meta::relational::metamodel::relation::Table)
+                $_this.mainTableAlias.base
             }
 
             function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::SetImplementation[0..1]
@@ -286,7 +313,15 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.table_aliases.mapping_fqn, %1$s metamodel.table_aliases.id)
                     ~mainTable %1$s metamodel.table_aliases
                     name: %1$s metamodel.table_aliases.name,
-                    relationalElement[tbl]: %1$s@AliasToTables
+                    relationalElement[tbl]: %1$s@AliasToTables,
+                    relationalElement[vw]: %1$s@AliasToViews
+                }
+                meta::relational::metamodel::relation::View[vw]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.views.db_fqn, %1$s metamodel.views.schema_name, %1$s metamodel.views.name)
+                    ~mainTable %1$s metamodel.views
+                    name: %1$s metamodel.views.name,
+                    mainTableAlias[alias]: %1$s@ViewToAlias
                 }
                 *meta::relational::metamodel::RelationalOperationElement: Operation
                 {
@@ -311,6 +346,14 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.columns.db_fqn, %1$s metamodel.columns.schema_name, %1$s metamodel.columns.table_name, %1$s metamodel.columns.name)
                     ~mainTable %1$s metamodel.columns
                     name: %1$s metamodel.columns.name
+                }
+                meta::lite::metamodel::AliasBaseTables: Relational
+                {
+                    AssociationMapping
+                    (
+                        base[alias, tbl]: %1$s@AliasToBaseTable,
+                        baseOf[tbl, alias]: %1$s@AliasToBaseTable
+                    )
                 }
                 meta::lite::metamodel::SetAncestries: Relational
                 {
