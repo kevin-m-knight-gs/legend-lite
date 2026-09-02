@@ -700,6 +700,38 @@ union rows to `View[vw]` on the member's key thread), so the chain
 continues natively with the member's slots. No corpus witness yet; the
 metamodel witness is the real `mainTable` body verbatim.
 
+**NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
+ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
+legs).** State: 841 fallbacks / 1732 flipped, exec-passing 345, quarantine
+151 rows / 20 walls, all at 6840fba6 (pushed).
+1. **Group F — mapping-metamodel query functions (27 tests; §1 of the
+   homework: testRelationalExtension.pure 20, testExtendsForMainTable 5
+   [DONE], testExtendsForPrimaryKey 1 [DONE], testSubtypeMapping 1)**:
+   `_classMappingByClass` / `rootClassMappingByClass` / `view` as Pure
+   bodies over rows. Real bodies (functions_Mapping.pure:28/:61,
+   functions.pure:254): `_classMappingByClass` = includes' sets (recursive
+   — the seeded include closure replaces it, as for classMappingById) ++
+   own sets with `cm.class == $class` ++ AggregationAware members, then
+   `addAssociationMappingsIfRequired`; `rootClassMappingByClass` =
+   `_classMappingByClass->filter(s|$s.root == true)->last()`; `view` =
+   `$_this.views->filter(t|$t.name == $name)->first()`. Seeds needed:
+   `class_mappings.root` (m3 SetImplementation.root — declared `*`),
+   `class_mappings.class_fqn` already there (map `SetImplementation.class`
+   as an element reference — D3), `Schema` rows + `Schema.views`/`tables`
+   associations, `Mapping.associationMappings` (association_mappings
+   rows) for the addAssociationMappingsIfRequired half — grow by the
+   20 tests' actual reads (census §2b/§2c). Retire the quarantine
+   spellings `rootClassMappingByClass` / `_classMappingByClass` / `view`
+   and MetamodelSteps' `rootClassMappingByClass` arm with the burn.
+2. **Group D — harness vocabulary (43 tests)**: `meta::legend::
+   executeLegendQuery` / `compileLegendValueSpecification` as the router's
+   string entry (compile-from-string through the ONE router).
+3. **Group Q — plan reads (13 + printers ~26)**: plan nodes as side-output
+   rows (§2e) — name the tests from the bucket dump first.
+The "class query under TypedMap (HN vocabulary)" bucket (64) is
+HETEROGENEOUS (execute()+TDS-row reads on union tests, relationalMapper
+SQL-text tests, tds unions, modelJoins) — never cut a leg by that label.
+
 **Residue after leg 2**: (new) the
 composed-row prefix scheme `<slot>_<column>` can COLLIDE with a physical
 column of that spelling (two system-store columns were renamed around it:
