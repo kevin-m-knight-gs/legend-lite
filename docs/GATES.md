@@ -218,6 +218,10 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 16 (group D remainder — let-bound runtimes and CSV seeds,
+2026-09-03): chain 5m56s** — G1 39s, G2 9s, G4 63s, G5 43s, G6 84s, G7
+26s, G9 19s, G8 73s. Ratchet 782/1791 → 780/1793 (+2); other pins unchanged.
+
 **Batch 15 (group D leg 2 — the meta::json tree on the variant lane,
 2026-09-03): chain 5m56s** — G1 38s, G2 9s, G4 64s, G5 43s, G6 83s, G7
 26s, G9 20s, G8 73s. Ratchet 791/1782 → 782/1791 (+9); exec-passing 344,

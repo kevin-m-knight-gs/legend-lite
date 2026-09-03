@@ -284,6 +284,9 @@ class TypedSpecChildrenTest {
             return new com.legend.compiler.spec.typed.TypedMatchRuntime.Arm(
                     "test::T", "p", leaf());
         }
+        if (type == com.legend.compiler.spec.typed.TypedFrom.CsvSetup.class) {
+            return new com.legend.compiler.spec.typed.TypedFrom.CsvSetup("csv", null);
+        }
         if (type == com.legend.protocol.SourceInfo.class) {
             // the span component (TypedNativeCall.pos — Phase 4)
             return new com.legend.protocol.SourceInfo("test.pure", 1, 1, 1, 2);

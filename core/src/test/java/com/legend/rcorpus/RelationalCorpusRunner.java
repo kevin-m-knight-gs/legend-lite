@@ -1242,10 +1242,21 @@ public class RelationalCorpusRunner {
             // WithVariables), paginate 2, enumPushDown 1, testSubTypeGraphFetch
             // 2 (JSONArray sort — list sortBy now zips indices instead of
             // indexing the source inside lambdas).
-            org.junit.jupiter.api.Assertions.assertEquals(782L,
+            // 782/1791 -> 780/1793 (batch 16 — GROUP D remainder, 2026-09-03):
+            // a LET-BOUND runtime's value types through the alias channel at
+            // from() and the same collectors read it (chain mappings, JSON
+            // sources, setup SQL) — with the CSV half: testDataSetupCsv on a
+            // LocalH2 specification / a TestDatabaseConnection seeds through
+            // CsvSeed against the enclosing connection store's database, a
+            // COPIED connection's store found by structural navigation of
+            // the copy's source. +2 = testSpecialUnion_m2m2r (the M2M union
+            // root resolved through the runtime's ModelChainConnection),
+            // testParametrizedEnumFilter (the inline CSV over a copied
+            // testRuntime()).
+            org.junit.jupiter.api.Assertions.assertEquals(780L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1791L,
+            org.junit.jupiter.api.Assertions.assertEquals(1793L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

@@ -56,6 +56,7 @@ final class FromChecker {
         java.util.Map<String, String> jsonSources =
                 new java.util.LinkedHashMap<>();
         List<String> sqlSetups = new java.util.ArrayList<>();
+        List<TypedFrom.CsvSetup> csvSetups = new java.util.ArrayList<>();
         for (int i = 1; i < a.args().size(); i++) {
             if (a.args().get(i) instanceof TypedPackageableRef ref) {
                 refs.add(ref);
@@ -93,19 +94,33 @@ final class FromChecker {
                                 .filter(java.util.Optional::isPresent)
                                 .map(java.util.Optional::get)
                                 .findFirst();
-                sqlSetups.addAll(TypedFrom.sqlSetupsIn(a.args().get(i), fnBody));
-                // a LET-BOUND runtime ($runtime = getModelChainRuntime($m)
-                // in the enclosing body — the executeLegendQuery query
-                // shapes): the setup SQL lives in the let's rhs, reached
-                // through the alias channel (the engine establishes the
-                // connection's testDataSetupSqls whichever way the runtime
-                // value arrives)
+                java.util.function.Function<com.legend.compiler.spec.typed.TypedCopyInstance,
+                        @com.legend.Nullable String> dbOfCopy = cp -> {
+                    var store = connectionStoreOf(t, env, cp.source());
+                    return store != null && store.properties().get("element")
+                            instanceof TypedPackageableRef el ? el.fullPath() : null;
+                };
+                TypedFrom.Setups direct = TypedFrom.setupsIn(a.args().get(i), fnBody, dbOfCopy);
+                sqlSetups.addAll(direct.sql());
+                csvSetups.addAll(direct.csv());
+                // a LET-BOUND runtime ($runtime = getModelChainRuntime($m) /
+                // ^EngineRuntime(...) / a copy with inline test data, in the
+                // enclosing body — the string-entry query shapes): the
+                // let's rhs TYPES here through the alias channel and the
+                // same collectors read it (the engine establishes the
+                // connection's data and chain mappings whichever way the
+                // runtime value arrives)
                 if (a.args().get(i) instanceof com.legend.compiler.spec.typed
-                                .TypedVariable rv
+                                .TypedVariable
                         && env.resolveAlias(af.parameters().get(i))
                                 instanceof com.legend.protocol.spec.ValueSpecification raw
                         && !(raw instanceof com.legend.protocol.spec.Variable)) {
-                    sqlSetups.addAll(TypedFrom.sqlSetupsInRaw(raw, fnBody));
+                    TypedSpec rt = t.synth(raw, env);
+                    chainMappings.addAll(TypedFrom.chainMappingsIn(rt));
+                    jsonSources.putAll(TypedFrom.jsonSourcesIn(rt, t::classFqnOf));
+                    TypedFrom.Setups aliased = TypedFrom.setupsIn(rt, fnBody, dbOfCopy);
+                    sqlSetups.addAll(aliased.sql());
+                    csvSetups.addAll(aliased.csv());
                 }
                 if (connectionName == null) {
                     connectionName = TypedFrom.connectionNameIn(
@@ -158,7 +173,7 @@ final class FromChecker {
         return new TypedFrom(src, mapping, runtime,
                 List.copyOf(chainMappings),
                 java.util.Map.copyOf(jsonSources), List.copyOf(sqlSetups),
-                connectionName, a.out());
+                List.copyOf(csvSetups), connectionName, a.out());
     }
 
     /** Strip a {@code withMapping(M)} marker off the from-source spine,
@@ -192,5 +207,81 @@ final class FromChecker {
         for (TypedSpec c : n.children()) {
             collectMappingRefs(c, out);
         }
+    }
+
+    /** The {@code ^ConnectionStore(element=…, connection=…)} instance
+     * whose {@code .connection} the expression denotes — structural
+     * navigation over constructed values: {@code $runtime.connectionStores
+     * ->at(0).connection->cast(@…)} through lets and zero-arg helpers
+     * ({@code testRuntime()}). Null when the expression is not that shape. */
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNewInstance
+            connectionStoreOf(Typer t, Env env, TypedSpec e) {
+        TypedSpec cur = e;
+        while (cur instanceof com.legend.compiler.spec.typed.TypedCast c) {
+            cur = c.source();
+        }
+        if (cur instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            com.legend.protocol.spec.ValueSpecification raw =
+                    env.resolveAlias(new com.legend.protocol.spec.Variable(v.name()));
+            return raw instanceof com.legend.protocol.spec.Variable ? null
+                    : connectionStoreOf(t, env, t.synth(raw, env));
+        }
+        if (cur instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.property().equals("connection")) {
+            TypedSpec store = instanceOf(t, env, pa.source());
+            return store instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                    ? ni : null;
+        }
+        return null;
+    }
+
+    /** The constructed instance an expression denotes: {@code ^X(...)}
+     * itself, {@code coll->at(k)} of a literal collection, {@code inst.prop},
+     * a let-bound variable, a zero-arg helper's value. */
+    private static @com.legend.Nullable TypedSpec instanceOf(Typer t, Env env,
+            TypedSpec e) {
+        TypedSpec cur = e;
+        while (cur instanceof com.legend.compiler.spec.typed.TypedCast c) {
+            cur = c.source();
+        }
+        return switch (cur) {
+            case com.legend.compiler.spec.typed.TypedNewInstance ni -> ni;
+            case com.legend.compiler.spec.typed.TypedCollection tc
+                    when tc.elements().size() == 1 -> instanceOf(t, env, tc.elements().get(0));
+            case com.legend.compiler.spec.typed.TypedVariable v -> {
+                com.legend.protocol.spec.ValueSpecification raw =
+                        env.resolveAlias(new com.legend.protocol.spec.Variable(v.name()));
+                yield raw instanceof com.legend.protocol.spec.Variable ? null
+                        : instanceOf(t, env, t.synth(raw, env));
+            }
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa -> {
+                TypedSpec src = instanceOf(t, env, pa.source());
+                TypedSpec pv = src instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                        ? ni.properties().get(pa.property()) : null;
+                yield pv == null ? null : instanceOf(t, env, pv);
+            }
+            case com.legend.compiler.spec.typed.TypedNativeCall nc
+                    when !nc.args().isEmpty()
+                    && (ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
+                        || ResultEnvelopeSplice.TO_ONE_FQN.equals(nc.callee().qualifiedName())
+                        || ResultEnvelopeSplice.FIRST_FQN.equals(nc.callee().qualifiedName())) -> {
+                TypedSpec coll = instanceOf(t, env, nc.args().get(0));
+                if (coll instanceof com.legend.compiler.spec.typed.TypedCollection tc2) {
+                    int k = nc.args().size() == 2 && nc.args().get(1)
+                            instanceof com.legend.compiler.spec.typed.TypedCInteger ci
+                            ? ci.value().intValue() : 0;
+                    yield k >= 0 && k < tc2.elements().size()
+                            ? instanceOf(t, env, tc2.elements().get(k)) : null;
+                }
+                yield coll;
+            }
+            case com.legend.compiler.spec.typed.TypedUserCall uc
+                    when uc.args().isEmpty() && uc.callee().body().isPresent()
+                    && !uc.callee().body().get().isEmpty() -> {
+                var body = uc.callee().body().get();
+                yield instanceOf(t, env, t.synth(body.get(body.size() - 1), env));
+            }
+            case null, default -> null;
+        };
     }
 }

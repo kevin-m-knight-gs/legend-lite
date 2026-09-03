@@ -483,7 +483,11 @@ class JavaEvalLedgerTest {
             // adjudication of a string-entry read. Value evaluation still
             // lowers to SQL (TypedJsonResult / TypedJsonAccess); nothing
             // here computes a value host-side.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2680),
+            // 2680 -> 2692 (batch 16, group D remainder): the from() node's
+            // testDataSetupCsv FACTS become seed SQL at connection
+            // establishment (CsvSeed against the store) — the executor's
+            // half of the CSV route; the compiler only records the facts.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2692),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

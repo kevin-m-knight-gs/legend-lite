@@ -25,8 +25,28 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                         List<String> chainMappings,
                         java.util.Map<String, String> jsonSources,
                         List<String> sqlSetups,
+                        List<CsvSetup> csvSetups,
                         @com.legend.Nullable String connectionName,
                         ExprType info) implements TypedSpec {
+
+    /** A {@code testDataSetupCsv} block under a runtime-valued expression
+     * with the DATABASE it seeds (the enclosing connection store's
+     * {@code element}; null when no store is in view): a FACT the compiler
+     * records — the executor turns it into seed SQL (CsvSeed) when it
+     * establishes the connection, exactly like {@link #sqlSetups}. */
+    public record CsvSetup(String csv, @com.legend.Nullable String dbFqn) {
+    }
+
+    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
+                     Optional<TypedPackageableRef> runtime,
+                     List<String> chainMappings,
+                     java.util.Map<String, String> jsonSources,
+                     List<String> sqlSetups,
+                     @com.legend.Nullable String connectionName,
+                     ExprType info) {
+        this(source, mapping, runtime, chainMappings, jsonSources, sqlSetups,
+                List.of(), connectionName, info);
+    }
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime, ExprType info) {
@@ -328,52 +348,70 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             java.util.function.Function<String, java.util.Optional<
                     java.util.List<com.legend.protocol.spec.ValueSpecification>>>
                     fnBody) {
-        List<String> out = new java.util.ArrayList<>();
-        collectSqlSetups(n, out, fnBody);
-        return List.copyOf(out);
+        return setupsIn(n, fnBody, cp -> null).sql();
     }
 
-    /** The RAW-syntax entry: a runtime that reaches {@code from()} as a
-     * LET-BOUND VARIABLE ({@code let runtime = getModelChainRuntime($m);
-     * … ->from($mapping, $runtime)} inside a query lambda — the
-     * executeLegendQuery shapes) carries its setup SQL in the let's rhs,
-     * reachable through the checker's alias channel; the same helper
-     * expansion as the typed walk applies. */
-    public static List<String> sqlSetupsInRaw(
-            com.legend.protocol.spec.ValueSpecification rhs,
+    /** Both halves of a runtime's test data: the literal
+     * {@code testDataSetupSqls} blobs and the {@code testDataSetupCsv}
+     * FACTS (block text + the connection store's database). */
+    public record Setups(List<String> sql, List<CsvSetup> csv) {
+    }
+
+    /** {@code dbOfCopy}: the database a COPIED connection
+     * ({@code ^$connection(testDataSetupCsv=…)}) seeds — the store the
+     * copy's source navigates from; the checker resolves it structurally. */
+    public static Setups setupsIn(TypedSpec n,
             java.util.function.Function<String, java.util.Optional<
                     java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody) {
+                    fnBody,
+            java.util.function.Function<TypedCopyInstance, @com.legend.Nullable String>
+                    dbOfCopy) {
         List<String> out = new java.util.ArrayList<>();
-        collectSqlSetupsRaw(rhs, new java.util.HashMap<>(), out, fnBody, 0);
-        return List.copyOf(out);
+        List<CsvSetup> csv = new java.util.ArrayList<>();
+        collectSqlSetups(n, out, fnBody, csv, dbOfCopy, null);
+        return new Setups(List.copyOf(out), List.copyOf(csv));
     }
-
     private static void collectSqlSetups(TypedSpec n, List<String> out,
             java.util.function.Function<String, java.util.Optional<
                     java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody) {
+                    fnBody, List<CsvSetup> csv,
+            java.util.function.Function<TypedCopyInstance, @com.legend.Nullable String>
+                    dbOfCopy,
+            @com.legend.Nullable String dbRef) {
         if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
             java.util.Map<String, com.legend.protocol.spec.ValueSpecification>
                     lets = new java.util.HashMap<>();
             for (com.legend.protocol.spec.ValueSpecification b
                     : uc.callee().body().get()) {
-                collectSqlSetupsRaw(b, lets, out, fnBody, 0);
+                collectSqlSetupsRaw(b, lets, out, fnBody, 0, csv, dbRef);
             }
             return;
         }
-        if (n instanceof TypedNewInstance ni
-                && ("meta::pure::alloy::connections::alloy::specification"
-                        + "::LocalH2DatasourceSpecification")
-                        .equals(ni.classFqn())) {
-            String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
-            if (s != null) {
-                out.add(s);
+        if (n instanceof TypedNewInstance ni) {
+            String db = ni.properties().get("element")
+                    instanceof TypedPackageableRef el ? el.fullPath() : dbRef;
+            if (("meta::pure::alloy::connections::alloy::specification"
+                    + "::LocalH2DatasourceSpecification").equals(ni.classFqn())) {
+                String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
+                if (s != null) {
+                    out.add(s);
+                }
+            }
+            String csvText = foldLiteral(ni.properties().get("testDataSetupCsv"));
+            if (csvText != null) {
+                csv.add(new CsvSetup(csvText, db));
+            }
+            for (TypedSpec c : n.children()) {
+                collectSqlSetups(c, out, fnBody, csv, dbOfCopy, db);
             }
             return;
+        }
+        if (n instanceof TypedCopyInstance cp
+                && foldLiteral(cp.overrides().get("testDataSetupCsv")) instanceof String c2) {
+            csv.add(new CsvSetup(c2, dbOfCopy.apply(cp)));
         }
         for (TypedSpec c : n.children()) {
-            collectSqlSetups(c, out, fnBody);
+            collectSqlSetups(c, out, fnBody, csv, dbOfCopy, dbRef);
         }
     }
 
@@ -386,7 +424,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             List<String> out,
             java.util.function.Function<String, java.util.Optional<
                     java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody, int depth) {
+                    fnBody, int depth, List<CsvSetup> csv, @com.legend.Nullable String dbRef) {
         switch (v) {
             case com.legend.protocol.spec.AppliedFunction af -> {
                 if ("letFunction".equals(af.function())
@@ -396,7 +434,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     lets.put(nm.value(), af.parameters().get(1));
                 }
                 for (var p : af.parameters()) {
-                    collectSqlSetupsRaw(p, lets, out, fnBody, depth);
+                    collectSqlSetupsRaw(p, lets, out, fnBody, depth, csv, dbRef);
                 }
                 // NESTED helper call (getAlloyTestH2Connection()): expand
                 // its body in a FRESH let scope (depth-capped)
@@ -408,12 +446,16 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                                 inner = new java.util.HashMap<>();
                         for (var b : body.get()) {
                             collectSqlSetupsRaw(b, inner, out, fnBody,
-                                    depth + 1);
+                                    depth + 1, csv, dbRef);
                         }
                     }
                 }
             }
             case com.legend.protocol.spec.NewInstance ni -> {
+                var el = ni.first("element");
+                String db = el != null && el.value()
+                        instanceof com.legend.protocol.spec.PackageableElementPtr ptr
+                        ? ptr.fullPath() : dbRef;
                 if (ni.className().endsWith("LocalH2DatasourceSpecification")) {
                     var ke = ni.first("testDataSetupSqls");
                     String s = ke == null ? null
@@ -421,20 +463,24 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     if (s != null) {
                         out.add(s);
                     }
-                    return;
+                }
+                var kc = ni.first("testDataSetupCsv");
+                String c = kc == null ? null : foldRawLiteral(kc.value(), lets);
+                if (c != null) {
+                    csv.add(new CsvSetup(c, db));
                 }
                 for (var ke : ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList()) {
-                    collectSqlSetupsRaw(ke.value(), lets, out, fnBody, depth);
+                    collectSqlSetupsRaw(ke.value(), lets, out, fnBody, depth, csv, db);
                 }
             }
             case com.legend.protocol.spec.LambdaFunction lf -> {
                 for (var b : lf.body()) {
-                    collectSqlSetupsRaw(b, lets, out, fnBody, depth);
+                    collectSqlSetupsRaw(b, lets, out, fnBody, depth, csv, dbRef);
                 }
             }
             case com.legend.protocol.spec.PureCollection pc -> {
                 for (var e : pc.values()) {
-                    collectSqlSetupsRaw(e, lets, out, fnBody, depth);
+                    collectSqlSetupsRaw(e, lets, out, fnBody, depth, csv, dbRef);
                 }
             }
             default -> { }
@@ -503,6 +549,6 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                 ? java.util.Optional.of((TypedPackageableRef) kids.get(i))
                 : java.util.Optional.empty();
         return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources,
-                sqlSetups, connectionName, info);
+                sqlSetups, csvSetups, connectionName, info);
     }
 }

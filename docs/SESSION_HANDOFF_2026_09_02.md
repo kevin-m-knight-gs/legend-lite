@@ -1277,12 +1277,36 @@ argument is a let-bound helper CALL building ^Mapping),
 testMilestonedProperty (plan-text golden), testMilestonedRootAndMilestonedProperty
 ("trailing JSON" — a JSON text shape).
 
+**Batch 16 — GROUP D remainder, let-bound runtimes and CSV seeds
+(2026-09-03): ratchet 782/1791 → 780/1793 (+2, no losses; chain 5m56s,
+all green).** A from() whose runtime argument is a LET-BOUND variable
+(the string-entry query shapes: `let runtime = ^EngineRuntime(…)` /
+`getModelChainRuntime($m)` / a copy with inline test data) now TYPES
+the let's rhs through the alias channel and the same collectors read it
+— chain mappings (the ModelChainConnection an M2M union root resolves
+through), JSON sources, setup SQL — plus the CSV half: `testDataSetupCsv`
+on a LocalH2 specification / a TestDatabaseConnection is recorded on the
+node as a FACT (`TypedFrom.csvSetups`: block text + the enclosing
+connection store's `element`; a COPIED connection's store found by
+structural navigation of the copy's source — `$runtime.connectionStores
+->at(0).connection->cast(…)` through lets and zero-arg helpers) and the
+EXECUTOR turns it into seed SQL (CsvSeed) when it establishes the
+connection, exactly like the SQL setups (the compiler never reaches into
+exec — invariant 6e caught the first cut). +2 = testSpecialUnion_m2m2r,
+testParametrizedEnumFilter. Left in group D (named): XStore
+…DatePropagationForMilestonedPropertyConstraint / …ZeroToOne — a MODEL in
+a string (the compile-once overlay leg). Known limit: a copied
+connection whose source navigates a one-ARGUMENT helper
+(`testRuntime()` → `testRuntime(db)`) resolves no store — the CSV then
+seeds without DDL (the family table already exists; loud otherwise).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 782 fallbacks / 1791 flipped (batches 14–15 = group D
-legs 1–2; group F LANDED — batch 7 above; batches 8–13 = speed +
-architecture, ratchet unchanged), exec-passing 344, quarantine 125 rows
-/ 9 walls. Census after batch 15 (bucket dump): text-policy 65; "class
+legs).** State: 780 fallbacks / 1793 flipped (batches 14–16 = group D;
+group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
+ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
+NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as
+rows), then J/Z/N/G/P/O, then the non-metamodel buckets. Census after batch 15 (bucket dump): text-policy 65; "class
 query under TypedMap (HN vocabulary)" 64 (heterogeneous); `mapping::sql`
 45 (group C); FunctionDefinition.expressionSequence 43+26 (group A);
 join-condition-reads-a-whole-variable 43; no-scalar-lowering 27+9;

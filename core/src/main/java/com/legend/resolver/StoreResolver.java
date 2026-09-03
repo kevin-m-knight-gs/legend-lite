@@ -299,7 +299,7 @@ public final class StoreResolver {
             return new TypedFrom(resolveNode(liftedSrc, inner),
                     from.mapping(), from.runtime(),
                     from.chainMappings(), from.jsonSources(),
-                    from.sqlSetups(), from.connectionName(), from.info());
+                    from.sqlSetups(), from.csvSetups(), from.connectionName(), from.info());
         }
         // zip over two projections of ONE source -> two-column project
         if (n instanceof TypedMap zm

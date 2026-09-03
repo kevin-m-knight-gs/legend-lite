@@ -2602,6 +2602,20 @@ final class StatementExecutor {
      * harness semantics). {@code fromChain} carries the unwrapped
      * top-level from() setups; nested from() (a graph query whose
      * serialize wraps the from) contribute via the walk. */
+    /** The from() node's {@code testDataSetupCsv} FACTS as seed SQL —
+     * the executor's half (CsvSeed against the store): the compiler only
+     * records the block and its database. */
+    private static java.util.List<String> csvSetupSqls(
+            com.legend.compiler.spec.typed.TypedFrom fr, ExecEnv env) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (var c : fr.csvSetups()) {
+            String db = c.dbFqn() != null && env.ctx().findDatabase(c.dbFqn()).isPresent()
+                    ? c.dbFqn() : null;
+            out.addAll(com.legend.exec.CsvSeed.sqls(c.csv(), db, env.ctx()));
+        }
+        return out;
+    }
+
     private static void runRuntimeSetups(java.util.List<String> fromChain,
             TypedSpec root, ExecEnv env) {
         java.util.List<String> setups = new java.util.ArrayList<>(fromChain);
@@ -2611,6 +2625,7 @@ final class StatementExecutor {
             TypedSpec t = walk.poll();
             if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
                 setups.addAll(fr.sqlSetups());
+                setups.addAll(csvSetupSqls(fr, env));
             }
             walk.addAll(t.children());
         }
@@ -2833,6 +2848,7 @@ final class StatementExecutor {
                 declaredInfo = fr.info();
             }
             runtimeSetups.addAll(fr.sqlSetups());
+            runtimeSetups.addAll(csvSetupSqls(fr, env));
             root = fr.source();
         }
         runRuntimeSetups(runtimeSetups, root, env);
