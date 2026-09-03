@@ -930,8 +930,34 @@ silently at 46. Now a per-key SET union; the count is 533 again. Lesson:
 a shrink-only pin cannot catch a census that lost its input — print the
 count in the lane log (it is) and READ it after a change to the merge.
 
+**DESIGN — constructed instances as inline relations, scoped (user
+ruling 2026-09-02: "I hate that we opened a write path to something that
+should be read-only"; folding types onto the element row REJECTED as a
+hack).** Facts: the resolver already computes every row of a constructed
+tree (element rows + datatype rows + the type ids linking them); the
+tree is CLOSED (its nodes reference only its own nodes and types — a
+real column inside it is admitted only where no child row is needed);
+`TypedTds` is an inline relation literal lowered to VALUES
+(`Lowerer.tdsLiteral`, cells typed by the row schema, NULL cells). Plan:
+(a) a class source resolved for a constructed root CARRIES ITS SCOPE
+(`ClassSource.scope`, the tree's content id) and `ClassSources.get`
+REQUIRES a scope argument (no scope-less overload — 61 lookup sites in
+the resolver, each passes its source's scope; compile-enforced, not a
+convention): navigation targets, subtype casts, correlated subselects
+and graph emission inherit the scope of the source they serve. Dynamic
+scoping (resolver state) was REJECTED: a real column's type read in the
+same expression would wrongly read the inline rows. (b) Inside
+`ClassSources`, under a constructed scope the table-scan leaves of the
+element and datatype store tables become `TypedTds` literals of that
+tree's rows typed with the leaf's own row type; the memo key includes
+the scope. (c) DELETE the side-output seeds (`ConstructedInstances.
+seeds`), `ExecEnv.constructedSeeds`, `SystemDatabase.insertConstructed`:
+the system database is read-only after the graph's rows. Witnesses: the
+four typeInference constructed tests + `MetamodelQueryFunctionsTest.
+constructedInstances`; rosters byte-identical. ~3h + sweeps.
+
 **NEXT (user-ratified order 2026-09-02, enumerated):**
-(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). — was: UNION LOWERING for single-table hierarchies: merge
+(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). NEXT = the inline-relation design above, then the normalizer index with its API owner (MappingIndex; delete the static helpers), then group D. — was: UNION LOWERING for single-table hierarchies: merge
 members WITH chains into the one scan (each chain a join on the shared
 scan guarded by the member's kind predicate); emit the key UNGATED when it
 is the scan table's PK and dedupe identical OR terms → `op_id = id`, an
