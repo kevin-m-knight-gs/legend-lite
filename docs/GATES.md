@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 51 (an Any-typed struct field decodes as its value at the wire, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 280/2293 → 279/2294 (+1, 0 lost); lanes unchanged (exec-passing 59, M1 rescued 54, disagree 0). G1 42s, G2 8s, G4 59s, G5 39s, G6 84s, G7 26s, G9 19s, G8 75s.
+
 **Batch 50 (the engine-style H2 referee spells the MMMyyyy month-abbreviation parse, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 281/2292 → 280/2293 (+1, 0 lost); lane move exec-passing 60 → 59 (disagree 0). G1 40s, G2 8s, G4 58s, G5 41s, G6 84s, G7 27s, G9 19s, G8 74s.
 

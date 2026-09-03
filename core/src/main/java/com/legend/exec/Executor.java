@@ -676,8 +676,16 @@ public final class Executor {
             }
             java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
             for (int i = 0; i < attrs.length; i++) {
-                m.put(st.fields().get(i).name(),
-                        unwrap(attrs[i], st.fields().get(i).type(), dialect));
+                Object fv = unwrap(attrs[i], st.fields().get(i).type(), dialect);
+                // an Any-typed FIELD (a Pair<String, Any> second slot: a
+                // string or ^TDSNull() sibling) rides the JSON carrier; the
+                // field's VALUE is the decoded scalar ("Firm X" is the
+                // string, null the TDSNull slot) — only a Variant ROOT
+                // keeps its JSON text contract
+                if (st.fields().get(i).type() == com.legend.sql.SqlType.Scalar.JSON) {
+                    fv = decodeAny(fv);
+                }
+                m.put(st.fields().get(i).name(), fv);
             }
             return m;
         }

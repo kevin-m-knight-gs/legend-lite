@@ -2415,6 +2415,15 @@ root is the nested-lambda lift, a resolver leg (3). (5) sqlQueryMerging
 testSQLQueryMergingForInnerJoins passes in isolation and fails in the
 full sweep (order-dependent — a session/temp-table dependency to trace).
 
+**Batch 51 — ANY-TYPED STRUCT FIELDS DECODE AS VALUES (2026-09-03): ratchet
+280/2293 → 279/2294 (+1, ZERO lost).** Probe receipt (3) above, built:
+`Executor.unwrap` decodes a JSON-typed STRUCT FIELD through `decodeAny`
+(the Pair<String, Any> `second` slot: `"Firm X"` is the string, JSON null
+the TDSNull slot); a Variant ROOT keeps its JSON-text contract, a struct
+field is a value. +1 (selfJoin testSelfJoinPropertyMapping — its two
+siblings already flipped). Lanes unchanged (exec-passing 59, M1 rescued
+54; disagree 0).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

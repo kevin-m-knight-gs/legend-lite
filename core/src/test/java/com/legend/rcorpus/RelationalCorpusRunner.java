@@ -1632,10 +1632,15 @@ public class RelationalCorpusRunner {
             // convertToDateH2 rule: concat('01', x) + 'ddMMMyyyy') — the
             // referee render had thrown, walling the frame's sql() read as
             // a class query. +1 (stringToDate H2 user-defined format), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(280L,
+            // 280 -> 279 (batch 51, 2026-09-03): an Any-typed STRUCT FIELD
+            // (a Pair<String, Any> second slot on the variant lane) decodes
+            // as its value at the wire (Executor.unwrap → decodeAny) —
+            // "Firm X" was compared as JSON text with its quotes. +1
+            // (selfJoin testSelfJoinPropertyMapping), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(279L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2293L,
+            org.junit.jupiter.api.Assertions.assertEquals(2294L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
