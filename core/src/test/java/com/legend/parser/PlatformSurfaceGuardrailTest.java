@@ -63,7 +63,10 @@ class PlatformSurfaceGuardrailTest {
                             throw new java.io.UncheckedIOException(e);
                         }
                     })
-                    .map(p -> root.relativize(p).toString())
+                    // WHITELIST keys are written with '/' — normalize
+                    // the platform separator or every file looks new
+                    .map(p -> root.relativize(p).toString()
+                            .replace('\\', '/'))
                     .filter(p -> !WHITELIST.contains(p))
                     .toList();
         }

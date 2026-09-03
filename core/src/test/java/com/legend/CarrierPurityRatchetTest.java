@@ -220,7 +220,12 @@ class   CarrierPurityRatchetTest {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
-                        String path = f.toString();
+                        // the package filters below are written with
+                        // '/'; Path.toString() uses the platform
+                        // separator, so normalize before matching or
+                        // every filter misses on Windows and the walk
+                        // silently selects nothing
+                        String path = f.toString().replace('\\', '/');
                         return (path.contains("/lowering/")
                                 || path.contains("/resolver/")
                                 || path.contains("/plan/"))

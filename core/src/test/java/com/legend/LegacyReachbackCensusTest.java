@@ -109,7 +109,11 @@ class LegacyReachbackCensusTest {
                     String src = stripComments(Files.readString(f));
                     int n = count(src);
                     if (n > 0) {
+                        // REGISTER keys are written with '/'; the
+                        // "../" strip below assumes it too. Normalize
+                        // the platform separator first.
                         found.put(f.normalize().toString()
+                                .replace('\\', '/')
                                 .replaceFirst("^\\.\\./", ""), n);
                     }
                 }
