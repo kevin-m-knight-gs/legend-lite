@@ -175,6 +175,18 @@ public final class NameResolver {
         return resolve(parsed, knownFqns(parsed.elements()), wallSink, true);
     }
 
+    /** {@link #resolve(ParsedModel, java.util.Map)} with {@code alsoKnown}
+     * FQNs in the universe — the BOOT LAYER's elements, which a graph's own
+     * elements reference by import exactly like each other's (they are not
+     * in the graph's parsed elements: they are prepared once per process). */
+    public static ParsedModel resolveAlongside(ParsedModel parsed, Set<String> alsoKnown,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        Objects.requireNonNull(parsed, "parsed");
+        Set<String> known = new java.util.HashSet<>(knownFqns(parsed.elements()));
+        known.addAll(alsoKnown);
+        return resolve(parsed, known, wallSink, true);
+    }
+
     /**
      * Resolve every simple name reference in {@code model} to its FQN
      * using {@code model.imports()} and {@code knownFqns}. Lower-level entry:

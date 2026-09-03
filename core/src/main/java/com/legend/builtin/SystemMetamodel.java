@@ -742,35 +742,67 @@ public final class SystemMetamodel {
             com.legend.parser.ElementParser.parse(SOURCE,
                     com.legend.parser.Dialect.LEGEND_LITE).elements();
 
-    /**
-     * Append the system elements to a parsed model — the ONE injection
-     * seam, called by both build doors. A model that already declares one
-     * of the system FQNs keeps its own definition (defensive; the
-     * {@code meta::lite} namespace is platform-reserved).
-     */
-    public static ParsedModel injectInto(ParsedModel parsed) {
-        List<PackageableElement> merged =
-                new ArrayList<>(parsed.elements());
+    /** The system elements as parsed — THE BOOT LAYER's input (user
+     * ruling 2026-09-02: compiled once per process, content-addressed by
+     * the source's hash, entered into every graph's index exactly like
+     * the graph's own elements, protected as system). */
+    public static List<PackageableElement> elements() {
+        return ELEMENTS;
+    }
+
+    /** Every system element's FQN (functions included) — the boot layer's
+     * contribution to a graph's name-resolution universe. */
+    public static java.util.Set<String> elementFqns() {
+        return Fqns.ALL;
+    }
+
+    private static final class Fqns {
+        static final java.util.Set<String> ALL = ELEMENTS.stream()
+                .map(PackageableElement::qualifiedName)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    /** Whether {@code fqn} names a system ELEMENT (class, association,
+     * store, mapping — not a function body): reserved, never redefined. */
+    public static boolean isSystemElement(String fqn) {
         for (PackageableElement el : ELEMENTS) {
-            if (el instanceof com.legend.model.FunctionDefinition) {
-                // a system FUNCTION body is the platform's implementation
-                // of a real engine function; a same-signature function in
-                // the model is the ENGINE'S OWN SOURCE riding in the corpus
-                // universe (relationalExtension.pure's inferRelationalType)
-                // — spec material, never our runtime (user-ratified
-                // 2026-08-18): the system body replaces it
-                merged.removeIf(e -> shadows(e, el));
-                merged.add(el);
-                continue;
-            }
-            boolean shadowed = parsed.elements().stream().anyMatch(
-                    e -> shadows(e, el));
-            if (!shadowed) {
-                merged.add(el);
+            if (!(el instanceof com.legend.model.FunctionDefinition)
+                    && el.qualifiedName().equals(fqn)) {
+                return true;
             }
         }
-        return new ParsedModel(merged, parsed.imports(), parsed.source(),
-                parsed.elementOffsets(), parsed.elementImports(),
-                parsed.elementSources(), parsed.unclaimedSections());
+        return false;
+    }
+
+    /**
+     * The ONE injection seam's parsed-level half: the model with every
+     * same-signature system FUNCTION shadow removed (a system function
+     * body is the platform's implementation of a real engine function; a
+     * same-signature function in the model is the ENGINE'S OWN SOURCE
+     * riding in the corpus universe — spec material, never our runtime,
+     * user-ratified 2026-08-18). A model element redefining a system
+     * ELEMENT is an error: the system layer is protected.
+     */
+    public static ParsedModel withoutSystemShadows(ParsedModel parsed) {
+        List<PackageableElement> kept = new ArrayList<>(parsed.elements());
+        for (PackageableElement el : ELEMENTS) {
+            if (el instanceof com.legend.model.FunctionDefinition) {
+                kept.removeIf(e -> shadows(e, el));
+                continue;
+            }
+            for (PackageableElement e : parsed.elements()) {
+                if (shadows(e, el)) {
+                    throw new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                            "'" + el.qualifiedName() + "' is a system element of the"
+                            + " platform's metamodel layer and cannot be redefined",
+                            el.qualifiedName());
+                }
+            }
+        }
+        return kept.size() == parsed.elements().size() ? parsed
+                : new ParsedModel(kept, parsed.imports(), parsed.source(),
+                        parsed.elementOffsets(), parsed.elementImports(),
+                        parsed.elementSources(), parsed.unclaimedSections());
     }
 }

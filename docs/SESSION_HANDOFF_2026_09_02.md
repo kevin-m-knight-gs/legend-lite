@@ -886,8 +886,33 @@ general mechanisms, rosters / H2 verdicts byte-identical, ratchet 820/1753:
 - Also: a self-join orientation fix rode in batch 9; `PhysicalTables`
   (schema-aware table lookup) split out of MappingNormalizer.
 
+**Batch 11 (2026-09-02) — THE BOOT LAYER (option 1, user-ratified): the
+system metamodel prepared once per process.** `Compiler.bootLayer()`: the
+system elements are name-resolved and normalized ONCE, content-addressed
+by the hash of their Pure source in a `ContentStore` (Invariant 3 — the
+artifact persists across compiles), and entered into every graph's index
+exactly like the graph's own elements (`normalizeWithSystem`: the graph's
+own elements normalize, then the prepared system elements join the
+normalized model; poisons / legacy surfaces / mixed unions / the
+[1]-over-nullable census union). Protected as system: a graph element
+redefining a system ELEMENT is an error (`SystemMetamodel.
+withoutSystemShadows`); a same-signature system FUNCTION still replaces
+the engine's own source riding in the corpus. The graph's name
+resolution sees the system FQNs as known (`NameResolver.
+resolveAlongside`) — a graph function calling `rootClassMappingByClass`
+or `view` by imported bare name resolves as before (the corpus's
+toPostgresModel / viewToTDS tests witnessed the miss). Model compile
+8.0ms → **0.5ms** (2.3ms before group F); G1 57s → **29s** (33s before
+group F). Rosters, corpus report, H2 verdicts byte-identical.
+Why option 1, not a fall-through boot index: a context's compilers are
+built over the graph's element INDEX directly, so a fall-through would
+have to live in every lookup door of the index (dozens, id-numbered per
+index, on the type-check hot path) plus the integrity pass — for ~0.3ms
+per graph compile (indexing 78 prepared elements), which is once per
+process outside the test JVM. Per QUERY both options cost nothing.
+
 **NEXT (user-ratified order 2026-09-02, enumerated):**
-(1) DONE (batch 9). (2) DONE (batch 10) — was: UNION LOWERING for single-table hierarchies: merge
+(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). — was: UNION LOWERING for single-table hierarchies: merge
 members WITH chains into the one scan (each chain a join on the shared
 scan guarded by the member's kind predicate); emit the key UNGATED when it
 is the scan table's PK and dedupe identical OR terms → `op_id = id`, an

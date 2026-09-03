@@ -228,16 +228,63 @@ public final class Compiler {
     public static ModelContext buildModel(ParsedModel parsed) {
         // the system metamodel store rides EVERY build (charter §4: one
         // owner, parsed elements, no parallel lane)
-        // resolve BEFORE injection so a same-signature model function is
-        // recognized by its resolved parameter types (the corpus carries
-        // the engine's own inferRelationalType), then resolve the system
-        // elements (an FQN resolves to itself: the second pass is identity
-        // on the model's elements)
-        ParsedModel resolved = NameResolver.resolve(
-                com.legend.builtin.SystemMetamodel.injectInto(
-                        NameResolver.resolve(parsed)));
-        NormalizedModel normalized = ModelNormalizer.normalize(resolved);
-        return PureModelContext.from(normalized);
+        return PureModelContext.from(normalizeWithSystem(NameResolver.resolveAlongside(parsed,
+                com.legend.builtin.SystemMetamodel.elementFqns(), null), null));
+    }
+
+    /**
+     * THE BOOT LAYER (user ruling 2026-09-02): the system metamodel's
+     * elements are name-resolved and normalized ONCE per process,
+     * content-addressed by the hash of their Pure source (Invariant 3 —
+     * the artifact persists across compiles), and entered into every
+     * graph's index exactly like the graph's own elements. Re-normalizing
+     * them per graph compile was 5.7ms of an 8ms compile (docs/GATES.md,
+     * 2026-09-02 budget entry); per graph what remains is indexing 78
+     * prepared elements. One graph per process outside the test JVM.
+     */
+    private static final com.legend.cache.ContentStore BOOT =
+            new com.legend.cache.ContentStore(4);
+
+    private static NormalizedModel bootLayer() {
+        String source = com.legend.builtin.SystemMetamodel.source();
+        return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source),
+                () -> ModelNormalizer.normalize(NameResolver.resolve(new ParsedModel(
+                        com.legend.builtin.SystemMetamodel.elements(),
+                        com.legend.model.ImportScope.empty()))));
+    }
+
+    /**
+     * Phase E over the graph's OWN elements (name-resolved first, so a
+     * same-signature system function shadow is recognized by its resolved
+     * parameter types — the corpus carries the engine's own
+     * inferRelationalType), then the boot layer's prepared elements join
+     * the normalized model; a graph element redefining a system element
+     * is an error (SystemMetamodel.withoutSystemShadows).
+     */
+    private static NormalizedModel normalizeWithSystem(ParsedModel resolved,
+            java.util.@com.legend.Nullable Map<String, String> walls) {
+        NormalizedModel user = ModelNormalizer.normalize(
+                com.legend.builtin.SystemMetamodel.withoutSystemShadows(resolved), walls);
+        NormalizedModel sys = bootLayer();
+        List<com.legend.model.PackageableElement> elements =
+                new java.util.ArrayList<>(user.elements().size() + sys.elements().size());
+        elements.addAll(user.elements());
+        elements.addAll(sys.elements());
+        return new NormalizedModel(elements, user.imports(),
+                union(user.mappingPoisons(), sys.mappingPoisons()),
+                union(user.legacySurfaces(), sys.legacySurfaces()),
+                union(user.mixedUnions(), sys.mixedUnions()),
+                union(user.requiredNullableRows(), sys.requiredNullableRows()));
+    }
+
+    private static <V> java.util.Map<String, V> union(
+            java.util.Map<String, V> a, java.util.Map<String, V> b) {
+        if (b.isEmpty()) {
+            return a;
+        }
+        java.util.Map<String, V> out = new java.util.LinkedHashMap<>(a);
+        out.putAll(b);
+        return out;
     }
 
     /** A module built TOLERANTLY: the context over every element that
@@ -269,10 +316,8 @@ public final class Compiler {
      */
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
-        ParsedModel resolved = NameResolver.resolve(
-                com.legend.builtin.SystemMetamodel.injectInto(
-                        NameResolver.resolve(parsed, walls)), walls);
-        NormalizedModel normalized = ModelNormalizer.normalize(resolved, walls);
+        NormalizedModel normalized = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
+                com.legend.builtin.SystemMetamodel.elementFqns(), walls), walls);
         PureModelContext ctx = PureModelContext.from(normalized, walls);
         return new BuiltModule(ctx, walls);
     }

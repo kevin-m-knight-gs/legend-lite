@@ -202,6 +202,13 @@ DuckDB 61s, G1 ~55s. Remaining over the 5.5-minute line: G6 (PCT)
 normalizer residual (5.7ms) the boot layer + per-mapping index legs
 remove. Ceiling re-arm stays pending on those two legs.
 
+**Batch 11 (boot layer, same day): chain 5m51s** — G1 38s (clean build;
+29s warm), G2 9s, G4 62s, G5 40s, G6 86s, G7 25s, G9 19s, G8 72s. A model
+compile is 0.5ms (8.0ms at the breach, 2.3ms before group F). The 21s
+over the 5.5-minute line is G4 at the top of its old range and G6 —
+the per-mapping normalizer index leg is the named next slice; the
+ceiling re-arms when the chain measures under 330s.
+
 ## The time budget: ~6m40s measured 2026-08-11 — re-pin pending
 
 The 5.5-minute lock (measured 2026-08-08) was already exceeded BEFORE the
