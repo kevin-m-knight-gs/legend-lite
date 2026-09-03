@@ -47,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 17 |
+| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 16 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 86 |
+| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 85 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2249 clean + 125 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 86; flags overlap — the union is 125).
+SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2250 clean + 124 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 85; flags overlap — the union is 124).
 
 ### mapping walls (dropped at assembly)
 

@@ -663,6 +663,30 @@ public final class Compiler {
                 : new com.legend.sql.dialect.DuckDb();
     }
 
+    /** THE query front door: raw-space desugars (the relational
+     * {@code validate(...)} call → its synthesized execute; the engine's
+     * own generateValidationQuery synthesis over the parsed AST, feature
+     * #45), then name resolution. Every executor — the harness's flip
+     * included — resolves through here, so a platform feature never
+     * depends on a harness preamble to fire. */
+    public static com.legend.protocol.spec.ValueSpecification resolveQuery(
+            java.util.List<com.legend.protocol.spec.ValueSpecification> statements,
+            com.legend.model.ImportScope imports, ModelContext ctx) {
+        java.util.List<com.legend.protocol.spec.ValueSpecification> desugared =
+                new java.util.ArrayList<>(statements.size());
+        boolean fired = false;
+        for (com.legend.protocol.spec.ValueSpecification st : statements) {
+            com.legend.protocol.spec.ValueSpecification r = com.legend.validation.ValidateDesugar
+                    .rewrite(st, ctx, imports.wildcards());
+            desugared.add(r);
+            fired |= r != st;
+        }
+        com.legend.validation.DriverPkOption.set(fired);
+        return com.legend.compiler.NameResolver.resolveQuery(
+                new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), desugared),
+                imports, ctx.elementFqns());
+    }
+
     /**
      * The core QUERY SERVICE: frontend + Phase G + lowering + rendering +
      * EXECUTION over the caller's connection, shaped per the result-type

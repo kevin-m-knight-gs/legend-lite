@@ -998,7 +998,9 @@ public class RelationalCorpusRunner {
             // tests' sql-asserts left the walk's lane (lane move, 0 lost).
             // 180 -> 171 (batch 30 — effectful helper values): the forced-
             // milestoning tests' sql-asserts left the walk's lane (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(171, execPassing,
+            // 171 -> 170 (batch 31 — the validate desugar in the platform
+            // path): one businessdate sql-assert left the walk's lane.
+            org.junit.jupiter.api.Assertions.assertEquals(170, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1431,10 +1433,19 @@ public class RelationalCorpusRunner {
             // |1, typing every user-function Result.values read [*] (the
             // validation family's wall — now it reaches its real one: the
             // engine's generateValidationQuery library). +5, 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(446L,
+            // 446/2127 -> 430/2143 (batch 31 — THE QUERY FRONT DOOR,
+            // 2026-09-03): the relational validate(...) raw-space desugar
+            // (ValidateDesugar — the engine's generateValidationQuery
+            // synthesis over the parsed AST, in main since #45) was wired
+            // ONLY from the harness preamble, so the flip path inlined the
+            // corpus's Pure validate and walled on its library. Compiler.
+            // resolveQuery is now the one entry (desugar, driver-pk option,
+            // name resolution) and the flip resolves through it. +16
+            // (validation complex 10, showcase 5, businessdate 1), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(430L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2127L,
+            org.junit.jupiter.api.Assertions.assertEquals(2143L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

@@ -258,9 +258,7 @@ public final class WholeTestFlip {
         }
         ValueSpecification resolved;
         try {
-            resolved = NameResolver.resolveQuery(
-                    new LambdaFunction(List.of(), List.copyOf(statements)),
-                    imports, ctx.elementFqns());
+            resolved = Compiler.resolveQuery(List.copyOf(statements), imports, ctx);
         } catch (RuntimeException e) {
             return fallback("wall-resolve: " + bucketOf(e.getMessage()), test);
         }

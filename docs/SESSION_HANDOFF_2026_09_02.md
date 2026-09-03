@@ -1825,9 +1825,25 @@ intermediate statements the inliner refuses — a Pure-library leg, named.
 Ledger: StatementExecutor 2692 → 2696 (the value binding — orchestration);
 exec-passing declines 180 → 171 (lane move).
 
+**Batch 31 — THE QUERY FRONT DOOR (2026-09-03): ratchet 446/2127 →
+430/2143 (+16, ZERO lost).** The relational `validate(...)` raw-space
+desugar (`com.legend.validation.ValidateDesugar` — the engine's
+generateValidationQuery synthesis rebuilt over the parsed AST, in MAIN
+since feature #45) was wired only from the harness's `EngineTestExecutor`
+preamble, so the harness lanes saw the synthesized execute while the FLIP
+path resolved the raw statements, inlined the corpus's Pure `validate`,
+and walled on its library ("generateValidationQuery has non-let
+intermediate statements"). `Compiler.resolveQuery(statements, imports,
+ctx)` is now the ONE query entry — desugars, sets the driver-pk option,
+name-resolves — and `WholeTestFlip` resolves through it (the preamble's
+own call stays for the lineage harness arms until they die). validation
+complex 10, showcase 5, businessdate 1. A platform feature must never
+depend on a harness preamble to fire — the same lesson as batch 26's
+second pipeline.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 446 fallbacks / 2127 flipped (batches 14–30 = group D,
+legs).** State: 430 fallbacks / 2143 flipped (batches 14–31 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware
