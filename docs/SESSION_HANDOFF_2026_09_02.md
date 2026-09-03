@@ -1638,6 +1638,94 @@ executeInDb binding read ×1, toVariant on the H2 dialect ×2. Temporary
 diagnostics added and removed on the way: the join-condition wall now
 names the variable it read.
 
+## 6. HOST-SIDE EVALUATION REGISTER AND RETIREMENT PLAN (2026-09-03, user ask)
+
+What the platform still evaluates in Java, by kind, and what to do about
+each. The verdict path tenet: Java orchestrates, the database executes;
+the metamodel is rows. "Stay" means the Java is orchestration or a
+compile-time identity; "retire" means a Pure body or rows replace it.
+
+**A. Compile-time folds in the typer — STAY (audit once against real
+.pure).** Special forms the type checker resolves as identities, never a
+verdict value: `deactivate` (the reflection carrier, TypedDeactivate);
+`evaluateAndDeactivate` over a lambda literal (NormalizeFolds.
+foldReflection); the `deactivate()->cast(@InstanceValue).values->at(0)
+->cast(@LambdaFunction<..>)` round trip (CastChecker.deactivatedLambda);
+`cast(@T)` over a value already of class T and `cast(@TabularDataSet)`
+over a relation (CastChecker); `size` of a fixed-multiplicity value,
+literal `eq`/`and`/`or`, `if` with a literal condition inside INLINED
+platform bodies (NormalizeFolds.fold/foldInlined); the group D folds of
+`compileLegendGrammar` / `compileValueSpecification` over let-bound
+constant strings; `getRelationalCsvData` census and `generateTestData`
+carrier (CsvCensusChecker / GenerateTestDataChecker). Owed: one audit
+pass listing each fold beside the real .pure line that makes it an
+identity.
+
+**B. Effects and orchestration — STAY.** `executeInDb`, the DDL
+natives, `setUpDataSQLs`, `print`/`println`, `connectionByElement`
+(NativeImpl.EFFECT); CrossStoreGuard; ConnectionFlags (runtime-argument
+readers); ConnectionLets (effectful-let chain analysis); MetamodelSeeds
+(compile-time facts rendered as rows — the seed IS the store).
+
+**C. Java-STAMPED FACTS behind rows — RETIRE, in this order.** The reads
+are rows; the facts are Java walks:
+1. Routed-tree ROWS + ONE Pure printer. Retires `AggAwareActivities`
+   (the routed-query print) AND `PlanText` / `planToString` /
+   `planToStringWithoutFormatting` (NativeImpl.JAVA_ROUTINE) — both are
+   engine-spelled prints of a tree the compiler holds. The rows are the
+   expression-tree rows (batch 22) after routing (set holders on getAll,
+   automap hops explicit), printed by a Pure body in preorder-fragment
+   form (the relationTreeAsString idiom: per-node open/close fragments
+   joined in preorder — no recursion in SQL). FLIPS TESTS: group J
+   (`->cast(@StoreMappingRoutedValueSpecification).sets.class.name`,
+   `ClusteredValueSpecification.val`, ~16) and the plan-text residue.
+   Part of the burn.
+2. The RECURSION mechanism (bottom-up over tree rows): a closure table
+   like plan_node_closure, or a recursive CTE in the lowering. Needed by
+   PkInference→Pure; build it when the first test needs it (the routed
+   print's fragment table may already be it).
+3. PkInference → Pure over the expression rows (the engine's
+   inferPrimaryKeyColumnNames rules, relationFunctionMapping.pure:94-
+   170: property/operator arms bottom-up). Retires `resolver.PkInference`.
+   Flips nothing (group A already flipped) — pure debt.
+4. Lineage scans → Pure over expression rows JOIN mapping rows
+   (property_mappings, joins, relational_elements): the engine's
+   scanRelations/scanColumns walk the routed query + the mapping
+   metamodel, not the lowered SQL. Retires `lineage.ScanRelations` /
+   `ScanColumns`. Flips nothing (groups E/I flipped) — the largest port;
+   may also close the 19 alias-breadcrumb residue if the labels derive
+   from mapping rows the same way the engine's do.
+5. `MetamodelSteps` (the recv-dispatched metamodel-walk vocabulary shared
+   by planWalk and a map-lambda arm): the last "metamodel walked in
+   Java" surface. Check which reads still route through it versus the
+   system store; retire the ones the store answers. Part of the
+   executionPlan residue.
+
+**D. Assert-family arms in the verdict path — AUDIT, retire the value
+derivations.** `AssertVerdicts` (~2000 lines; the assert family as
+verdicts is BY DESIGN per the charter — audit for any arm that still
+DERIVES a value instead of comparing two database results);
+`ConnEquality` (harness) + `runRelationalRouterExtensionConnectionEquality`
+— a metamodel comparison that belongs on connection ROWS (group P, the
+testConnectionEquality* tests) — part of the burn; `LiteralFold` (bare
+literal roots compile to their value — the engine's
+ConstantExecutionNode; stays, it is a plan shape, not a verdict);
+`AssertErrorNative` (the assertError K-arm; stays — reference contract
+interpreted). The referee's `sql()`/`sqlRemoveFormatting` folds in
+ResultEnvelopeSplice STAY (they feed the SQL-text referee; deleting them
+lost flips in batch 24's probe). Harness arms that die with their
+families: LineageForm, LineageRelationsForm, PlanAsserts, TestDataGenForm,
+RuntimeIfForm, AssertLoopForm.
+
+**ORDERING (recommendation).** Interleave by whether the item flips
+tests: C1 (routed-tree rows + printer: group J + plan text) and D's
+connection equality as rows (group P) are burn legs and go in the burn
+order after the next census theme; C2 rides C1 (build the mechanism when
+the first test needs it). C3, C4, C5 and the A audit flip nothing and go
+AFTER zero — except that C3 should follow C2 immediately while the
+mechanism is fresh. Do not start C4 before zero: it is the largest port
+and the lineage families are already scored by rows today.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 505 fallbacks / 2068 flipped (batches 14–26 = group D,
