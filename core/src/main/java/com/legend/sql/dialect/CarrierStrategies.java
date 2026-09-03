@@ -63,8 +63,19 @@ public final class CarrierStrategies extends SqlRewriter {
 
     private final Caps caps;
 
+    /** Whether a reduction over a COMPILE-TIME literal collection folds
+     * to its scalar chain here (the execution dialects: yes); the
+     * engine-TEXT renderer keeps the semantic node — its own spelling
+     * hooks print the engine's flat forms (joinStringsFlat). */
+    private final boolean foldLiteralReductions;
+
     public CarrierStrategies(Caps caps) {
+        this(caps, true);
+    }
+
+    public CarrierStrategies(Caps caps, boolean foldLiteralReductions) {
         this.caps = caps;
+        this.foldLiteralReductions = foldLiteralReductions;
     }
 
     @Override
@@ -125,6 +136,73 @@ public final class CarrierStrategies extends SqlRewriter {
             }
         }
         return s;
+    }
+
+    /** The list under the ordered-dedup idiom, or null: either the bare
+     * {@code LIST_FILTER(list, (x, i) -> ...)} two-parameter filter or its
+     * subquery-carrying form {@code (SELECT LIST_FILTER(_ddc.l, ...) AS v
+     * FROM (SELECT list AS l) AS _ddc)}. */
+    private static @com.legend.Nullable SqlExpr dedupList(SqlExpr e) {
+        if (e instanceof SqlExpr.Call f
+                && f.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                && f.args().size() == 2
+                && f.args().get(1) instanceof SqlExpr.Lambda l
+                && l.params().size() == 2) {
+            return f.args().get(0);
+        }
+        if (e instanceof SqlExpr.ScalarSubquery sq
+                && sq.subquery() instanceof SqlSelect sel
+                && sel.projections().size() == 1
+                && sel.from() instanceof com.legend.sql.SqlSource.Subselect carry
+                && carry.inner() instanceof SqlSelect cs
+                && cs.projections().size() == 1
+                && cs.from() instanceof com.legend.sql.SqlSource.Dual
+                && sel.projections().get(0).expr() instanceof SqlExpr.Call f2
+                && f2.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                && f2.args().size() == 2
+                && f2.args().get(0) instanceof SqlExpr.Column lc
+                && carry.alias().equals(lc.table())
+                && f2.args().get(1) instanceof SqlExpr.Lambda l2
+                && l2.params().size() == 2) {
+            return cs.projections().get(0).expr();
+        }
+        return null;
+    }
+
+    /** Each branch of an exploded query gains the filter predicate as a
+     * WHERE over its own projected value. */
+    private static com.legend.sql.SqlQuery filterBranches(
+            com.legend.sql.SqlQuery q, SqlExpr.Lambda pred) {
+        if (q instanceof com.legend.sql.SqlUnion u) {
+            List<com.legend.sql.SqlQuery> bs = new ArrayList<>();
+            for (com.legend.sql.SqlQuery b : u.branches()) {
+                bs.add(filterBranches(b, pred));
+            }
+            return new com.legend.sql.SqlUnion(bs, u.all(), u.outputs());
+        }
+        SqlSelect sel = (SqlSelect) q;
+        SqlExpr value = sel.projections().get(0).expr();
+        SqlExpr cond = substParam(pred.body(), pred.params().get(0), value);
+        return sel.withWhere(sel.where() == null ? cond
+                : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, sel.where(), cond));
+    }
+
+    /** DISTINCT over an exploded query: a select marks itself distinct
+     * (its order keys drop — a set has no order); a union wraps. */
+    private static com.legend.sql.SqlQuery distinctOf(
+            com.legend.sql.SqlQuery q, SqlSelect outer) {
+        if (q instanceof SqlSelect sel) {
+            return new SqlSelect(sel.projections(), true, sel.from(),
+                    sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
+                    List.of(), sel.limit(), sel.offset(), sel.outputs());
+        }
+        return new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.Star(null),
+                        null, null)),
+                true, new com.legend.sql.SqlSource.Subselect(q, "dedup_src",
+                        null),
+                null, List.of(), null, null, List.of(), null, null,
+                outer.outputs());
     }
 
     /** STATIC PIVOT EMULATION (PV1, witnessed: the PCT pivot family):
@@ -335,6 +413,11 @@ public final class CarrierStrategies extends SqlRewriter {
     private @com.legend.Nullable com.legend.sql.SqlQuery explode(SqlExpr arg,
             SqlSelect s, @com.legend.Nullable String alias) {
         boolean dual = s.from() instanceof com.legend.sql.SqlSource.Dual;
+        while (arg instanceof SqlExpr.CompactList cl) {
+            // carrier compaction is a no-op over ROWS (a relation holds
+            // no empties once its null-drop filter is a WHERE)
+            arg = cl.list();
+        }
         // an ARRAY-cast wrapper over a folded literal unwraps: the cast
         // only re-types the elements the literal already pins
         if (arg instanceof SqlExpr.Cast ac
@@ -407,6 +490,30 @@ public final class CarrierStrategies extends SqlRewriter {
         }
         // CONCAT EXPLODE (R5b, witnessed): unnest(list_concat(a, b)) =
         // the branches of a then the branches of b.
+        // a FILTERED explode (R5e, witnessed: `Product.all().name->concatenate(
+        // Product.all().name)`, the null-dropping list_filter over a
+        // concat of collects): explode the inner list, the predicate
+        // becomes each branch's WHERE over its projected value
+        if (dual && arg instanceof SqlExpr.Call lf1
+                && lf1.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                && lf1.args().size() == 2
+                && lf1.args().get(1) instanceof SqlExpr.Lambda flam1
+                && flam1.params().size() == 1) {
+            com.legend.sql.SqlQuery inner = explode(lf1.args().get(0), s, alias);
+            if (inner != null) {
+                return filterBranches(inner, flam1);
+            }
+        }
+        // the ORDERED-DEDUP idiom (ListEncodings.orderedDedup: keep x at
+        // index i iff its first position is i) over rows is DISTINCT —
+        // witnessed by `->map(...)->distinct()` over a class query
+        SqlExpr dedupped = dedupList(arg);
+        if (dual && dedupped != null) {
+            com.legend.sql.SqlQuery inner = explode(dedupped, s, alias);
+            if (inner != null) {
+                return distinctOf(inner, s);
+            }
+        }
         if (dual && arg instanceof SqlExpr.Call cc
                 && cc.fn() == com.legend.sql.SqlFn.LIST_CONCAT
                 && cc.args().size() >= 2) {
@@ -522,7 +629,7 @@ public final class CarrierStrategies extends SqlRewriter {
             SqlAgg.Fn red = LIST_REDUCERS.get(lc.fn());
             if (red != null) {
                 SqlExpr fused = fuse(new SqlExpr.ReduceCollection(red,
-                        lc.args().get(0), List.of()));
+                        lc.args().get(0), List.of()), foldLiteralReductions);
                 if (fused != null) {
                     return fused;
                 }
@@ -727,7 +834,7 @@ public final class CarrierStrategies extends SqlRewriter {
             }
         }
         if (e instanceof SqlExpr.ReduceCollection rc) {
-            SqlExpr fusedSub = fuse(rc);
+            SqlExpr fusedSub = fuse(rc, foldLiteralReductions);
             if (fusedSub != null) {
                 return fusedSub;
             }
@@ -742,7 +849,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * (same rows: the transform is element-wise). Order keys carry over
      * (the ordering contract, never re-derived). */
     private static @com.legend.Nullable SqlExpr fuse(
-            SqlExpr.ReduceCollection rc) {
+            SqlExpr.ReduceCollection rc, boolean foldLiterals) {
         SqlExpr coll = rc.collection();
         SqlExpr.Lambda transform = null;
         if (coll instanceof SqlExpr.Call c
@@ -770,7 +877,9 @@ public final class CarrierStrategies extends SqlRewriter {
         if (coll instanceof SqlExpr.ArrayLit al
                 && rc.reducer() == SqlAgg.Fn.STRING_AGG
                 && rc.extras().size() == 1 && !al.elements().isEmpty()) {
-            return concatJoin(al.elements(), transform, rc.extras().get(0));
+            return foldLiterals
+                    ? concatJoin(al.elements(), transform, rc.extras().get(0))
+                    : null;
         }
         // SINGLETON-FLATTEN UNWRAP (witnessed R4: calendar date ranges —
         // each row carries a ONE-element ArrayLit; FLATTEN(collect) of

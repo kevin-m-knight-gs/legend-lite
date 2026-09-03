@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 15 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 0 |
+| tests/advanced | 68 | 66 | 1 | 0 | 1 | 2 | 2 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2379** | 46 | 104 | 46 | 12 | 12 | 29 | 30 |
+| **total** | 2575 | **2379** | 46 | 103 | 47 | 12 | 12 | 29 | 30 |
 
 SOFT-PASS RECONCILIATION (F2.1): 2379 PASS = 2311 clean + 68 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 30; flags overlap — the union is 68).
 
@@ -1005,7 +1005,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2379 PASS = 2311 clean + 68 carrying softness (
 - ERROR testExtractDBsWithSubstituition [tests]: in function 'meta::relational::runtime::extractDBs': class meta::pure::mapping::Mapping has no property 'includes'
 - ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension'
 - FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n
-- ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
+- SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: no scalar lowering registered for resolved overload 'meta::json::toJSON' with 1 parameter(s)
 - ERROR testProjectThroughAssociation [tests/injection]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]

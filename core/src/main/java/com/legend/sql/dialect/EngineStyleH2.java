@@ -771,7 +771,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // explode: H2 2.1 cannot spell a correlated LATERAL, and the
         // engine's own shape for a per-row literal collection is the
         // decorrelated union (LateralExplodeToUnion)
-        return java.util.List.of(new LateralExplodeToUnion());
+        // …and the H2 CARRIER STRATEGIES first: a semantic collection
+        // node (a collected relation exploded, a filtered collect) must
+        // become rows the referee can EXECUTE on H2 — the same rungs
+        // the H2 execution dialect runs (text divergence is advisory;
+        // rows are the verdict)
+        return java.util.List.of(
+                new CarrierStrategies(CarrierStrategies.Caps.H2, false),
+                new LateralExplodeToUnion());
     }
 
     @Override

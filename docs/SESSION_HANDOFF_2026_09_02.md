@@ -2180,9 +2180,29 @@ engine alias breadcrumbs for foreign-dialect text 3, golden defects 3
 functions (objectReferenceIn 7, routeFunction 4, repeat 2), the 15
 plan-only text asserts whose stores no engine test seeds.
 
+**Batch 43 — THE REFEREE RENDER RUNS THE H2 CARRIER STRATEGIES (2026-09-03):
+ratchet 303/2270 → 297/2276 (+6, ZERO lost).** Root cause behind the whole
+"UNNEST / LIST_CONCAT reached a dialect without…" render class: the
+engine-style H2 renderer had NO dialect passes at all (`EngineStyleH2.
+passes()` returned empty until batch 39 added the lateral explode), so a
+semantic collection node (a collected relation exploded, a filtered
+collect) never reached the H2 carrier rungs the execution dialect runs.
+Now `EngineStyleH2.passes()` = `CarrierStrategies(Caps.H2,
+foldLiteralReductions = false)` + `LateralExplodeToUnion`; the literal
+STRING_AGG reduction stays a semantic node for the engine text (the
+renderer's own `joinStringsFlat` spelling — folding it there regressed the
+two joinStrings goldens' text, caught and gated). Two new explode rungs in
+`CarrierStrategies.explode`: a null-dropping `list_filter` over an exploded
+concat becomes each branch's WHERE (`filterBranches`), and the ordered-dedup
+idiom (`ListEncodings.orderedDedup`) over rows is DISTINCT (`dedupList`,
+`distinctOf`). Flipped: concatenate testAllWithProperty / DataType /
+DataTypeDiffProperty / DataTypeMerge, testCollectionDistinctFunction,
+testBuildFilterWithValueThatCanBeNullWithIn. Lane move: exec-passing 75 →
+68; passes 2379; disagree 0.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 303 fallbacks / 2270 flipped (batches 14–42 = group D,
+legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

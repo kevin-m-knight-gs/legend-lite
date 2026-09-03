@@ -1025,7 +1025,10 @@ public class RelationalCorpusRunner {
             // left the walk's lane (lane move, passes 2378 -> 2379).
             // 76 -> 75 (batch 42): the flipped class-query sql-assert left
             // the walk's lane (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(75, execPassing,
+            // 75 -> 68 (batch 43 — the referee render runs the H2 carrier
+            // strategies): the flipped tests' sql-asserts left the walk's
+            // lane (lane move, passes 2379 stable, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(68, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1562,10 +1565,17 @@ public class RelationalCorpusRunner {
             // arms the graph compare's pk-collapse exactly as the walk lane
             // does — the engine's join fan-out re-manufacturing one object
             // is not a divergence. +1 (testQualifierQueryWithOr), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(303L,
+            // 303 -> 297 (batch 43, 2026-09-03): the engine-style referee
+            // render now RUNS the H2 carrier strategies (it had no passes
+            // at all) — with literal reductions kept semantic (the engine
+            // text's own flat spellings) — plus two explode rungs: a
+            // null-dropping list_filter over an exploded concat becomes each
+            // branch's WHERE, and the ordered-dedup idiom over rows is
+            // DISTINCT. +6 (concatenate 4, distinct, filter-with-in), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(297L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2270L,
+            org.junit.jupiter.api.Assertions.assertEquals(2276L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
