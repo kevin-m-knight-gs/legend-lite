@@ -28,6 +28,16 @@ import java.util.List;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** The base passes plus the lateral explode (H2 2.1 has no LATERAL;
+     * see LateralExplodeToUnion). */
+    @Override
+    protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+        java.util.List<com.legend.sql.SqlRewriter> ps =
+                new java.util.ArrayList<>(super.passes());
+        ps.add(new LateralExplodeToUnion());
+        return java.util.List.copyOf(ps);
+    }
+
     public H2() {
         super(Lexicon.H2, TypeNames.H2, Spellings.H2);
     }

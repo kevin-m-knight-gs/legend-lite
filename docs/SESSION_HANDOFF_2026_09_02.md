@@ -2072,9 +2072,39 @@ testConsistencyWithNullsInColumnToColumnComparison. Lane moves: M1 verified
 9 → 4, M1 rescued 75 → 63, exec-passing 99 → 82, unable-to-exec 14 → 13;
 text-verdict asserts 170 → 156; passes 2377 stable; disagree 0.
 
+**Batch 39 — THE LATERAL EXPLODE ON H2 + plan-text replay (2026-09-03):
+ratchet 314/2259 → 310/2263 (+4, ZERO lost).** (1) A per-row LITERAL
+collection (`$t.id->concatenate($t.id + 18)` in a project column) lowers as
+`LEFT JOIN LATERAL (SELECT UNNEST(list_concat([a],[b])) ...)` — right on
+DuckDB, unspellable on H2 2.1 (no LATERAL: probed over JDBC). The
+H2-family renderers now carry a structural MIR pass
+(`sql.dialect.LateralExplodeToUnion`, in H2.passes() and
+EngineStyleH2.passes()): the explode becomes the engine's own shape, a
+UNION ALL of one select per literal element keyed by the base row identity
+(`_ROWID_`), joined once; null-dropping singleton wrappers (`CASE WHEN e IS
+NULL THEN [] ELSE [e] END`) become the branch's `WHERE e IS NOT NULL`. The
+engine-style render entry now RUNS its dialect passes (it had bypassed
+`passes()`). (2) A plan-text golden replays its ONE `sql =` node instead of
+the whole plan text (the homework's 12 "Syntax error … Relational(" oracle
+misroutes; a multi-node plan is a counted text contract). Flipped:
+testConcatenateFlat, testConcatenateFlatWithOtherProperty,
+testConcatenateWithFilter, testMapWithOpenVariableOutsideBlock. Lane move:
+exec-passing 82 → 79; text-verdict asserts 156 → 147; passes 2377 → 2378;
+disagree 0. NAMED (lowerer semantics, not referee spelling): a WHOLE
+relation collected as a list then exploded — `Product.all().name->
+concatenate(Product.all().name)` (testAllWithProperty) and `->map(...)->
+distinct()` over a class query (testCollectionDistinctFunction) lower
+through LIST aggregates + list ops + UNNEST; the engine's shape is UNION
+ALL / SELECT DISTINCT at relation level — a lowering leg (2). The TDG
+"alloy" family (8) walls in `planTestDataGenerationWithParameterValuePairs`
+(functionReturnType + `_subTypeOf` folds) and then needs the TDG plan-text
+printer (MultiResultSequence/Allocation nodes) — a port, no decision, sized
+medium. DB2 text contracts (3 tests) need the engine's alias breadcrumbs
+(`personTable_d#4_d_m1`) — a decision (batch 21 named residue).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 314 fallbacks / 2259 flipped (batches 14–38 = group D,
+legs).** State: 310 fallbacks / 2263 flipped (batches 14–39 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

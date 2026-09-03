@@ -317,6 +317,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     public String render(SqlQuery query) {
+        for (com.legend.sql.SqlRewriter pass : passes()) {
+            query = pass.rewriteRoot(query);
+        }
         query = wrapTdsJoinTop(query);
         renames.clear();
         subselects.clear();
@@ -764,7 +767,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * select wall below stays LOUD rather than inventing one. */
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return java.util.List.of();
+        // the engine text has no structural passes EXCEPT the lateral
+        // explode: H2 2.1 cannot spell a correlated LATERAL, and the
+        // engine's own shape for a per-row literal collection is the
+        // decorrelated union (LateralExplodeToUnion)
+        return java.util.List.of(new LateralExplodeToUnion());
     }
 
     @Override

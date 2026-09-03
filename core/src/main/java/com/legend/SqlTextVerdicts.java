@@ -501,14 +501,55 @@ final class SqlTextVerdicts {
                             + " the contract): expected " + golden
                             + ", got " + ours);
         }
+        // a PLAN-TEXT golden replays its one SQL node, never the plan
+        // text itself (the sqltext homework's 12 "Syntax error in SQL
+        // statement Relational(" misroutes); a multi-node plan has no
+        // single replayable SQL — text stays the contract, counted
+        String replay = planReplaySql(filled);
+        if (replay == null) {
+            SqlTextEmission.textVerdict("plan-text: multi-node plan (no"
+                    + " single sql node to replay)");
+            return textEqual ? ok()
+                    : fail(name + " (plan-text, multi-node — text is the"
+                            + " contract): expected " + golden + ", got "
+                            + ours);
+        }
         List<TypedSpec> bound = new java.util.ArrayList<>(letPrefix);
         bound.addAll(bindings.lets());
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         lam.body().get(lam.body().size() - 1), mapping),
-                filled, mapping.fullPath(), rootClassFqn(lam), bound,
+                replay, mapping.fullPath(), rootClassFqn(lam), bound,
                 specs, env, hook);
     }
+
+    /** The SQL a golden replays: a bare SQL golden is itself; a plan
+     * text ({@code Relational( ... sql = <sql> connection = ...)}, with or
+     * without formatting) yields its ONE sql node; several nodes or none
+     * = null. */
+    private static @com.legend.Nullable String planReplaySql(String golden) {
+        String g = golden.strip();
+        String lower = g.toLowerCase(java.util.Locale.ROOT);
+        if (lower.startsWith("select") || lower.startsWith("with")
+                || lower.startsWith("(select")) {
+            return g;
+        }
+        java.util.regex.Matcher m = PLAN_SQL_NODE.matcher(g);
+        String found = null;
+        int n = 0;
+        while (m.find()) {
+            n++;
+            found = m.group(1).strip();
+        }
+        return n == 1 ? found : null;
+    }
+
+    /** {@code sql = <sql>} up to the node's {@code connection =} (the
+     * formatted form ends the line; the unformatted form runs on). */
+    private static final java.util.regex.Pattern PLAN_SQL_NODE =
+            java.util.regex.Pattern.compile(
+                    "\\bsql\\s*=\\s*(.*?)(?=\\s*(?:\\n\\s*)?connection\\s*=)",
+                    java.util.regex.Pattern.DOTALL);
 
     /** The executionPlan producer node in an argument tree — exact
      * platform FQN, LET-AWARE like the other finders. */

@@ -573,7 +573,12 @@ class JavaEvalLedgerTest {
             // execute() call) and the general arm let-chases a toSQLString
             // query lambda. Recognition + routing only: the oracle still
             // executes both sides in their databases; no judgment added.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 628),
+            // 628 -> 657 (batch 39, 2026-09-03): a plan-text golden replays
+            // its ONE `sql =` node (planReplaySql: recognition of the plan
+            // text's sql line; a multi-node plan stays a counted text
+            // contract) — routing only; the oracle still executes both
+            // sides in their databases.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 657),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

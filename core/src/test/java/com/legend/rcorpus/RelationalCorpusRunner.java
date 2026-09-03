@@ -1016,7 +1016,10 @@ public class RelationalCorpusRunner {
             // 99 -> 82 (batch 38 — enum decode / join lambda / getters):
             // the flipped tests' sql-asserts left the walk's lane (lane
             // move, passes 2377 stable, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(82, execPassing,
+            // 82 -> 79 (batch 39 — lateral explode / plan replay): the
+            // flipped tests' sql-asserts left the walk's lane (lane move,
+            // passes 2377 -> 2378, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(79, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1525,10 +1528,18 @@ public class RelationalCorpusRunner {
             // let-chased toSQLString lambda. +16 (groupBy agg-to-many 5,
             // enum-mapped projections 6, tdsJoin 2, dayOfWeek, joinStrings,
             // consistency-with-nulls), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(314L,
+            // 314 -> 310 (batch 39, 2026-09-03): the H2-family referee
+            // spells a per-row LITERAL collection's lateral explode as the
+            // engine's decorrelated UNION ALL keyed by the base row
+            // identity (LateralExplodeToUnion; H2 2.1 has no LATERAL) and
+            // the engine-style render runs its dialect passes; a plan-text
+            // golden replays its ONE sql node instead of the plan text.
+            // +4 (concatenate flat 3, testMapWithOpenVariableOutsideBlock),
+            // 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(310L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2259L,
+            org.junit.jupiter.api.Assertions.assertEquals(2263L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

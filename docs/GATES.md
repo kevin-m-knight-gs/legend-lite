@@ -218,6 +218,10 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 39 (lateral explode → decorrelated UNION on the H2 family; engine-style render runs its passes; plan-text goldens replay their sql node, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 314/2259 → 310/2263 (+4, 0 lost); lane move exec-passing 82 → 79; text-verdict asserts 156 → 147
+(passes 2378, disagree 0).
+
 **Batch 38 (no-decision burn from the sqltext homework: frame mapping to the oracle's enum decode (includes, identity), let-bound join lambdas + declared TDSRow, TDSRow getters, assertSameSQL(String) general arm, paginated-golden rule, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 330/2243 → 314/2259 (+16, 0 lost); lane moves M1 verified 9 → 4, M1 rescued 75 → 63,
 exec-passing 99 → 82, unable-to-exec 14 → 13; text-verdict asserts 170 → 156 (passes 2377, disagree 0).
