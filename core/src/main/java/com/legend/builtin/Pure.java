@@ -630,7 +630,8 @@ public final class Pure {
     // annotates with these (LambdaFunction<{->TabularDataSet[1]}>), and
     // the kernel's unwrapFunction treats all carriers as wrapper
     // spellings of the bare FunctionType.
-    public static final ClassDefinition FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::FunctionDefinition<F> extends meta::pure::metamodel::function::Function<F> {}");
+    // real m3 (legend-pure m3.pure graph): FunctionDefinition.expressionSequence : ValueSpecification[1..*]
+    public static final ClassDefinition FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::FunctionDefinition<F> extends meta::pure::metamodel::function::Function<F> { expressionSequence: meta::pure::metamodel::valuespecification::ValueSpecification[1..*]; }");
     public static final ClassDefinition CONCRETE_FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::ConcreteFunctionDefinition<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
     public static final ClassDefinition LAMBDA_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::LambdaFunction<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
 

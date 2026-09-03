@@ -218,6 +218,13 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 19 (group A — function bodies AS ROWS, 2026-09-03): chain 5m49s** —
+G1 40s, G2 8s, G4 62s, G5 42s, G6 80s, G7 26s, G9 19s, G8 72s. Ratchet
+729/1844 → 686/1887 (+43, 0 lost); metamodel quarantine rows 77 → 34
+(walls 9); proven-empty int-or-null ceiling 67 → 87 (the temporal-TDS
+concatenation tests' expressionSequence reads now type and their attempts
+execute — same three witnesses, more probes); other pins unchanged.
+
 **Batch 18 (group Q — plan nodes AS ROWS, 2026-09-03): chain 5m48s** —
 G1 38s, G2 9s, G4 62s, G5 41s, G6 81s, G7 26s, G9 19s, G8 72s. Ratchet
 778/1795 → 729/1844 (+49, 0 lost); walk text-only asserts 35 → 27 (the

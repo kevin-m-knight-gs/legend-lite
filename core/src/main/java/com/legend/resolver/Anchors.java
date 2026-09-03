@@ -96,6 +96,11 @@ final class Anchors {
                     v = true;
                     break;
                 }
+                if (c instanceof com.legend.compiler.spec.typed.TypedLambda
+                        && functionBodyRead(n)) {
+                    v = true;
+                    break;
+                }
                 if (anchored(c)) {
                     v = true;
                     break;
@@ -144,10 +149,19 @@ final class Anchors {
                             || StoreResolver.isClassToOne(nc)
                             || Pipelines.isClassDistinct(nc)
                             || ClassSorts.classSortOf(nc) != null
+                            || isDeactivate(nc)
                             || nc.callee().qualifiedName().equals(
                                     Substitution.ELEMENT_TO_PATH_FQN));
             default -> false;
         };
+    }
+
+    /** {@code evaluateAndDeactivate(x)} — a tree-as-value native that is
+     * the IDENTITY over metamodel rows (the rows already are the
+     * deactivated tree); transparent on the object spine. */
+    static boolean isDeactivate(TypedNativeCall nc) {
+        return nc.args().size() == 1 && nc.callee().qualifiedName()
+                .equals("meta::pure::functions::meta::evaluateAndDeactivate");
     }
 
     /** The object-space spine rules (formerly StoreResolver.isObjectSpace). */
@@ -162,6 +176,9 @@ final class Anchors {
                     when constructedRow.test(ni) -> true;
             // a PLAN HANDLE whose nodes the store carries as rows (PlanRows)
             case TypedNativeCall pn when planHandle.test(pn) -> true;
+            // a FUNCTION VALUE's body read ($f.expressionSequence over a
+            // lambda) — its statements are rows (FunctionBodyRows)
+            case TypedPropertyAccess pa when functionBodyRead(pa) -> true;
             // a CLASS-typed property HOP over an object-space chain IS
             // object space (the auto-map flatten re-roots at its target)
             case TypedPropertyAccess pa
@@ -192,6 +209,8 @@ final class Anchors {
             case TypedNativeCall c when Pipelines.isClassDistinct(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
             case TypedNativeCall c when ClassSorts.classSortOf(c) != null ->
+                    spaceOf(c.args().get(0)) == Space.OBJECT;
+            case TypedNativeCall c when isDeactivate(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
             default -> false;
         };
@@ -224,5 +243,13 @@ final class Anchors {
             }
         }
         return false;
+    }
+
+    /** {@code <lambda>.expressionSequence} — the function-value body read
+     * the store serves as rows (FunctionBodyRows). */
+    static boolean functionBodyRead(TypedSpec n) {
+        return n instanceof TypedPropertyAccess pa
+                && pa.property().equals("expressionSequence")
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedLambda;
     }
 }

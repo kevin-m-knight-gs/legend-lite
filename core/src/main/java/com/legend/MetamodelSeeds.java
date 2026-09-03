@@ -66,7 +66,9 @@ public final class MetamodelSeeds {
             // the query as inline relations ({@code plan.PlanRows}), the
             // graph-lifetime store holds none
             case "plans", "plan_nodes", "plan_template_functions",
-                    "plan_function_parameters", "plan_node_closure" -> List.of();
+                    "plan_function_parameters", "plan_node_closure",
+                    // function bodies ride the query too (FunctionBodyRows)
+                    "functions", "value_specifications", "vs_primary_key_columns" -> List.of();
             default -> throw new IllegalStateException(
                     "system metamodel table '" + table + "' has no seed"
                     + " derivation — SOURCE and seedRows grow together");

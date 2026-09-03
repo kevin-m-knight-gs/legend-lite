@@ -951,6 +951,11 @@ class NativeFunctionTest {
                     List.of("rootExecutionNode", "processingTemplateFunctions"),
                     "meta::pure::executionPlan::ExecutionNode",
                     List.of("executionNodes"),
+                    // real m3: FunctionDefinition.expressionSequence :
+                    // ValueSpecification[1..*] (group A burn 2026-09-03 —
+                    // function bodies as rows)
+                    "meta::pure::metamodel::function::FunctionDefinition",
+                    List.of("expressionSequence"),
                     "meta::pure::executionPlan::FunctionParametersValidationNode",
                     List.of("functionParameters"),
                     "meta::pure::executionPlan::FunctionParameter",

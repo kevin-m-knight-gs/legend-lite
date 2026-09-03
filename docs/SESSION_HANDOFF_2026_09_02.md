@@ -1393,10 +1393,37 @@ today), the datetime `testPlanWithLocalH2ConnectionWithSQL`
 (deferred graph-tree let), the model-connection agg/join/deep trio
 (M2M shapes), withPlatform (STRING_AGG list encoding).
 
+**Batch 19 — GROUP A: FUNCTION BODIES AS ROWS (2026-09-03): ratchet
+729/1844 → 686/1887 (+43, ZERO lost; chain 5m49s, all green).** The 43
+pkInferenceTests all read ONE helper: `$func.expressionSequence
+->evaluateAndDeactivate()->at(0)` then `inferPrimaryKeyColumnNames($expr)`.
+`FunctionDefinition.expressionSequence : ValueSpecification[1..*]` is
+registered VERBATIM (real m3). A function reference eta-expands to a
+lambda (existing Typer rule); the resolver meets `<lambda>.expressionSequence`
+as a ROW ROOT (Anchors.functionBodyRead → ElementReferences.rowRoot): the
+lambda's statements are `value_specifications` rows under the lambda's
+content-id scope (`FunctionBodyRows`, registered on first meeting, riding
+the query), each stamped with the compiler's inferred primary key
+(`PkInference` — the engine's inferPrimaryKeyColumnNames RULES over the
+typed tree: table accessor = declared pk; row-preserving ops keep; select
+keeps iff it projects every key; rename maps; groupBy / distinct(cols)
+key on their columns; INNER/LEFT join and asOf join union both sides;
+aggregate / pivot / concatenate / other joins none). The read
+`inferPrimaryKeyColumnNames(vs)` is a Pure body over the lite association
+`InferredPrimaryKeys` (`$vs.inferredPrimaryKeyColumns->sortBy(ordinal).name`).
+`evaluateAndDeactivate` is the IDENTITY over rows (resolveNode + the
+object spine). The four row-root arms of collectOpChain (element ref, plan
+handle, function value, constructed instance) now live in
+`ElementReferences.rowRoot`. Quarantine rows 77 → 34. Named residue: none
+in the family (43/43). Design debts named in the session report: the
+analysis is Java-stamped (PkInference / PlanRows) and read by the
+database; two parallel plan builders (planModel vs planToString);
+content-id scopes; the lenient anywhere fallback in subtype registration.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 729 fallbacks / 1844 flipped (batches 14–18 = group D +
-group Q plan nodes as rows), exec-passing 344, quarantine 77 rows / 9 walls (was 125 / 9;
+legs).** State: 686 fallbacks / 1887 flipped (batches 14–19 = group D,
+group Q plan nodes as rows, group A function bodies as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

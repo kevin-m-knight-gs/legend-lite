@@ -201,4 +201,52 @@ final class ElementReferences {
         return false;
     }
 
+
+    /** A chain ROOT the store carries as rows: the re-rooted head and the
+     * context it resolves under. */
+    record RootRow(TypedSpec row, StoreResolver.Context context) {
+    }
+
+    /**
+     * The row-root arms of the chain walk (StoreResolver.collectOpChain):
+     * an ELEMENT REFERENCE (D3 — the metaclass extent keyed by FQN), a
+     * PLAN HANDLE (PlanRows under the handle's content id), a FUNCTION
+     * VALUE's body ($f.expressionSequence over a lambda — FunctionBodyRows
+     * under the lambda's scope, registered on first meeting) and a
+     * CONSTRUCTED instance (the tree's scope). Null when {@code cur} is
+     * none of them.
+     */
+    @com.legend.Nullable RootRow rowRoot(TypedSpec cur, StoreResolver.Context context,
+            ConstructedInstances constructed,
+            java.util.function.Predicate<TypedNativeCall> planHandle,
+            Supplier<String> freshVar) {
+        if (cur instanceof TypedPackageableRef pr && trackedElementClass(pr) != null) {
+            return new RootRow(elementRow(pr, java.util.Objects.requireNonNull(
+                    trackedElementClass(pr)), context, freshVar), context);
+        }
+        if (cur instanceof TypedNativeCall pn && planHandle.test(pn)) {
+            String scope = com.legend.plan.PlanRows.scopeId(pn);
+            StoreResolver.Context inner = context.withConstructedScope(scope);
+            return new RootRow(elementRowByKey(scope,
+                    "meta::pure::executionPlan::ExecutionPlan", inner, freshVar), inner);
+        }
+        if (cur instanceof TypedLambda flam) {
+            String scope = FunctionBodyRows.scopeId(flam);
+            if (!constructed.has(scope)) {
+                constructed.register(scope, FunctionBodyRows.rows(scope, flam, ctx));
+            }
+            StoreResolver.Context inner = context.withConstructedScope(scope);
+            return new RootRow(elementRowByKey(scope,
+                    "meta::pure::metamodel::function::FunctionDefinition", inner,
+                    freshVar), inner);
+        }
+        if (cur instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
+                && constructed.rowId(cni) != null) {
+            String scope = java.util.Objects.requireNonNull(constructed.rowId(cni));
+            StoreResolver.Context inner = context.withConstructedScope(scope);
+            return new RootRow(elementRowByKey(scope, cni.classFqn(), inner, freshVar),
+                    inner);
+        }
+        return null;
+    }
 }

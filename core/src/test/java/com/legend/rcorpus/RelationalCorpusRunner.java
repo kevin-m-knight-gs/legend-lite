@@ -1276,10 +1276,19 @@ public class RelationalCorpusRunner {
             // second folds, upgraded-H2 plan spellings (TIMESTAMP holders,
             // null-safe optional equality, lowercase dateadd, block/temp-
             // table spacing, dotted Integer placeholders). +49, 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(729L,
+            // 729/1844 -> 686/1887 (batch 19 — GROUP A, function bodies AS
+            // ROWS, 2026-09-03): $f.expressionSequence over a function value
+            // (a reference eta-expands to a lambda) is its statements as
+            // ValueSpecification rows under the lambda's scope
+            // (FunctionBodyRows), each stamped with the compiler's inferred
+            // primary key (PkInference — the engine's rules over the typed
+            // tree); inferPrimaryKeyColumnNames is a Pure body over those
+            // rows; evaluateAndDeactivate is the identity over rows. +43
+            // (pkInferenceTests, all), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(686L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1844L,
+            org.junit.jupiter.api.Assertions.assertEquals(1887L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1426,7 +1435,12 @@ public class RelationalCorpusRunner {
             // inline rows (PlanRows) and the reads are navigation the
             // database answers; the allNodes native and its Java arm are
             // deleted. Walls unchanged at 9.
-            org.junit.jupiter.api.Assertions.assertEquals(77,
+            // 77 -> 34 (harness burn-down batch 19 — GROUP A, function bodies
+            // AS ROWS, 2026-09-03): the expressionSequence /
+            // inferPrimaryKeyColumnNames refusal spellings are DEAD — a
+            // function value's statements are rows the database navigates
+            // (FunctionBodyRows), the inference a stamped fact (PkInference).
+            org.junit.jupiter.api.Assertions.assertEquals(34,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
@@ -1982,10 +1996,19 @@ public class RelationalCorpusRunner {
                     // query-shape class. 64 -> 67 (§8.3b, the 308-test
                     // migration): three more all-NULL result columns
                     // from migrated tests' now-primary assert-side
-                    // executions — same query-shape class.
+                    // executions — same query-shape class. 67 -> 87
+                    // (batch 19 — function bodies as rows, 2026-09-03):
+                    // FunctionDefinition.expressionSequence registered
+                    // (real m3) types testConcatenationOfTemporalTdsQueries
+                    // (+WithGroupBy)'s expressionSequence reads, so their
+                    // platform attempts now reach execution — the same three witnesses
+                    // (testMilestoningColumnProjectionWithNonMilestonedTable's
+                    // from/thru NullLit projections, testPywaDateRange,
+                    // testFetchDbPrimaryKeysMetaData), more probes of the
+                    // same all-NULL shapes; no verdict moved.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireIntOrNullEmptyCount() <= 67,
+                                    .wireIntOrNullEmptyCount() <= 87,
                             "proven-empty int-or-null columns grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),

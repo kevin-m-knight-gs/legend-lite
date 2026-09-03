@@ -275,10 +275,14 @@ public final class StoreResolver {
      */
     private TypedSpec resolveNode(TypedSpec n, Context context) {
         // ---- space-independent normalizations (fire in ANY space) ----
-        // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27)
+        // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27);
+        // evaluateAndDeactivate over a metamodel ROW is the row (a tree-as-
+        // value native: the rows already are the deactivated tree)
         if (n instanceof TypedNativeCall wf
-                && "meta::pure::executionPlan::featureFlag::withFeatureFlags"
+                && ("meta::pure::executionPlan::featureFlag::withFeatureFlags"
                         .equals(wf.callee().qualifiedName())
+                    || "meta::pure::functions::meta::evaluateAndDeactivate"
+                        .equals(wf.callee().qualifiedName()))
                 && !wf.args().isEmpty()) {
             return resolveNode(wf.args().get(0), context);
         }
@@ -2505,34 +2509,19 @@ public final class StoreResolver {
         String castGate = null;   // ->cast(@T) over a partial-membership row
         List<List<TypedSpec>> flatSegs = new ArrayList<>();
         while (!(cur instanceof TypedGetAll)) {
-            // D3 — ELEMENT REFERENCE = ROW (trackedElementClass doc): the
-            // chain re-roots at the metaclass extent; the key restriction
-            // applies on the materialized row (resolveObject).
-            if (cur instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
-                    && trackedElementClass(pr) != null) {
-                cur = elements().elementRow(pr, java.util.Objects.requireNonNull(
-                        trackedElementClass(pr)), chainContext,
-                        () -> "_el" + (freshVarCounter++));
+            // ROW ROOTS (ElementReferences.rowRoot): an element reference, a
+            // plan handle, a function value's body, a constructed instance —
+            // the chain re-roots at the metaclass extent keyed by the row
+            ElementReferences.RootRow rr = elements().rowRoot(cur, chainContext,
+                    constructed, this::planHandleRow,
+                    () -> "_el" + (freshVarCounter++));
+            if (rr != null) {
+                cur = rr.row();
+                chainContext = rr.context();
                 continue;
             }
-            if (cur instanceof TypedNativeCall pn && planHandleRow(pn)) {
-                // a PLAN HANDLE root: the plan's nodes are rows under the
-                // handle's scope (PlanRows); the chain resolves over the
-                // ExecutionPlan extent keyed by the handle's content id
-                String scope = com.legend.plan.PlanRows.scopeId(pn);
-                chainContext = chainContext.withConstructedScope(scope);
-                cur = elements().elementRowByKey(scope,
-                        "meta::pure::executionPlan::ExecutionPlan", chainContext,
-                        () -> "_el" + (freshVarCounter++));
-                continue;
-            }
-            if (cur instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
-                    && constructed.rowId(cni) != null) {
-                // a CONSTRUCTED root: the chain resolves under the tree's scope
-                String scope = java.util.Objects.requireNonNull(constructed.rowId(cni));
-                chainContext = chainContext.withConstructedScope(scope);
-                cur = elements().elementRowByKey(scope, cni.classFqn(), chainContext,
-                        () -> "_el" + (freshVarCounter++));
+            if (cur instanceof TypedNativeCall dn && Anchors.isDeactivate(dn)) {
+                cur = dn.args().get(0);   // identity over rows (Anchors.isDeactivate)
                 continue;
             }
             // ->cast(@Sub) in CHAIN position: a cast the mapping PROVES
@@ -2630,7 +2619,10 @@ public final class StoreResolver {
             // never reach here (the funnel's embedded dispatch owns them).
             if (cur instanceof TypedPropertyAccess hp
                     && hp.info().type() instanceof Type.ClassType
-                    && hp.source().info().type() instanceof Type.ClassType oc) {
+                    && (hp.source().info().type() instanceof Type.ClassType
+                            // a function VALUE's body read (the lambda's type
+                            // is the generic FunctionDefinition<F>)
+                            || Anchors.functionBodyRead(hp))) {
                 // ASSOCIATION hops and NAVIGATE-SLOT-mapped class props both
                 // flatten; truly EMBEDDED hops hit the assoc loud wall (#63).
                 flattenHops.add(hp.property());

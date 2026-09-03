@@ -183,6 +183,35 @@ public final class SystemMetamodel {
             closureNodes.add("                        node[pnc, " + k[2] + "]: " + S + "@SubtreeToNode");
             closureNodes.add("                        closureOf[" + k[2] + ", pnc]: " + S + "@SubtreeToNode");
         }
+        // FUNCTION BODIES as rows (group A burn, 2026-09-03): a lambda /
+        // function value's expressionSequence is its statements as
+        // ValueSpecification rows, each stamped with the compiler's inferred
+        // primary key (PkInference — the engine's inferPrimaryKeyColumnNames
+        // rules over the typed tree); the rows ride the query (FunctionBodyRows)
+        sb.append("                *meta::pure::metamodel::function::FunctionDefinition[fn]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.functions.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.functions\n")
+                .append("                    expressionSequence[vs]: ").append(S).append("@FunctionToBody\n")
+                .append("                }\n")
+                .append("                *meta::pure::metamodel::valuespecification::ValueSpecification[vs]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.value_specifications.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.value_specifications\n")
+                .append("                }\n")
+                .append("                *meta::lite::metamodel::InferredPrimaryKeyColumn[ipk]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.vs_primary_key_columns.node_id, ")
+                .append(S).append(" metamodel.vs_primary_key_columns.ordinal)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.vs_primary_key_columns\n")
+                .append("                    ordinal: ").append(S).append(" metamodel.vs_primary_key_columns.ordinal,\n")
+                .append("                    name: ").append(S).append(" metamodel.vs_primary_key_columns.name\n")
+                .append("                }\n")
+                .append("                meta::lite::metamodel::InferredPrimaryKeys: Relational\n")
+                .append("                {\n                    AssociationMapping\n                    (\n")
+                .append("                        inferredFor[ipk, vs]: ").append(S).append("@NodeToPkColumns,\n")
+                .append("                        inferredPrimaryKeyColumns[vs, ipk]: ").append(S).append("@NodeToPkColumns\n")
+                .append("                    )\n                }\n");
         sb.append("                meta::lite::metamodel::PlanNodeSubtrees: Relational\n")
                 .append("                {\n                    AssociationMapping\n                    (\n")
                 .append(String.join(",\n", subtrees)).append("\n")
@@ -416,6 +445,24 @@ public final class SystemMetamodel {
                         node_id VARCHAR(512) PRIMARY KEY,
                         depth INTEGER NOT NULL
                     )
+                    Table functions
+                    (
+                        id VARCHAR(512) PRIMARY KEY,
+                        name VARCHAR(512) NOT NULL
+                    )
+                    Table value_specifications
+                    (
+                        id VARCHAR(512) PRIMARY KEY,
+                        function_id VARCHAR(512) NOT NULL,
+                        ordinal INTEGER NOT NULL,
+                        kind VARCHAR(64) NOT NULL
+                    )
+                    Table vs_primary_key_columns
+                    (
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        name VARCHAR(256) NOT NULL
+                    )
                 )
                 Join PlanToRoot(metamodel.plans.root_node_id = metamodel.plan_nodes.id)
                 Join NodeToChildren(metamodel.plan_nodes.id = {target}.parent_id)
@@ -423,6 +470,8 @@ public final class SystemMetamodel {
                 Join NodeToFunctionParameters(metamodel.plan_nodes.id = metamodel.plan_function_parameters.node_id)
                 Join NodeToSubtree(metamodel.plan_nodes.id = metamodel.plan_node_closure.ancestor_id)
                 Join SubtreeToNode(metamodel.plan_node_closure.node_id = metamodel.plan_nodes.id)
+                Join FunctionToBody(metamodel.functions.id = metamodel.value_specifications.function_id)
+                Join NodeToPkColumns(metamodel.value_specifications.id = metamodel.vs_primary_key_columns.node_id)
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
@@ -504,6 +553,18 @@ public final class SystemMetamodel {
             {
                 node: meta::pure::executionPlan::ExecutionNode[1];
                 closureOf: meta::lite::metamodel::PlanNodeClosure[*];
+            }
+
+            Class meta::lite::metamodel::InferredPrimaryKeyColumn
+            {
+                ordinal: Integer[1];
+                name: String[1];
+            }
+
+            Association meta::lite::metamodel::InferredPrimaryKeys
+            {
+                inferredFor: meta::pure::metamodel::valuespecification::ValueSpecification[1];
+                inferredPrimaryKeyColumns: meta::lite::metamodel::InferredPrimaryKeyColumn[*];
             }
 
             Class meta::lite::metamodel::SetAncestry
@@ -600,6 +661,10 @@ public final class SystemMetamodel {
             function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*]
             {
                 $node.subtree.node
+            }
+            function meta::relational::mapping::inferPrimaryKeyColumnNames(vs:meta::pure::metamodel::valuespecification::ValueSpecification[1]):String[*]
+            {
+                $vs.inferredPrimaryKeyColumns->sortBy(c|$c.ordinal).name
             }
             function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {
