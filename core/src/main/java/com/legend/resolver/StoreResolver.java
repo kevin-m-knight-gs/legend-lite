@@ -2667,7 +2667,11 @@ public final class StoreResolver {
                     && (hp.source().info().type() instanceof Type.ClassType
                             // a function VALUE's body read (the lambda's type
                             // is the generic FunctionDefinition<F>)
-                            || Anchors.functionBodyRead(hp))) {
+                            || Anchors.functionBodyRead(hp)
+                            // a HANDLE's rows (execute's Result<T|m> is
+                            // generic; its activities are rows all the same)
+                            || (hp.source() instanceof TypedNativeCall hpn
+                                    && planHandleRow(hpn)))) {
                 // ASSOCIATION hops and NAVIGATE-SLOT-mapped class props both
                 // flatten; truly EMBEDDED hops hit the assoc loud wall (#63).
                 flattenHops.add(hp.property());

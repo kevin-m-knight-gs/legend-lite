@@ -218,6 +218,15 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 24 (execution ACTIVITIES as rows, 2026-09-03): chain 5m54s** —
+G1 40s, G2 9s, G4 65s, G5 44s, G6 78s, G7 26s, G9 18s, G8 74s. Ratchet
+653/1920 → 581/1992 (+72, 0 lost); lane pins moved as lane moves: M1 verified
+floor 82 → 54, M1 rescued floor 204 → 164, exec-passing declines 344 → 275
+(receipt: corpus passes 2355 → 2367, clean 2151 → 2201, text-rescued 165 → 127,
+oracle disagreements 0); other pins unchanged. Two failed chain runs on the way
+(the rescued floor, then a real NOP-family regression when the rewrittenQuery
+fold was deleted — restored).
+
 **Batch 23 (consolidation — handle class from the native signature, shape-free
 let registration, one resolver factory, 2026-09-03): chain 5m54s** —
 G1 40s, G2 8s, G4 65s, G5 42s, G6 82s, G7 26s, G9 18s, G8 73s. Ratchet

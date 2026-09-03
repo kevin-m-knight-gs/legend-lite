@@ -1540,12 +1540,46 @@ lineage on first meeting (function bodies already do). PkInference → Pure
 over the expression rows needs bottom-up recursion over the tree (a
 recursive CTE or a closure table, like plan_node_closure) — its own leg.
 
+**Batch 24 — EXECUTION ACTIVITIES AS ROWS (2026-09-03): ratchet
+653/1920 → 581/1992 (+72, ZERO lost).** An `execute()` call's Result is
+a row under the call's scope (`results`) and its activities are kind
+rows over one `activities` table (`SystemMetamodel.ACTIVITY_KINDS`: a
+RelationalActivity carrying the SQL the platform ran — its own render,
+the same pipeline as toSQLString; comment NULL — no trace id is
+invented; AggregationAwareActivity rows exist as a kind but none is
+recorded until the router rewrites). Registration happens where the
+frame is built (`StatementExecutor.buildFrame` → `PlanAllocations.
+registerActivityRows`, `activitySql` chasing let-bound query/mapping
+arguments), so let-bound AND inlined user-call frames (`executeInternal`)
+both carry rows; `execute` is a HANDLE whose declared `Result<T|m>` names
+the row class (`handleRowClass` accepts a generic result's raw class)
+and a handle call with rows roots a navigation whatever its declared
+type (the chain-loop hop rule). `$r.activities` re-roots at the call
+(`ResultEnvelopeSplice.activitiesRowsRead` — the inline form stands AS
+WRITTEN, the same instance: the inliner's fixpoint; a fresh node each
+visit looped the inliner into a stack overflow, the day's one real bug).
+The referee's `sql()`/`sqlRemoveFormatting` arms STAY and now also serve
+inline execute frames (a text-divergent render still row-verifies through
+the oracle — deleting them lost 10 flips in the probe); the Java printer
+`AggAwareActivities` and its `rewrittenQuery` fold were deleted and then
+RESTORED: the corpus-regression gate caught the NOP family dropping
+15 → 10 passes (those five tests had passed through the fold as
+harness-scored tests). The fold stands, named, until batch 25 records
+the aggregation-aware rewrite as routed-tree rows. Pins moved as lane
+moves: M1 verified floor 82 → 54, M1 rescued floor 204 → 164,
+exec-passing declines 344 → 275 (the flipped tests' sql-asserts left the
+walk's lane; receipt: corpus passes 2355 → 2367, clean 2151 → 2201,
+text-rescued 165 → 127, oracle disagreements 0). Honest fallback:
+testSQLComments (engine trace-id comment). NOT a bug after all: the NavMaterializer "recursion"
+was the inliner loop re-rendering the same query; a depth guard was
+tried and REMOVED.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 653 fallbacks / 1920 flipped (batches 14–22 = group D,
+legs).** State: 581 fallbacks / 1992 flipped (batches 14–24 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
-expression tree as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
+expression tree as rows, execution activities as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

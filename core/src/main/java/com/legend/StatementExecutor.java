@@ -496,9 +496,6 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
-    /** The engine-style SQL pipeline shared by toSQLString and the plan
-     * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
-     * form, I lower — IR plus rendered text. */
     /** THE statement resolver: the query lets and the registered handle
      * rows ride every resolution (one construction, every site). */
     static com.legend.resolver.StoreResolver resolver(
@@ -511,7 +508,7 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body) {
     }
 
-    private static EngineSql engineSql(
+    static EngineSql engineSql(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
@@ -2037,6 +2034,7 @@ final class StatementExecutor {
                         java.util.List.of(lqChain.chain()), env.runtimeFqn()),
                         env);
             }
+            PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
@@ -2094,6 +2092,7 @@ final class StatementExecutor {
             }
             run = executeTyped(body, env);
         }
+        PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env), env);
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
     }
@@ -2286,7 +2285,7 @@ final class StatementExecutor {
                 ExecFrame f = allFrames.get(name);
                 return f == null ? null
                         : new com.legend.compiler.spec.ResultEnvelopeSplice
-                                .View(f.chain(), f.relationRooted());
+                                .View(f.chain(), f.relationRooted(), f.sourceExec());
             }
 
             @Override
@@ -2295,13 +2294,7 @@ final class StatementExecutor {
                             .TypedNativeCall ec, boolean eager) {
                 ExecFrame f = buildFrame(ec, letPrefix, eager, specs, env);
                 return new com.legend.compiler.spec.ResultEnvelopeSplice
-                        .View(f.chain(), f.relationRooted());
-            }
-
-            @Override
-            public @com.legend.Nullable String aggAwareRewrittenQuery(
-                    TypedSpec chain) {
-                return AggAwareActivities.rewrittenQuery(chain, env.ctx());
+                        .View(f.chain(), f.relationRooted(), f.sourceExec());
             }
 
             @Override
@@ -2312,29 +2305,23 @@ final class StatementExecutor {
                         || activityNumber != 0) {
                     // single-statement execution: exactly one
                     // RelationalActivity per execute; other indices (and
-                    // alias frames, which lost the source call) stay at
-                    // the loud activities wall
+                    // alias frames, which lost the source call) fall to
+                    // the activity ROWS
                     return null;
                 }
-                var ec = f.sourceExec();
-                if (!(ec.args().get(0) instanceof com.legend.compiler.spec
-                                .typed.TypedLambda lam)
-                        || !(ec.args().get(1) instanceof com.legend.compiler
-                                .spec.typed.TypedPackageableRef pr)) {
-                    return null;
-                }
-                // the engine-style render of the frame's own query — the
-                // SAME pipeline as toSQLString(query, mapping, H2, ext)
-                // (the activity log records the SQL the engine GENERATED;
-                // goldens are engine-H2-spelled)
-                var renderer = new com.legend.sql.dialect.EngineStyleH2();
-                EngineSql es = engineSql(lam, pr.fullPath(), specs, env,
-                        renderer);
-                com.legend.sql.SqlQuery post =
-                        com.legend.lowering.SqlPostProcessors.apply(
-                                es.plan(), com.legend.exec
-                                        .PostProcessBoundary.tableReplace());
-                return post == es.plan() ? es.sql() : renderer.render(post);
+                return PlanAllocations.activitySql(f.sourceExec(), letPrefix, specs, env);
+            }
+
+            @Override
+            public @com.legend.Nullable String relationalActivitySql(
+                    com.legend.compiler.spec.typed.TypedNativeCall ec) {
+                return PlanAllocations.activitySql(ec, letPrefix, specs, env);
+            }
+
+            @Override
+            public @com.legend.Nullable String aggAwareRewrittenQuery(
+                    TypedSpec chain) {
+                return AggAwareActivities.rewrittenQuery(chain, env.ctx());
             }
 
         });

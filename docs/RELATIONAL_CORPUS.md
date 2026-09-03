@@ -33,12 +33,12 @@ shared source registered by several families cannot double-count. Run with
 
 | family | tests | pass | fail | error | shape | sqldiff-pass | adv-pass | 0-asserts | rescued |
 |---|---|---|---|---|---|---|---|---|---|
-| aggregationAware/test/rewrite | 13 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 9 |
-| aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 8 | 0 | 0 | 0 | 0 | 1 |
+| aggregationAware/test/rewrite | 13 | 13 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 77 | 10 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 247 | 3 | 6 | 3 | 2 | 2 | 0 | 16 |
+| functions/tests | 259 | 247 | 4 | 5 | 3 | 2 | 2 | 0 | 14 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -47,21 +47,21 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 51 |
+| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 50 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 25 | 1 | 4 | 0 | 0 | 0 | 0 | 3 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
-| router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 5 |
+| router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 1 |
 | sqlDialectTranslation | 21 | 1 | 0 | 10 | 10 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 10 |
+| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 7 |
 | testDataGeneration/tests | 68 | 65 | 0 | 1 | 2 | 0 | 0 | 25 | 18 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 7 |
@@ -81,7 +81,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 27 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
@@ -92,16 +92,16 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 19 |
+| tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 82 | 2 | 3 | 0 | 1 | 2 | 0 | 5 |
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2355** | 48 | 124 | 48 | 12 | 13 | 29 | 165 |
+| **total** | 2575 | **2367** | 49 | 111 | 48 | 12 | 13 | 29 | 127 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2355 PASS = 2151 clean + 204 carrying softness (sqldiff 12, advisory 13, 0-asserts 29, text-rescued 165; flags overlap — the union is 204).
+SOFT-PASS RECONCILIATION (F2.1): 2367 PASS = 2201 clean + 166 carrying softness (sqldiff 12, advisory 13, 0-asserts 29, text-rescued 127; flags overlap — the union is 166).
 
 ### mapping walls (dropped at assembly)
 
@@ -821,7 +821,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2355 PASS = 2151 clean + 204 carrying softness 
 
 ### top error buckets
 
-- 13x execution activities are not recorded
 - 9x no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - 9x host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - 8x Unknown type: 'SQLQuery' is not a known primitive, class, or enum
@@ -851,21 +850,10 @@ SOFT-PASS RECONCILIATION (F2.1): 2355 PASS = 2151 clean + 204 carrying softness 
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=meta::legend::lite::trustOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
+- 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 
 ### per-test outcomes (non-passing)
 
-- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: execution activities are not recorded
-- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: execution activities are not recorded
-- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: execution activities are not recorded
-- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: execution activities are not recorded
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
-- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
 - ERROR testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
 - ERROR executeProjectWithNestedDerivedProperty [executionPlan/tests]: in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
@@ -906,7 +894,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2355 PASS = 2151 clean + 204 carrying softness 
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
-- ERROR testSQLComments [functions/tests]: execution activities are not recorded
+- FAIL testSQLComments [functions/tests]: assert did not hold ([])
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']

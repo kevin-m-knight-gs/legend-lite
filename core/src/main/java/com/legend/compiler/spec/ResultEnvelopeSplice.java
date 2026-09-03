@@ -64,7 +64,8 @@ public final class ResultEnvelopeSplice {
      * ROOT is relation-shaped (the engine's {@code Result.values} for a
      * TDS query holds ONE TDS; for a class or scalar root, values IS
      * the collection). */
-    public record View(TypedSpec chain, boolean relationRooted) {
+    public record View(TypedSpec chain, boolean relationRooted,
+            @com.legend.Nullable TypedNativeCall sourceExec) {
     }
 
     /**
@@ -84,21 +85,25 @@ public final class ResultEnvelopeSplice {
          * where it stands (a separate eager run would execute twice). */
         View inlineExecute(TypedNativeCall ec, boolean eager);
 
+
+        /** The activity log's {@code RelationalActivity[n].sql} — the
+         * engine-style rendered SQL of the frame's OWN query (the
+         * compiler's rendered text; helperFunctions.pure:38-60).
+         * Null when the frame cannot answer (no retained execute call,
+         * or an activity index this platform's single-statement
+         * execution does not produce). */
+        @com.legend.Nullable String relationalActivitySql(
+                String frameName, long activityNumber);
+
         /** The one activity read the platform can DERIVE:
          * aggregationAware {@code rewrittenQuery} — the routed print
          * recomputed from the frame's actual chain. Null when the chain
          * is not that shape. */
         @com.legend.Nullable String aggAwareRewrittenQuery(TypedSpec chain);
 
-        /** The activity log's {@code RelationalActivity[n].sql} — the
-         * engine-style rendered SQL of the frame's OWN query (the
-         * compiler's rendered text, the same derived-read doctrine as
-         * {@link #aggAwareRewrittenQuery}; helperFunctions.pure:38-60).
-         * Null when the frame cannot answer (no retained execute call,
-         * or an activity index this platform's single-statement
-         * execution does not produce). */
-        @com.legend.Nullable String relationalActivitySql(
-                String frameName, long activityNumber);
+        /** The same render for an INLINE execute call (a user-call
+         * frame's query). */
+        @com.legend.Nullable String relationalActivitySql(TypedNativeCall ec);
 
         /** A {@code toSQLString(...)} / {@code toSQLStringPretty(...)}
          * call's rendered text — the K-native evaluated WHEREVER the
@@ -141,6 +146,11 @@ public final class ResultEnvelopeSplice {
             public @com.legend.Nullable String aggAwareRewrittenQuery(
                     TypedSpec chain) {
                 return frames.aggAwareRewrittenQuery(chain);
+            }
+
+            @Override
+            public @com.legend.Nullable String relationalActivitySql(TypedNativeCall ec) {
+                return frames.relationalActivitySql(ec);
             }
 
             @Override
@@ -300,8 +310,9 @@ public final class ResultEnvelopeSplice {
                 return new TypedNativeCall(w.callee(), args, w.info(), w.pos());
             }
         }
-        // aggregationAware rewrittenQuery: a DERIVED read — the routed
-        // print recomputed from the frame's actual chain
+        // aggregationAware rewrittenQuery: the routed print (a Java fold
+        // — AggAwareActivities — that stands until the router records the
+        // rewrite as routed-tree ROWS; batch 25)
         TypedSpec act = activityEnvelopeRead(n, frames);
         if (act != null) {
             return act;
@@ -325,13 +336,17 @@ public final class ResultEnvelopeSplice {
         if (sqlCall != null) {
             return sqlCall;
         }
-        // F6.1: $r.activities — the engine's execution-activity trail.
-        // We record NONE, and we no longer pretend otherwise: the old
-        // empty-collection fold made absence asserts pass for the wrong
-        // reason (filter predicates never evaluated) and a fabricated
-        // UUID trace comment satisfied regex asserts the platform never
-        // earned. Any activities read the derived arm above cannot
-        // answer is a loud wall.
+        // $r.activities — the execution-activity trail as ROWS under the
+        // execute call's scope (registered when the frame was built): the
+        // read re-roots at the call, the resolver serves the rows. A
+        // frame that lost its call (an alias) keeps the loud wall — no
+        // activity is invented. (The sql()/sqlRemoveFormatting arms above
+        // stay: they are the SQL-TEXT REFEREE's classification — a
+        // text-divergent render still row-verifies through the oracle.)
+        TypedSpec rows = activitiesRowsRead(n, frames);
+        if (rows != null) {
+            return rows;
+        }
         if ((n instanceof TypedFilter tf && activitiesRead(tf.source(), frames))
                 || activitiesRead(n, frames)) {
             throw new com.legend.error.NotImplementedException(
@@ -348,6 +363,39 @@ public final class ResultEnvelopeSplice {
             return bf.chain();
         }
         return n;
+    }
+
+    /** {@code $frame.activities} re-rooted at the frame's execute call
+     * (its rows' scope); an INLINE {@code execute(...).activities} builds
+     * the frame (registering the rows) and stands AS WRITTEN — the same
+     * instance, the inliner's fixpoint. Null when not an activities read
+     * or the frame has no call. */
+    private static @com.legend.Nullable TypedSpec activitiesRowsRead(TypedSpec n,
+            Frames frames) {
+        if (n instanceof TypedFilter tf) {
+            TypedSpec src = activitiesRowsRead(tf.source(), frames);
+            return src == null ? null : src == tf.source() ? n
+                    : new TypedFilter(src, tf.predicate(), tf.info());
+        }
+        if (!(n instanceof TypedPropertyAccess ap)
+                || !ap.property().equals("activities")) {
+            return null;
+        }
+        if (ap.source() instanceof TypedVariable av
+                && frames.frame(av.name()) instanceof View f
+                && f.sourceExec() != null) {
+            return new TypedPropertyAccess(f.sourceExec(), "activities", ap.info());
+        }
+        TypedSpec src = ap.source();
+        while (src instanceof TypedFrom sf) {
+            src = sf.source();
+        }
+        if (src instanceof TypedNativeCall ec
+                && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())) {
+            frames.inlineExecute(ec, false);
+            return n;
+        }
+        return null;
     }
 
     /** The one activity read the platform can DERIVE: aggregationAware
@@ -443,13 +491,26 @@ public final class ResultEnvelopeSplice {
             coll = c2.source();
         }
         if (!(coll instanceof TypedFilter tf
-                && activitiesRead(tf.source(), frames)
                 && tf.source() instanceof TypedPropertyAccess ap
-                && ap.source() instanceof TypedVariable av
+                && ap.property().equals("activities")
                 && filterKeepsExactly(tf.predicate(), RELATIONAL_ACTIVITY_FQN))) {
             return null;
         }
-        String sql = frames.relationalActivitySql(av.name(), k);
+        String sql;
+        if (ap.source() instanceof TypedVariable av && frames.frame(av.name()) != null) {
+            sql = frames.relationalActivitySql(av.name(), k);
+        } else {
+            // the corpus sql() body inlined over a USER-CALL frame
+            // (let r = executeInternal(...)): the execute call stands
+            // inline — the referee's text still classifies
+            TypedSpec execSrc = ap.source();
+            while (execSrc instanceof TypedFrom sf) {
+                execSrc = sf.source();
+            }
+            sql = execSrc instanceof TypedNativeCall ec
+                    && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())
+                    && k == 0 ? frames.relationalActivitySql(ec) : null;
+        }
         return sql == null ? null : new TypedCString(sql, n.info());
     }
 

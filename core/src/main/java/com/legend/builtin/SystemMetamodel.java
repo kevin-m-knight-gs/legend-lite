@@ -111,6 +111,11 @@ public final class SystemMetamodel {
             sb.append("                Filter Vs").append(k[1])
                     .append("(metamodel.value_specifications.kind = '").append(k[1]).append("')\n");
         }
+        // the execution-activity kinds over the ONE activities table
+        for (String[] k : ACTIVITY_KINDS) {
+            sb.append("                Filter Act").append(k[1])
+                    .append("(metamodel.activities.kind = '").append(k[1]).append("')\n");
+        }
         return sb.toString();
     }
 
@@ -141,6 +146,28 @@ public final class SystemMetamodel {
         {"meta::pure::metamodel::valuespecification::VariableExpression", "VariableExpression", "vsVe",
             "name: " + S + " metamodel.value_specifications.var_name"},
     };
+
+    /** The execution-activity kinds (real Activity subclasses: the
+     * relational activity carries the SQL the platform ran — its own
+     * render; the aggregation-aware activity the routed query's print):
+     * {class FQN, kind spelling, set id, own property lines}. An
+     * execute()'s activities are ROWS under the call's scope
+     * (PlanAllocations.registerActivityRows). */
+    static final String[][] ACTIVITY_KINDS = {
+        {"meta::relational::mapping::RelationalActivity", "RelationalActivity", "actRel",
+            "sql: " + S + " metamodel.activities.sql,\n"
+            + "                    comment: " + S + " metamodel.activities.comment"},
+        {"meta::pure::mapping::aggregationAware::AggregationAwareActivity", "AggregationAwareActivity", "actAgg",
+            "rewrittenQuery: " + S + " metamodel.activities.rewritten_query"},
+    };
+
+    private static String activityRoutes(String prop, String join) {
+        List<String> lines = new ArrayList<>();
+        for (String[] k : ACTIVITY_KINDS) {
+            lines.add("                    " + prop + "[" + k[2] + "]: " + S + "@" + join);
+        }
+        return String.join(",\n", lines);
+    }
 
     private static String pkAssocRoutes() {
         List<String> lines = new ArrayList<>();
@@ -267,6 +294,29 @@ public final class SystemMetamodel {
                 .append("                    ~mainTable ").append(S).append(" metamodel.value_specifications\n")
                 .append("                    value: ").append(S).append(" metamodel.value_specifications.mult_upper\n")
                 .append("                }\n")
+                // EXECUTION ACTIVITIES as rows (2026-09-03): an execute()'s
+                // Result is a row keyed by the call's scope; its activities
+                // are the kinds' rows (Operation set over the one table)
+                .append("                *meta::pure::mapping::Result[res]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.results.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.results\n")
+                .append(activityRoutes("activities", "ResultToActivities")).append("\n")
+                .append("                }\n")
+                .append("                *meta::pure::mapping::Activity: Operation\n")
+                .append("                {\n")
+                .append("                    ").append(INHERITANCE_OP).append("\n")
+                .append("                }\n");
+        for (String[] k : ACTIVITY_KINDS) {
+            sb.append("                ").append(k[0]).append("[").append(k[2]).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Act").append(k[1]).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.activities.id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.activities\n")
+                    .append("                    ").append(k[3]).append("\n")
+                    .append("                }\n");
+        }
+        sb
                 .append("                *meta::lite::metamodel::InferredPrimaryKeyColumn[ipk]: Relational\n")
                 .append("                {\n")
                 .append("                    ~primaryKey(").append(S).append(" metamodel.vs_primary_key_columns.node_id, ")
@@ -618,7 +668,22 @@ public final class SystemMetamodel {
                         read_column VARCHAR(256) NOT NULL,
                         context VARCHAR(64) NOT NULL
                     )
+                    Table results
+                    (
+                        id VARCHAR(512) PRIMARY KEY
+                    )
+                    Table activities
+                    (
+                        id VARCHAR(512) PRIMARY KEY,
+                        result_id VARCHAR(512) NOT NULL,
+                        ordinal INTEGER NOT NULL,
+                        kind VARCHAR(64) NOT NULL,
+                        sql VARCHAR(65535) NOT NULL,
+                        comment VARCHAR(1024),
+                        rewritten_query VARCHAR(65535) NOT NULL
+                    )
                 )
+                Join ResultToActivities(metamodel.results.id = metamodel.activities.result_id)
                 Join PlanToRoot(metamodel.plans.root_node_id = metamodel.plan_nodes.id)
                 Join NodeToChildren(metamodel.plan_nodes.id = {target}.parent_id)
                 Join PlanToTemplateFunctions(metamodel.plans.id = metamodel.plan_template_functions.plan_id)

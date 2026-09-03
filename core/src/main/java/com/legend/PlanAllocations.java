@@ -200,6 +200,69 @@ final class PlanAllocations {
         }
     }
 
+    /** The engine-style SQL pipeline shared by toSQLString and the plan
+     * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
+     * form, I lower — IR plus rendered text. */
+    /** The SQL an execute() call's RelationalActivity records: the
+     * engine-style render of the call's own query — the SAME pipeline as
+     * toSQLString(query, mapping, H2, ext) (the activity log records the
+     * SQL the engine GENERATED; goldens are engine-H2-spelled). Null when
+     * the call's query or mapping is not a literal (a plan-execute, a
+     * variable the frame cannot see). */
+    static @com.legend.Nullable String activitySql(
+            com.legend.compiler.spec.typed.TypedNativeCall ec,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
+        if (ec.args().size() < 2) {
+            return null;
+        }
+        // the query and mapping arguments through the caller's lets
+        // (let query = {|...}; execute($query, $mapping, ...))
+        com.legend.compiler.spec.typed.TypedSpec q = com.legend.compiler.spec.ExecuteChainAssembly
+                .letBound(ec.args().get(0), letPrefix);
+        com.legend.compiler.spec.typed.TypedSpec m = com.legend.compiler.spec.ExecuteChainAssembly
+                .letBound(ec.args().get(1), letPrefix);
+        if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)
+                || !(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+            return null;
+        }
+        try {
+            var renderer = new com.legend.sql.dialect.EngineStyleH2();
+            StatementExecutor.EngineSql es = StatementExecutor.engineSql(lam, pr.fullPath(), specs, env, renderer);
+            com.legend.sql.SqlQuery post =
+                    com.legend.lowering.SqlPostProcessors.apply(
+                            es.plan(), com.legend.exec
+                                    .PostProcessBoundary.tableReplace());
+            return post == es.plan() ? es.sql() : renderer.render(post);
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.compiler.spec.TypeInferenceException
+                | com.legend.error.MappingResolutionException
+                | IllegalStateException e) {
+            return null;
+        }
+    }
+
+
+    /** An execute() call's Result and activity rows under the call's
+     * scope: ONE RelationalActivity carrying the SQL the platform ran
+     * (its own render — the same pipeline as toSQLString); no comment is
+     * invented (the engine stamps a trace id; this platform records
+     * none), and no rewritten query is printed from Java (the routed
+     * query as rows is its own leg). */
+    static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
+            @com.legend.Nullable String sql, StatementExecutor.ExecEnv env) {
+        String scope = com.legend.plan.PlanRows.scopeId(ec);
+        if (sql == null || env.planRows().containsKey(scope)) {
+            return;
+        }
+        java.util.Map<String, java.util.List<java.util.List<String>>> rows =
+                new java.util.LinkedHashMap<>();
+        rows.put("results", java.util.List.of(java.util.List.of(scope)));
+        rows.put("activities", java.util.List.of(java.util.List.of(
+                scope + "/0", scope, "0", "RelationalActivity", sql, "", "")));
+        env.planRows().put(scope, rows);
+    }
+
     /** Every HANDLE native call inside a let's binding registers its rows
      * (the handle may sit under ->toOne(), ->removeDuplicates(), a cast —
      * the walk is shape-free). */
