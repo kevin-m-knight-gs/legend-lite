@@ -2299,6 +2299,34 @@ testNonDataTypeProperty maps over `removeDuplicates(scanColumns(...))`
 rows with a string mapper (1); `sum` over `firm.employees.age` behind a
 to-one head (testFilterTimesWithManyOperands, study #12).
 
+**Batch 47 — parseDate AS A SEMANTIC NODE (2026-09-03): ratchet 285/2288 →
+284/2289 (+1, ZERO lost).** `parseDate(text)` lowered straight to a typed
+CAST, so the engine-style H2 referee text could never carry the engine's
+spelling; now `Scalars` emits `Cast(Call(PARSE_DATE, text), DATE|TIMESTAMP)`
+(the zone-carrying literal branch unchanged), `AnsiSqlRenderer` spells the
+node `CAST(x AS TIMESTAMP)` (DuckDB / H2 execution), `EngineStyleH2` spells
+the engine's `toTimestamp` idiom `cast(parsedatetime(x, 'yyyy-MM-dd
+HH:mm:ss[.S…]') as timestamp)` (h2Extension2_1_214 transformToTimestampH2:
+processParseDate appends the ONE fixed 'YYYY-MM-DD HH24:MI:SS' format);
+`SqlTyping` types it TIMESTAMP; SpellingsTest lists it CODED. Flipped:
+tdsExtend testParseDate (`assert($sql->contains('parsedatetime'))`). PROBED
+AND NAMED (not burned): testRestrictOnGroupByEleminatesUnnecessaryAggs
+WithDistinct asserts the engine DROPS the unused `max` aggregate from the
+SQL after restrict (a projection-pruning optimisation across
+distinct/restrict — design, 1); testProjectWithIfWhereOneSideIsEnumLiteral
+(+2 siblings) index rows of an unsorted query (engine-cased scan order);
+testExtendDigest_* (3) — `extendWithDigestOnColumns` is a
+NormalizeRequiredFunction reading `$input.columns` metadata and `eval`ing a
+returned accessor lambda per column (the α-rename's `_nr2` unbound is the
+first symptom, the columns-metadata reflection the real leg);
+iqrClassify/zScore (2) — `project([col(p|$p.first,'name')…])` over a
+Pair[*] collection (col() unnormalized on a class-collection project);
+testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner — real
+row divergence (last isolated join reads [] where the engine reads
+'OrgName2'); graphFetch milestoning testMilestonedRootAndMilestonedProperty
+(2) — "trailing JSON at 191" in the JSON verdict parse. Lane numbers
+unchanged (exec-passing 60, M1 rescued 54; disagree 0).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

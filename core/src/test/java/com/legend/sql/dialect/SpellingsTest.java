@@ -20,6 +20,7 @@ class SpellingsTest {
 
     /** Fns rendered by CODE (infix, shape logic, composites, idiom points). */
     private static final Set<SqlFn> CODED = Set.of(
+            SqlFn.PARSE_DATE,
             // day-grained truncation delivers a DATE (§8.3a carrier
             // burn, dialect-owned): the base arm casts where this
             // backend's date_trunc returns TIMESTAMP; engine-text

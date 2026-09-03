@@ -439,7 +439,7 @@ public final class SqlTyping {
                     ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
-            case NOW, MAKE_TIMESTAMP, STRPTIME, FROM_EPOCH_SECONDS,
+            case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
                     FROM_EPOCH_MS, TIMEZONE -> T_TIMESTAMP;
             // PROBED 1.5.0 (2026-08-25 full-burn): the list aggregates
             // follow the SAME reducer promotions as their grouped

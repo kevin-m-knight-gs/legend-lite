@@ -2319,7 +2319,7 @@ final class Scalars {
                 // midnight DateTime under a StrictDate stamp, which only
                 // the PCT adapter's narrowing arm absorbed (now deleted).
                 Type rt = n.info().type();
-                return new SqlExpr.Cast(in, PureSql.type(
+                return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.PARSE_DATE, in), PureSql.type(
                         rt == Type.Primitive.STRICT_DATE
                                 ? Type.Primitive.STRICT_DATE
                                 : Type.Primitive.DATE_TIME));

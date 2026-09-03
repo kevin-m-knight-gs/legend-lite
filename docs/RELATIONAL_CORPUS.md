@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 1 |
+| tds/tests | 266 | 255 | 1 | 9 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 11 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 0 | 1 | 2 | 2 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2381** | 48 | 102 | 44 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2382** | 47 | 102 | 44 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2381 PASS = 2320 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2382 PASS = 2321 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -991,7 +991,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2381 PASS = 2320 clean + 61 carrying softness (
 - ERROR zScoreTest [tds/tests]: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - ERROR resolveSchemaTest [tds/tests]: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSortQuotes [tds/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::meta::enumValues' with 1 parameter(s)
-- FAIL testParseDate [tds/tests]: assert did not hold (false)
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
 - SHAPE testExecutionPlanGeneration [tds/tests]: plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeVar[name=?], multiplicity=Bounded[lower=1, upper=1]],
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: testDataGen: view-backed relation 'AltID_View' — view slice pending [surfaced via assert form 'assertEquals/2']

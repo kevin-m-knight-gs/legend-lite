@@ -1671,6 +1671,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // substring(x, 1, 10) + the Java pattern for ALL date-only
             // formats; datetime formats parse the whole string. UNMATCHED
             // formats THROW rather than leak DuckDB strptime() text.
+            // parseDate: the engine's toTimestamp dyna function on H2
+            // (h2Extension2_1_214 transformToTimestampH2 — ONE fixed pattern)
+            case PARSE_DATE -> "cast(parsedatetime(" + expr(a.get(0), 0)
+                    + ", 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]') as timestamp)";
             case STRPTIME -> {
                 if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
                     String java = h2Pattern(fl);

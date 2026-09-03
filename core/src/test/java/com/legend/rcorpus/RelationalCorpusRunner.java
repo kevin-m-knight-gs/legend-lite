@@ -1608,10 +1608,15 @@ public class RelationalCorpusRunner {
             // over the read (Pipelines.composeScalarReadMap). +2
             // (relationalTDSTypeForColumnsAndQuoting,
             // testComplexOrExistsToManyProperty), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(285L,
+            // 285 -> 284 (batch 47, 2026-09-03): parseDate is a SEMANTIC
+            // node (SqlFn.PARSE_DATE) the dialects spell — the engine-style
+            // H2 text is the engine's toTimestamp idiom
+            // cast(parsedatetime(x, '<pattern>') as timestamp); the
+            // execution dialects cast. +1 (tdsExtend testParseDate), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(284L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2288L,
+            org.junit.jupiter.api.Assertions.assertEquals(2289L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

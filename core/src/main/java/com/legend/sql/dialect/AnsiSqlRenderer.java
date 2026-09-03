@@ -754,6 +754,9 @@ public class AnsiSqlRenderer implements SqlDialect {
             case LIST_FOR_ALL -> listForAll(a);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> "CAST(" + expr(a.get(0), 0) + " AS BIGINT)";
+            // parseDate(text): the ISO text as a timestamp (the semantic
+            // node; the engine-style H2 spells its parsedatetime idiom)
+            case PARSE_DATE -> "CAST(" + expr(a.get(0), 0) + " AS TIMESTAMP)";
             case VARIANT_ELEMENTS -> variantElements(a);
             case VARIANT_GET -> variantGet(a);
             // Not a spelling row, not a coded rule: LOUD. Exhaustiveness is
