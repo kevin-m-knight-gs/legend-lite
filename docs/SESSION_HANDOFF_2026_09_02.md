@@ -1082,10 +1082,21 @@ read-only after the graph's rows (batches 8–13 above).
 DEFINITION OF DONE: every test the harness still scores in Java runs
 through the ONE compile/router path and the database's verdict — the
 fallback lane, the quarantine channel and the census pins are DELETED,
-the referees stay (H2Verify, TdsCompare, the replay oracle). "As close as
-makes sense" = a named, justified residue (engine-defect divergences such
-as null-vs-value; tests that assert Java-runtime facts), each listed with
-its reason, never a bucket.
+the referees stay (H2Verify, TdsCompare, the replay oracle). RESIDUE IS
+THE LAST RESORT (user, 2026-09-03): a test may be left behind ONLY when
+(a) running it on the platform makes no sense (it asserts a fact about
+the Java runtime itself) AND (b) no emulation or validation route exists
+— and the search for that route is part of the batch, not an
+afterthought. The precedent is the H2 SQL REPLAY ORACLE: an SQL-text
+golden the platform will never spell byte-identically is VALIDATED by
+executing the golden against the same data and comparing ROWS — the
+verdict moved into the database instead of being declared out of scope.
+Every other "can't" must first be tried as one of: seed the fact as rows
+(metamodel-as-relations), carry it in the query (inline relations),
+validate by replay/referee (rows, not text), or emulate the engine
+behavior in the dialect. What remains is a NAMED list, one line of
+reason each, never a bucket; "engine defect" (null-vs-value) counts
+only with the foundation probe's adjudication cited.
 THE BURN MAP (fallbacks by census group; homework §1 + the bucket dump —
 cut legs BY GROUP, never by wall label; the 64-test "TypedMap (HN
 vocabulary)" bucket is heterogeneous):
