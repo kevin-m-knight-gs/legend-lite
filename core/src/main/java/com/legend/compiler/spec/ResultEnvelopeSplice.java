@@ -200,6 +200,15 @@ public final class ResultEnvelopeSplice {
                     new ExprType(Type.relation(cntRow), one1));
             return new TypedNativeCall(szr.callee(), List.of(proj), szr.info(), szr.pos());
         }
+        // cast(@TabularDataSet) over a SPLICED relation is the identity
+        // (CastChecker's rule, which typing could not apply: the envelope
+        // read is a relation only after the splice)
+        if (n instanceof TypedCast tc
+                && tc.target() instanceof Type.GenericType tg
+                && PlatformTypes.TABULAR_DATA_SET.equals(tg.rawFqn())
+                && Type.isRelation(tc.source().info().type())) {
+            return tc.source();
+        }
         // the Typer's `.rows` MARKER (identity over a relation value):
         // it exists so the arms below can tell a REAL row index
         // ($r.values.rows->at(k)) from the Result envelope

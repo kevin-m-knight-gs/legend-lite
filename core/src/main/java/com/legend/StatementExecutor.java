@@ -2007,9 +2007,12 @@ final class StatementExecutor {
                         "plan-execute: plan argument does not trace to"
                                 + " an executionPlan(...) build");
             }
+            // the values through the caller's lets (a helper's
+            // parametersValues parameter bound to [] at the call)
             if (ec.args().size() > 1
-                    && !(ec.args().get(1) instanceof com.legend.compiler
-                            .spec.typed.TypedCollection pv
+                    && !(com.legend.compiler.spec.ExecuteChainAssembly
+                            .letBound(ec.args().get(1), letPrefix)
+                            instanceof com.legend.compiler.spec.typed.TypedCollection pv
                             && pv.elements().isEmpty())) {
                 throw new com.legend.error.NotImplementedException(
                         "plan-execute: parametersValues binding pending"
@@ -2102,10 +2105,9 @@ final class StatementExecutor {
                 rtArg = new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(java.util.List.of(rtArg)).get(0);
             }
-            final java.util.List<TypedSpec> lp0 = letPrefix;
             com.legend.lowering.SqlPostProcessors.Hooks hooks = com.legend.lowering
                     .SqlPostProcessors.hooks(rtArg, v -> com.legend.compiler.spec
-                            .ExecuteChainAssembly.letBound(v, lp0));
+                            .ExecuteChainAssembly.letBound(v, letPrefix));
             java.util.Map<String, String> tr = hooks.tableReplace();
             com.legend.exec.PostProcessBoundary.record(tr);
             com.legend.exec.PostProcessBoundary.recordExtractCtes(hooks.extractCtes());

@@ -435,6 +435,8 @@ public final class StoreResolver {
                     && !Type.isRelation(f.source().info().type())
                     && f.source() instanceof TypedPropertyAccess ->
                     foldScalarHopFilter(f, context);
+            case TypedSpec te when Anchors.tdsErase(te) != null ->
+                    resolveNode(java.util.Objects.requireNonNull(Anchors.tdsErase(te)), context);
             case TypedPropertyAccess pa when objectSpace(pa.source())
                     && !(pa.info().type() instanceof Type.ClassType) ->
                     scalarReadAsProject(pa, context);
@@ -556,7 +558,9 @@ public final class StoreResolver {
                 if (am == null) {
                     throw new NotImplementedException("class query under"
                             + " TypedPropertyAccess is not resolvable yet"
-                            + " (H2 vocabulary)");
+                            + " (H2 vocabulary)"
+                            + (System.getenv("LL_TMP_DEBUG") != null
+                                    ? " <<" + Anchors.compact(n, 8) + ">>" : ""));
                 }
                 yield resolveNode(am, context);
             }
@@ -1278,14 +1282,10 @@ public final class StoreResolver {
                         instanceof TypedCInteger;
     }
 
-    /** Instance removeDuplicates/distinct replayed over the materialized
-     * row: the DISTINCT tuple. */
     private TypedDistinct instanceDistinct(ClassSource cs, Pipelines.Materialized m,
                                            TypedSpec pipeline) {
-        // dedup by the MAPPED row (engine instance identity): the class's
-        // own columns plus its TO-ONE navigation slots (a function of the
-        // row — dedup-neutral; a read after removeDuplicates finds them);
-        // to-many materials (exists) multiply the row and stay out.
+        // dedup by the MAPPED row: own columns + TO-ONE navigation slots
+        // (dedup-neutral); to-many materials multiply the row, stay out
         Type.RelationType pipeRow =
                 Type.requireRelationSchema(pipeline.info().type());
         Set<String> own = new LinkedHashSet<>();

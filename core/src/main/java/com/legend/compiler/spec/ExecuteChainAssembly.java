@@ -491,8 +491,13 @@ public final class ExecuteChainAssembly {
             chain = new TypedFrom(chain, Optional.of(p.mref()), runtime,
                     chainMappings, jsonSources, chain.info());
         }
+        // a TDS-typed root (tableToTDS, a TabularDataSet-declared value)
+        // is ONE relation like a schema-typed one: its values envelope
+        // holds one TDS
         return new Chain(chain,
-                Type.isRelation(chain.info().type()));
+                Type.isRelation(chain.info().type())
+                        || com.legend.compiler.element.type.PlatformTypes
+                                .isTdsType(chain.info().type()));
     }
 
     /** Whether the chain (transitively) carries a {@code ->from()}. */

@@ -218,6 +218,11 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 32 (plan-execute FRAMES — the let-chase, rows/cast erase, TDS roots, 2026-09-03): chain 6m00s** —
+G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
+430/2143 → 416/2157 (+14, 0 lost); exec-passing declines 170 → 167; other pins
+unchanged.
+
 **Batch 31 (the query FRONT DOOR — validate desugar in the platform path, 2026-09-03): chain 6m00s** —
 G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
 446/2127 → 430/2143 (+16, 0 lost); exec-passing declines 171 → 170; other pins

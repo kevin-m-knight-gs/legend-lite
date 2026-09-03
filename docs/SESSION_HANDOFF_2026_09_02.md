@@ -1841,9 +1841,26 @@ complex 10, showcase 5, businessdate 1. A platform feature must never
 depend on a harness preamble to fire — the same lesson as batch 26's
 second pipeline.
 
+**Batch 32 — PLAN-EXECUTE FRAMES (2026-09-03): ratchet 430/2143 →
+416/2157 (+14, ZERO lost).** The census's "plan-execute: parametersValues
+binding pending (17)" was NOT the chartered referee-binding cut at all:
+every TDG helper call passes `[]`, but the executor tested the helper's
+PARAMETER variable, not its let-bound value — chased through the lets, the
+frame builds. Then the helper's read `$result.values->at(0)->cast(@Tabular
+DataSet).rows->isNotEmpty()`: a relation's `.rows` ARE the relation and
+`cast(@TabularDataSet)` over a relation is the identity (`Anchors.tdsErase`
+— CastChecker's rule, which typing could not apply because an envelope read
+becomes a relation only at the splice); and a TDS-typed root (`tableToTDS`,
+a TabularDataSet-declared value) is a relation-rooted frame like a
+schema-typed one. testDataGeneration 14. Remainder in the family, named:
+`functionReturnType` unported (4), the tableToTDS plan frame still reading
+its values as an instance list (3, `struct_extract` over a list), the
+chained-fetch text declines (5, charter §5 item 3), one column-spec typing,
+one generateTestData inline-shape wall.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 430 fallbacks / 2143 flipped (batches 14–31 = group D,
+legs).** State: 416 fallbacks / 2157 flipped (batches 14–32 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

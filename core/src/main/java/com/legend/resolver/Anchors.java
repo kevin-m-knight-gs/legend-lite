@@ -281,4 +281,32 @@ final class Anchors {
         }
         return sb.toString();
     }
+
+    /** The relation a TDS-surface identity erases to: {@code <relation>.rows}
+     * (a relation's rows ARE the relation) and {@code cast(@TabularDataSet)}
+     * over a relation (CastChecker's rule the typer could not apply to an
+     * envelope read, which becomes a relation only at the splice) — seen
+     * through stacked casts. Null when {@code n} is neither. */
+    static @com.legend.Nullable TypedSpec tdsErase(TypedSpec n) {
+        TypedSpec src = n instanceof TypedPropertyAccess pa && pa.property().equals("rows")
+                ? pa.source() : n instanceof com.legend.compiler.spec.typed.TypedCast ? n : null;
+        if (src == null) {
+            return null;
+        }
+        TypedSpec cur = src;
+        boolean peeled = false;
+        while (cur instanceof com.legend.compiler.spec.typed.TypedCast tc
+                && tc.target() instanceof com.legend.compiler.element.type.Type.GenericType tg
+                && com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
+                        .equals(tg.rawFqn())) {
+            cur = tc.source();
+            peeled = true;
+        }
+        if (!(n instanceof TypedPropertyAccess) && !peeled) {
+            return null;   // an ordinary cast is not this shape
+        }
+        return com.legend.compiler.element.type.Type.isRelation(cur.info().type())
+                || com.legend.compiler.element.type.PlatformTypes.isTdsType(cur.info().type())
+                ? cur : null;
+    }
 }

@@ -1000,7 +1000,9 @@ public class RelationalCorpusRunner {
             // milestoning tests' sql-asserts left the walk's lane (lane move).
             // 171 -> 170 (batch 31 — the validate desugar in the platform
             // path): one businessdate sql-assert left the walk's lane.
-            org.junit.jupiter.api.Assertions.assertEquals(170, execPassing,
+            // 170 -> 167 (batch 32 — plan-execute frames): three TDG
+            // sql-asserts left the walk's lane (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(167, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1442,10 +1444,21 @@ public class RelationalCorpusRunner {
             // resolveQuery is now the one entry (desugar, driver-pk option,
             // name resolution) and the flip resolves through it. +16
             // (validation complex 10, showcase 5, businessdate 1), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(430L,
+            // 430/2143 -> 416/2157 (batch 32 — PLAN-EXECUTE FRAMES,
+            // 2026-09-03): `$plan->execute($parametersValues, ext)` inside
+            // the TDG helper walled on "parametersValues binding pending"
+            // because the values argument was the helper's PARAMETER (bound
+            // to [] at the call) — chased through the lets now; then the
+            // helper's `$result.values->at(0)->cast(@TabularDataSet).rows
+            // ->isNotEmpty()` read: a relation's .rows ARE the relation and
+            // cast(@TabularDataSet) over a relation is the identity
+            // (Anchors.tdsErase — CastChecker's rule the typer could not
+            // apply to an envelope read); a TDS-typed root (tableToTDS) is a
+            // relation-rooted frame. +14 (testDataGeneration), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(416L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2143L,
+            org.junit.jupiter.api.Assertions.assertEquals(2157L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
