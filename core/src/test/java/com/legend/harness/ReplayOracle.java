@@ -502,6 +502,26 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx) {
+        // the STATIC extent-subset fact of the verified chain (computed on
+        // the platform's typed chain — a class extent through subset-
+        // preserving ops) arms the graph compare's pk-collapse exactly as
+        // the walk lane arms it (EngineTestExecutor.extentSubset)
+        H2Verify.EXTENT_SUBSET.set(extentSubset);
+        try {
+            return verifyArmed(session, goldenSql, ours, mappingFqn,
+                    rootClassFqn, ctx);
+        } finally {
+            H2Verify.EXTENT_SUBSET.remove();
+        }
+    }
+
+    private com.legend.exec.SqlReplayOracle.RowVerdict verifyArmed(
+            java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
             com.legend.compiler.element.ModelContext ctx) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
                 new java.util.LinkedHashMap<>();

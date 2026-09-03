@@ -123,7 +123,8 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         lam.body().get(0), mapping),
-                null, mapping.fullPath(), rootClassFqn(lam), letPrefix,
+                null, mapping.fullPath(), rootClassFqn(lam),
+                com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(0)), letPrefix,
                 specs, env, hook);
     }
 
@@ -193,11 +194,12 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        String[] fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
         return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, fm[0], fm[1], letPrefix, specs, env, hook);
+                null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
+                specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3d — the DUAL-GOLDEN arm:
@@ -282,11 +284,12 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        String[] fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
         return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                 textEqual, oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, fm[0], fm[1], letPrefix, specs, env, hook);
+                null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
+                specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3c — the EXEC-SQL-READ arm (the ~700-test
@@ -366,11 +369,12 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        String[] fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, fm[0], fm[1], letPrefix, specs, env, hook);
+                null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
+                specs, env, hook);
     }
 
     /** The exec-sql-read producer node: a {@code sql($res)} /
@@ -519,7 +523,8 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         lam.body().get(lam.body().size() - 1), mapping),
-                replay, mapping.fullPath(), rootClassFqn(lam), bound,
+                replay, mapping.fullPath(), rootClassFqn(lam),
+                com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(lam.body().size() - 1)), bound,
                 specs, env, hook);
     }
 
@@ -723,7 +728,7 @@ final class SqlTextVerdicts {
             SqlReplayOracle oracle, TypedSpec rowsRead,
             @com.legend.Nullable String replaySqlOrNull,
             @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String classFqn,
+            @com.legend.Nullable String classFqn, boolean extentSubset,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
@@ -754,7 +759,7 @@ final class SqlTextVerdicts {
         }
         SqlReplayOracle.RowVerdict rv = oracle.verify(env.connection(),
                 replaySqlOrNull != null ? replaySqlOrNull : golden,
-                rows, mappingFqn, classFqn, env.ctx());
+                rows, mappingFqn, classFqn, extentSubset, env.ctx());
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number
@@ -825,7 +830,14 @@ final class SqlTextVerdicts {
      * call — {@code execute(lambda, mapping, runtime, ...)}. Nulls when
      * the frame is not an execute() (a validate()/other frame keeps the
      * counted enum decline). */
-    private static String[] frameMappingAndClass(TypedSpec resultArg,
+    /** The executed frame's mapping, root class, and STATIC extent-subset
+     * fact (a class extent through subset-preserving ops — the graph
+     * compare's pk-collapse licence). */
+    private record FrameFacts(@com.legend.Nullable String mapping,
+            @com.legend.Nullable String cls, boolean extentSubset) {
+    }
+
+    private static FrameFacts frameMappingAndClass(TypedSpec resultArg,
             List<TypedSpec> letPrefix,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
         TypedSpec src = com.legend.compiler.spec.ExecuteChainAssembly
@@ -860,9 +872,13 @@ final class SqlTextVerdicts {
                     .letBound(ec.args().get(0), letPrefix);
             String cls = lamArg instanceof TypedLambda lam
                     && !lam.body().isEmpty() ? rootClassFqn(lam) : null;
-            return new String[] {mapping, cls};
+            boolean subset = lamArg instanceof TypedLambda lam2
+                    && !lam2.body().isEmpty()
+                    && com.legend.compiler.spec.VerdictQueries.extentSubset(
+                            lam2.body().get(lam2.body().size() - 1));
+            return new FrameFacts(mapping, cls, subset);
         }
-        return new String[] {null, null};
+        return new FrameFacts(null, null, false);
     }
 
     private static @com.legend.Nullable String rootClassFqn(

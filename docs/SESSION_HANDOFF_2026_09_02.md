@@ -2142,9 +2142,23 @@ testErrorDueToNoSeedForRoot. Lane moves: M1 verified 4 → 1, exec-passing
 alloy extend-over-tableToTDS test whose col spec is typed standalone inside
 the TDG relation scan (named).
 
+**Batch 42 — THE PK-COLLAPSE FACT IN THE VERDICT-ARM LANE (2026-09-03):
+ratchet 304/2269 → 303/2270 (+1, ZERO lost).** The walk lane armed the
+graph compare's pk-collapse (`H2Verify.EXTENT_SUBSET`, charter §6.1: the
+engine's join fan-out re-manufactures one object per pk) from its own
+static read of the raw chain; the platform's sql-text arm never did, so a
+class query with an OR of qualified-property navigations (7 golden rows,
+one object) diverged. Now `SqlReplayOracle.verify` takes the STATIC
+extent-subset fact computed on the TYPED chain (`SqlTextVerdicts.
+extentSubset`: getAll through filter/sort/sortBy/limit/slice/drop/from/
+first/last/toOne/take), recovered for exec-read frames through the splice
+hook alongside the mapping (`FrameFacts`), and the harness oracle arms the
+flag around its compare. Flipped: testQualifierQueryWithOr. Lane moves:
+exec-passing 76 → 75, M1 rescued 63 → 62; passes 2379; disagree 0.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 304 fallbacks / 2269 flipped (batches 14–41 = group D,
+legs).** State: 303 fallbacks / 2270 flipped (batches 14–42 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

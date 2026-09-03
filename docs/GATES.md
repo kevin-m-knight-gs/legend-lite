@@ -218,6 +218,10 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 42 (the static extent-subset fact from the typed chain arms the oracle's pk-collapse in the verdict-arm lane, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 304/2269 → 303/2270 (+1, 0 lost); lane moves exec-passing 76 → 75, M1 rescued 63 → 62
+(passes 2379, disagree 0).
+
 **Batch 41 (let-bound column arguments bind at project; the TDG no-seed Error plan, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 308/2265 → 304/2269 (+4, 0 lost); lane moves M1 verified 4 → 1, exec-passing 79 → 76,
 text-only 26 → 25 (passes 2379, disagree 0).

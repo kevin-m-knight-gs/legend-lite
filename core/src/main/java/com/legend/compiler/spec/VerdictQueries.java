@@ -186,6 +186,39 @@ public final class VerdictQueries {
     /** The frame variable's {@code .activities} read — the node the
      * splice hook resolves to the frame's own execute() call (the
      * verdict arms recover a frame's mapping through it). */
+    /** Whether a typed chain is a SUB-COLLECTION of a class extent:
+     * getAll through filter/sort/limit/slice/drop/from/first/last/toOne
+     * (the walk lane's extentSubset, on the typed tree). */
+    public static boolean extentSubset(TypedSpec n) {
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedGetAll g -> true;
+            case com.legend.compiler.spec.typed.TypedFilter f ->
+                    extentSubset(f.source());
+            case com.legend.compiler.spec.typed.TypedSort s ->
+                    extentSubset(s.source());
+            case com.legend.compiler.spec.typed.TypedSortBy s ->
+                    extentSubset(s.source());
+            case com.legend.compiler.spec.typed.TypedLimit l ->
+                    extentSubset(l.source());
+            case com.legend.compiler.spec.typed.TypedSlice l ->
+                    extentSubset(l.source());
+            case com.legend.compiler.spec.typed.TypedDrop d ->
+                    extentSubset(d.source());
+            case com.legend.compiler.spec.typed.TypedFrom f ->
+                    extentSubset(f.source());
+            case com.legend.compiler.spec.typed.TypedNativeCall c when !c.args().isEmpty() -> {
+                String q = c.callee().qualifiedName();
+                String simple = q.substring(q.lastIndexOf(':') + 1);
+                yield switch (simple) {
+                    case "first", "last", "toOne", "take", "limit", "drop",
+                            "slice" -> extentSubset(c.args().get(0));
+                    default -> false;
+                };
+            }
+            default -> false;
+        };
+    }
+
     public static TypedSpec activitiesRead(TypedSpec frameVar) {
         return new com.legend.compiler.spec.typed.TypedPropertyAccess(
                 frameVar, "activities", frameVar.info());

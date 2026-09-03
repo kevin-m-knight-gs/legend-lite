@@ -64,6 +64,7 @@ public interface SqlReplayOracle {
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
             com.legend.compiler.element.ModelContext ctx);
 
     /** MATCH = rows agree (the verdict of record); DIVERGED = rows

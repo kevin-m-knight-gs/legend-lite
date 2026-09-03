@@ -1023,7 +1023,9 @@ public class RelationalCorpusRunner {
             // passes 2377 -> 2378, disagree 0).
             // 79 -> 76 (batch 41): the flipped projection tests' sql-asserts
             // left the walk's lane (lane move, passes 2378 -> 2379).
-            org.junit.jupiter.api.Assertions.assertEquals(76, execPassing,
+            // 76 -> 75 (batch 42): the flipped class-query sql-assert left
+            // the walk's lane (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(75, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1554,10 +1556,16 @@ public class RelationalCorpusRunner {
             // deferred let and binds through the alias chase); the TDG plan
             // for a root without row identifiers is the engine's Error node
             // over the top-5 primary-key sample. +4, 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(304L,
+            // 304 -> 303 (batch 42, 2026-09-03): the verdict-arm rows leg
+            // hands the oracle the STATIC extent-subset fact of the typed
+            // chain (a class extent through filter/sort/limit/...), which
+            // arms the graph compare's pk-collapse exactly as the walk lane
+            // does — the engine's join fan-out re-manufacturing one object
+            // is not a divergence. +1 (testQualifierQueryWithOr), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(303L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2269L,
+            org.junit.jupiter.api.Assertions.assertEquals(2270L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1796,8 +1804,9 @@ public class RelationalCorpusRunner {
                     // sql-asserts now row-verify as platform-arm verdicts).
                     // 75 -> 63 (batch 38): the same lane move as
                     // M1_VERIFIED 9 -> 4.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 63,
-                    "M1 h2-exec rescued fell below the 63 floor: "
+                    // 63 -> 62 (batch 42): the same lane move.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 62,
+                    "M1 h2-exec rescued fell below the 62 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

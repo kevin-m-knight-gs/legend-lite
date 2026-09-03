@@ -582,7 +582,11 @@ class JavaEvalLedgerTest {
             // text's sql line; a multi-node plan stays a counted text
             // contract) — routing only; the oracle still executes both
             // sides in their databases.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 657),
+            // 657 -> 669 (batch 42, 2026-09-03): the exec-read frame facts
+            // carry the STATIC extent-subset fact (VerdictQueries.extentSubset
+            // over the typed chain — the compiler layer owns the walk) to
+            // the oracle's pk-collapse — routing of a fact, no evaluation.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 669),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
