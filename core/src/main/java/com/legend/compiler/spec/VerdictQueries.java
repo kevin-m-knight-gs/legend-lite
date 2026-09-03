@@ -183,6 +183,14 @@ public final class VerdictQueries {
      * a message-carrying assert ({@code assertEquals(e, a, fmt, args)})
      * normalizes to its two-argument form (the message is failure text,
      * never part of the verdict). */
+    /** The frame variable's {@code .activities} read — the node the
+     * splice hook resolves to the frame's own execute() call (the
+     * verdict arms recover a frame's mapping through it). */
+    public static TypedSpec activitiesRead(TypedSpec frameVar) {
+        return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                frameVar, "activities", frameVar.info());
+    }
+
     public static List<TypedSpec> unrolledElement(SpecCompiler specs,
             List<TypedSpec> letPrefix, TypedLambda lam, TypedSpec element,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,

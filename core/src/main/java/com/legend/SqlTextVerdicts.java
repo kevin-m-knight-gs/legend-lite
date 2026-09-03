@@ -74,8 +74,14 @@ final class SqlTextVerdicts {
         // the producer's CHILDREN are the structured inputs (§3.4):
         // query lambda, mapping ref, dialect. Anything else is a shape
         // this arm does not own yet.
+        // the query lambda may be LET-BOUND (`let func = {|...};
+        // toSQLString($func, mapping, DatabaseType.H2, ...)`) — chased
+        // like the plan-text arm chases its lambda
+        TypedSpec lamArg = producer.args().isEmpty() ? null
+                : com.legend.compiler.spec.ExecuteChainAssembly.letBound(
+                        producer.args().get(0), letPrefix);
         if (producer.args().size() < 3
-                || !(producer.args().get(0) instanceof TypedLambda lam)
+                || !(lamArg instanceof TypedLambda lam)
                 || lam.body().size() != 1
                 || !(producer.args().get(1)
                         instanceof TypedPackageableRef mapping)
@@ -149,7 +155,11 @@ final class SqlTextVerdicts {
             // fetch text) takes the SAME exec-read arm assertEquals takes:
             // an sql() read is a rows verdict, never a text comparison; a
             // plain String pair stays the ordinary string overload
-            return tryArmExecRead("assertSameSQL", root.args(), letPrefix,
+            // (the general arm: a toSQLString producer takes the
+            // dialect-aware verdict — rows on H2, the counted text
+            // contract for a foreign dialect; otherwise the exec-read
+            // arms)
+            return tryArm("assertSameSQL", true, root.args(), letPrefix,
                     specs, env, hook);
         }
         TypedSpec strip = com.legend.compiler.spec.VerdictQueries
@@ -183,10 +193,11 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
+        String[] fm = frameMappingAndClass(resultArg, letPrefix, hook);
         return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, null, null, letPrefix, specs, env, hook);
+                null, fm[0], fm[1], letPrefix, specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3d — the DUAL-GOLDEN arm:
@@ -271,10 +282,11 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
+        String[] fm = frameMappingAndClass(resultArg, letPrefix, hook);
         return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                 textEqual, oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, null, null, letPrefix, specs, env, hook);
+                null, fm[0], fm[1], letPrefix, specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3c — the EXEC-SQL-READ arm (the ~700-test
@@ -354,10 +366,11 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
+        String[] fm = frameMappingAndClass(resultArg, letPrefix, hook);
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, null, null, letPrefix, specs, env, hook);
+                null, fm[0], fm[1], letPrefix, specs, env, hook);
     }
 
     /** The exec-sql-read producer node: a {@code sql($res)} /
@@ -765,6 +778,51 @@ final class SqlTextVerdicts {
     /** The query's root class when it returns instances (drives the
      * oracle's per-property enum decode); null for relation-shaped
      * results. */
+    /** The exec-read frame's mapping FQN and root class (the oracle's
+     * enum-decode inputs): the frame variable chased to its execute()
+     * call — {@code execute(lambda, mapping, runtime, ...)}. Nulls when
+     * the frame is not an execute() (a validate()/other frame keeps the
+     * counted enum decline). */
+    private static String[] frameMappingAndClass(TypedSpec resultArg,
+            List<TypedSpec> letPrefix,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        TypedSpec src = com.legend.compiler.spec.ExecuteChainAssembly
+                .letBound(resultArg, letPrefix);
+        while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
+            src = sf.source();
+        }
+        if (!(src instanceof TypedNativeCall) && hook != null) {
+            // an EXECUTED frame is no longer a let value: the splice hook
+            // resolves the frame variable's reads to the frame's own
+            // execute() call (the activities read is the frame's
+            // sourceExec — ResultEnvelopeSplice)
+            TypedSpec spliced = hook.apply(
+                    com.legend.compiler.spec.VerdictQueries
+                            .activitiesRead(resultArg),
+                    java.util.Set.of());
+            if (spliced instanceof com.legend.compiler.spec.typed
+                    .TypedPropertyAccess pa) {
+                src = pa.source();
+                while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
+                    src = sf.source();
+                }
+            }
+        }
+        if (src instanceof TypedNativeCall ec
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isExecuteFqn(ec.callee().qualifiedName())
+                && ec.args().size() >= 2) {
+            String mapping = ec.args().get(1) instanceof TypedPackageableRef m
+                    ? m.fullPath() : null;
+            TypedSpec lamArg = com.legend.compiler.spec.ExecuteChainAssembly
+                    .letBound(ec.args().get(0), letPrefix);
+            String cls = lamArg instanceof TypedLambda lam
+                    && !lam.body().isEmpty() ? rootClassFqn(lam) : null;
+            return new String[] {mapping, cls};
+        }
+        return new String[] {null, null};
+    }
+
     private static @com.legend.Nullable String rootClassFqn(
             TypedLambda lam) {
         return lam.body().get(lam.body().size() - 1).info().type()

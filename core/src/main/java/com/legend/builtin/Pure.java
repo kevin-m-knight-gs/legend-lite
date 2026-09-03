@@ -2459,6 +2459,18 @@ public final class Pure {
     // Real core/pure/tds/tds.pure:83 (getNumber qualified property, the
     // getString idiom — the tds outlier tests' read spelling).
     public static final NativeFunctionDefinition GET_NUMBER__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getNumber(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Number[1];");
+    // Real core/pure/tds/tds.pure:84-114 — the remaining TDSRow typed
+    // getters (qualified properties in real pure; the getString idiom).
+    // A let-bound `{a:TDSRow[1], b:TDSRow[1] | $a.getInteger('eID') == ...}`
+    // types at its OWN let against the declared TDSRow class (the
+    // consuming join re-types the reads against its rows).
+    public static final NativeFunctionDefinition GET_INTEGER__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getInteger(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
+    public static final NativeFunctionDefinition GET_FLOAT__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getFloat(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Float[1];");
+    public static final NativeFunctionDefinition GET_DECIMAL__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getDecimal(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Decimal[1];");
+    public static final NativeFunctionDefinition GET_DATE__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getDate(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Date[1];");
+    public static final NativeFunctionDefinition GET_DATE_TIME__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getDateTime(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
+    public static final NativeFunctionDefinition GET_STRICT_DATE__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getStrictDate(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::StrictDate[1];");
+    public static final NativeFunctionDefinition GET_BOOLEAN__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getBoolean(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS
     // carrier is Relation (same divergence as project<K> above) — the

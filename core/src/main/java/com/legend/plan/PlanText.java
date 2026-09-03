@@ -453,6 +453,19 @@ public final class PlanText {
      * may hold either spelling), or null. */
     public static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
             ModelContext ctx, String mappingFqn, String enumFqn) {
+        return enumMappingOf(ctx, mappingFqn, enumFqn, new java.util.HashSet<>());
+    }
+
+    /** The mapping's own enumeration mappings first, then its INCLUDED
+     * mappings' (real pure: an included mapping's enumeration mappings
+     * are visible through the include — the enum-decoded rows leg over
+     * a mapping that includes the store mapping). */
+    private static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
+            ModelContext ctx, String mappingFqn, String enumFqn,
+            java.util.Set<String> seen) {
+        if (!seen.add(mappingFqn)) {
+            return null;
+        }
         var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
@@ -467,6 +480,12 @@ public final class PlanText {
         for (var em : ems) {
             if (em.enumName().equals(simple)
                     || em.enumName().endsWith("::" + simple)) {
+                return em;
+            }
+        }
+        for (var inc : md.includes()) {
+            var em = enumMappingOf(ctx, inc.mappingPath(), enumFqn, seen);
+            if (em != null) {
                 return em;
             }
         }

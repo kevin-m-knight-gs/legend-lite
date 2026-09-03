@@ -562,6 +562,17 @@ public final class InferenceKernel {
                 }
                 Type.RelationType exSchema = Type.schemaView(existing);
                 Type.RelationType acSchema = Type.schemaView(actual);
+                // the declared TDSRow class is the NOMINAL row supertype (real
+                // tds.pure: a `{a:TDSRow[1], b:TDSRow[1] | ...}` join condition
+                // reads any relation's rows) — it never conflicts with a row
+                // schema; the schema wins the binding
+                if (isTdsRowClass(existing) && acSchema != null) {
+                    b.bindType(v.name(), actual);
+                    return;
+                }
+                if (isTdsRowClass(actual) && exSchema != null) {
+                    return;
+                }
                 if (exSchema != null && acSchema != null) {
                     throw new TypeInferenceException("column mismatch: type variable "
                             + v.name() + " bound to relation "
@@ -1665,4 +1676,10 @@ public final class InferenceKernel {
         return strict;
     }
 
+
+    private static boolean isTdsRowClass(Type t) {
+        return t instanceof Type.ClassType ct
+                && ct.fqn().equals(com.legend.compiler.element.type
+                        .PlatformTypes.TDS_ROW);
+    }
 }

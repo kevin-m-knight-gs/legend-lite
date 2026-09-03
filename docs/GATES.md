@@ -218,6 +218,10 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 38 (no-decision burn from the sqltext homework: frame mapping to the oracle's enum decode (includes, identity), let-bound join lambdas + declared TDSRow, TDSRow getters, assertSameSQL(String) general arm, paginated-golden rule, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 330/2243 → 314/2259 (+16, 0 lost); lane moves M1 verified 9 → 4, M1 rescued 75 → 63,
+exec-passing 99 → 82, unable-to-exec 14 → 13; text-verdict asserts 170 → 156 (passes 2377, disagree 0).
+
 **Batch 37 (the "text-policy" pre-decline gate DELETED; every sql-assert shape attempted; per-test text-verdict roster, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 366/2207 → 330/2243 (+36, 0 lost); lane moves M1 verified 12 → 9, M1 rescued 108 → 75,
 exec-passing 135 → 99, unable-to-exec 20 → 14 (passes 2374 → 2375, disagree 0). Dossier: docs/SQLTEXT_HOMEWORK_2026_09_03.md.

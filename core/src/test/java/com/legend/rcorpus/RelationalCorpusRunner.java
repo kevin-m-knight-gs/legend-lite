@@ -806,8 +806,11 @@ public class RelationalCorpusRunner {
                     // 12 -> 9 (batch 37, the text-policy gate deleted): the
                     // 36 flipped tests' sql-asserts left the walk's lane
                     // (lane move, 0 lost, disagree 0, passes 2374 -> 2375)
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 9,
-                    "M1 h2-exec verified fell below the 9 floor: "
+                    // 9 -> 4 (batch 38): the 16 flipped tests' sql-asserts
+                    // left the walk's lane (lane move, 0 lost, disagree 0,
+                    // passes 2377 stable)
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 4,
+                    "M1 h2-exec verified fell below the 4 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -1010,7 +1013,10 @@ public class RelationalCorpusRunner {
             // 135 -> 99 (batch 37 — the text-policy gate deleted): the 36
             // flipped tests' sql-asserts left the walk's lane (lane move,
             // passes 2374 -> 2375, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(99, execPassing,
+            // 99 -> 82 (batch 38 — enum decode / join lambda / getters):
+            // the flipped tests' sql-asserts left the walk's lane (lane
+            // move, passes 2377 stable, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(82, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1505,10 +1511,24 @@ public class RelationalCorpusRunner {
             // milestoning 13, businessdate 8, tdsRestrict 5, showcase 3,
             // qualifier 2, contextpropagation 2, union/slice/dayOfWeek/
             // planSql), 29 wall by their own reason, 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(330L,
+            // 330 -> 314 (batch 38, 2026-09-03 — the no-decision burn from
+            // the sqltext homework): the exec-read rows leg hands the frame's
+            // MAPPING (through the splice hook) to the oracle, which decodes
+            // enum columns from the enumeration mapping (includes chased;
+            // identity when the enum has no enumeration mapping — real pure
+            // decodes by name); a let-bound join condition lambda binds
+            // through the alias chase and the declared TDSRow class is the
+            // nominal row supertype (InferenceKernel); the TDSRow getters
+            // getInteger/getFloat/getDecimal/getDate/getDateTime/
+            // getStrictDate/getBoolean are declared (tds.pure:84-114); the
+            // assertSameSQL String overload takes the general arm with a
+            // let-chased toSQLString lambda. +16 (groupBy agg-to-many 5,
+            // enum-mapped projections 6, tdsJoin 2, dayOfWeek, joinStrings,
+            // consistency-with-nulls), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(314L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2243L,
+            org.junit.jupiter.api.Assertions.assertEquals(2259L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1599,7 +1619,9 @@ public class RelationalCorpusRunner {
             // 20 -> 14 (batch 37 — the text-policy gate deleted): six
             // gated tests' unable-to-exec sql-asserts now take platform-arm
             // verdicts (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(14,
+            // 14 -> 13 (batch 38): one more gated test's unable-to-exec
+            // sql-assert now takes a platform-arm verdict (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(13,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1739,8 +1761,10 @@ public class RelationalCorpusRunner {
                     // 108 -> 75 (batch 37): the same lane move as
                     // M1_VERIFIED 12 -> 9 (the 36 gated tests' rescued
                     // sql-asserts now row-verify as platform-arm verdicts).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 75,
-                    "M1 h2-exec rescued fell below the 75 floor: "
+                    // 75 -> 63 (batch 38): the same lane move as
+                    // M1_VERIFIED 9 -> 4.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 63,
+                    "M1 h2-exec rescued fell below the 63 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

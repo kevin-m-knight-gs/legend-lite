@@ -38,16 +38,16 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 77 | 10 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 248 | 4 | 5 | 2 | 2 | 2 | 0 | 11 |
+| functions/tests | 259 | 248 | 4 | 5 | 2 | 2 | 2 | 0 | 5 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 1 |
+| functions/tests/projection | 155 | 148 | 2 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 6 |
+| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 4 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 2 |
+| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 65 | 0 | 1 | 2 | 0 | 0 | 25 | 15 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 1 |
@@ -72,7 +72,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
+| tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
 | tests/mapping/enumeration | 26 | 19 | 3 | 4 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 82 | 2 | 3 | 0 | 2 | 2 | 0 | 0 |
-| transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
+| tests/query | 87 | 82 | 2 | 3 | 0 | 1 | 1 | 0 | 0 |
+| transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2375** | 49 | 104 | 47 | 13 | 13 | 29 | 41 |
+| **total** | 2575 | **2377** | 47 | 104 | 47 | 12 | 12 | 29 | 31 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2375 PASS = 2295 clean + 80 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 41; flags overlap — the union is 80).
+SOFT-PASS RECONCILIATION (F2.1): 2377 PASS = 2308 clean + 69 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 31; flags overlap — the union is 69).
 
 ### mapping walls (dropped at assembly)
 
@@ -901,7 +901,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2375 PASS = 2295 clean + 80 carrying softness (
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRE
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
-- FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as date)), got select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when 1 - date_part('isodow', cast(now() as date)) > 0 then 1 - date_part('isodow', cast(now() as date)) - 7 else 1 - date_part('isodow', cast(now() as date)) end, cast(now() as date))
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
@@ -1050,7 +1049,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2375 PASS = 2295 clean + 80 carrying softness (
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testNotEqualityInFilterOnOptionalPropertiesLegacy [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "personTable_d#7_d#4_m1_d#2_m1" on ("root".MANAGERID = "personTable_d#7_d#4_m1_d#2_m1".ID) where (not ("root".AGE = "personTable_d#7_d#4_m1_d#2_m1".AGE) or ("root".AGE is null and "personTable_d#7_d#4_m1_d#2_m1".AGE is not null) or ("root".AGE is not null and "personTable_d#7_d#4_m1_d#2_m1".AGE is null)), got select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID) where (not ("root".AGE = "persontable_1".AGE) or ("root".AGE is null and "persontable_1".AGE is not null) or ("root".AGE is not null and "persontable_1".AGE is null))
 - FAIL testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-text: expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trade_id as trade_id, max("root".eventDate) as maxTradeEventDate from tradeEventTable as "root" group by "root".trade_id) as "tradeEventViewMaxTradeEventDate_d#4_d#4_m5" on ("root".ID = "tradeEventViewMaxTradeEventDate_d#4_d#4_m5".trade_id) where "root".ID = 2, got select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" where "root".ID = 2
-- FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".LEGALNAME as "legalName", string_agg("persontable_0".FIRSTNAME, '*' ORDER BY "persontable_0".rowid ASC) as "employeesFirstName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "legalName"
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testToSQLStringWithAggregation [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

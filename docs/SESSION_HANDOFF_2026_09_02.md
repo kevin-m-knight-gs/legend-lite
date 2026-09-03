@@ -2038,9 +2038,43 @@ isolation 2, engine-feature predicates (removeUnionOrJoins 5, alias quoting
 2), engine-internal functions 3; (g) our emission gaps a text predicate
 caught: restrict drops unused aggregates, parseDate constant spelling.
 
+**Batch 38 — THE NO-DECISION BURN FROM THE SQL-TEXT HOMEWORK (2026-09-03):
+ratchet 330/2243 → 314/2259 (+16, ZERO lost).** User directive: "burn
+everything you can down that does not need decision". Landed: (1) the
+exec-read rows leg hands the frame's MAPPING and root class to the oracle —
+an executed frame is no longer a let value, so the frame variable is
+resolved through the SPLICE HOOK (`$result.activities` splices to the
+frame's own execute() call; `SqlTextVerdicts.frameMappingAndClass`); the
+oracle's enum decode (`H2Verify.decodeOf`) chases INCLUDED mappings
+(`PlanText.enumMappingOf`) and is the IDENTITY when the enum has no
+enumeration mapping at all (real pure decodes the source value by name —
+a derived `dayOfWeek()` column likewise): enum-decoded text verdicts 20 →
+0 in the flipped set; (2) a let-bound join condition (`let jc = {a:TDSRow[1],
+b:TDSRow[1] | ...}; ->join(..., $jc)`) binds through the JoinChecker alias
+chase, the declared TDSRow class is the NOMINAL row supertype in type-variable
+binding (`InferenceKernel.isTdsRowClass`), and the TDSRow getters
+getInteger/getFloat/getDecimal/getDate/getDateTime/getStrictDate/getBoolean
+are declared (tds.pure:84-114; native-catalog golden regenerated, +7 lines);
+(3) `assertSameSQL(String, String)` takes the GENERAL arm (a toSQLString
+producer → the dialect-aware verdict; the query lambda is let-chased) — the
+three foreign-dialect tests now reach the DB2 text contract and FAIL on
+DB2 spelling (isDistinct as `case when ... then 'true' else 'false' end`,
+divide) — an emission gap, named; (4) a REFEREE RULE found by the burn: a
+paginated golden (offset/fetch/limit) whose rows diverge is NOT a row
+verdict — which tied rows land in the page is the backend's tie order
+(`order by firstName offset 0 fetch 4` over two Johns: golden
+[22|John|Johnson] vs ours [12|John|Hill]); `H2Verify.compareFrame`
+declines it by name (witness testPaginatedByVendor, which the let-chase had
+exposed and would otherwise have been LOST). Flipped: groupBy agg-to-many 5,
+enum-mapped embedded/multigrain/milestoning projections 6, tdsJoin 2,
+testDayOfWeekFunction, testToSQLStringJoinStrings,
+testConsistencyWithNullsInColumnToColumnComparison. Lane moves: M1 verified
+9 → 4, M1 rescued 75 → 63, exec-passing 99 → 82, unable-to-exec 14 → 13;
+text-verdict asserts 170 → 156; passes 2377 stable; disagree 0.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 330 fallbacks / 2243 flipped (batches 14–37 = group D,
+legs).** State: 314 fallbacks / 2259 flipped (batches 14–38 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

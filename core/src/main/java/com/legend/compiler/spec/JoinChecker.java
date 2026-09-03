@@ -95,16 +95,26 @@ final class JoinChecker {
      * charter, not an alias chase here (2 tests, named). */
     private static AppliedFunction resolveLetBoundArgs(AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
-        if (ps.size() < 3 || !(ps.get(2) instanceof Variable kindVar)) {
-            return af;
-        }
-        ValueSpecification r = env.resolveAlias(kindVar);
-        if (r == kindVar || !(r instanceof EnumValue)) {
-            return af;
-        }
         List<ValueSpecification> np = new java.util.ArrayList<>(ps);
-        np.set(2, r);
-        return af.withParameters(np);
+        boolean changed = false;
+        if (ps.size() >= 3 && ps.get(2) instanceof Variable kindVar) {
+            ValueSpecification r = env.resolveAlias(kindVar);
+            if (r != kindVar && r instanceof EnumValue) {
+                np.set(2, r);
+                changed = true;
+            }
+        }
+        // a let-bound CONDITION lambda (`let jc = {a:TDSRow[1], b:TDSRow[1]
+        // | ...}; ->join(..., $jc)`): the join re-types the lambda's reads
+        // against its OWN rows — the alias chase binds the raw lambda here
+        if (ps.size() >= 4 && ps.get(3) instanceof Variable condVar) {
+            ValueSpecification r = env.resolveAlias(condVar);
+            if (r != condVar && r instanceof LambdaFunction) {
+                np.set(3, r);
+                changed = true;
+            }
+        }
+        return changed ? af.withParameters(np) : af;
     }
 
     /** ENGINE-LEGACY tolerance: a TDS join condition's {@code get*('col')}

@@ -97,7 +97,10 @@ class JavaEvalLedgerTest {
             // re-seeded stripped 2026-08-18
             // 749 -> 750 (Phase 1 dialect-blind fix: spliceLeftVar takes
             // a render FUNCTION instead of the AnsiSqlRenderer type)
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 750),
+            // 750 -> 760 (batch 38, 2026-09-03): enumMappingOf chases the
+            // mapping's INCLUDES (real pure visibility of an included
+            // mapping's enumeration mappings) — lookup, not evaluation.
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 760),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
@@ -563,7 +566,14 @@ class JavaEvalLedgerTest {
             // door). Routing + recognition only: both sides still
             // execute in their databases through verifyFetchTexts; no
             // judgment or evaluation added.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 592),
+            // 592 -> 628 (batch 38, 2026-09-03): the exec-read rows leg
+            // recovers the executed FRAME's mapping and root class for the
+            // oracle's enum decode (frameMappingAndClass: the let-chase,
+            // then the splice hook's activities read to the frame's own
+            // execute() call) and the general arm let-chases a toSQLString
+            // query lambda. Recognition + routing only: the oracle still
+            // executes both sides in their databases; no judgment added.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 628),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
