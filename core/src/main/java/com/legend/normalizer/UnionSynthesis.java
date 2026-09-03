@@ -1215,9 +1215,12 @@ final class UnionSynthesis {
         // PROVENANCE — the resolver must never re-derive key meaning from
         // column-name patterns, a real column spelled like a suffix hijacked
         // the NULL thread)
+        // (db, table, key column) -> a routed member: the SHARED table keys
+        // the threads project once (see TABLE_KEY_SUFFIX)
+        Map<List<String>, Integer> sharedKeys = new LinkedHashMap<>();
         collectInboundRouteKeys(md, model,
                 members.stream().map(MappingNormalizer::setIdOf).toList(),
-                members, srcKeysByOrdinal, chainsByOrdinal);
+                members, srcKeysByOrdinal, chainsByOrdinal, sharedKeys);
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
         ValueSpecification union = null;
@@ -1231,13 +1234,35 @@ final class UnionSynthesis {
         // table re-evaluated per outer row (H2's planner hung on the 21-kind
         // datatype hierarchy of the metamodel store — group F burn,
         // 2026-09-02).
+        // a member's scan source is its TABLE wrapped in its own navigation
+        // SLOTS (demand-driven: an unused slot lowers to nothing), so the
+        // group key is the innermost table and the merged scan carries the
+        // union of the members' slots — same-named slots must agree
         Map<String, List<Integer>> scanGroups = new LinkedHashMap<>();
+        Map<String, Map<String, List<ValueSpecification>>> slotsByTable = new LinkedHashMap<>();
         for (int o = 0; o < parts.size(); o++) {
             FilteredScan fs = filteredScan(parts.get(o));
             boolean eligible = fs != null && !chainsByOrdinal.containsKey(o)
                     && members.get(o) instanceof ClassMapping.Relational mrx
                     && !mrx.distinct() && mrx.groupBy().isEmpty();
-            String key = eligible && fs != null ? fs.source().toString() : "#" + o;
+            String key = "#" + o;
+            if (eligible && fs != null) {
+                ScanSource ss = ScanSource.of(fs.source());
+                String tableKey = ss.table().toString();
+                Map<String, List<ValueSpecification>> seen =
+                        slotsByTable.computeIfAbsent(tableKey, k -> new LinkedHashMap<>());
+                boolean agrees = true;
+                for (AppliedFunction w : ss.wrappers()) {
+                    List<ValueSpecification> args = w.parameters().subList(1, w.parameters().size());
+                    List<ValueSpecification> prev = seen.putIfAbsent(ScanSource.slotName(w), args);
+                    if (prev != null && !prev.equals(args)) {
+                        agrees = false;
+                    }
+                }
+                if (agrees) {
+                    key = tableKey;
+                }
+            }
             scanGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(o);
         }
         for (List<Integer> group : scanGroups.values()) {
@@ -1246,13 +1271,17 @@ final class UnionSynthesis {
                 int ordinal = group.get(0);
                 Thread t = threadOf(ordinal, parts.get(ordinal), members, common, owner,
                         className, embSubs, embInner, subTypeProps, srcKeysByOrdinal,
-                        chainsByOrdinal, md, model);
+                        chainsByOrdinal, sharedKeys, md, model);
                 projected = new AppliedFunction("project",
                         List.of(t.pipe(), new ColSpecArray(t.cols())));
             } else {
-                projected = mergedScan(group, parts, members, common, owner, className,
-                        embSubs, embInner, subTypeProps, srcKeysByOrdinal, chainsByOrdinal,
-                        md, model);
+                // the marker: "this projection IS a union body" (the
+                // resolver's union facts read it where a concatenate no
+                // longer exists — Pure.Lite.UNION_SCAN, lowering identity)
+                projected = new AppliedFunction(Pure.Lite.UNION_SCAN, List.of(
+                        mergedScan(group, parts, members, common, owner, className,
+                                embSubs, embInner, subTypeProps, srcKeysByOrdinal,
+                                chainsByOrdinal, sharedKeys, md, model)));
             }
             union = union == null ? projected
                     : new AppliedFunction("concatenate", List.of(union, projected));
@@ -1286,6 +1315,49 @@ final class UnionSynthesis {
     record FilteredScan(ValueSpecification source, Variable row, ValueSpecification pred) {
     }
 
+    /** A member's scan source split into its innermost TABLE and the
+     * navigation-slot wrappers ({@code legacyNavigate(source, slot, …)})
+     * around it, innermost first. */
+    record ScanSource(ValueSpecification table, List<AppliedFunction> wrappers) {
+        static ScanSource of(ValueSpecification source) {
+            ArrayDeque<AppliedFunction> ws = new ArrayDeque<>();
+            ValueSpecification cur = source;
+            while (cur instanceof AppliedFunction af
+                    && af.function().equals(Pure.Lite.LEGACY_NAVIGATE)
+                    && af.parameters().size() >= 2) {
+                ws.push(af);
+                cur = af.parameters().get(0);
+            }
+            return new ScanSource(cur, new ArrayList<>(ws));
+        }
+
+        static String slotName(AppliedFunction w) {
+            return w.parameters().get(1) instanceof ColSpec cs ? cs.name()
+                    : w.parameters().get(1).toString();
+        }
+
+        /** The table wrapped in the deduped union of {@code sources}'
+         * slots, in first-seen order. */
+        static ValueSpecification merged(List<ValueSpecification> sources) {
+            ValueSpecification out = null;
+            Set<String> seen = new LinkedHashSet<>();
+            for (ValueSpecification src : sources) {
+                ScanSource ss = of(src);
+                if (out == null) {
+                    out = ss.table();
+                }
+                for (AppliedFunction w : ss.wrappers()) {
+                    if (seen.add(slotName(w))) {
+                        List<ValueSpecification> ps = new ArrayList<>(w.parameters());
+                        ps.set(0, out);
+                        out = w.withParameters(ps);
+                    }
+                }
+            }
+            return java.util.Objects.requireNonNull(out);
+        }
+    }
+
     private static @com.legend.Nullable FilteredScan filteredScan(
             MappingNormalizer.RelationalParts pp) {
         if (pp.pipeline() instanceof AppliedFunction f && FILTER_FORM.equals(f.function())
@@ -1308,6 +1380,7 @@ final class UnionSynthesis {
             Map<String, LinkedHashSet<String>> subTypeProps,
             Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<Integer, List<LiftChain>> chainsByOrdinal,
+            Map<List<String>, Integer> sharedKeys,
             LegacyMappingDefinition md, ModelBuilder model) {
             List<ColSpec> cols = new ArrayList<>(common.size());
             for (String prop : common) {
@@ -1343,22 +1416,53 @@ final class UnionSynthesis {
             addEmbeddedThreadCols(embSubs, embInner, pp, model, cols);
             addSubTypeDispatchCols(subTypeProps, members.get(ordinal), pp,
                     model, cols);
-            // lifted-navigation source keys: this thread reads its OWN key
-            // columns under their member-suffixed names; other ordinals'
-            // keys are typed NULL (nullable — no toOne wrap)
+            // lifted-navigation source keys: ONE column per key NAME across
+            // the ordinals (a shared table key <col>__pk is projected once);
+            // this thread reads its OWN key columns, other ordinals' keys
+            // are typed NULL (nullable — no toOne wrap)
+            Map<String, String> ownKeys = srcKeysByOrdinal.getOrDefault(ordinal, Map.of());
+            Map<String, int[]> keyNames = new LinkedHashMap<>();   // name -> first ordinal
+            Map<String, String> keyPhysical = new LinkedHashMap<>(); // name -> physical column
             for (var en : srcKeysByOrdinal.entrySet()) {
                 for (var key : en.getValue().entrySet()) {
-                    ValueSpecification read = en.getKey() == ordinal
-                            ? new AppliedProperty(pp.rowBind(), key.getKey())
-                            : MappingNormalizer.nullOfPhysicalKind((ClassMapping.Relational)
-                                    members.get(en.getKey()),
-                                    key.getKey(), md, model);
-                    // toOne types both threads identically (real read vs
-                    // NULL cast); lowering is erasure — the key stays NULL
-                    read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
-                    cols.add(new ColSpec(key.getValue(), new LambdaFunction(
-                            List.of(pp.rowBind()), List.of(read)), null));
+                    keyNames.putIfAbsent(key.getValue(), new int[]{en.getKey()});
+                    keyPhysical.putIfAbsent(key.getValue(), key.getKey());
                 }
+            }
+            for (var kn : keyNames.entrySet()) {
+                String name = kn.getKey();
+                String physical = java.util.Objects.requireNonNull(keyPhysical.get(name));
+                boolean mine = ownKeys.entrySet().stream()
+                        .anyMatch(e -> e.getValue().equals(name));
+                ValueSpecification read = mine
+                        ? new AppliedProperty(pp.rowBind(), physical)
+                        : MappingNormalizer.nullOfPhysicalKind((ClassMapping.Relational)
+                                members.get(kn.getValue()[0]), physical, md, model);
+                // toOne types both threads identically (real read vs
+                // NULL cast); lowering is erasure — the key stays NULL
+                read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
+                cols.add(new ColSpec(name, new LambdaFunction(
+                        List.of(pp.rowBind()), List.of(read)), null));
+            }
+            // THE SHARED TABLE KEY (TABLE_KEY_SUFFIX): every member over the
+            // keyed table reads its own row's key UNGATED (a merged scan
+            // collapses it to the plain column); other tables' threads NULL
+            for (var sk : sharedKeys.entrySet()) {
+                String db = sk.getKey().get(0);
+                String table = sk.getKey().get(1);
+                String col = sk.getKey().get(2);
+                boolean mine = members.get(ordinal) instanceof ClassMapping.Relational mr
+                        && mr.mainTable() != null
+                        && mr.mainTable().database().equals(db)
+                        && MappingNormalizer.canonicalTable(mr.mainTable().table()).equals(table)
+                        && col.equals(tableKey(mr, model));
+                ValueSpecification read = mine
+                        ? new AppliedProperty(pp.rowBind(), col)
+                        : MappingNormalizer.nullOfPhysicalKind((ClassMapping.Relational)
+                                members.get(sk.getValue()), col, md, model);
+                read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
+                cols.add(new ColSpec(sharedKeyName(table, col), new LambdaFunction(
+                        List.of(pp.rowBind()), List.of(read)), null));
             }
             // CHAINED entries: the owning thread wraps its pipeline in the
             // MID-hop joins and reads the final hop's source keys via the
@@ -1397,6 +1501,7 @@ final class UnionSynthesis {
             Map<String, LinkedHashSet<String>> subTypeProps,
             Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<Integer, List<LiftChain>> chainsByOrdinal,
+            Map<List<String>, Integer> sharedKeys,
             LegacyMappingDefinition md, ModelBuilder model) {
         List<FilteredScan> scans = new ArrayList<>();
         List<Thread> threads = new ArrayList<>();
@@ -1404,14 +1509,15 @@ final class UnionSynthesis {
             scans.add(java.util.Objects.requireNonNull(filteredScan(parts.get(o))));
             threads.add(threadOf(o, parts.get(o), members, common, owner, className,
                     embSubs, embInner, subTypeProps, srcKeysByOrdinal, chainsByOrdinal,
-                    md, model));
+                    sharedKeys, md, model));
         }
         Variable row = scans.get(0).row();
         ValueSpecification any = null;
         for (FilteredScan fs : scans) {
             any = any == null ? fs.pred() : new AppliedFunction("or", List.of(any, fs.pred()));
         }
-        ValueSpecification pipe = new AppliedFunction("filter", List.of(scans.get(0).source(),
+        ValueSpecification pipe = new AppliedFunction("filter", List.of(
+                ScanSource.merged(scans.stream().map(FilteredScan::source).toList()),
                 new LambdaFunction(List.of(row), List.of(java.util.Objects.requireNonNull(any)))));
         List<ColSpec> cols = new ArrayList<>();
         for (int c = 0; c < threads.get(0).cols().size(); c++) {
@@ -1842,19 +1948,65 @@ final class UnionSynthesis {
      * colspec-body provenance, never by pattern. */
     static ValueSpecification suffixTargetReads(ValueSpecification n,
             Variable t, String suffix, Map<String, String> out) {
+        return suffixTargetReads(n, t, suffix, out, null);
+    }
+
+    /**
+     * THE TABLE KEY OF A SINGLE-TABLE HIERARCHY IS SHARED: a member's key
+     * column that is its main table's sole PRIMARY KEY spells
+     * {@code <col>__pk} for EVERY member (never member-suffixed) — the
+     * merged scan projects it ONCE, ungated (a primary key names at most
+     * its own row, whatever the row's kind), so a routed navigation's
+     * per-member disjuncts collapse to one plain equality the database
+     * can index (H2 rescanned a CASE-gated, OR-joined UNION extent per
+     * outer row — ten typeInference tests at 9–18s, 2026-09-02).
+     */
+    static final String TABLE_KEY_SUFFIX = "__pk";
+
+    /** The sole PRIMARY KEY column of a member set's main table, else null. */
+    static @com.legend.Nullable String tableKey(@com.legend.Nullable ClassMapping cm,
+            ModelBuilder model) {
+        if (!(cm instanceof ClassMapping.Relational r) || r.mainTable() == null) {
+            return null;
+        }
+        DatabaseDefinition.TableDefinition td = PhysicalTables.find(
+                r.mainTable().database(), r.mainTable().table(), model);
+        if (td == null) {
+            return null;
+        }
+        String key = null;
+        for (DatabaseDefinition.ColumnDefinition c : td.columns()) {
+            if (c.primaryKey()) {
+                if (key != null) {
+                    return null;    // composite key: member-suffixed as before
+                }
+                key = c.name();
+            }
+        }
+        return key;
+    }
+
+    /** {@link #suffixTargetReads(ValueSpecification, Variable, String, Map)}
+     * with the member's table key ({@code tableKeyCol}, nullable) spelled
+     * {@code <col>__pk} instead of member-suffixed. */
+    static ValueSpecification suffixTargetReads(ValueSpecification n,
+            Variable t, String suffix, Map<String, String> out,
+            @com.legend.Nullable String tableKeyCol) {
         if (n instanceof AppliedProperty ap
                 && ap.receiver() instanceof Variable v
                 && v.name().equals(t.name())) {
-            String suffixed = ap.property() + suffix;
+            String suffixed = ap.property().equals(tableKeyCol)
+                    ? ap.property() + TABLE_KEY_SUFFIX : ap.property() + suffix;
             out.put(ap.property(), suffixed);
             return new AppliedProperty(v, suffixed);
         }
         return switch (n) {
             case AppliedFunction af -> af.withParameters(
                     af.parameters().stream().map(x ->
-                            suffixTargetReads(x, t, suffix, out)).toList());
+                            suffixTargetReads(x, t, suffix, out, tableKeyCol)).toList());
             case AppliedProperty ap -> new AppliedProperty(
-                    suffixTargetReads(ap.receiver(), t, suffix, out), ap.property());
+                    suffixTargetReads(ap.receiver(), t, suffix, out, tableKeyCol),
+                    ap.property());
             case Variable v -> v;
             case CString ignored -> n;
             case CInteger ignored -> n;
@@ -1863,7 +2015,7 @@ final class UnionSynthesis {
             case CBoolean ignored -> n;
             case CDate ignored -> n;
             case PureCollection pc -> new PureCollection(pc.values().stream()
-                    .map(x -> suffixTargetReads(x, t, suffix, out)).toList());
+                    .map(x -> suffixTargetReads(x, t, suffix, out, tableKeyCol)).toList());
             default -> throw new NotImplementedException(
                     "partial-union route join condition carries a "
                     + n.getClass().getSimpleName()
@@ -2354,6 +2506,10 @@ final class UnionSynthesis {
             Variable t = new Variable("t");
             ValueSpecification orCond = null;
             ValueSpecification orPaired = null;
+            // raw (unsuffixed) entry condition -> the source members
+            // reading it: same-source members merge into ONE disjunct
+            Map<ValueSpecification, LinkedHashSet<Integer>> sameSource = new LinkedHashMap<>();
+            boolean allSingleHop = true;
             Map<String, String[]> pairedTgtKeyCols = new LinkedHashMap<>();
             // suffixed -> [base column, its route's db, its route's landing
             // table] (heterogeneous target key typing needs the provenance)
@@ -2413,10 +2569,17 @@ final class UnionSynthesis {
                 // chained lifts: property-scoped key names (col__prop_ord)
                 // — two chains of ONE member may land on mid tables sharing
                 // a column name (V4: aT.fk1 vs gT.fk1)
+                ValueSpecification rawCond = cond;
                 cond = midSteps.isEmpty()
                         ? suffixTargetReads(cond, s, memberOrd, srcOut)
                         : suffixTargetReads(cond, s,
                                 "__" + prop + "_" + memberOrd, srcOut);
+                if (midSteps.isEmpty()) {
+                    sameSource.computeIfAbsent(rawCond, rc -> new LinkedHashSet<>())
+                            .add(memberOrd);
+                } else {
+                    allSingleHop = false;
+                }
                 if (midSteps.isEmpty()) {
                     srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
                             .putAll(srcOut);
@@ -2452,10 +2615,16 @@ final class UnionSynthesis {
                 if (!liftTargetMerged) {
                     cond = pairedEntry;
                 }
-                orCond = orCond == null ? cond
-                        : new AppliedFunction("or", List.of(orCond, cond));
-                orPaired = orPaired == null ? pairedEntry
-                        : new AppliedFunction("or", List.of(orPaired, pairedEntry));
+                orCond = orDistinct(orCond, cond);
+                orPaired = orDistinct(orPaired, pairedEntry);
+            }
+            // members reading the SAME source column(s) against one target
+            // expression contribute ONE disjunct: coalesce over their
+            // member-suffixed reads (at most one is non-null per row, equal
+            // when several are) — an indexable probe, not a k-way OR
+            if (allSingleHop && liftTargetMerged
+                    && sameSource.values().stream().anyMatch(o -> o.size() > 1)) {
+                orCond = mergeSameSource(sameSource, s);
             }
             LambdaFunction pairedLam = liftTargetMerged && orPaired != null
                     && orPaired != orCond
@@ -2496,14 +2665,15 @@ final class UnionSynthesis {
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink) {
-        collectInboundRouteKeys(md, model, memberIds, members, sink, null);
+        collectInboundRouteKeys(md, model, memberIds, members, sink, null, null);
     }
 
     static void collectInboundRouteKeys(LegacyMappingDefinition md,
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink,
-            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink) {
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
+            @com.legend.Nullable Map<List<String>, Integer> sharedKeys) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
         for (LegacyMappingDefinition m : closure) {
@@ -2539,7 +2709,7 @@ final class UnionSynthesis {
                     for (var en : ords.entrySet()) {
                         registerInboundEntry(en.getKey(), en.getValue(),
                                 members, uniform, md, model, sink,
-                                chainsSink);
+                                chainsSink, sharedKeys);
                     }
                 }
             }
@@ -2580,7 +2750,7 @@ final class UnionSynthesis {
                     for (var en : ords.entrySet()) {
                         registerInboundEntry(en.getKey(), en.getValue(),
                                 members, uniform, md, model, sink,
-                                chainsSink);
+                                chainsSink, sharedKeys);
                     }
                 }
             }
@@ -2598,7 +2768,8 @@ final class UnionSynthesis {
             List<ClassMapping> members, boolean uniform,
             LegacyMappingDefinition md, ModelBuilder model,
             Map<Integer, Map<String, String>> sink,
-            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink) {
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
+            @com.legend.Nullable Map<List<String>, Integer> sharedKeys) {
         if (!(members.get(ord) instanceof ClassMapping.Relational routedMember)) {
             return;     // routes into Relation(~func) members have no
                         // physical key table (loud at navigation if demanded)
@@ -2652,5 +2823,85 @@ final class UnionSynthesis {
             sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
                     .put(c, c + "_" + ord);
         }
+        // a route keyed on the member's table PRIMARY KEY also demands the
+        // SHARED key column (see TABLE_KEY_SUFFIX)
+        String key = tableKey(routedMember, model);
+        if (key != null && cols.contains(key) && sharedKeys != null) {
+            sharedKeys.putIfAbsent(List.of(routedMember.mainTable().database(),
+                    MappingNormalizer.canonicalTable(routedMember.mainTable().table()), key),
+                    ord);
+        }
+    }
+
+    /** The projected name of a shared table key: {@code <col>__pk_<table>}
+     * (the table disambiguates two hierarchies whose keys share a name). */
+    static String sharedKeyName(String table, String col) {
+        return col + TABLE_KEY_SUFFIX + "_" + table.replaceAll("[^A-Za-z0-9_]", "_");
+    }
+
+    /** The lift predicate rebuilt from its raw-condition groups: one
+     * disjunct per group, same-source members coalesced. */
+    private static ValueSpecification mergeSameSource(
+            Map<ValueSpecification, LinkedHashSet<Integer>> sameSource, Variable s) {
+        ValueSpecification rebuilt = null;
+        for (var g : sameSource.entrySet()) {
+            List<Integer> os = new ArrayList<>(g.getValue());
+            Map<String, String> ignore = new LinkedHashMap<>();
+            rebuilt = orDistinct(rebuilt, os.size() == 1
+                    ? suffixTargetReads(g.getKey(), s, os.get(0), ignore)
+                    : coalesceReads(g.getKey(), s, os, ignore));
+        }
+        return java.util.Objects.requireNonNull(rebuilt);
+    }
+
+    /** Nested {@code coalesce} over a member's suffixed reads of one
+     * source column — the ONE key expression of members sharing a physical
+     * column (at most one is non-null per row; equal when several are). */
+    static ValueSpecification coalesceReads(ValueSpecification n, Variable s,
+            List<Integer> ordinals, Map<String, String> out) {
+        if (n instanceof AppliedProperty ap && ap.receiver() instanceof Variable v
+                && v.name().equals(s.name())) {
+            ValueSpecification acc = null;
+            for (int i = ordinals.size() - 1; i >= 0; i--) {
+                String suffixed = ap.property() + "_" + ordinals.get(i);
+                out.put(ap.property(), suffixed);
+                ValueSpecification read = new AppliedProperty(v, suffixed);
+                acc = acc == null ? read
+                        : new AppliedFunction("coalesce", List.of(read, acc));
+            }
+            return java.util.Objects.requireNonNull(acc);
+        }
+        return switch (n) {
+            case AppliedFunction af -> af.withParameters(af.parameters().stream()
+                    .map(x -> coalesceReads(x, s, ordinals, out)).toList());
+            case AppliedProperty ap -> new AppliedProperty(
+                    coalesceReads(ap.receiver(), s, ordinals, out), ap.property());
+            case PureCollection pc -> new PureCollection(pc.values().stream()
+                    .map(x -> coalesceReads(x, s, ordinals, out)).toList());
+            default -> n;
+        };
+    }
+
+    /** {@code acc or cond}, skipping a disjunct structurally equal to one
+     * already present (members sharing a table key contribute IDENTICAL
+     * conditions — one equality, indexable). */
+    static ValueSpecification orDistinct(@com.legend.Nullable ValueSpecification acc,
+            ValueSpecification cond) {
+        if (acc == null) {
+            return cond;
+        }
+        ArrayDeque<ValueSpecification> stack = new ArrayDeque<>();
+        stack.push(acc);
+        while (!stack.isEmpty()) {
+            ValueSpecification d = stack.pop();
+            if (d instanceof AppliedFunction f && "or".equals(f.function())
+                    && f.parameters().size() == 2) {
+                stack.push(f.parameters().get(0));
+                stack.push(f.parameters().get(1));
+            } else if (d.equals(cond)) {
+                return acc;
+            }
+        }
+        return new AppliedFunction("or", List.of(acc, cond));
     }
 }

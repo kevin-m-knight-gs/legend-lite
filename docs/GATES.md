@@ -195,6 +195,13 @@ are) so the extent is an indexed filtered scan, plus the plain-`id` key
 read for merged members. Then the boot layer (system elements compiled
 once per process). The 5.5-minute ceiling is re-armed when both land.
 
+**Batch 9 + 10 (same day): landed.** Single table (dea642c4) + union
+lowering: H2 lane 137s → 41s (standalone; the ten tests <1s each),
+DuckDB 61s, G1 ~55s. Remaining over the 5.5-minute line: G6 (PCT)
+~105s vs ~90s pre-group-F and G1 ~55s vs 33s — both the per-compile
+normalizer residual (5.7ms) the boot layer + per-mapping index legs
+remove. Ceiling re-arm stays pending on those two legs.
+
 ## The time budget: ~6m40s measured 2026-08-11 — re-pin pending
 
 The 5.5-minute lock (measured 2026-08-08) was already exceeded BEFORE the

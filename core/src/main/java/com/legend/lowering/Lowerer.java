@@ -687,7 +687,7 @@ public final class Lowerer {
                           + " not a missing lowering rule");
 
             case TypedNativeCall nc
-                    when RelationPredicates.isRelationToOne(nc) ->
+                    when RelationPredicates.isRelationIdentity(nc) ->
                     relation(nc.args().get(0));
 
             case TypedNativeCall nc when ValueCollectionOps.isBareSingleColumnSort(nc) ->

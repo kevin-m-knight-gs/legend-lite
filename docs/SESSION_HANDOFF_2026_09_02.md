@@ -853,8 +853,41 @@ member keys are CASE-gated + OR-joined — item (2) below. Denormalization
 check (user question): table-per-POLYMORPHIC-hierarchy, nothing repeated;
 the one smell is TableAlias' nine name-triple reference columns — item (6).
 
+**Batch 10 (2026-09-02) — UNION LOWERING for single-table hierarchies:
+the H2 lane 137s → 41s (ten typeInference tests 9–18s → <1s).** Three
+general mechanisms, rosters / H2 verdicts byte-identical, ratchet 820/1753:
+- **Every filtered member of one table merges into the ONE scan**: a
+  member's scan source is its table wrapped in its own navigation SLOTS
+  (demand-driven, free when unused), so the group key is the innermost
+  table and the merged scan carries the deduped union of the members'
+  slots (`UnionSynthesis.ScanSource`; same-named slots must agree). The
+  merged projection carries the UNION-SCAN MARKER `meta::legend::lite::
+  unionScan` (identity native, INTERNAL_DESUGAR 13→14): the resolver's
+  "is a union" facts (`Pipelines.containsConcatenate`, member-key
+  widening, nested-slot demands, the slot walk, milestone pushdown) read
+  the node kind where a concatenate no longer exists; lowering is erasure
+  (`RelationPredicates.isRelationIdentity`).
+- **THE SHARED TABLE KEY**: routes into members of ONE table keyed on its
+  sole PRIMARY KEY emit `src = t.<key>__pk_<table> AND (t.<key>_<k> IS
+  NOT NULL OR …)` — one indexable equality on the ungated shared key
+  (projected once by every thread over that table; the merged scan
+  collapses it to the plain column) AND the members' gated keys carrying
+  membership exactly as the per-member OR did (`JoinChainEmission.
+  sharedTableKey`; `UnionSynthesis.sharedKeyName`). PROBED AND REJECTED:
+  the ungated key ALONE as the join key — two routes with different
+  source columns (ResolveUnionTest FirmID/LegacyID) matched the wrong
+  member's rows; a primary key names one row, not one member.
+- **Same-source members coalesce**: a union's own lift whose members read
+  the SAME source column against one target expression contributes ONE
+  disjunct, `coalesce(s.col_k1, coalesce(…))` (at most one non-null per
+  row; `UnionSynthesis.coalesceReads`) — the inferredType hop's 105
+  entries (5 op kinds × 21 datatype kinds) are one probe. Identical
+  disjuncts dedupe (`orDistinct`).
+- Also: a self-join orientation fix rode in batch 9; `PhysicalTables`
+  (schema-aware table lookup) split out of MappingNormalizer.
+
 **NEXT (user-ratified order 2026-09-02, enumerated):**
-(1) DONE above. (2) UNION LOWERING for single-table hierarchies: merge
+(1) DONE (batch 9). (2) DONE (batch 10) — was: UNION LOWERING for single-table hierarchies: merge
 members WITH chains into the one scan (each chain a join on the shared
 scan guarded by the member's kind predicate); emit the key UNGATED when it
 is the scan table's PK and dedupe identical OR terms → `op_id = id`, an

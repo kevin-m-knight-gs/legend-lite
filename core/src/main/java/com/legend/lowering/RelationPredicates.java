@@ -38,6 +38,15 @@ final class RelationPredicates {
                 && nc.args().size() == 1;
     }
 
+    /** A relation-position IDENTITY: the to-one look-through above, or
+     * the union-scan marker ({@code Pure.Lite.UNION_SCAN} — a structural
+     * fact for the resolver, nothing for the database). */
+    static boolean isRelationIdentity(TypedNativeCall nc) {
+        return isRelationToOne(nc)
+                || (com.legend.builtin.Pure.Lite.UNION_SCAN.equals(nc.callee().qualifiedName())
+                        && nc.args().size() == 1);
+    }
+
     /** Does {@code s} read any column whose alias is not bound in an
      * ENCLOSING scope within it (an OUTER-row correlation)? Each nested
      * select extends the visible-alias set with its own FROM aliases —

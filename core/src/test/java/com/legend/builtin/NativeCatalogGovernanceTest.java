@@ -60,7 +60,11 @@ class NativeCatalogGovernanceTest {
         // 12→13 (multiplicity audit slice 3): trustOne — the SQL-lane
         // to-one conformance wrap, the C2 provenance split's synth
         // spelling (user toOne is CHECKED; synth trust is not).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 13,
+        // 13→14 (2026-09-02, single-table hierarchies): unionScan — the
+        // identity marker around a merged single-scan union body; the
+        // resolver's "is a union" facts read the node kind where the
+        // concatenate shape no longer exists (lowering is erasure).
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 14,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

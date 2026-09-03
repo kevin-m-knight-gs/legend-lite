@@ -1851,6 +1851,11 @@ final class TemporalFrame {
                     new TypedConcatenate(
                             replaceScan(c.left(), wrap),
                             replaceScan(c.right(), wrap), c.info());
+            // the union-scan marker: the merged members' one scan beneath
+            case com.legend.compiler.spec.typed.TypedNativeCall nc
+                    when Pipelines.isUnionScan(nc) ->
+                    new com.legend.compiler.spec.typed.TypedNativeCall(nc.callee(),
+                            List.of(replaceScan(nc.args().get(0), wrap)), nc.info());
             default -> throw new MappingResolutionException(
                     "milestone filter pushdown through "
                             + pipe.getClass().getSimpleName()

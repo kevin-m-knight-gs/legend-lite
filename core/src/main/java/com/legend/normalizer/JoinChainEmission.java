@@ -469,6 +469,48 @@ final class JoinChainEmission {
     private record RoutedNav(LambdaFunction cond, ValueSpecification rows) {
     }
 
+    /** One routed entry before suffixing: its RAW translated condition. */
+    private record RouteEntry(UnionSynthesis.UnionRoute route, ValueSpecification raw,
+            String db, String tgt, boolean inArm) {
+    }
+
+    /** {@code [key column, canonical table]} when every entry of a group is
+     * single-hop into a member whose main table declares a sole PRIMARY KEY,
+     * all on ONE table, and the condition's only target read is that key;
+     * else null (the per-route form stays). */
+    private static String @com.legend.Nullable [] sharedTableKey(List<RouteEntry> es,
+            Variable t, LegacyMappingDefinition md, ModelBuilder model) {
+        String key = null;
+        String table = null;
+        String db = null;
+        for (RouteEntry e : es) {
+            if (e.inArm()) {
+                return null;
+            }
+            ClassMapping set = MappingNormalizer.findSetById(md, model,
+                    e.route().join().targetSetId());
+            String k = UnionSynthesis.tableKey(set, model);
+            if (k == null || !(set instanceof ClassMapping.Relational r) || r.mainTable() == null) {
+                return null;
+            }
+            String tb = MappingNormalizer.canonicalTable(r.mainTable().table());
+            if (key == null || table == null || db == null) {
+                key = k;
+                table = tb;
+                db = r.mainTable().database();
+            } else if (!key.equals(k) || !table.equals(tb)
+                    || !db.equals(r.mainTable().database())) {
+                return null;
+            }
+        }
+        if (key == null) {
+            return null;
+        }
+        Map<String, String> reads = new LinkedHashMap<>();
+        UnionSynthesis.suffixTargetReads(es.get(0).raw(), t, "_x", reads);
+        return reads.keySet().equals(Set.of(key)) ? new String[]{key, table} : null;
+    }
+
     private static RoutedNav routedNavigation(
             List<UnionSynthesis.UnionRoute> routes, @com.legend.Nullable String propName,
             @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
@@ -479,6 +521,7 @@ final class JoinChainEmission {
         // suffixed name -> [base column, its route's db, its
         // route's landing table] (the typing arg needs the kind)
         Map<String, String[]> keyCols = new LinkedHashMap<>();
+        List<RouteEntry> entries = new ArrayList<>();
         boolean perArm = !UnionSynthesis.uniformChainedRoutes(
                 UnionSynthesis.memberJoins(routes));
         for (UnionSynthesis.UnionRoute route : routes) {
@@ -524,21 +567,55 @@ final class JoinChainEmission {
             ValueSpecification rCond = RelOpTranslator.translate(
                     rJd.operation(), rScope, t, null,
                     RelOpTranslator.PipelineView.NONE);
-            Map<String, String> out = new LinkedHashMap<>();
-            // in-arm chained routes read the PROPERTY-SCOPED
-            // chain keys the member thread projects
-            rCond = rInArm
-                    ? UnionSynthesis.suffixTargetReads(rCond, t,
-                            "__" + propName + "_"
-                                    + route.targetOrdinal(), out)
-                    : UnionSynthesis.suffixTargetReads(rCond, t,
-                            route.targetOrdinal(), out);
-            for (var en : out.entrySet()) {
-                keyCols.put(en.getValue(),
-                        new String[]{en.getKey(), rDb, rTgt});
+            entries.add(new RouteEntry(route, rCond, rDb, rTgt, rInArm));
+        }
+        // routes grouped by their RAW condition: routes into members of ONE
+        // table keyed on its PRIMARY KEY emit ONE equality on the shared
+        // key (indexable) AND the members' gated keys (non-null exactly on
+        // a member's own rows — the membership the per-member OR carried);
+        // every other group keeps the per-route member-suffixed disjuncts
+        Map<ValueSpecification, List<RouteEntry>> groups = new LinkedHashMap<>();
+        for (RouteEntry e : entries) {
+            groups.computeIfAbsent(e.raw(), k -> new ArrayList<>()).add(e);
+        }
+        for (var g : groups.entrySet()) {
+            List<RouteEntry> es = g.getValue();
+            String[] shared = sharedTableKey(es, t, md, model);
+            if (shared != null) {
+                String key = shared[0];
+                String table = shared[1];
+                Map<String, String> out = new LinkedHashMap<>();
+                ValueSpecification eq = UnionSynthesis.suffixTargetReads(g.getKey(), t,
+                        UnionSynthesis.TABLE_KEY_SUFFIX + "_"
+                                + table.replaceAll("[^A-Za-z0-9_]", "_"), out);
+                keyCols.put(UnionSynthesis.sharedKeyName(table, key),
+                        new String[]{key, es.get(0).db(), es.get(0).tgt()});
+                ValueSpecification flags = null;
+                for (RouteEntry e : es) {
+                    String gated = key + "_" + e.route().targetOrdinal();
+                    keyCols.put(gated, new String[]{key, e.db(), e.tgt()});
+                    flags = UnionSynthesis.orDistinct(flags, new AppliedFunction("not",
+                            List.of(new AppliedFunction("isEmpty",
+                                    List.of(new AppliedProperty(t, gated))))));
+                }
+                orCond = UnionSynthesis.orDistinct(orCond, new AppliedFunction("and",
+                        List.of(eq, java.util.Objects.requireNonNull(flags))));
+                continue;
             }
-            orCond = orCond == null ? rCond
-                    : new AppliedFunction("or", List.of(orCond, rCond));
+            for (RouteEntry e : es) {
+                Map<String, String> out = new LinkedHashMap<>();
+                // in-arm chained routes read the PROPERTY-SCOPED
+                // chain keys the member thread projects
+                ValueSpecification rCond = e.inArm()
+                        ? UnionSynthesis.suffixTargetReads(e.raw(), t,
+                                "__" + propName + "_" + e.route().targetOrdinal(), out)
+                        : UnionSynthesis.suffixTargetReads(e.raw(), t,
+                                e.route().targetOrdinal(), out);
+                for (var en : out.entrySet()) {
+                    keyCols.put(en.getValue(), new String[]{en.getKey(), e.db(), e.tgt()});
+                }
+                orCond = UnionSynthesis.orDistinct(orCond, rCond);
+            }
         }
         LambdaFunction navCond = new LambdaFunction(List.of(s, t), List.of(orCond));
         // typing arg: the suffixed key schema off the FIRST

@@ -780,15 +780,23 @@ public final class Pipelines {
             case com.legend.compiler.spec.typed.TypedSortBy sb ->
                     walkSortBy(sb, demanded, demandedNavs, targets, prefixes,
                             stripped, classFqn);
-            default -> {
-                if (containsSlot(n) || !navSteps(n).isEmpty()) {
-                    throw new NotImplementedException("mapping pipeline for '"
-                            + classFqn + "' has " + n.getClass().getSimpleName()
-                            + " above join slot(s); H3-pending");
-                }
-                yield n;
-            }
+            // the union-scan marker: the merged projection beneath it
+            // materializes like any projection; the marker rides on top
+            case TypedNativeCall nc when isUnionScan(nc) -> new TypedNativeCall(
+                    nc.callee(), List.of(walk(nc.args().get(0), demanded, demandedNavs,
+                            targets, prefixes, stripped, classFqn)), nc.info());
+            default -> walkOpaque(n, classFqn);
         };
+    }
+
+    /** An unknown node above the slots is loud; a slot-free node passes. */
+    private static TypedSpec walkOpaque(TypedSpec n, String classFqn) {
+        if (containsSlot(n) || !navSteps(n).isEmpty()) {
+            throw new NotImplementedException("mapping pipeline for '"
+                    + classFqn + "' has " + n.getClass().getSimpleName()
+                    + " above join slot(s); H3-pending");
+        }
+        return n;
     }
 
     /** drop/slice above the slots: the source materializes beneath. */
@@ -1109,6 +1117,7 @@ public final class Pipelines {
         }
         return switch (pipeline) {
             case TypedConcatenate cat -> widenConcatenateForKeys(cat, cols);
+            case TypedNativeCall nc when isUnionScan(nc) -> widenConcatenateForKeys(nc, cols);
             case TypedFilter f -> {
                 TypedSpec inner = widenConcatenateBelow(f.source(), cols);
                 yield inner == f.source() ? pipeline
@@ -1143,8 +1152,15 @@ public final class Pipelines {
         }
         // a ONE-thread union: every member of a filtered single-table
         // hierarchy merged into one scan (UnionSynthesis single-scan
-        // groups) — the projection hides the physical keys exactly as a
-        // concatenate's threads do, so it widens as the one member
+        // groups, the unionScan marker) — the projection hides the
+        // physical keys exactly as a concatenate's threads do, so it
+        // widens as the one member and keeps its marker
+        if (isUnionScan(pipeline)) {
+            TypedNativeCall mark = (TypedNativeCall) pipeline;
+            TypedSpec inner = widenConcatenateForKeys(mark.args().get(0), cols);
+            return inner == mark.args().get(0) ? pipeline
+                    : new TypedNativeCall(mark.callee(), List.of(inner), inner.info());
+        }
         if (pipeline instanceof TypedProject lone) {
             Type.RelationType lrow = Type.requireRelationSchema(lone.info().type());
             List<String> lmissing = new ArrayList<>();
@@ -1212,6 +1228,12 @@ public final class Pipelines {
      */
     private static TypedSpec widenUnionMember(TypedSpec side, int ordinal,
             List<TypedSpec> members, List<String> missing) {
+        if (isUnionScan(side)) {
+            // a merged single-scan member of a mixed union keeps its marker
+            TypedNativeCall mark = (TypedNativeCall) side;
+            TypedSpec inner = widenUnionMember(mark.args().get(0), ordinal, members, missing);
+            return new TypedNativeCall(mark.callee(), List.of(inner), inner.info());
+        }
         if (!(side instanceof TypedProject p)) {
             throw new NotImplementedException(
                     "a navigation join over this union demands key columns "
@@ -1748,8 +1770,19 @@ public final class Pipelines {
     }
 
     /** Whether the pipeline carries a union (TypedConcatenate) anywhere. */
+    /** The union-scan marker (Pure.Lite.UNION_SCAN) around a merged
+     * single-table-hierarchy projection: "this relation is a union body". */
+    static boolean isUnionScan(TypedSpec n) {
+        return n instanceof TypedNativeCall nc
+                && com.legend.builtin.Pure.Lite.UNION_SCAN.equals(nc.callee().qualifiedName())
+                && nc.args().size() == 1;
+    }
+
+    /** Whether the pipeline carries a UNION body: a concatenate of member
+     * threads, or the single-scan marker of a merged hierarchy. */
     static boolean containsConcatenate(TypedSpec pipeline) {
-        if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate
+                || isUnionScan(pipeline)) {
             return true;
         }
         for (TypedSpec c : pipeline.children()) {
