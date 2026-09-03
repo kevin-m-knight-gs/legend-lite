@@ -997,8 +997,39 @@ datatype rows of a constructed tree. Witnesses green (7/7 metamodel
 query functions, the four corpus typeInference constructed tests);
 rosters, report and H2 verdicts byte-identical; census 533; H2 lane 38s.
 
+**DESIGN — THE NORMALIZER'S MAPPING-FACT OWNER (user condition 2026-09-02:
+"I would do it if part of the work is to actually clean up the API so
+these call sites have a clean owner").** Census (2026-09-03): nine
+static helpers, 88 call sites — UnionSynthesis 26, MappingNormalizer 17,
+AssociationSynthesis 9, XStorePureEnds 8, JoinChainEmission 5,
+SetDispatch 4, ImplicitInheritance 4, M2mRouteGuards 1: `setIdOf` 28
+(string-replace spelling per ask), `findSetById` 14 (linear walk over
+own sets, then the include closure), `collectMappingClosure` 11,
+`unionForClass` 10 (own sets first, then includes in order, first found
+wins — recursive, never memoized), `collectIncludedSetIds` 8 (nearer
+include wins; store SUBSTITUTION composes through the include chain into a
+LOCAL map, then merges in include order), `memberOrdinalOf` 7 (set id OR
+extends-lineage match), inheritanceMembers/collectInheritanceMembers 7,
+`collectRootClassMappings` 3 (the `*` set, else a class's sole set).
+OWNER: `normalizer/MappingFacts` — ONE object per `LegacyMappingDefinition`
+INSTANCE (the mapping passes through five rewrites in normalizeMapping —
+resolveExtends, ImplicitInheritance.apply, qualifyStoreRefs,
+implicitOpsForAssociationEnds, injectMultiHopAssociationPMs — each a new
+instance whose facts differ; key by IDENTITY, never by name), memoized on
+the `ModelBuilder` for the model's lifetime (`ModelBuilder.mappingFact(md,
+kind, derive)`, IdentityHashMap — the derived-fact idiom, no static
+sinks). API: `idOf(set)`, `setById(id)` (own then included, own wins),
+`includedSets()` (the substitution-composed map), `closure()`,
+`unionOf(class)`, `rootSetOf(class)`, `extendsChain(set)`,
+`memberOrdinal(memberIds, setId)`, `inheritanceMembers(op)`. Every
+site becomes `MappingFacts.of(md, model).x(...)`; the nine statics are
+DELETED (not kept as pass-throughs). Verification: byte-identical paired
+sweeps (the include-order and first-wins rules are pinned by the
+rosters); model compile stays 0.5ms (the system layer is already
+prepared once) — the value is one owner for these questions.
+
 **NEXT (user-ratified order 2026-09-02, enumerated):**
-(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). Inline relations DONE (batch 13). NEXT = the normalizer index with its API owner (MappingIndex; delete the static helpers at ~50 sites), then group D. — was: UNION LOWERING for single-table hierarchies: merge
+(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). Inline relations DONE (batch 13). NEXT = MappingFacts (design above, ~3h fresh session), then group D. — was: UNION LOWERING for single-table hierarchies: merge
 members WITH chains into the one scan (each chain a join on the shared
 scan guarded by the member's kind predicate); emit the key UNGATED when it
 is the scan table's PK and dedupe identical OR terms → `op_id = id`, an
