@@ -2156,6 +2156,30 @@ hook alongside the mapping (`FrameFacts`), and the harness oracle arms the
 flag around its compare. Flipped: testQualifierQueryWithOr. Lane moves:
 exec-passing 76 → 75, M1 rescued 63 → 62; passes 2379; disagree 0.
 
+**Checkpoint after batch 42 (2026-09-03, "burn everything that does not need
+decision"): 303 fallbacks / 2270 flipped; batches 38–42 = +29, 0 lost.**
+Tried and REVERTED (receipt): routing a user helper whose body ends in an
+assert-family call (toPostgresModel's `assertConversion`) to a call frame —
+it moved that family's wall one step (to `newState()` reaching the lowerer,
+the C2 constructed-state territory) and LOST testPaginated; net negative,
+reverted. NO-DECISION legs still open, sized: (a) the H2-family referee
+spelling of a WHOLE relation collected as a list then exploded
+(`select unnest(list_filter(list_concat(list_filter((select list(x order
+by …) from …)…))))` → the engine's UNION ALL / SELECT DISTINCT; a second
+structural pass beside LateralExplodeToUnion; 2–3 tests); (b) zip+forAll
+unrolled verdict (needs pair.first/second folds; 1); (c) enumValues()->
+filter(in) fold for the dialect-loop forAll (1); (d) the extend col spec
+typed standalone inside the TDG relation scan (1); (e) TDG view-backed
+relation slice (1); (f) C2 — Pure recursion over constructed instance
+trees (toPostgresModel 20, debugPrint 9, SQLQuery post-processor lambdas 6):
+the design direction is ratified (metamodel as relations, recursive CTEs)
+but the build is multi-day and wants a design record first. DECISION items
+(named, not burned): H2VERSION probe 7, removeUnionOrJoins predicates 5,
+engine alias breadcrumbs for foreign-dialect text 3, golden defects 3
+(joinStrings separator ×2, Sunday-start firstDayOfWeek), engine-internal
+functions (objectReferenceIn 7, routeFunction 4, repeat 2), the 15
+plan-only text asserts whose stores no engine test seeds.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 303 fallbacks / 2270 flipped (batches 14–42 = group D,
