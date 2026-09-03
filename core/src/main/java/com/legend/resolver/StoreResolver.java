@@ -118,6 +118,7 @@ public final class StoreResolver {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
         this.constructed = new ConstructedInstances(ctx, sources);
+        sources.setConstructedRows(constructed::rowsFor);
         this.synthetics = new SyntheticHeads(ctx);
         // an EMPTY frame until the op-chain phase constructs the real one —
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
@@ -241,12 +242,13 @@ public final class StoreResolver {
      */
     record Context(@com.legend.Nullable String explicitMapping,
             @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
-            Map<String, String> jsonSources) {
+            Map<String, String> jsonSources, @com.legend.Nullable String constructedScope) {
         Context(@com.legend.Nullable String explicitMapping,
-                @com.legend.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of()); }
+                @com.legend.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of(), null); }
         Context(@com.legend.Nullable String explicitMapping, @com.legend.Nullable String runtimeFqn,
-                List<String> chainMappings) {
-            this(explicitMapping, runtimeFqn, chainMappings, Map.of());
+                List<String> chainMappings) { this(explicitMapping, runtimeFqn, chainMappings, Map.of(), null); }
+        Context withConstructedScope(String scope) {
+            return new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, scope);
         }
         static final Context NONE = new Context(null, null);
         static Context ofMapping(String fqn) { return new Context(fqn, null); }
@@ -544,10 +546,10 @@ public final class StoreResolver {
             case TypedPropertyAccess vpa   // genericType().rawType (M3)
                     when GenericTypeReflection.matches(vpa) ->
                     GenericTypeReflection.resolve(vpa, x -> resolveNode(x, context),
-                            f -> sources.get(dispatch(RoutingContext
-                                    .spineContext(vpa, context,
-                                            this::fromContext), f), f)
-                                    .pipeline(),
+                            f -> {
+                                Context sc = RoutingContext.spineContext(vpa, context, this::fromContext);
+                                return sources.get(dispatch(sc, f), f, sc.constructedScope()).pipeline();
+                            },
                             ctx.elementFqns());
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
@@ -613,7 +615,7 @@ public final class StoreResolver {
             TypedLambda corr = synthetics.correlatedPred(head);
             if (corr != null && demandedNavs.contains(nav.alias().get())
                     && nav.target() instanceof TypedGetAll ga) {
-                ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn());
+                ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn(), cs.scope());
                 NavMaterializer.NavMat mat = navMats.get(nav.alias().get());
                 TypedLambda aug = assocMaterial.andCorrelatedIntoCondition(
                         nav.predicate(), corr, cs, target,
@@ -752,7 +754,7 @@ public final class StoreResolver {
                     + "') is not supported yet");
         }
         String targetClass = tg.classFqn();
-        ClassSource t = sources.get(src.mappingFqn(), targetClass);
+        ClassSource t = sources.get(src.mappingFqn(), targetClass, src.scope());
         // DOWNSTREAM demand (#63): heads read off the re-rooted target
         // dispatch through its OWN nav/slot steps — materialize them INTO
         // the hop (composed prefixes employees_firm_*); provenance
@@ -836,12 +838,12 @@ public final class StoreResolver {
                 src.classFqn(),
                 (a, tc) -> {
                     Pipelines.Materialized im = Pipelines.materialize(
-                            sources.get(src.mappingFqn(), tc).pipeline(),
+                            sources.get(src.mappingFqn(), tc, src.scope()).pipeline(),
                             tc.equals(targetClass) ? fSlotDemand : java.util.Set.of(),
                             tc.equals(targetClass) ? fNavDemand : java.util.Set.of(),
                             tc,
                             (a2, tc2) -> Pipelines.materialize(
-                                    NestedUnionKeys.pipeline(sources, src.mappingFqn(), tc2,
+                                    NestedUnionKeys.pipeline(sources, src.mappingFqn(), tc2, src.scope(),
                                             a2, headNavAlias, downstreamPaths),
                                     java.util.Set.of(), tc2).pipeline());
                     if (tc.equals(targetClass)) {
@@ -871,7 +873,7 @@ public final class StoreResolver {
             if (!(navT instanceof TypedGetAll ng)) {
                 continue;
             }
-            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn());
+            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn(), src.scope());
             provOut.put(he.getKey(), new Substitution.AssocSub(
                     prefix + ip, sub.rowVar(), sub.bindings(),
                     sub.classFqn(),
@@ -1154,7 +1156,7 @@ public final class StoreResolver {
             bindings.put(e.getKey(), FlattenOps.prefixBinding(b,
                     pre.targetRowVar(), pre.prefix(), src.rowVar(), rowInfo));
         }
-        ClassSource t = sources.get(src.mappingFqn(), pre.targetClassFqn());
+        ClassSource t = sources.get(src.mappingFqn(), pre.targetClassFqn(), src.scope());
         // the hop's OWN materialized slots (SubNav children) become the
         // provenance of the hops/paths above it
         for (var ch : pre.subNavs().entrySet()) {
@@ -1367,7 +1369,6 @@ public final class StoreResolver {
     }
 
     /** table -> rows the resolved body's constructed instances contribute. */
-    public java.util.Map<String, List<List<String>>> constructedSeeds() { return constructed.seeds(); }
     /** D3 element references + the chain-position cast rules (built on
      * first use: ctx/sources are constructor-assigned). */
     private @com.legend.Nullable ElementReferences elementsRef;
@@ -1686,7 +1687,7 @@ public final class StoreResolver {
             // concat-branch preds read the target's address slot)
             String bareKey0 = navHeadByAlias.getOrDefault(alias, alias);
             bareKey0 = bareKey0.substring(bareKey0.lastIndexOf('.') + 1);
-            navMats.put(alias, navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(), targetClass,
+            navMats.put(alias, navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(), targetClass, cs.scope(),
                     navTails.getOrDefault(alias, List.of()),
                     navHeadByAlias.getOrDefault(alias, alias),
                     TemporalContext.NONE,
@@ -1703,8 +1704,7 @@ public final class StoreResolver {
                     liftedHead.lastIndexOf('.') + 1);
             if (synthetics.hasPred(predKey)
                     && synthetics.correlatedPred(predKey) == null) {
-                ClassSource target = sources.getForNav(cs.mappingFqn(),
-                        targetClass, navHeadByAlias.getOrDefault(alias, alias));
+                ClassSource target = sources.getForNav(cs.mappingFqn(), targetClass, navHeadByAlias.getOrDefault(alias, alias), cs.scope());
                 var mat = java.util.Objects.requireNonNull(
                         navMats.get(alias));
                 navMats.put(alias, new NavMaterializer.NavMat(
@@ -1725,8 +1725,7 @@ public final class StoreResolver {
                     navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
-            ClassSource target = sources.getForNav(cs.mappingFqn(),
-                    targetClass, navHeadByAlias.getOrDefault(alias, alias));
+            ClassSource target = sources.getForNav(cs.mappingFqn(), targetClass, navHeadByAlias.getOrDefault(alias, alias), cs.scope());
             // SUB-navigation material: for each 3-hop tail, the mid
             // property's minted sub-alias, its materialized prefix, and the
             // SUB-TARGET's binding table (leaves resolve through it —
@@ -1818,7 +1817,7 @@ public final class StoreResolver {
                 (alias, targetClass) -> navMats.containsKey(alias)
                         ? navMats.get(alias).pipeline()
                         : Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), targetClass).pipeline(),
+                                sources.get(cs.mappingFqn(), targetClass, cs.scope()).pipeline(),
                                 Set.of(), targetClass).pipeline());
         // §4AD P1 placement bit, slot channel (Pipelines owns the rule)
         m = Pipelines.innerizeValueSlots(m, navHeadByAlias, synthetics);
@@ -2215,9 +2214,8 @@ public final class StoreResolver {
             Map<String, Substitution.AssocSub> assocs) {
         var nav = java.util.Objects.requireNonNull(navSteps.get(alias));
         String targetClass = ((TypedGetAll) nav.target()).classFqn();
-        ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-        NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(
-                temporal, cs.mappingFqn(), targetClass,
+        ClassSource target = sources.get(cs.mappingFqn(), targetClass, cs.scope());
+        NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(), targetClass, cs.scope(),
                 extraNavTails.getOrDefault(headKey, List.of()),
                 headKey, TemporalContext.NONE);
         // the slot route's root stamp comes from the outer join-walk;
@@ -2464,9 +2462,8 @@ public final class StoreResolver {
                     navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
-            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-            NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(
-                    temporal, cs.mappingFqn(), targetClass,
+            ClassSource target = sources.get(cs.mappingFqn(), targetClass, cs.scope());
+            NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(), targetClass, cs.scope(),
                     navTailsByAlias.getOrDefault(alias, List.of()),
                     headKey, TemporalContext.NONE);
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
@@ -2562,8 +2559,10 @@ public final class StoreResolver {
             }
             if (cur instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
                     && constructed.rowId(cni) != null) {
-                cur = elements().elementRowByKey(java.util.Objects.requireNonNull(
-                        constructed.rowId(cni)), cni.classFqn(), chainContext,
+                // a CONSTRUCTED root: the chain resolves under the tree's scope
+                String scope = java.util.Objects.requireNonNull(constructed.rowId(cni));
+                chainContext = chainContext.withConstructedScope(scope);
+                cur = elements().elementRowByKey(scope, cni.classFqn(), chainContext,
                         () -> "_el" + (freshVarCounter++));
                 continue;
             }
@@ -2711,7 +2710,7 @@ public final class StoreResolver {
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
                 (t9, ex9) -> sources.dispatch(fctx.explicitMapping(),
                         fctx.runtimeFqn(), fctx.chainMappings(), t9, ex9),
-                RoutingContext.contextKey(fctx));
+                RoutingContext.contextKey(fctx), fctx.constructedScope());
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
@@ -3351,7 +3350,8 @@ public final class StoreResolver {
                                         context.explicitMapping(),
                                         context.runtimeFqn(),
                                         context.chainMappings(), t9, ex9),
-                                RoutingContext.contextKey(context)));
+                                RoutingContext.contextKey(context),
+                                context.constructedScope()));
         return new Substitution(new Substitution.Target(
                 new Substitution.RowScope(userLambda.parameters().get(0),
                         freshRowVar, cs.classFqn(), cs.mappingFqn(),

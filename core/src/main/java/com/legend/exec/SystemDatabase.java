@@ -9,7 +9,6 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,11 +26,11 @@ import java.util.function.Function;
  * connection (the corpus re-seeded ~20 tables of a corpus-sized graph on
  * every store-reading test &mdash; docs/GATES.md, 2026-09-02 budget entry).
  *
- * <p>Two kinds of rows. The GRAPH's rows are a pure function of the
- * compiled graph, derived once per table (the derivation is the caller's
- * &mdash; this package cannot see the seed derivations). A QUERY's own
- * constructed instances ({@code ^DynaFunction(...)} trees) are
- * content-addressed rows: inserted once per id, never twice.
+ * <p>The GRAPH's rows are a pure function of the compiled graph, derived
+ * once per table (the derivation is the caller's &mdash; this package
+ * cannot see the seed derivations). Nothing else is ever written: a
+ * query's constructed instances ({@code ^DynaFunction(...)} trees) ride
+ * the query itself as inline relations.
  *
  * <p>The engine follows the SESSION the query would have run on (an H2
  * lane keeps exercising the metamodel queries on H2 &mdash; the 21-kind
@@ -61,10 +60,9 @@ public final class SystemDatabase {
         }
     }
 
-    /** One engine's session: the connection + the constructed ids it holds. */
+    /** One engine's session. */
     private static final class Session {
         private final Connection connection;
-        private final Set<String> constructedIds = new HashSet<>();
 
         private Session(Connection connection) {
             this.connection = connection;
@@ -89,19 +87,19 @@ public final class SystemDatabase {
      * {@code session}, opened and written on first use. {@code store} is
      * the store's Database element (its DDL enumerates the tables);
      * {@code rowsOf} derives one table's rows (called once per table per
-     * graph); {@code constructed} are this query's own rows per table.
+     * graph). READ-ONLY after that: a query's constructed instances ride
+     * the query as inline relations (the resolver's scoped class sources),
+     * never this database.
      */
     public synchronized Connection connectionFor(Connection session,
             SqlDialect dialect, DatabaseDefinition store,
-            Function<String, List<List<String>>> rowsOf,
-            Map<String, List<List<String>>> constructed) {
+            Function<String, List<List<String>>> rowsOf) {
         String engine = product(session);
         Session s = sessions.get(engine);
         if (s == null) {
             s = open(engine, dialect, store, rowsOf);
             sessions.put(engine, s);
         }
-        insertConstructed(s, store, constructed);
         return s.connection;
     }
 
@@ -135,39 +133,6 @@ public final class SystemDatabase {
             }
         }
         return new Session(c);
-    }
-
-    /** A query's constructed rows, keyed by their first column (the
-     * content id): only ids the session does not hold yet insert. */
-    private static void insertConstructed(Session s, DatabaseDefinition store,
-            Map<String, List<List<String>>> constructed) {
-        for (Map.Entry<String, List<List<String>>> e : constructed.entrySet()) {
-            List<List<String>> fresh = new ArrayList<>();
-            for (List<String> row : e.getValue()) {
-                if (s.constructedIds.add(e.getKey() + "|" + row.get(0))) {
-                    fresh.add(row);
-                }
-            }
-            if (fresh.isEmpty()) {
-                continue;
-            }
-            boolean inserted = false;
-            for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
-                for (DatabaseDefinition.TableDefinition def : schema.tables()) {
-                    if (def.name().equals(e.getKey())) {
-                        String ins = Ddl.metamodelInsert(def, schema.name(), fresh);
-                        if (ins != null) {
-                            Executor.executeRaw(s.connection, ins);
-                        }
-                        inserted = true;
-                    }
-                }
-            }
-            if (!inserted) {
-                throw new IllegalStateException("system database: constructed rows"
-                        + " for unknown store table '" + e.getKey() + "'");
-            }
-        }
     }
 
     /** The session's engine — java.sql stops here. */

@@ -85,11 +85,77 @@ public final class ClassSources {
      * set-discriminated binding when present; class-level serves
      * otherwise (union targets always fall back — member set ids never
      * bind class-level). */
-    ClassSource getForNav(String mappingFqn, String classFqn, String head) {
+    ClassSource getForNav(String mappingFqn, String classFqn, String head,
+            @com.legend.Nullable String scope) {
         return get(mappingFqn, classFqn,
                 ctx.routedTargetSetOf(mappingFqn,
                         SyntheticHeads.realHead(head)).orElse(null),
-                null, "");
+                null, "", scope);
+    }
+
+    /** tree id -> (store table -> rows): the resolver's constructed
+     * instances, read as inline rows under their tree's scope. */
+    private java.util.function.Function<String, Map<String, List<List<String>>>>
+            constructedRows = id -> Map.of();
+
+    void setConstructedRows(
+            java.util.function.Function<String, Map<String, List<List<String>>>> rows) {
+        this.constructedRows = rows;
+    }
+
+    /**
+     * A class source UNDER A CONSTRUCTED SCOPE: the system store's table
+     * leaves become inline relations of the tree's rows, typed with the
+     * leaf's own row type (user ruling 2026-09-02: a query carries its own
+     * constants; the system database is read-only after the graph's rows).
+     * A table the tree has no rows for keeps its scan (a real element
+     * inside a constructed tree reads the graph).
+     */
+    private ClassSource scoped(ClassSource built, String scope) {
+        Map<String, List<List<String>>> rows = constructedRows.apply(scope);
+        if (rows.isEmpty()) {
+            return built.withScope(scope);
+        }
+        return new ClassSource(built.mappingFqn(), built.classFqn(), built.setId(),
+                inlineStoreLeaves(built.pipeline(), rows), built.rowVar(),
+                built.bindings(), built.rowType(), built.sourceClass(),
+                built.deferredWalls(), built.composedPrefix(), built.castGate(), scope);
+    }
+
+    private static TypedSpec inlineStoreLeaves(TypedSpec n,
+            Map<String, List<List<String>>> rows) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr
+                && com.legend.builtin.SystemMetamodel.STORE_FQN.equals(tr.store())) {
+            String table = tr.table().substring(tr.table().lastIndexOf('.') + 1);
+            List<List<String>> mine = rows.get(table);
+            if (mine != null) {
+                List<List<String>> cells = new ArrayList<>(mine.size());
+                for (List<String> row : mine) {
+                    List<String> r = new ArrayList<>(row.size());
+                    for (String c : row) {
+                        // the literal node copies rows null-rejecting: an
+                        // absent fact is the TDS null cell (lowered to NULL)
+                        r.add(c == null ? com.legend.compiler.element.type.PlatformTypes
+                                .TDS_NULL_CELL : c);
+                    }
+                    cells.add(r);
+                }
+                return new com.legend.compiler.spec.typed.TypedTds(cells, tr.info());
+            }
+            return n;
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec nk = inlineStoreLeaves(k, rows);
+            changed |= nk != k;
+            out.add(nk);
+        }
+        return changed ? n.withChildren(out) : n;
     }
 
     public ClassSources(ModelContext ctx, SpecCompiler specs) {
@@ -110,9 +176,12 @@ public final class ClassSources {
     }
 
 
-    /** The memoized extraction for {@code classFqn} under {@code mappingFqn}. */
-    public ClassSource get(String mappingFqn, String classFqn) {
-        return get(mappingFqn, classFqn, null, "");
+    /** The memoized extraction for {@code classFqn} under {@code mappingFqn},
+     * resolved under {@code scope} — the SOURCE's scope when fetching a
+     * target for it ({@link ClassSource#scope()}), null at a graph root. */
+    public ClassSource get(String mappingFqn, String classFqn,
+            @com.legend.Nullable String scope) {
+        return get(mappingFqn, classFqn, null, "", scope);
     }
 
     /**
@@ -124,8 +193,8 @@ public final class ClassSources {
      */
     public ClassSource get(String mappingFqn, String classFqn,
             @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
-            String contextKey) {
-        return get(mappingFqn, classFqn, null, upstreamMapping, contextKey);
+            String contextKey, @com.legend.Nullable String scope) {
+        return get(mappingFqn, classFqn, null, upstreamMapping, contextKey, scope);
     }
 
     /** {@code setId} non-null = H5 SET-ID DISPATCH: the navigate's route
@@ -136,13 +205,14 @@ public final class ClassSources {
     public ClassSource get(String mappingFqn, String classFqn,
             @com.legend.Nullable String setId,
             @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
-            String contextKey) {
+            String contextKey, @com.legend.Nullable String scope) {
         // The context key participates in memoization because an M2M
         // composition resolves its UPSTREAM through the runtime dispatch —
         // the same mapping::class composed under different runtimes reads
         // different stores (audit F1: memo poisoning was silent wrong data).
         String key = mappingFqn + '\u0000' + classFqn + '\u0000' + contextKey
-                + (setId == null ? "" : '\u0000' + setId);
+                + (setId == null ? "" : '\u0000' + setId)
+                + (scope == null ? "" : "\u0000scope=" + scope);
         ClassSource cached = memo.get(key);
         if (cached != null) {
             return cached;
@@ -155,6 +225,9 @@ public final class ClassSources {
         try {
             ClassSource built = build(mappingFqn, classFqn, setId,
                     upstreamMapping, contextKey);
+            if (scope != null) {
+                built = scoped(built, scope);
+            }
             memo.put(key, built);
             return built;
         } finally {
@@ -197,7 +270,7 @@ public final class ClassSources {
         List<Type.Column> keyCols = new ArrayList<>();
         for (int i = 0; i < ordered.size(); i++) {
             ClassSource m = get(mappingFqn, classFqn, ordered.get(i),
-                    upstreamMapping, contextKey);
+                    upstreamMapping, contextKey, null);
             members.add(m);
             List<MixedRoute> rs = mixedMemberRoutes(m, mappingFqn);
             routesPer.add(rs);
@@ -497,7 +570,7 @@ public final class ClassSources {
         List<String> ordered = mixedArmOrder(mappingFqn, classFqn, memberIds);
         List<MixedRoute> routes = new ArrayList<>();
         for (String memberId : ordered) {
-            ClassSource mem = get(mappingFqn, classFqn, memberId, null, "");
+            ClassSource mem = get(mappingFqn, classFqn, memberId, null, "", null);
             routes.add(mixedMemberRoutes(mem, mappingFqn).stream()
                     .filter(r -> r.prop().equals(prop)).findFirst()
                     .orElseThrow(() -> new NotImplementedException(
@@ -540,7 +613,7 @@ public final class ClassSources {
                         + " would double rows");
             }
             ClassSource arm = get(mappingFqn, childClassFqn, r.targetSetId(),
-                    null, "");
+                    null, "", null);
             TypedSpec pipe = Pipelines.materialize(arm.pipeline(),
                     java.util.Set.of(), childClassFqn).pipeline();
             Type.RelationType aRow = Type.requireRelationSchema(pipe.info().type());
@@ -762,7 +835,7 @@ public final class ClassSources {
             }
             ClassSource sub;
             try {
-                sub = get(mappingFqn, cb.classFqn());
+                sub = get(mappingFqn, cb.classFqn(), null);
             } catch (RuntimeException notBuildable) {
                 // a broken subclass mapping must not poison the PARENT
                 // source — casts to it stay loud at their own read
@@ -918,7 +991,7 @@ public final class ClassSources {
                             : upstreamMapping.apply(srcType.fqn(),
                                     selfSourced ? mappingFqn : null);
             inner = get(srcMapping, srcType.fqn(), upstreamMapping,
-                    contextKey);
+                    contextKey, null);
         }
         String srcVar = mapper.parameters().get(0);
         TypedSpec composedPipeline = inner.pipeline();

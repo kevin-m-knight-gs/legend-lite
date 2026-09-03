@@ -63,7 +63,7 @@ class ClassSourceTest {
                 for (MappingDefinition.ClassBinding cb : md.classBindings()) {
                     ClassSource cs;
                     try {
-                        cs = sources.get(md.qualifiedName(), cb.classFqn());
+                        cs = sources.get(md.qualifiedName(), cb.classFqn(), null);
                     } catch (RuntimeException e) {
                         fail(fx.getKey() + " / " + cb.classFqn() + ": " + e.getMessage());
                         return;
@@ -95,7 +95,7 @@ class ClassSourceTest {
             Mapping m::M ( *m::Person: Relational { ~mainTable [s::DB] T
               name: T.NAME, age: T.AGE } )
             """);
-        ClassSource cs = c.sources().get("m::M", "m::Person");
+        ClassSource cs = c.sources().get("m::M", "m::Person", null);
         assertEquals("m::M", cs.mappingFqn());
         assertEquals("m::Person", cs.classFqn());
         assertEquals("row", cs.rowVar());
@@ -121,7 +121,7 @@ class ClassSourceTest {
             ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T name: T.NAME } )
             """);
-        assertSame(c.sources().get("m::M", "m::P"), c.sources().get("m::M", "m::P"));
+        assertSame(c.sources().get("m::M", "m::P", null), c.sources().get("m::M", "m::P", null));
     }
 
     @Test
@@ -136,7 +136,7 @@ class ClassSourceTest {
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T name: T.NAME } )
             """);
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
-                () -> c.sources().get("m::M", "m::Q"));
+                () -> c.sources().get("m::M", "m::Q", null));
         assertTrue(String.valueOf(e.getMessage()).contains("m::Q"), e.getMessage());
         assertTrue(e.getMessage().contains("m::M"), e.getMessage());
     }
@@ -152,7 +152,7 @@ class ClassSourceTest {
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T name: T.NAME } )
             """);
         assertThrows(MappingResolutionException.class,
-                () -> c.sources().get("m::NOPE", "m::P"));
+                () -> c.sources().get("m::NOPE", "m::P", null));
     }
 
     @Test
@@ -167,7 +167,7 @@ class ClassSourceTest {
             Mapping m::M ( *m::P: Relational { ~filter [s::DB] ActiveF
               ~mainTable [s::DB] T name: T.NAME } )
             """);
-        ClassSource cs = c.sources().get("m::M", "m::P");
+        ClassSource cs = c.sources().get("m::M", "m::P", null);
         assertTrue(cs.pipeline() instanceof com.legend.compiler.spec.typed.TypedFilter,
                 "the mapping ~filter is the pipeline's top node, got "
                         + cs.pipeline().getClass().getSimpleName());

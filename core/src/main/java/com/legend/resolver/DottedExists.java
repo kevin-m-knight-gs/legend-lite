@@ -143,8 +143,7 @@ final class DottedExists {
             }
             String leafName = path.get(path.size() - 1);
             String leaf = SyntheticHeads.realHead(leafName);
-            ClassSource parent = sources.get(cs.mappingFqn(),
-                    chain.targetClassFqn());
+            ClassSource parent = sources.get(cs.mappingFqn(), chain.targetClassFqn(), cs.scope());
             TypedLambda cond;
             TypedSpec tPipe;
             ClassSource t;
@@ -165,7 +164,7 @@ final class DottedExists {
                         || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
                     continue;
                 }
-                t = sources.get(cs.mappingFqn(), tg.classFqn());
+                t = sources.get(cs.mappingFqn(), tg.classFqn(), cs.scope());
                 Pipelines.Materialized tm = Pipelines.materialize(
                         t.pipeline(), Set.of(), t.classFqn());
                 TypedSpec p0 = tm.pipeline();

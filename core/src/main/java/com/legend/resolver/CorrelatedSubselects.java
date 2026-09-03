@@ -503,7 +503,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
                 : Pipelines.materialize(cs.pipeline(), slotDemand, navDemand,
                         cs.classFqn(),
                         (al2, tc2) -> Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), tc2).pipeline(),
+                                sources.get(cs.mappingFqn(), tc2, cs.scope()).pipeline(),
                                 java.util.Set.of(), tc2).pipeline());
         Map<String, Substitution.SubNav> subNavs = new LinkedHashMap<>();
         for (var e : navByHead.entrySet()) {
@@ -512,7 +512,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
-            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn());
+            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn(), cs.scope());
             subNavs.put(e.getKey(), new Substitution.SubNav(
                     pfx, sub.rowVar(), sub.bindings()));
         }
@@ -1405,7 +1405,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
         }
         return java.util.Objects.requireNonNull(navSteps.get(alias), "navSteps.get(alias)").target()
                 instanceof com.legend.compiler.spec.typed.TypedGetAll g
-                ? sources.get(parent.mappingFqn(), g.classFqn()) : null;
+                ? sources.get(parent.mappingFqn(), g.classFqn(), parent.scope()) : null;
     }
 
 record CompositeChain(TypedSpec pipeline,
@@ -1835,7 +1835,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             if (!sources.binds(cs.mappingFqn(), fqn)) {
                 continue;
             }
-            ClassSource sub = sources.get(cs.mappingFqn(), fqn);
+            ClassSource sub = sources.get(cs.mappingFqn(), fqn, cs.scope());
             Set<String> cols = new LinkedHashSet<>();
             for (TypedSpec b : sub.bindings().values()) {
                 collectVarColumnReads(b, sub.rowVar(), cols);
@@ -2022,7 +2022,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 om = null;
             }
             if (om != null && sources.binds(om, ownCt.fqn())
-                    && Pipelines.unwrapToOne(sources.get(om, ownCt.fqn())
+                    && Pipelines.unwrapToOne(sources.get(om, ownCt.fqn(), null /* binding-shape probe */)
                             .bindings().getOrDefault(ha.property(), ha))
                             instanceof com.legend.compiler.spec.typed
                                     .TypedNewInstance) {
@@ -2057,7 +2057,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             m = null;
         }
         return m != null && sources.binds(m, navCt.fqn())
-                ? sources.get(m, navCt.fqn()) : null;
+                ? sources.get(m, navCt.fqn(), null /* binding-shape probe */) : null;
     }
 
     /** {@code v | $v.<witness>->isNotEmpty()} — the member-routing filter. */

@@ -53,8 +53,9 @@ final class NavMaterializer {
                   Map<String, Substitution.SubNav> subNavs) {}
 
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, List<List<String>> tails) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, tails,
+            String targetClassFqn, @com.legend.Nullable String scope,
+            List<List<String>> tails) {
+        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope, tails,
                 null, TemporalContext.NONE);
     }
 
@@ -63,9 +64,10 @@ final class NavMaterializer {
      * propagation flows hop-to-hop through temporal classes (engine
      * getMilestoningContextForQualifiedProperty), not only from the root. */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, List<List<String>> tails,
+            String targetClassFqn, @com.legend.Nullable String scope,
+            List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn,
+        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope,
                 tails, chainPrefix, inherited, List.of());
     }
 
@@ -73,10 +75,11 @@ final class NavMaterializer {
      * target — their DIRECT slot-alias reads (β-inlined qualifier bodies)
      * join the demand; property-path reads ride {@code tails}. */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, List<List<String>> tails,
+            String targetClassFqn, @com.legend.Nullable String scope,
+            List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn,
+        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope,
                 tails, chainPrefix, inherited, parkedPreds, Set.of());
     }
 
@@ -85,8 +88,11 @@ final class NavMaterializer {
      * chain joins ONCE PER OCCURRENCE CLASS (engine per-call join
      * identity: the projection read rides its own copy and OR-fans the
      * member arms — ROW semantics, unionalias_3 vs unionalias_2). */
+    /** {@code scope}: the SOURCE's scope (ClassSource.scope) — the target
+     * resolves under it. */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, List<List<String>> tails,
+            String targetClassFqn, @com.legend.Nullable String scope,
+            List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
@@ -95,7 +101,7 @@ final class NavMaterializer {
         String prefix = java.util.Objects.requireNonNull(chainPrefix,
                 "nav materialization without a set-id dispatch prefix");
         ClassSource t = sources.getForNav(mappingFqn, targetClassFqn,
-                prefix.substring(prefix.lastIndexOf('.') + 1));
+                prefix.substring(prefix.lastIndexOf('.') + 1), scope);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
         // (engine: one context object per cursor, explicit dates override
@@ -293,7 +299,7 @@ final class NavMaterializer {
             }
             ClassSource subCs = sources.get(mappingFqn,
                     java.util.Objects.requireNonNull(
-                            subClsByAlias.get(sm.getKey())));
+                            subClsByAlias.get(sm.getKey())), t.scope());
             subTree.put(prop, new Substitution.SubNav(p, subCs.rowVar(),
                     subCs.bindings(),
                     composeSubNavPrefixes(p, sm.getValue().subNavs())));
@@ -365,7 +371,7 @@ final class NavMaterializer {
                 // rows; stays loud until that rung is built
                 if (subClsOpt.isPresent()
                         && !Pipelines.containsConcatenate(sources
-                                .get(mappingFqn, subClsOpt.get())
+                                .get(mappingFqn, subClsOpt.get(), t.scope())
                                 .pipeline())) {
                     String subChain = chainPrefix == null ? tail.get(0)
                             : chainPrefix + "." + tail.get(0);
@@ -394,7 +400,7 @@ final class NavMaterializer {
             TemporalContext hopCtx) {
 
             String midProp = midByAlias.get(alias);
-            NavMat subMat = navTargetMaterialized(temporal, mappingFqn, cls,
+            NavMat subMat = navTargetMaterialized(temporal, mappingFqn, cls, t.scope(),
                     subTails.getOrDefault(alias, List.of()),
                     chainPrefix == null ? null
                             : chainPrefix + "." + midProp,
@@ -413,7 +419,7 @@ final class NavMaterializer {
                 final NavMat sm2 = subMat;
                 sub = synthetics.applyToPipe(synthProp, sub,
                         (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
-                                pp, sources.get(mappingFqn, cls),
+                                pp, sources.get(mappingFqn, cls, t.scope()),
                                 sm2.slotPrefixes(), sm2.subNavs(),
                                 pred, mappingFqn));
             }
@@ -423,7 +429,7 @@ final class NavMaterializer {
                 String subChain = chainPrefix + "." + midByAlias.get(alias);
                 TemporalFrame.TemporalSpec subSpec = temporal.spec(subChain);
                 if (subSpec != null) {
-                    sub = temporal.temporalTargetPipe(t, sources.get(mappingFqn, cls),
+                    sub = temporal.temporalTargetPipe(t, sources.get(mappingFqn, cls, t.scope()),
                             subChain, sub);
                 } else {
                     // DIMENSION-PROJECTED inheritance through a
@@ -505,7 +511,7 @@ final class NavMaterializer {
                 // undemanded: the leaf read stays LOUD downstream.
                 String subCls = ((TypedGetAll)
                         java.util.Objects.requireNonNull(tNavSteps.get(subAlias)).target()).classFqn();
-                ClassSource subT = sources.get(mappingFqn, subCls);
+                ClassSource subT = sources.get(mappingFqn, subCls, t.scope());
                 // TEMPORAL sub-target: liftable when its CHAIN-KEYED
                 // spec (explicit hop date) or propagated context can
                 // filter it (temporalTargetPipe in the resolver lambda
@@ -653,11 +659,11 @@ final class NavMaterializer {
             String subChain = chainPrefix == null ? prop
                     : chainPrefix + "." + prop;
             NavMat xMat = navTargetMaterialized(temporal, mappingFqn,
-                    xg.classFqn(),
+                    xg.classFqn(), t.scope(),
                     extraSubTails.getOrDefault(prop, List.of()),
                     subChain, hopCtx, synthetics.allPreds(prop));
             final NavMat xm2 = xMat;
-            ClassSource xCs = sources.get(mappingFqn, xg.classFqn());
+            ClassSource xCs = sources.get(mappingFqn, xg.classFqn(), t.scope());
             TypedSpec xPipe = synthetics.applyToPipe(prop, xMat.pipeline(),
                     (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
                             pp, xCs, xm2.slotPrefixes(), xm2.subNavs(),
@@ -787,7 +793,7 @@ final class NavMaterializer {
                                     .Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
             ClassSource subCs = sources.get(mappingFqn,
-                    java.util.Objects.requireNonNull(subClsByAlias.get(na)));
+                    java.util.Objects.requireNonNull(subClsByAlias.get(na)), t.scope());
             subTree.put(prop + "#p", new Substitution.SubNav(prefix2,
                     subCs.rowVar(), subCs.bindings(),
                     composeSubNavPrefixes(prefix2,

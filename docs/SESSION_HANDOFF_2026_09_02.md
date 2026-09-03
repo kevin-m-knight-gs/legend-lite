@@ -975,8 +975,30 @@ touches the store, the lowering has the literal case, `routeSystemStore`
 stays correct for pure-constructed (no store ref → user session, no
 store needed) and mixed queries.
 
+**Batch 13 (2026-09-03) — CONSTRUCTED INSTANCES AS INLINE RELATIONS; the
+system database is READ-ONLY after the graph's rows.** Built exactly as
+designed above: `ClassSource.scope` (the constructed tree's content id;
+null for the graph's stores); `ClassSources.get` / `getForNav` REQUIRE
+a scope (the scope-less overloads are gone — 71 sites now pass their
+source's `cs.scope()`, a graph root's `context.constructedScope()`, or
+`null` with a stated reason for the two binding-shape probes and
+ClassSources' own building blocks, whose assembled pipeline is rewritten
+ONCE by `ClassSources.scoped`); `NavMaterializer.navTargetMaterialized`
+and `NestedUnionKeys.pipeline` carry the scope. Under a constructed scope
+the store's table leaves become `TypedTds` literals of the tree's rows
+(`inlineStoreLeaves`; absent cells = `TDS_NULL_CELL`), typed with the
+leaf's own row type; the memo key includes the scope. The chain rooted at
+a constructed instance sets `Context.constructedScope`
+(`StoreResolver.collectOpChain`). DELETED: `ConstructedInstances.seeds`,
+`ExecEnv.constructedSeeds` / `withConstructedSeeds`, `SystemDatabase.
+insertConstructed` + the session's constructed ids. The generated SQL
+carries `(VALUES (...)) AS _tdsN(...)` for BOTH the element rows and the
+datatype rows of a constructed tree. Witnesses green (7/7 metamodel
+query functions, the four corpus typeInference constructed tests);
+rosters, report and H2 verdicts byte-identical; census 533; H2 lane 38s.
+
 **NEXT (user-ratified order 2026-09-02, enumerated):**
-(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). NEXT = the inline-relation design above, then the normalizer index with its API owner (MappingIndex; delete the static helpers), then group D. — was: UNION LOWERING for single-table hierarchies: merge
+(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). Inline relations DONE (batch 13). NEXT = the normalizer index with its API owner (MappingIndex; delete the static helpers at ~50 sites), then group D. — was: UNION LOWERING for single-table hierarchies: merge
 members WITH chains into the one scan (each chain a join on the shared
 scan guarded by the member's kind predicate); emit the key UNGATED when it
 is the scan table's PK and dedupe identical OR terms → `op_id = id`, an

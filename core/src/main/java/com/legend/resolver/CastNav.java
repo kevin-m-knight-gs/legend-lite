@@ -46,7 +46,7 @@ final class CastNav {
         if (castFqn == null) {
             return target;
         }
-        ClassSource child = sources.get(cs.mappingFqn(), castFqn);
+        ClassSource child = sources.get(cs.mappingFqn(), castFqn, cs.scope());
         if (!child.rowVar().equals(target.rowVar())) {
             throw new NotImplementedException("M2M cast navigation '"
                     + headKey + "': the target class '" + castFqn

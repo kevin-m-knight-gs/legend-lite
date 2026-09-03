@@ -46,12 +46,41 @@ public record ClassSource(
         @com.legend.Nullable String sourceClass,
         Map<String, String> deferredWalls,
         String composedPrefix,
-        @com.legend.Nullable String castGate) {
+        @com.legend.Nullable String castGate,
+        @com.legend.Nullable String scope) {
 
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
         deferredWalls = Collections.unmodifiableMap(
                 new LinkedHashMap<>(deferredWalls));
+    }
+
+    /** Without a scope. */
+    public ClassSource(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId, TypedSpec pipeline,
+            String rowVar, Map<String, TypedSpec> bindings,
+            Type.RelationType rowType,
+            @com.legend.Nullable String sourceClass,
+            Map<String, String> deferredWalls, String composedPrefix,
+            @com.legend.Nullable String castGate) {
+        this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
+                rowType, sourceClass, deferredWalls, composedPrefix, castGate, null);
+    }
+
+    /**
+     * THE SCOPE a class source was resolved under (the constructed-tree
+     * id when this source reads a query's CONSTRUCTED instance as inline
+     * rows; null for the graph's stores). Every navigation target,
+     * subtype cast and association join fetched FOR this source passes
+     * it on ({@code ClassSources.get} requires it) — a target resolved
+     * outside its source's scope would read the store table where the
+     * source reads the query's inline rows (user ruling 2026-09-02: the
+     * system database is read-only; a query carries its own constants).
+     */
+    public ClassSource withScope(@com.legend.Nullable String scope) {
+        return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
+                bindings, rowType, sourceClass, deferredWalls, composedPrefix, castGate,
+                scope);
     }
 
     /** Without a cast gate. */
@@ -62,7 +91,7 @@ public record ClassSource(
             @com.legend.Nullable String sourceClass,
             Map<String, String> deferredWalls, String composedPrefix) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
-                rowType, sourceClass, deferredWalls, composedPrefix, null);
+                rowType, sourceClass, deferredWalls, composedPrefix, null, null);
     }
 
     public ClassSource(String mappingFqn, String classFqn,
@@ -81,7 +110,7 @@ public record ClassSource(
      * do not conform were made to RAISE by the chain's gate filter. */
     public ClassSource withCastGate(@com.legend.Nullable String gate) {
         return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
-                bindings, rowType, sourceClass, deferredWalls, composedPrefix, gate);
+                bindings, rowType, sourceClass, deferredWalls, composedPrefix, gate, scope);
     }
 
     public ClassSource(String mappingFqn, String classFqn,
@@ -99,7 +128,7 @@ public record ClassSource(
      * (the depth leg, 2026-09-02). Empty on a root source. */
     public ClassSource withComposedPrefix(String prefix) {
         return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
-                bindings, rowType, sourceClass, deferredWalls, prefix, castGate);
+                bindings, rowType, sourceClass, deferredWalls, prefix, castGate, scope);
     }
 
     /** A binding whose M2M composition walled PER KEY (ledger cluster

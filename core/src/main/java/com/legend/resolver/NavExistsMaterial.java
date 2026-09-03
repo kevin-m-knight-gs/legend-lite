@@ -97,8 +97,7 @@ final class NavExistsMaterial {
                 || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
             return;
         }
-        ClassSource t = sources.getForNav(cs.mappingFqn(),
-                tg.classFqn(), registerKey);
+        ClassSource t = sources.getForNav(cs.mappingFqn(), tg.classFqn(), registerKey, cs.scope());
         Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
         Set<String> tDemand0 = new LinkedHashSet<>();
         Set<String> innerLeaves = new LinkedHashSet<>();
@@ -147,7 +146,7 @@ final class NavExistsMaterial {
                 : Pipelines.materialize(
                         t.pipeline(), tDemand0, tNavDemand, t.classFqn(),
                         (al2, tc2) -> Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), tc2)
+                                sources.get(cs.mappingFqn(), tc2, cs.scope())
                                         .pipeline(),
                                 java.util.Set.of(), tc2).pipeline());
         Map<String, Substitution.SubNav> tSubNavs = new LinkedHashMap<>();
@@ -159,7 +158,7 @@ final class NavExistsMaterial {
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
-            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn());
+            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn(), cs.scope());
             tSubNavs.put(pne.getKey(), new Substitution.SubNav(
                     pfx, sub.rowVar(), sub.bindings()));
         }

@@ -79,40 +79,15 @@ final class StatementExecutor {
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
-            java.util.Map<String, java.util.List<java.util.List<String>>> constructedSeeds) {
-        /** The pre-side-output shape (constructed seeds: none). */
-        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
-                com.legend.sql.dialect.SqlDialect dialect,
-                java.sql.Connection connection,
-                boolean addDriverTablePk,
-                java.util.Map<String, TypedSpec> queryLets,
-                java.util.Map<String, String> tableReplace,
-                com.legend.exec.InstanceIds instanceIds,
-                com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-                com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
-            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk, queryLets,
-                    tableReplace, instanceIds, assertListener, replayOracle,
-                    java.util.Map.of());
-        }
-
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
         /** The same environment over another session — the system
          * database's connection for a body that reads the metamodel. */
         ExecEnv withConnection(java.sql.Connection other) {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, addDriverTablePk, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, constructedSeeds);
+                    instanceIds, assertListener, replayOracle);
         }
 
-        /** The resolver's side-output rows (constructed metamodel
-         * instances) — inserted content-addressed into the system
-         * database, per table. */
-        ExecEnv withConstructedSeeds(
-                java.util.Map<String, java.util.List<java.util.List<String>>> seeds) {
-            return seeds.isEmpty() ? this : new ExecEnv(ctx, runtimeFqn, dialect,
-                    connection, addDriverTablePk, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, seeds);
-        }
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -241,8 +216,7 @@ final class StatementExecutor {
                                 new com.legend.resolver.StoreResolver(env.ctx(), specs)
                                         .withLetBindings(env.queryLets());
                         inlined = letResolver.resolve(inlined, env.runtimeFqn());
-                        executeTyped(inlined, env.withConstructedSeeds(
-                                letResolver.constructedSeeds()));
+                        executeTyped(inlined, env);
                     }
                     continue;
                 }
@@ -360,7 +334,7 @@ final class StatementExecutor {
                         body, env.ctx());
             }
             result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
-                    env).withConstructedSeeds(resolver.constructedSeeds()));
+                    env));
         }
         return result;
     }
@@ -2022,7 +1996,7 @@ final class StatementExecutor {
                 body = com.legend.resolver.DriverPkAppend.apply(
                         body, env.ctx());
             }
-            run = executeTyped(body, env.withConstructedSeeds(chainResolver.constructedSeeds()));
+            run = executeTyped(body, env);
         }
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
@@ -2530,8 +2504,7 @@ final class StatementExecutor {
         ModelContext ctx = env.ctx();
         return env.withConnection(com.legend.exec.SystemDatabase.of(ctx)
                 .connectionFor(env.connection(), env.dialect(), store,
-                        table -> MetamodelSeeds.rows(table, ctx),
-                        env.constructedSeeds()));
+                        table -> MetamodelSeeds.rows(table, ctx)));
     }
 
     private static void collectStores(TypedSpec n, java.util.Set<String> out) {
@@ -2660,7 +2633,7 @@ final class StatementExecutor {
         if (env.addDriverTablePk()) {
             body = com.legend.resolver.DriverPkAppend.apply(body, env.ctx());
         }
-        return executeTyped(body, env.withConstructedSeeds(sideResolver.constructedSeeds()),
+        return executeTyped(body, env,
                 rider, identity);
     }
 

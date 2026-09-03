@@ -42,8 +42,8 @@ final class NavProvenance {
             return null;
         }
         ClassSource own = src.setId() != null
-                ? sources.get(src.mappingFqn(), src.classFqn(), src.setId(), null, "")
-                : sources.get(src.mappingFqn(), src.classFqn());
+                ? sources.get(src.mappingFqn(), src.classFqn(), src.setId(), null, "", src.scope())
+                : sources.get(src.mappingFqn(), src.classFqn(), src.scope());
         var ownSteps = Pipelines.navSteps(own.pipeline());
         TypedSpec ob = own.bindings().get(hop);
         String oa = ob == null ? null
@@ -89,7 +89,7 @@ final class NavProvenance {
         if (navClass == null) {
             return;
         }
-        ClassSource navSrc = sources.get(owner.mappingFqn(), navClass);
+        ClassSource navSrc = sources.get(owner.mappingFqn(), navClass, owner.scope());
         provOut.putIfAbsent(head, new Substitution.AssocSub(
                 outerPrefix + sub.prefix(), sub.rowVar(), sub.bindings(),
                 navClass, Pipelines.slotAliases(navSrc.pipeline()),

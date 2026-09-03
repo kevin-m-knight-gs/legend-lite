@@ -650,7 +650,8 @@ final class GraphEmission {
                 return n;
             }
             ClassSource t = sources.get(
-                    dispatch.apply(context, ng.classFqn()), ng.classFqn());
+                    dispatch.apply(context, ng.classFqn()), ng.classFqn(),
+                    context.constructedScope());
             TypedSpec tPipe = Pipelines.materialize(t.pipeline(),
                     Set.of(), t.classFqn()).pipeline();
             Type.RelationType tRow = Type.requireRelationSchema(tPipe.info().type());
@@ -731,8 +732,7 @@ final class GraphEmission {
                     && mNavP.target() instanceof com.legend.compiler.spec
                             .typed.TypedGetAll mtg
                     && sources.binds(cs.mappingFqn(), mtg.classFqn())) {
-                ClassSource tcs = sources.get(cs.mappingFqn(),
-                        mtg.classFqn());
+                ClassSource tcs = sources.get(cs.mappingFqn(), mtg.classFqn(), cs.scope());
                 TemporalFrame tf2 = temporal.withSpecs(java.util.Map.of(
                         mma.property(), new TemporalFrame.TemporalSpec(
                                 temporal.normalizeContextDates(mma.dates()),
@@ -1096,16 +1096,18 @@ final class GraphEmission {
                 node.property()).orElse(null);
         ClassSource child = childClass.equals(rawTarget)
                 ? sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                        setHint, (target, excl) -> dispatch.apply(context, target), key)
+                        setHint, (target, excl) -> dispatch.apply(context, target), key,
+                        cs.scope())
                 : sources.get(cs.mappingFqn(), childClass, setHint,
-                        (target, excl) -> dispatch.apply(context, target), key);
+                        (target, excl) -> dispatch.apply(context, target), key,
+                        cs.scope());
         // The slot predicate's right side reads the RAW TARGET's physical
         // columns — the child's composed pipeline must bottom at that same
         // row or the correlation filters the wrong relation (audit: the
         // m2mAssocChild guard, applied to this sibling too).
         if (!childClass.equals(rawTarget)) {
             ClassSource rawSource = sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                    (target, excl) -> dispatch.apply(context, target), key);
+                    (target, excl) -> dispatch.apply(context, target), key, cs.scope());
             if (!child.rowVar().equals(rawSource.rowVar())) {
                 throw new NotImplementedException("navigate-slot graph child '"
                         + node.property() + "': the child class '" + childClass
@@ -1206,7 +1208,8 @@ final class GraphEmission {
                                 : context.runtimeFqn());
                 ClassSource ecs = sources.get(
                         dispatch.apply(context, ccFqn), ccFqn,
-                        (t2, ex2) -> dispatch.apply(context, t2), key0);
+                        (t2, ex2) -> dispatch.apply(context, t2), key0,
+                        context.constructedScope());
                 Pipelines.Materialized eMat = Pipelines.materialize(
                         ecs.pipeline(), java.util.Set.of(), ccFqn);
                 var one0 = com.legend.compiler.element.type
@@ -1241,7 +1244,7 @@ final class GraphEmission {
                 + '\u0000'
                 + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
         ClassSource rawParent = sources.get(dispatch.apply(context, srcClassFqn), srcClassFqn,
-                (target, excl) -> dispatch.apply(context, target), key);
+                (target, excl) -> dispatch.apply(context, target), key, cs.scope());
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, rawParent, assocProp, context, /*forExists*/ true);
         var prop = ctx.findProperty(cs.classFqn(), node.property()).orElseThrow(
                 () -> new IllegalStateException("resolver bug: graph child '"
@@ -1258,7 +1261,7 @@ final class GraphEmission {
                     + node.property() + "' is not class-typed");
         }
         ClassSource child = sources.get(cs.mappingFqn(), childCls.fqn(),
-                (target, excl) -> dispatch.apply(context, target), key);
+                (target, excl) -> dispatch.apply(context, target), key, cs.scope());
         if (!child.rowVar().equals(aj.target().rowVar())) {
             throw new NotImplementedException("M2M graph child '" + node.property()
                     + "': the child class '" + childCls.fqn() + "' does not compose"
@@ -1414,7 +1417,8 @@ final class GraphEmission {
                     + (context.runtimeFqn() == null ? ""
                             : context.runtimeFqn());
             mapped = sources.get(dispatch.apply(context, ct.fqn()),
-                    ct.fqn(), (t, ex) -> dispatch.apply(context, t), key)
+                    ct.fqn(), (t, ex) -> dispatch.apply(context, t), key,
+                    context.constructedScope())
                     .bindings().keySet();
         } catch (RuntimeException unresolvable) {
             return null;
@@ -1724,7 +1728,8 @@ final class GraphEmission {
         String rawTarget = navGa.classFqn();
         ClassSource target = sources.get(
                 dispatch.apply(context, rawTarget), rawTarget,
-                (t, excl) -> dispatch.apply(context, t), key);
+                (t, excl) -> dispatch.apply(context, t), key,
+                context.constructedScope());
         Pipelines.Materialized cMat = Pipelines.materialize(
                 target.pipeline(), Set.of(), rawTarget);
         TypedSpec targetPipeline = temporal.temporalTargetPipe(src, target,
@@ -1912,9 +1917,8 @@ final class GraphEmission {
             String srcClassFqn, StoreResolver.Context context,
             TypedSpec parentPipeline) {
         ClassSource child = cast.targetSetId() != null
-                ? sources.get(cs.mappingFqn(), cast.classFqn(),
-                        cast.targetSetId(), null, "")
-                : sources.get(cs.mappingFqn(), cast.classFqn());
+                ? sources.get(cs.mappingFqn(), cast.classFqn(), cast.targetSetId(), null, "", cs.scope())
+                : sources.get(cs.mappingFqn(), cast.classFqn(), cs.scope());
         Type.RelationType rowT = Type.requireRelationSchema(parentPipeline.info().type());
         // audit 24 F4: SOURCE-CLASS identity is the real same-frame check —
         // two frames can share every column NAME (S_Trade vs S_Trade2) and
@@ -2064,8 +2068,7 @@ final class GraphEmission {
                 var embAssoc = ctx.findAssociationOf(childClass,
                         c.property());
                 if (embAssoc.isPresent()) {
-                    ClassSource embSrc = sources.get(cs.mappingFqn(),
-                            childClass);
+                    ClassSource embSrc = sources.get(cs.mappingFqn(), childClass, cs.scope());
                     java.util.Set<String> embLeaves =
                             new java.util.LinkedHashSet<>();
                     for (TypedGraphTree cc2 : c.children()) {
@@ -2529,7 +2532,8 @@ final class GraphEmission {
                             : context.runtimeFqn());
             String rawTarget = ((TypedGetAll) nav.target()).classFqn();
             target = sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                    (t, excl) -> dispatch.apply(context, t), key);
+                    (t, excl) -> dispatch.apply(context, t), key,
+                    context.constructedScope());
             Pipelines.Materialized cMat = Pipelines.materialize(
                     target.pipeline(), Set.of(), rawTarget);
             targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
@@ -3075,7 +3079,8 @@ final class GraphEmission {
                                 : context.runtimeFqn());
                 ClassSource subCs = sources.get(cs.mappingFqn(),
                         java.util.Objects.requireNonNull(node.subTypeFqn(), "node.subTypeFqn()"),
-                        (target, excl) -> dispatch.apply(context, target), skey);
+                        (target, excl) -> dispatch.apply(context, target), skey,
+                        cs.scope());
                 patchChildren.add(graphChild(subCs, sub, context,
                         rowVar, rowType,
                         Pipelines.materialize(subCs.pipeline(), Set.of(),

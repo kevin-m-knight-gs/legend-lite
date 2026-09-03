@@ -28,9 +28,10 @@ final class NestedUnionKeys {
     }
 
     static TypedSpec pipeline(ClassSources sources, String mappingFqn, String nestedClass,
+            @com.legend.Nullable String scope,
             String slotAlias, Map<String, String> headNavAlias,
             Set<List<String>> downstreamPaths) {
-        ClassSource cs = sources.get(mappingFqn, nestedClass);
+        ClassSource cs = sources.get(mappingFqn, nestedClass, scope);
         TypedSpec pipe = cs.pipeline();
         if (!Pipelines.containsConcatenate(pipe)) {
             return pipe;

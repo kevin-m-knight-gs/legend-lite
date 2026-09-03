@@ -57,7 +57,10 @@ final class ConstructedInstances {
 
     private final ModelContext ctx;
     private final ClassSources sources;
-    private final Map<String, List<List<String>>> seeds = new LinkedHashMap<>();
+    /** tree id -> (store table -> its rows): THE QUERY'S OWN CONSTANTS,
+     * read as inline rows under the tree's scope (ClassSources) — never
+     * written to the system database. */
+    private final Map<String, Map<String, List<List<String>>>> rowsById = new LinkedHashMap<>();
     private final Set<String> seen = new HashSet<>();
 
     ConstructedInstances(ModelContext ctx, ClassSources sources) {
@@ -86,15 +89,19 @@ final class ConstructedInstances {
         if (seen.add(id)) {
             RelationalOpRows rows = new RelationalOpRows(ctx);
             rows.node(op, id, null, null, null, null, null);
-            seeds.computeIfAbsent("relational_elements", k -> new ArrayList<>()).addAll(rows.ops);
-            seeds.computeIfAbsent("data_types", k -> new ArrayList<>()).addAll(rows.dataTypes);
+            Map<String, List<List<String>>> byTable = new LinkedHashMap<>();
+            byTable.put("relational_elements", rows.ops);
+            byTable.put("data_types", rows.dataTypes);
+            rowsById.put(id, byTable);
         }
         return id;
     }
 
-    /** table -> rows the resolved body's constructed instances contribute. */
-    Map<String, List<List<String>>> seeds() {
-        return seeds;
+    /** The rows of one constructed tree per store table (the scope's
+     * inline relations); empty for an unknown id. */
+    Map<String, List<List<String>>> rowsFor(String id) {
+        Map<String, List<List<String>>> rows = rowsById.get(id);
+        return rows == null ? Map.of() : rows;
     }
 
     /** The relational operation a constant instance tree denotes; null for

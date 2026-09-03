@@ -251,12 +251,12 @@ final class JsonSourceFrame {
             return new StoreResolver.Context(fr.mapping().get().fullPath(),
                     fr.runtime().map(r -> r.fullPath())
                             .orElse(outer.runtimeFqn()),
-                    fr.chainMappings(), fr.jsonSources());
+                    fr.chainMappings(), fr.jsonSources(), null);
         }
         if (fr.runtime().isPresent()) {
             return new StoreResolver.Context(null,
                     fr.runtime().get().fullPath(),
-                    fr.chainMappings(), fr.jsonSources());
+                    fr.chainMappings(), fr.jsonSources(), null);
         }
         if (!fr.chainMappings().isEmpty() || !fr.jsonSources().isEmpty()) {
             // INSTANCE-runtime from() (no mapping ref, no runtime ref)
@@ -265,7 +265,7 @@ final class JsonSourceFrame {
             // candidate list (slice-1 job 1)
             return new StoreResolver.Context(outer.explicitMapping(),
                     outer.runtimeFqn(),
-                    fr.chainMappings(), fr.jsonSources());
+                    fr.chainMappings(), fr.jsonSources(), null);
         }
         return outer;
     }

@@ -131,7 +131,7 @@ final class AssociationJoins {
                         ni.properties(), cs.rowType()), hop);
             }
             return new PassThrough(
-                    sources.get(cs.mappingFqn(), stopCls), hop);
+                    sources.get(cs.mappingFqn(), stopCls, cs.scope()), hop);
         }
         return null;   // the whole path is ctor-drillable (or a scalar leaf)
     }
@@ -171,7 +171,7 @@ final class AssociationJoins {
                 navSteps.get(alias));
         String targetClass = ((TypedGetAll)
                 nav.target()).classFqn();
-        ClassSource t = sources.get(cs.mappingFqn(), targetClass);
+        ClassSource t = sources.get(cs.mappingFqn(), targetClass, cs.scope());
         Set<String> targetSlots = Pipelines.slotAliases(t.pipeline());
         Set<String> targetDemand = new LinkedHashSet<>();
         if (!targetSlots.isEmpty()) {
@@ -229,7 +229,7 @@ final class AssociationJoins {
                 : Pipelines.materialize(
                         t.pipeline(), targetDemand, tNavDemand, t.classFqn(),
                         (al2, tc2) -> Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), tc2).pipeline(),
+                                sources.get(cs.mappingFqn(), tc2, cs.scope()).pipeline(),
                                 java.util.Set.of(), tc2).pipeline());
         Map<String, Substitution.SubNav> tSubNavs = new java.util.LinkedHashMap<>();
         for (var pne : predNavAliases.entrySet()) {
@@ -238,7 +238,7 @@ final class AssociationJoins {
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
-            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn());
+            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn(), cs.scope());
             tSubNavs.put(pne.getKey(), new Substitution.SubNav(
                     pfx, sub.rowVar(), sub.bindings()));
         }
@@ -933,7 +933,7 @@ final class AssociationJoins {
         for (String m : members) {
             ClassSource ms;
             try {
-                ms = sources.get(mappingFqn, m);
+                ms = sources.get(mappingFqn, m, unionTarget.scope());
             } catch (com.legend.error.MappingResolutionException e) {
                 continue;
             }
@@ -1097,9 +1097,8 @@ final class AssociationJoins {
         // this get call, which historically never passed one
         PredMaterial pm = predicateMaterial(cs, assoc, real, targetClass);
         ClassSource target = pm.targetSetId() != null
-                ? sources.get(cs.mappingFqn(), targetClass, pm.targetSetId(),
-                        null, "")
-                : sources.get(cs.mappingFqn(), targetClass);
+                ? sources.get(cs.mappingFqn(), targetClass, pm.targetSetId(), null, "", cs.scope())
+                : sources.get(cs.mappingFqn(), targetClass, cs.scope());
         // The TARGET's own join slots materialize on demand too: a demanded
         // leaf whose binding reads a slot ($p.firm.country where country is
         // @FirmCountry-mapped) pulls that slot's LEFT join into the target
@@ -1162,15 +1161,14 @@ final class AssociationJoins {
                             List<List<String>> deeper = subTailsByAlias.get(aln);
                             if (deeper != null && navMaterializer != null) {
                                 NavMaterializer.NavMat nm = navMaterializer
-                                        .navTargetMaterialized(temporal,
-                                                cs.mappingFqn(), tcn, deeper,
+                                        .navTargetMaterialized(temporal, cs.mappingFqn(), tcn, cs.scope(), deeper,
                                                 chainKey0 + "." + aln,
                                                 TemporalContext.NONE);
                                 tailMats.put(aln, nm);
                                 return nm.pipeline();
                             }
                             return Pipelines.materialize(
-                                    sources.get(cs.mappingFqn(), tcn).pipeline(),
+                                    sources.get(cs.mappingFqn(), tcn, cs.scope()).pipeline(),
                                     java.util.Set.of(), tcn).pipeline();
                         });
         TypedSpec basePipe = temporal.temporalTargetPipe(cs, target, chainKey,
@@ -1272,7 +1270,7 @@ final class AssociationJoins {
             if (pfx3 == null || !(stepT3 instanceof TypedGetAll stg3)) {
                 continue;
             }
-            ClassSource sub3 = sources.get(cs.mappingFqn(), stg3.classFqn());
+            ClassSource sub3 = sources.get(cs.mappingFqn(), stg3.classFqn(), cs.scope());
             NavMaterializer.NavMat deeper = tailMats.get(tne.getValue());
             Map<String, TypedSpec> subBindings = sub3.bindings();
             if (deeper != null && !deeper.slotPrefixes().isEmpty()) {
