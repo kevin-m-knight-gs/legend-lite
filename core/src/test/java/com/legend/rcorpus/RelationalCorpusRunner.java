@@ -996,7 +996,9 @@ public class RelationalCorpusRunner {
             // 198 -> 180 (batch 27 — render coverage: the chain's own
             // mapping, literal in-lists in the H2 spelling): the 18 flipped
             // tests' sql-asserts left the walk's lane (lane move, 0 lost).
-            org.junit.jupiter.api.Assertions.assertEquals(180, execPassing,
+            // 180 -> 171 (batch 30 — effectful helper values): the forced-
+            // milestoning tests' sql-asserts left the walk's lane (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(171, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1419,10 +1421,20 @@ public class RelationalCorpusRunner {
             // verdict over a frame runs under THAT frame's post-processing
             // env (the rows leg re-executed the frame WITHOUT its renames).
             // +12 (cteExtraction 7, replaceTables 5), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(451L,
+            // 451/2122 -> 446/2127 (batch 30 — effectful helper VALUES +
+            // generic multiplicity arguments through name resolution,
+            // 2026-09-03): `let runtime = initDatabase()` (DDL effects, then
+            // ^Runtime(...)) binds the helper's effect-free value as the let
+            // would have (UserCallInliner.helperValueLet; an execute() value
+            // becomes a frame) — forced milestoning 4, businessdate 1; and the
+            // name resolver's generic rebuild dropped Result<TabularDataSet|1>'s
+            // |1, typing every user-function Result.values read [*] (the
+            // validation family's wall — now it reaches its real one: the
+            // engine's generateValidationQuery library). +5, 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(446L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2122L,
+            org.junit.jupiter.api.Assertions.assertEquals(2127L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1578,7 +1590,11 @@ public class RelationalCorpusRunner {
             // InstanceValue / FunctionExpression / VariableExpression /
             // Multiplicity classes type reflection chains that used to
             // wall as unknown types; the rows shrink, nothing scored moved
-            assertEquals(22,
+            // 22 -> 5 (batch 30, 2026-09-03): generic MULTIPLICITY arguments
+            // survive name resolution, so the reflection chains over
+            // Result<T|m> / FunctionDefinition<{->T[*]}> values type — the
+            // walls those rows counted are gone; nothing scored moved
+            assertEquals(5,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");

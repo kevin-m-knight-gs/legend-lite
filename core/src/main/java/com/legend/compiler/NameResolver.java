@@ -468,8 +468,12 @@ public final class NameResolver {
             case TypeExpression.Generic g -> {
                 String r = resolveName(g.name(), scope);
                 List<TypeExpression> args = resolveTypeList(g.arguments(), scope);
+                // the rebuild keeps the MULTIPLICITY arguments and the type
+                // variable values (Result<TabularDataSet|1>: dropping the |1
+                // typed every .values read of a user function's Result [*])
                 yield (r.equals(g.name()) && args == g.arguments()) ? g
-                        : new TypeExpression.Generic(r, args);
+                        : new TypeExpression.Generic(r, args, g.multiplicityArguments(),
+                                g.typeVariableValues(), g.pos());
             }
             case TypeExpression.FunctionType ft -> {
                 List<TypeExpression.TypedParameter> params = resolveList(

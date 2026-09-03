@@ -1805,9 +1805,29 @@ Remainder in the family, named: `SQLQuery`-typed hooks (3 — other
 processors: DB2 column rename, transformJoinOp, filter push-down),
 `nonExecutable` (1).
 
+**Batch 30 — EFFECTFUL HELPER VALUES + GENERIC MULTIPLICITY ARGUMENTS
+(2026-09-03): ratchet 451/2122 → 446/2127 (+5, ZERO lost).** (1) `let
+runtime = initDatabase()` — a helper whose body runs DDL effects and ends
+in `^Runtime(connectionStores = ...)` — used to wall as "reading an
+executeInDb result binding": the executor bound nothing. Now the helper's
+effect-free VALUE binds as the let would have (`UserCallInliner.
+helperValueLet`: the call's argument frame + the body's lets + its last
+statement, inliner-reduced, refused when the value itself is effectful;
+an execute() value becomes a frame, anything else a plain let with its
+handles registered). Forced milestoning 4, businessdate 1. (2) The name
+resolver's generic-type rebuild dropped the MULTIPLICITY arguments
+(`Result<TabularDataSet|1>` → `Result<TabularDataSet>`), so every
+`.values` read over a user function's Result typed `[*]` — the whole
+validation family's wall ("toCSV argument 1: [*] not compatible with
+[1]"). Fixed at the rebuild; the family now reaches its REAL wall: the
+engine's `generateValidationQuery` library (validation.pure) has non-let
+intermediate statements the inliner refuses — a Pure-library leg, named.
+Ledger: StatementExecutor 2692 → 2696 (the value binding — orchestration);
+exec-passing declines 180 → 171 (lane move).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 451 fallbacks / 2122 flipped (batches 14–29 = group D,
+legs).** State: 446 fallbacks / 2127 flipped (batches 14–30 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

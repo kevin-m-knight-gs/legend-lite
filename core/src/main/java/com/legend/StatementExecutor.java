@@ -229,17 +229,44 @@ final class StatementExecutor {
                     // opaque ResultSet handle as a smoke check and never
                     // reads it; β-substitution would drop or double it). The
                     // rhs may be the K-native OR the corpus's own executeInDb
-                    // wrapper (a user call). A later READ of the binding has
-                    // no frame — wall it up front, never an unbound-variable
-                    // surprise.
-                    if (!ConnectionLets.onlyConnectionReads(stmts, i + 1,
-                            let.name())) {
+                    // wrapper (a user call). An effectful HELPER whose value
+                    // is effect-free (let runtime = initDatabase(): DDL
+                    // effects, then ^Runtime(...)) binds that value; any
+                    // other read of the binding has no frame — wall it up
+                    // front, never an unbound-variable surprise.
+                    com.legend.compiler.spec.typed.TypedLet helperValue =
+                            rhs instanceof com.legend.compiler.spec.typed.TypedUserCall hc
+                            ? com.legend.compiler.spec.UserCallInliner.helperValueLet(
+                                    let.name(), hc, letPrefix, specs,
+                                    v -> containsEffect(v, specs, effectMemo))
+                            : null;
+                    if (helperValue == null
+                            && !ConnectionLets.onlyConnectionReads(stmts, i + 1,
+                                    let.name())) {
                         throw new IllegalStateException("reading an"
                                 + " executeInDb result binding ('"
                                 + let.name() + "') is not supported");
                     }
                     if (rhs instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
                         executeCallStatement(uc, letPrefix, specs, env, frames);
+                        if (helperValue != null) {
+                            // the helper's VALUE binds as the let would have:
+                            // an execute() value is a FRAME, anything else a
+                            // plain let (its handles registered)
+                            TypedSpec hv = helperValue.value();
+                            while (hv instanceof com.legend.compiler.spec.typed.TypedFrom hf) {
+                                hv = hf.source();
+                            }
+                            if (hv instanceof com.legend.compiler.spec.typed.TypedNativeCall hec
+                                    && com.legend.compiler.element.type.PlatformTypes
+                                            .isExecuteFqn(hec.callee().qualifiedName())) {
+                                execFrames.put(let.name(),
+                                        buildFrame(hec, letPrefix, true, specs, env));
+                            } else {
+                                PlanAllocations.registerHandlesIn(let.name(), hv, letPrefix, specs, env);
+                                letPrefix.add(helperValue);
+                            }
+                        }
                     } else {
                         java.util.List<TypedSpec> single =
                                 new java.util.ArrayList<>(letPrefix);

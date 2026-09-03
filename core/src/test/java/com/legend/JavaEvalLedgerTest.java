@@ -494,7 +494,12 @@ class JavaEvalLedgerTest {
             // testDataSetupCsv FACTS become seed SQL at connection
             // establishment (CsvSeed against the store) — the executor's
             // half of the CSV route; the compiler only records the facts.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2692),
+            // 2692 -> 2696 (batch 30, 2026-09-03): an effectful HELPER's
+            // effect-free VALUE (let runtime = initDatabase(): DDL effects,
+            // then ^Runtime(...)) binds as the let would have — a frame for
+            // an execute() value, a plain let otherwise; orchestration
+            // (binding), no host evaluation
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2696),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

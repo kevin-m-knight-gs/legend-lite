@@ -218,6 +218,12 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 30 (effectful helper VALUES + generic multiplicity arguments, 2026-09-03): chain 6m00s** —
+G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
+451/2122 → 446/2127 (+5, 0 lost); metamodel quarantine rows 22 → 5 (the multiplicity
+arguments type reflection chains that walled); exec-passing declines 180 → 171; ledger
+StatementExecutor 2692 → 2696 (justified); other pins unchanged.
+
 **Batch 29 (SQL post-processors — CTE extraction, let-bound replaceTables, 2026-09-03): chain 6m00s** —
 G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
 463/2110 → 451/2122 (+12, 0 lost); M1 verified floor 22 → 20, rescued 128 → 127
