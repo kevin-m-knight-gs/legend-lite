@@ -41,14 +41,13 @@ public final class MetamodelSeeds {
                     Pure.MAPPING_METACLASS.qualifiedName()));
             case "mapping_includes_closure" -> includesClosure(ctx);
             case "class_mappings" -> classMappings(ctx);
-            // the main-table ALIAS rows: one per relational set (m3: the
-            // set's mainTableAlias is a value object; here its own
-            // relation, keyed like the set, so alias -> table is a plain
-            // join and never a self-join)
-            case "table_aliases" -> tableAliases(ctx);
-            case "tables" -> tables(ctx);
-            case "columns" -> columns(ctx);
-            case "views" -> views(ctx);
+            // THE RelationalOperationElement HIERARCHY AS ONE TABLE (user
+            // ruling 2026-09-02): tables, views, columns, main-table
+            // aliases and expression nodes are rows of relational_elements
+            // with a kind discriminator — the extent is an indexed filtered
+            // scan, never a UNION ALL over five tables (H2 could not index
+            // it: ten typeInference tests at 9–18s each)
+            case "relational_elements" -> relationalElements(ctx);
             case "set_ancestry" -> setAncestry(ctx);
             case "group_by_mappings" -> groupByMappings(ctx);
             case "databases" -> databases(ctx);
@@ -59,14 +58,32 @@ public final class MetamodelSeeds {
             // per node, the property-mapping and view-column-mapping rows
             // that own them, and every data-type row (columns' declared
             // types + inferred types) — ONE walk, four tables
-            case "data_types" -> OpSeeds.of(ctx).dataTypes;
-            case "relational_ops" -> OpSeeds.of(ctx).ops;
-            case "view_column_mappings" -> OpSeeds.of(ctx).viewColumnMappings;
-            case "property_mappings" -> OpSeeds.of(ctx).propertyMappings;
+            case "data_types" -> opSeeds(ctx).dataTypes;
+            case "view_column_mappings" -> opSeeds(ctx).viewColumnMappings;
+            case "property_mappings" -> opSeeds(ctx).propertyMappings;
             default -> throw new IllegalStateException(
                     "system metamodel table '" + table + "' has no seed"
                     + " derivation — SOURCE and seedRows grow together");
         };
+    }
+
+    /** The op-tree walk ONCE per graph (a graph-lifetime derived fact —
+     * four tables read it). */
+    private static OpSeeds opSeeds(ModelContext ctx) {
+        return ctx.derived(OpSeeds.class, OpSeeds::of);
+    }
+
+    /** Every relational element of every store, one row layout
+     * ({@link com.legend.compiler.element.RelationalOpRows}): tables,
+     * views, columns, main-table aliases, then the expression nodes. */
+    private static List<List<String>> relationalElements(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        rows.addAll(tables(ctx));
+        rows.addAll(views(ctx));
+        rows.addAll(columns(ctx));
+        rows.addAll(tableAliases(ctx));
+        rows.addAll(opSeeds(ctx).ops);
+        return rows;
     }
 
     private static List<String> extent(ModelContext ctx, String classifier) {
@@ -331,7 +348,8 @@ public final class MetamodelSeeds {
                 continue;
             }
             for (SchemaView sv : schemaViews(db)) {
-                rows.add(List.of(dbFqn, sv.schema(), sv.view().name()));
+                rows.add(com.legend.compiler.element.RelationalOpRows.viewRow(
+                        dbFqn, sv.schema(), sv.view().name()));
             }
         }
         return rows;
@@ -363,7 +381,9 @@ public final class MetamodelSeeds {
 
     /** Every column of every table (the {@code tables} rule for schemas). */
     private static List<List<String>> columns(ModelContext ctx) {
-        Set<List<String>> rows = new LinkedHashSet<>();
+        // keyed by (db, schema, table, column): a schema's table also sits
+        // in the flat list under 'default' — the schema wins
+        java.util.Map<List<String>, List<String>> rows = new java.util.LinkedHashMap<>();
         for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
@@ -371,22 +391,25 @@ public final class MetamodelSeeds {
             }
             for (DatabaseDefinition.TableDefinition t : db.tables()) {
                 for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
-                    rows.add(List.of(dbFqn, "default", t.name(), c.name(),
-                            OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name())));
+                    rows.put(List.of(dbFqn, "default", t.name(), c.name()),
+                            com.legend.compiler.element.RelationalOpRows.columnRow(
+                                    dbFqn, "default", t.name(), c.name(),
+                                    OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name())));
                 }
             }
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (DatabaseDefinition.TableDefinition t : s.tables()) {
                     for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
-                        rows.add(List.of(dbFqn, s.name(), t.name(), c.name(),
-                                OpSeeds.columnTypeId(dbFqn, s.name(), t.name(), c.name())));
-                        rows.remove(List.of(dbFqn, "default", t.name(), c.name(),
-                                OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name())));
+                        rows.put(List.of(dbFqn, s.name(), t.name(), c.name()),
+                                com.legend.compiler.element.RelationalOpRows.columnRow(
+                                        dbFqn, s.name(), t.name(), c.name(),
+                                        OpSeeds.columnTypeId(dbFqn, s.name(), t.name(), c.name())));
+                        rows.remove(List.of(dbFqn, "default", t.name(), c.name()));
                     }
                 }
             }
         }
-        return new ArrayList<>(rows);
+        return new ArrayList<>(rows.values());
     }
 
     /** Every main-table ALIAS in the store: one per relational set (owned
@@ -401,7 +424,8 @@ public final class MetamodelSeeds {
         for (List<String> cm : classMappings(ctx)) {
             // (mapping_fqn, id, class_fqn, super_set_id, main_db, main_schema, main_table, …)
             String[] base = baseTableOf(ctx, cm.get(4), cm.get(5), cm.get(6));
-            rows.add(java.util.Arrays.asList(cm.get(0), cm.get(1), cm.get(6),
+            rows.add(com.legend.compiler.element.RelationalOpRows.aliasRow(
+                    cm.get(0), cm.get(1), cm.get(6),
                     cm.get(4), cm.get(5), cm.get(6), null, null, null,
                     base == null ? null : cm.get(4),
                     base == null ? null : base[0],
@@ -414,7 +438,7 @@ public final class MetamodelSeeds {
             }
             for (var sv : schemaViews(db)) {
                 String[] base = viewBaseTable(db, sv.view(), new LinkedHashSet<>());
-                rows.add(java.util.Arrays.asList(dbFqn,
+                rows.add(com.legend.compiler.element.RelationalOpRows.aliasRow(dbFqn,
                         "view:" + sv.schema() + "." + sv.view().name(),
                         base == null ? sv.view().name() : base[1],
                         dbFqn, sv.schema(), sv.view().name(),
@@ -467,25 +491,29 @@ public final class MetamodelSeeds {
     /** Every table of every store: schema-less tables sit in the engine's
      * {@code default} schema. Views are not tables (grow by witness). */
     private static List<List<String>> tables(ModelContext ctx) {
-        // a set: the definition lists a schema's tables under the schema
-        // AND in the flat table list
-        Set<List<String>> rows = new LinkedHashSet<>();
+        // keyed: the definition lists a schema's tables under the schema
+        // AND in the flat table list — the schema wins
+        java.util.Map<List<String>, List<String>> rows = new java.util.LinkedHashMap<>();
         for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
             }
             for (DatabaseDefinition.TableDefinition t : db.tables()) {
-                rows.add(List.of(dbFqn, "default", t.name()));
+                rows.put(List.of(dbFqn, "default", t.name()),
+                        com.legend.compiler.element.RelationalOpRows.tableRow(
+                                dbFqn, "default", t.name()));
             }
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (DatabaseDefinition.TableDefinition t : s.tables()) {
-                    rows.add(List.of(dbFqn, s.name(), t.name()));
+                    rows.put(List.of(dbFqn, s.name(), t.name()),
+                            com.legend.compiler.element.RelationalOpRows.tableRow(
+                                    dbFqn, s.name(), t.name()));
                     rows.remove(List.of(dbFqn, "default", t.name()));
                 }
             }
         }
-        return new ArrayList<>(rows);
+        return new ArrayList<>(rows.values());
     }
 
     /** Every store as a row (the Database metaclass extent). */

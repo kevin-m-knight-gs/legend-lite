@@ -835,7 +835,36 @@ bugs (docs/GATES.md "Budget BREACH, 2026-09-02").** Ratchet UNCHANGED
   every package, dependency and the platform; `Class.all()` = every class
   in it). One system database per graph; many graphs only in the test JVM.
 
-**NEXT (user-ratified order 2026-09-02):** (1) ONE TABLE for the
+**Batch 9 (2026-09-02) — ONE TABLE for the RelationalOperationElement
+hierarchy.** tables/columns/views/table_aliases/relational_ops →
+`relational_elements` (kind, id PK, 29 columns; the ONE row layout lives in
+`RelationalOpRows`' factories); Table/View/Column/TableAlias and the five
+node kinds are FILTERED sets over it; every cross-kind join is a self-join
+(`{target}`). General fix: a self-join between two DIFFERENT classes over
+one table oriented backwards in `AssociationSynthesis` (the same-class
+convention was applied) — orientation now follows the property line's
+source set. Rosters, corpus report and H2 verdicts byte-identical;
+required-over-nullable ceiling 529 → 533 (Table/View/Column/TableAlias
+`name` over the shared column — the idiom's cost, recorded on the pin).
+The H2 lane is STILL ~139s: the extent is still a UNION ALL of six
+branches because the single-scan collapse skips members WITH navigation
+chains (Column's 21 type routes, View, TableAlias, TableAliasColumn), and
+member keys are CASE-gated + OR-joined — item (2) below. Denormalization
+check (user question): table-per-POLYMORPHIC-hierarchy, nothing repeated;
+the one smell is TableAlias' nine name-triple reference columns — item (6).
+
+**NEXT (user-ratified order 2026-09-02, enumerated):**
+(1) DONE above. (2) UNION LOWERING for single-table hierarchies: merge
+members WITH chains into the one scan (each chain a join on the shared
+scan guarded by the member's kind predicate); emit the key UNGATED when it
+is the scan table's PK and dedupe identical OR terms → `op_id = id`, an
+indexed lookup on H2 (the ten 8–16s typeInference tests); re-arm the
+5.5-minute chain budget. (3) BOOT LAYER. (4) NORMALIZER PER-MAPPING INDEX.
+(5) CONSTRUCTED INSTANCES AS INLINE VALUES. (6) ELEMENT REFERENCES BY ID:
+TableAlias main/base and Column's table as element ids, not name triples;
+`DynaFunction.parameters` via the parent_id self-join when a witness
+demands. (7) Group D → Q → A. Details of (1)–(5) as first written:
+(1) ONE TABLE for the
 `RelationalOperationElement` hierarchy — merge tables/columns/views/
 table_aliases/relational_ops into `relational_elements` (kind, id PK,
 superset columns; the datatype/op-kind idiom), with the plain-`id` key

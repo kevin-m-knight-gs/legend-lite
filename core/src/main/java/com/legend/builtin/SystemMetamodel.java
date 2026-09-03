@@ -74,10 +74,10 @@ public final class SystemMetamodel {
     /** The relational-operation node kinds the store models: {m3 class
      * simple name, set id, property lines}. */
     static final String[][] OP_KINDS = {
-        {"DynaFunction", "opDyna", "name: " + S + " metamodel.relational_ops.dyna_name"},
+        {"DynaFunction", "opDyna", "name: " + S + " metamodel.relational_elements.dyna_name"},
         {"Literal", "opLit", ""},
         {"LiteralList", "opLitList", ""},
-        {"TableAliasColumn", "opTac", "columnName: " + S + " metamodel.relational_ops.col_name,\n"
+        {"TableAliasColumn", "opTac", "columnName: " + S + " metamodel.relational_elements.col_name,\n"
             + "                    column[col]: " + S + "@OpToColumn"},
         {"RelationalOperationElementWithJoin", "opJoin", ""},
     };
@@ -88,12 +88,24 @@ public final class SystemMetamodel {
             sb.append("                Filter Dt").append(k)
                     .append("(metamodel.data_types.dt_kind = '").append(k).append("')\n");
         }
+        // the RelationalOperationElement hierarchy: one filter per kind over
+        // the ONE relational_elements table (expression nodes, and the
+        // relations — Table, View, Column, TableAlias)
         for (String[] k : OP_KINDS) {
             sb.append("                Filter Op").append(k[0])
-                    .append("(metamodel.relational_ops.kind = '").append(k[0]).append("')\n");
+                    .append("(metamodel.relational_elements.kind = '").append(k[0]).append("')\n");
+        }
+        for (String k : ELEMENT_KINDS) {
+            sb.append("                Filter El").append(k)
+                    .append("(metamodel.relational_elements.kind = '").append(k).append("')\n");
         }
         return sb.toString();
     }
+
+    /** The relation kinds of the element table (the op-node kinds are
+     * {@link #OP_KINDS}); the seed writes the same spelling in
+     * {@code kind} ({@code RelationalOpRows}' factories). */
+    static final String[] ELEMENT_KINDS = {"Table", "View", "Column", "TableAlias"};
 
     private static String dataTypeSets() {
         StringBuilder sb = new StringBuilder();
@@ -126,8 +138,8 @@ public final class SystemMetamodel {
                     .append("[").append(k[1]).append("]: Relational\n")
                     .append("                {\n")
                     .append("                    ~filter ").append(S).append(" Op").append(k[0]).append("\n")
-                    .append("                    ~primaryKey(").append(S).append(" metamodel.relational_ops.id)\n")
-                    .append("                    ~mainTable ").append(S).append(" metamodel.relational_ops")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.relational_elements.id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.relational_elements")
                     .append(k[2].isEmpty() ? "" : "\n                    " + k[2]).append("\n")
                     .append("                }\n");
         }
@@ -213,14 +225,6 @@ public final class SystemMetamodel {
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
                         id VARCHAR(256) PRIMARY KEY
                     )
-                    Table columns
-                    (
-                        db_fqn VARCHAR(1024) PRIMARY KEY,
-                        schema_name VARCHAR(256) PRIMARY KEY,
-                        table_name VARCHAR(256) PRIMARY KEY,
-                        name VARCHAR(256) PRIMARY KEY,
-                        dtype_id VARCHAR(2048) NOT NULL
-                    )
                     Table databases
                     (
                         fqn VARCHAR(1024) PRIMARY KEY,
@@ -244,10 +248,15 @@ public final class SystemMetamodel {
                         type_precision INTEGER,
                         type_scale INTEGER
                     )
-                    Table relational_ops
+                    Table relational_elements
                     (
                         id VARCHAR(2048) PRIMARY KEY,
                         kind VARCHAR(64) NOT NULL,
+                        name VARCHAR(256),
+                        db_fqn VARCHAR(1024),
+                        schema_name VARCHAR(256),
+                        table_name VARCHAR(256),
+                        dtype_id VARCHAR(2048),
                         parent_id VARCHAR(2048),
                         ordinal INTEGER,
                         dyna_name VARCHAR(256),
@@ -258,7 +267,18 @@ public final class SystemMetamodel {
                         col_name VARCHAR(256),
                         itype_id VARCHAR(2048),
                         pk_mapping_fqn VARCHAR(1024),
-                        pk_set_id VARCHAR(256)
+                        pk_set_id VARCHAR(256),
+                        mapping_fqn VARCHAR(1024),
+                        set_id VARCHAR(256),
+                        main_db VARCHAR(1024),
+                        main_schema VARCHAR(256),
+                        main_table VARCHAR(256),
+                        view_db VARCHAR(1024),
+                        view_schema VARCHAR(256),
+                        view_name VARCHAR(256),
+                        base_db VARCHAR(1024),
+                        base_schema VARCHAR(256),
+                        base_table VARCHAR(256)
                     )
                     Table view_column_mappings
                     (
@@ -278,78 +298,51 @@ public final class SystemMetamodel {
                         op_id VARCHAR(2048) NOT NULL,
                         declared_depth INTEGER NOT NULL
                     )
-                    Table table_aliases
-                    (
-                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
-                        id VARCHAR(256) PRIMARY KEY,
-                        name VARCHAR(256) NOT NULL,
-                        main_db VARCHAR(1024),
-                        main_schema VARCHAR(256),
-                        main_table VARCHAR(256),
-                        view_db VARCHAR(1024),
-                        view_schema VARCHAR(256),
-                        view_name VARCHAR(256),
-                        base_db VARCHAR(1024),
-                        base_schema VARCHAR(256),
-                        base_table VARCHAR(256)
-                    )
-                    Table tables
-                    (
-                        db_fqn VARCHAR(1024) PRIMARY KEY,
-                        schema_name VARCHAR(256) PRIMARY KEY,
-                        name VARCHAR(256) PRIMARY KEY
-                    )
-                    Table views
-                    (
-                        db_fqn VARCHAR(1024) PRIMARY KEY,
-                        schema_name VARCHAR(256) PRIMARY KEY,
-                        name VARCHAR(256) PRIMARY KEY
-                    )
                 )
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
                 Join ClosureToClassMappings(metamodel.mapping_includes_closure.included_fqn = metamodel.class_mappings.mapping_fqn)
-                Join ClassMappingsToAlias(metamodel.class_mappings.mapping_fqn = metamodel.table_aliases.mapping_fqn and metamodel.class_mappings.id = metamodel.table_aliases.id)
-                Join AliasToTables(metamodel.table_aliases.main_db = metamodel.tables.db_fqn
-                    and metamodel.table_aliases.main_schema = metamodel.tables.schema_name
-                    and metamodel.table_aliases.main_table = metamodel.tables.name)
-                Join AliasToViews(metamodel.table_aliases.main_db = metamodel.views.db_fqn
-                    and metamodel.table_aliases.main_schema = metamodel.views.schema_name
-                    and metamodel.table_aliases.main_table = metamodel.views.name)
-                Join AliasToBaseTable(metamodel.table_aliases.base_db = metamodel.tables.db_fqn
-                    and metamodel.table_aliases.base_schema = metamodel.tables.schema_name
-                    and metamodel.table_aliases.base_table = metamodel.tables.name)
-                Join ViewToAlias(metamodel.views.db_fqn = metamodel.table_aliases.view_db
-                    and metamodel.views.schema_name = metamodel.table_aliases.view_schema
-                    and metamodel.views.name = metamodel.table_aliases.view_name)
+                Join ClassMappingsToAlias(metamodel.class_mappings.mapping_fqn = metamodel.relational_elements.mapping_fqn and metamodel.class_mappings.id = metamodel.relational_elements.set_id)
+                Join AliasToTables(metamodel.relational_elements.main_db = {target}.db_fqn
+                    and metamodel.relational_elements.main_schema = {target}.schema_name
+                    and metamodel.relational_elements.main_table = {target}.name)
+                Join AliasToViews(metamodel.relational_elements.main_db = {target}.db_fqn
+                    and metamodel.relational_elements.main_schema = {target}.schema_name
+                    and metamodel.relational_elements.main_table = {target}.name)
+                Join AliasToBaseTable(metamodel.relational_elements.base_db = {target}.db_fqn
+                    and metamodel.relational_elements.base_schema = {target}.schema_name
+                    and metamodel.relational_elements.base_table = {target}.name)
+                Join ViewToAlias(metamodel.relational_elements.db_fqn = {target}.view_db
+                    and metamodel.relational_elements.schema_name = {target}.view_schema
+                    and metamodel.relational_elements.name = {target}.view_name)
                 Join SetToAncestry(metamodel.class_mappings.mapping_fqn = metamodel.set_ancestry.mapping_fqn
                     and metamodel.class_mappings.id = metamodel.set_ancestry.id)
                 Join AncestryToAncestor(metamodel.set_ancestry.super_mapping_fqn = metamodel.class_mappings.mapping_fqn
                     and metamodel.set_ancestry.super_id = metamodel.class_mappings.id)
                 Join SetToGroupBy(metamodel.class_mappings.mapping_fqn = metamodel.group_by_mappings.mapping_fqn
                     and metamodel.class_mappings.id = metamodel.group_by_mappings.id)
-                Join SetToPrimaryKeyOps(metamodel.class_mappings.mapping_fqn = metamodel.relational_ops.pk_mapping_fqn
-                    and metamodel.class_mappings.id = metamodel.relational_ops.pk_set_id)
+                Join SetToPrimaryKeyOps(metamodel.class_mappings.mapping_fqn = metamodel.relational_elements.pk_mapping_fqn
+                    and metamodel.class_mappings.id = metamodel.relational_elements.pk_set_id)
                 Join DbToSchemas(metamodel.databases.fqn = metamodel.schemas.db_fqn)
-                Join SchemaToViews(metamodel.schemas.db_fqn = metamodel.views.db_fqn
-                    and metamodel.schemas.name = metamodel.views.schema_name)
-                Join ViewToColumnMappings(metamodel.views.db_fqn = metamodel.view_column_mappings.db_fqn
-                    and metamodel.views.schema_name = metamodel.view_column_mappings.schema_name
-                    and metamodel.views.name = metamodel.view_column_mappings.view_name)
-                Join ColumnMappingToOp(metamodel.view_column_mappings.op_id = metamodel.relational_ops.id)
+                Join SchemaToViews(metamodel.schemas.db_fqn = metamodel.relational_elements.db_fqn
+                    and metamodel.schemas.name = metamodel.relational_elements.schema_name)
+                Join ViewToColumnMappings(metamodel.relational_elements.db_fqn = metamodel.view_column_mappings.db_fqn
+                    and metamodel.relational_elements.schema_name = metamodel.view_column_mappings.schema_name
+                    and metamodel.relational_elements.name = metamodel.view_column_mappings.view_name)
+                Join ColumnMappingToOp(metamodel.view_column_mappings.op_id = metamodel.relational_elements.id)
                 Join ClassMappingsToClass(metamodel.class_mappings.mapped_class_fqn = metamodel.classes.fqn)
                 Join SetToPropertyMappings(metamodel.class_mappings.mapping_fqn = metamodel.property_mappings.mapping_fqn
                     and metamodel.class_mappings.id = metamodel.property_mappings.id)
-                Join PropertyMappingToOp(metamodel.property_mappings.op_id = metamodel.relational_ops.id)
+                Join PropertyMappingToOp(metamodel.property_mappings.op_id = metamodel.relational_elements.id)
                 Join PropertyMappingToProperty(metamodel.property_mappings.prop_owner_fqn = metamodel.properties.owner_fqn
                     and metamodel.property_mappings.prop_name = metamodel.properties.name)
-                Join ColumnToType(metamodel.columns.dtype_id = metamodel.data_types.id)
-                Join OpToType(metamodel.relational_ops.itype_id = metamodel.data_types.id)
-                Join OpToColumn(metamodel.relational_ops.col_db = metamodel.columns.db_fqn
-                    and metamodel.relational_ops.col_schema = metamodel.columns.schema_name
-                    and metamodel.relational_ops.col_table = metamodel.columns.table_name
-                    and metamodel.relational_ops.col_name = metamodel.columns.name)
+                Join ColumnToType(metamodel.relational_elements.dtype_id = metamodel.data_types.id)
+                Join OpToType(metamodel.relational_elements.itype_id = metamodel.data_types.id)
+                Join OpToColumn(metamodel.relational_elements.col_db = {target}.db_fqn
+                    and metamodel.relational_elements.col_schema = {target}.schema_name
+                    and metamodel.relational_elements.col_table = {target}.table_name
+                    and metamodel.relational_elements.col_name = {target}.name)
             %3$s
             )
 
@@ -553,17 +546,19 @@ public final class SystemMetamodel {
                 }
                 meta::relational::metamodel::TableAlias[alias]: Relational
                 {
-                    ~primaryKey(%1$s metamodel.table_aliases.mapping_fqn, %1$s metamodel.table_aliases.id)
-                    ~mainTable %1$s metamodel.table_aliases
-                    name: %1$s metamodel.table_aliases.name,
+                    ~filter %1$s ElTableAlias
+                    ~primaryKey(%1$s metamodel.relational_elements.id)
+                    ~mainTable %1$s metamodel.relational_elements
+                    name: %1$s metamodel.relational_elements.name,
                     relationalElement[tbl]: %1$s@AliasToTables,
                     relationalElement[vw]: %1$s@AliasToViews
                 }
                 meta::relational::metamodel::relation::View[vw]: Relational
                 {
-                    ~primaryKey(%1$s metamodel.views.db_fqn, %1$s metamodel.views.schema_name, %1$s metamodel.views.name)
-                    ~mainTable %1$s metamodel.views
-                    name: %1$s metamodel.views.name,
+                    ~filter %1$s ElView
+                    ~primaryKey(%1$s metamodel.relational_elements.id)
+                    ~mainTable %1$s metamodel.relational_elements
+                    name: %1$s metamodel.relational_elements.name,
                     mainTableAlias[alias]: %1$s@ViewToAlias,
                     columnMappings[vcm]: %1$s@ViewToColumnMappings
                 }
@@ -616,15 +611,17 @@ public final class SystemMetamodel {
                 }
                 meta::relational::metamodel::relation::Table[tbl]: Relational
                 {
-                    ~primaryKey(%1$s metamodel.tables.db_fqn, %1$s metamodel.tables.schema_name, %1$s metamodel.tables.name)
-                    ~mainTable %1$s metamodel.tables
-                    name: %1$s metamodel.tables.name
+                    ~filter %1$s ElTable
+                    ~primaryKey(%1$s metamodel.relational_elements.id)
+                    ~mainTable %1$s metamodel.relational_elements
+                    name: %1$s metamodel.relational_elements.name
                 }
                 meta::relational::metamodel::Column[col]: Relational
                 {
-                    ~primaryKey(%1$s metamodel.columns.db_fqn, %1$s metamodel.columns.schema_name, %1$s metamodel.columns.table_name, %1$s metamodel.columns.name)
-                    ~mainTable %1$s metamodel.columns
-                    name: %1$s metamodel.columns.name,
+                    ~filter %1$s ElColumn
+                    ~primaryKey(%1$s metamodel.relational_elements.id)
+                    ~mainTable %1$s metamodel.relational_elements
+                    name: %1$s metamodel.relational_elements.name,
             %7$s
                 }
             %8$s

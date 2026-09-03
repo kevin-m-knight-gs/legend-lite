@@ -86,7 +86,7 @@ final class ConstructedInstances {
         if (seen.add(id)) {
             RelationalOpRows rows = new RelationalOpRows(ctx);
             rows.node(op, id, null, null, null, null, null);
-            seeds.computeIfAbsent("relational_ops", k -> new ArrayList<>()).addAll(rows.ops);
+            seeds.computeIfAbsent("relational_elements", k -> new ArrayList<>()).addAll(rows.ops);
             seeds.computeIfAbsent("data_types", k -> new ArrayList<>()).addAll(rows.dataTypes);
         }
         return id;

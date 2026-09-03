@@ -1993,10 +1993,15 @@ public class RelationalCorpusRunner {
                     // construction, so the [1] declaration is exact and the
                     // column is nullable at the table level. 9 witnesses,
                     // all "direct", all metamodel-store.
+                    // 529 -> 533 (single-table RelationalOperationElement
+                    // hierarchy, 2026-09-02, user-ratified): Table, View,
+                    // Column and TableAlias `name` [1] now read the shared
+                    // relational_elements.name, NULL on the expression-node
+                    // kinds' rows — the same idiom, four more witnesses.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            reqNullAdjudicated() <= 529,
+                            reqNullAdjudicated() <= 533,
                             "required-over-nullable pairings grew past"
-                                    + " the pinned ceiling 529 — a new"
+                                    + " the pinned ceiling 533 — a new"
                                     + " [1]-property over a nullable"
                                     + " column entered the corpus"
                                     + " models"),

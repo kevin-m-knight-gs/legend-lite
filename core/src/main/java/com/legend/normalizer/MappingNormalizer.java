@@ -3249,7 +3249,7 @@ public final class MappingNormalizer {
               + ", hop " + hopIndex + ", mapping=" + mappingFqn);
     }
 
-    private static boolean containsTargetColumnRef(RelationalOperation op) {
+    static boolean containsTargetColumnRef(RelationalOperation op) {
         return switch (op) {
             case RelationalOperation.TargetColumnRef ignored -> true;
             case RelationalOperation.ColumnRef ignored       -> false;

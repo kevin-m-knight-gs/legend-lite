@@ -460,8 +460,21 @@ final class AssociationSynthesis {
 
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
+        // A SELF-JOIN between two DIFFERENT classes over ONE table (the
+        // store's single-table hierarchy: TableAlias -> Table, both rows of
+        // relational_elements): the join's table-named side is the first
+        // line's SOURCE set and {target} its target set — when that source
+        // set maps classB, {target} is classA's row. Same-class
+        // self-associations keep the pinned convention (property1's
+        // destination on tgtRow; the resolver reverses by property name).
+        boolean targetIsA = false;
+        if (!classA.equals(classB) && firstAm.sourceSetId() != null) {
+            ClassMapping srcSet = MappingNormalizer.findSetById(md, model,
+                    firstAm.sourceSetId());
+            targetIsA = srcSet != null && srcSet.className().equals(classB);
+        }
         ValueSpecification predicateBody = buildAssocPredicateBody(firstJoin, classA,
-                classB, srcRow, tgtRow, am.associationName(), md, model);
+                classB, srcRow, tgtRow, am.associationName(), md, model, targetIsA);
         // predicateBody's tgtRow reads the JOIN's landing table; the call
         // declares tgtRow's row type as classB's ~mainTable. Those must be
         // the SAME table or the lambda would silently mistype (checked
@@ -513,6 +526,19 @@ final class AssociationSynthesis {
                                                              String associationName,
                                                              LegacyMappingDefinition md,
                                                              ModelBuilder model) {
+        return buildAssocPredicateBody(join, classA, classB, srcRow, tgtRow,
+                associationName, md, model, false);
+    }
+
+    /** {@code targetIsA}: on a self-join, {@code {target}} is classA's row
+     * (the table-named side classB's) — see synthesizeAssociationMapping. */
+    static ValueSpecification buildAssocPredicateBody(PropertyMapping.Join join,
+                                                             String classA, String classB,
+                                                             Variable srcRow, Variable tgtRow,
+                                                             String associationName,
+                                                             LegacyMappingDefinition md,
+                                                             ModelBuilder model,
+                                                             boolean targetIsA) {
         if (join.joins().isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "AssociationMapping for '" + associationName
@@ -557,12 +583,15 @@ final class AssociationSynthesis {
                       + "supported. Association='" + associationName + "', mapping="
                       + md.qualifiedName());
             }
+            boolean swap = targetIsA && MappingNormalizer.containsTargetColumnRef(cond2);
+            Variable tableSide = swap ? tgtRow : srcRow;
+            Variable targetSide = swap ? srcRow : tgtRow;
             Map<String, ValueSpecification> condScope = new LinkedHashMap<>();
-            condScope.put(sourceTable, srcRow);
-            if (!targetTable.equals(sourceTable)) condScope.put(targetTable, tgtRow);
+            condScope.put(sourceTable, tableSide);
+            if (!targetTable.equals(sourceTable)) condScope.put(targetTable, targetSide);
             // translate the SAME view-resolved tree the target was picked
             // from — raw refs name pre-resolution tables (T1.10)
-            return RelOpTranslator.translate(cond2, condScope, tgtRow, /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
+            return RelOpTranslator.translate(cond2, condScope, targetSide, /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
         }
         // Unreachable: multi-hop associations are intercepted in
         // synthesizeAssociationMapping (returns null) and realized as per-end

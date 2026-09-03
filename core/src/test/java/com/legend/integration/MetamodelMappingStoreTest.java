@@ -115,7 +115,7 @@ class MetamodelMappingStoreTest {
     void tableExtentIsSeeded() throws SQLException {
         List<Object> names = values("meta::relational::metamodel::relation::Table.all().name");
         assertTrue(names.containsAll(List.of("ABC", "classes", "mappings",
-                "class_mappings", "tables")), names.toString());
+                "class_mappings", "relational_elements")), names.toString());
     }
 
     @Test
