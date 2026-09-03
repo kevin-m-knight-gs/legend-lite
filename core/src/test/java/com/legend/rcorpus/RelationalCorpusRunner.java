@@ -810,8 +810,11 @@ public class RelationalCorpusRunner {
                     // move; +76 flips, 0 lost)
                     // 22 -> 20 (batch 29, post-processors): the replaceTables
                     // tests' sql-asserts left the walk's lane (lane move)
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 20,
-                    "M1 h2-exec verified fell below the 20 floor: "
+                    // 20 -> 12 (batch 34, the assertSameSQL String overload
+                    // takes the exec-read arm): 15 flipped tests' sql-asserts
+                    // left the walk's lane (lane move, 0 lost, disagree 0)
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 12,
+                    "M1 h2-exec verified fell below the 12 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -1002,7 +1005,10 @@ public class RelationalCorpusRunner {
             // path): one businessdate sql-assert left the walk's lane.
             // 170 -> 167 (batch 32 — plan-execute frames): three TDG
             // sql-asserts left the walk's lane (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(167, execPassing,
+            // 167 -> 149 (batch 34 — assertSameSQL(String, String) takes the
+            // exec-read arm): the 15 flipped tests' assertSameSQL asserts
+            // left the walk's lane (lane move, passes 2374 stable).
+            org.junit.jupiter.api.Assertions.assertEquals(149, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1464,10 +1470,20 @@ public class RelationalCorpusRunner {
             // (TypedFrom.jsonSourcesIn/chainMappingsIn take the executor's
             // let-chase). +22 (XStore ordered 8, XStoreUnion 4, relational
             // chain 4, resultSourcing 4, XStore JsonToDB 2), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(394L,
+            // 394 -> 379 (batch 34, 2026-09-03): the String overload of
+            // assertSameSQL (`assertSameSQL($golden, $result->
+            // sqlRemoveFormatting())`, engine testAssert.pure) takes the
+            // SAME exec-read rows verdict as assertEquals — its arm only
+            // knew the Result overload, so the statement fell through to
+            // the lowerer ("no scalar lowering for assertEquals" was this
+            // fall-through, two mechanisms away). +15 (in-clause joins 3,
+            // forced filter 2, concatenate 3, query::function 3, distinct,
+            // embedded exists, association mixed, group open variable),
+            // 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(379L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2179L,
+            org.junit.jupiter.api.Assertions.assertEquals(2194L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1687,8 +1703,10 @@ public class RelationalCorpusRunner {
                     // flipped resultSourcing/chain/XStore tests' rescued
                     // sql-asserts now row-verify as platform-arm verdicts
                     // (passes 2367 -> 2374, 0 flips lost, disagree 0).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 119,
-                    "M1 h2-exec rescued fell below the 119 floor: "
+                    // 119 -> 109 (batch 34): the same lane move as
+                    // M1_VERIFIED 20 -> 12.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 109,
+                    "M1 h2-exec rescued fell below the 109 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

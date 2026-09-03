@@ -1882,9 +1882,30 @@ ExecutionNode.children 1, objectReferenceIn over a limit 1, JSON verdict
 mismatches 4 (defects / employees / union legalName / milestoned
 property), "trailing JSON" 2 (embedded otherwise milestoned).
 
+**Batch 34 — assertSameSQL(String, String) IS A ROWS VERDICT (2026-09-03):
+ratchet 394/2179 → 379/2194 (+15, ZERO lost).** The census's "no scalar
+lowering registered for assertEquals (29)" was a fall-through two mechanisms
+away from its cause: engine `testAssert.pure` declares TWO assertSameSQL
+overloads — over a `Result` (which calls `sqlRemoveFormatting` itself) and
+over a `String` (`assertEquals($sqlString, $result)`). Our verdict arm knew
+the Result overload only; the String form (`assertSameSQL($golden,
+$result->sqlRemoveFormatting())`) tried the plan-text and TDG arms, returned
+null, and the statement fell to the lowerer, which met the inlined
+assertEquals. The String form now takes the SAME exec-read rows verdict as
+assertEquals (`SqlTextVerdicts.tryArmExecRead`). Flipped: in-clause joins 3,
+forced-filter projection overlap 2, concatenate 3, query::function
+contains/endsWith/if 3, distinct-in-join, embedded exists, association
+mixed deep, group open variable. Lane moves (all the flipped tests'
+sql-asserts leaving the walk's lane): M1 verified 20 → 12, M1 rescued
+119 → 109, exec-passing 167 → 149; passes 2374 stable, disagree 0. Still in
+the bucket, named: toPostgresModel 9 (the C2 recursion leg), concatenate
+4 (testAllWithProperty, DataType, DataTypeDiffProperty, DataTypeMerge),
+stringToFloat::testProject, tds sort testSortQuotes — re-probe with the
+swallowed reason printed before naming their mechanism.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 394 fallbacks / 2179 flipped (batches 14–33 = group D,
+legs).** State: 379 fallbacks / 2194 flipped (batches 14–34 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

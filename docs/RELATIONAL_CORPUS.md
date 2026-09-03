@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 77 | 10 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 247 | 5 | 5 | 2 | 2 | 2 | 0 | 14 |
+| functions/tests | 259 | 247 | 5 | 5 | 2 | 2 | 2 | 0 | 11 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 2 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -64,13 +64,13 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 7 |
 | testDataGeneration/tests | 68 | 65 | 0 | 1 | 2 | 0 | 0 | 25 | 15 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 3 |
+| tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 1 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
 | tests/mapping/enumeration | 26 | 19 | 3 | 4 | 0 | 0 | 0 | 0 | 0 |
@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 82 | 2 | 3 | 0 | 2 | 2 | 0 | 4 |
+| tests/query | 87 | 82 | 2 | 3 | 0 | 2 | 2 | 0 | 1 |
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 82 |
+| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 73 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2253 clean + 121 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 82; flags overlap — the union is 121).
+SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2262 clean + 112 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 73; flags overlap — the union is 112).
 
 ### mapping walls (dropped at assembly)
 

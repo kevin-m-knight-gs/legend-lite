@@ -144,17 +144,13 @@ final class SqlTextVerdicts {
         TypedSpec resultArg = root.args().get(1);
         if (resultArg.info().type()
                 == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            // §5: a String actual NAVIGATING a generated plan is the
-            // plan-text shape; a plain String pair stays the ordinary
-            // string-comparison overload
-            ExecutionResult pv = tryArmPlanText("assertSameSQL",
-                    goldenSide, resultArg, letPrefix, specs, env, hook);
-            if (pv != null) {
-                return pv;
-            }
-            // TDG flip: the generator fetch-text spelling
-            return tryArmTdgSql("assertSameSQL", goldenSide, resultArg,
-                    letPrefix, specs, env, hook);
+            // the String overload (assertSameSQL(sqlString, result:String)
+            // — `$result->sqlRemoveFormatting()`, a plan text, a TDG
+            // fetch text) takes the SAME exec-read arm assertEquals takes:
+            // an sql() read is a rows verdict, never a text comparison; a
+            // plain String pair stays the ordinary string overload
+            return tryArmExecRead("assertSameSQL", root.args(), letPrefix,
+                    specs, env, hook);
         }
         TypedSpec strip = com.legend.compiler.spec.VerdictQueries
                 .sqlStripRead(resultArg, env.ctx());
