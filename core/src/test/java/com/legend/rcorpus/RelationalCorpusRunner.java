@@ -1253,10 +1253,20 @@ public class RelationalCorpusRunner {
             // root resolved through the runtime's ModelChainConnection),
             // testParametrizedEnumFilter (the inline CSV over a copied
             // testRuntime()).
-            org.junit.jupiter.api.Assertions.assertEquals(780L,
+            // 780/1793 -> 778/1795 (batch 17 — group Q opener, 2026-09-03):
+            // executionPlan registered VERBATIM (f:FunctionDefinition<Any>[1],
+            // executionPlan_generation.pure:25-50) — the per-arity
+            // Function<{Any[1]->Any[*]}> overloads rejected Date /
+            // Integer[0..1] query parameters by contravariance. +2 =
+            // testDefaultOptionalParamIsNullSafe (planToString + contains),
+            // testFilterInWithResultSorcedFromAnExpression. The other ten
+            // group Q tests now reach the plan-node navigation walls (the
+            // TypedMap over rootExecutionNode.executionNodes) — plan nodes
+            // as rows is the leg.
+            org.junit.jupiter.api.Assertions.assertEquals(778L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1793L,
+            org.junit.jupiter.api.Assertions.assertEquals(1795L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

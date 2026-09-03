@@ -1300,9 +1300,35 @@ connection whose source navigates a one-ARGUMENT helper
 (`testRuntime()` → `testRuntime(db)`) resolves no store — the CSV then
 seeds without DDL (the family table already exists; loud otherwise).
 
+**Batch 17 — GROUP Q opener (2026-09-03): ratchet 780/1793 → 778/1795
+(+2; chain 5m56s, all green).** `meta::pure::executionPlan::executionPlan`
+is registered VERBATIM (`f:FunctionDefinition<Any>[1]`,
+executionPlan_generation.pure:25-50; the six per-arity
+`Function<{Any[1]->Any[*]}>` overloads were an invention that rejected
+`bd:Date[1]` / `Integer[0..1]` query parameters by contravariance —
+deleted). +2 = testDefaultOptionalParamIsNullSafe,
+testFilterInWithResultSorcedFromAnExpression. The other ten group Q
+tests now type and reach ONE wall: "class query under TypedMap (HN
+vocabulary)" on the plan-node navigation
+`$result.rootExecutionNode.executionNodes->filter(n|$n->instanceOf(
+RelationalInstantiationExecutionNode))->at(0).executionNodes->at(0)
+->cast(@SQLExecutionNode).sqlQuery` read INSIDE an assert side
+(assertEqualsH2Compatible): the statement executor's `planWalk` (a Java
+plan-node evaluator — harness badness, dies with the burn) answers such
+chains only at a statement ROOT; the honest route is PLAN NODES AS ROWS
+(homework §2e): the plan handle's nodes seeded as rows of the system
+database (kind, parent, ordinal, sql text, result columns), the reads
+lowered as ordinary relation navigation, `sqlQuery` judged by the SQL-
+text referee (replay). testLegacyFlagRestoresOptionalParamFreeMarkerSelector
+is a plan-TEXT spelling (the legacy `optionalVarPlaceHolderOperationSelector`
+freemarker form) — named. testMultiExpressionWithPlatformAndFromFunction:
+"PureExp source printing for TypedMap pending" (plan-text of a map
+expression) — named.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 780 fallbacks / 1793 flipped (batches 14–16 = group D;
+legs).** State: 778 fallbacks / 1795 flipped (batches 14–17 = group D +
+the group Q opener;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as
