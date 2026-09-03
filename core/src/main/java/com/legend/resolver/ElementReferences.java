@@ -227,8 +227,9 @@ final class ElementReferences {
         if (cur instanceof TypedNativeCall pn && planHandle.test(pn)) {
             String scope = com.legend.plan.PlanRows.scopeId(pn);
             StoreResolver.Context inner = context.withConstructedScope(scope);
-            return new RootRow(elementRowByKey(scope,
-                    "meta::pure::executionPlan::ExecutionPlan", inner, freshVar), inner);
+            return new RootRow(elementRowByKey(scope, java.util.Objects.requireNonNull(
+                    com.legend.compiler.element.type.PlatformTypes.handleRowClass(
+                            pn.callee().qualifiedName())), inner, freshVar), inner);
         }
         if (cur instanceof TypedLambda flam) {
             String scope = FunctionBodyRows.scopeId(flam);

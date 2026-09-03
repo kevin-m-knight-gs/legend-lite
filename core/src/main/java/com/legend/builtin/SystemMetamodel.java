@@ -212,6 +212,47 @@ public final class SystemMetamodel {
                 .append("                        inferredFor[ipk, vs]: ").append(S).append("@NodeToPkColumns,\n")
                 .append("                        inferredPrimaryKeyColumns[vs, ipk]: ").append(S).append("@NodeToPkColumns\n")
                 .append("                    )\n                }\n");
+        // LINEAGE TREES as rows (group E burn, 2026-09-03): a scanRelations
+        // handle's relation tree is node rows in PREORDER with their depth's
+        // indent, kind (root / t / v), name, join label and columns
+        // (LineageRows); relationTreeAsString is a Pure body over them
+        sb.append("                *meta::pure::lineage::scanRelations::RelationTree[rtree]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.relation_trees.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.relation_trees\n")
+                .append("                }\n")
+                .append("                *meta::lite::metamodel::RelationTreeNode[rtnode]: Relational\n")
+                .append("                {\n")
+                // node_id, not id: the aggregated columns hop keys on the NODE
+                // row — a key spelled `id` collides with the tree row's `id`
+                // in the aggregated-navigation key resolution (a named
+                // resolver debt, harness burn-down batch 20)
+                .append("                    ~primaryKey(").append(S).append(" metamodel.relation_tree_nodes.node_id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.relation_tree_nodes\n")
+                .append("                    preorder: ").append(S).append(" metamodel.relation_tree_nodes.preorder,\n")
+                .append("                    indent: ").append(S).append(" metamodel.relation_tree_nodes.indent,\n")
+                .append("                    kind: ").append(S).append(" metamodel.relation_tree_nodes.kind,\n")
+                .append("                    name: ").append(S).append(" metamodel.relation_tree_nodes.name,\n")
+                .append("                    joinLabel: ").append(S).append(" metamodel.relation_tree_nodes.join_label\n")
+                .append("                }\n")
+                .append("                *meta::lite::metamodel::RelationTreeColumn[rtcol]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.relation_tree_node_columns.node_id, ")
+                .append(S).append(" metamodel.relation_tree_node_columns.ordinal)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.relation_tree_node_columns\n")
+                .append("                    ordinal: ").append(S).append(" metamodel.relation_tree_node_columns.ordinal,\n")
+                .append("                    name: ").append(S).append(" metamodel.relation_tree_node_columns.name\n")
+                .append("                }\n")
+                .append("                meta::lite::metamodel::RelationTreeNodes: Relational\n")
+                .append("                {\n                    AssociationMapping\n                    (\n")
+                .append("                        tree[rtnode, rtree]: ").append(S).append("@TreeToNodes,\n")
+                .append("                        nodes[rtree, rtnode]: ").append(S).append("@TreeToNodes\n")
+                .append("                    )\n                }\n")
+                .append("                meta::lite::metamodel::RelationTreeNodeColumns: Relational\n")
+                .append("                {\n                    AssociationMapping\n                    (\n")
+                .append("                        node[rtcol, rtnode]: ").append(S).append("@TreeNodeToColumns,\n")
+                .append("                        columns[rtnode, rtcol]: ").append(S).append("@TreeNodeToColumns\n")
+                .append("                    )\n                }\n");
         sb.append("                meta::lite::metamodel::PlanNodeSubtrees: Relational\n")
                 .append("                {\n                    AssociationMapping\n                    (\n")
                 .append(String.join(",\n", subtrees)).append("\n")
@@ -463,6 +504,26 @@ public final class SystemMetamodel {
                         ordinal INTEGER PRIMARY KEY,
                         name VARCHAR(256) NOT NULL
                     )
+                    Table relation_trees
+                    (
+                        id VARCHAR(512) PRIMARY KEY
+                    )
+                    Table relation_tree_nodes
+                    (
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        tree_id VARCHAR(512) NOT NULL,
+                        preorder INTEGER NOT NULL,
+                        indent VARCHAR(256) NOT NULL,
+                        kind VARCHAR(8) NOT NULL,
+                        name VARCHAR(512),
+                        join_label VARCHAR(512)
+                    )
+                    Table relation_tree_node_columns
+                    (
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        name VARCHAR(256) NOT NULL
+                    )
                 )
                 Join PlanToRoot(metamodel.plans.root_node_id = metamodel.plan_nodes.id)
                 Join NodeToChildren(metamodel.plan_nodes.id = {target}.parent_id)
@@ -472,6 +533,8 @@ public final class SystemMetamodel {
                 Join SubtreeToNode(metamodel.plan_node_closure.node_id = metamodel.plan_nodes.id)
                 Join FunctionToBody(metamodel.functions.id = metamodel.value_specifications.function_id)
                 Join NodeToPkColumns(metamodel.value_specifications.id = metamodel.vs_primary_key_columns.node_id)
+                Join TreeToNodes(metamodel.relation_trees.id = metamodel.relation_tree_nodes.tree_id)
+                Join TreeNodeToColumns(metamodel.relation_tree_nodes.node_id = metamodel.relation_tree_node_columns.node_id)
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
@@ -565,6 +628,33 @@ public final class SystemMetamodel {
             {
                 inferredFor: meta::pure::metamodel::valuespecification::ValueSpecification[1];
                 inferredPrimaryKeyColumns: meta::lite::metamodel::InferredPrimaryKeyColumn[*];
+            }
+
+            Class meta::lite::metamodel::RelationTreeNode
+            {
+                preorder: Integer[1];
+                indent: String[1];
+                kind: String[1];
+                name: String[0..1];
+                joinLabel: String[0..1];
+            }
+
+            Class meta::lite::metamodel::RelationTreeColumn
+            {
+                ordinal: Integer[1];
+                name: String[1];
+            }
+
+            Association meta::lite::metamodel::RelationTreeNodes
+            {
+                tree: meta::pure::lineage::scanRelations::RelationTree[1];
+                nodes: meta::lite::metamodel::RelationTreeNode[*];
+            }
+
+            Association meta::lite::metamodel::RelationTreeNodeColumns
+            {
+                node: meta::lite::metamodel::RelationTreeNode[1];
+                columns: meta::lite::metamodel::RelationTreeColumn[*];
             }
 
             Class meta::lite::metamodel::SetAncestry
@@ -665,6 +755,14 @@ public final class SystemMetamodel {
             function meta::relational::mapping::inferPrimaryKeyColumnNames(vs:meta::pure::metamodel::valuespecification::ValueSpecification[1]):String[*]
             {
                 $vs.inferredPrimaryKeyColumns->sortBy(c|$c.ordinal).name
+            }
+            function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1]):String[1]
+            {
+                $t->meta::pure::lineage::scanRelations::relationTreeAsString(true)
+            }
+            function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[1]
+            {
+                $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))->joinStrings('', '\n', '\n')
             }
             function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {

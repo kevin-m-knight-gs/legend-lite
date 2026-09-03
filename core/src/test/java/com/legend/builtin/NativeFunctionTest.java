@@ -546,7 +546,9 @@ class NativeFunctionTest {
         // string entry's result JSON navigated on the variant lane.
         // 243 -> 244 (batch 18 — group Q, plan nodes as rows): the
         // Sequence execution node (real executionPlan.pure).
-        assertEquals(244, Pure.allNativeClasses().size(),
+        // 244 -> 245 (batch 20 — group E, lineage trees as rows): the
+        // scanRelations RelationTree HANDLE class (real scanRelations.pure:47).
+        assertEquals(245, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -1275,6 +1277,8 @@ class NativeFunctionTest {
                 "meta::relational::testDataGeneration",
                 // the plan surface (#47: ExecutionPlan)
                 "meta::pure::executionPlan",
+                // group E (2026-09-03): the lineage tree HANDLE class
+                "meta::pure::lineage::scanRelations",
                 // the checked-result surface (graphFetchChecked)
                 "meta::pure::dataQuality",
                 // the relational plan-node surface (SQLExecutionNode)

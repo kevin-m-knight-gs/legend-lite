@@ -68,7 +68,9 @@ public final class MetamodelSeeds {
             case "plans", "plan_nodes", "plan_template_functions",
                     "plan_function_parameters", "plan_node_closure",
                     // function bodies ride the query too (FunctionBodyRows)
-                    "functions", "value_specifications", "vs_primary_key_columns" -> List.of();
+                    "functions", "value_specifications", "vs_primary_key_columns",
+                    // lineage trees ride the query too (LineageRows)
+                    "relation_trees", "relation_tree_nodes", "relation_tree_node_columns" -> List.of();
             default -> throw new IllegalStateException(
                     "system metamodel table '" + table + "' has no seed"
                     + " derivation — SOURCE and seedRows grow together");

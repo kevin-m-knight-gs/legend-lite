@@ -26,6 +26,15 @@ import java.util.stream.Stream;
  */
 public class RelationalCorpusRunner {
 
+    /** Engine IMPLEMENTATION files shipped beside their tests: the
+     * reference checkout is the SPEC, never runtime (memory rule) — the
+     * platform owns these functions (natives + Pure bodies over the system
+     * store's rows), so their engine bodies never join a family model.
+     * scanRelations.pure: the lineage program (harness burn-down group E —
+     * the tree is LineageRows, printed by the database). */
+    static final java.util.Set<String> ENGINE_IMPLEMENTATION_FILES = java.util.Set.of(
+            "lineage/scanRelations/scanRelations.pure");
+
     /**
      * THE WHOLE core_relational estate: every directory (recursively) under
      * the corpus root that directly contains .pure files is a family. No
@@ -1285,10 +1294,20 @@ public class RelationalCorpusRunner {
             // tree); inferPrimaryKeyColumnNames is a Pure body over those
             // rows; evaluateAndDeactivate is the identity over rows. +43
             // (pkInferenceTests, all), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(686L,
+            // 686/1887 -> 661/1912 (batch 20 — GROUP E, lineage trees AS
+            // ROWS, 2026-09-03): a scanRelations handle's relation tree is
+            // node rows (LineageRows — the lineage scan's printed lines as
+            // data: preorder, indent, kind, name, join label, columns);
+            // relationTreeAsString is a Pure body over them (the database
+            // prints the tree); the engine's scanRelations.pure is SPEC,
+            // never loaded. +25, 0 lost. Named residue: 19 runtime-variant
+            // trees whose join labels carry the engine's internal alias
+            // breadcrumbs (_d#5_d#2_m1, _dy1, _f_d_r — the Java arm used to
+            // strip them from the golden), 3 typer/lowering walls.
+            org.junit.jupiter.api.Assertions.assertEquals(661L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1887L,
+            org.junit.jupiter.api.Assertions.assertEquals(1912L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2371,7 +2390,11 @@ public class RelationalCorpusRunner {
         Path p = Corpus.RELATIONAL.resolve(family);
         List<Path> files = new ArrayList<>();
         try (Stream<Path> s = Files.list(p)) {
-            s.filter(f -> f.toString().endsWith(".pure")).sorted().forEach(files::add);
+            s.filter(f -> f.toString().endsWith(".pure")
+                    // the engine's own implementation files are SPEC
+                    && !ENGINE_IMPLEMENTATION_FILES.contains(
+                            Corpus.RELATIONAL.relativize(f).toString()))
+                    .sorted().forEach(files::add);
         }
         for (Path f : files) {
             runner.addBeforePackages(Files.readString(f));
@@ -2415,6 +2438,10 @@ public class RelationalCorpusRunner {
                     && Files.isRegularFile(x)).sorted().toList()) {
                 if (f2.equals(parentSetup)) {
                     continue;
+                }
+                if (ENGINE_IMPLEMENTATION_FILES.contains(
+                        Corpus.RELATIONAL.relativize(f2).toString())) {
+                    continue;   // the engine's own implementation is SPEC
                 }
                 String src2 = Files.readString(f2);
                 boolean storeOnly = !Runner.hasTestFunctions(src2)

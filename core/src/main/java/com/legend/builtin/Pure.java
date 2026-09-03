@@ -606,6 +606,10 @@ public final class Pure {
     // omitted until demanded — each declared property matches the REAL
     // class member-for-member)
     public static final ClassDefinition EXECUTION_PLAN_CLASS = nativeClass("native Class meta::pure::executionPlan::ExecutionPlan extends meta::pure::metamodel::type::Any { rootExecutionNode: meta::pure::executionPlan::ExecutionNode[1]; processingTemplateFunctions: meta::pure::metamodel::type::String[*]; }");
+    // real scanRelations.pure:47 — the lineage tree HANDLE (its nodes are
+    // rows of the system store: LineageRows; the engine's relation/join/
+    // columns/children properties are the lite node rows here)
+    public static final ClassDefinition RELATION_TREE = nativeClass("native Class meta::pure::lineage::scanRelations::RelationTree extends meta::pure::metamodel::type::Any {}");
     // the plan NODE surface (real executionPlan.pure:73-83/:178-205 +
     // relational executionPlan.pure:63-90) — declared subsets; values
     // answer through the K-side plan model (the plan-handle walks)
@@ -1912,6 +1916,13 @@ public final class Pure {
     // real executionPlan_generation.pure:30 — extensions[*] THEN
     // debugContext[1] last (the noDebug() trailing form)
     public static final NativeFunctionDefinition EXECUTION_PLAN__5_DEBUG = signature("native function meta::pure::executionPlan::executionPlan(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debugContext:meta::pure::metamodel::type::Any[1]):meta::pure::executionPlan::ExecutionPlan[1];");
+    // lineage (harness burn-down group E, 2026-09-03): the relation tree a
+    // query's demand reaches — real scanRelations.pure:74 (f, m, extensions)
+    // and :341 (f, m, r, extensions); extensions[*] / the runtime widened to
+    // Any (the extension registry and runtime values type as Any here). The
+    // tree is rows (LineageRows) the database prints (relationTreeAsString).
+    public static final NativeFunctionDefinition SCAN_RELATIONS__3 = signature("native function meta::pure::lineage::scanRelations::scanRelations(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], m:meta::pure::mapping::Mapping[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::lineage::scanRelations::RelationTree[1];");
+    public static final NativeFunctionDefinition SCAN_RELATIONS__4 = signature("native function meta::pure::lineage::scanRelations::scanRelations(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], m:meta::pure::mapping::Mapping[1], r:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::lineage::scanRelations::RelationTree[1];");
     public static final NativeFunctionDefinition PLAN_TO_STRING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToString(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // real executionPlan_print.pure:27 — planToString minus '\n' and ' '
     public static final NativeFunctionDefinition PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToStringWithoutFormatting(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");

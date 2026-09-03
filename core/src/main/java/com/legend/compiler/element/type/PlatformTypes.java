@@ -218,6 +218,23 @@ public final class PlatformTypes {
      * literal plan-text rendering (toSQLString doctrine). */
     public static final String EXECUTION_PLAN =
             "meta::pure::executionPlan::executionPlan";
+    /** The lineage surface (harness burn-down group E): a PLATFORM-OWNED
+     * opaque handle whose relation tree is rows (LineageRows). */
+    public static final String SCAN_RELATIONS =
+            "meta::pure::lineage::scanRelations::scanRelations";
+
+    /** The metaclass a HANDLE native's rows extend as (the chain root
+     * re-roots at its extent keyed by the handle's content id), or null
+     * for a non-handle native. */
+    public static @com.legend.Nullable String handleRowClass(String fqn) {
+        if (EXECUTION_PLAN.equals(fqn)) {
+            return "meta::pure::executionPlan::ExecutionPlan";
+        }
+        if (SCAN_RELATIONS.equals(fqn)) {
+            return "meta::pure::lineage::scanRelations::RelationTree";
+        }
+        return null;
+    }
     /** Plan-time constant pre-evaluation — a FUNCTION-VALUED identity
      * for plan construction (the wrapped lambda IS the query). */
     public static final String PREVAL =
@@ -532,6 +549,7 @@ public final class PlatformTypes {
                     java.util.Map.entry(TO_SQL_STRING, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(EXECUTION_PLAN, NativeImpl.HANDLE),
+                    java.util.Map.entry(SCAN_RELATIONS, NativeImpl.HANDLE),
                     java.util.Map.entry(PREVAL, NativeImpl.HANDLE),
                     java.util.Map.entry(EXECUTE, NativeImpl.HANDLE),
                     java.util.Map.entry(EXECUTE_LEGEND_QUERY, NativeImpl.HANDLE),

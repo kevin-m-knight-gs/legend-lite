@@ -1420,10 +1420,41 @@ analysis is Java-stamped (PkInference / PlanRows) and read by the
 database; two parallel plan builders (planModel vs planToString);
 content-id scopes; the lenient anywhere fallback in subtype registration.
 
+**Batch 20 — GROUP E: LINEAGE TREES AS ROWS (2026-09-03): ratchet
+686/1887 → 661/1912 (+25, ZERO lost; chain 5m42s, all green).** `scanRelations(f, m[, r], ext)`
+is a PLATFORM HANDLE native (real scanRelations.pure:74/:341; the class
+`RelationTree` registered, its engine properties are the lite node rows);
+the engine's `scanRelations.pure` shipped beside its tests is SPEC and no
+longer joins the family model (`RelationalCorpusRunner.ENGINE_
+IMPLEMENTATION_FILES`). On the handle's let the executor registers the
+tree's rows (`PlanAllocations.registerLineageRows` → `lineage.LineageRows`:
+the lineage scan's printed lines as DATA — preorder, indent, kind
+root/t/v, name, join label, sorted columns — the scan walks the raw query
+lambda found by the let's name in the query's protocol body, now carried
+on `ExecEnv.protocolBody`; `ScanRelations.lines` is the one walk both the
+Java printer and the rows use). `relationTreeAsString(t[, withJoin])` is a
+Pure body over the rows (`$t.nodes->sortBy(preorder)->map(...)->joinStrings`)
+— the DATABASE prints the tree. Handles generalize: `PlatformTypes.
+handleRowClass(fqn)` names the metaclass a handle's rows extend as
+(ExecutionPlan / RelationTree); a `->toOne()` over a handle is the handle.
+Residue, NAMED: 19 runtime-variant trees whose join labels carry the
+engine's internal alias breadcrumbs (`Car_dy1c_PersonID`,
+`AltID_View_d#5_d#2_m1entityID`, `Owner_f_d_rVEHICLE_ID`) — the Java arm
+`LineageRelationsForm` stripped them from BOTH sides (a harness
+compensation); the platform will not mint engine-internal alias names, so
+those goldens stay Java-scored until the labels are adjudicated (engine-
+internal spelling, not a lineage fact). 3 walls: `concatenate` of TDS
+relations with differing columns (typer, ×2), scalar lowering of a
+TypedPropertyAccess under a cross join (×1). Named resolver debt: an
+aggregated to-many hop's join key resolves by COLUMN NAME across the
+composed row (a node key spelled `id` collided with the tree's `id`) —
+the store spells it `node_id`.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 686 fallbacks / 1887 flipped (batches 14–19 = group D,
-group Q plan nodes as rows, group A function bodies as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
+legs).** State: 661 fallbacks / 1912 flipped (batches 14–20 = group D,
+group Q plan nodes as rows, group A function bodies as rows, group E
+lineage trees as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

@@ -160,4 +160,19 @@ public final class CsvSeed {
         throw new com.legend.error.NotImplementedException(
                 "csv seed DDL type for " + t + " is not mapped");
     }
+
+    /** The from() node's {@code testDataSetupCsv} FACTS as seed SQL — the
+     * executor's half against the store (the compiler only records the
+     * block and its database). */
+    public static List<String> setupSqls(
+            com.legend.compiler.spec.typed.TypedFrom fr,
+            com.legend.compiler.element.ModelContext ctx) {
+        List<String> out = new java.util.ArrayList<>();
+        for (var c : fr.csvSetups()) {
+            String db = c.dbFqn() != null && ctx.findDatabase(c.dbFqn()).isPresent()
+                    ? c.dbFqn() : null;
+            out.addAll(sqls(c.csv(), db, ctx));
+        }
+        return out;
+    }
 }

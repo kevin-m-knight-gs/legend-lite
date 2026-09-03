@@ -1280,7 +1280,7 @@ public final class StoreResolver {
      * collection — PASS-THROUGH in the pipeline (the engine raises on
      * N&ne;1; here the value compare sees all N and fails loud — a
      * documented, weaker-but-never-silent stand-in). */
-    static boolean isClassToOne(TypedNativeCall c) {
+    public static boolean isClassToOne(TypedNativeCall c) {
         return c.args().size() == 1
                 && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName());
     }
@@ -1310,8 +1310,8 @@ public final class StoreResolver {
 
     /** A plan handle whose rows the executor registered (PlanRows). */
     private boolean planHandleRow(TypedNativeCall pn) {
-        return com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN
-                .equals(pn.callee().qualifiedName())
+        return com.legend.compiler.element.type.PlatformTypes.handleRowClass(
+                        pn.callee().qualifiedName()) != null
                 && constructed.has(com.legend.plan.PlanRows.scopeId(pn));
     }
 

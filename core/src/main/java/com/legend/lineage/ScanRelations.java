@@ -111,11 +111,39 @@ public final class ScanRelations {
      * runtime+(true)=mangle). */
     public static String treeString(ModelContext ctx, LambdaFunction query,
             String mappingFqn, boolean runtimeVariant, boolean showLabels) {
-        StringBuilder sb = new StringBuilder("root\n");
-        for (Node r : scanRoots(ctx, query, mappingFqn, runtimeVariant)) {
-            print(sb, r, 1, ctx, r.table, runtimeVariant, showLabels);
+        StringBuilder sb = new StringBuilder();
+        for (Line l : lines(ctx, query, mappingFqn, runtimeVariant)) {
+            sb.append("  ".repeat(l.depth()));
+            if (l.kind().equals("root")) {
+                sb.append("root\n");
+                continue;
+            }
+            sb.append("------> (").append(l.kind()).append(") ").append(l.name());
+            if (showLabels && l.label() != null) {
+                sb.append('(').append(l.label()).append(')');
+            }
+            sb.append(" [").append(String.join(", ", l.cols())).append("]\n");
         }
         return sb.toString();
+    }
+
+    /** One printed line of the tree, as DATA (LineageRows carries these as
+     * rows; the database prints them): {@code kind} is {@code root},
+     * {@code t} or {@code v}; {@code label} the join label the labelled
+     * print spells (null = none); {@code cols} sorted, deduplicated. */
+    public record Line(int depth, String kind, @com.legend.Nullable String name,
+            @com.legend.Nullable String label, List<String> cols) {
+    }
+
+    /** The tree in PREORDER, one line per node. */
+    public static List<Line> lines(ModelContext ctx, LambdaFunction query,
+            String mappingFqn, boolean runtimeVariant) {
+        List<Line> out = new ArrayList<>();
+        out.add(new Line(0, "root", null, null, List.of()));
+        for (Node r : scanRoots(ctx, query, mappingFqn, runtimeVariant)) {
+            flatten(out, r, 1, ctx, r.table, runtimeVariant);
+        }
+        return out;
     }
 
     /** BRANCH-AWARE roots: concatenate splits (engine: each branch scans
@@ -876,23 +904,16 @@ public final class ScanRelations {
         return hits;
     }
 
-    private static void print(StringBuilder sb, Node n, int depth,
+    private static void flatten(List<Line> out, Node n, int depth,
             ModelContext ctx, @com.legend.Nullable String rootTable,
-            boolean runtimeVariant, boolean showLabels) {
+            boolean runtimeVariant) {
         DatabaseDefinition.ViewDefinition vd = n.db == null ? null
                 : findView(ctx, n.db, n.schema, n.table);
-        sb.append("  ".repeat(depth)).append("------> (")
-                .append(vd != null ? 'v' : 't').append(") ").append(n.table);
-        if (showLabels) {
-            if (n.labelOverride != null) {
-                if (!n.labelOverride.isEmpty()) {
-                    sb.append('(').append(n.labelOverride).append(')');
-                }
-            } else if (n.joinName != null) {
-                sb.append('(').append(runtimeVariant
-                        ? joinLabel(ctx, n, rootTable) : n.joinName)
-                        .append(')');
-            }
+        String label = null;
+        if (n.labelOverride != null) {
+            label = n.labelOverride.isEmpty() ? null : n.labelOverride;
+        } else if (n.joinName != null) {
+            label = runtimeVariant ? joinLabel(ctx, n, rootTable) : n.joinName;
         }
         Set<String> cols = n.cols;
         if (runtimeVariant) {
@@ -905,26 +926,26 @@ public final class ScanRelations {
                 cols.addAll(ms);
             }
         }
-        sb.append(" [").append(String.join(", ", cols)).append("]\n");
+        out.add(new Line(depth, vd != null ? "v" : "t", n.table, label,
+                List.copyOf(cols)));
         for (Node c : n.children.values()) {
             // the 'root' spelling binds the ROOT ROW — only the root
             // node's direct children label against it; deeper hops spell
             // the source table by NAME (Inheritance_2's nested Person:
             // equal_PersonID_Bicycleb_PersonID, not rootID)
-            print(sb, c, depth + 1, ctx,
+            flatten(out, c, depth + 1, ctx,
                     n.joinName == null && n.labelOverride == null
                             ? rootTable : null,
-                    runtimeVariant, showLabels);
+                    runtimeVariant);
         }
         if (vd != null) {
             // a VIEW EXPANDS: a nested 'root' subtree of its underlying
             // tables — every column mapping expression plus the view
             // filter's join web (the engine's view internals)
-            sb.append("  ".repeat(depth + 1)).append("root\n");
+            out.add(new Line(depth + 1, "root", null, null, List.of()));
             Node inner = expandView(ctx, n.db, vd);
             if (inner != null) {
-                print(sb, inner, depth + 2, ctx, inner.table,
-                        runtimeVariant, showLabels);
+                flatten(out, inner, depth + 2, ctx, inner.table, runtimeVariant);
             }
         }
     }

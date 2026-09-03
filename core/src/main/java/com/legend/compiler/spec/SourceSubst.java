@@ -114,7 +114,7 @@ public final class SourceSubst {
     /** The ONE let-shape recognizer (protocol encoding, not user
      * vocabulary): {@code letFunction(<name>, <value>)} — shared by the
      * fold and the lambda-local shadow-stop so the spelling lives once. */
-    static @com.legend.Nullable CString letName(ValueSpecification st) {
+    public static @com.legend.Nullable CString letName(ValueSpecification st) {
         return st instanceof AppliedFunction lf
                 && lf.function().equals("letFunction")
                 && lf.parameters().size() == 2

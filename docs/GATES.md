@@ -218,6 +218,11 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 20 (group E — lineage trees AS ROWS, 2026-09-03): chain 5m42s** —
+G1 38s, G2 9s, G4 61s, G5 40s, G6 78s, G7 25s, G9 18s, G8 73s. Ratchet
+686/1887 → 661/1912 (+25, 0 lost); native classes 244 → 245 (RelationTree);
+other pins unchanged.
+
 **Batch 19 (group A — function bodies AS ROWS, 2026-09-03): chain 5m49s** —
 G1 40s, G2 8s, G4 62s, G5 42s, G6 80s, G7 26s, G9 19s, G8 72s. Ratchet
 729/1844 → 686/1887 (+43, 0 lost); metamodel quarantine rows 77 → 34

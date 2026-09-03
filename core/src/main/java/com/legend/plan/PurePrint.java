@@ -84,7 +84,7 @@ public final class PurePrint {
 
     /** The plan's multiplicity spelling: {@code 1}, {@code 0..1},
      * {@code *}, {@code n..*} (inside the brackets). */
-    private static String sizeRange(
+    public static String sizeRange(
             com.legend.compiler.element.type.Multiplicity m) {
         if (m instanceof com.legend.compiler.element.type.Multiplicity
                 .Bounded b) {

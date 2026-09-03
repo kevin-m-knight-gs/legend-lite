@@ -59,6 +59,10 @@ final class StatementExecutor {
                         env0.queryLets(), env0.tableReplace(),
                         env0.instanceIds(), assertListener, replayOracle,
                         env0.planRows());
+        if (resolved instanceof com.legend.protocol.spec.LambdaFunction rlf
+                && rlf.parameters().isEmpty()) {
+            env = env.withProtocolBody(rlf.body());
+        }
         return executeStatements(specs.typeQueryBody(resolved),
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
@@ -82,8 +86,10 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
             java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
-                    planRows) {
-        /** Historical arity (no plan rows registry yet). */
+                    planRows,
+            java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody) {
+        /** Without the protocol body (a handle's rows built off the typed
+         * tree alone). */
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -92,18 +98,30 @@ final class StatementExecutor {
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds,
                 com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-                com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+                com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+                java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
+                        planRows) {
             this(ctx, runtimeFqn, dialect, connection, addDriverTablePk, queryLets,
-                    tableReplace, instanceIds, assertListener, replayOracle,
-                    new java.util.LinkedHashMap<>());
+                    tableReplace, instanceIds, assertListener, replayOracle, planRows,
+                    java.util.List.of());
         }
-
         /** The same environment over another session — the system
          * database's connection for a body that reads the metamodel. */
         ExecEnv withConnection(java.sql.Connection other) {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, addDriverTablePk, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows);
+                    instanceIds, assertListener, replayOracle, planRows,
+                    protocolBody);
+        }
+
+        /** The query's PROTOCOL statements (the source-shaped lets a
+         * handle's rows are built from — the lineage scan walks the raw
+         * query lambda). */
+        ExecEnv withProtocolBody(
+                java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection,
+                    addDriverTablePk, queryLets, tableReplace, instanceIds,
+                    assertListener, replayOracle, planRows, body);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -114,7 +132,8 @@ final class StatementExecutor {
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds) {
             this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tableReplace, instanceIds, null, null);
+                    queryLets, tableReplace, instanceIds, null, null,
+                    new java.util.LinkedHashMap<>());
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -245,10 +264,18 @@ final class StatementExecutor {
                 // scope (PlanRows) — every read of the handle downstream is
                 // navigation over those rows in the database. Shapes the
                 // plan model cannot build keep the handle symbolic.
-                if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
+                // (a ->toOne() over the handle is the same handle)
+                TypedSpec handle = rhs;
+                while (handle instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
+                        && tw.args().size() == 1
+                        && com.legend.resolver.StoreResolver.isClassToOne(tw)) {
+                    handle = tw.args().get(0);
+                }
+                if (handle instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
                         && com.legend.compiler.element.type.PlatformTypes
-                                .EXECUTION_PLAN.equals(pn.callee().qualifiedName())) {
-                    PlanAllocations.registerPlanRows(pn, letPrefix, specs, env);
+                                .handleRowClass(pn.callee().qualifiedName()) != null) {
+                    PlanAllocations.registerHandleRows(let.name(), pn, letPrefix,
+                            specs, env);
                 }
                 letPrefix.add(let);
                 continue;
@@ -999,10 +1026,10 @@ final class StatementExecutor {
                 ps.append(lam.parameters().get(i)).append(':')
                         .append(com.legend.plan.PlanText
                                 .pureTypeName(p.type()))
-                        .append(multBracket(p.multiplicity()));
+                        .append('[').append(com.legend.plan.PurePrint.sizeRange(p.multiplicity())).append(']');
                 paramSpells.put(lam.parameters().get(i),
                         com.legend.plan.PlanText.pureTypeName(p.type())
-                                + multBracket(p.multiplicity()));
+                                + "[" + com.legend.plan.PurePrint.sizeRange(p.multiplicity()) + "]");
                 boolean opt = p.multiplicity() instanceof
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded ob
@@ -1069,27 +1096,6 @@ final class StatementExecutor {
                         planDialect(dbType, quote, timeZone),
                 !lam.parameters().isEmpty());
     }
-
-    private static @com.legend.Nullable String multBracket(
-            com.legend.compiler.element.type.Multiplicity m) {
-        return "[" + sizeRange(m) + "]";
-    }
-
-    static @com.legend.Nullable String sizeRange(
-            com.legend.compiler.element.type.Multiplicity m) {
-        if (m instanceof com.legend.compiler.element.type.Multiplicity
-                .Bounded b) {
-            if (b.upper() != null) {
-                return b.lower() == b.upper() ? String.valueOf(b.lower())
-                        : b.lower() + ".." + b.upper();
-            }
-            // unbounded: [*] (lower 0) or [n..*]
-            return b.lower() == 0 ? "*" : b.lower() + "..*";
-        }
-        throw new com.legend.error.NotImplementedException(
-                "plan: multiplicity spelling for " + m + " pending");
-    }
-
 
     /** The plan connection handle (cluster 60): the engine's generated
      * plan carries the runtime connection on SQLExecutionNode, with
@@ -2604,20 +2610,6 @@ final class StatementExecutor {
      * harness semantics). {@code fromChain} carries the unwrapped
      * top-level from() setups; nested from() (a graph query whose
      * serialize wraps the from) contribute via the walk. */
-    /** The from() node's {@code testDataSetupCsv} FACTS as seed SQL —
-     * the executor's half (CsvSeed against the store): the compiler only
-     * records the block and its database. */
-    private static java.util.List<String> csvSetupSqls(
-            com.legend.compiler.spec.typed.TypedFrom fr, ExecEnv env) {
-        java.util.List<String> out = new java.util.ArrayList<>();
-        for (var c : fr.csvSetups()) {
-            String db = c.dbFqn() != null && env.ctx().findDatabase(c.dbFqn()).isPresent()
-                    ? c.dbFqn() : null;
-            out.addAll(com.legend.exec.CsvSeed.sqls(c.csv(), db, env.ctx()));
-        }
-        return out;
-    }
-
     private static void runRuntimeSetups(java.util.List<String> fromChain,
             TypedSpec root, ExecEnv env) {
         java.util.List<String> setups = new java.util.ArrayList<>(fromChain);
@@ -2627,7 +2619,7 @@ final class StatementExecutor {
             TypedSpec t = walk.poll();
             if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
                 setups.addAll(fr.sqlSetups());
-                setups.addAll(csvSetupSqls(fr, env));
+                setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx()));
             }
             walk.addAll(t.children());
         }
@@ -2850,7 +2842,7 @@ final class StatementExecutor {
                 declaredInfo = fr.info();
             }
             runtimeSetups.addAll(fr.sqlSetups());
-            runtimeSetups.addAll(csvSetupSqls(fr, env));
+            runtimeSetups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx()));
             root = fr.source();
         }
         runRuntimeSetups(runtimeSetups, root, env);

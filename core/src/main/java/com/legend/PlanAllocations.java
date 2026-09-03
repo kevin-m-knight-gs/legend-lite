@@ -56,7 +56,7 @@ final class PlanAllocations {
         if (literal != null) {
             String typeName = com.legend.plan.PlanText
                     .pureTypeName(let.info().type());
-            String size = StatementExecutor.sizeRange(let.info().multiplicity());
+            String size = com.legend.plan.PurePrint.sizeRange(let.info().multiplicity());
             return com.legend.plan.PlanText.allocation(let.name(),
                     com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
                     com.legend.plan.PlanText.constant(typeName, literal));
@@ -68,7 +68,7 @@ final class PlanAllocations {
             // as PURE SOURCE with its required plan variables
             String typeName = com.legend.plan.PlanText
                     .pureTypeName(let.info().type());
-            String size = StatementExecutor.sizeRange(let.info().multiplicity());
+            String size = com.legend.plan.PurePrint.sizeRange(let.info().multiplicity());
             StringBuilder req = new StringBuilder();
             collectRequires(let.value(), paramSpells, req,
                     new java.util.LinkedHashSet<>());
@@ -98,7 +98,7 @@ final class PlanAllocations {
         }
         String typeName = com.legend.plan.PlanText
                 .pureTypeName(let.info().type());
-        String size = StatementExecutor.sizeRange(let.info().multiplicity());
+        String size = com.legend.plan.PurePrint.sizeRange(let.info().multiplicity());
         if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
             throw new com.legend.error.NotImplementedException(
                     "plan: Allocation value lowers to a non-select");
@@ -195,6 +195,88 @@ final class PlanAllocations {
             env.planRows().put(com.legend.plan.PlanRows.scopeId(pnBound), rows);
         } catch (com.legend.error.NotImplementedException
                 | com.legend.compiler.spec.TypeInferenceException
+                | IllegalStateException e) {
+            // no rows: the symbolic handle's walls stand
+        }
+    }
+
+    /** A HANDLE native bound by a let (executionPlan, scanRelations): its
+     * rows register under the handle's scope (PlanRows / LineageRows). */
+    static void registerHandleRows(String letName,
+            com.legend.compiler.spec.typed.TypedNativeCall pn,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs,
+            StatementExecutor.ExecEnv env) {
+        String fqn = pn.callee().qualifiedName();
+        if (com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN.equals(fqn)) {
+            registerPlanRows(pn, letPrefix, specs, env);
+        } else if (com.legend.compiler.element.type.PlatformTypes.SCAN_RELATIONS
+                .equals(fqn)) {
+            registerLineageRows(letName, pn, letPrefix, env);
+        }
+    }
+
+    /** The lineage scan walks the RAW query lambda (the protocol AST the
+     * source spelled — property paths, tds joins); it is found by the
+     * let's name in the query's protocol body, its query argument chased
+     * through the protocol lets. A tree the scanner cannot build registers
+     * nothing (the handle stays symbolic; its reads keep their walls). */
+    private static void registerLineageRows(String letName,
+            com.legend.compiler.spec.typed.TypedNativeCall pn,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            StatementExecutor.ExecEnv env) {
+        String scope = com.legend.plan.PlanRows.scopeId(pn);
+        if (env.planRows().containsKey(scope)) {
+            return;
+        }
+        java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets =
+                new java.util.LinkedHashMap<>();
+        com.legend.protocol.spec.AppliedFunction scan = null;
+        for (com.legend.protocol.spec.ValueSpecification st : env.protocolBody()) {
+            com.legend.protocol.spec.CString ln =
+                    com.legend.compiler.spec.SourceSubst.letName(st);
+            if (ln == null) {
+                continue;
+            }
+            com.legend.protocol.spec.ValueSpecification v =
+                    ((com.legend.protocol.spec.AppliedFunction) st).parameters().get(1);
+            if (ln.value().equals(letName)
+                    && v instanceof com.legend.protocol.spec.AppliedFunction af) {
+                scan = af;
+                break;
+            }
+            lets.put(ln.value(), v);
+        }
+        // a ->toOne() over the scan is the same scan
+        while (scan != null && scan.parameters().size() == 1
+                && scan.function().endsWith("toOne")
+                && scan.parameters().get(0)
+                        instanceof com.legend.protocol.spec.AppliedFunction inner) {
+            scan = inner;
+        }
+        if (scan == null || scan.parameters().isEmpty()) {
+            return;
+        }
+        com.legend.protocol.spec.ValueSpecification q = scan.parameters().get(0);
+        while (q instanceof com.legend.protocol.spec.Variable qv
+                && lets.containsKey(qv.name())) {
+            q = lets.get(qv.name());
+        }
+        if (!(q instanceof com.legend.protocol.spec.LambdaFunction ql)) {
+            return;
+        }
+        com.legend.compiler.spec.typed.TypedSpec m =
+                com.legend.compiler.spec.ExecuteChainAssembly.letBound(
+                        pn.args().get(1), letPrefix);
+        if (!(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
+            return;
+        }
+        try {
+            var lines = com.legend.lineage.ScanRelations.lines(env.ctx(), ql,
+                    mr.fullPath(), pn.args().size() == 4);
+            var rows = com.legend.lineage.LineageRows.rows(scope, lines);
+            env.planRows().put(scope, rows);
+        } catch (com.legend.error.NotImplementedException
                 | IllegalStateException e) {
             // no rows: the symbolic handle's walls stand
         }
