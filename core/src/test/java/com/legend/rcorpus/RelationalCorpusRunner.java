@@ -1455,10 +1455,19 @@ public class RelationalCorpusRunner {
             // (Anchors.tdsErase — CastChecker's rule the typer could not
             // apply to an envelope read); a TDS-typed root (tableToTDS) is a
             // relation-rooted frame. +14 (testDataGeneration), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(416L,
+            // 416 -> 394 (batch 33, 2026-09-03): the execute() runtime
+            // argument's connection content is read THROUGH lets — a
+            // JsonModelConnection / ModelChainConnection bound by a let and
+            // spliced into a copied runtime (`^$rt(connectionStores =
+            // ...->concatenate(^ConnectionStore(connection = $json, ...)))`)
+            // now feeds the JSON source frame / chain mappings
+            // (TypedFrom.jsonSourcesIn/chainMappingsIn take the executor's
+            // let-chase). +22 (XStore ordered 8, XStoreUnion 4, relational
+            // chain 4, resultSourcing 4, XStore JsonToDB 2), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(394L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2157L,
+            org.junit.jupiter.api.Assertions.assertEquals(2179L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1674,8 +1683,12 @@ public class RelationalCorpusRunner {
                     // 164 -> 128 (batch 26): the same lane move as M1_VERIFIED
                     // 54 -> 22.
                     // 128 -> 127 (batch 29): the same lane move
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 127,
-                    "M1 h2-exec rescued fell below the 127 floor: "
+                    // 127 -> 119 (batch 33): the same lane move — the
+                    // flipped resultSourcing/chain/XStore tests' rescued
+                    // sql-asserts now row-verify as platform-arm verdicts
+                    // (passes 2367 -> 2374, 0 flips lost, disagree 0).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 119,
+                    "M1 h2-exec rescued fell below the 119 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

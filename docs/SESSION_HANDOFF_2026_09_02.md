@@ -1858,9 +1858,33 @@ its values as an instance list (3, `struct_extract` over a list), the
 chained-fetch text declines (5, charter §5 item 3), one column-spec typing,
 one generateTestData inline-shape wall.
 
+**Batch 33 — RUNTIME CONNECTIONS THROUGH LETS (2026-09-03): ratchet
+416/2157 → 394/2179 (+22, ZERO lost).** The XStore ordered / XStoreUnion /
+relational chain / resultSourcing tests all build their runtime the same
+way: `let jsonConnection = ^JsonModelConnection(class = S_Trade, url =
+'data:...'); let runtime = ^$dbRuntime(connectionStores = $dbRuntime
+.connectionStores->concatenate(^ConnectionStore(connection =
+$jsonConnection, element = ^ModelStore())))`. The executor let-chased the
+execute() runtime ARGUMENT itself but the connection extractors
+(`TypedFrom.jsonSourcesIn` / `chainMappingsIn`) walked the copied
+instance's children and stopped at the inner `$jsonConnection` variable —
+so `S_Trade` never got its JSON source frame and the resolver walled with
+"class S_Trade is not mapped". The extractors now take the SAME let-chase
+the executor applies to the argument (`ExecuteChainAssembly.letBound`),
+chasing let-bound variables met anywhere inside the runtime value.
+Flipped: XStore ordered 8, XStoreUnion 4, relational chain 4,
+resultSourcing 4, XStore JsonToDB 2. Lane move: M1 rescued 127 → 119 (the
+flipped tests' text-rescued sql-asserts now row-verify as platform-arm
+verdicts; passes 2367 → 2374, disagree 0). Remainder in graphFetch/tests,
+named: testCrossMappingJsonToDBWithExplosion (a JSON source with an
+explosion mapping), compileLegendGrammar 2, StoreMappingGlobalGraphFetch
+ExecutionNode.children 1, objectReferenceIn over a limit 1, JSON verdict
+mismatches 4 (defects / employees / union legalName / milestoned
+property), "trailing JSON" 2 (embedded otherwise milestoned).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 416 fallbacks / 2157 flipped (batches 14–32 = group D,
+legs).** State: 394 fallbacks / 2179 flipped (batches 14–33 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

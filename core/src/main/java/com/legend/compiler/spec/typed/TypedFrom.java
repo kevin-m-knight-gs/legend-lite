@@ -189,14 +189,32 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
      * UNCHECKED source — their refs may be import-simple). */
     public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n,
             java.util.function.UnaryOperator<String> canon) {
+        return jsonSourcesIn(n, canon, java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@code bind} chases a let-bound variable met INSIDE the runtime
+     * value to its binding ({@code ^$rt(connectionStores = ...->concatenate(
+     * ^ConnectionStore(connection = $jsonConnection, ...)))}): the same
+     * let-chase the executor applies to the argument itself. */
+    public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n,
+            java.util.function.UnaryOperator<String> canon,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
         java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
-        collectJson(n, out, canon);
+        collectJson(n, out, canon, bind);
         return java.util.Map.copyOf(out);
     }
 
     private static void collectJson(TypedSpec n,
             java.util.Map<String, String> out,
-            java.util.function.UnaryOperator<String> canon) {
+            java.util.function.UnaryOperator<String> canon,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        if (n instanceof TypedVariable) {
+            TypedSpec b = bind.apply(n);
+            if (b != n) {
+                collectJson(b, out, canon, bind);
+            }
+            return;
+        }
         // helper-CONSTRUCTED runtimes (from(m, runtime())): the JSON
         // frames live in the helper's UNCHECKED body — walk it
         // (TradeLinkage cross-store golden)
@@ -219,7 +237,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             return;
         }
         for (TypedSpec c : n.children()) {
-            collectJson(c, out, canon);
+            collectJson(c, out, canon, bind);
         }
     }
 
@@ -302,12 +320,28 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
      * runtime argument). Non-literal shapes contribute nothing; their
      * reads wall downstream. */
     public static List<String> chainMappingsIn(TypedSpec n) {
+        return chainMappingsIn(n, java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@code bind} chases let-bound variables met inside the value (see
+     * {@link #jsonSourcesIn(TypedSpec, java.util.function.UnaryOperator,
+     * java.util.function.UnaryOperator)}). */
+    public static List<String> chainMappingsIn(TypedSpec n,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
         List<String> out = new java.util.ArrayList<>();
-        collectChain(n, out);
+        collectChain(n, out, bind);
         return List.copyOf(out);
     }
 
-    private static void collectChain(TypedSpec n, List<String> out) {
+    private static void collectChain(TypedSpec n, List<String> out,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        if (n instanceof TypedVariable) {
+            TypedSpec b = bind.apply(n);
+            if (b != n) {
+                collectChain(b, out, bind);
+            }
+            return;
+        }
         if (n instanceof TypedNewInstance ni
                 && "meta::external::store::model::ModelChainConnection"
                         .equals(ni.classFqn())) {
@@ -325,7 +359,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             return;
         }
         for (TypedSpec c : n.children()) {
-            collectChain(c, out);
+            collectChain(c, out, bind);
         }
     }
 
