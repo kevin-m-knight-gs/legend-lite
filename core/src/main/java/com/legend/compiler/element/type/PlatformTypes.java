@@ -232,19 +232,16 @@ public final class PlatformTypes {
             "meta::pure::lineage::scanColumns::scanColumns";
 
     /** The metaclass a HANDLE native's rows extend as (the chain root
-     * re-roots at its extent keyed by the handle's content id), or null
-     * for a non-handle native. */
-    public static @com.legend.Nullable String handleRowClass(String fqn) {
-        if (EXECUTION_PLAN.equals(fqn)) {
-            return "meta::pure::executionPlan::ExecutionPlan";
-        }
-        if (SCAN_RELATIONS.equals(fqn)) {
-            return "meta::pure::lineage::scanRelations::RelationTree";
-        }
-        if (SCAN_COLUMNS.equals(fqn)) {
-            return "meta::pure::lineage::scanColumns::ColumnWithContext";
-        }
-        return null;
+     * re-roots at its extent keyed by the handle's content id): the
+     * native's DECLARED return class — a handle's rows ARE its result
+     * (executionPlan → ExecutionPlan, scanRelations → RelationTree,
+     * scanColumns → ColumnWithContext). Null for a non-handle native or
+     * a handle whose result is not a plain class (execute's generic
+     * Result, preval's function value). No per-FQN table: the registry
+     * labels the kind, the signature names the class. */
+    public static @com.legend.Nullable String handleRowClass(String fqn, Type returnType) {
+        return IMPLEMENTATION_KIND.get(fqn) == NativeImpl.HANDLE
+                && returnType instanceof Type.ClassType c ? c.fqn() : null;
     }
     /** Plan-time constant pre-evaluation — a FUNCTION-VALUED identity
      * for plan construction (the wrapped lambda IS the query). */

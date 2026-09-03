@@ -1356,7 +1356,7 @@ public final class StoreResolver {
     /** A plan handle whose rows the executor registered (PlanRows). */
     private boolean planHandleRow(TypedNativeCall pn) {
         return com.legend.compiler.element.type.PlatformTypes.handleRowClass(
-                        pn.callee().qualifiedName()) != null
+                        pn.callee().qualifiedName(), pn.callee().returnType()) != null
                 && constructed.has(com.legend.plan.PlanRows.scopeId(pn));
     }
 

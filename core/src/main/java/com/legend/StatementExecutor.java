@@ -252,33 +252,20 @@ final class StatementExecutor {
                         // effect arg derived from a class query must not
                         // reach the Lowerer with TypedGetAll intact
                         com.legend.resolver.StoreResolver letResolver =
-                                new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                                        .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+                                resolver(specs, env);
                         inlined = letResolver.resolve(inlined, env.runtimeFqn());
                         executeTyped(inlined, env);
                     }
                     continue;
                 }
-                // a PLAN HANDLE binding (let plan = executionPlan(...)): the
-                // executor's plan model becomes ROWS under the handle's
-                // scope (PlanRows) — every read of the handle downstream is
-                // navigation over those rows in the database. Shapes the
-                // plan model cannot build keep the handle symbolic.
-                // (a ->toOne() over the handle is the same handle)
-                TypedSpec handle = rhs;
-                // (a ->toOne() / ->removeDuplicates() over the handle is the handle)
-                while (handle instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
-                        && tw.args().size() == 1
-                        && (com.legend.resolver.StoreResolver.isClassToOne(tw)
-                            || tw.callee().qualifiedName().endsWith("::removeDuplicates"))) {
-                    handle = tw.args().get(0);
-                }
-                if (handle instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .handleRowClass(pn.callee().qualifiedName()) != null) {
-                    PlanAllocations.registerHandleRows(let.name(), pn, letPrefix,
-                            specs, env);
-                }
+                // a HANDLE binding (let plan = executionPlan(...), let t =
+                // scanRelations(...)->toOne()): the handle's facts become
+                // ROWS under its content-id scope (PlanRows / LineageRows)
+                // — every read downstream is navigation over those rows in
+                // the database. Every handle call anywhere in the binding
+                // registers (no shape sniffing); shapes the row builders
+                // cannot build keep the handle symbolic.
+                PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, env);
                 letPrefix.add(let);
                 continue;
             }
@@ -412,8 +399,7 @@ final class StatementExecutor {
                 continue;
             }
             com.legend.resolver.StoreResolver resolver =
-                    new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                            .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+                    resolver(specs, env);
             body = resolver.resolve(body, env.runtimeFqn());              // Phase H
             // C2.2: stores bound to DIFFERENT connections cannot share
             // the one session connection — wall, never wrong-database rows
@@ -513,6 +499,14 @@ final class StatementExecutor {
     /** The engine-style SQL pipeline shared by toSQLString and the plan
      * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
      * form, I lower — IR plus rendered text. */
+    /** THE statement resolver: the query lets and the registered handle
+     * rows ride every resolution (one construction, every site). */
+    static com.legend.resolver.StoreResolver resolver(
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        return new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+    }
+
     record EngineSql(com.legend.sql.SqlQuery plan, String sql,
             java.util.List<TypedSpec> body) {
     }
@@ -2038,8 +2032,7 @@ final class StatementExecutor {
             }
             if (eager) {
                 com.legend.resolver.StoreResolver lqResolver =
-                        new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                                .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+                        resolver(specs, env);
                 lqRun = executeTyped(lqResolver.resolve(
                         java.util.List.of(lqChain.chain()), env.runtimeFqn()),
                         env);
@@ -2090,8 +2083,7 @@ final class StatementExecutor {
             // still spell the variables (serialize-key source form) — the
             // resolver's let env resolves them (engine inScopeVars)
             com.legend.resolver.StoreResolver chainResolver =
-                    new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                            .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+                    resolver(specs, env);
             java.util.List<TypedSpec> body = chainResolver.resolve(
                     java.util.List.of(assembled.chain()), env.runtimeFqn());
             // the engine's RelationalExecutionContext option: driver-table
@@ -2787,8 +2779,7 @@ final class StatementExecutor {
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
         com.legend.resolver.StoreResolver sideResolver =
-                new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                        .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+                resolver(specs, env);
         body = sideResolver.resolve(body, env.runtimeFqn());
         // the addDriverTablePkForProject option is part of the EXECUTION
         // ENV — a verdict side must project the same columns the generic

@@ -218,6 +218,11 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 23 (consolidation — handle class from the native signature, shape-free
+let registration, one resolver factory, 2026-09-03): chain 5m54s** —
+G1 40s, G2 8s, G4 65s, G5 42s, G6 82s, G7 26s, G9 18s, G8 73s. Ratchet
+unchanged 653/1920 (0 lost, 0 gained); all pins unchanged.
+
 **Batch 22 (group H — the expression TREE as rows, 2026-09-03): chain 5m49s** —
 G1 41s, G2 8s, G4 64s, G5 41s, G6 78s, G7 24s, G9 19s, G8 74s. Ratchet
 656/1917 → 653/1920 (+3, 0 lost); native classes 249 → 255 (Multiplicity,

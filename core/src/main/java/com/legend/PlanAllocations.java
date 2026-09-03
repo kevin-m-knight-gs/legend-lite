@@ -200,6 +200,24 @@ final class PlanAllocations {
         }
     }
 
+    /** Every HANDLE native call inside a let's binding registers its rows
+     * (the handle may sit under ->toOne(), ->removeDuplicates(), a cast —
+     * the walk is shape-free). */
+    static void registerHandlesIn(String letName,
+            com.legend.compiler.spec.typed.TypedSpec rhs,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs,
+            StatementExecutor.ExecEnv env) {
+        if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
+                && com.legend.compiler.element.type.PlatformTypes.handleRowClass(
+                        pn.callee().qualifiedName(), pn.callee().returnType()) != null) {
+            registerHandleRows(letName, pn, letPrefix, specs, env);
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : rhs.children()) {
+            registerHandlesIn(letName, c, letPrefix, specs, env);
+        }
+    }
+
     /** A HANDLE native bound by a let (executionPlan, scanRelations): its
      * rows register under the handle's scope (PlanRows / LineageRows). */
     static void registerHandleRows(String letName,

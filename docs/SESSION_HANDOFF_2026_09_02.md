@@ -1515,6 +1515,31 @@ TranslationNow/Adjust read `toSQLQuery(fe)->sqlQueryToString(H2)` — a
 plan-text handle leg (the plan rows already hold the SQL text), not
 built.
 
+**Batch 23 — CONSOLIDATION (2026-09-03, after the user's design question
+"is this all metamodel as data?"): ratchet unchanged 653/1920 (0 lost).**
+Answer given: the READS are metamodel-as-data (rows, navigation, Pure
+bodies, Operation sets, real m3 shapes); the FACTS are still Java-stamped
+(PkInference rules, ScanRelations/ScanColumns walks over the lowered SQL,
+the AggAwareActivities printer) — the harness smell moved into main, a
+named debt with a port order (below). Three consolidations landed: (1) the
+per-FQN `handleRowClass` table is GONE — a handle's row class is the
+native's DECLARED return class when the registry labels it HANDLE
+(`PlatformTypes.handleRowClass(fqn, returnType)`; executionPlan →
+ExecutionPlan, scanRelations → RelationTree, scanColumns →
+ColumnWithContext; execute's generic Result and preval's function value
+yield none); (2) the let-time registration no longer sniffs shapes
+(`->toOne()` / `->removeDuplicates()` unwrapping): every HANDLE call
+anywhere in a let's binding registers (`PlanAllocations.registerHandlesIn`);
+(3) the six identical StoreResolver constructions are one factory
+(`StatementExecutor.resolver`). NOT consolidated, and why: registration
+still happens at the let rather than on demand in the resolver, because
+`ScanRelations.lines` walks the PROTOCOL lambda (found by the let's name
+in the protocol body) — the lineage scans must first become Pure over
+the expression rows + the mapping rows before the resolver can register
+lineage on first meeting (function bodies already do). PkInference → Pure
+over the expression rows needs bottom-up recursion over the tree (a
+recursive CTE or a closure table, like plan_node_closure) — its own leg.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 653 fallbacks / 1920 flipped (batches 14–22 = group D,
