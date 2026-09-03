@@ -1071,11 +1071,71 @@ loses write access to it). (5) Then group D below.
 Batch 8 chain (gates9.log): G1 54s, G2 9s, G4 64s, G5 134s, G6 104s,
 G7 28s, G9 20s, G8 72s — **8m05s** (was 12m54s).
 
+**BURN TO ZERO — the next session's goal (user, 2026-09-03): compile and
+run EVERYTHING from the platform and delete all harness badness.**
+STATE at b103582a (all pushed): ratchet **820 fallbacks / 1753 flipped**
+(WholeTestFlip, EXACT pins in RelationalCorpusRunner.scoreboard),
+exec-passing lane 344, metamodel quarantine 125 rows / 9 walls,
+required-over-nullable 533, chain ~5m50s (G1 39s, G4 62s, G5 ~40s, G6
+~80s, G7 25s, G9 19s, G8 72s), model compile 0.5ms, the system database
+read-only after the graph's rows (batches 8–13 above).
+DEFINITION OF DONE: every test the harness still scores in Java runs
+through the ONE compile/router path and the database's verdict — the
+fallback lane, the quarantine channel and the census pins are DELETED,
+the referees stay (H2Verify, TdsCompare, the replay oracle). "As close as
+makes sense" = a named, justified residue (engine-defect divergences such
+as null-vs-value; tests that assert Java-runtime facts), each listed with
+its reason, never a bucket.
+THE BURN MAP (fallbacks by census group; homework §1 + the bucket dump —
+cut legs BY GROUP, never by wall label; the 64-test "TypedMap (HN
+vocabulary)" bucket is heterogeneous):
+- D harness vocabulary 43 — `meta::legend::executeLegendQuery` /
+  `compileLegendValueSpecification` as the ROUTER's string entry
+  (compile-from-string through the one router). FIRST.
+- Q plan reads 13 (+ printers ~26) — plan nodes as ROWS (homework §2e):
+  name the tests from the bucket dump first.
+- A expressionSequence / metaprogramming 70 + E scanRelations 21 + I
+  LambdaFunction reads 6 + H InstanceValue trees 4 — EXPRESSION TREES AS
+  ROWS (homework §2a: node table per tree kind, `expressionSequence`,
+  `parametersValues`, `evaluateAndDeactivate`); the biggest group.
+- J misc unported 17, Z other metamodel-typed 18, N unknown metamodel
+  types 9, G toPostgresModel newState 10, P routerExtensions 5, O TDG
+  Pair typing 4, B/C/M/K small named shapes.
+- The non-metamodel buckets (from the dump): text-policy 65 (SQL-text
+  verdicts — the charter's rows-are-the-verdict rule; each is a named
+  decision), join-condition-reads-a-whole-variable 43, no-scalar-lowering
+  36, filter-predicate-isolation 25, parametersValues binding 17,
+  execution activities 14, unknown functions ~38, multiplicity 11, array/
+  list/struct dialect capabilities ~30, misc.
+HARNESS CODE THAT DIES WITH THE BURN (delete as each family flips, never
+before): the rest of MetamodelWalk (905 lines), MetamodelSteps, PlanText,
+AggAwareActivities, StatementExecutor's walk arms, the fallback lane in
+RelationalCorpusRunner, WholeTestFlip's quarantine channel, the census
+pins (JavaEvalLedger funnel registers shrink, never grow).
+METHOD (unchanged, user-ratified): name the exact fallback tests a batch
+targets and the expected flips BEFORE building; build the seeds/bodies or
+resolver leg; delete the Java arms they retire; land only when the count
+moved; a test that moves to a different wall is named and the family is
+pursued until it flips; one gate chain per batch; push after green; pins
+move only with their burn and a written justification.
+SPEED LOOP (use it): `-Drcorpus.only=<family-substring>` /
+`-Drcorpus.test=<test>` (scoped runs exit 1 on the full-run pins —
+expected); `LEGEND_LITE_DUMP_SQL=1` prints every executed SQL;
+`target/timing-ledger.txt` has bucket totals + the 30 slowest tests;
+ALWAYS `cd /Users/neema/legend/legend-lite` in every command (the parent
+directory holds a STALE core module); zsh does not word-split `"$R"` —
+pass `-D` args as separate words; the H2 lane overwrites core/target
+rosters — diff the DuckDB rosters BEFORE running H2; G8 cleans
+core/target — save rosters before a chain.
+DEFERRED WITH DESIGNS WRITTEN (ride a burn, do not stand alone):
+MappingFacts (the normalizer's mapping-fact owner, design above);
+the 5.5-minute chain ceiling re-arms when a chain measures ≤330s.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 820 fallbacks / 1753 flipped (group F LANDED — batch 7
-above; batch 8 = speed, ratchet unchanged), exec-passing 344, quarantine
-125 rows / 9 walls.
+above; batches 8–13 = speed + architecture, ratchet unchanged),
+exec-passing 344, quarantine 125 rows / 9 walls.
 1. **Group F — DONE (batch 7).** Was: mapping-metamodel query functions (27 tests; §1 of the
    homework: testRelationalExtension.pure 20, testExtendsForMainTable 5
    [DONE], testExtendsForPrimaryKey 1 [DONE], testSubtypeMapping 1)**:
