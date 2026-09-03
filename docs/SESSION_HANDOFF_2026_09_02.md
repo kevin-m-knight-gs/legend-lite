@@ -955,6 +955,25 @@ seeds`), `ExecEnv.constructedSeeds`, `SystemDatabase.insertConstructed`:
 the system database is read-only after the graph's rows. Witnesses: the
 four typeInference constructed tests + `MetamodelQueryFunctionsTest.
 constructedInstances`; rosters byte-identical. ~3h + sweeps.
+**FEASIBILITY HOMEWORK (2026-09-02, verified, not guessed):** (i) a
+probe ran an inline VALUES relation with all-NULL columns, kind-gated
+CASE reads and a join to a second inline relation on DuckDB AND H2 —
+identical correct rows, an all-NULL column compared with a string
+filters correctly; (ii) `TypedTds` copies rows null-rejecting — absent
+cells must be `PlatformTypes.TDS_NULL_CELL` (`Scalars.tdsCell` maps it
+to NULL); (iii) navigation targets have ONE owner, `ClassSources.
+getForNav` (6 callers); the general `get` has 55 sites across ten
+resolver files, every one with the source `cs` in hand — scope threading
+is mechanical and compile-enforced once the scope-less overloads go;
+(iv) the constructed root's class source is fetched in flattenSource with
+`RoutingContext.contextKey(chainContext)` — the scope rides the Context
+and the key; (v) `TypedTableReference.info()` IS the table's row type
+(the literal's type); `ClassSource` is a record (copy with the rewritten
+pipeline); the memo key already carries the context key; (vi) downstream:
+`Pipelines.walk` passes a slot-free leaf (walkOpaque), milestoning never
+touches the store, the lowering has the literal case, `routeSystemStore`
+stays correct for pure-constructed (no store ref → user session, no
+store needed) and mixed queries.
 
 **NEXT (user-ratified order 2026-09-02, enumerated):**
 (1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). NEXT = the inline-relation design above, then the normalizer index with its API owner (MappingIndex; delete the static helpers), then group D. — was: UNION LOWERING for single-table hierarchies: merge
