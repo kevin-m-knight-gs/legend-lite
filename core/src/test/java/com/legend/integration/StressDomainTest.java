@@ -34,11 +34,16 @@ class StressDomainTest {
     }
 
     /** Load all .pure files from the stress/ resource directory, sorted by name. */
-    private String loadStressModel() throws IOException {
+    private String loadStressModel()
+            throws IOException, java.net.URISyntaxException {
         var stressUrl = getClass().getClassLoader().getResource("stress");
         assertNotNull(stressUrl, "stress/ resource directory not found on classpath");
 
-        Path stressDir = Path.of(stressUrl.getPath());
+        // Path.of(URI), NOT URL.getPath(): off POSIX the path
+        // component is not a filesystem path (Windows hands back
+        // "/D:/...", which InvalidPathException rejects at index 3)
+        // and it stays percent-escaped everywhere.
+        Path stressDir = Path.of(stressUrl.toURI());
         List<Path> pureFiles;
         try (var stream = Files.list(stressDir)) {
             pureFiles = stream
