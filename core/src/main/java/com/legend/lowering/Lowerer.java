@@ -1370,7 +1370,8 @@ public final class Lowerer {
         throw new IllegalStateException("extend/project columns "
                 + columns.stream().map(TypedFuncCol::name).toList()
                 + " reference names unresolvable even after isolation"
-                + (miss[0] == null ? "" : " [col='" + miss[0] + "' ref='" + miss[1] + "']"));
+                + (miss[0] == null ? "" : " [col='" + miss[0] + "' ref='" + miss[1] + "']")
+                + " over " + base.projections().stream().map(SqlSelect.Projection::alias).toList());
     }
 
     /** One pass; null when any column's refs would not fold against {@code base}. */

@@ -70,7 +70,8 @@ public final class MetamodelSeeds {
                     // function bodies ride the query too (FunctionBodyRows)
                     "functions", "value_specifications", "vs_primary_key_columns",
                     // lineage trees ride the query too (LineageRows)
-                    "relation_trees", "relation_tree_nodes", "relation_tree_node_columns" -> List.of();
+                    "relation_trees", "relation_tree_nodes", "relation_tree_node_columns",
+                    "column_contexts" -> List.of();
             default -> throw new IllegalStateException(
                     "system metamodel table '" + table + "' has no seed"
                     + " derivation — SOURCE and seedRows grow together");

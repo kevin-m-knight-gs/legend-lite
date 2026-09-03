@@ -60,6 +60,11 @@ class NativeFunctionTest {
                 .stream().filter(l -> !l.startsWith("#")).toList();
         List<String> actual = Pure.all().stream()
                 .map(NativeFunctionTest::renderCanonical).toList();
+        // the rendered catalog as a target/ dump — the diff against the
+        // golden is the review (a deliberate change copies it over)
+        java.nio.file.Files.createDirectories(java.nio.file.Path.of("target"));
+        java.nio.file.Files.write(
+                java.nio.file.Path.of("target/native-catalog-actual.txt"), actual);
         assertEquals(expected, actual,
                 "the native catalog diverged from the golden file — review the diff;"
                         + " regenerate the resource only for DELIBERATE catalog changes");
@@ -548,7 +553,10 @@ class NativeFunctionTest {
         // Sequence execution node (real executionPlan.pure).
         // 244 -> 245 (batch 20 — group E, lineage trees as rows): the
         // scanRelations RelationTree HANDLE class (real scanRelations.pure:47).
-        assertEquals(245, Pure.allNativeClasses().size(),
+        // 245 -> 249 (batch 21 — group I, column lineage as rows): the
+        // scanProperties / buildPropertyTree / scanColumns chain's classes
+        // (PropertyPathNode, Res, PropertyPathTree, ColumnWithContext).
+        assertEquals(249, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -749,7 +757,8 @@ class NativeFunctionTest {
                     List.of("schema")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Column",
-                    List.of("name", "type")),
+                    // owner: real relational metamodel (group I burn 2026-09-03)
+                    List.of("name", "type", "owner")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::ColumnName",
                     List.of("name")),
@@ -948,43 +957,48 @@ class NativeFunctionTest {
     /** The plan surface (real executionPlan.pure:60-205 + relational
      * executionPlan.pure:63-90 — declared subsets). */
     private static final java.util.Map<String, List<String>> PLAN_SURFACE_PROPERTIES =
-            java.util.Map.of(
-                    "meta::pure::executionPlan::ExecutionPlan",
-                    List.of("rootExecutionNode", "processingTemplateFunctions"),
-                    "meta::pure::executionPlan::ExecutionNode",
-                    List.of("executionNodes"),
+            java.util.Map.ofEntries(
+                    java.util.Map.entry("meta::pure::executionPlan::ExecutionPlan",
+                    List.of("rootExecutionNode", "processingTemplateFunctions")),
+                    java.util.Map.entry("meta::pure::executionPlan::ExecutionNode",
+                    List.of("executionNodes")),
                     // real m3: FunctionDefinition.expressionSequence :
                     // ValueSpecification[1..*] (group A burn 2026-09-03 —
                     // function bodies as rows)
-                    "meta::pure::metamodel::function::FunctionDefinition",
-                    List.of("expressionSequence"),
-                    "meta::pure::executionPlan::FunctionParametersValidationNode",
-                    List.of("functionParameters"),
-                    "meta::pure::executionPlan::FunctionParameter",
-                    List.of("name", "supportsStream"),
-                    "meta::relational::mapping::SQLExecutionNode",
+                    java.util.Map.entry("meta::pure::metamodel::function::FunctionDefinition",
+                    List.of("expressionSequence")),
+                    java.util.Map.entry("meta::pure::executionPlan::FunctionParametersValidationNode",
+                    List.of("functionParameters")),
+                    java.util.Map.entry("meta::pure::executionPlan::FunctionParameter",
+                    List.of("name", "supportsStream")),
+                    // group I (2026-09-03): the column-lineage chain's rows
+                    java.util.Map.entry("meta::pure::lineage::scanProperties::Res",
+                    List.of("result")),
+                    java.util.Map.entry("meta::pure::lineage::scanColumns::ColumnWithContext",
+                    List.of("column", "context")),
+                    java.util.Map.entry("meta::relational::mapping::SQLExecutionNode",
                     // sqlComment: real engine executionPlan.pure:65
                     // (E2E §4.4 cluster 3, verified 2026-08-15)
                     // real executionPlan.pure:63-73 (cluster 60: the plan
                     // carries the runtime connection on SQLExecutionNode)
-                    List.of("sqlQuery", "sqlComment", "connection"),
+                    List.of("sqlQuery", "sqlComment", "connection")),
                     // taxonomy T2 additions — real engine sources:
                     // runtime.pure (EngineRuntime.mappings),
                     // executionPlan_generation.pure (MultiExecutionContext,
                     // ExecutionOptionContext),
                     // platform_store_relational/functions.pure:128
                     // (RelationalActivity)
-                    "meta::core::runtime::EngineRuntime",
-                    List.of("mappings"),
-                    "meta::pure::executionPlan::MultiExecutionContext",
-                    List.of("childExecutionContext"),
-                    "meta::pure::executionPlan::ExecutionOptionContext",
-                    List.of("executionOptions"),
-                    "meta::relational::mapping::RelationalActivity",
+                    java.util.Map.entry("meta::core::runtime::EngineRuntime",
+                    List.of("mappings")),
+                    java.util.Map.entry("meta::pure::executionPlan::MultiExecutionContext",
+                    List.of("childExecutionContext")),
+                    java.util.Map.entry("meta::pure::executionPlan::ExecutionOptionContext",
+                    List.of("executionOptions")),
+                    java.util.Map.entry("meta::relational::mapping::RelationalActivity",
                     List.of("sql", "comment", "executionTimeInNanoSecond",
                             "sqlGenerationTimeInNanoSecond",
                             "connectionAcquisitionTimeInNanoSecond",
-                            "executionPlanInformation", "dataSource"));
+                            "executionPlanInformation", "dataSource")));
 
     /** XStore leg slice 0 (real core/pure/mapping/modelToModel.pure:58/:82). */
     private static final java.util.Map<String, List<String>> STORE_MODEL_SURFACE_PROPERTIES =
@@ -1279,6 +1293,9 @@ class NativeFunctionTest {
                 "meta::pure::executionPlan",
                 // group E (2026-09-03): the lineage tree HANDLE class
                 "meta::pure::lineage::scanRelations",
+                "meta::pure::lineage::scanProperties",
+                "meta::pure::lineage::scanProperties::propertyTree",
+                "meta::pure::lineage::scanColumns",
                 // the checked-result surface (graphFetchChecked)
                 "meta::pure::dataQuality",
                 // the relational plan-node surface (SQLExecutionNode)

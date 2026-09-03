@@ -45,22 +45,38 @@ public final class ScanColumns {
     /** Sorted {@code "table.column <Context>"} strings — the engine's
      * scanColumns test formatting. */
     public static List<String> strings(SqlQuery q) {
-        Set<String> out = new LinkedHashSet<>();
-        scanQuery(q, Map.of(), out, true);
-        List<String> sorted = new ArrayList<>(out);
+        List<String> sorted = new ArrayList<>();
+        for (Entry e : entries(q)) {
+            String bare = e.table().contains(".")
+                    ? e.table().substring(e.table().lastIndexOf('.') + 1) : e.table();
+            sorted.add(bare + "." + e.column() + " <" + e.context() + ">");
+        }
         sorted.sort(String::compareTo);
         return sorted;
+    }
+
+    /** One read: the plan's table (as the lowering spelled it — schema-
+     * qualified when the store qualifies), the column, the engine's
+     * context vocabulary. */
+    public record Entry(String table, String column, String context) {
+    }
+
+    /** The reads as DATA (ColumnLineageRows carries them as rows). */
+    public static List<Entry> entries(SqlQuery q) {
+        Set<Entry> out = new LinkedHashSet<>();
+        scanQuery(q, Map.of(), out, true);
+        return new ArrayList<>(out);
     }
 
     private static final String VALUE = "TableAliasColumn";
     private static final String JOIN = "JoinTreeNode";
 
     private interface Resolver {
-        void resolve(String col, String ctx, Set<String> out);
+        void resolve(String col, String ctx, Set<Entry> out);
     }
 
     private static void scanQuery(SqlQuery q, Map<String, Resolver> outer,
-            Set<String> out, boolean root) {
+            Set<Entry> out, boolean root) {
         switch (q) {
             case SqlSelect s -> {
                 Map<String, Resolver> env = new LinkedHashMap<>(outer);
@@ -162,24 +178,21 @@ public final class ScanColumns {
      * JoinTreeNode uses here (they are uses regardless of what the
      * select above projects). */
     private static Map<String, Resolver> envOf(SqlSource src,
-            Map<String, Resolver> outer, Set<String> out) {
+            Map<String, Resolver> outer, Set<Entry> out) {
         Map<String, Resolver> env = new LinkedHashMap<>();
         collectEnv(src, outer, env, out);
         return env;
     }
 
     private static void collectEnv(SqlSource src, Map<String, Resolver> outer,
-            Map<String, Resolver> env, Set<String> out) {
+            Map<String, Resolver> env, Set<Entry> out) {
         switch (src) {
             case SqlSource.Dual d -> {
                 // FROM-less: no bindings
             }
             case SqlSource.Table t -> {
-                String bare = t.name().contains(".")
-                        ? t.name().substring(t.name().lastIndexOf('.') + 1)
-                        : t.name();
                 env.put(t.alias(), (col, ctx, o) ->
-                        o.add(bare + "." + col + " <" + ctx + ">"));
+                        o.add(new Entry(t.name(), col, ctx)));
             }
             case SqlSource.Join j -> {
                 collectEnv(j.left(), outer, env, out);
@@ -212,12 +225,12 @@ public final class ScanColumns {
     /** Resolve a demanded output column of a subquery to its source
      * columns — pass-through projections keep the DEMAND's context. */
     private static Resolver subResolver(SqlQuery inner,
-            Map<String, Resolver> outer, Set<String> out) {
+            Map<String, Resolver> outer, Set<Entry> out) {
         return (col, ctx, o) -> resolveThrough(inner, col, ctx, outer, o);
     }
 
     private static void resolveThrough(SqlQuery inner, String col, String ctx,
-            Map<String, Resolver> outer, Set<String> out) {
+            Map<String, Resolver> outer, Set<Entry> out) {
         switch (inner) {
             case SqlSelect s -> {
                 Map<String, Resolver> env = new LinkedHashMap<>(outer);
@@ -264,7 +277,7 @@ public final class ScanColumns {
      * composites recurse explicitly, anything else walks its record
      * components (a silently skipped node would drop lineage). */
     private static void use(SqlExpr e, Map<String, Resolver> env, String ctx,
-            Set<String> out) {
+            Set<Entry> out) {
         switch (e) {
             case SqlExpr.Column c -> {
                 Resolver r = env.get(c.table());
@@ -291,7 +304,7 @@ public final class ScanColumns {
     }
 
     private static void useChildren(Object node, Map<String, Resolver> env,
-            String ctx, Set<String> out) {
+            String ctx, Set<Entry> out) {
         for (Object child : recordChildren(node)) {
             if (child instanceof SqlExpr ce) {
                 use(ce, env, ctx, out);

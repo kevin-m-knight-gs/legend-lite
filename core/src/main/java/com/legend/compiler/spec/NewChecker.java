@@ -217,7 +217,12 @@ final class NewChecker {
         // generic param IS the values collection's element type.
         if (ni.className().equals(com.legend.compiler.element.type.PlatformTypes.LIST)) {
             TypedSpec values = properties.get("values");
-            Type elem = values != null ? values.info().type()
+            // an EXPLICIT type argument (^List<PropertyPathNode>() — the
+            // empty typed list the lineage scans seed) is the element type;
+            // otherwise the values collection's
+            Type elem = !ni.typeArguments().isEmpty()
+                    ? t.namedType(ni.typeArguments().get(0))
+                    : values != null ? values.info().type()
                     : new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
             return new TypedNewInstance(ni.className(), properties,
                     new ExprType(new Type.GenericType(ni.className(), java.util.List.of(elem)),

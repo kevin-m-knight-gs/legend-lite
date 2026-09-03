@@ -213,6 +213,75 @@ final class PlanAllocations {
         } else if (com.legend.compiler.element.type.PlatformTypes.SCAN_RELATIONS
                 .equals(fqn)) {
             registerLineageRows(letName, pn, letPrefix, env);
+        } else if (com.legend.compiler.element.type.PlatformTypes.SCAN_COLUMNS
+                .equals(fqn)) {
+            registerColumnLineageRows(letName, pn, letPrefix, env);
+        }
+    }
+
+    /** The column-lineage chain's rows: the query lambda is chased from
+     * the scanColumns let through {@code buildPropertyTree($p.result)},
+     * {@code scanProperties(<lambda>.expressionSequence->at(0)->
+     * evaluateAndDeactivate(), …)} in the protocol lets; the columns are
+     * the ones the LOWERED plan reads (ScanColumns over
+     * Compiler.lowerResolved — the real pipeline's output). */
+    private static void registerColumnLineageRows(String letName,
+            com.legend.compiler.spec.typed.TypedNativeCall pn,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            StatementExecutor.ExecEnv env) {
+        String scope = com.legend.plan.PlanRows.scopeId(pn);
+        if (env.planRows().containsKey(scope)) {
+            return;
+        }
+        java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets =
+                new java.util.LinkedHashMap<>();
+        com.legend.protocol.spec.ValueSpecification scan = null;
+        for (com.legend.protocol.spec.ValueSpecification st : env.protocolBody()) {
+            com.legend.protocol.spec.CString ln =
+                    com.legend.compiler.spec.SourceSubst.letName(st);
+            if (ln == null) {
+                continue;
+            }
+            com.legend.protocol.spec.ValueSpecification v =
+                    ((com.legend.protocol.spec.AppliedFunction) st).parameters().get(1);
+            if (ln.value().equals(letName)) {
+                scan = v;
+                break;
+            }
+            lets.put(ln.value(), v);
+        }
+        // scanColumns(tree, m) under removeDuplicates → tree → buildPropertyTree(
+        // $p.result) → $p → scanProperties(vs, …) → vs → lambda
+        com.legend.protocol.spec.ValueSpecification cur = scan;
+        com.legend.protocol.spec.LambdaFunction ql = null;
+        for (int guard = 0; guard < 16 && cur != null && ql == null; guard++) {
+            switch (cur) {
+                case com.legend.protocol.spec.LambdaFunction lf -> ql = lf;
+                case com.legend.protocol.spec.Variable v ->
+                        cur = lets.get(v.name());
+                case com.legend.protocol.spec.AppliedProperty ap -> cur = ap.receiver();
+                case com.legend.protocol.spec.AppliedFunction af ->
+                        cur = af.parameters().isEmpty() ? null : af.parameters().get(0);
+                default -> cur = null;
+            }
+        }
+        com.legend.compiler.spec.typed.TypedSpec m =
+                com.legend.compiler.spec.ExecuteChainAssembly.letBound(
+                        pn.args().get(1), letPrefix);
+        String runtimeFqn = env.runtimeFqn();
+        if (ql == null || runtimeFqn == null
+                || !(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
+            return;
+        }
+        try {
+            com.legend.sql.SqlQuery plan = Compiler.lowerResolved(ql, env.ctx(),
+                    runtimeFqn, false, mr.fullPath());
+            var rows = com.legend.lineage.ColumnLineageRows.rows(scope, env.ctx(),
+                    mr.fullPath(), com.legend.lineage.ScanColumns.entries(plan));
+            env.planRows().put(scope, rows);
+        } catch (com.legend.error.NotImplementedException
+                | IllegalStateException e) {
+            // no rows: the symbolic handle's walls stand
         }
     }
 

@@ -1304,10 +1304,23 @@ public class RelationalCorpusRunner {
             // trees whose join labels carry the engine's internal alias
             // breadcrumbs (_d#5_d#2_m1, _dy1, _f_d_r — the Java arm used to
             // strip them from the golden), 3 typer/lowering walls.
-            org.junit.jupiter.api.Assertions.assertEquals(661L,
+            // 661/1912 -> 656/1917 (batch 21 — GROUP I, column lineage AS
+            // ROWS, 2026-09-03): a scanColumns handle's column set is
+            // column_contexts rows (ColumnLineageRows — the scan's
+            // (table, column, context) entries with the owning database
+            // and schema); ColumnWithContext.column / Column.owner are
+            // joins onto relational_elements, so the test's
+            // $t.column.owner->cast(@Table).name is navigation. Two
+            // resolver legs: cast(@T) over a value already of class T is
+            // the identity (CastChecker), and instance removeDuplicates
+            // keeps the materialized TO-ONE slot columns in its DISTINCT
+            // tuple (to-many exists materials still stay out). +5, 0 lost.
+            // Named residue: testNonDataTypeProperty (class-valued project
+            // column — the 'class query under TypedMap' bucket).
+            org.junit.jupiter.api.Assertions.assertEquals(656L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1912L,
+            org.junit.jupiter.api.Assertions.assertEquals(1917L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

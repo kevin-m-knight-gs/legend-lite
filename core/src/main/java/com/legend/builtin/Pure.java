@@ -385,7 +385,12 @@ public final class Pure {
     public static final ClassDefinition MODEL_CONVERSION_STATE = nativeClass("native Class meta::relational::functions::toPostgresModel::ModelConversionState extends meta::pure::metamodel::type::Any { isRootSelect: meta::pure::metamodel::type::Boolean[0..1]; processingSelect: meta::pure::metamodel::type::Boolean[0..1]; processingFilter: meta::pure::metamodel::type::Boolean[0..1]; extensions: meta::pure::extension::Extension[*]; dynaFunctionConverterMap: meta::pure::metamodel::type::Any[0..1]; }");
     public static final ClassDefinition ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::Alias extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; relationalElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     public static final ClassDefinition TABLE_ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAlias extends meta::relational::metamodel::Alias { schema: meta::pure::metamodel::type::String[0..1]; }");
-    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; }");
+    // owner (real relational metamodel Column.owner : Relation[0..1]) —
+    // declared TABLE-typed here: the store's column rows own a table (views'
+    // columns are view-column rows), and a nested hop through a union-typed
+    // end under a map read is not materialized yet (named resolver debt);
+    // the scanColumns tests cast the owner to Table (group I burn 2026-09-03)
+    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; owner: meta::relational::metamodel::relation::Table[0..1]; }");
     public static final ClassDefinition COLUMN_NAME_METACLASS = nativeClass("native Class meta::relational::metamodel::ColumnName extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; }");
     public static final ClassDefinition TABLE_ALIAS_COLUMN_NAME_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAliasColumnName extends meta::relational::metamodel::RelationalOperationElement { alias: meta::relational::metamodel::TableAlias[1]; columnName: meta::pure::metamodel::type::String[1]; }");
     public static final ClassDefinition TABLE_ALIAS_COLUMN_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAliasColumn extends meta::relational::metamodel::RelationalOperationElement { columnName: meta::pure::metamodel::type::String[0..1]; alias: meta::relational::metamodel::TableAlias[1]; column: meta::relational::metamodel::Column[1]; }");
@@ -610,6 +615,14 @@ public final class Pure {
     // rows of the system store: LineageRows; the engine's relation/join/
     // columns/children properties are the lite node rows here)
     public static final ClassDefinition RELATION_TREE = nativeClass("native Class meta::pure::lineage::scanRelations::RelationTree extends meta::pure::metamodel::type::Any {}");
+    // real scanProperties.pure:27/:36/:54 and scanColumns.pure:76 (harness
+    // burn-down group I, 2026-09-03): the column-lineage chain's handles —
+    // scanProperties → Res.result → buildPropertyTree → scanColumns; the
+    // ColumnWithContext rows link to the store's Column rows
+    public static final ClassDefinition PROPERTY_PATH_NODE = nativeClass("native Class meta::pure::lineage::scanProperties::PropertyPathNode extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition SCAN_PROPERTIES_RES = nativeClass("native Class meta::pure::lineage::scanProperties::Res extends meta::pure::metamodel::type::Any { result: meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>[*]; }");
+    public static final ClassDefinition PROPERTY_PATH_TREE = nativeClass("native Class meta::pure::lineage::scanProperties::propertyTree::PropertyPathTree extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition COLUMN_WITH_CONTEXT = nativeClass("native Class meta::pure::lineage::scanColumns::ColumnWithContext extends meta::pure::metamodel::type::Any { column: meta::relational::metamodel::Column[1]; context: meta::pure::metamodel::type::String[1]; }");
     // the plan NODE surface (real executionPlan.pure:73-83/:178-205 +
     // relational executionPlan.pure:63-90) — declared subsets; values
     // answer through the K-side plan model (the plan-handle walks)
@@ -1923,6 +1936,12 @@ public final class Pure {
     // tree is rows (LineageRows) the database prints (relationTreeAsString).
     public static final NativeFunctionDefinition SCAN_RELATIONS__3 = signature("native function meta::pure::lineage::scanRelations::scanRelations(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], m:meta::pure::mapping::Mapping[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::lineage::scanRelations::RelationTree[1];");
     public static final NativeFunctionDefinition SCAN_RELATIONS__4 = signature("native function meta::pure::lineage::scanRelations::scanRelations(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], m:meta::pure::mapping::Mapping[1], r:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::lineage::scanRelations::RelationTree[1];");
+    // column lineage (group I): real scanProperties.pure:136, :753 and
+    // scanColumns.pure:30 — HANDLES; the last one's rows are the columns
+    // the lowered plan reads (ColumnLineageRows)
+    public static final NativeFunctionDefinition SCAN_PROPERTIES__4 = signature("native function meta::pure::lineage::scanProperties::scanProperties(vs:meta::pure::metamodel::valuespecification::ValueSpecification[1], list:meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>[1], processed:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[*], vars:meta::pure::functions::collection::Map<meta::pure::metamodel::type::String, meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>>[0..1]):meta::pure::lineage::scanProperties::Res[0..1];");
+    public static final NativeFunctionDefinition BUILD_PROPERTY_TREE__LISTS = signature("native function meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree(properyLists:meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>[*]):meta::pure::lineage::scanProperties::propertyTree::PropertyPathTree[1];");
+    public static final NativeFunctionDefinition SCAN_COLUMNS__2 = signature("native function meta::pure::lineage::scanColumns::scanColumns(p:meta::pure::lineage::scanProperties::propertyTree::PropertyPathTree[1], m:meta::pure::mapping::Mapping[1]):meta::pure::lineage::scanColumns::ColumnWithContext[*];");
     public static final NativeFunctionDefinition PLAN_TO_STRING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToString(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // real executionPlan_print.pure:27 — planToString minus '\n' and ' '
     public static final NativeFunctionDefinition PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToStringWithoutFormatting(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");

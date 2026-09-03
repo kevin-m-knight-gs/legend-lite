@@ -222,6 +222,14 @@ public final class PlatformTypes {
      * opaque handle whose relation tree is rows (LineageRows). */
     public static final String SCAN_RELATIONS =
             "meta::pure::lineage::scanRelations::scanRelations";
+    /** The column-lineage chain (group I): two opaque intermediate handles
+     * and the rows-bearing terminal. */
+    public static final String SCAN_PROPERTIES =
+            "meta::pure::lineage::scanProperties::scanProperties";
+    public static final String BUILD_PROPERTY_TREE =
+            "meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree";
+    public static final String SCAN_COLUMNS =
+            "meta::pure::lineage::scanColumns::scanColumns";
 
     /** The metaclass a HANDLE native's rows extend as (the chain root
      * re-roots at its extent keyed by the handle's content id), or null
@@ -232,6 +240,9 @@ public final class PlatformTypes {
         }
         if (SCAN_RELATIONS.equals(fqn)) {
             return "meta::pure::lineage::scanRelations::RelationTree";
+        }
+        if (SCAN_COLUMNS.equals(fqn)) {
+            return "meta::pure::lineage::scanColumns::ColumnWithContext";
         }
         return null;
     }
@@ -550,6 +561,9 @@ public final class PlatformTypes {
                     java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(EXECUTION_PLAN, NativeImpl.HANDLE),
                     java.util.Map.entry(SCAN_RELATIONS, NativeImpl.HANDLE),
+                    java.util.Map.entry(SCAN_PROPERTIES, NativeImpl.HANDLE),
+                    java.util.Map.entry(BUILD_PROPERTY_TREE, NativeImpl.HANDLE),
+                    java.util.Map.entry(SCAN_COLUMNS, NativeImpl.HANDLE),
                     java.util.Map.entry(PREVAL, NativeImpl.HANDLE),
                     java.util.Map.entry(EXECUTE, NativeImpl.HANDLE),
                     java.util.Map.entry(EXECUTE_LEGEND_QUERY, NativeImpl.HANDLE),

@@ -253,6 +253,18 @@ public final class SystemMetamodel {
                 .append("                        node[rtcol, rtnode]: ").append(S).append("@TreeNodeToColumns,\n")
                 .append("                        columns[rtnode, rtcol]: ").append(S).append("@TreeNodeToColumns\n")
                 .append("                    )\n                }\n");
+        // COLUMN LINEAGE as rows (group I burn, 2026-09-03): a scanColumns
+        // handle's ColumnWithContext rows — the columns the lowered plan
+        // reads, joined to the store's own Column rows by (db, schema,
+        // table, name); the scan id is the handle's key (one handle, many
+        // rows — the ~primaryKey names the key the extent filters on)
+        sb.append("                *meta::pure::lineage::scanColumns::ColumnWithContext[cwc]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.column_contexts.scan_id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.column_contexts\n")
+                .append("                    context: ").append(S).append(" metamodel.column_contexts.context,\n")
+                .append("                    column[col]: ").append(S).append("@ColumnContextToColumn\n")
+                .append("                }\n");
         sb.append("                meta::lite::metamodel::PlanNodeSubtrees: Relational\n")
                 .append("                {\n                    AssociationMapping\n                    (\n")
                 .append(String.join(",\n", subtrees)).append("\n")
@@ -524,6 +536,16 @@ public final class SystemMetamodel {
                         ordinal INTEGER PRIMARY KEY,
                         name VARCHAR(256) NOT NULL
                     )
+                    Table column_contexts
+                    (
+                        scan_id VARCHAR(512) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        db_fqn VARCHAR(1024) NOT NULL,
+                        schema_name VARCHAR(256) NOT NULL,
+                        table_name VARCHAR(256) NOT NULL,
+                        read_column VARCHAR(256) NOT NULL,
+                        context VARCHAR(64) NOT NULL
+                    )
                 )
                 Join PlanToRoot(metamodel.plans.root_node_id = metamodel.plan_nodes.id)
                 Join NodeToChildren(metamodel.plan_nodes.id = {target}.parent_id)
@@ -535,6 +557,13 @@ public final class SystemMetamodel {
                 Join NodeToPkColumns(metamodel.value_specifications.id = metamodel.vs_primary_key_columns.node_id)
                 Join TreeToNodes(metamodel.relation_trees.id = metamodel.relation_tree_nodes.tree_id)
                 Join TreeNodeToColumns(metamodel.relation_tree_nodes.node_id = metamodel.relation_tree_node_columns.node_id)
+                Join ColumnContextToColumn(metamodel.column_contexts.db_fqn = metamodel.relational_elements.db_fqn
+                    and metamodel.column_contexts.schema_name = metamodel.relational_elements.schema_name
+                    and metamodel.column_contexts.table_name = metamodel.relational_elements.table_name
+                    and metamodel.column_contexts.read_column = metamodel.relational_elements.name)
+                Join ColumnToOwnerTable(metamodel.relational_elements.db_fqn = {target}.db_fqn
+                    and metamodel.relational_elements.schema_name = {target}.schema_name
+                    and metamodel.relational_elements.table_name = {target}.name)
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
@@ -920,6 +949,7 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.relational_elements.id)
                     ~mainTable %1$s metamodel.relational_elements
                     name: %1$s metamodel.relational_elements.name,
+                    owner[tbl]: %1$s@ColumnToOwnerTable,
             %7$s
                 }
             %8$s

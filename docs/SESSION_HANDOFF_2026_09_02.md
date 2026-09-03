@@ -1450,11 +1450,39 @@ aggregated to-many hop's join key resolves by COLUMN NAME across the
 composed row (a node key spelled `id` collided with the tree's `id`) —
 the store spells it `node_id`.
 
+**Batch 21 — GROUP I: COLUMN LINEAGE AS ROWS (2026-09-03): ratchet
+661/1912 → 656/1917 (+5, ZERO lost).** `scanColumns(tree, mapping)` is
+a PLATFORM HANDLE native (real scanColumns.pure:30; `scanProperties`
+:136 and `buildPropertyTree` :753 are the natives that feed it, their
+classes `PropertyPathNode` / `Res` / `PropertyPathTree` registered); the
+handle's rows are `column_contexts` (`lineage.ColumnLineageRows`: the
+scan's (table, column, context) entries — `ScanColumns.entries`, the one
+walk the Java arm and the rows share — each resolved to its owning
+database/schema through the mapping's databases, includes-closed, all
+databases as the fallback, loud on 0 or >1 owners). The read is pure
+NAVIGATION: `ColumnWithContext.column` joins `relational_elements`
+(`ColumnContextToColumn`), `Column.owner` is a self-join to the owning
+table (`ColumnToOwnerTable`, typed `Table[0..1]` — real m3 says
+`Relation[0..1]`; a nested union hop under map is not materialized yet,
+a named debt). Two resolver legs, both real-pure semantics: `cast(@T)`
+over a value whose static class already conforms to T is the IDENTITY
+(`CastChecker`) so `$c.owner->cast(@Table).name` keeps its property-path
+shape; instance `removeDuplicates` replayed over a materialized row
+keeps the TO-ONE navigation slots' columns in its DISTINCT tuple (a
+to-one slot is a function of the row — dedup-neutral; to-many exists
+materials stay out — the two-exists witness `testAssociationToMany
+WithTwoSeparateExists` guards it; `StoreResolver.instanceDistinct`).
+The lowering's unresolvable-ref failure now names the columns it had.
+Residue, NAMED: `testNonDataTypeProperty` — a CLASS-valued project
+column (`p|$p.address`) walls in the inner lowering ("class query under
+TypedMap"), the same 34-test bucket; the Java arm `LineageForm`'s
+scanColumns branch serves that one test and dies with the bucket.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 661 fallbacks / 1912 flipped (batches 14–20 = group D,
+legs).** State: 656 fallbacks / 1917 flipped (batches 14–21 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
-lineage trees as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
+lineage trees as rows, group I column lineage as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

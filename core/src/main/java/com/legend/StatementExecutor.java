@@ -266,9 +266,11 @@ final class StatementExecutor {
                 // plan model cannot build keep the handle symbolic.
                 // (a ->toOne() over the handle is the same handle)
                 TypedSpec handle = rhs;
+                // (a ->toOne() / ->removeDuplicates() over the handle is the handle)
                 while (handle instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
                         && tw.args().size() == 1
-                        && com.legend.resolver.StoreResolver.isClassToOne(tw)) {
+                        && (com.legend.resolver.StoreResolver.isClassToOne(tw)
+                            || tw.callee().qualifiedName().endsWith("::removeDuplicates"))) {
                     handle = tw.args().get(0);
                 }
                 if (handle instanceof com.legend.compiler.spec.typed.TypedNativeCall pn

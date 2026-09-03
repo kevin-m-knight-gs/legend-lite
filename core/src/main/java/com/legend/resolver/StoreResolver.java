@@ -56,6 +56,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -1274,6 +1275,50 @@ public final class StoreResolver {
                         .equals(c.callee().qualifiedName())
                 && c.args().get(1)
                         instanceof TypedCInteger;
+    }
+
+    /** Instance removeDuplicates/distinct replayed over the materialized
+     * row: the DISTINCT tuple. */
+    private TypedDistinct instanceDistinct(ClassSource cs, Pipelines.Materialized m,
+                                           TypedSpec pipeline) {
+        // dedup by the MAPPED row (engine instance identity):
+        // narrow to the class's own columns so joined helper
+        // columns cannot defeat the dedup (the two-exists
+        // family's 'expected 1, got 5'). The materialized
+        // TO-ONE navigation slots ride along: a to-one slot's
+        // columns are a function of the row (dedup-neutral) and
+        // a downstream read ($t.column.owner.name after
+        // removeDuplicates) must still find them; a to-many
+        // slot (an exists material) multiplies the row and
+        // stays out; demands on anything else fail loud at
+        // projection resolution.
+        Type.RelationType pipeRow =
+                Type.requireRelationSchema(pipeline.info().type());
+        Set<String> own = new LinkedHashSet<>();
+        for (Type.Column c : cs.rowType().columns()) {
+            own.add(c.name());
+        }
+        List<String> slotPfx = new ArrayList<>();
+        for (var sp : m.slotPrefixes().entrySet()) {
+            String prop = SyntheticHeads.realHead(sp.getKey());
+            var pr = ctx.findProperty(cs.classFqn(), prop).orElse(null);
+            if (pr != null && !pr.multiplicity().isMany()) {
+                slotPfx.add(sp.getValue());
+            }
+        }
+        List<Type.Column> kept = pipeRow.columns().stream()
+                .filter(c -> own.contains(c.name())
+                        || slotPfx.stream().anyMatch(c.name()::startsWith))
+                .toList();
+        if (kept.isEmpty()) {
+            return new TypedDistinct(pipeline, List.of(),
+                    pipeline.info());
+        }
+        return new TypedDistinct(pipeline,
+                kept.stream().map(Type.Column::name).toList(),
+                new ExprType(Type.relation(new Type.RelationType(kept)),
+                        pipeline.info().multiplicity()));
+    
     }
 
     /** {@code toOne(instances)}: multiplicity coercion over a class
@@ -2933,29 +2978,7 @@ public final class StoreResolver {
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
                         substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh, sb.key(), context).rewriteLambda(sb.key()),
                         sb.ascending(), sb.keyAlias(), pipeline.info());
-                case TypedDistinct d -> {
-                    // dedup by the MAPPED row (engine instance identity):
-                    // narrow to the class's own columns so joined helper
-                    // columns cannot defeat the dedup (the two-exists
-                    // family's 'expected 1, got 5'); downstream demands on
-                    // dropped columns fail loud at projection resolution.
-                    Type.RelationType pipeRow =
-                            Type.requireRelationSchema(pipeline.info().type());
-                    Set<String> own = new LinkedHashSet<>();
-                    for (Type.Column c : cs.rowType().columns()) {
-                        own.add(c.name());
-                    }
-                    List<Type.Column> kept = pipeRow.columns().stream()
-                            .filter(c -> own.contains(c.name())).toList();
-                    if (kept.isEmpty()) {
-                        yield new TypedDistinct(pipeline, List.of(),
-                                pipeline.info());
-                    }
-                    yield new TypedDistinct(pipeline,
-                            kept.stream().map(Type.Column::name).toList(),
-                            new ExprType(Type.relation(new Type.RelationType(kept)),
-                                    pipeline.info().multiplicity()));
-                }
+                case TypedDistinct d -> instanceDistinct(cs, m, pipeline);
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
         }

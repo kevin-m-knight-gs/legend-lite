@@ -37,6 +37,20 @@ final class CastChecker {
                         .isRelation(a.args().get(0).info().type())) {
             return a.args().get(0);
         }
+        // cast(@T) over a value whose STATIC class already conforms to T is
+        // the identity (real pure: a cast never narrows a value that is
+        // already of the type) — the source stands, so a navigation read
+        // through it ($c.owner->cast(@Table).name) keeps its property-path
+        // shape for the resolver's slot demand. Only cast itself: to/toMany
+        // over a Variant DECODE (an array explodes), never the identity.
+        if (a.chosen().qualifiedName().equals("meta::pure::functions::lang::cast")
+                && ref.target() instanceof com.legend.compiler.element.type.Type.ClassType tc
+                && a.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type.Type.ClassType sc
+                && !com.legend.compiler.element.type.PlatformTypes.isVariant(sc)
+                && (sc.fqn().equals(tc.fqn()) || t.model().isSubtype(sc.fqn(), tc.fqn()))) {
+            return a.args().get(0);
+        }
         return new TypedCast(a.args().get(0), ref.target(), a.out(), false);
     }
 }
