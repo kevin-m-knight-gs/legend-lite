@@ -2122,9 +2122,29 @@ unclassified 1 (testErrorDueToNoSeedForRoot — the alias resolves to `[]`;
 classifyArg's empty-collection arm), column-spec typing 1. The harness arm
 `TestDataGenForm.planText` is deleted when the family flips whole.
 
+**Batch 41 — LET-BOUND COLUMN ARGUMENTS + the no-seed error plan
+(2026-09-03): ratchet 308/2265 → 304/2269 (+4, ZERO lost).** (1)
+`ProjectChecker.resolveLetBoundColumns`: a project whose column / name
+argument is a let variable binds the raw literal through the alias chase
+(paths, names, legacy `col(lambda, 'name')` calls, a cast around them
+strips); `Typer.deferredLetRhs` parks a col-spec COLLECTION (legacy col
+calls, with or without `->cast(@BasicColumnSpecification<T>)`) — a column
+spec types only against its consuming call. Flipped: projection::simple
+UsingVariable / UsingVariables / UsingOpenVariables (3); the ColVar
+aggregation test now reaches the resolver's known "aggregate behind a
+to-one head" residue. (2) The TDG plan for a ROOT WITHOUT ROW IDENTIFIERS
+is the engine's own Error node (testDataGeneration.pure:511): the assert
+message with the primary-key columns and the `select top 5` sample over the
+pk columns (`TestDataGenerator.planRootErrorNode`). Flipped:
+testErrorDueToNoSeedForRoot. Lane moves: M1 verified 4 → 1, exec-passing
+79 → 76, text-only 26 → 25; passes 2378 → 2379; disagree 0. Alloy remainder
+4: H2VERSION probe 3 (decision), view-backed relation slice 1; plus the
+alloy extend-over-tableToTDS test whose col spec is typed standalone inside
+the TDG relation scan (named).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 308 fallbacks / 2265 flipped (batches 14–40 = group D,
+legs).** State: 304 fallbacks / 2269 flipped (batches 14–41 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

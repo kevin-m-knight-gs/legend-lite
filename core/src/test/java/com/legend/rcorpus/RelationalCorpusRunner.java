@@ -809,8 +809,10 @@ public class RelationalCorpusRunner {
                     // 9 -> 4 (batch 38): the 16 flipped tests' sql-asserts
                     // left the walk's lane (lane move, 0 lost, disagree 0,
                     // passes 2377 stable)
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 4,
-                    "M1 h2-exec verified fell below the 4 floor: "
+                    // 4 -> 1 (batch 41): the flipped projection tests' text-
+                    // matched sql-asserts left the walk's lane (lane move)
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 1,
+                    "M1 h2-exec verified fell below the 1 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -1019,7 +1021,9 @@ public class RelationalCorpusRunner {
             // 82 -> 79 (batch 39 — lateral explode / plan replay): the
             // flipped tests' sql-asserts left the walk's lane (lane move,
             // passes 2377 -> 2378, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(79, execPassing,
+            // 79 -> 76 (batch 41): the flipped projection tests' sql-asserts
+            // left the walk's lane (lane move, passes 2378 -> 2379).
+            org.junit.jupiter.api.Assertions.assertEquals(76, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1543,10 +1547,17 @@ public class RelationalCorpusRunner {
             // planText — the harness arm TestDataGenForm.planText stays until
             // the alloy family flips whole). +2 (testConstant_Alloy,
             // testViewChild_Alloy), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(308L,
+            // 308 -> 304 (batch 41, 2026-09-03): LET-BOUND column arguments
+            // bind at the consuming project (`let p = [#/Person/firstName#];
+            // let n = ['First Name']; ->project($p, $n)`; a col-spec
+            // collection under ->cast(@BasicColumnSpecification) parks as a
+            // deferred let and binds through the alias chase); the TDG plan
+            // for a root without row identifiers is the engine's Error node
+            // over the top-5 primary-key sample. +4, 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(304L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2265L,
+            org.junit.jupiter.api.Assertions.assertEquals(2269L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1581,7 +1592,9 @@ public class RelationalCorpusRunner {
             // the walk's text-only classification loses those rows.
             // 27 -> 26 (batch 40): one TDG plan-text assert left the walk's
             // text-only lane for the platform's planToString (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(26,
+            // 26 -> 25 (batch 41): one more TDG plan-text assert left the
+            // walk's text-only lane (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(25,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

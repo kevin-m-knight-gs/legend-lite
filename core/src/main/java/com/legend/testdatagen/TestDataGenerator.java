@@ -1547,6 +1547,19 @@ public final class TestDataGenerator {
                 colMap.get(loc.schema() + "\n" + tbl),
                 "no column map for " + tbl);
         String relType = relationType(rel, loc, cols);
+        if (parent == null && rootIds(loc, rel, rowIds) == null) {
+            // the engine's plan for a ROOT without row identifiers is an
+            // Error node carrying the top-5 sample query
+            // (testDataGeneration.pure:511, planTestDataGeneration's
+            // getRowIdentifiersForRoot assert): message + the sampled
+            // Relational, no Allocation
+            // the sample selects the PRIMARY KEY columns only
+            List<String> pkCols = loc.def().columns().stream()
+                    .filter(c -> c.primaryKey()).map(c -> c.name()).toList();
+            out.append(planRootErrorNode(loc, rel, tbl, pkCols,
+                    relationType(rel, loc, pkCols)));
+            return;
+        }
         String sql = parent == null
                 ? planRootSql(loc, rel, cols, rowIds, dates)
                 : planChildSql(ctx, loc, parent, rel, cols, res, dates);
@@ -1584,9 +1597,8 @@ public final class TestDataGenerator {
                 + "]]";
     }
 
-    private static String planRootSql(Located loc, ScanRelations.Rel rel,
-            List<String> cols, List<TableRowIds> rowIds,
-            @com.legend.Nullable MilestoningDates dates) {
+    private static @com.legend.Nullable TableRowIds rootIds(Located loc,
+            ScanRelations.Rel rel, List<TableRowIds> rowIds) {
         TableRowIds ids = null;
         for (TableRowIds t : rowIds) {
             if (t.table().equals(rel.table())
@@ -1594,6 +1606,50 @@ public final class TestDataGenerator {
                 ids = t;
             }
         }
+        return ids;
+    }
+
+    /** The engine's Error node for a root without row identifiers:
+     * the assert message (primary key columns as name:TYPE) over the
+     * sampled {@code select top 5} of the root table. */
+    private static String planRootErrorNode(Located loc,
+            ScanRelations.Rel rel, String tbl, List<String> cols,
+            String relType) {
+        String alias = tbl.toLowerCase(java.util.Locale.ROOT) + "_0";
+        String pk = loc.def().columns().stream()
+                .filter(c -> c.primaryKey())
+                .map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(
+                        c.dataType()))
+                .collect(java.util.stream.Collectors.joining(","));
+        String qualified = "default".equals(loc.schema()) ? tbl
+                : loc.schema() + "." + tbl;
+        String sql = sampleSelect(5, cols, alias, loc, tbl) ;
+        String inner = "Relational\n(\n"
+                + "  type = " + relType + "\n"
+                + "  resultSizeRange = *\n"
+                + "  resultColumns = [" + cols.stream()
+                        .map(c -> "(\"" + c + "\", "
+                                + com.legend.plan.PlanText.spell(
+                                        column(loc.def(), c).dataType())
+                                + ")")
+                        .collect(java.util.stream.Collectors
+                                .joining(", ")) + "]\n"
+                + "  sql = " + sql + "\n"
+                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + ")\n";
+        return "Error\n(\n"
+                + "  type = meta::pure::metamodel::type::Any\n"
+                + "  message = Row Identifers should be provided for the root"
+                + " table: " + rel.db() + "." + qualified + " [" + pk
+                + "]\\n\n"
+                + "  (\n" + com.legend.plan.PlanText.indent(inner, "    ")
+                + "  )\n)\n";
+    }
+
+    private static String planRootSql(Located loc, ScanRelations.Rel rel,
+            List<String> cols, List<TableRowIds> rowIds,
+            @com.legend.Nullable MilestoningDates dates) {
+        TableRowIds ids = rootIds(loc, rel, rowIds);
         if (ids == null) {
             throw new NotImplementedException("testDataGen plan: no row"
                     + " identifiers for root '" + rel.table() + "'");
@@ -1619,12 +1675,20 @@ public final class TestDataGenerator {
         }
         String mf = planMilestone(loc.def(), "\"root\"", dates);
         String where = mf == null ? pk : mf + " and " + pk;
-        return "select top 20 " + cols.stream()
-                .map(c -> "\"root\"." + c + " as \"" + c + "\"")
+        return sampleSelect(20, cols, "root", loc,
+                java.util.Objects.requireNonNull(rel.table(), "rel.table()"))
+                + " where " + where;
+    }
+
+    /** The engine's sampled root select: {@code select top N "alias".c as
+     * "c", ... from <table> as "alias"} (the plan's root fetch and the
+     * no-seed error node's sample). */
+    private static String sampleSelect(int top, List<String> cols,
+            String alias, Located loc, String tbl) {
+        return "select top " + top + " " + cols.stream()
+                .map(c -> "\"" + alias + "\"." + c + " as \"" + c + "\"")
                 .collect(java.util.stream.Collectors.joining(", "))
-                + " from " + qualify(loc.schema(),
-                        java.util.Objects.requireNonNull(rel.table(), "rel.table()"))
-                + " as \"root\" where " + where;
+                + " from " + qualify(loc.schema(), tbl) + " as \"" + alias + "\"";
     }
 
     private static String planChildSql(ModelContext ctx, Located loc,

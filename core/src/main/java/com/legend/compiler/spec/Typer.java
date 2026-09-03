@@ -3357,6 +3357,14 @@ final class Typer {
      * its trees are first-class {@code RootGraphFetchTree} values, and
      * it REJECTS the other shapes at the binding — parking mirrors its
      * use-site inScopeVars resolution at the checker layer.) */
+    /** The legacy {@code col(lambda, 'name')} column-spec constructor
+     * (BasicColumnSpecification), before its desugar to a ColSpec. */
+    private static boolean legacyColCall(ValueSpecification v) {
+        return ProjectChecker.isLegacyColumnCall(v)
+                && ((AppliedFunction) v).parameters().get(0)
+                        instanceof LambdaFunction;
+    }
+
     static boolean deferredLetRhs(ValueSpecification v) {
         // a quote/eval tree carrier — bare, or under the corpus's
         // ->cast(@RootGraphFetchTree<T>) — is a tree LITERAL for binding
@@ -3368,6 +3376,24 @@ final class Typer {
                 && (c.parameters().get(0) instanceof com.legend.protocol.spec.QuotedTreeCall
                         || c.parameters().get(0)
                                 instanceof com.legend.protocol.spec.GraphFetchLiteral)) {
+            return true;
+        }
+        // a let-bound column-spec COLLECTION (`let cols = [col(f|...,'a'),
+        // ...]->cast(@BasicColumnSpecification<Firm>)`) parks the same
+        // way: its specs type only against the project that consumes it
+        if (v instanceof AppliedFunction c2
+                && CoreFn.of(c2.function()).orElse(null) == CoreFn.CAST
+                && c2.parameters().size() == 2
+                && deferredLetRhs(c2.parameters().get(0))) {
+            return true;
+        }
+        if (v instanceof PureCollection pc && !pc.values().isEmpty()
+                && pc.values().stream().allMatch(e -> (e instanceof ColSpec cs2
+                                && cs2.function1() != null)
+                        || legacyColCall(e))) {
+            return true;
+        }
+        if (legacyColCall(v)) {
             return true;
         }
         return v instanceof com.legend.protocol.spec.GraphFetchLiteral

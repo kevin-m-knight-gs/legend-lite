@@ -33,6 +33,7 @@ final class ProjectChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        af = resolveLetBoundColumns(af, env);
         // FQN spellings (meta::pure::tds::project — the CoreFn FQN
         // dispatch) CANONICALIZE to the parse name up front: the legacy
         // normalization below rebuilds calls that must resolve against
@@ -104,6 +105,46 @@ final class ProjectChecker {
      *       a non-property leaf without a name is loud.</li>
      * </ul>
      */
+    /** LET-BOUND column arguments (`let p = [#/Person/firstName#]; let n =
+     * ['First Name']; ->project($p, $n)` and `let cols = [col(...)]->cast(
+     * @BasicColumnSpecification<Firm>)`): the alias chase binds the raw
+     * literal at the consuming call — pure's let is referentially
+     * transparent, and a column spec types only against its call
+     * (Env.withDeferred's family). A cast around the literal is the
+     * corpus's spelling and strips. */
+    private static AppliedFunction resolveLetBoundColumns(AppliedFunction af,
+            Env env) {
+        List<ValueSpecification> ps = new ArrayList<>(af.parameters());
+        boolean changed = false;
+        for (int i = 1; i < ps.size() && i <= 2; i++) {
+            if (ps.get(i) instanceof com.legend.protocol.spec.Variable v) {
+                ValueSpecification r = stripCast(env.resolveAlias(v));
+                if (r != v && !(r instanceof com.legend.protocol.spec.Variable)
+                        && columnLiteral(r)) {
+                    ps.set(i, r);
+                    changed = true;
+                }
+            }
+        }
+        return changed ? af.withParameters(ps) : af;
+    }
+
+    private static ValueSpecification stripCast(ValueSpecification v) {
+        return v instanceof AppliedFunction c
+                && CoreFn.of(c.function()).orElse(null) == CoreFn.CAST
+                && c.parameters().size() == 2
+                ? c.parameters().get(0) : v;
+    }
+
+    private static boolean columnLiteral(ValueSpecification v) {
+        return v instanceof ColSpec || v instanceof ColSpecArray
+                || v instanceof com.legend.protocol.spec.PathLiteral
+                || v instanceof CString || v instanceof LambdaFunction
+                || isLegacyColumnCall(v)
+                || v instanceof PureCollection pc
+                        && pc.values().stream().allMatch(ProjectChecker::columnLiteral);
+    }
+
     private static AppliedFunction normalizeLegacyForms(AppliedFunction af,
             java.util.Map<String, String> docsOut) {
         List<ValueSpecification> ps = af.parameters();
@@ -171,7 +212,7 @@ final class ProjectChecker {
         return af;
     }
 
-    private static boolean isLegacyColumnCall(ValueSpecification v) {
+    static boolean isLegacyColumnCall(ValueSpecification v) {
         return v instanceof AppliedFunction c
                 && ((c.function().equals("col")
                         && (c.parameters().size() == 2
