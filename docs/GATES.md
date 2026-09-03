@@ -218,6 +218,14 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 37 (the "text-policy" pre-decline gate DELETED; every sql-assert shape attempted; per-test text-verdict roster, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 366/2207 → 330/2243 (+36, 0 lost); lane moves M1 verified 12 → 9, M1 rescued 108 → 75,
+exec-passing 135 → 99, unable-to-exec 20 → 14 (passes 2374 → 2375, disagree 0). Dossier: docs/SQLTEXT_HOMEWORK_2026_09_03.md.
+
+**Batch 36 (percentile = one semantic reducer with a within-group order; DuckDB encodings as the QuantileOrder MIR pass, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 369/2204 → 366/2207 (+3, 0 lost); lane moves exec-passing 140 → 135,
+M1 rescued 109 → 108 (passes 2374 stable, disagree 0).
+
 **Batch 35 (referee render: literal-collection reductions, firstNotNull, round in the engine-style H2 dialect, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 379/2194 → 369/2204 (+10, 0 lost); lane move exec-passing 149 → 140
 (passes 2374 stable, disagree 0).
