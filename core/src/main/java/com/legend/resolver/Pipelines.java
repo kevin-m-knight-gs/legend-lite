@@ -22,6 +22,7 @@ import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedJoin;
 import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNavigate;
@@ -1824,6 +1825,28 @@ public final class Pipelines {
                 joinKeyReads);
     }
 
+
+    /** {@code $chain.prop->map(v | f($v))} over an object chain: the mapper
+     * composed over the read — {@code map(chain, x | f($x.prop))} — so the
+     * object-space map arm serves it (per element, the auto-map reading). */
+    static TypedMap composeScalarReadMap(com.legend.compiler.spec.SpecCompiler specs,
+            TypedMap m, com.legend.compiler.spec.typed.TypedPropertyAccess pa,
+            Type.ClassType ec) {
+        var elemOne = new com.legend.compiler.element.type.ExprType(ec,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        var read = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                new com.legend.compiler.spec.typed.TypedVariable("_mx", elemOne),
+                pa.property(), new com.legend.compiler.element.type.ExprType(
+                        pa.info().type(),
+                        m.mapper().functionType().params().get(0).multiplicity()));
+        TypedSpec body = substituteParam(specs, m.mapper(), read);
+        var fnT = new Type.FunctionType(
+                List.of(new Type.Param(ec,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                m.mapper().functionType().result());
+        return new TypedMap(pa.source(), new TypedLambda(List.of("_mx"), List.of(body),
+                com.legend.compiler.element.type.ExprType.one(fnT)), m.info());
+    }
 
     /** &beta;-substitute a one-param lambda's variable with {@code read} —
      * via the inliner's LET reduction (one substitution engine, no second

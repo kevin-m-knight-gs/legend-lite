@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 46 (relation-rooted plan text: a table accessor / tableToTDS single node with precisePrimitives accessor columns; a map over a scalar read composes the mapper over the read, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 287/2286 → 285/2288 (+2, 0 lost); lane moves exec-passing 61 → 60, M1 rescued 55 → 54 (disagree 0). G1 40s, G2 9s, G4 54s, G5 38s, G6 77s, G7 26s, G9 19s, G8 73s.
+
 **Batch 45 (if() over a class query decides on literal emptiness; a TDSNull-typed collection root egresses as the TDSNull value, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 291/2282 → 287/2286 (+4, 0 lost); lane moves exec-passing 63 → 61, M1 rescued 57 → 55 (disagree 0). G1 40s, G2 9s, G4 55s, G5 38s, G6 77s, G7 26s, G9 18s, G8 73s.
 

@@ -37,8 +37,8 @@ shared source registered by several families cannot double-count. Run with
 | aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 108 | 78 | 9 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 249 | 4 | 4 | 2 | 2 | 2 | 0 | 5 |
+| executionPlan/tests | 108 | 79 | 9 | 4 | 16 | 0 | 0 | 1 | 0 |
+| functions/tests | 259 | 249 | 6 | 4 | 0 | 2 | 2 | 0 | 4 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 148 | 2 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2380** | 46 | 102 | 47 | 12 | 12 | 29 | 24 |
+| **total** | 2575 | **2381** | 48 | 102 | 44 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2380 PASS = 2318 clean + 62 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 24; flags overlap — the union is 62).
+SOFT-PASS RECONCILIATION (F2.1): 2381 PASS = 2320 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -862,7 +862,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2380 PASS = 2318 clean + 62 carrying softness (
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: plan wall: unknown class 'Service' in ^Service(…) [surfaced via assert form 'assertEquals/2']
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: plan wall: unknown class 'Service' in ^Service(…) [surfaced via assert form 'assertEquals/2']
 - SHAPE inheritance [executionPlan/tests]: plan wall: plan: no class mapping for 'meta::relational::tests::model::inheritance::RoadVehicle' under 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB' [surfaced via assert form 'assertEquals/2']
-- SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - SHAPE tdsTwoJoinThreeDB [executionPlan/tests]: plan wall: plan: star-top TDS column 'firstName' resolves through no FROM-tree table [surfaced via assert form 'assertEquals/2']
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: plan wall: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall [surfaced via assert form 'assertEquals/2']
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: plan wall: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [surfaced via assert form 'assertEquals/2']
@@ -893,8 +892,8 @@ SOFT-PASS RECONCILIATION (F2.1): 2380 PASS = 2318 clean + 62 carrying softness (
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
 - FAIL testSQLComments [functions/tests]: assert did not hold ([])
-- SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
-- SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
+- FAIL testFilterLimitInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1"where"persontable_1".AGEisnotnulland"persontable_1".AGE>25)as"subselect"connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root"where("root".AGEisnotnulland"root".AGE>25))as"persontable_0"connection=TestDatabaseConnection(type="H2"))
+- FAIL testLimitFilterInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1")as"subselect"where"subselect"."AGE"isnotnulland"subselect"."AGE">25connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root")as"persontable_0"where("persontable_0".AGEisnotnulland"persontable_0".AGE>25)connection=TestDatabaseConnection(type="H2"))
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRE
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications

@@ -313,7 +313,7 @@ final class FlattenOps {
                 case com.legend.compiler.spec.typed.TypedLimit ignored -> { return true; }
                 case com.legend.compiler.spec.typed.TypedDrop ignored -> { return true; }
                 case com.legend.compiler.spec.typed.TypedSlice ignored -> { return true; }
-                case com.legend.compiler.spec.typed.TypedNativeCall nc when ClassSorts.isFirstLike(nc) || StoreResolver.isStaticAt(nc) -> {
+                case com.legend.compiler.spec.typed.TypedNativeCall nc when ClassSorts.isFirstLike(nc) || Anchors.isStaticAt(nc) -> {
                     return true;
                 }
                 case com.legend.compiler.spec.typed.TypedFilter f -> cur = f.source();

@@ -424,6 +424,12 @@ public final class StoreResolver {
                     && ChainDispatch.navRootedAt(mr0.input(), m.mapper().parameters().get(0))
                     && ChainDispatch.countVarReads(mr0, m.mapper().parameters().get(0)) == 1 ->
                     resolveNode(Pipelines.substituteParam(specs, m.mapper(), m.source()), context);
+            // map over a SCALAR read of an object chain: the mapper COMPOSES
+            // over the read — map(chain, x | f($x.prop)) — served below
+            case TypedMap m when m.source() instanceof TypedPropertyAccess pa
+                    && !(pa.info().type() instanceof Type.ClassType) && objectSpace(pa.source())
+                    && pa.source().info().type() instanceof Type.ClassType ec && m.mapper().parameters().size() == 1 ->
+                    resolveNode(Pipelines.composeScalarReadMap(specs, m, pa, ec), context);
             case TypedMap m when objectSpace(m.source()) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
                 yield resolvedScalarMapProject(m2.source(), m2.mapper(),
@@ -1271,15 +1277,6 @@ public final class StoreResolver {
     /** The node is (part of) an object-space chain — see {@link Anchors#spaceOf}. */
     private boolean objectSpace(TypedSpec s) {
         return anchors.spaceOf(s) == Space.OBJECT;
-    }
-
-    /** {@code at(coll, k)} with a LITERAL index — class-space slice. */
-    static boolean isStaticAt(TypedNativeCall c) {
-        return c.args().size() == 2
-                && "meta::pure::functions::collection::at"
-                        .equals(c.callee().qualifiedName())
-                && c.args().get(1)
-                        instanceof TypedCInteger;
     }
 
     private TypedDistinct instanceDistinct(ClassSource cs, Pipelines.Materialized m,
@@ -2621,7 +2618,7 @@ public final class StoreResolver {
                 cur = nc.args().get(0);
                 continue;
             }
-            if (cur instanceof TypedNativeCall nc && isStaticAt(nc)) {
+            if (cur instanceof TypedNativeCall nc && Anchors.isStaticAt(nc)) {
                 // at(k) over instances = the k-th row: slice(k, k+1)
                 long k = ((TypedCInteger)
                         nc.args().get(1)).value().longValue();

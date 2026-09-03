@@ -100,7 +100,13 @@ class JavaEvalLedgerTest {
             // 750 -> 760 (batch 38, 2026-09-03): enumMappingOf chases the
             // mapping's INCLUDES (real pure visibility of an included
             // mapping's enumeration mappings) — lookup, not evaluation.
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 760),
+            // 760 -> 845 (batch 46, 2026-09-03): the RELATION-ROOTED
+            // single node (table accessor / tableToTDS plans; engine
+            // spelling facts — precisePrimitives + default relational
+            // types via PreciseTypes) and the plan-root finders MOVED here
+            // from StatementExecutor (its count fell 2724 -> ~2700 under
+            // its unchanged pin). Printing engine plan text, no evaluation.
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 845),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)

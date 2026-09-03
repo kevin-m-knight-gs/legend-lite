@@ -2266,6 +2266,39 @@ testSimpleTypeMappingProjectNulls) — the executeLegendQuery TDS envelope
 (`JsonEmission`) is the spelling to reuse. Lane move: exec-passing 63 →
 61, M1 rescued 57 → 55; disagree 0.
 
+**Batch 46 — RELATION-ROOTED PLAN TEXT + SCALAR-READ MAP COMPOSITION
+(2026-09-03): ratchet 287/2286 → 285/2288 (+2, ZERO lost).** (1)
+`planToString` over a body with NO class root (a table accessor or
+`tableToTDS`) printed the "multi-node plans pending" wall: now
+`PlanText.singleRelationRoot` prints the one node whose TDS tuples resolve
+physically through the root table's database (`PlanText.rootTableReference`;
+the plan-root finders `rootGetAllClass`/`rootTableReference` moved out of
+`StatementExecutor` into `PlanText`), and a `#>{db.T}#` ACCESSOR root spells
+its columns the engine's way — `meta::pure::precisePrimitives::Varchar`
+with the pure type's DEFAULT relational spelling `VARCHAR(1024)`
+(`plan/PreciseTypes`: RelationalCompilerExtension.convertTypes +
+pureToRelational.pure pureTypeToDataTypeMap) while resultColumns keep the
+physical width; `TypedTableReference.accessor` is the fact (the 2-arg
+desugar). `PlanText.resolvePhysical` chases a STAR pass-through subselect
+(an accessor's filter/limit stage) by name. +1 (relationalTDSType
+ForColumnsAndQuoting). (2) `$chain.prop->map(v | f($v))` over an object
+chain — a map whose SOURCE is a scalar read — composes the mapper over the
+read (`map(chain, x | f($x.prop))`, `Pipelines.composeScalarReadMap`) so
+the object-space map arm serves it (+1: exists
+testComplexOrExistsToManyProperty). Lane move: exec-passing 61 → 60, M1
+rescued 55 → 54; disagree 0. NAMED after b46: the two `take` table-accessor
+plan goldens (testFilterLimit/LimitFilterInSequenceForTableAccessor) now
+print the type/resultColumns blocks byte-exact but their `sql` differs in
+engine alias breadcrumbs (`persontable_1`/`subselect`, star expanded) and
+the golden is `planToStringWithoutFormatting` (whitespace-stripped: the
+oracle cannot replay its sql node) — text-judged, DECISION family;
+`execute(...).activities->filter(a|$a->instanceOf(RelationalActivity))
+->at(0)->cast(...).sql` (stringToDate testToSQLString…UserDefinedFormat):
+the instanceOf filter over activity rows is unserved (1); scanColumns
+testNonDataTypeProperty maps over `removeDuplicates(scanColumns(...))`
+rows with a string mapper (1); `sum` over `firm.employees.age` behind a
+to-one head (testFilterTimesWithManyOperands, study #12).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

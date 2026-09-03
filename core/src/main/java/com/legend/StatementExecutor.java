@@ -781,7 +781,7 @@ final class StatementExecutor {
                 // mapping that BINDS the root class names the plan
                 java.util.List<String> qChain = firstFromChainMappings(
                         lam.body().get(lam.body().size() - 1));
-                String rc0 = rootGetAllClass(lam.body());
+                String rc0 = com.legend.plan.PlanText.rootGetAllClass(lam.body());
                 if (!qChain.isEmpty() && rc0 != null) {
                     var srcs = new com.legend.resolver.ClassSources(
                             env.ctx(), specs);
@@ -829,11 +829,19 @@ final class StatementExecutor {
             return sequencePlan(lam, mappingFqn, specs, env, quote, tz,
                     connName, dbType);
         }
-        String rootClass = rootGetAllClass(lam.body());
+        String rootClass = com.legend.plan.PlanText.rootGetAllClass(lam.body());
         if (rootClass == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "planToString: no getAll root (multi-node plans"
-                    + " pending)");
+            // a RELATION root (table accessor / tableToTDS): one node whose
+            // TDS tuples resolve through the root table's database
+            var tr = com.legend.plan.PlanText.rootTableReference(lam.body());
+            if (tr == null) {
+                throw new com.legend.error.NotImplementedException("planToString: no getAll or table root (multi-node plans pending)");
+            }
+            EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, planDialect(dbType, quote, tz),
+                    java.util.Map.of(), java.util.function.UnaryOperator.identity(), java.util.List.of());
+            return new ExecutionResult.Scalar(com.legend.plan.PlanText.singleRelationRoot(env.ctx(), tr.store(),
+                    tr.accessor(), tes.plan(), tes.sql(), lam.body(), connName),
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
         }
         java.util.List<String> chainMaps = new java.util.ArrayList<>(
                 rtArg != null
@@ -935,7 +943,7 @@ final class StatementExecutor {
                     ? spine.get(k).left() : spine.get(k + 1);
             String var = prevVar == null ? "tdsVar"
                     : "tdsVar_" + (allocs.size() - 1);
-            String aRoot = rootGetAllClass(java.util.List.of(at));
+            String aRoot = com.legend.plan.PlanText.rootGetAllClass(java.util.List.of(at));
             if (aRoot == null) {
                 return null;
             }
@@ -1113,7 +1121,7 @@ final class StatementExecutor {
             return new ExecutionResult.Scalar(children.get(0),
                     com.legend.compiler.element.type.Type.Primitive.STRING);
         }
-        String rootClass = rootGetAllClass(java.util.List.of(term));
+        String rootClass = com.legend.plan.PlanText.rootGetAllClass(java.util.List.of(term));
         if (rootClass == null) {
             throw new com.legend.error.NotImplementedException(
                     "plan: sequence terminal without a getAll root");
@@ -1922,18 +1930,6 @@ final class StatementExecutor {
                 null, fps);
         return new com.legend.plan.PlanNode("SequenceExecutionNode",
                 java.util.List.of(fpvn, rel), null, java.util.List.of());
-    }
-
-    static @com.legend.Nullable String rootGetAllClass(java.util.List<TypedSpec> body) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
-                return ga.classFqn();
-            }
-            work.addAll(t.children());
-        }
-        return null;
     }
 
     // =====================================================================

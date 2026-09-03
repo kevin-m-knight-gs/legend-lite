@@ -18,7 +18,16 @@ import java.util.List;
  * @param table the physical table name (e.g. {@code "T_PERSON"})
  * @param info  the relation type ({@link com.legend.compiler.element.type.Type.RelationType}) at {@code [1]}
  */
-public record TypedTableReference(String store, String table, ExprType info) implements TypedSpec {
+public record TypedTableReference(String store, String table, ExprType info,
+                                  boolean accessor) implements TypedSpec {
+    /** {@code accessor}: the {@code #>{db.TABLE}#} relation-accessor
+     * spelling (engine: columns typed as precisePrimitives from the
+     * DDL) versus {@code tableReference(db, schema, table)} (the Table
+     * value tableToTDS wraps — base pure types). */
+    public TypedTableReference(String store, String table, ExprType info) {
+        this(store, table, info, false);
+    }
+
     @Override
     public List<TypedSpec> children() {
         return List.of();

@@ -1033,7 +1033,9 @@ public class RelationalCorpusRunner {
             // move, disagree 0).
             // 63 -> 61 (batch 45): the flipped null-cell tests' sql-asserts
             // left the walk's lane (lane move, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(61, execPassing,
+            // 61 -> 60 (batch 46): the flipped exists test's sql-assert left
+            // the walk's lane (lane move, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(60, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1597,10 +1599,19 @@ public class RelationalCorpusRunner {
             // wire's one spelling, the referee's sentinel) instead of
             // walling as a lowering defect. +4 (inheritance testGetAll x2,
             // tree testProjectMerge, milestoning column projection), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(287L,
+            // 287 -> 285 (batch 46, 2026-09-03): planToString over a
+            // RELATION-rooted body (table accessor / tableToTDS: one node
+            // whose TDS tuples resolve through the root table's database;
+            // an accessor's columns spell the engine's precisePrimitives
+            // with their default relational types — PreciseTypes) and a
+            // map over a SCALAR read of an object chain composes the mapper
+            // over the read (Pipelines.composeScalarReadMap). +2
+            // (relationalTDSTypeForColumnsAndQuoting,
+            // testComplexOrExistsToManyProperty), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(285L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2286L,
+            org.junit.jupiter.api.Assertions.assertEquals(2288L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1846,8 +1857,10 @@ public class RelationalCorpusRunner {
                     // 68 -> 63; disagree 0).
                     // 57 -> 55 (batch 45): the same lane move as
                     // exec-passing 63 -> 61.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 55,
-                    "M1 h2-exec rescued fell below the 55 floor: "
+                    // 55 -> 54 (batch 46): the same lane move as
+                    // exec-passing 61 -> 60.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 54,
+                    "M1 h2-exec rescued fell below the 54 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

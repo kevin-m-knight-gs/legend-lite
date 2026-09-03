@@ -61,7 +61,7 @@ final class PlanAllocations {
                     com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
                     com.legend.plan.PlanText.constant(typeName, literal));
         }
-        String rootClass = StatementExecutor.rootGetAllClass(java.util.List.of(let.value()));
+        String rootClass = com.legend.plan.PlanText.rootGetAllClass(java.util.List.of(let.value()));
         if (rootClass == null) {
             // NON-RELATIONAL expression let — the engine's
             // PureExpressionPlatformExecutionNode: the expression rides

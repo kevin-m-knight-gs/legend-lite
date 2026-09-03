@@ -145,7 +145,7 @@ final class Anchors {
             case TypedSortBy sb -> sb.source() == c;
             case com.legend.compiler.spec.typed.TypedCast tc -> tc.source() == c;
             case TypedNativeCall nc -> !nc.args().isEmpty() && nc.args().get(0) == c
-                    && (ClassSorts.isFirstLike(nc) || StoreResolver.isStaticAt(nc)
+                    && (ClassSorts.isFirstLike(nc) || isStaticAt(nc)
                             || StoreResolver.isClassToOne(nc)
                             || Pipelines.isClassDistinct(nc)
                             || ClassSorts.classSortOf(nc) != null
@@ -154,6 +154,13 @@ final class Anchors {
                                     Substitution.ELEMENT_TO_PATH_FQN));
             default -> false;
         };
+    }
+
+    /** {@code at(coll, k)} with a LITERAL index — class-space slice. */
+    static boolean isStaticAt(TypedNativeCall c) {
+        return c.args().size() == 2
+                && "meta::pure::functions::collection::at".equals(c.callee().qualifiedName())
+                && c.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger;
     }
 
     /** {@code evaluateAndDeactivate(x)} — a tree-as-value native that is
@@ -202,7 +209,7 @@ final class Anchors {
             case TypedSortBy sb -> spaceOf(sb.source()) == Space.OBJECT;
             case TypedNativeCall c when ClassSorts.isFirstLike(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
-            case TypedNativeCall c when StoreResolver.isStaticAt(c) ->
+            case TypedNativeCall c when isStaticAt(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
             case TypedNativeCall c when StoreResolver.isClassToOne(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;

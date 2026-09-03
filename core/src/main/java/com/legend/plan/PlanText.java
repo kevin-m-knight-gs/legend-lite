@@ -96,6 +96,97 @@ public final class PlanText {
                 + ")\n";
     }
 
+    /** The class extent a plan body is rooted at (its first getAll), or
+     * null for a relation-rooted body. */
+    public static @com.legend.Nullable String rootGetAllClass(
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
+        var ga = firstOf(body, com.legend.compiler.spec.typed.TypedGetAll.class);
+        return ga == null ? null : ga.classFqn();
+    }
+
+    /** The table reference a relation-rooted plan body is rooted at. */
+    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
+            rootTableReference(java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
+        return firstOf(body, com.legend.compiler.spec.typed.TypedTableReference.class);
+    }
+
+    private static <T extends com.legend.compiler.spec.typed.TypedSpec> @com.legend.Nullable T firstOf(
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body, Class<T> kind) {
+        java.util.ArrayDeque<com.legend.compiler.spec.typed.TypedSpec> work =
+                new java.util.ArrayDeque<>(body);
+        while (!work.isEmpty()) {
+            var t = work.poll();
+            if (kind.isInstance(t)) {
+                return kind.cast(t);
+            }
+            work.addAll(t.children());
+        }
+        return null;
+    }
+
+    /** A RELATION-ROOTED single node (a table accessor / tableToTDS
+     * query has no class root): the TDS tuples resolve physically through
+     * the root table's database; an ACCESSOR root spells its columns as
+     * the engine's precisePrimitives with their default relational types
+     * ({@link PreciseTypes}), a tableToTDS root as base pure types. */
+    public static String singleRelationRoot(ModelContext ctx, String dbFqn,
+            boolean accessor, SqlQuery plan, String sql,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+            @com.legend.Nullable String connectionName) {
+        com.legend.compiler.element.type.Type.RelationType rt =
+                com.legend.compiler.element.type.Type.relationSchema(
+                        body.get(body.size() - 1).info().type());
+        if (rt == null) {
+            throw new NotImplementedException(
+                    "plan: relation-rooted node with a non-relation terminal pending");
+        }
+        String tuples = tdsTuples(ctx, dbFqn, plan, rt,
+                docsOf(body.get(body.size() - 1)), null, false);
+        if (accessor) {
+            StringBuilder sb = new StringBuilder();
+            for (String t : tuples.split("\\), \\(")) {
+                // (name, PureType, DB, "doc") — re-spell the middle pair
+                String u = t.startsWith("(") ? t.substring(1) : t;
+                u = u.endsWith(")") ? u.substring(0, u.length() - 1) : u;
+                String[] parts = u.split(", ", 4);
+                String pure = PreciseTypes.pureType(
+                        physicalType(ctx, dbFqn, plan, parts[0]));
+                sb.append(sb.length() > 0 ? ", " : "").append('(')
+                        .append(parts[0]).append(", ").append(pure).append(", ")
+                        .append(PreciseTypes.defaultSpelling(pure)).append(", ")
+                        .append(parts[3]).append(')');
+            }
+            tuples = sb.toString();
+        }
+        return "Relational\n(\n"
+                + "  type = TDS[" + tuples + "]\n"
+                + "  resultColumns = [" + resultColumns(ctx, dbFqn, plan, rt) + "]\n"
+                + "  sql = " + sql + "\n"
+                + "  connection = " + connectionName + "\n"
+                + ")\n";
+    }
+
+    /** The physical DDL type of the top select's column {@code name}. */
+    private static RelationalDataType physicalType(ModelContext ctx,
+            String dbFqn, SqlQuery plan, String name) {
+        SqlSelect s = (SqlSelect) plan;
+        String[] pc = null;
+        for (SqlSelect.Projection p : s.projections()) {
+            if (strip(p.alias() == null ? "" : p.alias()).equals(strip(name))
+                    && p.expr() instanceof SqlExpr.Column c) {
+                pc = resolvePhysical(s.from(), c.table(), strip(c.name()));
+            }
+        }
+        if (pc == null) {
+            pc = resolveStarColumn(ctx, dbFqn, s.from(), strip(name));
+        }
+        final String[] found = pc;
+        var td = ctx.findTableDefinition(dbFqn, found[0]).orElseThrow();
+        return td.columns().stream()
+                .filter(x -> x.name().equalsIgnoreCase(found[1]))
+                .findFirst().orElseThrow().dataType();
+    }
+
     /** The node's {@code type = ...} block (2-space indent, trailing
      * newline): TDS tuple form (no resultSizeRange), Class impls form,
      * or a bare primitive. */
@@ -928,6 +1019,18 @@ public final class PlanText {
                             return resolvePhysical(is.from(), c2.table(),
                                     strip(c2.name()));
                         }
+                    }
+                    // a STAR pass-through subselect (a table accessor's
+                    // filter/limit stage): the column resolves BY NAME
+                    // through the inner from tree
+                    boolean star = is.projections().isEmpty()
+                            || is.projections().stream()
+                                    .anyMatch(x -> x.expr() instanceof SqlExpr.Star);
+                    if (star && is.from() instanceof SqlSource.Table it) {
+                        return new String[]{it.name(), col};
+                    }
+                    if (star && is.from() instanceof SqlSource.Subselect isub) {
+                        return resolvePhysical(isub, isub.alias(), col);
                     }
                     throw new NotImplementedException("plan: column '" + col
                             + "' not a plain projection of subselect '"

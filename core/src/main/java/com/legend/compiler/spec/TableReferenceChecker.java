@@ -75,7 +75,8 @@ final class TableReferenceChecker {
                         "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
         String carried = strictDefault ? tableName.value() : resolvedName;
         return new TypedTableReference(dbRef.fullPath(), carried,
-                new ExprType(Type.relation(schema), sig.output().multiplicity()));
+                new ExprType(Type.relation(schema), sig.output().multiplicity()),
+                n == 2);
     }
 
     /**
