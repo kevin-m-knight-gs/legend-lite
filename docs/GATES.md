@@ -202,6 +202,22 @@ DuckDB 61s, G1 ~55s. Remaining over the 5.5-minute line: G6 (PCT)
 normalizer residual (5.7ms) the boot layer + per-mapping index legs
 remove. Ceiling re-arm stays pending on those two legs.
 
+**Gate-shape decision, 2026-09-02 — Channel B runs ONCE (G9).** Homework,
+not script-reading: G6's exact command (`cd pct && mvn clean test` with
+both root properties) executed the five Channel B suites alongside the
+five PCT suites (1115 tests), and G9 executed the same five classes on
+the same two properties (5 tests). The discovery / disagree-zero /
+decline-ceiling assertions live INSIDE those classes, so the two gates
+asserted the same facts on the same inputs — ~13s of duplicate test
+time per chain (ChannelBRelation 4.8s, Essential 3.4s, Standard 2.3s,
+Unclassified 1.2s, Grammar 1.2s). Cut: G6 excludes `ChannelB*`
+(`-Dtest='!ChannelB*'`) and is purely the PCT suites; G9 stays the one
+Channel B run with the roots pinned at the gate and its own log line
+(user choice: the dedicated gate is the cleaner home). Measured: G6 86s
+→ 82s (1115 → 1110 tests), G9 18s; chain 5m49s — the module's build and
+JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
+time; the cut is kept for its shape (no fact asserted twice).
+
 **Batch 11 (boot layer, same day): chain 5m51s** — G1 38s (clean build;
 29s warm), G2 9s, G4 62s, G5 40s, G6 86s, G7 25s, G9 19s, G8 72s. A model
 compile is 0.5ms (8.0ms at the breach, 2.3ms before group F). The 21s
