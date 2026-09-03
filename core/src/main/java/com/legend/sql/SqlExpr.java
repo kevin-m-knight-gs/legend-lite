@@ -12,7 +12,7 @@ public sealed interface SqlExpr
         permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StarExcept, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
                 SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.FormatLit, SqlExpr.ArrayLit,
-                SqlExpr.OrderedListAgg,
+                SqlExpr.OrderedListAgg, SqlExpr.JsonArray,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CompactList,
@@ -95,6 +95,7 @@ public sealed interface SqlExpr
             case Cast c -> List.of(c.value());
             case FoldCall f -> List.of(f.source(), f.lambda(), f.init());
             case JsonObject j -> j.kv();
+            case JsonArray j -> j.elements();
             case JsonArrayAgg j -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 out.add(j.value());
@@ -188,6 +189,7 @@ public sealed interface SqlExpr
             case FoldCall f -> new FoldCall(cs.get(0), (Lambda) cs.get(1),
                     cs.get(2), f.accIsList(), f.homogeneous());
             case JsonObject ignored -> new JsonObject(cs);
+            case JsonArray ignored -> new JsonArray(cs);
             case JsonArrayAgg j -> {
                 java.util.List<JsonArrayAgg.Key> ks = new java.util.ArrayList<>();
                 for (int i = 0; i < j.orderKeys().size(); i++) {
@@ -831,6 +833,24 @@ public sealed interface SqlExpr
 
         public JsonObject(List<SqlExpr> kv) {
             this(kv, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /**
+     * {@code json_array(e1, e2, ...)} &mdash; a JSON ARRAY of the given
+     * values, each keeping its own JSON kind (strings quoted, numbers
+     * bare): the result-envelope's cell rows, column lists and activity
+     * lists (a semantic node — the dialect spells the constructor).
+     */
+    record JsonArray(List<SqlExpr> elements, TypeFact type)
+            implements SqlExpr {
+        public JsonArray {
+            elements = List.copyOf(elements);
+            type = SqlTyping.T_JSON;
+        }
+
+        public JsonArray(List<SqlExpr> elements) {
+            this(elements, SqlTyping.UNKNOWN);
         }
     }
 

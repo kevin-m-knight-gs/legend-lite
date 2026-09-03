@@ -240,6 +240,7 @@ final class SubselectPrune {
             case SqlExpr.CompactList cl -> collectExpr(cl.list(), r);
             case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));
+            case SqlExpr.JsonArray ja0 -> ja0.elements().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArrayAgg ja -> {
                 collectExpr(ja.value(), r);
                 // order keys are LIVE column refs — invisible keys let the

@@ -626,6 +626,8 @@ meta::pure::functions::asserts::assertJsonStringsEqual(expected:meta::pure::meta
 meta::json::parseJSON(string:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[1]
 meta::json::toJSON(obj:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1]
 meta::json::toPrettyJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1]
+meta::json::getValue(json:meta::json::JSONObject[1], key:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[0..1]
+meta::json::toCompactJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::boolean::equalJsonStrings(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1]
 meta::pure::functions::relation::columns<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Column<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any>[*]
 meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1]

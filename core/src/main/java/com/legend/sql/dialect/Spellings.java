@@ -80,6 +80,7 @@ public record Spellings(Map<SqlFn, String> fnNames) {
         // (H2 2.1.214 has no hash() at all; the old row was phantom)
         m.put(SqlFn.JARO_WINKLER, "jaro_winkler_similarity");
         m.put(SqlFn.JSON_TYPE, "json_type");
+        m.put(SqlFn.JSON_PRETTY, "json_pretty");
         m.put(SqlFn.LEAST, "least");
         m.put(SqlFn.LEFT, "left");
         m.put(SqlFn.LENGTH, "length");

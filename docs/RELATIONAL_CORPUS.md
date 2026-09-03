@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 74 | 13 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 247 | 3 | 6 | 3 | 2 | 3 | 1 | 16 |
+| functions/tests | 259 | 247 | 3 | 6 | 3 | 2 | 2 | 0 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 19 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 81 | 2 | 4 | 0 | 1 | 2 | 0 | 5 |
+| tests/query | 87 | 82 | 2 | 3 | 0 | 1 | 2 | 0 | 5 |
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2351** | 51 | 125 | 48 | 12 | 14 | 30 | 165 |
+| **total** | 2575 | **2352** | 51 | 124 | 48 | 12 | 13 | 29 | 165 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 165; flags overlap — the union is 206).
+SOFT-PASS RECONCILIATION (F2.1): 2352 PASS = 2148 clean + 204 carrying softness (sqldiff 12, advisory 13, 0-asserts 29, text-rescued 165; flags overlap — the union is 204).
 
 ### mapping walls (dropped at assembly)
 
@@ -1319,7 +1319,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 2145 clean + 206 carrying softness 
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: multiplicity [*] is not compatible with [1]
 - FAIL testUnionTwoRelationMappings_ManyColumnProject [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
 - FAIL testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
-- ERROR testPushDownProjectWithParameter [tests/query]: unknown type 'JSONObject' in @JSONObject
 - ERROR testFilterUsingArcCosFunction [tests/query]: Unable to compute acos of 1.1
 - ERROR testFilterUsingArcSinFunction [tests/query]: Unable to compute asin of 1.1
 - ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)

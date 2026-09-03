@@ -474,7 +474,16 @@ class JavaEvalLedgerTest {
             // seed rows (constructed metamodel instances as rows) and
             // the execution setup seeds them after the model's own —
             // the same env-not-static carriage; no evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2594),
+            // 2594 -> 2680 (harness burn-down batches 14-15, GROUP D —
+            // the router's string entry, 2026-09-03): ORCHESTRATION only —
+            // the executeLegendQuery result frame (vars bound as lets, the
+            // envelope over the chain, the activity text render, runtime
+            // setups for inline frames), the statement-sequence route for
+            // helper bodies with non-let intermediates, and the post-inline
+            // adjudication of a string-entry read. Value evaluation still
+            // lowers to SQL (TypedJsonResult / TypedJsonAccess); nothing
+            // here computes a value host-side.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2680),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

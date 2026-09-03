@@ -419,9 +419,32 @@ public final class PlatformTypes {
         return t instanceof Type.ClassType c && c.fqn().equals(NIL);
     }
 
-    /** The semi-structured JSON carrier. */
+    /** The semi-structured JSON carrier — the Variant class, and the
+     * {@code meta::json} tree classes (real json.pure:32-70), whose values
+     * RIDE the same carrier (a JSON element IS a JSON value; the classes
+     * are its kinds). JSONKeyValue rides it too: a member is represented
+     * by its value, the key being spelled by the access. */
     public static boolean isVariant(Type t) {
-        return t instanceof Type.ClassType c && c.fqn().equals(VARIANT);
+        return t instanceof Type.ClassType c
+                && (c.fqn().equals(VARIANT) || JSON_FAMILY.contains(c.fqn()));
+    }
+
+    public static final String JSON_ELEMENT = "meta::json::JSONElement";
+    public static final String JSON_OBJECT = "meta::json::JSONObject";
+    public static final String JSON_ARRAY = "meta::json::JSONArray";
+    public static final String JSON_STRING = "meta::json::JSONString";
+    public static final String JSON_NUMBER = "meta::json::JSONNumber";
+    public static final String JSON_BOOLEAN = "meta::json::JSONBoolean";
+    public static final String JSON_NULL = "meta::json::JSONNull";
+    public static final String JSON_KEY_VALUE = "meta::json::JSONKeyValue";
+    /** The {@code meta::json} tree classes (json.pure:32-70). */
+    public static final java.util.Set<String> JSON_FAMILY = java.util.Set.of(
+            JSON_ELEMENT, JSON_OBJECT, JSON_ARRAY, JSON_STRING, JSON_NUMBER,
+            JSON_BOOLEAN, JSON_NULL, JSON_KEY_VALUE);
+
+    /** A {@code meta::json} tree class (element kinds + the key-value pair). */
+    public static boolean isJsonElement(Type t) {
+        return t instanceof Type.ClassType c && JSON_FAMILY.contains(c.fqn());
     }
 
     /** The {@code List<T>} collection carrier (parameterized form). */

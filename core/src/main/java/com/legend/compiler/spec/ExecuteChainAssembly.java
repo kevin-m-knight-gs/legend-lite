@@ -157,7 +157,8 @@ public final class ExecuteChainAssembly {
         q = peelSelections(q, letPrefix);
         if (!(q instanceof TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
-                    "executeLegendQuery whose query argument is not a lambda");
+                    "executeLegendQuery whose query argument is not a lambda ("
+                            + q.getClass().getSimpleName() + ")");
         }
         // a lambda's info is the bare FunctionType, or the element
         // compiler's WRAPPED Function<{…}> / FunctionDefinition<{…}>
@@ -175,14 +176,25 @@ public final class ExecuteChainAssembly {
         }
         Map<String, TypedSpec> vars = varPairs(
                 letBound(ec.args().get(1), letPrefix), letPrefix);
+        // an α-RENAMED lambda (the inliner's fresh binders inside an inlined
+        // helper body — `_i<n>`, the source name gone) binds by POSITION:
+        // the vars list is spelled in parameter order (the engine binds by
+        // name; position is the one fact a renamed binder still carries).
+        // Only when NO parameter matches by name and the counts agree.
+        boolean positional = !lam.parameters().isEmpty()
+                && lam.parameters().size() == vars.size()
+                && lam.parameters().stream().noneMatch(vars::containsKey)
+                && lam.parameters().stream().allMatch(p -> p.startsWith("_i"));
+        List<TypedSpec> positionalValues = new ArrayList<>(vars.values());
         List<TypedSpec> body = new ArrayList<>();
         for (int i = 0; i < lam.parameters().size(); i++) {
             String name = lam.parameters().get(i);
-            TypedSpec value = vars.get(name);
+            TypedSpec value = positional ? positionalValues.get(i) : vars.get(name);
             if (value == null) {
                 throw new com.legend.error.NotImplementedException(
                         "executeLegendQuery: no vars pair binds the query"
-                                + " parameter '$" + name + "'");
+                                + " parameter '$" + name + "' (parameters "
+                                + lam.parameters() + ", vars " + vars.keySet() + ")");
             }
             TypedSpec coerced = coerceVar(value, ft.params().get(i));
             body.add(new TypedLet(name, coerced, coerced.info()));
@@ -304,7 +316,8 @@ public final class ExecuteChainAssembly {
      * TDS and class roots (the tdsBuilder / classBuilder envelopes) and
      * String scalars (JSON-quoted) are the next leg — each a NAMED wall. */
     public static TypedSpec legendQueryEnvelope(TypedSpec chain,
-            com.legend.compiler.element.ModelContext model) {
+            com.legend.compiler.element.ModelContext model,
+            @com.legend.Nullable String activitySql) {
         TypedSpec root = chain;
         while (root instanceof TypedFrom f) {
             root = f.source();
@@ -333,9 +346,14 @@ public final class ExecuteChainAssembly {
                     List.of(chain), str);
         }
         if (Type.isRelation(t)) {
-            throw new com.legend.error.NotImplementedException(
-                    "executeLegendQuery over a TDS result: the tdsBuilder"
-                            + " JSON envelope is not emitted yet");
+            return new com.legend.compiler.spec.typed.TypedJsonResult(chain,
+                    com.legend.compiler.spec.typed.TypedJsonResult.Kind.TDS,
+                    activitySql, str);
+        }
+        if (t instanceof Type.ClassType && chain.info().multiplicity().isMany()) {
+            return new com.legend.compiler.spec.typed.TypedJsonResult(chain,
+                    com.legend.compiler.spec.typed.TypedJsonResult.Kind.CLASS,
+                    activitySql, str);
         }
         throw new com.legend.error.NotImplementedException(
                 "executeLegendQuery over a " + t.typeName()

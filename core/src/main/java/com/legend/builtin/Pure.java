@@ -2373,6 +2373,24 @@ public final class Pure {
     // Real core/external/format/json/toJSON.pure — the JSONElement
     // pretty-printer the graphFetch subType tests compare with.
     public static final NativeFunctionDefinition TO_PRETTY_JSON_STRING = signature("native function meta::json::toPrettyJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1];");
+    // The JSON TREE MODEL — real core_functions_json/json.pure:32-70,
+    // VERBATIM (equality stereotypes omitted; JSONNull's value:Nil[0] is
+    // a property with no value — registered without it). The values ride
+    // the VARIANT lane (PlatformTypes.isVariant): navigation is
+    // TypedJsonAccess (JsonChecker emits it from the property reads).
+    public static final ClassDefinition JSON_BOOLEAN = nativeClass("native Class meta::json::JSONBoolean extends meta::json::JSONElement { value: meta::pure::metamodel::type::Boolean[1]; }");
+    public static final ClassDefinition JSON_STRING = nativeClass("native Class meta::json::JSONString extends meta::json::JSONElement { value: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition JSON_NUMBER = nativeClass("native Class meta::json::JSONNumber extends meta::json::JSONElement { value: meta::pure::metamodel::type::Number[1]; }");
+    public static final ClassDefinition JSON_NULL = nativeClass("native Class meta::json::JSONNull extends meta::json::JSONElement {}");
+    public static final ClassDefinition JSON_ARRAY = nativeClass("native Class meta::json::JSONArray extends meta::json::JSONElement { values: meta::json::JSONElement[*]; }");
+    public static final ClassDefinition JSON_KEY_VALUE = nativeClass("native Class meta::json::JSONKeyValue extends meta::pure::metamodel::type::Any { key: meta::json::JSONString[1]; value: meta::json::JSONElement[1]; }");
+    public static final ClassDefinition JSON_OBJECT = nativeClass("native Class meta::json::JSONObject extends meta::json::JSONElement { keyValuePairs: meta::json::JSONKeyValue[*]; }");
+    // Real core/external/format/json/jsonExtension.pure:37 (getValue = the
+    // keyValuePairs->filter(key)->value member read) and json.pure:62
+    // (toCompactJSONString); signatures verbatim, lowered on the variant
+    // lane (Scalars: VARIANT_GET / the JSON text).
+    public static final NativeFunctionDefinition GET_VALUE__JSON_OBJECT_1__STRING_1 = signature("native function meta::json::getValue(json:meta::json::JSONObject[1], key:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[0..1];");
+    public static final NativeFunctionDefinition TO_COMPACT_JSON_STRING = signature("native function meta::json::toCompactJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition EQUAL_JSON_STRINGS__STRING_1__STRING_1 = signature("native function meta::pure::functions::boolean::equalJsonStrings(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // columns (REAL core_functions_relation columns.pure-adjacent

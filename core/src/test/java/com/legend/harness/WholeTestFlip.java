@@ -319,15 +319,24 @@ public final class WholeTestFlip {
                 // burn list — walk re-scores (safe: the transaction
                 // rolled the attempt back), row counted
                 if (System.getenv("LL_TMP_DEBUG") != null) {
+                    StackTraceElement[] st = e.getStackTrace();
                     System.err.println("[flip-fail-debug] " + test + " :: "
-                            + e.getMessage());
+                            + e.getClass().getSimpleName() + ": "
+                            + String.valueOf(e.getMessage()).replace('\n', '|')
+                            + " @ " + (st.length > 0 ? st[0] : "?")
+                            + (st.length > 1 ? " < " + st[1] : "")
+                            + (st.length > 2 ? " < " + st[2] : ""));
                 }
                 reason = "platform-fail: " + bucketOf(e.getMessage());
             } catch (RuntimeException e) {
                 if (System.getenv("LL_TMP_DEBUG") != null) {
+                    StackTraceElement[] st = e.getStackTrace();
                     System.err.println("[flip-fail-debug] " + test + " :: "
                             + e.getClass().getSimpleName() + ": "
-                            + e.getMessage());
+                            + e.getMessage()
+                            + " @ " + (st.length > 0 ? st[0] : "?")
+                            + (st.length > 1 ? " < " + st[1] : "")
+                            + (st.length > 2 ? " < " + st[2] : ""));
                 }
                 reason = "wall-exec: " + e.getClass().getSimpleName()
                         + ": " + bucketOf(e.getMessage());

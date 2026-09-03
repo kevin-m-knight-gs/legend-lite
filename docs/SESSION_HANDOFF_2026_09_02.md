@@ -1222,11 +1222,77 @@ Harness arms still standing (they serve the named remainder): ElqSplice,
 clgArm, the walk's QuotedSpecParser.fold site — each dies with its
 last fallback.
 
+**Batch 15 — GROUP D leg 2, the meta::json TREE on the variant lane
+(2026-09-03): ratchet 791/1782 → 782/1791 (+9, no losses; chain 5m56s,
+all green).** The `meta::json` classes (real json.pure:32-70, verbatim
+— JSONBoolean/String/Number/Null/Array/Object + JSONKeyValue) are
+registered natively and their VALUES ride the variant lane
+(`PlatformTypes.isVariant` covers the family): a JSON element IS the
+database's JSON value; the classes are its kinds. Reads type BY
+EMISSION in `JsonChecker` onto two HIR nodes — `TypedJsonAccess`
+(MEMBER = `keyValuePairs->filter(kv|$kv.key.value == key)` and
+`getValue(key)`, MEMBERS = unfiltered `keyValuePairs` (`-> '$.*'` as a
+list), ELEMENTS = `JSONArray.values`, TEXT/NUMBER/BOOLEAN = the scalar
+kinds' `.value` through the `'$'` extraction, IDENTITY =
+`JSONKeyValue.value`; a many receiver auto-maps and the list map
+FLATTENS the MEMBERS/ELEMENTS mappers) and `TypedJsonResult` (the
+string entry's tdsBuilder / classBuilder RESULT envelope over a
+TDS/class-rooted chain — `{"builder":…,"activities":[{"_type":
+"relational","sql":<engine-style render of the chain>}],"result":
+{"columns":[…],"rows":[{"values":[…]}…]}}`, one scalar subquery; the
+class kind wraps the graph emission's objects). `parseJSON` = the JSON
+cast (with the engine parser's one tolerance the assert reader already
+mirrors — `}{` reads as `},{`), `toCompactJSONString` = the JSON text,
+`toPrettyJSONString` = `json_pretty` (Spellings row; typed VARCHAR),
+casts within the family are identity, `^JSONArray(values=…)` emits
+`toVariant(values)->cast(@JSONArray)`. New SQL node `SqlExpr.JsonArray`
+(`json_array(…)` / H2 `JSON_ARRAY`), owner `lowering/JsonEmission`
+(+ `JsonLane` for the rules, incl. fromJson — the variant lane's one
+owner). Executor: a helper whose body is a STATEMENT SEQUENCE (non-let
+intermediates, through thin forwarding overloads) runs as one
+(`executeCallStatement`) — AFTER the assert root arms; an inlined
+string-entry call re-offers to the frame splice after argument
+substitution (its query argument is a helper parameter until then);
+α-renamed query parameters (`_i<n>`) bind by POSITION; an inline frame
+runs the runtime's setup SQL before its read; a helper that β-reduced to
+an assert over a string-entry read is adjudicated post-inline (scoped —
+adjudicating every inlined assert regressed ~200 text-golden flips).
+List `sortBy` now zips element indices (`list_zip`) instead of indexing
+the source inside lambdas (DuckDB refuses subqueries in lambdas; the
+(k,i,v) struct sort keeps the stable tie-break; positional
+`struct_extract(z, 1)` for list_zip's unnamed structs). Flips: slice/
+take/limit/drop WithVariables 4, paginate 2 (the activity SQL text
+matched the engine golden byte-for-byte), enumPushDown 1,
+testSubTypeGraphFetch 2 (all 15 of that file now flip). Guards moved
+with receipts: native-class count 236 → 243, JavaEvalLedger
+StatementExecutor 2594 → 2680 (orchestration only), text-only 40 → 35;
+Lowerer/Scalars/StoreResolver held under 3500 by owner extraction.
+GROUP D REMAINDER (named): testParametrizedEnumFilter (CSV runtime COPY
+chain over a navigated connection store — the CSV seed route through the
+alias channel), testSpecialUnion_m2m2r (M2M union-root mapping
+resolution), XStore …DatePropagationForMilestonedPropertyConstraint /
+…ZeroToOne (a MODEL in a string — the compile-once overlay leg).
+Adjacent: testFlatten_ViaNoArgMapping(_ViaAssociation) (from() mapping
+argument is a let-bound helper CALL building ^Mapping),
+testMilestonedProperty (plan-text golden), testMilestonedRootAndMilestonedProperty
+("trailing JSON" — a JSON text shape).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 791 fallbacks / 1782 flipped (batch 14 = group D leg 1;
-group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
-ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
+legs).** State: 782 fallbacks / 1791 flipped (batches 14–15 = group D
+legs 1–2; group F LANDED — batch 7 above; batches 8–13 = speed +
+architecture, ratchet unchanged), exec-passing 344, quarantine 125 rows
+/ 9 walls. Census after batch 15 (bucket dump): text-policy 65; "class
+query under TypedMap (HN vocabulary)" 64 (heterogeneous); `mapping::sql`
+45 (group C); FunctionDefinition.expressionSequence 43+26 (group A);
+join-condition-reads-a-whole-variable 43; no-scalar-lowering 27+9;
+scanRelations Join 21 (group E); plan parametersValues 17; activities
+14; filter-predicate isolation 13+12; multiplicity 11; toPostgresModel
+newState 11 (group G); group Q plan reads 12 (`expected Date/Integer/
+String, got Any` — executionPlanTest's `$result.rootExecutionNode
+.executionNodes->filter(instanceOf(RelationalInstantiationExecutionNode))
+->at(0)…->cast(@SQLExecutionNode).sqlQuery` + assertEqualsH2Compatible;
+the route is plan nodes as rows + the SQL-text referee).
 1. **Group F — DONE (batch 7).** Was: mapping-metamodel query functions (27 tests; §1 of the
    homework: testRelationalExtension.pure 20, testExtendsForMainTable 5
    [DONE], testExtendsForPrimaryKey 1 [DONE], testSubtypeMapping 1)**:

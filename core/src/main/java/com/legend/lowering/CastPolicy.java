@@ -96,6 +96,15 @@ final class CastPolicy {
             return value;
         }
         boolean many = isMany;
+        // meta::json KIND casts (->cast(@JSONObject) over an element, over
+        // a list of elements): the value IS the JSON value already —
+        // identity in every multiplicity (the kind is a type assertion).
+        if (c.source().info().type() instanceof Type.ClassType js
+                && PlatformTypes.isJsonElement(js)
+                && c.target() instanceof Type.ClassType jt
+                && PlatformTypes.isVariant(jt)) {
+            return value;
+        }
         // THE NO-RE-WRAP DECISION (M4 §3.3): a LITERAL-marked value is
         // a self-describing Any carrier — an Any-conformance keeps the
         // mark unchanged. The carrier casts below would re-carrier

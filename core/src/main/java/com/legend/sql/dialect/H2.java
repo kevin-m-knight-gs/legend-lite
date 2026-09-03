@@ -548,6 +548,12 @@ public class H2 extends AnsiSqlRenderer {
      * {@code JSON_OBJECT('k': v, ...)}. The kv list alternates
      * key-expression, value-expression. */
     @Override
+    protected String jsonArray(SqlExpr.JsonArray j) {
+        return "JSON_ARRAY(" + j.elements().stream()
+                .map(e -> expr(e, 0)).collect(java.util.stream.Collectors.joining(", ")) + ")";
+    }
+
+    @Override
     protected String jsonObject(SqlExpr.JsonObject j) {
         StringBuilder sb = new StringBuilder("JSON_OBJECT(");
         List<SqlExpr> kv = j.kv();

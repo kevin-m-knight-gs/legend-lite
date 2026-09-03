@@ -1815,12 +1815,8 @@ final class Scalars {
                         "unsupported date format " + enumName(n.args().get(1)));
             });
         }
-        // fromJson(String): the string IS the variant — a JSON cast.
-        for (String f : Pure.nativeKeysAt("fromJson")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
-                    SqlType.Scalar.JSON));
-        }
-        ListEncodings.registerConcatenate(RULES);   // the encoding's owner
+        JsonLane.register(RULES);   // fromJson + meta::json: the variant lane
+        ListEncodings.registerConcatenate(RULES);
         // tail/init of a TO-ONE value = EMPTY (all-but-first/-last of 1).
         for (String f : Pure.nativeKeysAt("tail")) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit

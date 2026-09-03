@@ -466,6 +466,7 @@ public final class StoreResolver {
                     structural(pa, context);
             case TypedFilter f when anchored(f.source()) ->
                     structural(f, context);
+            case TypedSpec js when com.legend.compiler.spec.typed.TypedJsonAccess.isJsonNode(js) -> structural(js, context);
             case TypedProject p when anchored(p.source()) ->
                     structural(p, context);
             case TypedSort s when anchored(s.source()) ->

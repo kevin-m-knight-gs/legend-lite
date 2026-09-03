@@ -130,6 +130,10 @@ final class CollectionLanes {
             case TypedFilter f -> valueLane(f.source());
             case TypedMap m -> valueLane(m.source());
             case TypedCast c -> valueLane(c.source());
+            // meta::json navigation: the SOURCE decides; a result envelope is
+            // one scalar string value
+            case com.legend.compiler.spec.typed.TypedJsonAccess ja -> valueLane(ja.source());
+            case com.legend.compiler.spec.typed.TypedJsonResult ignored -> true;
             case TypedSlice s -> valueLane(s.source());
             case TypedSort s -> valueLane(s.source());
             case TypedSortBy s -> valueLane(s.source());

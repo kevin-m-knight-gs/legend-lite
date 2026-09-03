@@ -161,6 +161,13 @@ public final class ResultEnvelopeSplice {
         // where it stands, no separate eager run
         if (n instanceof TypedNativeCall lq
                 && PlatformTypes.isLegendQueryFqn(lq.callee().qualifiedName())) {
+            // the hook fires BEFORE and AFTER the inliner's env
+            // substitution: a still-variable query argument (a helper's
+            // parameter — runLegendTest($f, …)) waits for the substituted
+            // pass; the frame builds once the lambda is in view
+            if (lq.args().get(0) instanceof TypedVariable) {
+                return n;
+            }
             return frames.inlineExecute(lq, false).chain();
         }
         // $result.rows->size(): POST-EXECUTE row count. The engine

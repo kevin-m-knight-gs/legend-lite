@@ -540,7 +540,11 @@ class NativeFunctionTest {
         // models (real relational.pure:392-520 — Varchar/Char/Binary/
         // Varbinary/Decimal/Numeric carry their size/precision/scale) and
         // +Property (real m3 — the property-mapping rows' property end).
-        assertEquals(236, Pure.allNativeClasses().size(),
+        // 236 -> 243 (harness burn-down batch 15 — GROUP D leg 2,
+        // 2026-09-03): the meta::json tree classes (real json.pure:32-70 —
+        // JSONBoolean/String/Number/Null/Array/Object + JSONKeyValue), the
+        // string entry's result JSON navigated on the variant lane.
+        assertEquals(243, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -1037,7 +1041,22 @@ class NativeFunctionTest {
         for (ClassDefinition c : Pure.allNativeClasses()) {
             assertTrue(c.isNative(),
                     () -> "native class '" + c.qualifiedName() + "' has isNative=false");
-            if (c.qualifiedName().equals("meta::pure::functions::collection::Pair")) {
+            if (c.qualifiedName().startsWith("meta::json::JSON")) {
+                // the meta::json tree classes declare exactly their real
+                // json.pure:32-70 properties (JSONNull's value:Nil[0] is
+                // registered without the property — no value to hold)
+                List<String> props = c.properties().stream().map(p -> p.name()).toList();
+                List<String> expected = switch (c.qualifiedName()) {
+                    case "meta::json::JSONBoolean", "meta::json::JSONString",
+                            "meta::json::JSONNumber" -> List.of("value");
+                    case "meta::json::JSONArray" -> List.of("values");
+                    case "meta::json::JSONObject" -> List.of("keyValuePairs");
+                    case "meta::json::JSONKeyValue" -> List.of("key", "value");
+                    default -> List.of();
+                };
+                assertEquals(expected, props,
+                        c.qualifiedName() + " declares its real json.pure properties");
+            } else if (c.qualifiedName().equals("meta::pure::functions::collection::Pair")) {
                 assertEquals(List.of("first", "second"),
                         c.properties().stream().map(p -> p.name()).toList(),
                         "Pair declares exactly first/second (real pure)");

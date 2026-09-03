@@ -499,7 +499,20 @@ public final class UserCallInliner {
                 // untouched subtrees keep identity (F13 leans on it: the
                 // instance-identity site key is the NODE — a gratuitous
                 // rebuild would re-mint a let-bound instance per side)
-                yield sameRefs(args, c.args()) ? c : c.withChildren(args);
+                TypedSpec rebuilt = sameRefs(args, c.args()) ? c : c.withChildren(args);
+                // the STRING ENTRY (executeLegendQuery) inside an inlined
+                // body: its query argument is a helper parameter until the
+                // substitution above — the frame splice (the hook) sees
+                // the lambda only NOW; re-offer the substituted call
+                if (hook != null && rebuilt != c
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isLegendQueryFqn(c.callee().qualifiedName())) {
+                    TypedSpec h = hook.apply(rebuilt, bound.keySet());
+                    if (h != rebuilt) {
+                        yield rewrite(h, env);
+                    }
+                }
+                yield rebuilt;
             }
             // Resolver OUTPUT vocabulary — never present pre-H; fails loud
             // here on a pipeline reordering rather than silently rebuilding.

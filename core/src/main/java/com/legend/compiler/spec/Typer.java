@@ -1379,7 +1379,12 @@ final class Typer {
             case LIMIT, TAKE -> SlicingChecker.limit(this, af, env);
             case DROP -> SlicingChecker.drop(this, af, env);
             case SLICE -> SlicingChecker.slice(this, af, env);
-            case FILTER -> FilterChecker.check(this, af, env);
+            case FILTER -> {
+                // the meta::json member idiom (keyValuePairs->filter by key)
+                // is a JSON access, never a collection filter
+                TypedSpec jm = JsonChecker.filter(this, af, env);
+                yield jm != null ? jm : FilterChecker.check(this, af, env);
+            }
             case MAP -> MapChecker.check(this, af, env);
         };
     }
@@ -2869,6 +2874,12 @@ final class Typer {
             return colsMeta;
         }
         TypedSpec source = synth(ap.receiver(), env);
+        // the meta::json tree classes: reads are JSON navigation on the
+        // variant lane (JsonChecker), never class-property access
+        if (com.legend.compiler.element.type.PlatformTypes
+                .isJsonElement(source.info().type())) {
+            return JsonChecker.access(this, ap, source, env);
+        }
         // leg 3b: the deactivate reflection chain folds HERE, at TYPE time
         // — .genericType hops the carrier, .rawType lands the DECLARED
         // type as a TypedTypeRef (the verdict layer's existing surface).

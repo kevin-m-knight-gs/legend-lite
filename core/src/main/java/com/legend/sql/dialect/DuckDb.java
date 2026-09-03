@@ -344,6 +344,11 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected String structGet(SqlExpr.StructGet g) {
+        // a POSITIONAL field (list_zip yields unnamed structs): the
+        // 1-based index, never a quoted name
+        if (g.field().chars().allMatch(Character::isDigit)) {
+            return "struct_extract(" + expr(g.source(), 0) + ", " + g.field() + ")";
+        }
         return "struct_extract(" + expr(g.source(), 0) + ", "
                 + stringLit(g.field()) + ")";
     }

@@ -230,6 +230,10 @@ public abstract class SqlRewriter {
                 List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);
                 yield kv == j.kv() ? j : new SqlExpr.JsonObject(kv);
             }
+            case SqlExpr.JsonArray j -> {
+                List<SqlExpr> es = mapList(j.elements(), this::rewriteExpr);
+                yield es == j.elements() ? j : new SqlExpr.JsonArray(es);
+            }
             case SqlExpr.JsonArrayAgg ja -> {
                 SqlExpr v = rewriteExpr(ja.value());
                 List<SqlExpr.JsonArrayAgg.Key> ks = mapList(ja.orderKeys(), k -> {

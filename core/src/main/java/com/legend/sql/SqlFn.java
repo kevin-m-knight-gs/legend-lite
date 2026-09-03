@@ -83,7 +83,9 @@ public enum SqlFn {
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
-    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE;
+    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
+    /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
+    JSON_PRETTY;
 
     /** Whether this function's RESULT is a list value — function
      * METADATA (moved here from the dissolved ListShapes): read by the

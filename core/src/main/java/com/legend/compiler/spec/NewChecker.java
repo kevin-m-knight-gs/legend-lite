@@ -123,6 +123,10 @@ final class NewChecker {
     }
 
     static TypedSpec check(Typer t, NewInstance ni, Env env) {
+        TypedSpec json = JsonChecker.newInstance(t, ni, env);
+        if (json != null) {
+            return json;
+        }
         if (t.model().findClass(ni.className()).isEmpty()) {
             throw new TypeInferenceException("unknown class '" + ni.className() + "' in ^" + ni.className() + "(…)");
         }

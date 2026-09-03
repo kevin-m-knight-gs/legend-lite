@@ -128,6 +128,7 @@ final class FoldToListReduce extends SqlRewriter {
             // JSON envelope nodes never appear inside fold bodies (the
             // serialize envelope is a projection-level construct).
             case SqlExpr.JsonObject j -> j;
+            case SqlExpr.JsonArray j -> j;
             case SqlExpr.JsonArrayAgg j -> j;
             case com.legend.sql.SqlAgg.Reducer r -> r;
         };

@@ -1226,10 +1226,26 @@ public class RelationalCorpusRunner {
             // formals), compileLegendGrammar over a functions-only payload
             // as the QuotedGrammarCall carrier (testGraphFetchMilestoning 3;
             // ->at(i)->cast(@FunctionDefinition) selects structurally).
-            org.junit.jupiter.api.Assertions.assertEquals(791L,
+            // 791/1782 -> 782/1791 (batch 15 — GROUP D leg 2, 2026-09-03):
+            // the meta::json tree classes (json.pure:32-70) on the VARIANT
+            // lane — parseJSON = the JSON cast, keyValuePairs->filter(key)
+            // .value / getValue = the member access, .values = the element
+            // list, .value = the text/number/boolean, casts within the
+            // family identity, toCompactJSONString/toPrettyJSONString the
+            // JSON text (TypedJsonAccess, JsonChecker); the string entry's
+            // tdsBuilder/classBuilder RESULT envelopes (TypedJsonResult) with
+            // the activity SQL rendered engine-style; a helper whose body is
+            // a statement sequence runs as one (executeCallStatement); the
+            // inlined string-entry call re-offers to the frame splice after
+            // argument substitution; α-renamed query parameters bind by
+            // position. +9 = runLegendTest 4 (slice/take/limit/drop
+            // WithVariables), paginate 2, enumPushDown 1, testSubTypeGraphFetch
+            // 2 (JSONArray sort — list sortBy now zips indices instead of
+            // indexing the source inside lambdas).
+            org.junit.jupiter.api.Assertions.assertEquals(782L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1782L,
+            org.junit.jupiter.api.Assertions.assertEquals(1791L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1247,7 +1263,14 @@ public class RelationalCorpusRunner {
             // 43 -> 40 (§5 first cut): 3 plan-literal text-only
             // asserts joined the plan-text flip cohort — rows verdicts
             // via referee-bound filled-golden replay.
-            org.junit.jupiter.api.Assertions.assertEquals(40,
+            // 40 -> 35 (batch 15 — GROUP D leg 2, 2026-09-03): the paginate
+            // helpers' SQL-text asserts (assertEquals($expectedSql,
+            // resultSQL($result)) — the activity SQL read out of the string
+            // entry's result JSON) joined the flip cohort: the platform
+            // renders the activity text engine-style and the assert judges
+            // it in the database; the walk's text-only classification
+            // loses those rows.
+            org.junit.jupiter.api.Assertions.assertEquals(35,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

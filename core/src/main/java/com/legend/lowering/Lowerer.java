@@ -2809,6 +2809,7 @@ public final class Lowerer {
 
             case TypedCast c -> cast(c, columns);
 
+            case TypedSpec js when JsonEmission.owns(js) -> JsonEmission.lower(this, js, columns);
             // if(cond, {|then}, {|else}) — scalar position: CASE WHEN.
             // If-chains (the mapping enum decode emission) render as NESTED
             // CASE expressions in the otherwise slot — correct; single-CASE

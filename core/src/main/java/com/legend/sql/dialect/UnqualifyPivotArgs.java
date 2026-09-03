@@ -57,6 +57,8 @@ final class UnqualifyPivotArgs extends SqlRewriter {
                     unqualify(o.value()), unqualify(o.orderBy()));
             case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(
                     j.kv().stream().map(UnqualifyPivotArgs::unqualify).toList());
+            case SqlExpr.JsonArray j -> new SqlExpr.JsonArray(
+                    j.elements().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.JsonArrayAgg ja ->
                     new SqlExpr.JsonArrayAgg(unqualify(ja.value()),
                             ja.orderKeys().stream()

@@ -125,6 +125,8 @@ final class Windows {
                     windowize(g.source(), partitionBy, orderBy, frame), g.field());
             case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(j.kv().stream()
                     .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.JsonArray j -> new SqlExpr.JsonArray(j.elements().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
             case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
                     windowize(f.source(), partitionBy, orderBy, frame), f.lambda(),
                     windowize(f.init(), partitionBy, orderBy, frame),

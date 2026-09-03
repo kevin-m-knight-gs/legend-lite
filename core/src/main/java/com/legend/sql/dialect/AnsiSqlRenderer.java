@@ -467,6 +467,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Cast c -> variantAwareCast(c);
             case SqlExpr.FoldCall f -> foldCall(f);
             case SqlExpr.JsonObject j -> jsonObject(j);
+            case SqlExpr.JsonArray j -> jsonArray(j);
             case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(j);
             case SqlExpr.ReduceCollection rc -> reduceCollection(rc);
             case SqlExpr.Membership m -> membership(m);
@@ -508,6 +509,13 @@ public class AnsiSqlRenderer implements SqlDialect {
     protected String jsonObject(SqlExpr.JsonObject j) {
         return "json_object(" + j.kv().stream()
                 .map(kvE -> expr(kvE, 0)).collect(Collectors.joining(", ")) + ")";
+    }
+
+    /** DuckDB reference JSON-array constructor; the SQL-standard
+     * {@code JSON_ARRAY} spelling is an override. */
+    protected String jsonArray(SqlExpr.JsonArray j) {
+        return "json_array(" + j.elements().stream()
+                .map(e -> expr(e, 0)).collect(Collectors.joining(", ")) + ")";
     }
 
     /**

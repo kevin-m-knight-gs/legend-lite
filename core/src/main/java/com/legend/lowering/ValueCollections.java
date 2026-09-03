@@ -196,6 +196,13 @@ final class ValueCollections {
         while (last instanceof TypedCast tc) {
             last = tc.source();
         }
+        // a JSON tree read that yields the element/member LIST (the
+        // variant lane's list value) is a collection mapper too: pure's
+        // $rows.keyValuePairs / $arrays.values flatten
+        if (last instanceof com.legend.compiler.spec.typed.TypedJsonAccess ja) {
+            return ja.op() == com.legend.compiler.spec.typed.TypedJsonAccess.Op.MEMBERS
+                    || ja.op() == com.legend.compiler.spec.typed.TypedJsonAccess.Op.ELEMENTS;
+        }
         return last instanceof TypedCollection;
     }
 }

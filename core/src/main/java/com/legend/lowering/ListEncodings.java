@@ -68,18 +68,27 @@ final class ListEncodings {
                 LambdaBinding.mapElemResolver(param, src, false,
                         LambdaBinding.lambdaResolver(
                                 sb.key().parameters(), columns)));
+        // ELEMENT-carried indices (list_zip with 1..n) instead of
+        // LIST_GET(src, i) inside the lambdas: a source that is itself a
+        // scalar SUBQUERY (a JSON tree read off an executed frame) cannot
+        // be referenced inside a lambda body (DuckDB: "subqueries in
+        // lambda expressions are not supported"); the outer arguments
+        // may be anything. The (k, i, v) struct sort keeps the stable
+        // index tie-break exactly as before.
         SqlExpr range = SqlExpr.Call.of(SqlFn.RANGE_FN,
                 new SqlExpr.IntLit(1),
                 SqlExpr.Call.of(SqlFn.PLUS,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, src),
                         new SqlExpr.IntLit(1)));
-        SqlExpr i = SqlExpr.Column.param("_sb_i", range);
-        SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, src, i);
+        SqlExpr zipped = SqlExpr.Call.of(SqlFn.LIST_ZIP, src, range);
+        SqlExpr z = SqlExpr.Column.param("_sb_z", zipped);
+        SqlExpr valAt = new SqlExpr.StructGet(z, "1");
+        SqlExpr i = new SqlExpr.StructGet(z, "2");
         SqlExpr keyExpr = Scalars.substituteRef(keyBody, param, valAt);
         SqlExpr idxField = sb.ascending() ? i
                 : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
-        SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, range,
-                new SqlExpr.Lambda(List.of("_sb_i"),
+        SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, zipped,
+                new SqlExpr.Lambda(List.of("_sb_z"),
                         new SqlExpr.StructLit(List.of(
                                 new SqlExpr.StructLit.Field("k", keyExpr),
                                 new SqlExpr.StructLit.Field("i", idxField),

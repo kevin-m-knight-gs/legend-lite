@@ -240,7 +240,8 @@ final class StatementExecutor {
             // ASSERTS therefore route to body inlining and get host
             // verdicts, not byte verdicts — register row, V7 territory.
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
-                    && (containsEffect(call, specs, effectMemo) || com.legend.testdatagen.TestDataGenerationNatives.needsBodyRoute(call, specs))) {
+                    && (containsEffect(call, specs, effectMemo)
+                        || com.legend.testdatagen.TestDataGenerationNatives.needsBodyRoute(call, specs))) {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }
@@ -264,6 +265,18 @@ final class StatementExecutor {
                 result = hosted;
                 continue;
             }
+            // a helper whose body carries NON-LET intermediate statements
+            // (two asserts in a row — the corpus's runTest(f, expectedSql,
+            // expectedCount) wrappers) cannot β-reduce to one expression:
+            // each statement runs in order in a fresh call frame
+            // (parameters bound as lets). AFTER the assert root arms above
+            // — an assert-family wrapper (assertSameSQL, assertEqualsH2
+            // Compatible) keeps its verdict route.
+            if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall seqCall
+                    && hasNonLetIntermediate(seqCall, specs)) {
+                result = executeCallStatement(seqCall, letPrefix, specs, env, frames);
+                continue;
+            }
             java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
             single.add(stmt);
             var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
@@ -283,6 +296,26 @@ final class StatementExecutor {
                 preRoot = pf.source();
             }
             preRoot = foldPairProjection(preRoot);
+            // a helper call that β-reduced to an ASSERT-family root (the
+            // corpus's runLegendTest(f, vars, expected) wrappers: lets +
+            // one assert): the verdict is World 1's exactly as for a
+            // statement-root assert — adjudicate the inlined root
+            // — scoped to the STRING ENTRY's reads (a TypedJsonResult /
+            // TypedJsonAccess in the inlined statement): every other
+            // helper-wrapped assert keeps its existing route (the SQL-text
+            // arms adjudicate those downstream; adjudicating them here as
+            // plain equality regressed ~200 text-golden flips, 2026-09-03)
+            if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall
+                    && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
+                    && readsStringEntry(preRoot)) {
+                ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
+                        preRoot, letPrefix, specs, env,
+                        spliceHook(execFrames, letPrefix, specs, env));
+                if (inlinedVerdict != null) {
+                    result = inlinedVerdict;
+                    continue;
+                }
+            }
             // $plan.processingTemplateFunctions — the ExecutionPlan class
             // property (executionPlan.pure:67): every relational node
             // carries relationalPlanSupportFunctions(connection), deduped
@@ -1957,9 +1990,42 @@ final class StatementExecutor {
             var lqChain = com.legend.compiler.spec.ExecuteChainAssembly
                     .chain(lq, ec, letPrefix, specs, env.runtimeFqn(),
                             env.queryLets());
+            // the activity's SQL text (the engine records the SQL it
+            // generated — goldens are engine-H2-spelled): the engine-style
+            // render of the same chain, absent when no render exists
+            String activitySql = null;
+            if (lqChain.relationRooted()
+                    || lqChain.chain().info().type() instanceof com.legend.compiler
+                            .element.type.Type.ClassType) {
+                String mappingFqn = firstMappingFqn(lqChain.chain());
+                if (mappingFqn != null) {
+                    try {
+                        activitySql = engineSql(java.util.List.of(lqChain.chain()),
+                                mappingFqn, specs, env,
+                                new com.legend.sql.dialect.EngineStyleH2(),
+                                java.util.Map.of(),
+                                java.util.function.UnaryOperator.identity()).sql();
+                    } catch (com.legend.error.LegendCompileException
+                            | com.legend.error.NotImplementedException
+                            | IllegalStateException e) {
+                        // no engine-style render for this chain shape: the
+                        // activities array stays empty (a read of it is
+                        // then a loud missing member, never a fabrication)
+                        activitySql = null;
+                    }
+                }
+            }
             TypedSpec envelope = com.legend.compiler.spec.ExecuteChainAssembly
-                    .legendQueryEnvelope(lqChain.chain(), env.ctx());
+                    .legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
             ExecutionResult lqRun = null;
+            if (!eager) {
+                // an INLINE string-entry call reads its value where it
+                // stands (no eager run): the runtime's testDataSetupSqls
+                // still establish the connection's data first — the
+                // engine runs them when it opens the connection, before
+                // the query (the eager path runs them inside executeTyped)
+                runRuntimeSetups(java.util.List.of(), lqChain.chain(), env);
+            }
             if (eager) {
                 com.legend.resolver.StoreResolver lqResolver =
                         new com.legend.resolver.StoreResolver(env.ctx(), specs)
@@ -2028,6 +2094,65 @@ final class StatementExecutor {
         }
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
+    }
+
+    /** Whether the tree reads a string-entry result (the JSON envelope
+     * or a JSON tree read over it). */
+    private static boolean readsStringEntry(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedJsonResult
+                || n instanceof com.legend.compiler.spec.typed.TypedJsonAccess) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsStringEntry(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A callee body with a NON-LET statement before its last (a
+     * statement sequence, not one expression). */
+    private static boolean hasNonLetIntermediate(
+            com.legend.compiler.spec.typed.TypedUserCall call, SpecCompiler specs) {
+        return hasNonLetIntermediate(call, specs, 0);
+    }
+
+    private static boolean hasNonLetIntermediate(
+            com.legend.compiler.spec.typed.TypedUserCall call, SpecCompiler specs,
+            int depth) {
+        try {
+            java.util.List<TypedSpec> body = specs.compile(call.callee()).body();
+            for (int i = 0; i < body.size() - 1; i++) {
+                if (!(body.get(i) instanceof com.legend.compiler.spec.typed.TypedLet)) {
+                    return true;
+                }
+            }
+            // a thin overload forwarding to the real helper (runTest/3 ->
+            // runTest/4): the sequence shape is the callee's
+            return depth < 4 && !body.isEmpty()
+                    && body.get(body.size() - 1)
+                            instanceof com.legend.compiler.spec.typed.TypedUserCall tail
+                    && hasNonLetIntermediate(tail, specs, depth + 1);
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.compiler.spec.TypeInferenceException e) {
+            return false;
+        }
+    }
+
+    /** The first from() mapping reference in the chain (pre-order), or null. */
+    private static @com.legend.Nullable String firstMappingFqn(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedFrom fr
+                && fr.mapping().isPresent()) {
+            return fr.mapping().get().fullPath();
+        }
+        for (TypedSpec c : n.children()) {
+            String m = firstMappingFqn(c);
+            if (m != null) {
+                return m;
+            }
+        }
+        return null;
     }
 
     /** Effectful user calls inside an execute() RUNTIME argument run once

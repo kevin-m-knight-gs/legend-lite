@@ -218,6 +218,12 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 15 (group D leg 2 — the meta::json tree on the variant lane,
+2026-09-03): chain 5m56s** — G1 38s, G2 9s, G4 64s, G5 43s, G6 83s, G7
+26s, G9 20s, G8 73s. Ratchet 791/1782 → 782/1791 (+9); exec-passing 344,
+h2-exec 82, quarantine 125/9 unchanged; walk text-only asserts 40 → 35
+(the paginate helpers' SQL-text asserts joined the flip cohort).
+
 **Batch 14 (group D leg 1 — the router's string entry, 2026-09-03):
 chain 5m49s** — G1 39s, G2 9s, G4 62s, G5 42s, G6 80s, G7 25s, G9 19s,
 G8 73s. Ratchet 820/1753 → 791/1782 (+29); exec-passing 344, h2-exec 82,
