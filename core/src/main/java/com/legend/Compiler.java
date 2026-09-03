@@ -274,7 +274,23 @@ public final class Compiler {
                 union(user.mappingPoisons(), sys.mappingPoisons()),
                 union(user.legacySurfaces(), sys.legacySurfaces()),
                 union(user.mixedUnions(), sys.mixedUnions()),
-                union(user.requiredNullableRows(), sys.requiredNullableRows()));
+                unionSets(user.requiredNullableRows(), sys.requiredNullableRows()));
+    }
+
+    /** The [1]-over-nullable census is keyed by BUCKET ("direct", …), so
+     * the two layers' witness sets MERGE per key — a key-replacing union
+     * silently dropped the corpus's 500 direct witnesses behind the system
+     * layer's 13 (batch 11 regression, caught by the census print). */
+    private static java.util.Map<String, java.util.Set<String>> unionSets(
+            java.util.Map<String, java.util.Set<String>> a,
+            java.util.Map<String, java.util.Set<String>> b) {
+        if (b.isEmpty()) {
+            return a;
+        }
+        java.util.Map<String, java.util.Set<String>> out = new java.util.LinkedHashMap<>();
+        a.forEach((k, v) -> out.put(k, new java.util.TreeSet<>(v)));
+        b.forEach((k, v) -> out.computeIfAbsent(k, x -> new java.util.TreeSet<>()).addAll(v));
+        return out;
     }
 
     private static <V> java.util.Map<String, V> union(

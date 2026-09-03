@@ -33,7 +33,7 @@ public final class RelationalOpRows {
      * indexed filtered scan, never a UNION ALL over five tables). Column
      * order = the store DDL's; every factory below fills it.
      */
-    public static final int ELEMENT_COLUMNS = 29;
+    public static final int ELEMENT_COLUMNS = 21;
 
     private static List<String> element(String id, String kind) {
         List<String> row = new ArrayList<>(ELEMENT_COLUMNS);
@@ -45,9 +45,24 @@ public final class RelationalOpRows {
         return row;
     }
 
+    /** ELEMENT IDS: every relation kind has a deterministic id, so a
+     * reference to a table, view or column is ONE id column (a join on
+     * the primary key), never a name triple. */
+    public static String tableId(String dbFqn, String schema, String name) {
+        return "tbl:" + dbFqn + "|" + schema + "|" + name;
+    }
+
+    public static String viewId(String dbFqn, String schema, String name) {
+        return "view:" + dbFqn + "|" + schema + "|" + name;
+    }
+
+    public static String columnId(String dbFqn, String schema, String table, String name) {
+        return "column:" + dbFqn + "|" + schema + "|" + table + "|" + name;
+    }
+
     /** A store table: {@code (name, db_fqn, schema_name)}. */
     public static List<String> tableRow(String dbFqn, String schema, String name) {
-        List<String> r = element("tbl:" + dbFqn + "|" + schema + "|" + name, "Table");
+        List<String> r = element(tableId(dbFqn, schema, name), "Table");
         r.set(2, name);
         r.set(3, dbFqn);
         r.set(4, schema);
@@ -56,7 +71,7 @@ public final class RelationalOpRows {
 
     /** A store view: {@code (name, db_fqn, schema_name)}. */
     public static List<String> viewRow(String dbFqn, String schema, String name) {
-        List<String> r = element("view:" + dbFqn + "|" + schema + "|" + name, "View");
+        List<String> r = element(viewId(dbFqn, schema, name), "View");
         r.set(2, name);
         r.set(3, dbFqn);
         r.set(4, schema);
@@ -66,8 +81,7 @@ public final class RelationalOpRows {
     /** A table column: {@code (name, db_fqn, schema_name, table_name, dtype_id)}. */
     public static List<String> columnRow(String dbFqn, String schema, String table,
             String name, String dtypeId) {
-        List<String> r = element("column:" + dbFqn + "|" + schema + "|" + table + "|" + name,
-                "Column");
+        List<String> r = element(columnId(dbFqn, schema, table, name), "Column");
         r.set(2, name);
         r.set(3, dbFqn);
         r.set(4, schema);
@@ -77,35 +91,27 @@ public final class RelationalOpRows {
     }
 
     /** A main-table alias owned by {@code (mapping_fqn, set_id)}: its
-     * name, the main table/view it names, the view identity when it is a
-     * view's alias, and the base TABLE behind it. */
+     * name and three element REFERENCES — the main relation it names
+     * (a table's or a view's id), the view it belongs to when it is a
+     * view's own alias, and the base TABLE behind it. */
     public static List<String> aliasRow(String mappingFqn, String setId, String name,
-            @com.legend.Nullable String mainDb, @com.legend.Nullable String mainSchema,
-            @com.legend.Nullable String mainTable, @com.legend.Nullable String viewDb,
-            @com.legend.Nullable String viewSchema, @com.legend.Nullable String viewName,
-            @com.legend.Nullable String baseDb, @com.legend.Nullable String baseSchema,
-            @com.legend.Nullable String baseTable) {
+            @com.legend.Nullable String mainElementId,
+            @com.legend.Nullable String viewElementId,
+            @com.legend.Nullable String baseElementId) {
         List<String> r = element("alias:" + mappingFqn + "|" + setId, "TableAlias");
         r.set(2, name);
-        r.set(18, mappingFqn);
-        r.set(19, setId);
-        r.set(20, mainDb);
-        r.set(21, mainSchema);
-        r.set(22, mainTable);
-        r.set(23, viewDb);
-        r.set(24, viewSchema);
-        r.set(25, viewName);
-        r.set(26, baseDb);
-        r.set(27, baseSchema);
-        r.set(28, baseTable);
+        r.set(16, mappingFqn);
+        r.set(17, setId);
+        r.set(18, mainElementId);
+        r.set(19, viewElementId);
+        r.set(20, baseElementId);
         return r;
     }
 
     /** An expression NODE (the op-tree kinds). */
     private static List<String> opRow(String id, String kind, @com.legend.Nullable String parent,
             @com.legend.Nullable Integer ordinal, @com.legend.Nullable String dynaName,
-            @com.legend.Nullable String literal, @com.legend.Nullable String colDb,
-            @com.legend.Nullable String colSchema, @com.legend.Nullable String colTable,
+            @com.legend.Nullable String literal, @com.legend.Nullable String colElementId,
             @com.legend.Nullable String colName, @com.legend.Nullable String typeId,
             @com.legend.Nullable String pkMapping, @com.legend.Nullable String pkSet) {
         List<String> r = element(id, kind);
@@ -113,13 +119,11 @@ public final class RelationalOpRows {
         r.set(8, ordinal == null ? null : Integer.toString(ordinal));
         r.set(9, dynaName);
         r.set(10, literal);
-        r.set(11, colDb);
-        r.set(12, colSchema);
-        r.set(13, colTable);
-        r.set(14, colName);
-        r.set(15, typeId);
-        r.set(16, pkMapping);
-        r.set(17, pkSet);
+        r.set(11, colElementId);
+        r.set(12, colName);
+        r.set(13, typeId);
+        r.set(14, pkMapping);
+        r.set(15, pkSet);
         return r;
     }
 
@@ -294,8 +298,12 @@ public final class RelationalOpRows {
             typeId = "op:" + id;
             dataType(typeId, t);
         }
+        // a column reference is the Column element's id (the join is on
+        // the primary key); the column NAME stays for TableAliasColumn.columnName
+        String colElementId = colDb != null && colSchema != null && colTable != null
+                && colName != null ? columnId(colDb, colSchema, colTable, colName) : null;
         ops.add(opRow(id, kind, parent, ordinal, dynaName, literal,
-                colDb, colSchema, colTable, colName, typeId, pkMapping, pkSet));
+                colElementId, colName, typeId, pkMapping, pkSet));
         for (int i = 0; i < children.size(); i++) {
             node(children.get(i), id + "/" + i, id, i, childDbFqn, childDb, scopeTable);
         }

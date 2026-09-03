@@ -911,8 +911,27 @@ index, on the type-check hot path) plus the integrity pass — for ~0.3ms
 per graph compile (indexing 78 prepared elements), which is once per
 process outside the test JVM. Per QUERY both options cost nothing.
 
+**Batch 12 (2026-09-02) — ELEMENT REFERENCES BY ID.** The alias rows'
+nine name-triple reference columns (main/view/base as db, schema, name)
+and the op nodes' four column-reference columns become three + one
+element ids (`main_element_id`, `view_element_id`, `base_element_id`,
+`col_element_id`; ids are the deterministic `tbl:` / `view:` / `column:`
+spellings `RelationalOpRows.tableId/viewId/columnId` the rows already
+carry). Every cross-kind join is now ONE primary-key equality
+(AliasToTables/AliasToViews/AliasToBaseTable/ViewToAlias/OpToColumn);
+relational_elements 29 → 21 columns. Rosters, report, H2 verdicts
+byte-identical. `DynaFunction.parameters` via parent_id waits for a
+witness.
+**Regression fixed on the way (batch 11's):** the boot layer merged the
+two layers' `requiredNullableRows` with a key-REPLACING map union; the
+census is keyed by bucket ("direct"), so the system layer's 13 direct
+witnesses replaced the corpus's 500 and the shrink-only ceiling passed
+silently at 46. Now a per-key SET union; the count is 533 again. Lesson:
+a shrink-only pin cannot catch a census that lost its input — print the
+count in the lane log (it is) and READ it after a change to the merge.
+
 **NEXT (user-ratified order 2026-09-02, enumerated):**
-(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). — was: UNION LOWERING for single-table hierarchies: merge
+(1) DONE (batch 9). (2) DONE (batch 10). (3) DONE (batch 11, option 1). (6) DONE (batch 12). — was: UNION LOWERING for single-table hierarchies: merge
 members WITH chains into the one scan (each chain a join on the shared
 scan guarded by the member's kind predicate); emit the key UNGATED when it
 is the scan table's PK and dedupe identical OR terms → `op_id = id`, an

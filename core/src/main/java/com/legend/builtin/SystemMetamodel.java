@@ -261,24 +261,16 @@ public final class SystemMetamodel {
                         ordinal INTEGER,
                         dyna_name VARCHAR(256),
                         literal_value VARCHAR(4000),
-                        col_db VARCHAR(1024),
-                        col_schema VARCHAR(256),
-                        col_table VARCHAR(256),
+                        col_element_id VARCHAR(2048),
                         col_name VARCHAR(256),
                         itype_id VARCHAR(2048),
                         pk_mapping_fqn VARCHAR(1024),
                         pk_set_id VARCHAR(256),
                         mapping_fqn VARCHAR(1024),
                         set_id VARCHAR(256),
-                        main_db VARCHAR(1024),
-                        main_schema VARCHAR(256),
-                        main_table VARCHAR(256),
-                        view_db VARCHAR(1024),
-                        view_schema VARCHAR(256),
-                        view_name VARCHAR(256),
-                        base_db VARCHAR(1024),
-                        base_schema VARCHAR(256),
-                        base_table VARCHAR(256)
+                        main_element_id VARCHAR(2048),
+                        view_element_id VARCHAR(2048),
+                        base_element_id VARCHAR(2048)
                     )
                     Table view_column_mappings
                     (
@@ -304,18 +296,10 @@ public final class SystemMetamodel {
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
                 Join ClosureToClassMappings(metamodel.mapping_includes_closure.included_fqn = metamodel.class_mappings.mapping_fqn)
                 Join ClassMappingsToAlias(metamodel.class_mappings.mapping_fqn = metamodel.relational_elements.mapping_fqn and metamodel.class_mappings.id = metamodel.relational_elements.set_id)
-                Join AliasToTables(metamodel.relational_elements.main_db = {target}.db_fqn
-                    and metamodel.relational_elements.main_schema = {target}.schema_name
-                    and metamodel.relational_elements.main_table = {target}.name)
-                Join AliasToViews(metamodel.relational_elements.main_db = {target}.db_fqn
-                    and metamodel.relational_elements.main_schema = {target}.schema_name
-                    and metamodel.relational_elements.main_table = {target}.name)
-                Join AliasToBaseTable(metamodel.relational_elements.base_db = {target}.db_fqn
-                    and metamodel.relational_elements.base_schema = {target}.schema_name
-                    and metamodel.relational_elements.base_table = {target}.name)
-                Join ViewToAlias(metamodel.relational_elements.db_fqn = {target}.view_db
-                    and metamodel.relational_elements.schema_name = {target}.view_schema
-                    and metamodel.relational_elements.name = {target}.view_name)
+                Join AliasToTables(metamodel.relational_elements.main_element_id = {target}.id)
+                Join AliasToViews(metamodel.relational_elements.main_element_id = {target}.id)
+                Join AliasToBaseTable(metamodel.relational_elements.base_element_id = {target}.id)
+                Join ViewToAlias(metamodel.relational_elements.id = {target}.view_element_id)
                 Join SetToAncestry(metamodel.class_mappings.mapping_fqn = metamodel.set_ancestry.mapping_fqn
                     and metamodel.class_mappings.id = metamodel.set_ancestry.id)
                 Join AncestryToAncestor(metamodel.set_ancestry.super_mapping_fqn = metamodel.class_mappings.mapping_fqn
@@ -339,10 +323,7 @@ public final class SystemMetamodel {
                     and metamodel.property_mappings.prop_name = metamodel.properties.name)
                 Join ColumnToType(metamodel.relational_elements.dtype_id = metamodel.data_types.id)
                 Join OpToType(metamodel.relational_elements.itype_id = metamodel.data_types.id)
-                Join OpToColumn(metamodel.relational_elements.col_db = {target}.db_fqn
-                    and metamodel.relational_elements.col_schema = {target}.schema_name
-                    and metamodel.relational_elements.col_table = {target}.table_name
-                    and metamodel.relational_elements.col_name = {target}.name)
+                Join OpToColumn(metamodel.relational_elements.col_element_id = {target}.id)
             %3$s
             )
 

@@ -426,10 +426,9 @@ public final class MetamodelSeeds {
             String[] base = baseTableOf(ctx, cm.get(4), cm.get(5), cm.get(6));
             rows.add(com.legend.compiler.element.RelationalOpRows.aliasRow(
                     cm.get(0), cm.get(1), cm.get(6),
-                    cm.get(4), cm.get(5), cm.get(6), null, null, null,
-                    base == null ? null : cm.get(4),
-                    base == null ? null : base[0],
-                    base == null ? null : base[1]));
+                    mainElementId(ctx, cm.get(4), cm.get(5), cm.get(6)), null,
+                    base == null ? null : com.legend.compiler.element.RelationalOpRows
+                            .tableId(cm.get(4), base[0], base[1])));
         }
         for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
@@ -438,20 +437,39 @@ public final class MetamodelSeeds {
             }
             for (var sv : schemaViews(db)) {
                 String[] base = viewBaseTable(db, sv.view(), new LinkedHashSet<>());
+                String viewId = com.legend.compiler.element.RelationalOpRows.viewId(
+                        dbFqn, sv.schema(), sv.view().name());
                 rows.add(com.legend.compiler.element.RelationalOpRows.aliasRow(dbFqn,
                         "view:" + sv.schema() + "." + sv.view().name(),
                         base == null ? sv.view().name() : base[1],
-                        dbFqn, sv.schema(), sv.view().name(),
-                        dbFqn, sv.schema(), sv.view().name(),
-                        base == null ? null : dbFqn,
-                        base == null ? null : base[0],
-                        base == null ? null : base[1]));
+                        viewId, viewId,
+                        base == null ? null : com.legend.compiler.element.RelationalOpRows
+                                .tableId(dbFqn, base[0], base[1])));
             }
         }
         return rows;
     }
 
     private record SchemaView(String schema, DatabaseDefinition.ViewDefinition view) {
+    }
+
+    /** The element id of a set's main relation: the VIEW's when the name
+     * is a view of the store, else the table's. */
+    private static @com.legend.Nullable String mainElementId(ModelContext ctx,
+            @com.legend.Nullable String dbFqn, @com.legend.Nullable String schema,
+            @com.legend.Nullable String name) {
+        if (dbFqn == null || schema == null || name == null) {
+            return null;
+        }
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db != null) {
+            for (SchemaView sv : schemaViews(db)) {
+                if (sv.schema().equals(schema) && sv.view().name().equals(name)) {
+                    return com.legend.compiler.element.RelationalOpRows.viewId(dbFqn, schema, name);
+                }
+            }
+        }
+        return com.legend.compiler.element.RelationalOpRows.tableId(dbFqn, schema, name);
     }
 
     /** Every view with its schema — top-level views sit in {@code default}. */
