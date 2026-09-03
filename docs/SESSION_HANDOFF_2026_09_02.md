@@ -2386,6 +2386,35 @@ FIXME hack the goldens pin). +1 (stringToDate
 testToSQLStringconvertToDateinH2UserDefinedFormat; rows verdict, text
 diverged-rescued). Lane move: exec-passing 60 → 59; disagree 0.
 
+**Probe receipts after batch 50 (2026-09-03, no batch):** (1) REFEREE
+RENDER CENSUS over the whole corpus under LL_TMP_DEBUG (`[render-debug]`
+lines correlated to tests): 57 variant/JSON declines, 19 strftime pattern
+gaps, 15 relation-value type gaps, 4 STRING_AGG list encodings — but only
+ONE still-walled test carries a render gap (objectReferenceIn, a decision
+family); the rest sit on flipped tests whose rows verdict passes, so the
+referee-render legs no longer move the ratchet. (2) union relation
+testUnionTwoRelationMappings_ManyColumnProject: both sides are
+`->toString()` over a TDS (the engine has NO tds toString in Pure — it is
+the compiled TabularDataSet's own print); our TDS LITERAL side prints a
+blank cell as `null`, our QUERY side prints the same NULL cell as `''` —
+an internal inconsistency between the literal and the relation print
+paths (Render.tdsCell "null" vs the toCSVString '' rule), to be settled
+against the engine's Java TabularDataSet.toString before touching either.
+(3) selfJoin testSelfJoinPropertyMapping: the EXPECTED Pair literals
+(`pair('Banking','Firm X')` with a TDSNull sibling) travel the variant
+lane and their `second` field decodes as JSON TEXT (`"Firm X"`, quotes
+kept) while the getter side is plain — `Executor.unwrap` returns a
+JSON-typed STRUCT FIELD raw; decoding it as a value (decodeAny) is the
+fix, gated on struct fields (a Variant ROOT keeps its JSON contract).
+(4) injection testProjectThroughAssociation (+AutoMap, +multiJoins
+testForcedSubTypeProjectDirect): the filtered read
+`$t.products->filter(p|$p.date == $t.d)->toOne().name` lives INSIDE a
+`->map(t|…)` over the to-many `$b.trades` — `SyntheticHeads.liftArms`
+lifts filtered heads rooted at the QUERY variable only; a mapper-variable
+root is the nested-lambda lift, a resolver leg (3). (5) sqlQueryMerging
+testSQLQueryMergingForInnerJoins passes in isolation and fails in the
+full sweep (order-dependent — a session/temp-table dependency to trace).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,
