@@ -1951,6 +1951,59 @@ testTDSGroupByPercentile, testPercentileWindowFunction. Lane moves:
 exec-passing 140 → 135, M1 rescued 109 → 108 (passes 2374 stable, disagree
 0); DuckDBIntegrationTest/TypeInference/GroupBy/ExtendWindow/Spellings green.
 
+**Named residue with receipts (2026-09-03, after batch 36; each probed to
+its first cause, none built):**
+- `testToSQLStringForTDSStringJoin`, `testHashFunctions` — GOLDEN DEFECT: the
+  engine's H2 joinStrings emission appends the separator arguments at the
+  END of one flat `concat(a, b, '|')` (extensionDefaults; the batch-27
+  render mirrors it for TEXT), so its rows are `Anthony Allen|` /
+  `md5(concat(first, last, '|'))`; ours are the Pure value `Anthony| |Allen`
+  / `md5('Anthony|Allen')`. The rows verdict is right to disagree; the
+  engine side is wrong. Same class as null-vs-value (ENGINE defect).
+- `testToSqlGenerationFirstDayOfWeek` — GOLDEN DEFECT: the golden text is
+  `date_trunc('week', d)`, which on an en_US H2 session is SUNDAY-based
+  (golden rows 2014-11-30); Pure/engine firstDayOfWeek is Monday-based (the
+  engine's own h2Extension2_1_214 spells `dateadd(DAY, -(mod(dayofweek(d)+5,
+  7)), d)`); ours (DuckDB date_trunc week) gives 2014-12-01.
+- `testQualifierQueryWithOr` — REFEREE GAP: a CLASS-typed result's golden
+  rows carry the join fan-out (7 × Firm X) that the engine collapses into
+  objects by pk; ours DISTINCTs. The rows leg should compare class results
+  as pk-keyed sets. The test's own asserts (size 1, Firm X) pass.
+- `testConsistencyWithNullsInColumnToColumnComparison` — REFEREE GAP: the
+  Address.type enum column reached the rows compare undecoded (golden `1`
+  vs ours `CITY`) — the c46 per-column decode map was not derived for this
+  class-query frame; `enumPrecheck` did not fire either.
+- `testInExecutionWithTempTableForDates` (+ the tempTable family) — the
+  golden's temp table is not replayable on the oracle (0 golden rows).
+- UNNEST 5 + LIST_CONCAT 3 (concatenate flat / to-many map / distinct over
+  an exploded collection): the platform lowers a per-row literal collection
+  as `LEFT JOIN LATERAL (SELECT UNNEST(list_concat([a],[b])))` — correct on
+  DuckDB; H2 2.1.214 has NO LATERAL (probed over JDBC: `from t, unnest(
+  array[t.id])` → Column T.ID not found), so the referee spelling must be
+  the engine's own shape — the explode DECORRELATED into a UNION ALL keyed
+  by the base row identity (`_ROWID_` / SqlExpr.RowOrder) and joined once.
+  A structural H2-family MIR pass (LateralExplodeToUnion); the next referee
+  leg.
+- `testJoinLambdaAsVariable`, `testJoinWithLiteralColumn` — TYPER GAP: a
+  let-bound `{a:TDSRow[1], b:TDSRow[1] | $a.getInteger('eID') == ...}` is
+  typed at the let, where the receiver is the bare TDSRow class;
+  `Typer.tdsReceiver` admits only relation row types, so getInteger walls as
+  an unknown function. Admit the declared TDSRow class with the getter's
+  declared return type (the join re-types under the schema).
+- `repeat` 2 (AlloyOnly plan tests), `routeFunction` 4, `functionReturnType`
+  4 (TDG alloy), `generateObjectReferences` 7 (objectReferenceIn — engine
+  internals): unported engine-internal functions; residue.
+- toPostgresModel 20 + debugPrint 9 + post-processor lambdas over SQLQuery 6
+  = the C2 RECURSION mechanism (Pure `match` recursion over constructed
+  instance trees producing instance trees; verdict = structural equality of
+  two constructed trees). Design: instance trees are rows (node table:
+  id, kind, parent, ordinal, scalar props); a recursive Pure function over
+  them is a recursive CTE whose step applies the match arms per node kind;
+  copy-instances with mapped children are new node rows; the verdict is a
+  relational anti-join of the two trees. Needs a design record before code
+  (the metamodel-in-database ruling: recursive CTEs, never a Java
+  interpreter).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 366 fallbacks / 2207 flipped (batches 14–36 = group D,
