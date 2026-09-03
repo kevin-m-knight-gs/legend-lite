@@ -552,28 +552,18 @@ public class RelationalCorpusRunner {
         } catch (java.io.IOException ignore) {
             // best-effort diagnostic (histogram precedent)
         }
-        // SQLTEXT slice-3 step 0: the text-policy SHAPE census — the
-        // flip population ledger (histogram + per-test roster, the
-        // h2-verdicts idiom: unconditional, diffable)
+        // sqltext homework (2026-09-03): the per-test TEXT-VERDICT roster
         try {
             java.nio.file.Files.writeString(
                     java.nio.file.Path.of("target",
-                            "sqltext-shape-census.txt"),
-                    com.legend.harness.SqlTextShapes.CENSUS.entrySet()
-                            .stream()
-                            .sorted((a, b) -> Long.compare(
-                                    b.getValue().sum(), a.getValue().sum()))
-                            .map(e -> e.getValue().sum() + "x " + e.getKey())
-                            .collect(java.util.stream.Collectors
-                                    .joining("\n"))
-                    + "\n\n"
-                    + com.legend.harness.SqlTextShapes.ROSTER.stream()
-                            .sorted()
+                            "sqltext-text-verdict-roster.txt"),
+                    com.legend.harness.SqlTextShapes.TEXT_VERDICT_ROSTER
+                            .stream().sorted()
                             .collect(java.util.stream.Collectors
                                     .joining("\n"))
                     + "\n");
         } catch (java.io.IOException ignore) {
-            // best-effort diagnostic (histogram precedent)
+            // best-effort diagnostic
         }
         // SQLTEXT slice 3a: the emission census (charter §0 — text is
         // a census number, never a verdict; §8.6 turns the diff count
@@ -813,8 +803,11 @@ public class RelationalCorpusRunner {
                     // 20 -> 12 (batch 34, the assertSameSQL String overload
                     // takes the exec-read arm): 15 flipped tests' sql-asserts
                     // left the walk's lane (lane move, 0 lost, disagree 0)
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 12,
-                    "M1 h2-exec verified fell below the 12 floor: "
+                    // 12 -> 9 (batch 37, the text-policy gate deleted): the
+                    // 36 flipped tests' sql-asserts left the walk's lane
+                    // (lane move, 0 lost, disagree 0, passes 2374 -> 2375)
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 9,
+                    "M1 h2-exec verified fell below the 9 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -1014,7 +1007,10 @@ public class RelationalCorpusRunner {
             // 140 -> 135 (batch 36 — percentile reducer): the three
             // percentile tests' sql-asserts left the walk's lane (lane
             // move, passes 2374 stable, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(135, execPassing,
+            // 135 -> 99 (batch 37 — the text-policy gate deleted): the 36
+            // flipped tests' sql-asserts left the walk's lane (lane move,
+            // passes 2374 -> 2375, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(99, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1502,10 +1498,17 @@ public class RelationalCorpusRunner {
             // (QuantileOrder); H2 / engine-style H2 spell the standard form
             // with the direction. +3 (groupBy percentile, TDS groupBy
             // percentile, percentile window), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(366L,
+            // 366 -> 330 (batch 37, 2026-09-03): the "text-policy" pre-decline
+            // gate DELETED — every sql-assert shape is attempted; the
+            // sqltext homework (docs/SQLTEXT_HOMEWORK_2026_09_03.md) attempted
+            // all 65 gated bodies: 36 flip on rows verdicts (validation
+            // milestoning 13, businessdate 8, tdsRestrict 5, showcase 3,
+            // qualifier 2, contextpropagation 2, union/slice/dayOfWeek/
+            // planSql), 29 wall by their own reason, 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(330L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2207L,
+            org.junit.jupiter.api.Assertions.assertEquals(2243L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1593,7 +1596,10 @@ public class RelationalCorpusRunner {
             // note); the skew decline reason is DELETED — value/tabular
             // duplication differences now diverge loudly (pure
             // preserves duplicates there).
-            org.junit.jupiter.api.Assertions.assertEquals(20,
+            // 20 -> 14 (batch 37 — the text-policy gate deleted): six
+            // gated tests' unable-to-exec sql-asserts now take platform-arm
+            // verdicts (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(14,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1730,8 +1736,11 @@ public class RelationalCorpusRunner {
                     // 109 -> 108 (batch 36): the same lane move — one
                     // percentile sql-assert now row-verifies as a
                     // platform-arm verdict.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 108,
-                    "M1 h2-exec rescued fell below the 108 floor: "
+                    // 108 -> 75 (batch 37): the same lane move as
+                    // M1_VERIFIED 12 -> 9 (the 36 gated tests' rescued
+                    // sql-asserts now row-verify as platform-arm verdicts).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 75,
+                    "M1 h2-exec rescued fell below the 75 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

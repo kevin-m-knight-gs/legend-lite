@@ -26,11 +26,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Walk-routes, each a named census bucket:
  * <ul>
- * <li>{@code text-policy} — the body carries golden-TEXT asserts
- *     (SQL/plan text producers or the sql-assert forms): their
- *     advisory/rescue policy lives in the walk and DIES with emission
- *     byte-parity (blueprint item 4) — never ported, per user ruling
- *     2026-08-31 ("do this later if we need it").</li>
+ * <li>(the {@code text-policy} pre-decline is DELETED, batch 37 /
+ *     sqltext homework 2026-09-03: every sql-assert shape is attempted;
+ *     walls are counted by their own reason)</li>
  * <li>{@code effectful} — the body writes; single-execution semantics
  *     only, joins at cutover confidence.</li>
  * <li>{@code assert-free} — the walk's executed-statement detail
@@ -211,18 +209,15 @@ public final class WholeTestFlip {
                         EngineTestExecutor.SQL_ASSERT_FORM_FQNS)
                         || EngineTestExecutor.containsSqlProducer(s, ctx)
                         || EngineTestExecutor.referencesAny(s, tainted)) {
-                    // SQLTEXT slice 3a: bodies whose every sql assert
-                    // is the tosqlstring-simple shape flip — the
-                    // platform's SqlTextVerdicts arm judges them on
-                    // rows (the flip's env carries the oracle). All
-                    // other shapes keep the text-policy fallback and
-                    // the shape census records them
-                    // (target/sqltext-shape-census.txt).
-                    if (SqlTextShapes.allSimple(statements, ctx)) {
-                        break;
-                    }
-                    SqlTextShapes.record(test, statements, ctx);
-                    return fallback("text-policy", test);
+                    // every sql-assert shape is ATTEMPTED on the platform:
+                    // the SqlTextVerdicts arms judge sql asserts on ROWS
+                    // (the flip's env carries the oracle) and text-only
+                    // contracts by their counted reason. The old
+                    // "text-policy" pre-decline (shape census) is GONE —
+                    // the sqltext homework (docs/SQLTEXT_HOMEWORK_2026_09_03
+                    // .md) attempted all 65 gated bodies: 36 flipped on
+                    // rows, 29 walled by NAME, 0 lost.
+                    break;
                 }
             }
         }

@@ -38,16 +38,16 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 77 | 10 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 247 | 5 | 5 | 2 | 2 | 2 | 0 | 11 |
+| functions/tests | 259 | 248 | 4 | 5 | 2 | 2 | 2 | 0 | 11 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 2 |
+| functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 16 |
+| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 6 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 6 |
+| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 2 |
 | testDataGeneration/tests | 68 | 65 | 0 | 1 | 2 | 0 | 0 | 25 | 15 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 1 |
@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 82 | 2 | 3 | 0 | 2 | 2 | 0 | 1 |
+| tests/query | 87 | 82 | 2 | 3 | 0 | 2 | 2 | 0 | 0 |
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
-| validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
-| validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 13 |
-| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 73 |
+| validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **total** | 2575 | **2375** | 49 | 104 | 47 | 13 | 13 | 29 | 41 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2262 clean + 112 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 73; flags overlap — the union is 112).
+SOFT-PASS RECONCILIATION (F2.1): 2375 PASS = 2295 clean + 80 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 41; flags overlap — the union is 80).
 
 ### mapping walls (dropped at assembly)
 
@@ -890,7 +890,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2262 clean + 112 carrying softness 
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe'] over [null, subAccount_ID, subAccount_NAME, subAccount_OE_ID, subAccount_OE_NAME, subAccount_oe_ID, subAccount_oe_NAME, otherAccount_EA_ID, otherAccount_EA_NAME, otherAccount_EA_OE_
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
-- FAIL testBuildFilterWithValueThatCanBeNullPlanSql [functions/tests]: sql sides differ: select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName" from personTable as "root" where "root".LASTNAME like 'F%' and (null is null or "root".FIRSTNAME is null) vs select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName" from personTable as "root" where starts_with("root".LASTNAME, 'F') and (NULL is null or "root".FIRSTNAME is null)
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph

@@ -2004,9 +2004,43 @@ its first cause, none built):**
   (the metamodel-in-database ruling: recursive CTEs, never a Java
   interpreter).
 
+**Batch 37 — THE TEXT-POLICY GATE IS DELETED (2026-09-03): ratchet 366/2207
+→ 330/2243 (+36, ZERO lost).** User ask: "1-by-1 deep analysis on all the
+SQL ones, not guessing or sampling — even if the test only has a SQL assert
+can we not check the SQL output?" The homework (docs/SQLTEXT_HOMEWORK_2026_
+09_03.md) measured both populations: (1) the 65 "text-policy" fallbacks were
+never ATTEMPTED — `WholeTestFlip` pre-declined any body whose sql asserts
+were not a "simple" shape (`SqlTextShapes.allSimple`); attempted with the
+gate off, 36 flip on rows verdicts and 29 wall by their own named reason;
+(2) every sql-text assert the platform arm judged by TEXT: 170 asserts in
+154 tests (a new per-test ledger, `target/sqltext-text-verdict-roster.txt`,
+attributed by counter deltas per test), against 1,506 row-verified — each
+listed with its reason. Landed: the gate and its shape census deleted (every
+sql-assert shape is attempted; walls count by reason), the text-verdict
+roster kept. Lane moves (all 36 flipped tests' sql-asserts leaving the
+walk's lane): M1 verified 12 → 9, M1 rescued 108 → 75, exec-passing 135 →
+99, unable-to-exec 20 → 14; passes 2374 → 2375, dual-channel disagree 0,
+canon lattice unchanged (the 21 float-ULP rows). FOUND IN THE HOMEWORK, in
+order: (a) referee — plan-only tests (executionPlan/toSQLString) never run the
+store's setup, so the rows leg's session lacks the store's tables (the
+golden names the same tables): seed the referenced store first, 15 asserts;
+2 fixture skews (`"Trades"."Trade"` declared in schema Trades, seeded in
+main; a mapping `FULLNAME` column absent from the seed); (b) referee: enum decode maps from the
+enumeration mapping (20 asserts + 2 walled tests); (c) verdict arm:
+assertSameSQL(String) over a FOREIGN-dialect toSQLString takes the
+foreign-dialect text contract (3 walled tests fall to the lowerer today);
+(d) referee misroute: 12 plan-text goldens handed to the SQL oracle; oracle
+fixture schema 2; H2 extension UDFs 2; N-th activity replay 2; (e) ports:
+toSQLString 8-arg / SQLResult 5-arg, Duration; the H2VERSION probe decision
+(4); (f) honest text contracts named: foreign dialects 35, FreeMarker plan
+holes 37, plan params 10, TDG temp tables 11, datediff-to-now 8, forced
+isolation 2, engine-feature predicates (removeUnionOrJoins 5, alias quoting
+2), engine-internal functions 3; (g) our emission gaps a text predicate
+caught: restrict drops unused aggregates, parseDate constant spelling.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 366 fallbacks / 2207 flipped (batches 14–36 = group D,
+legs).** State: 330 fallbacks / 2243 flipped (batches 14–37 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

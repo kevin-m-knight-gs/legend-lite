@@ -1055,12 +1055,22 @@ public final class Runner {
                     System.err.println("[run] " + t.fqn());
                 }
                 long rescued0 = com.legend.harness.H2Verify.M1_RESCUED.sum();
+                // per-test TEXT-VERDICT attribution (the sqltext homework
+                // roster, 2026-09-03): reason counters before/after
+                java.util.Map<String, Long> tv0 = textVerdictSnapshot();
                 long tExec0 = System.nanoTime();
                 com.legend.harness.EngineTestExecutor.Outcome o = com.legend.harness.EngineTestExecutor.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
                 com.legend.exec.TimingLedger.add("engine.exec",
                         System.nanoTime() - tExec0);
+                for (var e : textVerdictSnapshot().entrySet()) {
+                    long d = e.getValue() - tv0.getOrDefault(e.getKey(), 0L);
+                    if (d > 0) {
+                        com.legend.harness.SqlTextShapes.TEXT_VERDICT_ROSTER
+                                .add(e.getKey() + " x" + d + " :: " + t.fqn());
+                    }
+                }
                 // body-time setup failures (added via the sink DURING the
                 // run) join the run-wide report too (audit 17)
                 seedFailures.addAll(failedSeeds);
@@ -1948,5 +1958,13 @@ public final class Runner {
             return "";
         }
         return "  |" + lines[ln - 1].strip() + "|";
+    }
+
+    /** reason -> count of the text-verdict counters (sqltext homework). */
+    private static java.util.Map<String, Long> textVerdictSnapshot() {
+        java.util.Map<String, Long> m = new java.util.HashMap<>();
+        com.legend.exec.SqlTextEmission.TEXT_VERDICT.forEach(
+                (k, v) -> m.put(k, v.sum()));
+        return m;
     }
 }

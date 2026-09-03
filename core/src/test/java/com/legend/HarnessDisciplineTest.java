@@ -106,7 +106,7 @@ class HarnessDisciplineTest {
             // through them). 17 -> 18 (slice 3a): the emission
             // census's count-descending text-verdict print — same
             // display-only class.
-            Map.entry("RelationalCorpusRunner.java", 18),
+            Map.entry("RelationalCorpusRunner.java", 17),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             Map.entry("DuckWorkspaces.java", 1),
@@ -161,7 +161,6 @@ class HarnessDisciplineTest {
             // shape-combination keys for the diffable census file, the
             // DuckWorkspaces precedent) — no comparison flows through
             // it
-            Map.entry("SqlTextShapes.java", 1),
             // §8.3b wobbler attribution: the flipped-test roster dump
             // sorts test names for a DIFFABLE file (display ordering,
             // the h2-verdicts class; no comparison flows through it).
