@@ -26,12 +26,15 @@ import java.util.Set;
  * CONSTRUCTED metamodel instances as ROWS (group F burn, 2026-09-02 — the
  * ruling's "resolver side-output rows"): a query's {@code ^DynaFunction(...)}
  * / {@code ^Literal(...)} / {@code ^LiteralList(...)} tree over constants is
- * the same fact a mapping expression is, so it becomes {@code relational_ops}
- * rows (one builder, {@link RelationalOpRows}) keyed by a content id, and
- * the instance expression becomes the member class's extent filtered on
- * that id — every navigation and function body over it is then the ordinary
- * row path. The rows ride the resolver as side output; the execution setup
- * seeds them after the model's own.
+ * the same fact a mapping expression is, so it becomes {@code
+ * relational_elements} / {@code data_types} rows (one builder, {@link
+ * RelationalOpRows}) keyed by a content id, and the instance expression
+ * becomes the member class's extent filtered on that id — every navigation
+ * and function body over it is then the ordinary row path. THE ROWS RIDE
+ * THE QUERY (user ruling 2026-09-02): the chain rooted at the instance
+ * resolves under the tree's scope and its class sources read these rows as
+ * inline relations ({@code ClassSources.scoped}); the system database is
+ * never written for them.
  *
  * <p>A ROW-VALUED argument inside a constructed tree (a navigated element)
  * has no compile-time row: it is admitted only where the parent's type rule

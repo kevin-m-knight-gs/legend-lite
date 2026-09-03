@@ -16,7 +16,7 @@ import java.util.List;
  * {@code inferRelationalType} / {@code getSafeType} spec,
  * relationalExtension.pure:111-190 and :1906-2010). The metamodel store
  * STAMPS the result on every relational-operation row it seeds
- * ({@code relational_ops.type_id}), the include-closure precedent: the
+ * ({@code relational_elements.type_id}), the include-closure precedent: the
  * engine recurses over the tree per query; ours reads the compile-time
  * fact as a row. Moved from the legacy walk ({@code MetamodelWalk.inferOp},
  * group F burn 2026-09-02) — the walk keeps a delegating shim for the

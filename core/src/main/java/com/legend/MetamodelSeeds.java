@@ -13,10 +13,11 @@ import java.util.Set;
 /**
  * The system metamodel store's SEED derivations (SystemMetamodel owns the
  * schema; this owns the rows): per table, the active model context's
- * facts as rows of strings. Lives beside the one execution-setup owner
- * ({@code StatementExecutor.seedMetamodelStore}, same package) — the
- * builtin package declares the store and must not depend on the compiler's
- * context; exec consumes SQL and result shapes only.
+ * facts as rows of strings, derived ONCE per graph ({@code exec.
+ * SystemDatabase} writes them into the graph's own system database the
+ * first time a query reads the metamodel; nothing is seeded per execution)
+ * — the builtin package declares the store and must not depend on the
+ * compiler's context; exec consumes SQL and result shapes only.
  */
 public final class MetamodelSeeds {
 

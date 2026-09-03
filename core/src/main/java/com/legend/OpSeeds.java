@@ -17,7 +17,7 @@ import java.util.Set;
 /**
  * The metamodel store's RELATIONAL-OPERATION seeds (group F burn,
  * 2026-09-02): every mapping expression and view column expression of the
- * active context as a TREE of {@code relational_ops} rows (one row per
+ * active context as a TREE of {@code relational_elements} rows (one row per
  * node, parent + ordinal, the engine's node kinds: DynaFunction / Literal
  * / LiteralList / TableAliasColumn / RelationalOperationElementWithJoin),
  * each node stamped with the compiler's inferred SQL type as a

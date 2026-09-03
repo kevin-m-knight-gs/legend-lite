@@ -218,6 +218,10 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batches 12–13 (refs by id 5m44s; inline relations 5m57s with a 55s G5
+outlier — two standalone H2 reruns measured 42s/42s, ledgers identical to
+batch 12's; watch the next chain).** Channel B once (G9): 5m49s.
+
 **Batch 11 (boot layer, same day): chain 5m51s** — G1 38s (clean build;
 29s warm), G2 9s, G4 62s, G5 40s, G6 86s, G7 25s, G9 19s, G8 72s. A model
 compile is 0.5ms (8.0ms at the breach, 2.3ms before group F). The 21s

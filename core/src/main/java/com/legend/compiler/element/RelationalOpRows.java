@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * Relational-operation TREES as metamodel-store rows (group F burn,
- * 2026-09-02): one {@code relational_ops} row per node (parent + ordinal,
+ * 2026-09-02): one {@code relational_elements} row per node (parent + ordinal,
  * the engine's node kinds), each stamped with the compiler's inferred SQL
  * type as a {@code data_types} row ({@link RelationalTypeInference}). ONE
  * builder serves both row sources: the model's mapping / view expressions

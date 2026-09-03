@@ -20,10 +20,12 @@ import java.util.List;
  * parsed once at class load and injected into every model build
  * ({@code Compiler.buildModel}/{@code buildModule}) &mdash; the resolver
  * sees them exactly as parsed elements, no parallel lane. (2)
- * {@code exec.MetamodelSeeds} renders the extent of the ACTIVE model context
- * per table; the one execution-setup owner ({@code StatementExecutor
- * .executeTyped}) runs the DDL+INSERT when a resolved body reads the
- * store. (3) The FQN constants are the exact-FQN identification surface
+ * {@code MetamodelSeeds} renders the graph's facts per table, ONCE per
+ * graph, into the graph's own SYSTEM DATABASE ({@code exec.SystemDatabase}
+ * — separate from every user connection, read-only after those rows; the
+ * executor ROUTES a store-reading body to it). A query's CONSTRUCTED
+ * instances ride the query as inline relations (resolver-scoped class
+ * sources), never the database. (3) The FQN constants are the exact-FQN identification surface
  * (D1's ambient rule, the executor's table-reference detection).
  *
  * <p><strong>D2 &mdash; one identity for an element value: the FQN.</strong>
