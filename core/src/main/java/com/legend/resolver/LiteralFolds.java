@@ -24,9 +24,30 @@ final class LiteralFolds {
     private static final String EQ_FQN =
             "meta::pure::functions::boolean::eq";
 
+    private static final String IS_EMPTY_FQN =
+            "meta::pure::functions::collection::isEmpty";
+    private static final String IS_NOT_EMPTY_FQN =
+            "meta::pure::functions::collection::isNotEmpty";
+    private static final String NOT_FQN = "meta::pure::functions::boolean::not";
+
     static @com.legend.Nullable Boolean staticBool(TypedSpec cond) {
         return switch (cond) {
             case TypedCBoolean b -> b.value();
+            // emptiness of a LITERAL collection is static (the M3
+            // elementOverride read types to the empty literal: the
+            // corpus KeyInformation guard `if($x.elementOverride->isNotEmpty(), …)`)
+            case TypedNativeCall c when c.args().size() == 1
+                    && (IS_EMPTY_FQN.equals(c.callee().qualifiedName())
+                            || IS_NOT_EMPTY_FQN.equals(c.callee().qualifiedName()))
+                    && c.args().get(0)
+                            instanceof com.legend.compiler.spec.typed.TypedCollection tc ->
+                    IS_EMPTY_FQN.equals(c.callee().qualifiedName())
+                            == tc.elements().isEmpty();
+            case TypedNativeCall c when c.args().size() == 1
+                    && NOT_FQN.equals(c.callee().qualifiedName()) -> {
+                Boolean inner = staticBool(c.args().get(0));
+                yield inner == null ? null : !inner;
+            }
             case TypedNativeCall c when c.args().size() == 2
                     && (EQUAL_FQN.equals(c.callee().qualifiedName())
                             || EQ_FQN.equals(c.callee().qualifiedName())) -> {

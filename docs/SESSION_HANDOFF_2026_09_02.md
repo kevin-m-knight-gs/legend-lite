@@ -2239,6 +2239,33 @@ ViewEmbeddedInChainedJoin/UnionViewOnView/RelationalTreeCalculationWithView
 InAnotherSchema) print the engine's view-expansion alias breadcrumbs
 (`orderTable_d#2_d#2_m3`) — the same decision family, 6 more tests.
 
+**Batch 45 — TWO MORE NO-DECISION MECHANISMS (2026-09-03): ratchet
+291/2282 → 287/2286 (+4, ZERO lost).** (1) `if()` over a class query
+decides STATICALLY when its condition is the emptiness of a literal
+collection: `LiteralFolds.staticBool` folds `isEmpty`/`isNotEmpty` over a
+`TypedCollection` literal and `not` over a static operand — the M3
+`elementOverride` read already types to the empty literal (inheritance
+`testGetAll`'s KeyInformation guard `if($r.elementOverride->isNotEmpty(),
+|assert…, |true)`), so the guarded branch is never a runtime question
+(+2: inheritance relational/union testGetAll). (2) A TDSNull-TYPED
+collection root (`[^TDSNull(), ^TDSNull()]`, the assert's EXPECTED side)
+reached the COLLECTION egress as SQL NULLs and walled as a lowering
+defect; `Executor` now decodes such a root on the Any lane and egresses
+each cell as the TDSNull VALUE — the wire's ONE spelling of it
+(`PlatformTypes.TDS_NULL_CELL`, the [1..1] cell-read convention and the
+referee's sentinel), so it compares equal both to a grid NULL slot and to a
+getter's sentinel (+2: tree testProjectMerge, milestoning
+testMilestoningColumnProjectionWithNonMilestonedTable). TRIED AND REVERTED
+(receipt): stamping `rowCells` reads as [1] with an Any element type for
+optional columns — LOST 20 (tds sort 12, association 8, realias 1): the
+per-cell typed reads are load-bearing for sort/compare kinds; the null
+cells were never on that path. NAMED after b45: `$tds->toJSON()` over a
+TDS (`meta::json::toJSON` has no lowering — the engine's
+`{"columns":[{name,type,metaType}],"rows":[{values}]}` envelope; 1 test:
+testSimpleTypeMappingProjectNulls) — the executeLegendQuery TDS envelope
+(`JsonEmission`) is the spelling to reuse. Lane move: exec-passing 63 →
+61, M1 rescued 57 → 55; disagree 0.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

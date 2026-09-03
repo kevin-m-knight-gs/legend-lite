@@ -170,7 +170,14 @@ public final class Executor {
                                           com.legend.sql.dialect.SqlDialect dialect,
                                           @com.legend.Nullable CanonRider rider)
             throws SQLException {
-        boolean anyRoot = PlatformTypes.isAny(rootType.type());
+        // a TDSNull-TYPED root ([^TDSNull(), ^TDSNull()] — the grid
+        // convention's null-cell VALUE, whose scalar form IS the SQL NULL):
+        // every cell is the value; it rides the Any lane's decoded
+        // null-slot egress, never the lowering-defect wall
+        boolean anyRoot = PlatformTypes.isAny(rootType.type())
+                || rootType.type()
+                        instanceof com.legend.compiler.element.type.Type.ClassType nct
+                && PlatformTypes.TDS_NULL_FQN.equals(nct.fqn());
         boolean variantRoot = rootType.type()
                 instanceof com.legend.compiler.element.type.Type.ClassType vct
                 && PlatformTypes.isVariant(vct);
@@ -380,6 +387,16 @@ public final class Executor {
                         // the host null slot (PureAsserts' direction-aware
                         // sentinel equivalence adjudicates it).
                         if (v == null) {
+                            // a TDSNull-TYPED root: every cell IS the
+                            // TDSNull value — the wire's ONE spelling of
+                            // it (the [1..1] cell-read convention, the
+                            // referee's sentinel), never a null slot
+                            if (rootType.type()
+                                    instanceof com.legend.compiler.element.type.Type.ClassType nct
+                                    && PlatformTypes.TDS_NULL_FQN.equals(nct.fqn())) {
+                                values.add(PlatformTypes.TDS_NULL_CELL);
+                                continue;
+                            }
                             if (!anyRoot && !variantRoot) {
                                 throw new IllegalStateException("NULL cell"
                                         + " reached COLLECTION egress — the"

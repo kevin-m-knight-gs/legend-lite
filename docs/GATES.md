@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 45 (if() over a class query decides on literal emptiness; a TDSNull-typed collection root egresses as the TDSNull value, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 291/2282 → 287/2286 (+4, 0 lost); lane moves exec-passing 63 → 61, M1 rescued 57 → 55 (disagree 0). G1 40s, G2 9s, G4 55s, G5 38s, G6 77s, G7 26s, G9 18s, G8 73s.
+
 **Batch 44 (no-decision singles: zip is the positional list_zip pairing, the envelope splice erases cast/rows after splicing their source, meta::pure::tds::extend dispatches to the extend checker, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 297/2276 → 291/2282 (+6, 0 lost); lane moves exec-passing 68 → 63, M1 rescued 62 → 57 (disagree 0). G1 39s, G2 9s, G4 55s, G5 39s, G6 82s, G7 26s, G9 18s, G8 72s.
 

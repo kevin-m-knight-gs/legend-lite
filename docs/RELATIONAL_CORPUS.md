@@ -47,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 4 |
+| milestoning/tests | 228 | 220 | 4 | 2 | 2 | 1 | 1 | 0 | 3 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -91,7 +91,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2380** | 46 | 102 | 47 | 12 | 12 | 29 | 26 |
+| **total** | 2575 | **2380** | 46 | 102 | 47 | 12 | 12 | 29 | 24 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2380 PASS = 2316 clean + 64 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 26; flags overlap — the union is 64).
+SOFT-PASS RECONCILIATION (F2.1): 2380 PASS = 2318 clean + 62 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 24; flags overlap — the union is 62).
 
 ### mapping walls (dropped at assembly)
 
