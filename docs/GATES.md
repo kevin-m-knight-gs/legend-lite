@@ -218,6 +218,11 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 14 (group D leg 1 — the router's string entry, 2026-09-03):
+chain 5m49s** — G1 39s, G2 9s, G4 62s, G5 42s, G6 80s, G7 25s, G9 19s,
+G8 73s. Ratchet 820/1753 → 791/1782 (+29); exec-passing 344, h2-exec 82,
+quarantine 125/9 unchanged.
+
 **Batches 12–13 (refs by id 5m44s; inline relations 5m57s with a 55s G5
 outlier — two standalone H2 reruns measured 42s/42s, ledgers identical to
 batch 12's; watch the next chain).** Channel B once (G9): 5m49s.

@@ -2167,6 +2167,8 @@ public final class ProtocolEmitter {
             // (its native parses at runtime)
             case com.legend.protocol.spec.QuotedTreeCall q ->
                     valueSpec(b, q.original());
+            case com.legend.protocol.spec.QuotedGrammarCall q ->
+                    valueSpec(b, q.original());
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
                 // The value is the SOURCE SPELLING, verbatim. DAY precision emits strictDate;
@@ -2299,6 +2301,8 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf, span);
             case com.legend.protocol.spec.QuotedTreeCall q ->
+                    appliedFunction(b, q.original(), span);
+            case com.legend.protocol.spec.QuotedGrammarCall q ->
                     appliedFunction(b, q.original(), span);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl, span);
             case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, span);

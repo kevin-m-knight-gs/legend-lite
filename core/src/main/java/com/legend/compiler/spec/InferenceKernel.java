@@ -93,6 +93,14 @@ public final class InferenceKernel {
             unify(ff, fa, b);
             return;
         }
+        // Nil is BOTTOM (the []-born value): it conforms to EVERY formal —
+        // class and generic slots included (executeLegendQuery($f, [],
+        // ext) against vars:Pair<String, Any>[*]; the multiplicity check
+        // is the one that judges an empty). The primitive and type-
+        // variable arms below carry the same rule for their own shapes.
+        if (isNil(actual) && !(formal instanceof Type.TypeVar)) {
+            return;
+        }
         switch (formal) {
             // Any is the top type: accepts anything (guarded ClassType, before identity).
             case Type.ClassType c when c.fqn().equals(ANY_FQN) -> { }

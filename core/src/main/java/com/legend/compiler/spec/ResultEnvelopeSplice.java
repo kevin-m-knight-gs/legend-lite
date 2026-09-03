@@ -155,6 +155,14 @@ public final class ResultEnvelopeSplice {
     }
 
     private static TypedSpec rewrite(TypedSpec n, Frames frames) {
+        // an INLINE string-entry call (assertEquals(expected,
+        // executeLegendQuery(...))) IS its result JSON string: the frame's
+        // chain (the envelope) stands where the call stood — observed
+        // where it stands, no separate eager run
+        if (n instanceof TypedNativeCall lq
+                && PlatformTypes.isLegendQueryFqn(lq.callee().qualifiedName())) {
+            return frames.inlineExecute(lq, false).chain();
+        }
         // $result.rows->size(): POST-EXECUTE row count. The engine
         // counts the MATERIALIZED rows in memory; the in-query
         // single-column count(col) rule (processRowCount, null-

@@ -1142,11 +1142,91 @@ DEFERRED WITH DESIGNS WRITTEN (ride a burn, do not stand alone):
 MappingFacts (the normalizer's mapping-fact owner, design above);
 the 5.5-minute chain ceiling re-arms when a chain measures ≤330s.
 
+**Batch 14 — GROUP D leg 1, the ROUTER'S STRING ENTRY (2026-09-03):
+ratchet 820/1753 → 791/1782 (+29, no losses; chain 5m49s, all green).**
+Mechanisms (all platform-side, on the one compile/router path):
+(1) `compileLegendValueSpecification($treeString)` folds AT PARSE TIME
+when `$treeString` is a let-bound literal-string constant of the same
+body (SpecParser keeps a scope stack of string constants; lambda
+parameters shadow; QuotedSpecParser.fold resolves `$var` through it);
+the `let tree = …->cast(@RootGraphFetchTree<T>)` binding parks as a
+deferred let (Typer.deferredLetRhs) and resolves at its graphFetch/
+serialize consumer (GraphFetchChecker.unwrapCompiledTree strips the
+cast) — 13 testSubTypeGraphFetch flips. (2) `execute()` whose query is
+`if(<literal>, |{|q1}, |{|q2})` selects the branch STRUCTURALLY
+(ExecuteChainAssembly.peelSelections, the literal read through the let
+prefix — the Impl(checked, expected) helper). (3)
+`meta::legend::executeLegendQuery` (devUtils.pure:30/:35, both
+signatures registered VERBATIM) is a RESULT FRAME beside
+router::execute (PlatformTypes.EXECUTE_LEGEND_QUERY, HANDLE):
+ExecuteChainAssembly.prepareLegendQuery binds the query lambda's
+parameters from the vars pairs as LEADING LETS coerced by the declared
+parameter type (enum name → enum value, date string → date literal —
+the engine's JSON-borne variable coercion; lets keep the `$var`
+spelling the serialize keys need), the chain rides `chain()` with a
+null mapping ref (every branch carries its own from()), and
+legendQueryEnvelope emits the engine's result JSON OVER THE CHAIN by
+shape: serialize root → `{"builder":{"_type":"json"},"values":…}`
+(joinStrings), primitive scalar root → toString (the platform-ops
+witnesses assert 'false'); TDS/class/String roots are NAMED walls
+(leg 2). A bare inline call splices to the envelope
+(ResultEnvelopeSplice). Nil (the []-born value) now conforms to CLASS
+formals in the kernel (`executeLegendQuery($f, [], ext)` against
+`Pair<String, Any>[*]`). A from() whose runtime is a LET-BOUND
+variable collects the let's setup SQL through the alias channel
+(FromChecker + TypedFrom.sqlSetupsInRaw — the m2m2r
+`getModelChainRuntime` shapes seeded only by neighbour tests before).
+XStore milestoning 4, m2m2r milestoned 5, platformOperations 4 flips.
+(4) `compileLegendGrammar(<const>)` over a FUNCTIONS-ONLY payload folds
+at parse time to the two-faced QuotedGrammarCall (wire = the call,
+pipeline = each function as its lambda); the typer types it as the
+lambda collection and peelSelections reads `->at(i)->cast(
+@FunctionDefinition<…>)` structurally — 3 testGraphFetchMilestoning
+flips. Guards moved with receipts: native-catalog golden +2 lines;
+string-dispatch count held (CoreFn.of for cast, a named FQN set in the
+parser).
+GROUP D REMAINDER (named, each with its route): JSON navigation over
+the result string — `parseJSON()->cast(@JSONObject).keyValuePairs->
+filter(kv|$kv.key.value=='result').value`, `.values`, `->size()`,
+toCompactJSONString/toPrettyJSONString, `^JSONArray(values=…->sortBy)`
+(runLegendTest 4: slice/take/limit/drop WithVariables; paginate 2;
+enumPushDown testPushDownProjectWithParameter; subType
+testInheritanceMappingWithoutSubType +
+testSubTypeAtRootLevelWithInheritanceMapping) = LEG 2: the meta::json
+classes (json.pure:32-70, verbatim) ride the VARIANT lane by emission
+(parseJSON = JSON cast; member get = VARIANT_GET; `.values` =
+VARIANT_ELEMENTS; `.value` = to(@String/@Number); casts within the
+family identity; compact/pretty = the JSON text — DuckDB probe
+2026-09-03: `-> '$.*'`, `CAST(… AS JSON[])`, list_transform/flatten,
+json_group_array(json_object(…)), json_pretty all verified) plus the
+tdsBuilder/classBuilder envelopes for TDS/class-rooted queries
+(json_object('columns',…,'rows', json_group_array(json_object('values',
+json_array(cols))))). testParametrizedEnumFilter — the from() runtime
+is a `^$runtime(connectionStores=^$connectionStore(connection=
+^$connection(testDataSetupCsv=…)))` COPY chain over a navigated
+connection store: the CSV seed route (Ddl.setUpDataSqlsText over the
+store's tables) through the alias channel, next. testSpecialUnion_m2m2r
+— `class Person is not mapped in mapping FirmsAndEmployees_M2M`: an
+M2M union-root mapping resolution gap (family: graphFetch union
+rootLevel), not the string entry. XStore
+testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedProperty
+Constraint / …ZeroToOne — a MODEL in a string (classes, mappings,
+connection, runtime + functions): the route is the compile-once
+overlay admitting grammar payloads (the carrier refuses non-function
+payloads loudly); a separate leg. Adjacent (use compileLegendGrammar,
+other walls): testMilestonedProperty,
+testMilestonedRootAndMilestonedProperty (graphFetch milestoning),
+testFlatten_ViaNoArgMapping(_ViaAssociation) (from() mapping argument
+is a let-bound helper CALL — `getNoArgMapping()` builds ^Mapping).
+Harness arms still standing (they serve the named remainder): ElqSplice,
+clgArm, the walk's QuotedSpecParser.fold site — each dies with its
+last fallback.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 820 fallbacks / 1753 flipped (group F LANDED — batch 7
-above; batches 8–13 = speed + architecture, ratchet unchanged),
-exec-passing 344, quarantine 125 rows / 9 walls.
+legs).** State: 791 fallbacks / 1782 flipped (batch 14 = group D leg 1;
+group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
+ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 1. **Group F — DONE (batch 7).** Was: mapping-metamodel query functions (27 tests; §1 of the
    homework: testRelationalExtension.pure 20, testExtendsForMainTable 5
    [DONE], testExtendsForPrimaryKey 1 [DONE], testSubtypeMapping 1)**:

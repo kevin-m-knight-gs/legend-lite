@@ -1825,6 +1825,18 @@ public final class Pure {
     public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
     public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
 
+    // The ROUTER'S STRING ENTRY — REAL engine devUtils.pure:30/:35
+    // (meta::legend::executeLegendQuery(f, vars, [exeCtx,] extensions)
+    // → meta::legend::execute): the query lambda's parameters bind from
+    // the vars pairs and the RESULT JSON string comes back. Signatures
+    // VERBATIM (Pair<String, Any>[*], ExecutionContext[1], Extension[*]).
+    // K-dispatched as a RESULT FRAME beside router::execute
+    // (PlatformTypes.EXECUTE_LEGEND_QUERY; ExecuteChainAssembly
+    // .prepareLegendQuery binds the vars as leading lets, the envelope
+    // is emitted over the chain).
+    public static final NativeFunctionDefinition EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXTENSION_MANY = signature("native function meta::legend::executeLegendQuery(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], vars:meta::pure::functions::collection::Pair<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*], extensions:meta::pure::extension::Extension[*]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXECUTION_CONTEXT_1__EXTENSION_MANY = signature("native function meta::legend::executeLegendQuery(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], vars:meta::pure::functions::collection::Pair<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*], exeCtx:meta::pure::runtime::ExecutionContext[1], extensions:meta::pure::extension::Extension[*]):meta::pure::metamodel::type::String[1];");
+
     // preval: the engine's PLAN-TIME pre-evaluation pass (REAL pure
     // preeval.pure:53/:58 — preval<T>(f:FunctionDefinition<T>[1],
     // extensions:Extension[*])[, debug:DebugContext[1]]:FunctionDefinition

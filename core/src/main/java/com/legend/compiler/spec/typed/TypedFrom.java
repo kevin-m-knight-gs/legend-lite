@@ -333,6 +333,22 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         return List.copyOf(out);
     }
 
+    /** The RAW-syntax entry: a runtime that reaches {@code from()} as a
+     * LET-BOUND VARIABLE ({@code let runtime = getModelChainRuntime($m);
+     * … ->from($mapping, $runtime)} inside a query lambda — the
+     * executeLegendQuery shapes) carries its setup SQL in the let's rhs,
+     * reachable through the checker's alias channel; the same helper
+     * expansion as the typed walk applies. */
+    public static List<String> sqlSetupsInRaw(
+            com.legend.protocol.spec.ValueSpecification rhs,
+            java.util.function.Function<String, java.util.Optional<
+                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
+                    fnBody) {
+        List<String> out = new java.util.ArrayList<>();
+        collectSqlSetupsRaw(rhs, new java.util.HashMap<>(), out, fnBody, 0);
+        return List.copyOf(out);
+    }
+
     private static void collectSqlSetups(TypedSpec n, List<String> out,
             java.util.function.Function<String, java.util.Optional<
                     java.util.List<com.legend.protocol.spec.ValueSpecification>>>

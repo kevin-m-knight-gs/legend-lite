@@ -1210,10 +1210,26 @@ public class RelationalCorpusRunner {
             // mapping / view / type arms are gone. Lane moves in-pin:
             // exec-passing 345 -> 344, M1 verified 83 -> 82; quarantine
             // 151/20 -> 125/9 (four refusal spellings retired).
-            org.junit.jupiter.api.Assertions.assertEquals(820L,
+            // 820/1753 -> 791/1782 (harness burn-down batch 14 — GROUP D
+            // leg 1, 2026-09-03): the ROUTER'S STRING ENTRY. +29 flips =
+            // compileLegendValueSpecification over let-bound constant
+            // strings (13 testSubTypeGraphFetch; the parser's quote/eval
+            // fold reads the body's let constants, the deferred-let park
+            // covers the ->cast(@RootGraphFetchTree) binding, the chain
+            // assembly peels if(<literal>)-selected queries),
+            // executeLegendQuery as a native RESULT FRAME beside
+            // router::execute (XStore milestoning 4, m2m2r milestoned 5,
+            // platformOperations 4; vars bind as leading lets coerced by
+            // declared type, the json-builder / bare-scalar envelopes are
+            // emitted over the chain; a let-bound runtime's setup SQL is
+            // collected through the alias channel; Nil conforms to class
+            // formals), compileLegendGrammar over a functions-only payload
+            // as the QuotedGrammarCall carrier (testGraphFetchMilestoning 3;
+            // ->at(i)->cast(@FunctionDefinition) selects structurally).
+            org.junit.jupiter.api.Assertions.assertEquals(791L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1753L,
+            org.junit.jupiter.api.Assertions.assertEquals(1782L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

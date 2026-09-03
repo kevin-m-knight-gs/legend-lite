@@ -239,6 +239,19 @@ public final class PlatformTypes {
      * was an invented FQN (audit R8) and is deleted. */
     public static final String EXECUTE = "meta::pure::router::execute";
 
+    /** The ROUTER'S STRING ENTRY — real engine devUtils.pure:30/:35
+     * {@code meta::legend::executeLegendQuery(f, vars, [exeCtx,] ext)}:
+     * the same result frame as {@link #EXECUTE} with the query lambda's
+     * parameters bound from the vars pairs, read as the engine's RESULT
+     * JSON string ({@code ExecuteChainAssembly.prepareLegendQuery} /
+     * {@code legendQueryEnvelope}). */
+    public static final String EXECUTE_LEGEND_QUERY =
+            "meta::legend::executeLegendQuery";
+
+    public static boolean isLegendQueryFqn(String fqn) {
+        return EXECUTE_LEGEND_QUERY.equals(fqn);
+    }
+
     /** The engine's PLAN-EXECUTE entry — real pure's
      * meta::pure::executionPlan::execute(plan, parametersValues,
      * extensions) (executionPlan_execution.pure:20). The platform
@@ -498,6 +511,7 @@ public final class PlatformTypes {
                     java.util.Map.entry(EXECUTION_PLAN, NativeImpl.HANDLE),
                     java.util.Map.entry(PREVAL, NativeImpl.HANDLE),
                     java.util.Map.entry(EXECUTE, NativeImpl.HANDLE),
+                    java.util.Map.entry(EXECUTE_LEGEND_QUERY, NativeImpl.HANDLE),
                     java.util.Map.entry(ASSERT_ERROR, NativeImpl.CONTEXT_OWNER),
                     java.util.Map.entry(EXECUTE_IN_DB, NativeImpl.EFFECT),
                     java.util.Map.entry(DROP_AND_CREATE_TABLE_IN_DB, NativeImpl.EFFECT),
@@ -515,7 +529,7 @@ public final class PlatformTypes {
      * symbolic (navigated by the plan reader). A catalog FACT — the
      * executor consults it, never a name literal. */
     public static boolean handleForcesAtValuePosition(String fqn) {
-        return EXECUTE.equals(fqn);
+        return EXECUTE.equals(fqn) || EXECUTE_LEGEND_QUERY.equals(fqn);
     }
 
     /** The RAW-SQL boundary fact: executeInDb statements carry

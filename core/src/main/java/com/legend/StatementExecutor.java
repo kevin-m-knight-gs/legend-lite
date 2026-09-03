@@ -175,8 +175,10 @@ final class StatementExecutor {
                     rhs = rf.source();
                 }
                 if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .isExecuteFqn(ec.callee().qualifiedName())) {
+                        && (com.legend.compiler.element.type.PlatformTypes
+                                .isExecuteFqn(ec.callee().qualifiedName())
+                            || com.legend.compiler.element.type.PlatformTypes
+                                .isLegendQueryFqn(ec.callee().qualifiedName()))) {
                     // EAGER run (engine parity, audit 16 F1): a broken
                     // pipeline surfaces AT the let even when nothing reads
                     // the frame.
@@ -1941,6 +1943,32 @@ final class StatementExecutor {
                                 + " (the referee-binding cut)");
             }
             ec = pb;
+        }
+        // the STRING ENTRY (meta::legend::executeLegendQuery): the query
+        // lambda's parameters bind from the vars pairs, the chain rides
+        // the same frame, the READ is the engine's result JSON string
+        // (envelope emitted over the chain — relationRooted is false:
+        // the frame's value is one string). The eager run executes the
+        // RAW chain (pipeline validation at the let, engine parity).
+        if (com.legend.compiler.element.type.PlatformTypes
+                .isLegendQueryFqn(ec.callee().qualifiedName())) {
+            var lq = com.legend.compiler.spec.ExecuteChainAssembly
+                    .prepareLegendQuery(ec, letPrefix, specs);
+            var lqChain = com.legend.compiler.spec.ExecuteChainAssembly
+                    .chain(lq, ec, letPrefix, specs, env.runtimeFqn(),
+                            env.queryLets());
+            TypedSpec envelope = com.legend.compiler.spec.ExecuteChainAssembly
+                    .legendQueryEnvelope(lqChain.chain(), env.ctx());
+            ExecutionResult lqRun = null;
+            if (eager) {
+                com.legend.resolver.StoreResolver lqResolver =
+                        new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                                .withLetBindings(env.queryLets());
+                lqRun = executeTyped(lqResolver.resolve(
+                        java.util.List.of(lqChain.chain()), env.runtimeFqn()),
+                        env);
+            }
+            return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
                 .prepare(ec, letPrefix, specs);

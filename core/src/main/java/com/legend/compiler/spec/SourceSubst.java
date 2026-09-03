@@ -214,6 +214,7 @@ public final class SourceSubst {
             // literals — no free variables); substituting through it would
             // re-fold its own original
             case com.legend.protocol.spec.QuotedTreeCall q -> q;
+            case com.legend.protocol.spec.QuotedGrammarCall q -> q;
             // leaves pass; any composite not special-cased above recurses
             default -> v.mapChildren(x -> substitute(x, env, folder));
         };

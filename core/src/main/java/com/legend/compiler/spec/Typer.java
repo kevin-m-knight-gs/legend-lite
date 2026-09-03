@@ -138,6 +138,13 @@ final class Typer {
             // the TREE face is consumed by GraphFetchChecker only
             case com.legend.protocol.spec.QuotedTreeCall q ->
                     synth(q.original(), env);
+            // the grammar carrier: compileLegendGrammar(...) DENOTES its
+            // element collection; a function element's value is its
+            // lambda — the collection of lambdas types (->at(i)->cast
+            // then selects, the chain assembly peels structurally)
+            case com.legend.protocol.spec.QuotedGrammarCall q ->
+                    synth(new PureCollection(
+                            List.<ValueSpecification>copyOf(q.functions())), env);
             case com.legend.protocol.spec.TdsLiteral tl -> synth(tl.desugared(), env);
             case com.legend.protocol.spec.SqlIsland si ->
                     throw new com.legend.error.NotImplementedException(
@@ -3338,7 +3345,20 @@ final class Typer {
      * it REJECTS the other shapes at the binding — parking mirrors its
      * use-site inScopeVars resolution at the checker layer.) */
     static boolean deferredLetRhs(ValueSpecification v) {
+        // a quote/eval tree carrier — bare, or under the corpus's
+        // ->cast(@RootGraphFetchTree<T>) — is a tree LITERAL for binding
+        // purposes: it types only at its graphFetch/serialize consumer
+        // (GraphFetchChecker.unwrapCompiledTree strips the cast)
+        if (v instanceof AppliedFunction c
+                && CoreFn.of(c.function()).orElse(null) == CoreFn.CAST
+                && c.parameters().size() == 2
+                && (c.parameters().get(0) instanceof com.legend.protocol.spec.QuotedTreeCall
+                        || c.parameters().get(0)
+                                instanceof com.legend.protocol.spec.GraphFetchLiteral)) {
+            return true;
+        }
         return v instanceof com.legend.protocol.spec.GraphFetchLiteral
+                || v instanceof com.legend.protocol.spec.QuotedTreeCall
                 || v instanceof ColSpec cs && cs.function1() != null
                 || v instanceof ColSpecArray arr && arr.colSpecs().stream()
                         .anyMatch(c -> c.function1() != null);

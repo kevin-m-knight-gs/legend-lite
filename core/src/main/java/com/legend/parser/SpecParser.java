@@ -233,6 +233,42 @@ public final class SpecParser implements TokenStreamCursor {
         this.spanSourceId = spanSourceId;
         this.dialect = dialect;
         this.islandScan = new IslandScan(tokens, spanSourceId, this);
+        constStrings.push(new java.util.HashMap<>());
+    }
+
+    /** LET-BOUND STRING CONSTANTS in scope, innermost body first: a
+     *  {@code let} whose value is a literal string (or a {@code +} chain
+     *  of them, through earlier constants) records here so the quote/eval
+     *  fold ({@link QuotedSpecParser#fold}) folds
+     *  {@code compileLegendValueSpecification($treeString)} exactly as the
+     *  inline-literal spelling — strings die at the parser either way.
+     *  Every lambda body pushes a scope; a lambda parameter SHADOWS an
+     *  outer constant of its name ({@link #SHADOW}). Pure lets are
+     *  single-assignment, so a recorded value never changes. */
+    private final java.util.ArrayDeque<java.util.Map<String, String>> constStrings =
+            new java.util.ArrayDeque<>();
+
+    /** Identity sentinel: the name is bound in this scope but NOT to a
+     *  constant (a lambda parameter). Compared by reference. */
+    @SuppressWarnings("StringOperationCanBeSimplified")
+    private static final String SHADOW = new String("<shadowed>");
+
+    private @com.legend.Nullable String constString(String name) {
+        for (java.util.Map<String, String> scope : constStrings) {
+            String v = scope.get(name);
+            if (v != null) {
+                return v == SHADOW ? null : v;
+            }
+        }
+        return null;
+    }
+
+    private void pushConstScope(List<Variable> params) {
+        java.util.Map<String, String> scope = new java.util.HashMap<>();
+        for (Variable p : params) {
+            scope.put(p.name(), SHADOW);
+        }
+        constStrings.push(scope);
     }
 
     /** Mapping test-suite query lambdas carry the MAPPING's path as the
@@ -400,6 +436,9 @@ public final class SpecParser implements TokenStreamCursor {
         }
         expect(TokenType.EQUAL, "expected '=' after 'let " + varName + "'");
         ValueSpecification value = parseCombinedExpression();
+        String constant = QuotedSpecParser.foldStringConcat(value,
+                this::constString);
+        constStrings.peek().put(varName, constant == null ? SHADOW : constant);
         // Engine convention (ProbeWireShapes function): letFunction spans the whole
         // `let name = value` statement; its name-string parameter carries NO span.
         // A statement ENDING on a '''...''' token takes that token's
@@ -1215,7 +1254,13 @@ public final class SpecParser implements TokenStreamCursor {
             // at the HOST's level: the engine's native uses "the user
             // grammar" (LegendCompile), and this parse's dialect IS the
             // host's user grammar — a lite model may quote lite syntax.
-            ValueSpecification folded = QuotedSpecParser.fold(call, dialect());
+            ValueSpecification folded = QuotedSpecParser.fold(call, dialect(),
+                    this::constString);
+            if (folded == null) {
+                // the GRAMMAR quote/eval fold (compileLegendGrammar over a
+                // functions-only payload) — same place, same rule
+                folded = QuotedSpecParser.foldGrammar(call, this::constString);
+            }
             return folded != null ? folded : call;
         }
         // Engine convention: a packageableElementPtr spans its FQN tokens.
@@ -1817,7 +1862,13 @@ public final class SpecParser implements TokenStreamCursor {
         }
         int pipeTok = pos;
         expect(TokenType.PIPE, "expected '|' to separate lambda parameters from body");
-        List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
+        pushConstScope(params);
+        List<ValueSpecification> body;
+        try {
+            body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
+        } finally {
+            constStrings.pop();
+        }
         if (body.isEmpty()) {
             throw error("lambda body must contain at least one statement");
         }
@@ -2047,17 +2098,22 @@ public final class SpecParser implements TokenStreamCursor {
         // — the FIRST statement's ';' is optional; every SUBSEQUENT statement
         // REQUIRES its trailing ';'. "|let a = 1; $a" is invalid Pure.
         List<ValueSpecification> body = new java.util.ArrayList<>();
-        body.add(parseProgramLine());
-        if (!atEnd() && peek() == TokenType.SEMI_COLON) {
-            pos++; // the first statement's optional ';'
-            while (!atEnd() && !isLambdaBodyTerminator(peek())) {
-                body.add(parseProgramLine());
-                if (atEnd() || peek() != TokenType.SEMI_COLON) {
-                    throw error("expected ';' after statement in a multi-statement"
-                            + " lambda body (real Pure requires it)");
+        pushConstScope(List.of());
+        try {
+            body.add(parseProgramLine());
+            if (!atEnd() && peek() == TokenType.SEMI_COLON) {
+                pos++; // the first statement's optional ';'
+                while (!atEnd() && !isLambdaBodyTerminator(peek())) {
+                    body.add(parseProgramLine());
+                    if (atEnd() || peek() != TokenType.SEMI_COLON) {
+                        throw error("expected ';' after statement in a multi-statement"
+                                + " lambda body (real Pure requires it)");
+                    }
+                    pos++; // the REQUIRED trailing ';'
                 }
-                pos++; // the REQUIRED trailing ';'
             }
+        } finally {
+            constStrings.pop();
         }
         // Engine convention: pipe..body-end, the same rule as every inline lambda form.
         return new LambdaFunction(List.of(), body, spanOf(pipeTok, pos - 1));

@@ -53,6 +53,7 @@ public sealed interface ValueSpecification permits
         CLatestDate,
         GraphFetchLiteral,
         QuotedTreeCall,
+        QuotedGrammarCall,
         PathLiteral,
         SqlIsland,
         GqlIsland,
@@ -88,6 +89,13 @@ public sealed interface ValueSpecification permits
             case GraphFetchLiteral gf -> java.util.List.of(gf.desugared());
             case QuotedTreeCall q ->
                     java.util.List.of(q.original(), q.tree());
+            case QuotedGrammarCall q -> {
+                java.util.List<ValueSpecification> cs =
+                        new java.util.ArrayList<>(q.functions().size() + 1);
+                cs.add(q.original());
+                cs.addAll(q.functions());
+                yield cs;
+            }
             case CBoolean ignored -> java.util.List.of();
             case CByteArray ignored -> java.util.List.of();
             case CDate ignored -> java.util.List.of();
@@ -144,6 +152,11 @@ public sealed interface ValueSpecification permits
                     gf.subTrees(), cs.get(0), gf.unsupported(), gf.pos());
             case QuotedTreeCall q -> new QuotedTreeCall(
                     (AppliedFunction) cs.get(0), cs.get(1), q.pos());
+            case QuotedGrammarCall q -> new QuotedGrammarCall(
+                    (AppliedFunction) cs.get(0),
+                    cs.subList(1, cs.size()).stream()
+                            .map(LambdaFunction.class::cast).toList(),
+                    q.pos());
             case CBoolean ignored -> this;
             case CDate ignored -> this;
             case CDecimal ignored -> this;

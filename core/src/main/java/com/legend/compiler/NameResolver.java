@@ -1532,6 +1532,20 @@ public final class NameResolver {
                                     java.util.Objects.requireNonNull(
                                             resolveVs(q.original(), scope)),
                             q.tree(), q.pos());
+            // the grammar carrier's lambdas resolve in the ENCLOSING scope
+            // (the payload spells its elements fully qualified; the
+            // engine's native compiles it against the same model)
+            case com.legend.protocol.spec.QuotedGrammarCall q ->
+                    new com.legend.protocol.spec.QuotedGrammarCall(
+                            (com.legend.protocol.spec.AppliedFunction)
+                                    java.util.Objects.requireNonNull(
+                                            resolveVs(q.original(), scope)),
+                            q.functions().stream()
+                                    .map(f -> (com.legend.protocol.spec.LambdaFunction)
+                                            java.util.Objects.requireNonNull(
+                                                    resolveVs(f, scope)))
+                                    .toList(),
+                            q.pos());
             case PackageableElementPtr ptr -> {
                 String r = resolveName(ptr.fullPath(), scope);
                 // A BARE MANGLED function id in value position (leg 4:

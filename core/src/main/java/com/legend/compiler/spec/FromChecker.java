@@ -85,13 +85,28 @@ final class FromChecker {
                         a.args().get(i)));
                 jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i),
                         t::classFqnOf));
-                sqlSetups.addAll(TypedFrom.sqlSetupsIn(a.args().get(i),
-                        fq -> t.model().findFunction(fq).stream()
+                java.util.function.Function<String, java.util.Optional<
+                        java.util.List<com.legend.protocol.spec.ValueSpecification>>>
+                        fnBody = fq -> t.model().findFunction(fq).stream()
                                 .map(com.legend.compiler.element
                                         .TypedFunction::body)
                                 .filter(java.util.Optional::isPresent)
                                 .map(java.util.Optional::get)
-                                .findFirst()));
+                                .findFirst();
+                sqlSetups.addAll(TypedFrom.sqlSetupsIn(a.args().get(i), fnBody));
+                // a LET-BOUND runtime ($runtime = getModelChainRuntime($m)
+                // in the enclosing body — the executeLegendQuery query
+                // shapes): the setup SQL lives in the let's rhs, reached
+                // through the alias channel (the engine establishes the
+                // connection's testDataSetupSqls whichever way the runtime
+                // value arrives)
+                if (a.args().get(i) instanceof com.legend.compiler.spec.typed
+                                .TypedVariable rv
+                        && env.resolveAlias(af.parameters().get(i))
+                                instanceof com.legend.protocol.spec.ValueSpecification raw
+                        && !(raw instanceof com.legend.protocol.spec.Variable)) {
+                    sqlSetups.addAll(TypedFrom.sqlSetupsInRaw(raw, fnBody));
+                }
                 if (connectionName == null) {
                     connectionName = TypedFrom.connectionNameIn(
                             a.args().get(i));

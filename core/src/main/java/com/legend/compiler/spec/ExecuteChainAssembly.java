@@ -93,6 +93,13 @@ public final class ExecuteChainAssembly {
                         .equals(pv.callee().qualifiedName()))) {
             q = letBound(pv.args().get(0), letPrefix);
         }
+        // if(<literal>, |{|q1}, |{|q2}): a query lambda SELECTED by a
+        // compile-time constant (the corpus's checked/unchecked helper —
+        // testSubTypeGraphFetch Impl(checked, expected), the flag a literal
+        // after inlining): the taken branch IS the query. Orchestration
+        // picks the query; no value is computed. A non-literal condition
+        // stays on the loud wall below.
+        q = peelSelections(q, letPrefix);
         // concatenateTemporalTdsQueries(lfs): the real body folds the
         // queries into concatenate SFEs (reflection metamodel) — the SAME
         // semantics BY EMISSION: fold the lambdas' result expressions
@@ -121,6 +128,228 @@ public final class ExecuteChainAssembly {
             mref = mr;
         }
         return new Prepared(lam, mref);
+    }
+
+    /**
+     * The {@code meta::legend::executeLegendQuery(f, vars, [exeCtx,] ext)}
+     * half of {@link #prepare} — the ROUTER'S STRING ENTRY (real engine
+     * devUtils.pure:30/:35 &rarr; {@code meta::legend::execute}). The
+     * query lambda's PARAMETERS bind from the vars pair list as LEADING
+     * LETS, each coerced by the parameter's DECLARED type exactly as the
+     * engine's execute entry coerces its JSON-borne variable values: an
+     * enum-typed parameter takes the string as the enum VALUE name, a
+     * date-typed parameter parses the string as a date literal,
+     * everything else passes through. Lets rather than &beta;-substitution:
+     * the variables keep their source spelling, which the graph-tree
+     * serialize keys ({@code customer($processingDate, $businessDate)})
+     * spell — engine parity, the same let channel {@link #chain} already
+     * threads for ordinary queries. The zero-arg lambda that results
+     * rides the ordinary chain; the mapping reference is null (the
+     * string entry has none — every branch carries its own
+     * {@code ->from()}).
+     */
+    public static Prepared prepareLegendQuery(TypedNativeCall ec,
+            List<TypedSpec> letPrefix, SpecCompiler specs) {
+        TypedSpec q = letBound(ec.args().get(0), letPrefix);
+        if (q instanceof TypedUserCall) {
+            q = new UserCallInliner(specs).inlineBody(List.of(q)).get(0);
+        }
+        q = peelSelections(q, letPrefix);
+        if (!(q instanceof TypedLambda lam)) {
+            throw new com.legend.error.NotImplementedException(
+                    "executeLegendQuery whose query argument is not a lambda");
+        }
+        // a lambda's info is the bare FunctionType, or the element
+        // compiler's WRAPPED Function<{…}> / FunctionDefinition<{…}>
+        // form — accept both (EvalChecker's rule)
+        Type lt = lam.info().type();
+        if (lt instanceof Type.GenericType g && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof Type.FunctionType inner) {
+            lt = inner;
+        }
+        if (!(lt instanceof Type.FunctionType ft)
+                || ft.params().size() != lam.parameters().size()) {
+            throw new com.legend.error.NotImplementedException(
+                    "executeLegendQuery: the query lambda's parameter types"
+                            + " are not declared (" + lt.typeName() + ")");
+        }
+        Map<String, TypedSpec> vars = varPairs(
+                letBound(ec.args().get(1), letPrefix), letPrefix);
+        List<TypedSpec> body = new ArrayList<>();
+        for (int i = 0; i < lam.parameters().size(); i++) {
+            String name = lam.parameters().get(i);
+            TypedSpec value = vars.get(name);
+            if (value == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "executeLegendQuery: no vars pair binds the query"
+                                + " parameter '$" + name + "'");
+            }
+            TypedSpec coerced = coerceVar(value, ft.params().get(i));
+            body.add(new TypedLet(name, coerced, coerced.info()));
+        }
+        body.addAll(lam.body());
+        TypedLambda zeroArg = new TypedLambda(List.of(), body,
+                ExprType.one(new Type.FunctionType(List.of(), ft.result())));
+        return new Prepared(zeroArg, null);
+    }
+
+    /** STRUCTURAL query selection — pure data selection over literal
+     * shapes, no value computed (foldPairProjection's rule): a query
+     * lambda chosen by {@code if(<literal>, |{|q1}, |{|q2})} (the corpus's
+     * checked/unchecked helper, the flag a literal after inlining), the
+     * {@code ->cast(@FunctionDefinition<{...}>)} over a lambda value, and
+     * {@code ->at(k)} over a literal collection of lambdas (the folded
+     * {@code compileLegendGrammar(...)} carrier: {@code ->at(0)->cast(...)}
+     * selects the grammar's function). Each step resolves through the
+     * let prefix. A non-literal condition or index stays on the caller's
+     * loud wall. */
+    private static TypedSpec peelSelections(TypedSpec q0,
+            List<TypedSpec> letPrefix) {
+        TypedSpec q = q0;
+        while (true) {
+            if (q instanceof com.legend.compiler.spec.typed.TypedIf ti
+                    && letBound(ti.condition(), letPrefix)
+                            instanceof com.legend.compiler.spec.typed.TypedCBoolean flag) {
+                TypedSpec branch = flag.value() ? ti.thenBranch()
+                        : ti.elseBranch().orElseThrow(() ->
+                                new com.legend.error.NotImplementedException(
+                                        "execute() whose query is an if() without"
+                                                + " an else branch"));
+                q = letBound(branch, letPrefix);
+                continue;
+            }
+            if (q instanceof com.legend.compiler.spec.typed.TypedCast c
+                    && (c.target() instanceof Type.FunctionType
+                        || c.target() instanceof Type.GenericType g
+                            && g.arguments().size() == 1
+                            && g.arguments().get(0) instanceof Type.FunctionType)) {
+                q = letBound(c.source(), letPrefix);
+                continue;
+            }
+            if (q instanceof TypedNativeCall at
+                    && ResultEnvelopeSplice.AT_FQN.equals(at.callee().qualifiedName())
+                    && at.args().size() == 2
+                    && letBound(at.args().get(0), letPrefix)
+                            instanceof TypedCollection coll
+                    && at.args().get(1)
+                            instanceof com.legend.compiler.spec.typed.TypedCInteger k
+                    && k.value().longValue() >= 0
+                    && k.value().longValue() < coll.elements().size()) {
+                q = letBound(coll.elements().get(k.value().intValue()), letPrefix);
+                continue;
+            }
+            return q;
+        }
+    }
+
+    /** {@code [pair('n', v), ...]}, one bare pair, {@code ^Pair(first=,
+     * second=)} or {@code []} as name &rarr; value. */
+    private static Map<String, TypedSpec> varPairs(TypedSpec varsArg,
+            List<TypedSpec> letPrefix) {
+        List<TypedSpec> entries = varsArg instanceof TypedCollection c
+                ? c.elements() : List.of(varsArg);
+        Map<String, TypedSpec> out = new java.util.LinkedHashMap<>();
+        for (TypedSpec e0 : entries) {
+            TypedSpec e = letBound(e0, letPrefix);
+            if (e instanceof TypedNativeCall pc
+                    && "meta::pure::functions::collection::pair"
+                            .equals(pc.callee().qualifiedName())
+                    && pc.args().size() == 2
+                    && letBound(pc.args().get(0), letPrefix)
+                            instanceof com.legend.compiler.spec.typed.TypedCString k) {
+                out.put(k.value(), letBound(pc.args().get(1), letPrefix));
+                continue;
+            }
+            if (e instanceof TypedNewInstance ni
+                    && "meta::pure::functions::collection::Pair".equals(ni.classFqn())
+                    && ni.properties().get("first")
+                            instanceof com.legend.compiler.spec.typed.TypedCString k2
+                    && ni.properties().get("second") != null) {
+                out.put(k2.value(), ni.properties().get("second"));
+                continue;
+            }
+            throw new com.legend.error.NotImplementedException(
+                    "executeLegendQuery vars: expected pair(name, value)"
+                            + " entries, got " + e.getClass().getSimpleName());
+        }
+        return out;
+    }
+
+    /** The engine's variable coercion by DECLARED parameter type (the
+     * execute entry reads JSON-borne strings): enum name &rarr; enum value,
+     * date string &rarr; date literal, everything else as written. */
+    private static TypedSpec coerceVar(TypedSpec value, Type.Param p) {
+        if (!(value instanceof com.legend.compiler.spec.typed.TypedCString s)) {
+            return value;
+        }
+        ExprType info = new ExprType(p.type(), p.multiplicity());
+        if (p.type() instanceof Type.EnumType et) {
+            return new com.legend.compiler.spec.typed.TypedEnumValue(
+                    et.fqn(), s.value(), info);
+        }
+        if (p.type() == Type.Primitive.DATE
+                || p.type() == Type.Primitive.STRICT_DATE
+                || p.type() == Type.Primitive.DATE_TIME) {
+            return new com.legend.compiler.spec.typed.TypedCDate(
+                    com.legend.values.PureDateLiteral.parse(s.value()), info);
+        }
+        return value;
+    }
+
+    /** The RESULT JSON of the string entry (engine: {@code meta::legend::
+     * execute} &rarr; the result serializer), BY EMISSION over the chain:
+     * a graph {@code serialize} root is the json-builder envelope around
+     * the serialized value; a primitive scalar root is the bare JSON
+     * scalar (the platform-operations witnesses assert {@code 'false'}).
+     * TDS and class roots (the tdsBuilder / classBuilder envelopes) and
+     * String scalars (JSON-quoted) are the next leg — each a NAMED wall. */
+    public static TypedSpec legendQueryEnvelope(TypedSpec chain,
+            com.legend.compiler.element.ModelContext model) {
+        TypedSpec root = chain;
+        while (root instanceof TypedFrom f) {
+            root = f.source();
+        }
+        ExprType str = ExprType.one(Type.Primitive.STRING);
+        if (root instanceof com.legend.compiler.spec.typed.TypedSerialize) {
+            TypedSpec parts = new TypedCollection(List.of(
+                    new com.legend.compiler.spec.typed.TypedCString(
+                            "{\"builder\":{\"_type\":\"json\"},\"values\":", str),
+                    chain,
+                    new com.legend.compiler.spec.typed.TypedCString("}", str)),
+                    new ExprType(Type.Primitive.STRING,
+                            Multiplicity.Bounded.ZERO_MANY), false);
+            return call(model, "meta::pure::functions::string::joinStrings",
+                    List.of(parts,
+                            new com.legend.compiler.spec.typed.TypedCString("", str)),
+                    str);
+        }
+        Type t = chain.info().type();
+        if (t instanceof Type.Primitive p
+                && chain.info().multiplicity().equals(Multiplicity.Bounded.ONE)
+                && (p == Type.Primitive.BOOLEAN || p == Type.Primitive.INTEGER
+                        || p == Type.Primitive.FLOAT || p == Type.Primitive.DECIMAL
+                        || p == Type.Primitive.NUMBER)) {
+            return call(model, "meta::pure::functions::string::toString",
+                    List.of(chain), str);
+        }
+        if (Type.isRelation(t)) {
+            throw new com.legend.error.NotImplementedException(
+                    "executeLegendQuery over a TDS result: the tdsBuilder"
+                            + " JSON envelope is not emitted yet");
+        }
+        throw new com.legend.error.NotImplementedException(
+                "executeLegendQuery over a " + t.typeName()
+                        + " result: the result JSON envelope is not emitted yet");
+    }
+
+    private static TypedSpec call(com.legend.compiler.element.ModelContext model,
+            String fqn, List<TypedSpec> args, ExprType out) {
+        var callee = model.findFunction(fqn).stream()
+                .filter(f -> f.parameters().size() == args.size())
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "no registered " + fqn + "/" + args.size()));
+        return Typer.emitCall(callee, args, out);
     }
 
     private static TypedSpec concatenateFold(TypedNativeCall cq,
