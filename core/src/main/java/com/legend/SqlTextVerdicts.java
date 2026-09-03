@@ -682,7 +682,8 @@ final class SqlTextVerdicts {
         while (!work.isEmpty()) {
             TypedSpec cur = work.poll();
             if (cur instanceof com.legend.compiler.spec.typed
-                    .TypedTestDataGen) {
+                    .TypedTestDataGen tg && !"plan".equals(tg.flavor())) {
+                // a TDG PLAN is plan text, not a fetch-text producer
                 return true;
             }
             if (cur instanceof com.legend.compiler.spec.typed

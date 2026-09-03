@@ -2102,9 +2102,29 @@ printer (MultiResultSequence/Allocation nodes) — a port, no decision, sized
 medium. DB2 text contracts (3 tests) need the engine's alias breadcrumbs
 (`personTable_d#4_d_m1`) — a decision (batch 21 named residue).
 
+**Batch 40 — THE TDG PLAN IS A PLATFORM VALUE (2026-09-03): ratchet
+310/2263 → 308/2265 (+2, ZERO lost).** The 8 TDG "alloy" tests assert the
+`planTestDataGeneration(...)->planToString()` text; the harness scored them
+through its own arm (`TestDataGenForm.planText` → the platform's
+`TestDataGenerator.planText` printer) while the platform walled in the Pure
+body (`functionReturnType` / `_subTypeOf`, engine-internal). Now
+`planTestDataGeneration` (7/8-arg, testDataGeneration.pure:818/823) is a
+CoreFn (`PLAN_TEST_DATA_GENERATION`) minting the protocol-capturing carrier
+`TypedTestDataGen` with flavor `plan` (typed ExecutionPlan[1]; the
+orchestrator leaves it as a value; a let-bound row-identifier list binds
+through the alias chase), and `planToString` over it prints the platform's
+MultiResultSequence text (`TestDataGenerationNatives.planText`); a plan
+carrier is not a fetch-text producer for the sql-text arm. Flipped:
+testConstant_Alloy, testViewChild_Alloy. Lane move: text-only 27 → 26.
+Remaining alloy 6, named: H2VERSION probe 3 (decision), view-backed relation
+slice 1, `let tableRowIdentifiers = []` with an EMPTY collection still
+unclassified 1 (testErrorDueToNoSeedForRoot — the alias resolves to `[]`;
+classifyArg's empty-collection arm), column-spec typing 1. The harness arm
+`TestDataGenForm.planText` is deleted when the family flips whole.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 310 fallbacks / 2263 flipped (batches 14–39 = group D,
+legs).** State: 308 fallbacks / 2265 flipped (batches 14–40 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

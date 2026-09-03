@@ -1536,10 +1536,17 @@ public class RelationalCorpusRunner {
             // golden replays its ONE sql node instead of the plan text.
             // +4 (concatenate flat 3, testMapWithOpenVariableOutsideBlock),
             // 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(310L,
+            // 310 -> 308 (batch 40, 2026-09-03): planTestDataGeneration is a
+            // PLAN-flavored TDG carrier (CoreFn PLAN_TEST_DATA_GENERATION;
+            // testDataGeneration.pure:818/823) whose planToString prints the
+            // platform's own MultiResultSequence text (TestDataGenerator.
+            // planText — the harness arm TestDataGenForm.planText stays until
+            // the alloy family flips whole). +2 (testConstant_Alloy,
+            // testViewChild_Alloy), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(308L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2263L,
+            org.junit.jupiter.api.Assertions.assertEquals(2265L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1572,7 +1579,9 @@ public class RelationalCorpusRunner {
             // ride the query, the text is judged by the plan-text referee
             // arm (upgraded-H2 golden, rows via replay where derivable);
             // the walk's text-only classification loses those rows.
-            org.junit.jupiter.api.Assertions.assertEquals(27,
+            // 27 -> 26 (batch 40): one TDG plan-text assert left the walk's
+            // text-only lane for the platform's planToString (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(26,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

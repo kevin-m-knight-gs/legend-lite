@@ -736,6 +736,9 @@ final class StatementExecutor {
         // inside an assert — the handle is a symbolic binding)
         TypedSpec a0 = com.legend.compiler.spec.ExecuteChainAssembly
                 .letBound(call.args().get(0), letPrefix);
+        if (a0 instanceof com.legend.compiler.spec.typed.TypedTestDataGen tg) {
+            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, env.ctx());
+        }
         if (!(a0
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)
                 || !com.legend.compiler.element.type.PlatformTypes

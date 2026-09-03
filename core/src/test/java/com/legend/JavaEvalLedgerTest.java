@@ -502,7 +502,11 @@ class JavaEvalLedgerTest {
             // then ^Runtime(...)) binds as the let would have — a frame for
             // an execute() value, a plain let otherwise; orchestration
             // (binding), no host evaluation
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2696),
+            // 2696 -> 2699 (batch 40, 2026-09-03): planToString over a TDG
+            // plan carrier routes to TestDataGenerationNatives.planTextResult
+            // (the platform's own printer) — three routing lines, no
+            // evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2699),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

@@ -47,6 +47,11 @@ public final class TestDataGenerationNatives {
         }
         if (stmt instanceof com.legend.compiler.spec.typed
                 .TypedTestDataGen g) {
+            if ("plan".equals(g.flavor())) {
+                // a PLAN is a value (its planToString reads it) — nothing
+                // executes here
+                return stmt;
+            }
             if ("seedString".equals(g.flavor())) {
                 return com.legend.compiler.spec.CsvCensusChecker
                         .literalStrings(List.of(
@@ -199,6 +204,42 @@ public final class TestDataGenerationNatives {
 
     /** Package-visible for the harness's DEFERRED plan-text arm (the
      * alloy lane) — ONE argument classifier, no test-side twin. */
+    /** planToString over a TDG carrier: the {@code plan} flavor prints
+     * the engine's MultiResultSequence text; any other flavor is not a
+     * plan (loud). */
+    public static com.legend.exec.ExecutionResult planTextResult(
+            com.legend.compiler.spec.typed.TypedTestDataGen g,
+            ModelContext ctx) {
+        if (!"plan".equals(g.flavor())) {
+            throw new com.legend.error.NotImplementedException(
+                    "planToString over a non-plan test-data carrier ("
+                            + g.flavor() + ")");
+        }
+        return new com.legend.exec.ExecutionResult.Scalar(planText(g, ctx),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The TDG plan text for a {@code plan}-flavored carrier: query,
+     * mapping, then the row identifiers / hash flag / milestoning dates
+     * from the remaining arguments (runtime and exeCtx skipped). */
+    public static String planText(
+            com.legend.compiler.spec.typed.TypedTestDataGen g,
+            ModelContext ctx) {
+        List<ValueSpecification> ps = g.params();
+        LambdaFunction query = (LambdaFunction) ps.get(0);
+        String mappingFqn = ((com.legend.protocol.spec
+                .PackageableElementPtr) ps.get(1)).fullPath();
+        List<TestDataGenerator.TableRowIds> rowIds = new ArrayList<>();
+        TestDataGenerator.MilestoningDates[] dates =
+                new TestDataGenerator.MilestoningDates[1];
+        boolean[] hash = new boolean[1];
+        for (int i = 4; i < ps.size(); i++) {
+            classifyArg(ps.get(i), rowIds, dates, hash);
+        }
+        return TestDataGenerator.planText(ctx, query, mappingFqn, rowIds,
+                dates[0]);
+    }
+
     public static void classifyArg(ValueSpecification arg,
             List<TestDataGenerator.TableRowIds> rowIds,
             TestDataGenerator.MilestoningDates[] dates, boolean[] hash) {

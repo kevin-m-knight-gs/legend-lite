@@ -349,6 +349,10 @@ public final class PlatformTypes {
      * literals. */
     public static final String GENERATE_TEST_DATA =
             "meta::relational::testDataGeneration::generateTestData";
+    /** The TDG plan (testDataGeneration.pure:818/823): a plan HANDLE whose
+     * planToString is the engine's MultiResultSequence text. */
+    public static final String PLAN_TEST_DATA_GENERATION =
+            "meta::relational::testDataGeneration::executionPlan::planTestDataGeneration";
     public static final String GENERATE_SEED_DATA_STRING =
             "meta::relational::testDataGeneration::generateSeedDataString";
 
@@ -392,6 +396,7 @@ public final class PlatformTypes {
                 || CREATE_DB_CONFIG.equals(fqn)
                 || GET_RELATIONAL_CSV_DATA.equals(fqn)
                 || GENERATE_TEST_DATA.equals(fqn)
+                || PLAN_TEST_DATA_GENERATION.equals(fqn)
                 || GENERATE_SEED_DATA_STRING.equals(fqn)
                 || EXECUTE.equals(fqn)
                 || EXECUTION_PLAN_EXECUTE.equals(fqn);

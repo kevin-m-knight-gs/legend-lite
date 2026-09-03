@@ -1283,6 +1283,8 @@ final class Typer {
                     MayExecuteChecker.check(this, af, env);
             case GENERATE_SEED_DATA_STRING ->
                     GenerateTestDataChecker.checkSeed(this, af, env);
+            case PLAN_TEST_DATA_GENERATION ->
+                    GenerateTestDataChecker.checkPlan(this, af, env);
             // ^Class(...) desugars to new(PackageableElementPtr, NewInstance); the inner node
             // carries the payload. ^$var(...) (a Variable receiver) is COPY-
             // with-update — the class is the variable's static type. Other

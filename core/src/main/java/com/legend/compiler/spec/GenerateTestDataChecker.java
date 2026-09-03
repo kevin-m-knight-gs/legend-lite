@@ -50,6 +50,37 @@ public final class GenerateTestDataChecker {
                         Multiplicity.Bounded.ONE));
     }
 
+    /** {@code planTestDataGeneration(func, mapping, runtime, exeCtx,
+     * rowIds..., hashStrings, [dates], ext)} — the TDG PLAN: the same
+     * carrier, flavor {@code plan}, typed ExecutionPlan[1]; its
+     * planToString prints the engine's MultiResultSequence text. */
+    static TypedSpec checkPlan(Typer t, AppliedFunction af, Env env) {
+        List<ValueSpecification> args = new java.util.ArrayList<>(
+                SourceSubst.resolveStructuralArgs(af.parameters(), env));
+        // a let-bound row-identifier list (`let ids = []; ...($ids, ...)`)
+        // binds through the alias chase (the carrier captures protocol)
+        for (int i = 4; i < args.size(); i++) {
+            if (args.get(i) instanceof com.legend.protocol.spec.Variable v) {
+                ValueSpecification r = env.resolveAlias(v);
+                if (r != v && !(r instanceof com.legend.protocol.spec.Variable)) {
+                    args.set(i, r);
+                }
+            }
+        }
+        if (args.size() < 5
+                || !(args.get(0) instanceof LambdaFunction)
+                || !(args.get(1) instanceof PackageableElementPtr)) {
+            throw new TypeInferenceException(
+                    "planTestDataGeneration needs its query lambda and"
+                            + " mapping reference INLINE at the call site"
+                            + " (>=5 args)");
+        }
+        return new TypedTestDataGen(args, "plan",
+                new ExprType(new Type.ClassType(
+                        "meta::pure::executionPlan::ExecutionPlan"),
+                        Multiplicity.Bounded.ONE));
+    }
+
     /** {@code generateSeedDataString(...)} — same carrier, String[1]. */
     static TypedSpec checkSeed(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> args =

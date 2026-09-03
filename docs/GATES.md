@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 40 (the TDG plan as a platform value: plan-flavored TypedTestDataGen + planToString printer, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 310/2263 → 308/2265 (+2, 0 lost); lane move text-only 27 → 26 (passes 2378, disagree 0).
+
 **Batch 39 (lateral explode → decorrelated UNION on the H2 family; engine-style render runs its passes; plan-text goldens replay their sql node, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 314/2259 → 310/2263 (+4, 0 lost); lane move exec-passing 82 → 79; text-verdict asserts 156 → 147
 (passes 2378, disagree 0).

@@ -39,6 +39,10 @@ public enum CoreFn {
     GENERATE_TEST_DATA("generateTestData"),
     /** {@code generateSeedDataString(...)} &mdash; TDG lane S3 tail: runtime seed-text extraction, same carrier. */
     GENERATE_SEED_DATA_STRING("generateSeedDataString"),
+    /** {@code planTestDataGeneration(...)} &mdash; the TDG PLAN: the same
+     * protocol-capturing carrier (flavor {@code plan}); {@code planToString}
+     * over it prints the engine's MultiResultSequence text. */
+    PLAN_TEST_DATA_GENERATION("planTestDataGeneration"),
     /** {@code mayExecuteAlloyTest(serverThunk, |fallback)} &mdash; the engine
      * test-harness BRANCH native (core_functions_unclassified/test.pure:15):
      * no Alloy server exists on this platform, so the call IS its fallback
