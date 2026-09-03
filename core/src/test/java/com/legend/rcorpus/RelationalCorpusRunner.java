@@ -1035,7 +1035,9 @@ public class RelationalCorpusRunner {
             // left the walk's lane (lane move, disagree 0).
             // 61 -> 60 (batch 46): the flipped exists test's sql-assert left
             // the walk's lane (lane move, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(60, execPassing,
+            // 60 -> 59 (batch 50): the flipped user-defined-date-format
+            // test's sql-assert left the walk's lane (lane move, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(59, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1625,10 +1627,15 @@ public class RelationalCorpusRunner {
             // binding (Typer.deferredLetRhs) and types against the groupBy
             // that consumes it (GroupByChecker.legacyToModern chases the
             // alias, per element). +1 (testModelConnectionAgg), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(281L,
+            // 281 -> 280 (batch 50, 2026-09-03): the engine-style H2 referee
+            // spells the MMMyyyy month-abbreviation parse (the engine's
+            // convertToDateH2 rule: concat('01', x) + 'ddMMMyyyy') — the
+            // referee render had thrown, walling the frame's sql() read as
+            // a class query. +1 (stringToDate H2 user-defined format), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(280L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2292L,
+            org.junit.jupiter.api.Assertions.assertEquals(2293L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

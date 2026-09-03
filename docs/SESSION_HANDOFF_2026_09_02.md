@@ -2374,6 +2374,18 @@ real qualified property auto-maps; ours is a [1] native) — engine
 internals; `groupByWithWindowSubset` — an unported tds.pure:867 Pure
 function (6 args, a NormalizeRequired-style body).
 
+**Batch 50 — THE MMMyyyy PARSE SPELLING (2026-09-03): ratchet 281/2292 →
+280/2293 (+1, ZERO lost).** The lesson of batch 35 again: a "class query
+under TypedMap(cast@RelationalActivity(at(filter(.activities(execute…))))
+…sql)" wall is the referee render THROWING — `[render-debug]` named it:
+"strptime format has no engine-H2 parsedatetime spelling yet: … FormatLit
+[MONTH_ABBREV, YEAR4]". `EngineStyleH2.h2Pattern` now spells MONTH_ABBREV
+as `MMM`, and the STRPTIME arm applies the engine's convertToDateH2 rule for
+the month-year format (`parsedatetime(concat('01', x), 'ddMMMyyyy')`, the
+FIXME hack the goldens pin). +1 (stringToDate
+testToSQLStringconvertToDateinH2UserDefinedFormat; rows verdict, text
+diverged-rescued). Lane move: exec-passing 60 → 59; disagree 0.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

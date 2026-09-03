@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 50 (the engine-style H2 referee spells the MMMyyyy month-abbreviation parse, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 281/2292 → 280/2293 (+1, 0 lost); lane move exec-passing 60 → 59 (disagree 0). G1 40s, G2 8s, G4 58s, G5 41s, G6 84s, G7 27s, G9 19s, G8 74s.
+
 **Batch 49 (a let-bound legacy aggregate value defers to the groupBy that consumes it, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 282/2291 → 281/2292 (+1, 0 lost); lanes unchanged (exec-passing 60, M1 rescued 54, disagree 0). G1 42s, G2 8s, G4 57s, G5 38s, G6 81s, G7 26s, G9 18s, G8 72s.
 

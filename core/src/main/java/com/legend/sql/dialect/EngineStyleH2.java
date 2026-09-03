@@ -1681,6 +1681,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     if (java != null) {
                         boolean dateOnly = !fl.parts()
                                 .contains(com.legend.sql.DateFmt.Part.HOUR2);
+                        // the engine's MMMyyyy hack (convertToDateH2 FIXME):
+                        // a month-year text parses with a '01' day prepended
+                        if (java.equals("MMMyyyy")) {
+                            yield "parsedatetime(concat('01', " + expr(a.get(0), 0)
+                                    + "), 'ddMMMyyyy')";
+                        }
                         yield dateOnly
                                 ? "parsedatetime(substring(" + expr(a.get(0), 0)
                                         + ", 1, 10), '" + java + "')"
@@ -1707,6 +1713,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     String java = switch (p) {
                         case YEAR4 -> "yyyy";
                         case MONTH2 -> "MM";
+                        case MONTH_ABBREV -> "MMM";
                         case DAY2 -> "dd";
                         case HOUR2 -> "HH";
                         case MIN2 -> "mm";
