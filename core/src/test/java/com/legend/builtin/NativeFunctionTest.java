@@ -559,7 +559,10 @@ class NativeFunctionTest {
         // 245 -> 249 (batch 21 — group I, column lineage as rows): the
         // scanProperties / buildPropertyTree / scanColumns chain's classes
         // (PropertyPathNode, Res, PropertyPathTree, ColumnWithContext).
-        assertEquals(255, Pure.allNativeClasses().size(),
+        // 255 -> 256 (batch 48, 2026-09-03): +EnumValueMapping (real
+        // mapping.pure:48) — enumeration mappings as system-store rows;
+        // EnumerationMapping gains its real enumValueMappings end.
+        assertEquals(256, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -1052,7 +1055,7 @@ class NativeFunctionTest {
                     // constructs the empty sentinel ^Mapping(name = ''));
                     // classMappings (mapping.pure:26) — the metamodel
                     // store's witness (step 3, 2026-09-02)
-                    "meta::pure::mapping::Mapping", List.of("name", "classMappings"),
+                    "meta::pure::mapping::Mapping", List.of("name", "classMappings", "enumerationMappings"),
                     // real m3 Property (group F burn 2026-09-02): the
                     // property-mapping rows' property end — name only
                     "meta::pure::metamodel::function::property::Property", List.of("name"),
@@ -1066,10 +1069,14 @@ class NativeFunctionTest {
                     "meta::pure::mapping::aggregationAware::AggregationAwareActivity",
                     List.of("rewrittenQuery"),
                     // wall-deepening slice: real platform_dsl_mapping/
-                    // grammar/mapping.pure:40-46 (enumValueMappings
-                    // omitted until demanded)
+                    // grammar/mapping.pure:40-46 (enumValueMappings demanded
+                    // by batch 48 — enumeration mappings as store rows)
                     "meta::pure::mapping::EnumerationMapping",
-                    List.of("name", "parent", "enumeration"));
+                    List.of("name", "parent", "enumeration", "enumValueMappings"),
+                    // grammar/mapping.pure:48-52 (enum: Enum[1] reads as the
+                    // value's NAME — the Enum metaclass is unmodeled)
+                    "meta::pure::mapping::EnumValueMapping",
+                    List.of("enum", "sourceValues"));
 
     @Test
     void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {

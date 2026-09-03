@@ -73,7 +73,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| tests/mapping/enumeration | 26 | 19 | 3 | 4 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/enumeration | 26 | 21 | 3 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/filter | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2382** | 47 | 102 | 44 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2384** | 47 | 100 | 44 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2382 PASS = 2321 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2384 PASS = 2323 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -830,7 +830,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2382 PASS = 2321 clean + 61 carrying softness (
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
-- 2x unknown function 'toDomainValue' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 2x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 1x unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
@@ -851,6 +850,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2382 PASS = 2321 clean + 61 carrying softness (
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- 1x no overload of 'meta::pure::functions::lang::eval' accepts 4 argument(s)
 
 ### per-test outcomes (non-passing)
 
@@ -1009,8 +1009,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2382 PASS = 2321 clean + 61 carrying softness (
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1, t5.ID... |                     ^
 - ERROR testEnumInRelation [tests/mapping/enumeration]: class meta::pure::metamodel::relation::TDS has no property 'csv'
-- ERROR testEnumMappings [tests/mapping/enumeration]: unknown function 'toDomainValue' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- ERROR testEnumMappingsWithInclude [tests/mapping/enumeration]: unknown function 'toDomainValue' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testEnumTheSame [tests/mapping/enumeration]: unknown enumeration 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping'
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]

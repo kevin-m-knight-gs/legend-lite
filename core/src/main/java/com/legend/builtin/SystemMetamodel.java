@@ -484,6 +484,25 @@ public final class SystemMetamodel {
                         fqn VARCHAR(1024) PRIMARY KEY,
                         name VARCHAR(256) NOT NULL
                     )
+                    Table enumeration_mappings
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        name VARCHAR(256) PRIMARY KEY,
+                        enumeration_fqn VARCHAR(1024) NOT NULL
+                    )
+                    Table enum_value_mappings
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        em_name VARCHAR(256) PRIMARY KEY,
+                        enum_value VARCHAR(256) PRIMARY KEY
+                    )
+                    Table enum_value_sources
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        em_name VARCHAR(256) PRIMARY KEY,
+                        enum_value VARCHAR(256) PRIMARY KEY,
+                        source_value VARCHAR(1024) PRIMARY KEY
+                    )
                     Table mapping_includes_closure
                     (
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
@@ -706,6 +725,12 @@ public final class SystemMetamodel {
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
+                Join EnumerationMappingsToMappings(metamodel.enumeration_mappings.mapping_fqn = metamodel.mappings.fqn)
+                Join EnumerationMappingToValues(metamodel.enumeration_mappings.mapping_fqn = metamodel.enum_value_mappings.mapping_fqn
+                    and metamodel.enumeration_mappings.name = metamodel.enum_value_mappings.em_name)
+                Join EnumValueToSources(metamodel.enum_value_mappings.mapping_fqn = metamodel.enum_value_sources.mapping_fqn
+                    and metamodel.enum_value_mappings.em_name = metamodel.enum_value_sources.em_name
+                    and metamodel.enum_value_mappings.enum_value = metamodel.enum_value_sources.enum_value)
                 Join ClosureToClassMappings(metamodel.mapping_includes_closure.included_fqn = metamodel.class_mappings.mapping_fqn)
                 Join ClassMappingsToAlias(metamodel.class_mappings.mapping_fqn = metamodel.relational_elements.mapping_fqn and metamodel.class_mappings.id = metamodel.relational_elements.set_id)
                 Join AliasToTables(metamodel.relational_elements.main_element_id = {target}.id)
@@ -836,6 +861,17 @@ public final class SystemMetamodel {
                 ancestry: meta::lite::metamodel::SetAncestry[*];
             }
 
+            Class meta::lite::metamodel::EnumSourceValue
+            {
+                value: String[1];
+            }
+
+            Association meta::lite::metamodel::EnumValueSources
+            {
+                sources: meta::lite::metamodel::EnumSourceValue[*];
+                ofValueMapping: meta::pure::mapping::EnumValueMapping[1];
+            }
+
             Association meta::lite::metamodel::SetAncestors
             {
                 ancestor: meta::relational::mapping::RootRelationalInstanceSetImplementation[1];
@@ -862,6 +898,16 @@ public final class SystemMetamodel {
             function meta::pure::mapping::rootClassMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[0..1]
             {
                 $_this->meta::pure::mapping::_classMappingByClass($class)->filter(s|$s.root == true)->last()
+            }
+
+            function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:String[1]):meta::pure::mapping::EnumerationMapping[0..1]
+            {
+                $_this.visibility->sortBy(v|$v.includeRank).visible.enumerationMappings->filter(em|$em.name == $name)->first()
+            }
+
+            function meta::pure::mapping::toDomainValue(_this:meta::pure::mapping::EnumerationMapping[1], sourceValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]
+            {
+                $_this.enumValueMappings->filter(m|$m.sources.value->contains($sourceValue))->toOne().enum
             }
 
             function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:String[1]):meta::relational::metamodel::relation::View[0..1]
@@ -979,7 +1025,28 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.mappings.fqn)
                     ~mainTable %1$s metamodel.mappings
                     name: %1$s metamodel.mappings.name,
-                    classMappings[rootRel]: %1$s@ClassMappingsToMappings
+                    classMappings[rootRel]: %1$s@ClassMappingsToMappings,
+                    enumerationMappings[enumMap]: %1$s@EnumerationMappingsToMappings
+                }
+                *meta::pure::mapping::EnumerationMapping[enumMap]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.enumeration_mappings.mapping_fqn, %1$s metamodel.enumeration_mappings.name)
+                    ~mainTable %1$s metamodel.enumeration_mappings
+                    name: %1$s metamodel.enumeration_mappings.name,
+                    parent[mapping]: %1$s@EnumerationMappingsToMappings,
+                    enumValueMappings[evm]: %1$s@EnumerationMappingToValues
+                }
+                *meta::pure::mapping::EnumValueMapping[evm]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.enum_value_mappings.mapping_fqn, %1$s metamodel.enum_value_mappings.em_name, %1$s metamodel.enum_value_mappings.enum_value)
+                    ~mainTable %1$s metamodel.enum_value_mappings
+                    enum: %1$s metamodel.enum_value_mappings.enum_value
+                }
+                *meta::lite::metamodel::EnumSourceValue[esv]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.enum_value_sources.mapping_fqn, %1$s metamodel.enum_value_sources.em_name, %1$s metamodel.enum_value_sources.enum_value, %1$s metamodel.enum_value_sources.source_value)
+                    ~mainTable %1$s metamodel.enum_value_sources
+                    value: %1$s metamodel.enum_value_sources.source_value
                 }
                 *meta::lite::metamodel::MappingVisibility[vis]: Relational
                 {
@@ -1129,6 +1196,14 @@ public final class SystemMetamodel {
                     (
                         descendant[anc, rootRel]: %1$s@SetToAncestry,
                         ancestry[rootRel, anc]: %1$s@SetToAncestry
+                    )
+                }
+                meta::lite::metamodel::EnumValueSources: Relational
+                {
+                    AssociationMapping
+                    (
+                        sources[evm, esv]: %1$s@EnumValueToSources,
+                        ofValueMapping[esv, evm]: %1$s@EnumValueToSources
                     )
                 }
                 meta::lite::metamodel::SetAncestors: Relational

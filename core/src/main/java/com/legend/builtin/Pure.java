@@ -479,7 +479,15 @@ public final class Pure {
     // ValueTransformer<T> — parent flattened to Any until a witness
     // demands the transformer surface, the SetImplementation flatten
     // precedent; enumValueMappings omitted until demanded).
-    public static final ClassDefinition ENUMERATION_MAPPING = nativeClass("native Class meta::pure::mapping::EnumerationMapping<T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<T>[1]; }");
+    public static final ClassDefinition ENUMERATION_MAPPING = // (real mapping.pure:40 is EnumerationMapping<T>; the type parameter is
+    // dropped here so the metamodel rows read it as a plain class hop — the
+    // object-space spine keys on ClassType — and enum reads as the value, Any)
+    nativeClass("native Class meta::pure::mapping::EnumerationMapping extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<meta::pure::metamodel::type::Any>[1]; enumValueMappings: meta::pure::mapping::EnumValueMapping[*]; }");
+    /** Real platform_dsl_mapping/grammar/mapping.pure:48 — {@code enum: Enum[1]; sourceValues: Any[*]}.
+     * The Enum metaclass is unmodeled here: the value reads as its NAME (String, the enum's wire
+     * spelling); a source value reads as its text. A leaf must be primitive-typed to bind a store
+     * column (an Any-typed leaf takes the variant lane and has no column binding). */
+    public static final ClassDefinition ENUM_VALUE_MAPPING = nativeClass("native Class meta::pure::mapping::EnumValueMapping extends meta::pure::metamodel::type::Any { enum: meta::pure::metamodel::type::String[1]; sourceValues: meta::pure::metamodel::type::String[*]; }");
     public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation {}");
     /** Real core/pure/router/store/cluster.pure:43. */
     public static final ClassDefinition CROSS_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::router::clustering::CrossSetImplementation extends meta::pure::mapping::InstanceSetImplementation { targetStore: meta::pure::store::Store[0..1]; varName: meta::pure::metamodel::type::String[1]; }");
@@ -524,7 +532,7 @@ public final class Pure {
     // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
     // classMappings: SetImplementation[*] — real platform_dsl_mapping/grammar/
     // mapping.pure:26, grown by the metamodel-store witness.
-    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; }");
+    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; }");
     /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
     // schema carries its REAL type Schema[1] (relational.pure:94): the
     // old Any[0..1] widening walled every $t.schema.name read
@@ -1760,8 +1768,8 @@ public final class Pure {
     // .pure:19, engine mappingExtension.pure:163, platform_store_
     // relational/functions.pure:277/:191 — ordinary pure there; typed
     // natives here, evaluated K-side over the compiled model)
-    // Real platform_dsl_mapping/functions_Mapping.pure:19.
-    public static final NativeFunctionDefinition ENUMERATION_MAPPING_BY_NAME = signature("native function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:meta::pure::metamodel::type::String[1]):meta::pure::mapping::EnumerationMapping<meta::pure::metamodel::type::Any>[0..1];");
+    // (enumerationMappingByName / toDomainValue: Pure bodies over the
+    // enumeration-mapping rows — SystemMetamodel)
     // Real core/pure/extensions/extension.pure:46 — Extension's
     // routerExtensions() QUALIFIED PROPERTY (availableStores ++
     // availableFeatures cast to RouterExtension), registered as a

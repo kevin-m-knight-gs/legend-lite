@@ -42,6 +42,9 @@ public final class MetamodelSeeds {
                     Pure.MAPPING_METACLASS.qualifiedName()));
             case "mapping_includes_closure" -> includesClosure(ctx);
             case "class_mappings" -> classMappings(ctx);
+            case "enumeration_mappings" -> enumerationMappings(ctx, 0);
+            case "enum_value_mappings" -> enumerationMappings(ctx, 1);
+            case "enum_value_sources" -> enumerationMappings(ctx, 2);
             // THE RelationalOperationElement HIERARCHY AS ONE TABLE (user
             // ruling 2026-09-02): tables, views, columns, main-table
             // aliases and expression nodes are rows of relational_elements
@@ -180,6 +183,44 @@ public final class MetamodelSeeds {
      * relational sets — not rows here (grow by witness). A set with no
      * declared id takes the engine's default (the class path with
      * {@code ::} as {@code _}). */
+    /** The enumeration mappings of every mapping (m3 EnumerationMapping:
+     * name = the declared id, else the enumeration's simple name); level 1
+     * = one row per enum value, level 2 = one row per (enum value, source
+     * value) — a source value spells as its text (an enum-ref source as
+     * its value name). */
+    private static List<List<String>> enumerationMappings(ModelContext ctx, int level) {
+        List<List<String>> rows = new ArrayList<>();
+        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+            MappingDefinition md = ctx.findMapping(fqn).orElse(null);
+            if (md == null) {
+                continue;
+            }
+            for (com.legend.model.EnumerationMapping em : md.enumerationMappings()) {
+                String name = em.mappingId() != null ? em.mappingId()
+                        : em.enumName().substring(em.enumName().lastIndexOf(':') + 1);
+                if (level == 0) {
+                    rows.add(List.of(fqn, name, em.enumName()));
+                    continue;
+                }
+                for (com.legend.model.EnumerationMapping.EnumValueMapping vm : em.valueMappings()) {
+                    if (level == 1) {
+                        rows.add(List.of(fqn, name, vm.enumValue()));
+                        continue;
+                    }
+                    for (com.legend.model.EnumerationMapping.SourceValue sv : vm.sourceValues()) {
+                        String text = switch (sv) {
+                            case com.legend.model.EnumerationMapping.SourceValue.StringValue s -> s.value();
+                            case com.legend.model.EnumerationMapping.SourceValue.IntegerValue i -> Long.toString(i.value());
+                            case com.legend.model.EnumerationMapping.SourceValue.EnumRef r -> r.enumValueName();
+                        };
+                        rows.add(List.of(fqn, name, vm.enumValue(), text));
+                    }
+                }
+            }
+        }
+        return rows;
+    }
+
     private static List<List<String>> classMappings(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
         for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {

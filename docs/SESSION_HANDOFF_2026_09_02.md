@@ -2327,6 +2327,35 @@ row divergence (last isolated join reads [] where the engine reads
 (2) — "trailing JSON at 191" in the JSON verdict parse. Lane numbers
 unchanged (exec-passing 60, M1 rescued 54; disagree 0).
 
+**Batch 48 — ENUMERATION MAPPINGS AS ROWS (2026-09-03): ratchet 284/2289 →
+282/2291 (+2, ZERO lost).** `toDomainValue` was an unported function and
+`enumerationMappingByName` a K-side native signature with no evaluator.
+Now the system store carries `enumeration_mappings(mapping_fqn, name,
+enumeration_fqn)`, `enum_value_mappings(mapping_fqn, em_name, enum_value)`
+and `enum_value_sources(…, source_value)` (`MetamodelSeeds.
+enumerationMappings`, one row per (enum value, source value); a source
+value spells as its text, an enum-ref source as its value name), the m3
+surface grows `Mapping.enumerationMappings`, `EnumerationMapping.
+enumValueMappings`, `EnumValueMapping{enum, sourceValues}` (real
+mapping.pure:40-52), and the lite association `EnumValueSources
+{sources: EnumSourceValue[*]}` carries the per-source rows; BOTH functions
+are Pure bodies over the rows (`SystemMetamodel`): enumerationMappingByName
+= `visibility->sortBy(includeRank).visible.enumerationMappings->filter(name)
+->first()` (includes served by the closure, testEnumMappingsWithInclude),
+toDomainValue = `enumValueMappings->filter(m|$m.sources.value->contains(
+$sourceValue))->toOne().enum` — the resolver's to-many-association
+membership arm (EXISTS) serves `contains` over an association hop, NOT
+over a to-many primitive column, which is why the source values are rows
+of their own. TWO FIDELITY NOTES (recorded in Pure.java): EnumerationMapping
+drops its `<T>` (a GenericType hop breaks the object-space spine, which
+keys on ClassType — the honest fix is `Anchors.objectSpine` accepting a
+class-raw GenericType, a later leg); `enum: Enum[1]` reads as the value's
+NAME (String) because an Any-typed leaf takes the variant lane and binds
+no store column (the "property 'enum' … is not mapped" symptom). Native
+class pin 255 → 256 (+EnumValueMapping); the documented-surface tables
+updated; the native-catalog golden regenerated (enumerationMappingByName
+left the native list).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

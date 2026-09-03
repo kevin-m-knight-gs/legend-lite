@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 48 (enumeration mappings as system-store rows; enumerationMappingByName and toDomainValue as Pure bodies over them, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 284/2289 → 282/2291 (+2, 0 lost); lanes unchanged (exec-passing 60, M1 rescued 54, disagree 0); native class pin 255 → 256. G1 40s, G2 8s, G4 57s, G5 38s, G6 79s, G7 25s, G9 18s, G8 72s.
+
 **Batch 47 (parseDate is a semantic SQL node the dialects spell; the engine-style H2 text carries the engine's parsedatetime idiom, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 285/2288 → 284/2289 (+1, 0 lost); lanes unchanged (exec-passing 60, M1 rescued 54, disagree 0). G1 40s, G2 8s, G4 55s, G5 35s, G6 82s, G7 25s, G9 18s, G8 71s.
 

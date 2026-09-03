@@ -1613,10 +1613,17 @@ public class RelationalCorpusRunner {
             // H2 text is the engine's toTimestamp idiom
             // cast(parsedatetime(x, '<pattern>') as timestamp); the
             // execution dialects cast. +1 (tdsExtend testParseDate), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(284L,
+            // 284 -> 282 (batch 48, 2026-09-03): ENUMERATION MAPPINGS AS ROWS
+            // (system store enumeration_mappings / enum_value_mappings /
+            // enum_value_sources; m3 EnumerationMapping.enumValueMappings,
+            // EnumValueMapping.enum + a lite EnumSourceValue association);
+            // enumerationMappingByName and toDomainValue are Pure bodies
+            // over the rows (the K-side native deleted). +2 (enumeration
+            // testEnumMappings, testEnumMappingsWithInclude), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(282L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2289L,
+            org.junit.jupiter.api.Assertions.assertEquals(2291L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
