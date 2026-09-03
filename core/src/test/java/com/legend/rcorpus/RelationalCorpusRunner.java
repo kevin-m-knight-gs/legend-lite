@@ -1637,10 +1637,19 @@ public class RelationalCorpusRunner {
             // as its value at the wire (Executor.unwrap → decodeAny) —
             // "Firm X" was compared as JSON text with its quotes. +1
             // (selfJoin testSelfJoinPropertyMapping), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(279L,
+            // 279 -> 277 (batch 52, 2026-09-03): POST-PROCESSORS ARE COMPILER
+            // PASSES (user catch): the engine's nonExecutable processor is
+            // the IR pass SqlPostProcessors.nonExecutable (every select's
+            // filter AND 1 = 2), recognised from the connection like
+            // replaceTables/CTE extraction; the golden-vs-render verdict
+            // arm takes the toSQLString RUNTIME overload (dialect from the
+            // connection, the runtime's replaceTables applied to the rows
+            // leg). +2 (nonExecutable subqueries, toSQLString replaceTables),
+            // 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(277L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2294L,
+            org.junit.jupiter.api.Assertions.assertEquals(2296L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1677,7 +1686,9 @@ public class RelationalCorpusRunner {
             // text-only lane for the platform's planToString (lane move).
             // 26 -> 25 (batch 41): one more TDG plan-text assert left the
             // walk's text-only lane (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(25,
+            // 25 -> 24 (batch 52): the flipped toSQLString replaceTables test's
+            // text assert left the walk's text-only lane (lane move).
+            org.junit.jupiter.api.Assertions.assertEquals(24,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

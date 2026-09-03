@@ -2447,6 +2447,32 @@ discriminated-row `match` shared with M2M inheritance dispatch) covers
 them all; tier 2 (recursive CTE) has NO remaining corpus witness and is
 parked as a written boundary.
 
+**Batch 52 — POST-PROCESSORS AS COMPILER PASSES (2026-09-03): ratchet
+279/2294 → 277/2296 (+2, ZERO lost).** The reclassification built: (1)
+`SqlPostProcessors.nonExecutable` — the engine's nonExecutablePostProcessor
+as an IR pass: every SELECT (root, FROM-tree subselects, union branches,
+CTEs) takes `<filter> and 1 = 2` (bare `1 = 2` when unfiltered); join ON
+conditions untouched; recognised from the connection's hook
+`{query | nonExecutable($query, ext)}` (`Hooks.nonExecutable`,
+`PostProcessBoundary.recordNonExecutable`, applied in `applyRecorded`
+after table replacement and before CTE extraction). (2) The golden-vs-
+render verdict arm (`SqlTextVerdicts.tryArm`) accepts the RUNTIME overload
+`toSQLStringPretty(lambda, mapping, runtime, ext)`: the dialect is read
+from the connection (`ConnectionFlags.databaseTypeOf` after the let chase
+and a helper inline) and the runtime's replaceTables hooks ride the rows
+leg through the env's tableReplace channel — the golden names the replaced
+tables, so our rows must be read from them too (the H2 oracle gave 0 rows
+from the empty replacement tables; ours read 7 from the originals until
+the hooks applied). Flipped: nonExecutable
+testReplaceTablePostProcessorWithSubQueries, testToSqlStringReplaceTables
+PostProcessor. NAMED: the three `Unknown type: 'SQLQuery'` post-processor
+tests are testDb2ColumnRename (`reAliasColumnName` under a DB2 connection
+— the DB2 text family), testPostProcessTransformJoinOp (a CUSTOM
+`postprocess` lambda rewriting join operations — the documented
+non-goal), testPushFiltersDownToJoinsPostProcessorToSQL (filter push-down
+— a platform pass not yet written; needs the abstract `relation::SQLQuery`
+class declared for the hook lambda's parameter type first).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

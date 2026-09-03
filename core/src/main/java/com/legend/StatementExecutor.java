@@ -2110,6 +2110,7 @@ final class StatementExecutor {
             java.util.Map<String, String> tr = hooks.tableReplace();
             com.legend.exec.PostProcessBoundary.record(tr);
             com.legend.exec.PostProcessBoundary.recordExtractCtes(hooks.extractCtes());
+            com.legend.exec.PostProcessBoundary.recordNonExecutable(hooks.nonExecutable());
             if (!tr.isEmpty()) {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
@@ -2736,7 +2737,8 @@ final class StatementExecutor {
         plan = com.legend.exec.DynamicPivot.staticize(
                 com.legend.lowering.SqlPostProcessors.applyRecorded(plan,
                         env.tableReplace(),
-                        com.legend.exec.PostProcessBoundary.extractCtes()),
+                        com.legend.exec.PostProcessBoundary.extractCtes(),
+                        com.legend.exec.PostProcessBoundary.nonExecutable()),
                 dialect, connection);
         // DEFERRED relation-toString (dynamic-pivot inners): the column
         // list exists only NOW, post-staticize. The LOWERING layer owns

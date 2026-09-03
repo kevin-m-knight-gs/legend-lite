@@ -47,7 +47,8 @@ public final class SqlPostProcessors {
     /** The runtime argument's recognized SQL post-processors: the
      * replaceTables renames and whether the CTE-extraction processor
      * ({@code extractSubqueriesAsCTEs}) is installed. */
-    public record Hooks(Map<String, String> tableReplace, boolean extractCtes) {
+    public record Hooks(Map<String, String> tableReplace, boolean extractCtes,
+            boolean nonExecutable) {
     }
 
     /** {@code bind}: the caller's let bindings (a pair or a table bound
@@ -56,9 +57,10 @@ public final class SqlPostProcessors {
     public static Hooks hooks(TypedSpec runtimeArg,
             java.util.function.UnaryOperator<TypedSpec> bind) {
         Map<String, String> out = new LinkedHashMap<>();
-        boolean[] cte = {false};
+        // [0] = CTE extraction installed, [1] = nonExecutable installed
+        boolean[] cte = {false, false};
         collectConnections(runtimeArg, out, cte, bind);
-        return new Hooks(out, cte[0]);
+        return new Hooks(out, cte[0], cte[1]);
     }
 
     private static void collectConnections(TypedSpec n,
@@ -125,6 +127,8 @@ public final class SqlPostProcessors {
 
     private static final String EXTRACT_CTES_FQN =
             "meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs";
+    private static final String NON_EXECUTABLE_FQN =
+            "meta::relational::postProcessor::nonExecutable";
 
     private static void readHook(TypedSpec hook, Map<String, String> out,
             boolean[] cte, java.util.function.UnaryOperator<TypedSpec> bind) {
@@ -135,6 +139,14 @@ public final class SqlPostProcessors {
                 && rni.properties().get("values") instanceof TypedSpec vals
                 && EXTRACT_CTES_FQN.equals(calleeOf(vals))) {
             cte[0] = true;
+            return;
+        }
+        // {query | nonExecutable($query, extensions)} — the engine's
+        // nonExecutable processor (nonExecutablePostProcessor.pure:24): a
+        // platform post-processor, applied as the IR pass nonExecutable()
+        if (hook instanceof TypedLambda nl && !nl.body().isEmpty()
+                && NON_EXECUTABLE_FQN.equals(calleeOf(nl.body().get(nl.body().size() - 1)))) {
+            cte[1] = true;
             return;
         }
         // IDENTITY hook (ledger cluster 63): {query|$query->postprocess(
@@ -297,9 +309,52 @@ public final class SqlPostProcessors {
      * table renames, then CTE extraction when the processor is installed
      * (the orchestrator supplies both facts — exec never calls here). */
     public static SqlQuery applyRecorded(SqlQuery q, Map<String, String> tableReplace,
-            boolean extractCtes) {
+            boolean extractCtes, boolean nonExecutable) {
         SqlQuery out = apply(q, tableReplace);
+        out = nonExecutable ? nonExecutable(out) : out;
         return extractCtes ? extractSubqueriesAsCtes(out) : out;
+    }
+
+    // ---- nonExecutable (the engine's nonExecutablePostProcessor) ----
+
+    /** {@code nonExecutable}: every SELECT in the tree — the root, each
+     * FROM-tree subselect, each union branch, each CTE — takes
+     * {@code <filter> and 1 = 2} (a bare {@code 1 = 2} when it had no
+     * filter), so the query still parses and plans but returns no rows
+     * (engine processRelationalOperationForNonExecutable). Join ON
+     * conditions and projections are untouched. */
+    public static SqlQuery nonExecutable(SqlQuery q) {
+        return switch (q) {
+            case SqlSelect s -> nonExecutableSelect(s);
+            case com.legend.sql.SqlUnion u -> new com.legend.sql.SqlUnion(
+                    u.branches().stream().map(SqlPostProcessors::nonExecutable).toList(),
+                    u.all(), u.outputs());
+            case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(
+                    w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
+                            c.name(), nonExecutable(c.query()))).toList(),
+                    nonExecutable(w.body()));
+            default -> q;
+        };
+    }
+
+    private static SqlSelect nonExecutableSelect(SqlSelect s) {
+        SqlExpr never = SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                new SqlExpr.IntLit(1), new SqlExpr.IntLit(2));
+        SqlExpr where = s.where() == null ? never
+                : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, s.where(), never);
+        return new SqlSelect(s.projections(), s.distinct(),
+                nonExecutableSource(s.from()), where, s.groupBy(), s.having(),
+                s.qualify(), s.orderBy(), s.limit(), s.offset(), s.outputs());
+    }
+
+    private static SqlSource nonExecutableSource(SqlSource src) {
+        return switch (src) {
+            case SqlSource.Join j -> new SqlSource.Join(nonExecutableSource(j.left()),
+                    nonExecutableSource(j.right()), j.kind(), j.on());
+            case SqlSource.Subselect sub -> new SqlSource.Subselect(
+                    nonExecutable(sub.inner()), sub.alias(), sub.frameName());
+            default -> src;
+        };
     }
 
     // ---- CTE extraction (the engine's cteExtractionPostProcessor) ----

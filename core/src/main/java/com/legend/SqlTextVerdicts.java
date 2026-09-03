@@ -84,9 +84,38 @@ final class SqlTextVerdicts {
                 || !(lamArg instanceof TypedLambda lam)
                 || lam.body().size() != 1
                 || !(producer.args().get(1)
-                        instanceof TypedPackageableRef mapping)
-                || !(producer.args().get(2) instanceof TypedEnumValue db)) {
+                        instanceof TypedPackageableRef mapping)) {
             return null;
+        }
+        // the dialect: the DatabaseType overload names it; the RUNTIME
+        // overload (toSQLStringPretty(lambda, mapping, runtime, ext) —
+        // the post-processor tests' spelling) carries it on the
+        // connection, read through the let chase and a helper inline
+        String dbType;
+        if (producer.args().get(2) instanceof TypedEnumValue db) {
+            dbType = db.value();
+        } else {
+            TypedSpec rt = com.legend.compiler.spec.ExecuteChainAssembly
+                    .letBound(producer.args().get(2), letPrefix);
+            rt = new com.legend.compiler.spec.UserCallInliner(specs)
+                    .inlineBody(List.of(rt)).get(0);
+            dbType = ConnectionFlags.databaseTypeOf(rt);
+            if (dbType == null) {
+                return null;
+            }
+            // the runtime's post-processors (replaceTables) apply to OUR
+            // rows exactly as the frame path applies them — the same
+            // recogniser, the env's tableReplace channel (the golden's
+            // text already names the replaced tables)
+            java.util.Map<String, String> tr = com.legend.lowering.SqlPostProcessors
+                    .hooks(rt, v -> com.legend.compiler.spec.ExecuteChainAssembly
+                            .letBound(v, letPrefix)).tableReplace();
+            if (!tr.isEmpty()) {
+                env = new StatementExecutor.ExecEnv(env.ctx(), env.runtimeFqn(),
+                        env.dialect(), env.connection(), env.addDriverTablePk(),
+                        env.queryLets(), tr, env.instanceIds(), env.assertListener(),
+                        env.replayOracle(), env.planRows());
+            }
         }
         // OUR TEXT + GOLDEN TEXT: ordinary evaluation, the one router
         String golden = scalarString(StatementExecutor.evalValue(
@@ -109,12 +138,12 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        if (!"H2".equals(db.value())) {
+        if (!"H2".equals(dbType)) {
             // §4 FOREIGN-DIALECT residue: no oracle database for this
             // dialect — text stays the contract, counted forever
-            SqlTextEmission.textVerdict("foreign-dialect " + db.value());
+            SqlTextEmission.textVerdict("foreign-dialect " + dbType);
             return textEqual ? ok()
-                    : fail(name + " (sql-text, " + db.value()
+                    : fail(name + " (sql-text, " + dbType
                             + " — text is the contract): expected "
                             + golden + ", got " + ours);
         }

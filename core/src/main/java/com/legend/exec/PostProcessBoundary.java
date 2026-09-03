@@ -44,4 +44,16 @@ public final class PostProcessBoundary {
         return EXTRACT_CTES.get();
     }
 
+    private static final ThreadLocal<Boolean> NON_EXECUTABLE =
+            ThreadLocal.withInitial(() -> false);
+
+    /** Whether the frame's runtime installs the nonExecutable processor. */
+    public static void recordNonExecutable(boolean on) {
+        NON_EXECUTABLE.set(on);
+    }
+
+    public static boolean nonExecutable() {
+        return NON_EXECUTABLE.get();
+    }
+
 }

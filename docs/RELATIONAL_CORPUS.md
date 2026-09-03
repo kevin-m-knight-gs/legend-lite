@@ -52,7 +52,7 @@ shared source registered by several families cannot double-count. Run with
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| postprocessor/tests | 30 | 25 | 1 | 4 | 0 | 0 | 0 | 0 | 0 |
+| postprocessor/tests | 30 | 27 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | sqlDialectTranslation | 21 | 1 | 0 | 10 | 10 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2384** | 47 | 100 | 44 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2386** | 46 | 99 | 44 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2384 PASS = 2323 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2386 PASS = 2325 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -931,10 +931,8 @@ SOFT-PASS RECONCILIATION (F2.1): 2384 PASS = 2323 clean + 61 carrying softness (
 - ERROR testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[query], body=[TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::nonExecutable, typeParameters=[], multiplicityParameters=[
 - ERROR testDb2ColumnRename [postprocessor/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - ERROR testPostProcessTransformJoinOp [postprocessor/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- FAIL testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: sql-text: expected select "root".LEGALNAME as "firm", "persontable_0".FIRSTNAME as "employee" from otherFirmTable as "root" left outer join differentPersonTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID), got select "root".LEGALNAME as "firm", "persontable_0".FIRSTNAME as "employee" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID)
 - ERROR addDriverTablePkForProject [pureToSQLQuery/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - ERROR simpleFunctionExpressionTranslationAdjust [pureToSQLQuery/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - ERROR simpleFunctionExpressionTranslationNow [pureToSQLQuery/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum

@@ -592,7 +592,12 @@ class JavaEvalLedgerTest {
             // carry the STATIC extent-subset fact (VerdictQueries.extentSubset
             // over the typed chain — the compiler layer owns the walk) to
             // the oracle's pk-collapse — routing of a fact, no evaluation.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 669),
+            // 669 -> 690 (batch 52, 2026-09-03): the golden-vs-render arm
+            // accepts the RUNTIME overload of toSQLString (dialect read from
+            // the connection, the runtime's post-processor hooks applied to
+            // the rows leg through the env's tableReplace channel) — the
+            // same recogniser the frame path uses; no evaluation moved here.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 690),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
