@@ -1726,9 +1726,29 @@ AFTER zero — except that C3 should follow C2 immediately while the
 mechanism is fresh. Do not start C4 before zero: it is the largest port
 and the lineage families are already scored by rows today.
 
+**Batch 27 — REFEREE RENDER COVERAGE (2026-09-03): ratchet 505/2068 →
+487/2086 (+18, ZERO lost).** The post-batch-26 census's "class query
+under TypedMap" (50) was, again, the referee render returning null:
+(1) an execute whose mapping argument is a placeholder `^Mapping()`
+while the query carries its mapping in-chain (`withMapping` / `from`) —
+`PlanAllocations.activitySql` now takes the mapping the chain's TypedFrom
+carries (`chainMapping`; fromMapping 5); (2) the H2 engine-style
+renderer had no spelling for a LITERAL collection membership (a
+let-bound list `$names->contains(x)`, a literal `->in([...])`): the
+engine's in-list `x in ('John', 'Peter')` — `EngineStyleH2.membership`
+over `literalElements` (filter::in 11, exists 2). The render's own wall
+now prints under LL_TMP_DEBUG (`[render-debug]`), so the census can name
+the cause instead of the automap wall two mechanisms downstream. Named
+remainder in the functions families: H2 engine spellings for UNNEST
+(concatenate projections), LIST_CONCAT, LIST_GET (percentile), JSON casts
+— the DialectCapability bucket; `generateObjectReferences` unported (7,
+objectReferenceIn); the concatenate `assertEquals` scalar-lowering wall
+(7, the assert arm declines a class-frame `.values.name` read over a
+concatenated qualified property); enum-decoded oracle declines (5).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 505 fallbacks / 2068 flipped (batches 14–26 = group D,
+legs).** State: 487 fallbacks / 2086 flipped (batches 14–27 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

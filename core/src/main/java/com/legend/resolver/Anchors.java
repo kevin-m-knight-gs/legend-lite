@@ -252,4 +252,33 @@ final class Anchors {
                 && pa.property().equals("expressionSequence")
                 && pa.source() instanceof com.legend.compiler.spec.typed.TypedLambda;
     }
+
+    /** Diagnostics (env-gated callers): a compact typed-tree print —
+     * callee simple names, property reads, binders — depth-limited. */
+    static String compact(TypedSpec n, int depth) {
+        if (depth == 0) {
+            return "…";
+        }
+        String head = switch (n) {
+            case TypedNativeCall nc -> nc.callee().qualifiedName()
+                    .substring(nc.callee().qualifiedName().lastIndexOf(':') + 1);
+            case com.legend.compiler.spec.typed.TypedUserCall uc -> "user:" + uc.callee()
+                    .qualifiedName().substring(uc.callee().qualifiedName().lastIndexOf(':') + 1);
+            case TypedPropertyAccess pa -> "." + pa.property();
+            case com.legend.compiler.spec.typed.TypedVariable v -> "$" + v.name();
+            case com.legend.compiler.spec.typed.TypedCast c -> "cast@" + c.target();
+            case com.legend.compiler.spec.typed.TypedLambda l -> "lambda" + l.parameters();
+            default -> n.getClass().getSimpleName();
+        };
+        StringBuilder sb = new StringBuilder(head);
+        var kids = n.children();
+        if (!kids.isEmpty()) {
+            sb.append('(');
+            for (int i = 0; i < kids.size(); i++) {
+                sb.append(i > 0 ? ", " : "").append(compact(kids.get(i), depth - 1));
+            }
+            sb.append(')');
+        }
+        return sb.toString();
+    }
 }

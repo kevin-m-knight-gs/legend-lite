@@ -219,13 +219,15 @@ final class PlanAllocations {
         }
         com.legend.compiler.spec.typed.TypedSpec m = com.legend.compiler.spec.ExecuteChainAssembly
                 .letBound(ec.args().get(1), letPrefix);
-        if (!(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+        String mappingFqn = m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+                ? pr.fullPath() : chainMapping(chain);
+        if (mappingFqn == null) {
             return null;
         }
         try {
             var renderer = new com.legend.sql.dialect.EngineStyleH2();
             StatementExecutor.EngineSql es = StatementExecutor.engineSql(
-                    java.util.List.of(chain), pr.fullPath(), specs, env, renderer,
+                    java.util.List.of(chain), mappingFqn, specs, env, renderer,
                     java.util.Map.of(), java.util.function.UnaryOperator.identity());
             com.legend.sql.SqlQuery post =
                     com.legend.lowering.SqlPostProcessors.apply(
@@ -236,8 +238,31 @@ final class PlanAllocations {
                 | com.legend.compiler.spec.TypeInferenceException
                 | com.legend.error.MappingResolutionException
                 | IllegalStateException e) {
+            // diagnostics (env-gated): the render's own wall, which the
+            // rows path downstream would otherwise mask
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[render-debug] " + e.getClass().getSimpleName() + ": "
+                        + String.valueOf(e.getMessage()).replace('\n', ' ')
+                                .substring(0, Math.min(240, String.valueOf(e.getMessage()).length())));
+            }
             return null;
         }
+    }
+
+    /** The mapping the chain itself carries (an in-query {@code from(m, r)}
+     * / {@code withMapping(m)} — the execute's own mapping argument being a
+     * placeholder {@code ^Mapping()}), outermost first; null when none. */
+    private static @com.legend.Nullable String chainMapping(com.legend.compiler.spec.typed.TypedSpec chain) {
+        com.legend.compiler.spec.typed.TypedSpec cur = chain;
+        while (cur != null) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedFrom f
+                    && f.mapping().isPresent()) {
+                return f.mapping().get().fullPath();
+            }
+            var kids = cur.children();
+            cur = kids.isEmpty() ? null : kids.get(0);
+        }
+        return null;
     }
 
     /** An execute() call's Result and activity rows under the call's

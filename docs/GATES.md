@@ -218,6 +218,12 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 27 (referee render COVERAGE — chain mapping, H2 in-lists, 2026-09-03): chain 6m00s** —
+G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
+505/2068 → 487/2086 (+18, 0 lost); exec-passing declines 198 → 180 (lane move);
+other pins unchanged. G6 is creeping (78 → 85s): the first slice to shard if the
+chain nears the budget.
+
 **Batch 26 (the referee's render is the FRAME's chain — milestoning leg, 2026-09-03): chain 5m53s** —
 G1 41s, G2 8s, G4 62s, G5 43s, G6 80s, G7 26s, G9 19s, G8 74s. Ratchet
 581/1992 → 505/2068 (+76, 0 lost); lane pins moved as lane moves (M1 verified

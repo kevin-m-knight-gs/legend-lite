@@ -1632,7 +1632,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected String membership(SqlExpr.Membership m) {
         // engine golden spelling for expression membership:
-        // x in (<collection expr>) — ledger cluster 35
-        return expr(m.needle(), 4) + " in (" + expr(m.collection(), 0) + ")";
+        // x in (<collection expr>) — ledger cluster 35. A LITERAL
+        // collection (a let-bound list, ['a', 'b']->contains(x), an
+        // element-text cast of one) spells its elements: x in ('a', 'b')
+        // — the engine's in-list; the array literal itself has no H2
+        // spelling.
+        SqlExpr coll = m.collection();
+        while (coll instanceof SqlExpr.Cast c && c.target() instanceof com.legend.sql.SqlType.Array) {
+            coll = c.value();
+        }
+        java.util.List<SqlExpr> elements = literalElements(coll);
+        if (elements != null) {
+            StringBuilder sb = new StringBuilder(expr(m.needle(), 4)).append(" in (");
+            for (int i = 0; i < elements.size(); i++) {
+                sb.append(i > 0 ? ", " : "").append(expr(elements.get(i), 0));
+            }
+            return sb.append(')').toString();
+        }
+        return expr(m.needle(), 4) + " in (" + expr(coll, 0) + ")";
     }
 }

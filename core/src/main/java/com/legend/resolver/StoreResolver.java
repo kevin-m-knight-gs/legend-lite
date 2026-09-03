@@ -575,6 +575,7 @@ public final class StoreResolver {
             // resolver work.
             default -> throw new NotImplementedException("class query under "
                     + n.getClass().getSimpleName()
+                    + (System.getenv("LL_TMP_DEBUG") != null ? " <<" + Anchors.compact(n, 7) + ">>" : "")
                     + (n instanceof TypedUserCall wuc
                             ? "[" + wuc.callee().qualifiedName() + "]"
                             : "")
