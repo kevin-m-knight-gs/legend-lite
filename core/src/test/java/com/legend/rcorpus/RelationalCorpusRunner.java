@@ -1011,7 +1011,10 @@ public class RelationalCorpusRunner {
             // 149 -> 140 (batch 35 — engine-style H2 literal-reduction /
             // round spellings): the flipped tests' sql-asserts left the
             // walk's lane (lane move, passes 2374 stable, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(140, execPassing,
+            // 140 -> 135 (batch 36 — percentile reducer): the three
+            // percentile tests' sql-asserts left the walk's lane (lane
+            // move, passes 2374 stable, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(135, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1491,10 +1494,18 @@ public class RelationalCorpusRunner {
             // the resolver because the activity render had failed. +10
             // (round 4, tdsFilter and/or 2, firstNotNull 2, divide 1,
             // columnValueDifference 1), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(369L,
+            // 369 -> 366 (batch 36, 2026-09-03): percentile is ONE semantic
+            // reducer whose DESCENDING form is the value's within-group
+            // order (PERCENTILE_x(p) WITHIN GROUP (ORDER BY v DESC)); the
+            // DuckDB encodings (negation, sorted-list pick, the QDISC_DESC
+            // pseudo-reducer) left the lowerer for a DuckDB MIR pass
+            // (QuantileOrder); H2 / engine-style H2 spell the standard form
+            // with the direction. +3 (groupBy percentile, TDS groupBy
+            // percentile, percentile window), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(366L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2204L,
+            org.junit.jupiter.api.Assertions.assertEquals(2207L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1716,8 +1727,11 @@ public class RelationalCorpusRunner {
                     // (passes 2367 -> 2374, 0 flips lost, disagree 0).
                     // 119 -> 109 (batch 34): the same lane move as
                     // M1_VERIFIED 20 -> 12.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 109,
-                    "M1 h2-exec rescued fell below the 109 floor: "
+                    // 109 -> 108 (batch 36): the same lane move — one
+                    // percentile sql-assert now row-verifies as a
+                    // platform-arm verdict.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 108,
+                    "M1 h2-exec rescued fell below the 108 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

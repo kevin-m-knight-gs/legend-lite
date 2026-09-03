@@ -1152,7 +1152,7 @@ public final class Lowerer {
         List<Boolean> flags = new ArrayList<>();
         TypedCast valueCast = null;
         boolean distinctValues = false;
-        boolean negateForDescCont = false;
+        boolean descending = false;
         for (TypedSpec argSpec : call.args()) {
             if (argSpec instanceof TypedNativeCall dn
                     && dn.callee().qualifiedName().equals(
@@ -1191,7 +1191,7 @@ public final class Lowerer {
         }
         AggFlavor flavor = aggFlavor(fn, flags, extra.size());
         fn = flavor.fn();
-        negateForDescCont = flavor.negateForDescCont();
+        descending = flavor.descending();
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
         // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
         if (mapBody instanceof TypedNativeCall rm
@@ -1199,12 +1199,12 @@ public final class Lowerer {
                         || rm.callee().qualifiedName().equals(
                                 "meta::pure::functions::math::wavgUtility::wavgRowMapper"))
                 && rm.args().size() == 2) {
-            if (negateForDescCont) {
-                // this arm returns without the negation wrap — reaching
-                // it with the flag set would silently drop DESC
+            if (descending) {
+                // this arm returns without the within-group order —
+                // reaching it with the flag set would silently drop DESC
                 throw new IllegalStateException(
-                        "descending continuous percentile over a"
-                        + " rowMapper body has no lowering");
+                        "descending percentile over a rowMapper body"
+                        + " has no lowering");
             }
             SqlExpr first = scalar(rm.args().get(0), (v, name) -> resolveOrThrow(base, name));
             SqlExpr second = scalar(rm.args().get(1), (v, name) -> resolveOrThrow(base, name));
@@ -1313,17 +1313,18 @@ public final class Lowerer {
                                     false, aggOrder)),
                     extra.get(2));
         }
-        if (fn == SqlAgg.Fn.QDISC_DESC) {
-            return Aggregates.qdiscDesc(value, extra.get(0));
+        // a DESCENDING percentile is the SAME reducer over the value's
+        // descending within-group order (SQL-standard PERCENTILE_x(p)
+        // WITHIN GROUP (ORDER BY v DESC)); each dialect spells it —
+        // DuckDB's quantile family takes no order, so its renderer owns
+        // the negation / sorted-list encodings
+        if (descending) {
+            aggOrder = List.of(new SqlSelect.SortKey(value, false, null, null));
         }
         List<SqlExpr> args = new ArrayList<>();
-        args.add(negateForDescCont
-                ? SqlExpr.Call.of(SqlFn.NEGATE, value) : value);
+        args.add(value);
         args.addAll(extra);
         SqlExpr red = new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
-        if (negateForDescCont) {
-            return SqlExpr.Call.of(SqlFn.NEGATE, red);
-        }
         // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —
         // the discrete quantile keeps the input's integer type, so cast
         return fn == SqlAgg.Fn.QUANTILE_DISC
@@ -3356,22 +3357,15 @@ public final class Lowerer {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
     }
 
-    /** percentile/variance FLAG decode (seam split from aggValue at the
-     * 250-line method guard): picks the reducer flavor —
-     * percentile(p, ascending, continuous) selects the QUANTILE flavor;
-     * variance(isBiasCorrected) false selects POPULATION variance.
-     * CONTINUOUS descending takes the NEGATION identity
-     * {@code -(quantile_cont(-v, p))}, NOT the (1-p) transform:
-     * symmetric in exact math but NOT in float ULPs (probed 1.5.0: 1-p
-     * over [1,1.5,2] gives 1.4000000000000001 where the engine's own
-     * WITHIN GROUP ... DESC path gives 1.4 — negation follows the SAME
-     * interpolation direction and lands the engine's exact double;
-     * testPercentile_Relation_Window's ChannelB byte-compare is the
-     * referee). DISCRETE descending is NOT symmetric (SQL-standard
-     * PERCENTILE_DISC picks the first value whose cume_dist >= p in
-     * DESC order — the ceil(p*N)-th largest) and indexes the sorted
-     * list exactly (QDISC_DESC). */
-    private record AggFlavor(SqlAgg.Fn fn, boolean negateForDescCont) {
+    /** The reducer a percentile's (ascending, continuous) flags select,
+     * plus whether the value's within-group order is DESCENDING. The
+     * order is SEMANTIC (SQL-standard PERCENTILE_x(p) WITHIN GROUP
+     * (ORDER BY v DESC)): continuous descending interpolates in the
+     * reverse direction (engine golden 1.4 over [1,1.5,2]); discrete
+     * descending picks the ceil(p*N)-th largest. Dialects whose
+     * quantile family takes no order (DuckDB) spell the direction
+     * themselves. */
+    private record AggFlavor(SqlAgg.Fn fn, boolean descending) {
     }
 
     private static AggFlavor aggFlavor(SqlAgg.Fn fn,
@@ -3390,9 +3384,9 @@ public final class Lowerer {
                         ? SqlAgg.Fn.QUANTILE_CONT
                         : SqlAgg.Fn.QUANTILE_DISC, false);
             }
-            return flags.get(1)
-                    ? new AggFlavor(SqlAgg.Fn.QUANTILE_CONT, true)
-                    : new AggFlavor(SqlAgg.Fn.QDISC_DESC, false);
+            return new AggFlavor(flags.get(1)
+                    ? SqlAgg.Fn.QUANTILE_CONT
+                    : SqlAgg.Fn.QUANTILE_DISC, true);
         }
         throw new IllegalStateException("boolean reducer arguments are"
                 + " only understood on percentile(p, ascending,"

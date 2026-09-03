@@ -23,7 +23,7 @@ public sealed interface SqlAgg {
         VAR_SAMP, VAR_POP, MEDIAN, MODE, STRING_AGG, LIST, QUANTILE_CONT,
         QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN,
         WAVG, HASH_LIST, BOOL_AND, BOOL_OR, IS_DISTINCT_MARK,
-        UNIQUE_VALUE_ONLY, QDISC_DESC, VARIANCE, STDDEV,
+        UNIQUE_VALUE_ONLY, VARIANCE, STDDEV,
         ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
         LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE;
 
@@ -31,8 +31,7 @@ public sealed interface SqlAgg {
          * reaching a renderer is a caller bug). */
         public boolean marker() {
             return this == WAVG || this == HASH_LIST
-                    || this == IS_DISTINCT_MARK || this == UNIQUE_VALUE_ONLY
-                    || this == QDISC_DESC;
+                    || this == IS_DISTINCT_MARK || this == UNIQUE_VALUE_ONLY;
         }
     }
 

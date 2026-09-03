@@ -1932,9 +1932,28 @@ at()), columnValueDifferenceWithoutPrevalTest = a real rows divergence now
 (TDSNull vs value in the difference columns), tds extensions
 testFirstNotNull = unresolved type variable T at the lowering boundary.
 
+**Batch 36 — PERCENTILE IS ONE SEMANTIC REDUCER (2026-09-03): ratchet
+369/2204 → 366/2207 (+3, ZERO lost).** The lowerer encoded a descending
+percentile with DuckDB tricks — continuous: negate the values, negate the
+quantile back; discrete: a `QDISC_DESC` pseudo-reducer expanding to
+`list_extract(list_reverse_sort(list(v)), ceil(p*count(v)))` — so the H2
+renders (execution AND the engine-style referee text) had nothing to spell
+and the sql() reads walled. Now the reducer is `Reducer(QUANTILE_CONT|DISC,
+[v, p], orderBy = [v desc])` — the SQL-standard `PERCENTILE_x(p) WITHIN
+GROUP (ORDER BY v DESC)` as data on the node (`Lowerer.AggFlavor.descending`);
+`QDISC_DESC` and `Aggregates.qdiscDesc` are DELETED; the DuckDB encodings
+moved into a named MIR pass (`sql.dialect.QuantileOrder`, in DuckDb.passes()
+after the carrier strategies; a window-positioned percentile windows every
+reducer of its encoding); `H2` spells `PERCENTILE_CONT/DISC(p) WITHIN GROUP
+(ORDER BY v [DESC])`; `EngineStyleH2` the engine's lowercase form with the
+direction explicit (extensionDefaults.pure:790). Flipped: testGroupByPercentile,
+testTDSGroupByPercentile, testPercentileWindowFunction. Lane moves:
+exec-passing 140 → 135, M1 rescued 109 → 108 (passes 2374 stable, disagree
+0); DuckDBIntegrationTest/TypeInference/GroupBy/ExtendWindow/Spellings green.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 369 fallbacks / 2204 flipped (batches 14–35 = group D,
+legs).** State: 366 fallbacks / 2207 flipped (batches 14–36 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

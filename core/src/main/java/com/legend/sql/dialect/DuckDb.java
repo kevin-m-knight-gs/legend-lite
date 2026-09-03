@@ -104,6 +104,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(java.util.List.of(
                         new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
+                        new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
                         new SubstringClamp(), new RawSqlAdapt()));
         if (Boolean.getBoolean("legend.exec.engineScanOrder")) {

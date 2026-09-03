@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 7 |
+| tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 6 |
 | testDataGeneration/tests | 68 | 65 | 0 | 1 | 2 | 0 | 0 | 25 | 15 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 1 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 13 |
-| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 74 |
+| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 73 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2261 clean + 113 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 74; flags overlap — the union is 113).
+SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2262 clean + 112 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 73; flags overlap — the union is 112).
 
 ### mapping walls (dropped at assembly)
 

@@ -1331,6 +1331,21 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (r.fn() == com.legend.sql.SqlAgg.Fn.ANY_VALUE && r.args().size() == 1) {
             return expr(r.args().get(0), 0);
         }
+        // percentile: the engine's inverse-distribution form with the
+        // direction spelled explicitly (extensionDefaults.pure:790) —
+        // percentile_cont(p) within group (order by v asc)
+        if ((r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
+                    || r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_DISC)
+                && r.args().size() == 2 && !r.distinct()
+                && r.orderBy().size() <= 1) {
+            boolean desc = !r.orderBy().isEmpty()
+                    && !r.orderBy().get(0).ascending();
+            return (r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
+                    ? "percentile_cont(" : "percentile_disc(")
+                    + expr(r.args().get(1), 0)
+                    + ") within group (order by " + expr(r.args().get(0), 0)
+                    + (desc ? " desc" : " asc") + ")";
+        }
         String s = super.reducer(r);
         int p = s.indexOf('(');
         return s.substring(0, p).toLowerCase(Locale.ROOT) + s.substring(p);

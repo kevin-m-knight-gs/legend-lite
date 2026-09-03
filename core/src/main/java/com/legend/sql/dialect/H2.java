@@ -476,11 +476,19 @@ public class H2 extends AnsiSqlRenderer {
      * reducers render on the base. */
     @Override
     protected String reducer(com.legend.sql.SqlAgg.Reducer r) {
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT && r.args().size() == 2
-                && !r.distinct() && r.orderBy().isEmpty()) {
-            return "PERCENTILE_CONT(" + expr(r.args().get(1), 0)
+        if ((r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
+                    || r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_DISC)
+                && r.args().size() == 2 && !r.distinct()
+                && r.orderBy().size() <= 1) {
+            // the reducer's single order key IS the within-group order
+            // (a descending percentile); none = ascending
+            boolean desc = !r.orderBy().isEmpty()
+                    && !r.orderBy().get(0).ascending();
+            return (r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
+                    ? "PERCENTILE_CONT(" : "PERCENTILE_DISC(")
+                    + expr(r.args().get(1), 0)
                     + ") WITHIN GROUP (ORDER BY " + expr(r.args().get(0), 0)
-                    + ")";
+                    + (desc ? " DESC" : "") + ")";
         }
         if (r.fn() == com.legend.sql.SqlAgg.Fn.LIST && r.args().size() == 1
                 && !r.distinct()) {
