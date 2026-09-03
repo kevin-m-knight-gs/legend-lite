@@ -1028,7 +1028,10 @@ public class RelationalCorpusRunner {
             // 75 -> 68 (batch 43 — the referee render runs the H2 carrier
             // strategies): the flipped tests' sql-asserts left the walk's
             // lane (lane move, passes 2379 stable, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(68, execPassing,
+            // 68 -> 63 (batch 44 — no-decision singles): the flipped TDG
+            // tableToTds tests' sql-asserts left the walk's lane (lane
+            // move, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(63, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1572,10 +1575,21 @@ public class RelationalCorpusRunner {
             // null-dropping list_filter over an exploded concat becomes each
             // branch's WHERE, and the ordered-dedup idiom over rows is
             // DISTINCT. +6 (concatenate 4, distinct, filter-with-in), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(297L,
+            // 297 -> 291 (batch 44, 2026-09-03): no-decision singles —
+            // zip is the POSITIONAL pairing of two ordered collections
+            // (list_zip into the Pair struct; the per-row project shape
+            // stays for two [1] reads of one class chain, a nested zip
+            // is a ^Pair column), the Result-envelope splice erases
+            // cast(@TabularDataSet)/.rows AFTER splicing their source
+            // (->at(0) over a Result<Any> helper parameter), and
+            // meta::pure::tds::extend dispatches to the ExtendChecker
+            // (the legacy col() normalization). +6 (sort
+            // testSortByLambdaDeepOptional; TDG testTableToTDSSimple,
+            // WithAppliedFunctions x2, WithConcatenate, WithGroupBy), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(291L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2276L,
+            org.junit.jupiter.api.Assertions.assertEquals(2282L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1815,8 +1829,12 @@ public class RelationalCorpusRunner {
                     // 75 -> 63 (batch 38): the same lane move as
                     // M1_VERIFIED 9 -> 4.
                     // 63 -> 62 (batch 42): the same lane move.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 62,
-                    "M1 h2-exec rescued fell below the 62 floor: "
+                    // 62 -> 57 (batch 44): the five flipped TDG tableToTds
+                    // tests' text-rescued sql-asserts now row-verify through
+                    // the arm channel (the same lane move as exec-passing
+                    // 68 -> 63; disagree 0).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 57,
+                    "M1 h2-exec rescued fell below the 57 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

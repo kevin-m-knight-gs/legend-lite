@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 78 | 9 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 248 | 4 | 5 | 2 | 2 | 2 | 0 | 5 |
+| functions/tests | 259 | 249 | 4 | 4 | 2 | 2 | 2 | 0 | 5 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 148 | 2 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -62,7 +62,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 1 |
-| testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 15 |
+| testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 11 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 0 | 1 | 2 | 2 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2379** | 46 | 103 | 47 | 12 | 12 | 29 | 30 |
+| **total** | 2575 | **2380** | 46 | 102 | 47 | 12 | 12 | 29 | 26 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2379 PASS = 2311 clean + 68 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 30; flags overlap — the union is 68).
+SOFT-PASS RECONCILIATION (F2.1): 2380 PASS = 2316 clean + 64 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 26; flags overlap — the union is 64).
 
 ### mapping walls (dropped at assembly)
 
@@ -842,7 +842,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2379 PASS = 2311 clean + 68 carrying softness (
 - 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe'] over [null, subAccount_ID, subAccount_NAME, subAccount_OE_ID, subAccount_OE_NAME, subAccount_oe_ID, subAccount_oe_NAME, otherAccount_EA_ID, otherAccount_EA_NAME, otherAccount_EA_OE_ID, otherAccount_EA_OE_NAME, otherAccount_oe_ID, otherAccount_oe_NAME]
 - 1x class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - 1x lowering not yet implemented for TypedSerializeGraph
-- 1x zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRESSID, employees_FIRMID, employees_MANAGERID, employees_locations_ID, employees_locations_PERSONID, employees_locations_PLACE, employees_locations_date]
 - 1x project expects ~[…] column specifications
@@ -851,6 +850,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2379 PASS = 2311 clean + 68 carrying softness (
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
+- 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 
 ### per-test outcomes (non-passing)
 
@@ -893,7 +893,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2379 PASS = 2311 clean + 68 carrying softness (
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
 - FAIL testSQLComments [functions/tests]: assert did not hold ([])
-- ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)

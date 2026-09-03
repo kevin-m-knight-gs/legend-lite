@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 44 (no-decision singles: zip is the positional list_zip pairing, the envelope splice erases cast/rows after splicing their source, meta::pure::tds::extend dispatches to the extend checker, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 297/2276 → 291/2282 (+6, 0 lost); lane moves exec-passing 68 → 63, M1 rescued 62 → 57 (disagree 0). G1 39s, G2 9s, G4 55s, G5 39s, G6 82s, G7 26s, G9 18s, G8 72s.
+
 **Batch 43 (the referee render runs the H2 carrier strategies: a whole relation collected as a list then exploded becomes rows, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 303/2270 → 297/2276 (+6, 0 lost); lane moves exec-passing 75 → 68, M1 rescued 62 → 62
 (passes 2379, disagree 0). G1 40s, G2 8s, G4 62s, G5 42s, G6 80s, G7 26s, G9 19s, G8 72s.

@@ -203,20 +203,26 @@ public final class ResultEnvelopeSplice {
         // cast(@TabularDataSet) over a SPLICED relation is the identity
         // (CastChecker's rule, which typing could not apply: the envelope
         // read is a relation only after the splice)
+        // (the hook is offered each node BEFORE its children: the source
+        // splices here first — cast(@TabularDataSet) over ->at(0) over
+        // the envelope read, testDataGeneration loadAndTestExecution)
         if (n instanceof TypedCast tc
-                && tc.target() instanceof Type.GenericType tg
-                && PlatformTypes.TABULAR_DATA_SET.equals(tg.rawFqn())
-                && Type.isRelation(tc.source().info().type())) {
-            return tc.source();
+                && PlatformTypes.isTdsType(tc.target())) {
+            TypedSpec src = rewrite(tc.source(), frames);
+            if (Type.isRelation(src.info().type())) {
+                return src;
+            }
         }
         // the Typer's `.rows` MARKER (identity over a relation value):
         // it exists so the arms below can tell a REAL row index
         // ($r.values.rows->at(k)) from the Result envelope
         // ($r.values->at(k)) — once seen, it erases to its source.
         if (n instanceof TypedPropertyAccess rp
-                && rp.property().equals("rows")
-                && Type.isRelation(rp.source().info().type())) {
-            return rp.source();
+                && rp.property().equals("rows")) {
+            TypedSpec src = rewrite(rp.source(), frames);
+            if (Type.isRelation(src.info().type())) {
+                return src;
+            }
         }
         // the Typer's `.columns.documentation` MARKER: the receiver is
         // spliced by the time this hook sees the node — walk to the

@@ -226,30 +226,21 @@ final class ListEncodings {
     }
 
     /** {@code zip(a, b)}: pairwise {first, second} structs up to the
-     * SHORTER side. An EMPTY side is SQL NULL and len(NULL) is NULL —
-     * which LEAST would IGNORE (it skips nulls), silently zipping
-     * against the non-empty side — so the count zeroes explicitly, and
-     * a NULL whole-zip coalesces to pure's EMPTY list. */
+     * SHORTER side — DuckDB's own positional {@code list_zip(a, b,
+     * truncate)} (probed 1.5.0: a NULL or empty side zips to {@code []},
+     * a scalar-subquery side is fine), re-spelled from its unnamed
+     * struct into the Pair layout every Pair read expects. The former
+     * {@code list_get(a, i)} spelling put the sides INSIDE the lambda,
+     * which DuckDB rejects for a subquery side ("subqueries in lambda
+     * expressions are not supported" — a collected relation). */
     static SqlExpr zip(SqlExpr a, SqlExpr b) {
-        SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
-                SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, a),
-                        new SqlExpr.IntLit(0)),
-                SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, b),
-                        new SqlExpr.IntLit(0)));
-        SqlExpr i = SqlExpr.Column.derived(null, "_zip_i");
+        SqlExpr zipped = SqlExpr.Call.of(SqlFn.LIST_ZIP, a, b, new SqlExpr.BoolLit(true));
+        SqlExpr.Column x = SqlExpr.Column.param("_zip_e", zipped);
         SqlExpr body = new SqlExpr.StructLit(List.of(
-                new SqlExpr.StructLit.Field("first",
-                        SqlExpr.Call.of(SqlFn.LIST_GET, a, i)),
-                new SqlExpr.StructLit.Field("second",
-                        SqlExpr.Call.of(SqlFn.LIST_GET, b, i))));
-        return SqlExpr.Call.of(SqlFn.COALESCE,
-                SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                        SqlExpr.Call.of(SqlFn.RANGE_FN,
-                                new SqlExpr.IntLit(1), onePlus(count)),
-                        new SqlExpr.Lambda(List.of("_zip_i"), body)),
-                new SqlExpr.ArrayLit(List.of()));
+                new SqlExpr.StructLit.Field("first", new SqlExpr.StructGet(x, "1")),
+                new SqlExpr.StructLit.Field("second", new SqlExpr.StructGet(x, "2"))));
+        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, zipped,
+                new SqlExpr.Lambda(List.of("_zip_e"), body));
     }
 
     /** {@code slice(start, stop)}: 0-based exclusive-stop → 1-based

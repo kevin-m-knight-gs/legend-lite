@@ -564,9 +564,11 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
             java.util.function.UnaryOperator<TypedSpec> resolver) {
         TypedSpec zp = zipPairProject(zc, resolver);
         if (zp == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "zip over inputs that are not two scalar projections"
-                    + " of the SAME class chain has no relational shape");
+            // not two per-row reads of ONE class chain: zip is the
+            // POSITIONAL pairing of two ordered collections (collection.pure
+            // zip — truncates to the shorter); that is the LIST carrier's
+            // list_zip (Scalars), never a row pairing
+            return null;
         }
         return new TypedMap(zp, zm.mapper(), zm.info());
     }
@@ -595,23 +597,101 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         return resolver.apply(proj);
     }
 
+    /** The one-param lambda's body with its parameter read as {@code name}
+     * (typed {@code elemOne}) — the zip sides share ONE row variable. */
+    private static TypedSpec renameParam(TypedLambda lam, String name,
+            ExprType elemOne) {
+        String from = lam.parameters().get(0);
+        TypedSpec body = lam.body().get(lam.body().size() - 1);
+        return renameVar(body, from, new TypedVariable(name, elemOne));
+    }
+
+    private static TypedSpec renameVar(TypedSpec n, String from, TypedVariable to) {
+        if (n instanceof TypedVariable v) {
+            return v.name().equals(from) ? to : v;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(from)) {
+            return l;
+        }
+        return n.mapChildren(c -> renameVar(c, from, to));
+    }
+
     private static Object @com.legend.Nullable [] zipSide(TypedSpec n) {
+        // NESTED zip(b, c) as a side: the inner pair is ONE column whose
+        // value is the ^Pair(first, second) STRUCT (the platform's Pair
+        // carrier) over the same source — zip(a, zip(b, c))->map(p |
+        // $p.second.first) reads the struct field (testSortByLambdaDeepOptional)
+        if (n instanceof TypedNativeCall zc
+                && "meta::pure::functions::collection::zip".equals(
+                        zc.callee().qualifiedName())
+                && zc.args().size() == 2) {
+            Object[] a = zipSide(zc.args().get(0));
+            Object[] b = zipSide(zc.args().get(1));
+            if (a == null || b == null || !a[0].equals(b[0])) {
+                return null;
+            }
+            TypedLambda fa = (TypedLambda) a[1];
+            TypedLambda fb = (TypedLambda) b[1];
+            Type pairT = zc.info().type();
+            Type.Param elem = fa.functionType().params().get(0);
+            var elemOne = new ExprType(elem.type(),
+                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+            java.util.Map<String, TypedSpec> fields = new java.util.LinkedHashMap<>();
+            fields.put("first", renameParam(fa, "_zp", elemOne));
+            fields.put("second", renameParam(fb, "_zp", elemOne));
+            var fnT = new Type.FunctionType(
+                    List.of(new Type.Param(elem.type(),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE)),
+                    new Type.Param(pairT,
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE));
+            return new Object[] {a[0], new TypedLambda(List.of("_zp"),
+                    List.of(new com.legend.compiler.spec.typed.TypedNewInstance(
+                            com.legend.compiler.element.type.PlatformTypes.PAIR,
+                            fields, ExprType.one(pairT))),
+                    ExprType.one(fnT))};
+        }
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1
                 && !(m.mapper().functionType().result()
                         .type() instanceof Type.ClassType)) {
             return new Object[] {m.source(), m.mapper()};
         }
-        // bare $vals.prop spelling (scalar read over a class collection)
+        // bare $vals.prop / $vals.hop.prop spelling (scalar read over a
+        // class collection, auto-mapped through to-one hops): the source
+        // is the class-collection ROOT — the deepest class-typed source
+        // that is not itself a class-typed read — and the mapper rebuilds
+        // the hop chain over the row variable (zip($vals.address.name,
+        // zip($vals.firstName, $vals.lastName)) shares ONE root).
         if (n instanceof TypedPropertyAccess pa
                 && !(pa.info().type() instanceof Type.ClassType)
-                && pa.source().info().type() instanceof Type.ClassType ec) {
+                && pa.source().info().type() instanceof Type.ClassType) {
+            java.util.List<TypedPropertyAccess> hops = new java.util.ArrayList<>();
+            TypedSpec root = pa;
+            while (root instanceof TypedPropertyAccess h
+                    && h.source().info().type() instanceof Type.ClassType) {
+                hops.add(0, h);
+                root = h.source();
+            }
+            if (hops.size() != 1) {
+                // a read THROUGH a hop ($vals.address.name) auto-maps —
+                // an empty hop DROPS the element, so the pairing is
+                // positional over the survivors (engine zip semantics),
+                // not per row: the list carrier's zip owns it
+                return null;
+            }
+            Type.ClassType ec = (Type.ClassType) root.info().type();
             var elemOne = new com.legend.compiler.element.type.ExprType(
                     ec, com.legend.compiler.element.type.Multiplicity
                             .Bounded.ONE);
-            var readInfo = new com.legend.compiler.element.type.ExprType(
-                    pa.info().type(),
-                    com.legend.compiler.element.type.Multiplicity
-                            .Bounded.ZERO_ONE);
+            TypedSpec body = new TypedVariable("_zp", elemOne);
+            for (TypedPropertyAccess h : hops) {
+                body = new TypedPropertyAccess(body, h.property(),
+                        new com.legend.compiler.element.type.ExprType(
+                                h.info().type(),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_ONE));
+            }
             var fnT = new Type.FunctionType(
                     List.of(new Type.Param(ec,
                             com.legend.compiler.element.type.Multiplicity
@@ -619,11 +699,8 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
                     new Type.Param(pa.info().type(),
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ZERO_ONE));
-            return new Object[] {pa.source(), new TypedLambda(
-                    List.of("_zp"),
-                    List.of(new TypedPropertyAccess(
-                            new TypedVariable("_zp", elemOne),
-                            pa.property(), readInfo)),
+            return new Object[] {root, new TypedLambda(
+                    List.of("_zp"), List.of(body),
                     new com.legend.compiler.element.type.ExprType(fnT,
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE))};

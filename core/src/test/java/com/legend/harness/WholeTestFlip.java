@@ -276,8 +276,21 @@ public final class WholeTestFlip {
             effectful = Compiler.hasStatementEffects(resolved, ctx);
         } catch (RuntimeException e) {
             if (System.getenv("LL_TMP_DEBUG") != null) {
+                StackTraceElement[] st = e.getStackTrace();
                 System.err.println("[flip-wall-debug] " + test + " :: "
-                        + e.getMessage());
+                        + e.getMessage()
+                        + " @ " + (st.length > 0 ? st[0] : "?")
+                        + (st.length > 1 ? " < " + st[1] : "")
+                        + (st.length > 2 ? " < " + st[2] : "")
+                        + (st.length > 3 ? " < " + st[3] : "")
+                        + (st.length > 4 ? " < " + st[4] : "")
+                        + (st.length > 5 ? " < " + st[5] : "")
+                        + (st.length > 6 ? " < " + st[6] : "")
+                        + (st.length > 7 ? " < " + st[7] : "")
+                        + (st.length > 8 ? " < " + st[8] : "")
+                        + (st.length > 9 ? " < " + st[9] : "")
+                        + (st.length > 10 ? " < " + st[10] : "")
+                        + (st.length > 11 ? " < " + st[11] : ""));
             }
             return fallback("wall-type: " + bucketOf(e.getMessage()), test);
         }

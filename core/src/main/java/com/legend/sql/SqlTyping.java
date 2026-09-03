@@ -542,6 +542,21 @@ public final class SqlTyping {
                         && outer.element() instanceof SqlType.Array inner
                         ? typed(inner) : UNKNOWN;
             }
+            // list_zip(a, b, truncate): pairs as UNNAMED structs whose
+            // fields are addressed positionally ("1", "2" — the
+            // StructGet numeric-field spelling); each side's element type
+            case LIST_ZIP -> {
+                if (a.size() < 2
+                        || !(a.get(0).type() instanceof TypeFact.Typed ta)
+                        || !(ta.type() instanceof SqlType.Array aa)
+                        || !(a.get(1).type() instanceof TypeFact.Typed tb)
+                        || !(tb.type() instanceof SqlType.Array ab)) {
+                    yield UNKNOWN;
+                }
+                yield typed(new SqlType.Array(new SqlType.Struct(List.of(
+                        new SqlType.Struct.Field("1", aa.element()),
+                        new SqlType.Struct.Field("2", ab.element())))));
+            }
             case LIST_TRANSFORM -> {
                 if (a.size() != 2 || !(a.get(1) instanceof SqlExpr.Lambda lam)
                         || lam.params().size() != 1) {

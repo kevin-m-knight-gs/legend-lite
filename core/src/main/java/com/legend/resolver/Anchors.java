@@ -287,6 +287,13 @@ final class Anchors {
      * over a relation (CastChecker's rule the typer could not apply to an
      * envelope read, which becomes a relation only at the splice) — seen
      * through stacked casts. Null when {@code n} is neither. */
+    /** The one-element picks a test spells over a one-value envelope read
+     * ({@code ->at(0)}, {@code ->toOne()}, {@code ->first()}). */
+    private static final java.util.Set<String> ONE_ELEMENT_PICKS = java.util.Set.of(
+            "meta::pure::functions::collection::at",
+            "meta::pure::functions::multiplicity::toOne",
+            "meta::pure::functions::collection::first");
+
     static @com.legend.Nullable TypedSpec tdsErase(TypedSpec n) {
         TypedSpec src = n instanceof TypedPropertyAccess pa && pa.property().equals("rows")
                 ? pa.source() : n instanceof com.legend.compiler.spec.typed.TypedCast ? n : null;
@@ -296,14 +303,32 @@ final class Anchors {
         TypedSpec cur = src;
         boolean peeled = false;
         while (cur instanceof com.legend.compiler.spec.typed.TypedCast tc
-                && tc.target() instanceof com.legend.compiler.element.type.Type.GenericType tg
-                && com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
-                        .equals(tg.rawFqn())) {
+                && com.legend.compiler.element.type.PlatformTypes.isTdsType(tc.target())) {
             cur = tc.source();
             peeled = true;
         }
         if (!(n instanceof TypedPropertyAccess) && !peeled) {
             return null;   // an ordinary cast is not this shape
+        }
+        // `$result.values->at(0)->cast(@TabularDataSet)`: a helper whose
+        // query parameter is declared FunctionDefinition<Any> erases the
+        // envelope to Result<Any>, and the test re-asserts the ONE TDS
+        // value through at(0)/toOne()/first() + the cast (engine
+        // testDataGeneration loadAndTestExecution). The element pick over
+        // the one-value envelope read is the read itself; the cast is the
+        // user's relation assertion, proven where the envelope splices.
+        if (peeled && cur instanceof TypedNativeCall pick
+                && pick.args().size() >= 1
+                && ONE_ELEMENT_PICKS.contains(pick.callee().qualifiedName())
+                && (pick.args().size() == 1
+                        || pick.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger ci
+                                && ci.value().longValue() == 0)
+                && pick.args().get(0) instanceof TypedPropertyAccess vals
+                && vals.property().equals("values")
+                && vals.source().info().type()
+                        instanceof com.legend.compiler.element.type.Type.GenericType rg
+                && com.legend.builtin.Pure.RESULT.qualifiedName().equals(rg.rawFqn())) {
+            return vals;
         }
         return com.legend.compiler.element.type.Type.isRelation(cur.info().type())
                 || com.legend.compiler.element.type.PlatformTypes.isTdsType(cur.info().type())

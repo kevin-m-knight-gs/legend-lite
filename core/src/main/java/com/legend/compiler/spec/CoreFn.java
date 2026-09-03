@@ -211,6 +211,14 @@ public enum CoreFn {
         // registering the FQN as a native TIES with relation::distinct in
         // the shared bare-name overload set (ambiguous-overload on every
         // plain ->distinct()).
+        // meta::pure::tds::extend (engine tds.pure, the TabularDataSet
+        // surface a TDS-typed receiver resolves the bare spelling to) —
+        // CURATED alias for the same reason: the ExtendChecker owns the
+        // legacy col() normalization; the generic path would type the
+        // col() collection standalone (the TDG applied-functions witness).
+        if (parseName.equals("meta::pure::tds::extend")) {
+            return Optional.of(EXTEND);
+        }
         if (parseName.equals("meta::pure::tds::distinct")) {
             return Optional.of(DISTINCT);
         }

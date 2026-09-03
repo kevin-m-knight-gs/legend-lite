@@ -306,9 +306,9 @@ public final class StoreResolver {
                 && zc.args().size() == 2) {
             TypedSpec zp = CorrelatedSubselects.zipPairMap(zm, zc,
                     n2 -> resolveNode(n2, context));
-            if (zp != null) {
-                return zp;
-            }
+            // null = POSITIONAL zip: the sides as list carriers, Scalars' list_zip
+            return zp != null ? zp
+                    : new TypedMap(structural(zc, context), zm.mapper(), zm.info());
         }
         // `.rows` MARKER erases here (audit 20c H1) — any space.
         if (n instanceof TypedPropertyAccess mk

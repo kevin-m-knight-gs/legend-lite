@@ -2200,6 +2200,45 @@ DataTypeDiffProperty / DataTypeMerge, testCollectionDistinctFunction,
 testBuildFilterWithValueThatCanBeNullWithIn. Lane move: exec-passing 75 →
 68; passes 2379; disagree 0.
 
+**Batch 44 — NO-DECISION SINGLES (2026-09-03): ratchet 297/2276 →
+291/2282 (+6, ZERO lost).** Three mechanisms, each the platform's own:
+(1) `zip` is the POSITIONAL pairing of two ordered collections
+(collection.pure: truncates to the shorter) — `ListEncodings.zip` (the
+rule's existing owner; a duplicate Scalars rule shadowed it UNTYPED and
+tripped the PCT census — check the owner before adding a rule) now spells
+it `list_transform(list_zip(a, b, true), x -> {first: x.1, second: x.2})`
+with a `SqlTyping` LIST_ZIP rule (positional struct fields "1"/"2"); the
+former `list_get(a, i)` spelling put the sides INSIDE the lambda, which
+DuckDB rejects for a collected-relation side. The resolver's per-row
+project shape (`CorrelatedSubselects.zipPairMap`) stays for two direct
+reads of ONE class chain and now also takes a NESTED zip as a `^Pair`
+column (`renameParam`/`renameVar` over `mapChildren`), but DECLINES a
+read through a hop (`$vals.address.name` auto-maps and drops empties —
+positional, not per-row) instead of throwing; `StoreResolver` then
+resolves the zip's sides structurally and leaves the map to the list
+carrier. (2) The Result-envelope splice (`ResultEnvelopeSplice`) erases
+`cast(@TabularDataSet)` and `.rows` AFTER splicing their SOURCE — the hook
+is offered each node before its children, so `->at(0)->cast(@TabularDataSet)
+.rows` over a `Result<Any>` (a helper's `FunctionDefinition<Any>` query
+parameter — testDataGeneration `loadAndTestExecution`) never saw the
+spliced relation; the same `isTdsType` test now covers the ClassType
+spelling of the target (`Anchors.tdsErase` too). (3) `meta::pure::tds::
+extend` — the FQN a TDS-typed receiver resolves the bare spelling to — is
+a CURATED alias to the EXTEND checker (`CoreFn.of`, the `tds::distinct`
+precedent): the generic path typed the legacy `[col(...)]` collection
+standalone. Flipped: query::sort testSortByLambdaDeepOptional; TDG
+testTableToTDSSimple, testTableToTdsWithAppliedFunctions (core + alloy),
+testTableToTdsWithConcatenate, testTableToTdsWithGroupBy. Lane move:
+exec-passing 68 → 63, M1 rescued 62 → 57; disagree 0. Debug aid kept: `[flip-wall-debug]`
+prints the top 12 frames under LL_TMP_DEBUG (the "~hello" wall was two
+frames past the old cut). STILL OPEN from the singles list: enumValues()
+->filter fold (testSortQuotes) is MOOT — its golden carries the engine
+alias breadcrumb (`addressTable_d#3_1_d#3_m2`), a decision item; the
+lineage view trees (6: testSimpleViewRoot/RootToJoin/TableToViewJoin/
+ViewEmbeddedInChainedJoin/UnionViewOnView/RelationalTreeCalculationWithView
+InAnotherSchema) print the engine's view-expansion alias breadcrumbs
+(`orderTable_d#2_d#2_m3`) — the same decision family, 6 more tests.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,
