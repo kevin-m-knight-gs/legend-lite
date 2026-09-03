@@ -310,6 +310,20 @@ public final class WholeTestFlip {
                         (name, pass, detail) -> events.add(pass),
                         ReplayOracle.INSTANCE);
             } catch (com.legend.error.NotImplementedException e) {
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    StackTraceElement[] st = e.getStackTrace();
+                    System.err.println("[flip-wall-debug] " + test + " :: "
+                            + String.valueOf(e.getMessage()).replace('\n', '|')
+                            + " @ " + (st.length > 0 ? st[0] : "?")
+                            + (st.length > 1 ? " < " + st[1] : "")
+                            + (st.length > 2 ? " < " + st[2] : "")
+                            + (st.length > 3 ? " < " + st[3] : "")
+                            + (st.length > 4 ? " < " + st[4] : "")
+                            + (st.length > 5 ? " < " + st[5] : "")
+                            + (st.length > 6 ? " < " + st[6] : "")
+                            + (st.length > 7 ? " < " + st[7] : "")
+                            + (st.length > 8 ? " < " + st[8] : ""));
+                }
                 reason = "wall-exec: " + bucketOf(e.getMessage());
             } catch (com.legend.error.DataError
                     | com.legend.error.AssertFailed e) {
@@ -320,23 +334,28 @@ public final class WholeTestFlip {
                 // rolled the attempt back), row counted
                 if (System.getenv("LL_TMP_DEBUG") != null) {
                     StackTraceElement[] st = e.getStackTrace();
+                    StringBuilder frames = new StringBuilder();
+                    for (int i = 0; i < Math.min(12, st.length); i++) {
+                        frames.append(i == 0 ? " @ " : " < ").append(st[i]);
+                    }
                     System.err.println("[flip-fail-debug] " + test + " :: "
                             + e.getClass().getSimpleName() + ": "
                             + String.valueOf(e.getMessage()).replace('\n', '|')
-                            + " @ " + (st.length > 0 ? st[0] : "?")
-                            + (st.length > 1 ? " < " + st[1] : "")
-                            + (st.length > 2 ? " < " + st[2] : ""));
+                            + frames + " [depth " + st.length + " cause "
+                            + e.getCause() + "]");
                 }
                 reason = "platform-fail: " + bucketOf(e.getMessage());
             } catch (RuntimeException e) {
                 if (System.getenv("LL_TMP_DEBUG") != null) {
                     StackTraceElement[] st = e.getStackTrace();
+                    StringBuilder frames2 = new StringBuilder();
+                    for (int i = 0; i < Math.min(30, e.getStackTrace().length); i++) {
+                        frames2.append(i == 0 ? " @ " : " < ").append(e.getStackTrace()[i]);
+                    }
                     System.err.println("[flip-fail-debug] " + test + " :: "
                             + e.getClass().getSimpleName() + ": "
-                            + e.getMessage()
-                            + " @ " + (st.length > 0 ? st[0] : "?")
-                            + (st.length > 1 ? " < " + st[1] : "")
-                            + (st.length > 2 ? " < " + st[2] : ""));
+                            + String.valueOf(e.getMessage()).replace('\n', '|')
+                            + frames2);
                 }
                 reason = "wall-exec: " + e.getClass().getSimpleName()
                         + ": " + bucketOf(e.getMessage());

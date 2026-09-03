@@ -612,6 +612,9 @@ class JavaEvalLedgerTest {
         // private REWRITE RULE; the Java-side derivation it asks for
         // (AggAwareActivities.rewrittenQuery) stays executor-side behind
         // the Frames SPI and stays on this ledger's radar.
+        // (batch 18, 2026-09-03 — plan nodes as rows: the plan model's
+        // ROWS registration lives in PlanAllocations; this row's count
+        // stands at 40, the walk's own planModel call retires with planWalk.)
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
                         40});

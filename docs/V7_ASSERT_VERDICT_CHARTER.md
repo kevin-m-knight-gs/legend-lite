@@ -643,7 +643,7 @@ MEASURED (sum 1,652 = old sqltext 1,529 + tdg 123, exact):
 | bucket | count | meaning |
 |---|---|---|
 | assert-sql-text-with-exec-passing | **989** | golden EXECUTED on H2, rows compared EQUAL to our DuckDB rows (both text-match and text-differs paths; row divergence stays HARD-GATED 0). The ONLY comfort bucket. |
-| assert-sql-text-only | **44** | nothing executed in the assert's sides — text IS the contract (plan-literal 17, plan-let 6 pulled OUT of the old tdg bucket which conflated them, render tails) |
+| assert-sql-text-only | **44** | nothing executed in the assert's sides — text IS the contract (plan-literal 17, plan-let 6 pulled OUT of the old tdg bucket which conflated them, render tails) | — **27 as of batch 18 (2026-09-03): 44→43 (slice 3a) →40 (§5 first cut) →35 (batch 15 paginate SQL-text asserts) →27 (batch 18 plan nodes as rows: the plan-text asserts of the optional-parameter and datetime plans flipped)**
 | assert-sql-text-UNABLE-TO-EXEC | **492** (was 502) | transparent residue, per named sub-reason: **diff-noreplay 321** (text DIFFERS and replay impossible — the WEAKEST class, previously invisible: no counter incremented, soft-ceilinged only), match-noreplay 142, no-generator-noreplay 20, **predicate-diverged 6** (slice 3: predicates now EVALUATE for real — 10 of the old 16 became verified dual-channel passes; these 6 evaluate FALSE against our dialect's SQL and are recorded divergences, the assertSameSQL-mismatch policy applied uniformly), both-ours 3 |
 | assert-test-data-csv | **117** | TDG CSV compares (pass/fail definitive; was 123 with the 6 plan-let rows wrongly inside) |
 

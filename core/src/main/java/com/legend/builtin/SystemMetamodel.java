@@ -101,6 +101,96 @@ public final class SystemMetamodel {
             sb.append("                Filter El").append(k)
                     .append("(metamodel.relational_elements.kind = '").append(k).append("')\n");
         }
+        // the execution-plan node kinds over the ONE plan_nodes table
+        for (String[] k : PLAN_NODE_KINDS) {
+            sb.append("                Filter Pn").append(k[1])
+                    .append("(metamodel.plan_nodes.kind = '").append(k[1]).append("')\n");
+        }
+        return sb.toString();
+    }
+
+    /** The plan node kinds the store models: {class FQN, m3 simple name
+     * (= the kind spelling PlanRows writes), set id, own property lines}.
+     * A plan's nodes RIDE THE QUERY as inline rows (PlanRows — the
+     * executor's plan model turned into facts); the base ExecutionNode is
+     * the inheritance operation over these members. */
+    static final String[][] PLAN_NODE_KINDS = {
+        {"meta::pure::executionPlan::SequenceExecutionNode", "SequenceExecutionNode", "pnSeq", ""},
+        {"meta::pure::executionPlan::FunctionParametersValidationNode", "FunctionParametersValidationNode", "pnFpv",
+            "functionParameters[planParam]: " + S + "@NodeToFunctionParameters"},
+        {"meta::relational::mapping::RelationalInstantiationExecutionNode", "RelationalInstantiationExecutionNode", "pnRel", ""},
+        {"meta::relational::mapping::SQLExecutionNode", "SQLExecutionNode", "pnSql",
+            "sqlQuery: " + S + " metamodel.plan_nodes.sql_query,\n"
+            + "                    sqlComment: " + S + " metamodel.plan_nodes.sql_comment"},
+    };
+
+    private static String planNodeRoutes(String prop, String join) {
+        List<String> lines = new ArrayList<>();
+        for (String[] k : PLAN_NODE_KINDS) {
+            lines.add("                    " + prop + "[" + k[2] + "]: " + S + "@" + join);
+        }
+        return String.join(",\n", lines);
+    }
+
+    private static String planSets() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("                *meta::pure::executionPlan::ExecutionPlan[plan]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.plans.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.plans\n")
+                .append("                    processingTemplateFunctions: ").append(S)
+                .append("@PlanToTemplateFunctions | metamodel.plan_template_functions.text,\n")
+                .append(planNodeRoutes("rootExecutionNode", "PlanToRoot")).append("\n")
+                .append("                }\n")
+                .append("                *meta::pure::executionPlan::ExecutionNode: Operation\n")
+                .append("                {\n")
+                .append("                    ").append(INHERITANCE_OP).append("\n")
+                .append("                }\n");
+        for (String[] k : PLAN_NODE_KINDS) {
+            sb.append("                ").append(k[0]).append("[").append(k[2]).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Pn").append(k[1]).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.plan_nodes.id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.plan_nodes\n")
+                    .append(k[3].isEmpty() ? "" : "                    " + k[3] + ",\n")
+                    .append(planNodeRoutes("executionNodes", "NodeToChildren")).append("\n")
+                    .append("                }\n");
+        }
+        // the plan's FunctionParameter rows and the node-tree CLOSURE (the
+        // engine's recursive allNodes walk as a row entity: every
+        // ancestor/descendant pair, self at depth 0 — a query never
+        // recurses over the tree)
+        sb.append("                *meta::pure::executionPlan::FunctionParameter[planParam]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.plan_function_parameters.node_id, ")
+                .append(S).append(" metamodel.plan_function_parameters.ordinal)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.plan_function_parameters\n")
+                .append("                    name: ").append(S).append(" metamodel.plan_function_parameters.name,\n")
+                .append("                    supportsStream: ").append(S).append(" metamodel.plan_function_parameters.supports_stream\n")
+                .append("                }\n")
+                .append("                *meta::lite::metamodel::PlanNodeClosure[pnc]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.plan_node_closure.ancestor_id, ")
+                .append(S).append(" metamodel.plan_node_closure.node_id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.plan_node_closure\n")
+                .append("                    depth: ").append(S).append(" metamodel.plan_node_closure.depth\n")
+                .append("                }\n");
+        List<String> subtrees = new ArrayList<>();
+        List<String> closureNodes = new ArrayList<>();
+        for (String[] k : PLAN_NODE_KINDS) {
+            subtrees.add("                        subtree[" + k[2] + ", pnc]: " + S + "@NodeToSubtree");
+            subtrees.add("                        ancestor[pnc, " + k[2] + "]: " + S + "@NodeToSubtree");
+            closureNodes.add("                        node[pnc, " + k[2] + "]: " + S + "@SubtreeToNode");
+            closureNodes.add("                        closureOf[" + k[2] + ", pnc]: " + S + "@SubtreeToNode");
+        }
+        sb.append("                meta::lite::metamodel::PlanNodeSubtrees: Relational\n")
+                .append("                {\n                    AssociationMapping\n                    (\n")
+                .append(String.join(",\n", subtrees)).append("\n")
+                .append("                    )\n                }\n")
+                .append("                meta::lite::metamodel::PlanNodeClosureNodes: Relational\n")
+                .append("                {\n                    AssociationMapping\n                    (\n")
+                .append(String.join(",\n", closureNodes)).append("\n")
+                .append("                    )\n                }\n");
         return sb.toString();
     }
 
@@ -292,7 +382,47 @@ public final class SystemMetamodel {
                         op_id VARCHAR(2048) NOT NULL,
                         declared_depth INTEGER NOT NULL
                     )
+                    Table plans
+                    (
+                        id VARCHAR(256) PRIMARY KEY,
+                        root_node_id VARCHAR(512) NOT NULL
+                    )
+                    Table plan_nodes
+                    (
+                        id VARCHAR(512) PRIMARY KEY,
+                        plan_id VARCHAR(256) NOT NULL,
+                        parent_id VARCHAR(512),
+                        ordinal INTEGER NOT NULL,
+                        kind VARCHAR(64) NOT NULL,
+                        sql_query VARCHAR(65535),
+                        sql_comment VARCHAR(1024)
+                    )
+                    Table plan_template_functions
+                    (
+                        plan_id VARCHAR(256) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        text VARCHAR(65535) NOT NULL
+                    )
+                    Table plan_function_parameters
+                    (
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        name VARCHAR(256) NOT NULL,
+                        supports_stream BIT
+                    )
+                    Table plan_node_closure
+                    (
+                        ancestor_id VARCHAR(512) PRIMARY KEY,
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        depth INTEGER NOT NULL
+                    )
                 )
+                Join PlanToRoot(metamodel.plans.root_node_id = metamodel.plan_nodes.id)
+                Join NodeToChildren(metamodel.plan_nodes.id = {target}.parent_id)
+                Join PlanToTemplateFunctions(metamodel.plans.id = metamodel.plan_template_functions.plan_id)
+                Join NodeToFunctionParameters(metamodel.plan_nodes.id = metamodel.plan_function_parameters.node_id)
+                Join NodeToSubtree(metamodel.plan_nodes.id = metamodel.plan_node_closure.ancestor_id)
+                Join SubtreeToNode(metamodel.plan_node_closure.node_id = metamodel.plan_nodes.id)
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
@@ -357,6 +487,23 @@ public final class SystemMetamodel {
             {
                 base: meta::relational::metamodel::relation::Table[1];
                 baseOf: meta::relational::metamodel::TableAlias[*];
+            }
+
+            Class meta::lite::metamodel::PlanNodeClosure
+            {
+                depth: Integer[1];
+            }
+
+            Association meta::lite::metamodel::PlanNodeSubtrees
+            {
+                ancestor: meta::pure::executionPlan::ExecutionNode[1];
+                subtree: meta::lite::metamodel::PlanNodeClosure[*];
+            }
+
+            Association meta::lite::metamodel::PlanNodeClosureNodes
+            {
+                node: meta::pure::executionPlan::ExecutionNode[1];
+                closureOf: meta::lite::metamodel::PlanNodeClosure[*];
             }
 
             Class meta::lite::metamodel::SetAncestry
@@ -450,6 +597,10 @@ public final class SystemMetamodel {
                 ])
             }
 
+            function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*]
+            {
+                $node.subtree.node
+            }
             function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {
                 $_this.visibility.visible.classMappings->filter(cm|$cm.id == $id)->first()
@@ -588,6 +739,7 @@ public final class SystemMetamodel {
                     %2$s
                 }
             %4$s
+            %10$s
                 *meta::relational::metamodel::RelationalOperationElement: Operation
                 {
                     %2$s
@@ -675,7 +827,7 @@ public final class SystemMetamodel {
             """.formatted(S, INHERITANCE_OP, filters(), dataTypeSets(),
                     opRoutes("relationalOperationElement", "ColumnMappingToOp"),
                     opRoutes("relationalOperationElement", "PropertyMappingToOp"),
-                    typeRoutes(), opSets(), inferredTypeEnds());
+                    typeRoutes(), opSets(), inferredTypeEnds(), planSets());
 
     /** A model element shadows a system element of the same qualified
      * name — for FUNCTIONS only when the parameter types agree too: a

@@ -156,7 +156,7 @@ public final class PlanText {
      * declaration order at 4-space indent. */
     public static String sequence(String typeBlock,
             java.util.List<String> children) {
-        return headedBlock("Sequence", typeBlock, children);
+        return headedBlock("Sequence", typeBlock, children, "  )\n");
     }
 
     /** {@code RelationalBlockExecutionNode} — the temp-table IN
@@ -164,18 +164,20 @@ public final class PlanText {
      * same layout as {@link #sequence} under a different head. */
     public static String relationalBlock(String typeBlock,
             java.util.List<String> children) {
+        // engine storeContract planNodeToString: the children block's
+        // closer carries a TRAILING space (childrenToString + ' \n')
         return headedBlock("RelationalBlockExecutionNode", typeBlock,
-                children);
+                children, "  ) \n");
     }
 
     private static String headedBlock(String head, String typeBlock,
-            java.util.List<String> children) {
+            java.util.List<String> children, String childrenCloser) {
         StringBuilder sb = new StringBuilder(head).append("\n(\n")
                 .append(typeBlock).append("  (\n");
         for (String c : children) {
             sb.append(indent(c, "    "));
         }
-        return sb.append("  )\n)\n").toString();
+        return sb.append(childrenCloser).append(")\n").toString();
     }
 
     /** {@code CreateAndPopulateTempTable} (processInOperation): the
@@ -189,8 +191,9 @@ public final class PlanText {
                 + "  inputVarNames = ["
                 + String.join(", ", inputVarNames) + "]\n"
                 + "  tempTableName = " + tempTableName + "\n"
+                // engine spelling: a space before the closing parenthesis
                 + "  tempTableColumns = [(ColumnForStoringInCollection, "
-                + columnType + ")]\n"
+                + columnType + " )]\n"
                 + "  connection = " + connName + "\n)\n";
     }
 
@@ -202,12 +205,14 @@ public final class PlanText {
         return "FreeMarkerConditionalExecutionNode\n(\n"
                 + "  type = String\n"
                 + "  condition = " + condition + "\n"
-                + "  trueBlock = \n    (\n"
-                + indent(trueBlock, "      ")
-                + "    )\n"
-                + "  falseBlock = \n    (\n"
-                + indent(falseBlock, "      ")
-                + "    )\n)\n";
+                // engine planNodeToString: the block's parenthesis sits at
+                // the label's indent, its node two deeper
+                + "  trueBlock = \n  (\n"
+                + indent(trueBlock, "    ")
+                + "  )\n"
+                + "  falseBlock = \n  (\n"
+                + indent(falseBlock, "    ")
+                + "  )\n)\n";
     }
 
     /** {@code PureExp} — a NON-RELATIONAL let value carried as a plan

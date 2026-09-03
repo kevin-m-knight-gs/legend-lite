@@ -1751,6 +1751,12 @@ static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
                     Set.of(), Map.of(), target.rowVar(), rowT,
                     Map.of(), sn.children()));
         }
+        // the predicate's run-time type tests ($n->instanceOf(Sub),
+        // ->cast(@Sub)) dispatch through the TARGET ROW's subtype
+        // columns (its member witnesses) — registered from the row alone
+        // (the plan-node hierarchy: executionNodes->filter(n|$n->instanceOf(
+        // RelationalInstantiationExecutionNode)))
+        registerSubTypeSubs(target, pred, null, navAssocs);
         Substitution predSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(pred.parameters().get(0),
                         target.rowVar(), target.classFqn(), mappingFqn,
@@ -1782,9 +1788,57 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * bindings read columns outside the parent row (its own table,
      * or its own join slots via the AssocSub slot wall) stays loud.
      */
+    /** The row's subtype-column reads of {@code fqn} (prop -> read),
+     * under {@code hopPrefix} ({@code ""} = anywhere on the row). */
+    private static Map<String, TypedSpec> subtypeBindings(ClassSource cs,
+            String fqn, String stPrefix, String hopPrefix, boolean strict) {
+        Map<String, TypedSpec> stBindings = new LinkedHashMap<>();
+        for (Type.Column c : cs.rowType().columns()) {
+            if (!hopPrefix.isEmpty()
+                    && !c.name().startsWith(hopPrefix + stPrefix)) {
+                continue;
+            }
+            // ANCHORED: bare marker or marker right after a slot-prefix
+            // boundary ("alias_") — indexOf-anywhere let the marker match
+            // mid-name (text-surgery audit §1.1 #5)
+            int at = c.name().indexOf(stPrefix);
+            if (at < 0 || (at > 0 && c.name().charAt(at - 1) != '_')) {
+                continue;
+            }
+            String prop = c.name().substring(at + stPrefix.length());
+            TypedSpec prior = stBindings.put(prop,
+                    new TypedPropertyAccess(
+                            new TypedVariable(cs.rowVar(),
+                                    ExprType.one(cs.rowType())),
+                            c.name(),
+                            new ExprType(c.type(), c.multiplicity())));
+            if (prior != null) {
+                if (!strict) {
+                    return Map.of();
+                }
+                // two hops carry the same subtype column: silently keeping
+                // the LAST bound the cast leaf to the wrong hop — refuse
+                // until per-hop disambiguation is designed
+                throw new com.legend.error.NotImplementedException(
+                        "subtype column '" + prop + "' of " + fqn
+                                + " rides more than one hop prefix");
+            }
+        }
+        return stBindings;
+    }
+
     static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
-            ClassSources sources,
+            @com.legend.Nullable ClassSources sources,
             Map<String, Substitution.AssocSub> assocs) {
+        registerSubTypeSubs(cs, top, sources, assocs, "");
+    }
+
+    /** {@code hopPrefix}: a COMPOSED row (a flattened hop's scope) carries
+     * the subtype columns of every hop it composed — only the columns
+     * under this hop's prefix are this scope's ({@code ""} = any). */
+    static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
+            @com.legend.Nullable ClassSources sources,
+            Map<String, Substitution.AssocSub> assocs, String hopPrefix) {
         Set<String> fqns = new LinkedHashSet<>();
         collectSubTypeFqns(top, fqns);
         for (String fqn : fqns) {
@@ -1801,30 +1855,17 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // hop-prefixed) — match the marker anywhere, read the FULL
             // column name
             String stPrefix = com.legend.model.ClassMapping.subTypeColumnPrefix(fqn);
-            Map<String, TypedSpec> stBindings = new LinkedHashMap<>();
-            for (Type.Column c : cs.rowType().columns()) {
-                // ANCHORED: bare marker or marker right after a slot-prefix
-                // boundary ("alias_") — indexOf-anywhere let the marker match
-                // mid-name (text-surgery audit §1.1 #5)
-                int at = c.name().indexOf(stPrefix);
-                if (at < 0 || (at > 0 && c.name().charAt(at - 1) != '_')) {
-                    continue;
-                }
-                String prop = c.name().substring(at + stPrefix.length());
-                TypedSpec prior = stBindings.put(prop,
-                        new TypedPropertyAccess(
-                                new TypedVariable(cs.rowVar(),
-                                        ExprType.one(cs.rowType())),
-                                c.name(),
-                                new ExprType(c.type(), c.multiplicity())));
-                if (prior != null) {
-                    // two hops carry the same subtype column: silently keeping
-                    // the LAST bound the cast leaf to the wrong hop — refuse
-                    // until per-hop disambiguation is designed
-                    throw new com.legend.error.NotImplementedException(
-                            "subtype column '" + prop + "' of " + fqn
-                                    + " rides more than one hop prefix");
-                }
+            // the hop's own prefix first (a composed row of a member-union
+            // chain carries every hop's witnesses); a row carrying the
+            // subtype only under some other slot prefix (an auto-map hop
+            // row) keeps the anywhere-scan
+            Map<String, TypedSpec> stBindings =
+                    subtypeBindings(cs, fqn, stPrefix, hopPrefix, true);
+            if (stBindings.isEmpty() && !hopPrefix.isEmpty()) {
+                // lenient: a subtype riding SEVERAL other hops' prefixes is
+                // another scope's dispatch (its own registration served it
+                // below) — no table here, never a guess
+                stBindings = subtypeBindings(cs, fqn, stPrefix, "", false);
             }
             if (!stBindings.isEmpty()) {
                 assocs.put(Substitution.SUBTYPE_KEY + fqn,
@@ -1832,7 +1873,10 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                 stBindings, fqn, Set.of()));
                 continue;
             }
-            if (!sources.binds(cs.mappingFqn(), fqn)) {
+            // without the sources registry (a predicate target over a
+            // navigated collection) only the row's own subtype columns
+            // can register
+            if (sources == null || !sources.binds(cs.mappingFqn(), fqn)) {
                 continue;
             }
             ClassSource sub = sources.get(cs.mappingFqn(), fqn, cs.scope());

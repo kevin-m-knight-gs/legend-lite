@@ -544,7 +544,9 @@ class NativeFunctionTest {
         // 2026-09-03): the meta::json tree classes (real json.pure:32-70 —
         // JSONBoolean/String/Number/Null/Array/Object + JSONKeyValue), the
         // string entry's result JSON navigated on the variant lane.
-        assertEquals(243, Pure.allNativeClasses().size(),
+        // 243 -> 244 (batch 18 — group Q, plan nodes as rows): the
+        // Sequence execution node (real executionPlan.pure).
+        assertEquals(244, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 

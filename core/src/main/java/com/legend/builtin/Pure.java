@@ -618,6 +618,10 @@ public final class Pure {
     public static final ClassDefinition FUNCTION_PARAMETER = nativeClass("native Class meta::pure::executionPlan::FunctionParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; supportsStream: meta::pure::metamodel::type::Boolean[0..1]; }");
     public static final ClassDefinition SQL_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::SQLExecutionNode extends meta::pure::executionPlan::ExecutionNode { sqlQuery: meta::pure::metamodel::type::String[1]; sqlComment: meta::pure::metamodel::type::String[0..1]; connection: meta::external::store::relational::runtime::DatabaseConnection[1]; }");
     public static final ClassDefinition RELATIONAL_INSTANTIATION_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::RelationalInstantiationExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
+    // real executionPlan.pure — the Sequence node (the plan ROOT of a
+    // parameterized query: FunctionParametersValidationNode + the
+    // relational node); plan nodes are ROWS (SystemMetamodel plan_nodes)
+    public static final ClassDefinition SEQUENCE_EXECUTION_NODE = nativeClass("native Class meta::pure::executionPlan::SequenceExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
 
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
@@ -1910,8 +1914,6 @@ public final class Pure {
     public static final NativeFunctionDefinition PLAN_TO_STRING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToString(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // real executionPlan_print.pure:27 — planToString minus '\n' and ' '
     public static final NativeFunctionDefinition PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToStringWithoutFormatting(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
-    // real executionPlan_execution.pure:67 — the node-tree flatten
-    public static final NativeFunctionDefinition ALL_NODES__EXECUTION_NODE_1__ANY_MANY = signature("native function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*];");
     // real testDataGeneration.pure:753 — the NECESSARY-columns CSV
     // census, no execution (TDG lane S1; query/mapping params relaxed
     // to the executionPlan precedent's metamodel spellings)

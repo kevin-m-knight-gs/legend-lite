@@ -78,6 +78,8 @@ import java.util.function.Function;
 public final class StoreResolver {
 
     private final ClassSources sources;
+    /** The platform callees the resolver synthesizes calls to. */
+    private final Callees callees;
     private final ConstructedInstances constructed;   // instances as rows
     private final SpecCompiler specs;
     private int freshVarCounter;
@@ -115,6 +117,7 @@ public final class StoreResolver {
 
     public StoreResolver(ModelContext ctx, SpecCompiler specs) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
+        this.callees = new Callees(this.ctx);
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
         this.constructed = new ConstructedInstances(ctx, sources);
@@ -129,9 +132,10 @@ public final class StoreResolver {
                 synthetics);
         this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
         this.dottedExists = new DottedExists(sources, assocMaterial, ctx, synthetics);
-        this.navProvenance = new NavProvenance(sources, assocMaterial);
+        this.navProvenance = new NavProvenance(sources, assocMaterial,
+                callees::coalesce);
         this.corrSubs.setOwnStepSplicer(navProvenance::spliceOwnStep);
-        this.chainDispatch = new ChainDispatch(ctx, this::failCallee,
+        this.chainDispatch = new ChainDispatch(ctx, callees::fail,
                 () -> freshVarCounter++);
         this.navMaterializer = new NavMaterializer(sources, assocMaterial,
                 synthetics, corrSubs);
@@ -185,7 +189,7 @@ public final class StoreResolver {
             out.add(resolveNode(stmt, context));
         }
         for (int i = 0; i < out.size(); i++) {
-            out.set(i, onFormPass(out.get(i), andCallee()));
+            out.set(i, onFormPass(out.get(i), callees.and()));
         }
         for (TypedSpec stmt : out) {
             assertNoStoreOnlyEscapees(stmt);
@@ -215,18 +219,6 @@ public final class StoreResolver {
             }
         }
         return n;
-    }
-
-    /** The one resolved 2-arg {@code boolean::and} — the ON-form pass's
-     * conjunction builder. */
-    private com.legend.compiler.element.TypedFunction andCallee() {
-        var fns = ctx.findFunction("meta::pure::functions::boolean::and")
-                .stream().filter(f -> f.parameters().size() == 2).toList();
-        if (fns.size() != 1) {
-            throw new IllegalStateException(
-                    "resolver bug: expected one 2-arg boolean::and");
-        }
-        return fns.get(0);
     }
 
     /** POST-CONDITION (core/README rule 9) — {@link StoreEscapees}. */
@@ -519,8 +511,9 @@ public final class StoreResolver {
             // executionPlan()/preval() is an OPAQUE plan handle: the
             // plan lane compiles its lambda at consumption (§6.1)
             case TypedNativeCall pn
-                    when com.legend.compiler.element.type.PlatformTypes
+                    when (com.legend.compiler.element.type.PlatformTypes
                             .EXECUTION_PLAN.equals(pn.callee().qualifiedName())
+                        && !planHandleRow(pn))
                     || com.legend.compiler.element.type.PlatformTypes
                             .PREVAL.equals(pn.callee().qualifiedName()) -> pn;
             // execute() args resolve under the CALL'S OWN routing
@@ -933,7 +926,7 @@ public final class StoreResolver {
         }
         return new ClassSource(src.mappingFqn(), targetClass, t.setId(),
                 m.pipeline(), src.rowVar(), bindings, row)
-                .withComposedPrefix(prefix);
+                .withComposedPrefix(prefix).withScope(src.scope());
     }
 
     /**
@@ -1024,6 +1017,8 @@ public final class StoreResolver {
                         src.composedPrefix(),
                         v -> new TypedVariable(leftParam, new ExprType(composedRow,
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                body = FlattenOps.coalesceThreadedReads(body, leftParam,
+                        composedRow, callees.coalesce());
                 cond = new TypedLambda(cond.parameters(), List.of(body), cond.info());
             }
         }
@@ -1119,7 +1114,7 @@ public final class StoreResolver {
         }
         return new ClassSource(src.mappingFqn(), aj.target().classFqn(),
                 aj.target().setId(), joined, src.rowVar(), bindings, row)
-                .withComposedPrefix(aj.prefix());
+                .withComposedPrefix(aj.prefix()).withScope(src.scope());
     }
 
     /** MULTI-HOP flatten re-root (#63 testChainedFiltersGet): the hop's
@@ -1166,7 +1161,8 @@ public final class StoreResolver {
         }
         return new ClassSource(src.mappingFqn(), pre.targetClassFqn(),
                 t.setId(), innerized, src.rowVar(), bindings, row)
-                .withComposedPrefix(pre.prefix());
+                .withComposedPrefix(pre.prefix())
+                .withScope(src.scope());
     }
 
     private static Type sourceClassType(TypedSpec chain) {
@@ -1285,71 +1281,13 @@ public final class StoreResolver {
                 && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName());
     }
 
-    private static final String FIRST_FQN = "meta::pure::functions::collection::first";
-    private static final String HEAD_FQN = "meta::pure::functions::collection::head";
-    private static final String SORT_FQN = "meta::pure::functions::collection::sort";
-    private static final String SORT_BY_FQN = "meta::pure::functions::collection::sortBy";
-    private static final String SORT_BY_REV_FQN = "meta::pure::functions::collection::sortByReversed";
+    static final String FIRST_FQN = "meta::pure::functions::collection::first";
     static final String CONCAT_FQN =
             "meta::pure::functions::collection::concatenate";
-    private static final String COMPARE_FQN = "meta::pure::functions::lang::compare";
     private static final String EQUAL_FQN = "meta::pure::functions::boolean::equal";
     private static final String EQ_FQN = "meta::pure::functions::boolean::eq";
-
-    /** first()/head() over an object-space chain — LIMIT 1 in disguise. */
-    static boolean isFirstLike(TypedNativeCall c) {
-        String fqn = c.callee().qualifiedName();
-        return c.args().size() == 1
-                && (FIRST_FQN.equals(fqn) || HEAD_FQN.equals(fqn));
-    }
-
-    /**
-     * Class-space {@code sort(key, {x,y|compare})}: the comparator must be a
-     * BARE compare over the two parameters — its argument order IS the
-     * direction ({@code $x->compare($y)} ascending, {@code $y->compare($x)}
-     * descending). Anything richer has no relation sort shape.
-     */
-    static @com.legend.Nullable TypedSortBy classSortOf(TypedSpec n) {
-        // class-space sortBy(coll, key)/sortByReversed — the 2-arg native
-        // spelling of the relation sort (computed keys substitute like any)
-        if (n instanceof TypedNativeCall sb && sb.args().size() == 2
-                && (SORT_BY_FQN.equals(sb.callee().qualifiedName())
-                        || SORT_BY_REV_FQN.equals(sb.callee().qualifiedName()))
-                && sb.args().get(1) instanceof TypedLambda key2) {
-            return new TypedSortBy(sb.args().get(0), key2,
-                    SORT_BY_FQN.equals(sb.callee().qualifiedName()),
-                    sb.info());
-        }
-        if (!(n instanceof TypedNativeCall c) || c.args().size() != 3
-                || !SORT_FQN.equals(c.callee().qualifiedName())
-                || !(c.args().get(1) instanceof TypedLambda key)
-                || !(c.args().get(2) instanceof TypedLambda cmp)) {
-            return null;
-        }
-        Boolean ascending = comparatorDirection(cmp);
-        return ascending == null ? null
-                : new TypedSortBy(c.args().get(0), key, ascending, c.info());
-    }
-
-    private static @com.legend.Nullable Boolean comparatorDirection(TypedLambda cmp) {
-        if (cmp.parameters().size() != 2 || cmp.body().size() != 1
-                || !(cmp.body().get(0) instanceof TypedNativeCall cc)
-                || !COMPARE_FQN.equals(cc.callee().qualifiedName())
-                || cc.args().size() != 2
-                || !(cc.args().get(0) instanceof TypedVariable a)
-                || !(cc.args().get(1) instanceof TypedVariable b)) {
-            return null;
-        }
-        String p0 = cmp.parameters().get(0);
-        String p1 = cmp.parameters().get(1);
-        if (a.name().equals(p0) && b.name().equals(p1)) {
-            return Boolean.TRUE;
-        }
-        if (a.name().equals(p1) && b.name().equals(p0)) {
-            return Boolean.FALSE;
-        }
-        return null;
-    }
+    static final String HEAD_FQN = "meta::pure::functions::collection::head";
+    static final String SORT_FQN = "meta::pure::functions::collection::sort";
 
     /** concatenate over two class-collection chains, both fetch-bearing. */
     private @com.legend.Nullable TypedNativeCall classConcatOf(TypedSpec n) {
@@ -1363,7 +1301,24 @@ public final class StoreResolver {
 
     /** Anchor reachability, memoized per pass — see {@link Anchors}. */
     private final Anchors anchors = new Anchors(
-            pr -> trackedElementClass(pr) != null, this::constructedRow);
+            pr -> trackedElementClass(pr) != null, this::constructedRow,
+            this::planHandleRow);
+
+    /** A plan handle whose rows the executor registered (PlanRows). */
+    private boolean planHandleRow(TypedNativeCall pn) {
+        return com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN
+                .equals(pn.callee().qualifiedName())
+                && constructed.has(com.legend.plan.PlanRows.scopeId(pn));
+    }
+
+    /** Plan rows computed by the executor (its plan model as rows —
+     * PlanRows): registered under the handle's scope id; the handle then
+     * resolves as a constructed instance of ExecutionPlan. */
+    public StoreResolver withPlanRows(
+            Map<String, Map<String, List<List<String>>>> rows) {
+        rows.forEach(constructed::register);
+        return this;
+    }
 
     private boolean constructedRow(com.legend.compiler.spec.typed.TypedNewInstance ni) {
         return constructed.convertible(ni);
@@ -1377,7 +1332,7 @@ public final class StoreResolver {
     private ElementReferences elements() {
         if (elementsRef == null) {
             elementsRef = new ElementReferences(ctx, sources, this::dispatch,
-                    this::equalCallee);
+                    callees::equal);
         }
         return elementsRef;
     }
@@ -2373,6 +2328,8 @@ public final class StoreResolver {
                                 v -> new TypedVariable(leftParam, new ExprType(
                                         composedRow, com.legend.compiler.element
                                                 .type.Multiplicity.Bounded.ONE)));
+                        body = FlattenOps.coalesceThreadedReads(body, leftParam,
+                                composedRow, callees.coalesce());
                         aj = aj.withCondition(new TypedLambda(cond.parameters(),
                                 List.of(body), cond.info()));
                     }
@@ -2515,7 +2472,7 @@ public final class StoreResolver {
                 .spineContext(top, context, this::fromContext);
         synthetics.setCanonicalizer(nn -> corrSubs.subTypeNavCastCanon(nn,
                 fqn -> dispatch(canonCtx, fqn),
-                java.util.Objects.requireNonNull(isNotEmptyCallee(), "isNotEmptyCallee()")));
+                java.util.Objects.requireNonNull(callees.isNotEmpty(), "callees.isNotEmpty()")));
         top = synthetics.liftFilteredHeads(top);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —
@@ -2558,6 +2515,17 @@ public final class StoreResolver {
                         () -> "_el" + (freshVarCounter++));
                 continue;
             }
+            if (cur instanceof TypedNativeCall pn && planHandleRow(pn)) {
+                // a PLAN HANDLE root: the plan's nodes are rows under the
+                // handle's scope (PlanRows); the chain resolves over the
+                // ExecutionPlan extent keyed by the handle's content id
+                String scope = com.legend.plan.PlanRows.scopeId(pn);
+                chainContext = chainContext.withConstructedScope(scope);
+                cur = elements().elementRowByKey(scope,
+                        "meta::pure::executionPlan::ExecutionPlan", chainContext,
+                        () -> "_el" + (freshVarCounter++));
+                continue;
+            }
             if (cur instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
                     && constructed.rowId(cni) != null) {
                 // a CONSTRUCTED root: the chain resolves under the tree's scope
@@ -2586,8 +2554,14 @@ public final class StoreResolver {
                     // of the target's own properties is the value-
                     // position $p->cast(@T).prop read (ClassSource.
                     // castGate → Substitution). One gate per chain.
-                    castGate = chainDispatch.gate(tc.source(), sct, tct, ops,
-                            flattenHops.isEmpty() && castGate == null);
+                    if (!flattenHops.isEmpty()) {
+                        // BELOW a flatten hop: a PSEUDO-HOP (ChainDispatch)
+                        chainDispatch.pseudoHop(tc.source(), sct, tct,
+                                flattenHops, flattenHopMany, flatSegs);
+                    } else {
+                        castGate = chainDispatch.gate(tc.source(), sct, tct, ops,
+                                castGate == null);
+                    }
                 }
                 cur = tc.source();
                 continue;
@@ -2605,7 +2579,7 @@ public final class StoreResolver {
                 cur = new TypedDistinct(nc.args().get(0), List.of(), nc.info());
                 continue;
             }
-            if (cur instanceof TypedNativeCall nc && isFirstLike(nc)) {
+            if (cur instanceof TypedNativeCall nc && ClassSorts.isFirstLike(nc)) {
                 cur = new TypedLimit(nc.args().get(0),
                         new TypedCInteger(1L, com.legend.compiler.element.type
                                 .ExprType.one(com.legend.compiler.element.type
@@ -2631,7 +2605,7 @@ public final class StoreResolver {
                         nc.info());
                 continue;
             }
-            TypedSortBy asSort = classSortOf(cur);
+            TypedSortBy asSort = ClassSorts.classSortOf(cur);
             if (asSort != null) {
                 cur = asSort;
                 continue;
@@ -2714,11 +2688,31 @@ public final class StoreResolver {
                 RoutingContext.contextKey(fctx), fctx.constructedScope());
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
-        // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
-        // accumulated source after applying the segment below it; the hop
-        // ABOVE reads off the re-rooted class, so its name joins the demand
-        // heads (the target must materialize with that nav/slot step).
+        cs = applyFlattenHops(cs, flattenHops, flattenHopMany, flatSegs, ops, top,
+                fctx, flattenAssocs);
+        cs = castGate == null ? cs : cs.withCastGate(castGate);
+        return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
+                flattenAssocs);
+    }
+
+    /** Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
+     * accumulated source after applying the segment below it; the hop
+     * ABOVE reads off the re-rooted class, so its name joins the demand
+     * heads (the target must materialize with that nav/slot step). A
+     * cast pseudo-hop re-roots at the subtype's extent (CastReRoot). */
+    private ClassSource applyFlattenHops(ClassSource cs0, List<String> flattenHops,
+            List<Boolean> flattenHopMany, List<List<TypedSpec>> flatSegs,
+            List<TypedSpec> ops, TypedSpec top, Context fctx,
+            Map<String, Substitution.AssocSub> flattenAssocs) {
+        ClassSource cs = cs0;
         for (int i = flattenHops.size() - 1; i >= 0; i--) {
+            if (flattenHops.get(i).startsWith(ChainDispatch.CAST_HOP)) {
+                cs = CastReRoot.reRoot(ctx, sources, callees, () -> freshVarCounter++,
+                        this::belowOpsApplied, cs,
+                        flattenHops.get(i).substring(ChainDispatch.CAST_HOP.length()),
+                        fctx, flatSegs.get(i));
+                continue;
+            }
             // the NEXT hop's downstream paths, prefixed by its name: the
             // tails this hop materializes for it (a slot-of-slot read past
             // the next hop composes inside this hop — the depth leg)
@@ -2731,14 +2725,24 @@ public final class StoreResolver {
             cs = flattenSource(cs, flattenHops.get(i), fctx,
                     i == 0 ? ops : flatSegs.get(i - 1),
                     i == 0 ? top : null,
-                    i == 0 || nextHopFans ? Set.<String>of() : Set.of(flattenHops.get(i - 1)),
+                    i == 0 || nextHopFans
+                            || flattenHops.get(i - 1).startsWith(ChainDispatch.CAST_HOP)
+                            ? Set.<String>of() : Set.of(flattenHops.get(i - 1)),
                     nextTails,
                     flattenAssocs, flatSegs.get(i),
                     top instanceof TypedProject || top instanceof TypedGroupBy);
         }
-        cs = castGate == null ? cs : cs.withCastGate(castGate);
-        return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
-                flattenAssocs);
+        return cs;
+    }
+
+    /** The segment below a cast pseudo-hop applied over the composed
+     * source (materialized): CastReRoot's below-ops hook. */
+    private TypedSpec belowOpsApplied(ClassSource src, List<TypedSpec> ops,
+            Context context) {
+        Pipelines.Materialized m = Pipelines.materialize(
+                src.pipeline(), java.util.Set.of(), src.classFqn());
+        BelowScope bsc = belowScope(src, ops, context, m.pipeline());
+        return FlattenOps.applyBelow(bsc.pipeline(), ops, bsc.sub());
     }
 
     /** Milestoned property functions: each head's temporal arguments,
@@ -2871,8 +2875,12 @@ public final class StoreResolver {
 
         // subType(@Sub) casts dispatch through the SUBTYPE's binding
         // table (same-source inheritance) — registered after
-        // materialization so the scan never perturbs join demand
-        CorrelatedSubselects.registerSubTypeSubs(cs, top, sources, assocs);
+        // materialization so the scan never perturbs join demand; a
+        // COMPOSED row (the chain flattened to-many hops) carries every
+        // hop's subtype columns — the instance variable IS the last hop,
+        // so its tables register under the composed prefix only
+        CorrelatedSubselects.registerSubTypeSubs(cs, top, sources, assocs,
+                cs.composedPrefix());
 
         // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
         // demanded joins' source-side key columns must survive the
@@ -3233,8 +3241,22 @@ public final class StoreResolver {
         String bv = CorrelatedSubselects.freshRowVar(src, ops,
                 src.pipeline(), List.of(), List.of(), Map.of(),
                 () -> freshVarCounter++);
+        // run-time type tests in the below-ops ($n->instanceOf(Sub) over
+        // a flattened to-many hop's elements — the plan-node hierarchy)
+        // dispatch through the hop's OWN subtype columns on the composed
+        // row (other hops' witnesses ride the same row under their own
+        // prefixes)
+        Map<String, Substitution.AssocSub> belowAssocs =
+                new LinkedHashMap<>(bs.regs().assocs());
+        // (no sources registry: only the row's OWN subtype columns
+        // register — a cast target the mapping never binds stays for the
+        // substitution's loud wall, never a build of an unmapped class)
+        for (TypedSpec op : ops) {
+            CorrelatedSubselects.registerSubTypeSubs(src, op, null,
+                    belowAssocs, src.composedPrefix());
+        }
         return new BelowScope(bs.pipeline(),
-                fn -> substitution(src, bm, bs.regs().assocs(), Set.of(),
+                fn -> substitution(src, bm, belowAssocs, Set.of(),
                         bs.regs().existsSubs(), Map.of(), Map.of(), true,
                         bv, fn).rewriteLambda(fn));
     }
@@ -3292,14 +3314,14 @@ public final class StoreResolver {
         if (nested.isEmpty() && nestedAssocs.isEmpty()) {
             // callees still ride (objectReferenceIn in a nested predicate)
             return new NestedScope(new Substitution.Registries(Map.of(),
-                    Set.of(), Map.of(), Map.of(), Map.of(), isNotEmptyCallee(),
-                    equalCallee(), List.of(), inCallee(), boolCallee("and"),
-                    boolCallee("or"), failCallee()), targetPipe, row);
+                    Set.of(), Map.of(), Map.of(), Map.of(), callees.isNotEmpty(),
+                    callees.equal(), List.of(), callees.in(), callees.bool("and"),
+                    callees.bool("or"), callees.fail()), targetPipe, row);
         }
         return new NestedScope(
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
-                        Map.of(), Map.of(), isNotEmptyCallee(), equalCallee(),
-                        List.of(), inCallee()),
+                        Map.of(), Map.of(), callees.isNotEmpty(), callees.equal(),
+                        List.of(), callees.in()),
                 pipe, Type.requireRelationSchema(pipe.info().type()));
         } finally {
             temporal = outerT;
@@ -3362,58 +3384,17 @@ public final class StoreResolver {
                         temporal.milestoneColumnsOf(cs.pipeline(),
                                 cs.classFqn()), cs.castGate()),
                 new Substitution.Registries(assocs, assocEnds, existsSubs,
-                        aggReads, inQueryReads, isNotEmptyCallee(), equalCallee(),
+                        aggReads, inQueryReads, callees.isNotEmpty(), callees.equal(),
                         RelationalRootForm.primaryKeyColumns(cs.classFqn(),
                                 m.pipeline(), cs.mappingFqn(), ctx),
-                        inCallee(), boolCallee("and"), boolCallee("or"),
-                        failCallee()),
+                        callees.in(), callees.bool("and"), callees.bool("or"),
+                        callees.fail()),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
                         temporal.headTemporalDates(), temporal.root(),
                         temporal.forEachDateColumn()),
                 filterPosition, false));
     }
 
-    private com.legend.compiler.element.TypedFunction boolCallee(String n2) {
-        return ctx.findFunction("meta::pure::functions::boolean::" + n2).get(0);
-    }
-
-
-
-
-    private com.legend.compiler.element.TypedFunction failCallee() {
-        return ctx.findFunction("meta::pure::functions::asserts::fail")
-                .stream().filter(f -> f.parameters().size() == 1)
-                .findFirst().orElseThrow(() -> new IllegalStateException(
-                        "resolver bug: no fail(String) registration"));
-    }
-
-    /** The 2-arg in overload — the objectReferenceIn pk membership. */
-    private com.legend.compiler.element.TypedFunction inCallee() {
-        return ctx.findFunction("meta::pure::functions::collection::in")
-                .stream().filter(f -> f.parameters().size() == 2)
-                .findFirst().orElseThrow(() -> new IllegalStateException(
-                        "resolver bug: no in registration"));
-    }
-
-    /** Any registered equal overload — membership-crossing emission. */
-    private @com.legend.Nullable TypedFunction equalCallee() {
-        // exact FQN (audit 23 A3): a user-defined 'equal' must never
-        // become the membership callee
-        var fns = ctx.findFunction("meta::pure::functions::boolean::equal");
-        return fns.isEmpty() ? null : fns.get(0);
-    }
-
-    /** Any registered isNotEmpty overload — the lowerer dispatches by
-     * family. Never null: a missing registration is a resolver bug and
-     * throws. */
-    private TypedFunction isNotEmptyCallee() {
-        var fns = ctx.findFunction(
-                "meta::pure::functions::collection::isNotEmpty");
-        if (fns.isEmpty()) {
-            throw new IllegalStateException("resolver bug: no isNotEmpty registration");
-        }
-        return fns.get(0);
-    }
 
     /** ONE from()-scope entry: re-scoped Context + JSON source frames
      * (XStore §1) seeded into ClassSources' unmapped-class route. */

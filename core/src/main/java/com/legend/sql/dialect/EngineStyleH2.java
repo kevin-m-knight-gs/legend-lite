@@ -516,30 +516,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 + holderArgs(p.kind()) + " \"null\")}";
     }
 
-    /** {@link #holder} for TEMPLATE-EMBEDDED contexts (inside a
-     * single-quoted freemarker arg): the args' quotes escape, and the
-     * legacy template spells DATETIME with the DATE-style args (no
-     * TIMESTAMP prefix — the pre-#5028 goldens pin it). */
-    private String holderEscaped(SqlExpr.PlanParam p) {
-        String inner = p.name() + "![]";
-        if (p.kind() == SqlExpr.PlanParam.Kind.DATETIME
-                && timeZone != null) {
-            inner = "GMTtoTZ( \"[" + timeZone + "]\" " + inner + ")";
-        }
-        SqlExpr.PlanParam.Kind k =
-                p.kind() == SqlExpr.PlanParam.Kind.DATETIME
-                        ? SqlExpr.PlanParam.Kind.DATE : p.kind();
-        return "${varPlaceHolderToString(" + inner + " "
-                + holderArgs(k).replace("'", "\\'") + " \"null\")}";
-    }
-
-
     /** An OPTIONAL plan parameter in an equality — NULL-SAFE on the
      * plan surface (`A is not distinct from B`, dialect-spelled via
      * {@link #nullSafeEq}; upstream #5028 split the doctrine: in-flow
      * execute keeps legacy plain-equals, PLAN surfaces are null-safe).
-     * The DATE and two-optional DATETIME goldens stayed on the legacy
-     * freemarker SELECTOR template. Null = not this shape. */
+     * Every kind: the freemarker SELECTOR spellings of the DATE / DATETIME
+     * goldens are the LEGACY (H2 1.4.200) halves of the
+     * assertEqualsH2Compatible pairs. Null = not this shape. */
     private @com.legend.Nullable String optionalParamEquality(SqlExpr e) {
         if (!(e instanceof SqlExpr.Call oc)
                 || oc.fn() != com.legend.sql.SqlFn.EQUAL
@@ -550,17 +533,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         SqlExpr r = oc.args().get(1);
         if (l instanceof SqlExpr.PlanParam lp2 && lp2.optional()
                 && r instanceof SqlExpr.PlanParam rp2 && rp2.optional()) {
-            if (lp2.kind() == SqlExpr.PlanParam.Kind.DATE
-                    || lp2.kind() == SqlExpr.PlanParam.Kind.DATETIME) {
-                return "(${optionalVarPlaceHolderOperationSelector("
-                        + lp2.name()
-                        + "![], optionalVarPlaceHolderOperationSelector("
-                        + rp2.name() + "![], '" + holderEscaped(lp2)
-                        + " = " + holderEscaped(rp2)
-                        + "', '1 = 0'), optionalVarPlaceHolderOperation"
-                        + "Selector(" + rp2.name()
-                        + "![], '1 = 0', '1 = 1'))})";
-            }
+            // every kind is null-safe on the plan surface — the freemarker
+            // SELECTOR form for DATE/DATETIME pairs is the LEGACY
+            // (H2 1.4.200) golden of the assertEqualsH2Compatible pairs
             return nullSafeEq(holder(lp2), holder(rp2));
         }
         SqlExpr.PlanParam opt = l instanceof SqlExpr.PlanParam lp
@@ -571,16 +546,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return null;
         }
         SqlExpr other = opt == l ? r : l;
-        if (opt.kind() == SqlExpr.PlanParam.Kind.DATE) {
-            // legacy selector — the DATE goldens kept it
-            String otherEsc = expr(other, 4).replace("'", "\\'");
-            String present = opt == l
-                    ? holderEscaped(opt) + " = " + otherEsc
-                    : otherEsc + " = " + holderEscaped(opt);
-            return "(${optionalVarPlaceHolderOperationSelector("
-                    + opt.name() + "![], '" + present
-                    + "', '" + otherEsc + " is null')})";
-        }
         String otherTx = expr(other, 4);
         return opt == l
                 ? nullSafeEq(holder(opt), otherTx)
@@ -598,8 +563,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * ONE spelling shared by the plain in-collection rendering and the
      * temp-table protocol's falseBlock (processInOperation). */
     public String collectionSplice(SqlExpr.PlanParam cp) {
+        // the engine's renderCollection spells each replacement pair with a
+        // TRAILING space ({"'" : "''" }); varPlaceHolderToString does not
         return "${renderCollection(" + cp.name() + "![] \",\" "
-                + holderArgs(cp.kind()) + " \"null\")}";
+                + holderArgs(cp.kind()).replace("\"}", "\" }") + " \"null\")}";
     }
 
     protected String holderArgs(SqlExpr.PlanParam.Kind k) {
@@ -607,8 +574,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case RAW -> throw new IllegalStateException(
                     "RAW plan params are bare splices, never collections");
             case STRING -> "\"'\" \"'\" {\"'\" : \"''\"}";
-            case DATE -> "\"'\" \"'\" {}";
-            case DATETIME -> "\"TIMESTAMP'\" \"'\" {}";
+            // DATE and DATETIME both carry the TIMESTAMP keyword on the
+            // upgraded-H2 plan surface (the bare-quoted DATE args are the
+            // legacy goldens of the assertEqualsH2Compatible pairs)
+            case DATE, DATETIME -> "\"TIMESTAMP'\" \"'\" {}";
             case FLOAT -> "\"CAST(\" \" AS FLOAT)\" {}";
             case BOOLEAN, ENUM, OTHER -> "\"\" \"\" {}";
         };
@@ -1023,16 +992,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 // keyword (TIMESTAMP'${reportEndDate.date}'); a non-default
                 // connection timeZone wraps DATETIME in GMTtoTZ (the same
                 // template the optional holder spells)
-                // DATE has TWO engine spellings, split by the param's
-                // freemarker PATH SHAPE (both in executionPlanTest
-                // goldens): a PROPERTY-ACCESSOR param (dotted path —
-                // '${reportEndDate.date}', minted by the class-property
-                // open-variable arm) spells the h2New TIMESTAMP keyword;
-                // a plain function param ('${bd}' — the milestoning
-                // business-date channel) spells BARE-QUOTED.
-                case DATE -> p.name().indexOf('.') >= 0
-                        ? "TIMESTAMP'${" + p.name() + "}'"
-                        : "'${" + p.name() + "}'";
+                // DATE spells the h2New TIMESTAMP keyword in every
+                // position — the bare-quoted '${bd}' is the LEGACY
+                // (H2 1.4.200) golden of the assertEqualsH2Compatible
+                // pairs (executionPlanTest testTemporalDateVariable*),
+                // never the upgraded one this oracle replays
+                case DATE -> "TIMESTAMP'${" + p.name() + "}'";
                 case DATETIME -> timeZone != null
                         ? "TIMESTAMP'${GMTtoTZ( \"[" + timeZone + "]\" "
                                 + p.name() + ")}'"
@@ -1491,11 +1456,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case ADD_INTERVAL -> "dateadd("
                     + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
                     + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
-            // milestoning adjust channel: unit UPPERCASE (engine
-            // mapToDBUnitType; E2E §4.4 cluster 6/cosmetic)
+            // milestoning adjust channel: the same lowercase unit — the
+            // UPPERCASE dateadd(DAY, ...) corpus spellings are all LEGACY
+            // (H2 1.4.200) goldens of assertEqualsH2Compatible pairs
             case ADD_INTERVAL_TEMPORAL -> "dateadd("
-                    + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value())
-                            .toUpperCase(java.util.Locale.ROOT) + ", "
+                    + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
                     + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
             // engine h2 parseInteger dynaFn golden spelling; execution
             // dialects keep the 64-bit BIGINT cast

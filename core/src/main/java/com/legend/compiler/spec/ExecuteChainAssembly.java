@@ -59,15 +59,28 @@ public final class ExecuteChainAssembly {
      * ({@code let q = |...|; execute($q, ...)}). */
     public static TypedSpec letBound(TypedSpec arg,
             List<TypedSpec> letPrefix) {
-        if (arg instanceof TypedVariable v) {
-            for (int i = letPrefix.size() - 1; i >= 0; i--) {
+        // a let bound to another VARIABLE (a call frame's parameter let
+        // `let func = $func` over the caller's own let) chases on DOWN the
+        // prefix — below the binding met, never through it (the frame's
+        // let shadows the caller's same-named one)
+        TypedSpec cur = arg;
+        int from = letPrefix.size() - 1;
+        while (cur instanceof TypedVariable v) {
+            TypedSpec next = null;
+            for (int i = from; i >= 0; i--) {
                 if (letPrefix.get(i) instanceof TypedLet let
                         && let.name().equals(v.name())) {
-                    return let.value();
+                    next = let.value();
+                    from = i - 1;
+                    break;
                 }
             }
+            if (next == null) {
+                break;
+            }
+            cur = next;
         }
-        return arg;
+        return cur;
     }
 
     /** Peel the query argument to its zero-arg lambda (β-inline a

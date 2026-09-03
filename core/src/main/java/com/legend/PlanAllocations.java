@@ -119,4 +119,84 @@ final class PlanAllocations {
                 com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
                 inner);
     }
+
+    // ---- the plan handle AS ROWS (harness burn-down group Q, 2026-09-03):
+    // the executor's plan model becomes inline rows the DATABASE navigates
+    // (PlanRows) — nothing a verdict reads is computed here
+
+    /** The plan's {@code processingTemplateFunctions}: the freemarker
+     * support functions + enum-typed parameters' dynamic enum-map
+     * functions (relationalPlanSupportFunctions(connection),
+     * executionPlan_generation.pure:215). */
+    static java.util.List<String> planTemplateFunctions(
+            com.legend.compiler.spec.typed.TypedNativeCall pep, StatementExecutor.ExecEnv env) {
+        java.util.List<String> supportFns = new java.util.ArrayList<>(
+                com.legend.plan.PlanSupportFunctions
+                        .relationalPlanSupportFunctions(
+                                pep.args().size() > 2
+                                        ? ConnectionFlags.timeZoneOf(
+                                                pep.args().get(2))
+                                        : null));
+        if (pep.args().get(0) instanceof com.legend.compiler.spec
+                        .typed.TypedLambda plam
+                && pep.args().size() > 1
+                && pep.args().get(1) instanceof com.legend.compiler
+                        .spec.typed.TypedPackageableRef pmr
+                && com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(plam.info().type())
+                        instanceof com.legend.compiler
+                        .element.type.Type.FunctionType pft) {
+            java.util.Set<String> seenFns =
+                    new java.util.LinkedHashSet<>();
+            for (var prm : pft.params()) {
+                if (!(prm.type() instanceof com.legend.compiler
+                        .element.type.Type.EnumType et)) {
+                    continue;
+                }
+                String fn = com.legend.plan.PlanText.enumMapFnOf(
+                        env.ctx(), pmr.fullPath(), et.fqn());
+                var em = com.legend.plan.PlanText.enumMappingOf(
+                        env.ctx(), pmr.fullPath(), et.fqn());
+                if (fn != null && em != null && seenFns.add(fn)) {
+                    supportFns.add(com.legend.plan
+                            .PlanSupportFunctions
+                            .enumMapTemplateFunction(fn, em));
+                }
+            }
+        }
+        return supportFns;
+    }
+
+    /** The plan handle's nodes as rows under its scope id (PlanRows);
+     * a plan the model cannot build registers nothing (the handle stays
+     * symbolic and its reads keep their loud walls). */
+    static void registerPlanRows(
+            com.legend.compiler.spec.typed.TypedNativeCall pn,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
+        String scope = com.legend.plan.PlanRows.scopeId(pn);
+        if (env.planRows().containsKey(scope)) {
+            return;
+        }
+        // the handle's arguments through the let prefix (let l = {…};
+        // executionPlan($l, …)): the plan model needs the lambda itself;
+        // the rows register under BOTH spellings — the handle as written
+        // and as the inliner's substitution rebuilds it
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> bound = new java.util.ArrayList<>();
+        for (com.legend.compiler.spec.typed.TypedSpec a : pn.args()) {
+            bound.add(com.legend.compiler.spec.ExecuteChainAssembly.letBound(a, letPrefix));
+        }
+        com.legend.compiler.spec.typed.TypedNativeCall pnBound =
+                (com.legend.compiler.spec.typed.TypedNativeCall) pn.withChildren(bound);
+        try {
+            com.legend.plan.PlanNode model = StatementExecutor.planModel(pnBound, specs, env);
+            var rows = com.legend.plan.PlanRows.rows(scope, model,
+                    planTemplateFunctions(pnBound, env));
+            env.planRows().put(scope, rows);
+            env.planRows().put(com.legend.plan.PlanRows.scopeId(pnBound), rows);
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.compiler.spec.TypeInferenceException
+                | IllegalStateException e) {
+            // no rows: the symbolic handle's walls stand
+        }
+    }
 }

@@ -57,7 +57,8 @@ final class StatementExecutor {
                 : new ExecEnv(env0.ctx(), env0.runtimeFqn(), env0.dialect(),
                         env0.connection(), env0.addDriverTablePk(),
                         env0.queryLets(), env0.tableReplace(),
-                        env0.instanceIds(), assertListener, replayOracle);
+                        env0.instanceIds(), assertListener, replayOracle,
+                        env0.planRows());
         return executeStatements(specs.typeQueryBody(resolved),
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
@@ -79,13 +80,30 @@ final class StatementExecutor {
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
+                    planRows) {
+        /** Historical arity (no plan rows registry yet). */
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                boolean addDriverTablePk,
+                java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, String> tableReplace,
+                com.legend.exec.InstanceIds instanceIds,
+                com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+                com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk, queryLets,
+                    tableReplace, instanceIds, assertListener, replayOracle,
+                    new java.util.LinkedHashMap<>());
+        }
+
         /** The same environment over another session — the system
          * database's connection for a body that reads the metamodel. */
         ExecEnv withConnection(java.sql.Connection other) {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, addDriverTablePk, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle);
+                    instanceIds, assertListener, replayOracle, planRows);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -216,11 +234,21 @@ final class StatementExecutor {
                         // reach the Lowerer with TypedGetAll intact
                         com.legend.resolver.StoreResolver letResolver =
                                 new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                                        .withLetBindings(env.queryLets());
+                                        .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
                         inlined = letResolver.resolve(inlined, env.runtimeFqn());
                         executeTyped(inlined, env);
                     }
                     continue;
+                }
+                // a PLAN HANDLE binding (let plan = executionPlan(...)): the
+                // executor's plan model becomes ROWS under the handle's
+                // scope (PlanRows) — every read of the handle downstream is
+                // navigation over those rows in the database. Shapes the
+                // plan model cannot build keep the handle symbolic.
+                if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .EXECUTION_PLAN.equals(pn.callee().qualifiedName())) {
+                    PlanAllocations.registerPlanRows(pn, letPrefix, specs, env);
                 }
                 letPrefix.add(let);
                 continue;
@@ -356,7 +384,7 @@ final class StatementExecutor {
             }
             com.legend.resolver.StoreResolver resolver =
                     new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                            .withLetBindings(env.queryLets());
+                            .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
             body = resolver.resolve(body, env.runtimeFqn());              // Phase H
             // C2.2: stores bound to DIFFERENT connections cannot share
             // the one session connection — wall, never wrong-database rows
@@ -405,7 +433,7 @@ final class StatementExecutor {
                         env.connection(),
                         env.addDriverTablePk(), env.queryLets(), union,
                         env.instanceIds(), env.assertListener(),
-                        env.replayOracle());
+                        env.replayOracle(), env.planRows());
     }
 
     /**
@@ -1186,43 +1214,7 @@ final class StatementExecutor {
                 && com.legend.compiler.element.type.PlatformTypes
                         .EXECUTION_PLAN.equals(
                                 pep.callee().qualifiedName())) {
-            // plan-handle vocabulary (was a statement-root arm; ladder
-            // migration #22): the plan's freemarker support functions +
-            // enum-typed parameters' dynamic enum-map functions
-            java.util.List<Object> supportFns = new java.util.ArrayList<>(
-                    com.legend.plan.PlanSupportFunctions
-                            .relationalPlanSupportFunctions(
-                                    pep.args().size() > 2
-                                            ? ConnectionFlags.timeZoneOf(
-                                                    pep.args().get(2))
-                                            : null));
-            if (pep.args().get(0) instanceof com.legend.compiler.spec
-                            .typed.TypedLambda plam
-                    && pep.args().get(1) instanceof com.legend.compiler
-                            .spec.typed.TypedPackageableRef pmr
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .functionTypeOf(plam.info().type())
-                            instanceof com.legend.compiler
-                            .element.type.Type.FunctionType pft) {
-                java.util.Set<String> seenFns =
-                        new java.util.LinkedHashSet<>();
-                for (var prm : pft.params()) {
-                    if (!(prm.type() instanceof com.legend.compiler
-                            .element.type.Type.EnumType et)) {
-                        continue;
-                    }
-                    String fn = com.legend.plan.PlanText.enumMapFnOf(
-                            env.ctx(), pmr.fullPath(), et.fqn());
-                    var em = com.legend.plan.PlanText.enumMappingOf(
-                            env.ctx(), pmr.fullPath(), et.fqn());
-                    if (fn != null && em != null && seenFns.add(fn)) {
-                        supportFns.add(com.legend.plan
-                                .PlanSupportFunctions
-                                .enumMapTemplateFunction(fn, em));
-                    }
-                }
-            }
-            return supportFns;
+            return new java.util.ArrayList<Object>(PlanAllocations.planTemplateFunctions(pep, env));
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ep
                 && com.legend.compiler.element.type.PlatformTypes
@@ -1793,7 +1785,7 @@ final class StatementExecutor {
     /** The PLAN NODE MODEL for an executionPlan call — same shapes the
      * text printer spells (Sequence / FunctionParametersValidation /
      * RelationalInstantiation / SQLExecution). */
-    private static com.legend.plan.PlanNode planModel(
+    static com.legend.plan.PlanNode planModel(
             com.legend.compiler.spec.typed.TypedNativeCall ep,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (!(ep.args().get(0)
@@ -1860,9 +1852,19 @@ final class StatementExecutor {
                 ? com.legend.plan.RelationalMapperRenames.extract(
                         ep.args().get(2), specs, env.queryLets(), env.ctx())
                 : java.util.function.UnaryOperator.identity();
+        // the runtime's ModelChainConnection mappings (and an in-query
+        // from's chain) dispatch the M2M source layers — the same
+        // context planToString resolves under (testModelConnection*)
+        java.util.List<String> chainMaps = new java.util.ArrayList<>(
+                rtArg2 != null
+                        ? com.legend.compiler.spec.typed.TypedFrom
+                                .chainMappingsIn(rtArg2)
+                        : java.util.List.of());
+        firstFromChainMappings(term).stream()
+                .filter(m2 -> !chainMaps.contains(m2)).forEach(chainMaps::add);
         EngineSql es = engineSql(java.util.List.of(term), pmFqn,
                 specs, env, new com.legend.sql.dialect.EngineStyleH2(quote,
-                        tz), params, mapperRenames);
+                        tz), params, mapperRenames, chainMaps);
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
                 java.util.List.of(),
@@ -2029,7 +2031,7 @@ final class StatementExecutor {
             if (eager) {
                 com.legend.resolver.StoreResolver lqResolver =
                         new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                                .withLetBindings(env.queryLets());
+                                .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
                 lqRun = executeTyped(lqResolver.resolve(
                         java.util.List.of(lqChain.chain()), env.runtimeFqn()),
                         env);
@@ -2068,7 +2070,7 @@ final class StatementExecutor {
                         env.connection(),
                         env.addDriverTablePk(), env.queryLets(), tr,
                         env.instanceIds(), env.assertListener(),
-                        env.replayOracle());
+                        env.replayOracle(), env.planRows());
             }
         }
         var assembled = com.legend.compiler.spec.ExecuteChainAssembly
@@ -2081,7 +2083,7 @@ final class StatementExecutor {
             // resolver's let env resolves them (engine inScopeVars)
             com.legend.resolver.StoreResolver chainResolver =
                     new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                            .withLetBindings(env.queryLets());
+                            .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
             java.util.List<TypedSpec> body = chainResolver.resolve(
                     java.util.List.of(assembled.chain()), env.runtimeFqn());
             // the engine's RelationalExecutionContext option: driver-table
@@ -2792,7 +2794,7 @@ final class StatementExecutor {
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
         com.legend.resolver.StoreResolver sideResolver =
                 new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                        .withLetBindings(env.queryLets());
+                        .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
         body = sideResolver.resolve(body, env.runtimeFqn());
         // the addDriverTablePkForProject option is part of the EXECUTION
         // ENV — a verdict side must project the same columns the generic

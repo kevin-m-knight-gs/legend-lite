@@ -1982,7 +1982,7 @@ public final class Lowerer {
             on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
         }
         Set<String> leftNames = new HashSet<>();
-        schemaOf(aj.left()).columns().forEach(c -> leftNames.add(c.name()));
+        Type.requireRelationSchema(aj.left().info().type()).columns().forEach(c -> leftNames.add(c.name()));
         return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
                 aj.prefix(), aj.right(), aj.info(), null, leftNames::contains);
     }
@@ -2036,7 +2036,7 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(
                     new SqlExpr.Star(source.left().alias()), null, null));
         }
-        for (Type.Column c : schemaOf(rightNode).columns()) {
+        for (Type.Column c : Type.requireRelationSchema(rightNode.info().type()).columns()) {
             SqlExpr.Column rc = SqlExpr.Column.of(source.right().alias(),
                     source.right().outputs(), c.name());
             boolean renamed = renameWhen.test(c.name());
@@ -2632,7 +2632,14 @@ public final class Lowerer {
                     && isMany(p.source()) ->
                     manyPropertyMap(p, columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
-                    -> new SqlExpr.StructGet(scalar(p.source(), columns), p.property());
+                    -> {
+                SqlExpr base = scalar(p.source(), columns);
+                // a read THROUGH a plan parameter = the dotted placeholder
+                String dotted = PlanParams.dottedPlanParam(base, p.property());
+                yield dotted != null && !(p.info().type() instanceof Type.ClassType)
+                        ? new SqlExpr.PlanParam(dotted, Fold.planKindOf(p.info().type()))
+                        : new SqlExpr.StructGet(base, p.property());
+            }
             // ^Class(prop=value, …) as a VALUE: a struct with the MODEL's
             // canonical layout (declared stored properties, declaration
             // order) — never the instance's own field set; an omitted
@@ -2773,8 +2780,8 @@ public final class Lowerer {
             case TypedNativeCall n when n.args().size() >= 1
                     && Type.relationValued(n.args().get(0).info())
                     && !(n.args().get(0) instanceof TypedVariable)
-                    && relationPredicate(n) != null -> {
-                var predicate = Objects.requireNonNull(relationPredicate(n));
+                    && RelationPredicates.of(n) != null -> {
+                var predicate = Objects.requireNonNull(RelationPredicates.of(n));
                 enclosing.push(columns);
                 try {
                     yield predicate.lower(this, n);
@@ -3185,7 +3192,7 @@ public final class Lowerer {
 
     private SqlSelect buildFlatten(SqlSelect base,
             TypedFlatten fl) {
-        Type.RelationType schema = schemaOf(fl.source());
+        Type.RelationType schema = Type.requireRelationSchema(fl.source().info().type());
         List<OutputCol> contract = outputsOf(fl.info());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (Type.Column c : schema.columns()) {
@@ -3409,10 +3416,6 @@ public final class Lowerer {
         return Pure.nativeNamed(pureName, n.callee().signatureKey());
     }
 
-    private static @com.legend.Nullable RelationPredicate relationPredicate(TypedNativeCall n) {
-        return RelationPredicates.of(n);
-    }
-
     /**
      * An EXISTS subquery projects the constant {@code 1} — its columns are
      * never read, and {@code SELECT 1} is the reference engines' lean shape
@@ -3456,10 +3459,6 @@ public final class Lowerer {
 
     static TypedSpec last(TypedLambda lambda) {
         return lambda.body().get(lambda.body().size() - 1);
-    }
-
-    private static Type.RelationType schemaOf(TypedSpec spec) {
-        return Type.requireRelationSchema(spec.info().type());
     }
 
     /** DERIVED-origin convenience — the three PHYSICAL doors pass

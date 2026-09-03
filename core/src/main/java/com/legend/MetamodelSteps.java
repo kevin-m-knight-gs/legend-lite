@@ -33,11 +33,6 @@ final class MetamodelSteps {
             // sources; a user function sharing a simple name can no
             // longer shadow the metamodel vocabulary.
             switch (fqn) {
-                case "meta::pure::executionPlan::allNodes" -> {
-                    if (recv instanceof com.legend.plan.PlanNode pn) {
-                        return new java.util.ArrayList<Object>(pn.allNodes());
-                    }
-                }
                 case "meta::pure::functions::collection::filter" -> {
                     if (recv instanceof java.util.List<?> l
                             && c.args().get(1)

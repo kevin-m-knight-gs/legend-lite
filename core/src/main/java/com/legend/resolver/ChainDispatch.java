@@ -49,6 +49,23 @@ final class ChainDispatch {
         this.fresh = fresh;
     }
 
+    /** A chain-position {@code ->cast(@Sub)} met BELOW a flatten hop rides
+     * the hop list as a pseudo-hop under this prefix (collectOpChain);
+     * the hop loop re-roots it (CastReRoot). */
+    static final String CAST_HOP = "cast@";
+
+    /** The cast as a PSEUDO-HOP below a flatten hop: the gate (raise on
+     * a non-member) runs in the segment below it, then the chain re-roots
+     * at the subtype's own extent on the shared key (CastReRoot); reads
+     * above it are the subtype's. */
+    void pseudoHop(TypedSpec source, Type.ClassType from, Type.ClassType to,
+            List<String> hops, List<Boolean> many, List<List<TypedSpec>> segs) {
+        hops.add(CAST_HOP + to.fqn());
+        many.add(false);
+        segs.add(new java.util.ArrayList<>());
+        gate(source, from, to, segs.get(segs.size() - 1), true);
+    }
+
     /** The chain cast's gate: adds the raise filter to {@code ops} and
      * returns the gate class. One gate per chain, above every flatten
      * hop (the class source the gate rides is the chain's final one). */

@@ -33,7 +33,7 @@ public final class PurePrint {
                 }
                 StringBuilder sb = new StringBuilder(
                         source(nc.args().get(0)))
-                        .append("->").append(simpleName(nc)).append('(');
+                        .append(" -> ").append(simpleName(nc)).append('(');
                 for (int i = 1; i < nc.args().size(); i++) {
                     if (i > 1) {
                         sb.append(", ");
@@ -42,14 +42,60 @@ public final class PurePrint {
                 }
                 yield sb.append(')').toString();
             }
+            // $names -> map([Routed Func:n:String[1] | $n -> toUpper();])
+            // (executionPlanTest testMultiExpressionWithPlatformAndFromFunction)
+            case com.legend.compiler.spec.typed.TypedMap m ->
+                    source(m.source()) + " -> map(" + routedFunc(m.mapper())
+                            + ")";
             default -> throw new NotImplementedException(
                     "PureExp source printing for "
                     + n.getClass().getSimpleName() + " pending");
         };
     }
 
+    /** The engine's routed-lambda print: {@code [Routed Func:p:T[m] |
+     * body;]} — one-statement bodies only (arms grow per golden). */
+    private static String routedFunc(
+            com.legend.compiler.spec.typed.TypedLambda l) {
+        if (l.body().size() != 1) {
+            throw new NotImplementedException("PureExp source printing for"
+                    + " a multi-statement lambda pending");
+        }
+        StringBuilder sb = new StringBuilder("[Routed Func:");
+        var ft = l.functionType();
+        for (int i = 0; i < l.parameters().size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            var p = ft.params().get(i);
+            sb.append(l.parameters().get(i)).append(':')
+                    .append(PlanText.pureTypeName(p.type()))
+                    .append('[').append(sizeRange(p.multiplicity()))
+                    .append(']');
+        }
+        return sb.append(" | ").append(source(l.body().get(0)))
+                .append(";]").toString();
+    }
+
     private static String simpleName(TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
         return fqn.substring(fqn.lastIndexOf(':') + 1);
+    }
+
+    /** The plan's multiplicity spelling: {@code 1}, {@code 0..1},
+     * {@code *}, {@code n..*} (inside the brackets). */
+    private static String sizeRange(
+            com.legend.compiler.element.type.Multiplicity m) {
+        if (m instanceof com.legend.compiler.element.type.Multiplicity
+                .Bounded b) {
+            if (b.upper() != null) {
+                return b.lower() == b.upper() ? String.valueOf(b.lower())
+                        : b.lower() + ".." + b.upper();
+            }
+            // unbounded: [*] (lower 0) or [n..*]
+            return b.lower() == 0 ? "*" : b.lower() + "..*";
+        }
+        throw new NotImplementedException(
+                "plan: multiplicity spelling for " + m + " pending");
     }
 }

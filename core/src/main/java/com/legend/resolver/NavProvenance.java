@@ -25,10 +25,13 @@ final class NavProvenance {
 
     private final ClassSources sources;
     private final AssociationJoins assocMaterial;
+    private final java.util.function.Supplier<com.legend.compiler.element.TypedFunction> coalesce;
 
-    NavProvenance(ClassSources sources, AssociationJoins assocMaterial) {
+    NavProvenance(ClassSources sources, AssociationJoins assocMaterial,
+            java.util.function.Supplier<com.legend.compiler.element.TypedFunction> coalesce) {
         this.sources = sources;
         this.assocMaterial = assocMaterial;
+        this.coalesce = coalesce;
     }
 
     /** A navigate-slot hop off a COMPOSED source whose step was stripped
@@ -59,6 +62,10 @@ final class NavProvenance {
                 pred.body().get(pred.body().size() - 1), lp, src.composedPrefix(),
                 v -> new TypedVariable(lp, new ExprType(composedRow,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+        // a union-threaded key (a member-union hop composed the row) reads
+        // as the coalesce over its member threads
+        body = FlattenOps.coalesceThreadedReads(body, lp, composedRow,
+                coalesce.get());
         TypedNavigate st2 = new TypedNavigate(src.pipeline(), st.alias(), st.target(),
                 new TypedLambda(pred.parameters(), List.of(body), pred.info()),
                 st.pairedPredicate(), st.frameName(), st.form(), src.pipeline().info());
@@ -72,7 +79,8 @@ final class NavProvenance {
                 oa, ob.info()));
         return new ClassSource(src.mappingFqn(), src.classFqn(), src.setId(), st2,
                 src.rowVar(), bindings, src.rowType(), src.sourceClass(),
-                src.deferredWalls(), src.composedPrefix());
+                src.deferredWalls(), src.composedPrefix())
+                .withScope(src.scope());
     }
 
     /** Flatten PROVENANCE for a navigate slot materialized INSIDE a hop

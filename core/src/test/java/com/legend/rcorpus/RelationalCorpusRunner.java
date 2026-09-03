@@ -1263,10 +1263,23 @@ public class RelationalCorpusRunner {
             // group Q tests now reach the plan-node navigation walls (the
             // TypedMap over rootExecutionNode.executionNodes) — plan nodes
             // as rows is the leg.
-            org.junit.jupiter.api.Assertions.assertEquals(778L,
+            // 778/1795 -> 729/1844 (batch 18 — plan nodes AS ROWS, 2026-09-03):
+            // the executor's plan model rides the query as inline rows of
+            // plans / plan_nodes / plan_function_parameters /
+            // plan_node_closure (PlanRows) under the handle's scope; the
+            // plan reads are navigation over them — member-union hops
+            // composed (per-hop subtype witnesses, coalesced key threads,
+            // scope carried), a chain cast BELOW a flatten hop re-roots at
+            // the subtype's extent (CastReRoot), allNodes as a Pure body
+            // over the closure rows (the Java arm deleted), the inliner
+            // keeps binder names (plan text prints them), pair().first/
+            // second folds, upgraded-H2 plan spellings (TIMESTAMP holders,
+            // null-safe optional equality, lowercase dateadd, block/temp-
+            // table spacing, dotted Integer placeholders). +49, 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(729L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1795L,
+            org.junit.jupiter.api.Assertions.assertEquals(1844L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1291,7 +1304,15 @@ public class RelationalCorpusRunner {
             // renders the activity text engine-style and the assert judges
             // it in the database; the walk's text-only classification
             // loses those rows.
-            org.junit.jupiter.api.Assertions.assertEquals(35,
+            // 35 -> 27 (batch 18 — plan nodes AS ROWS, 2026-09-03): eight
+            // plan-text asserts (executionPlanTest's testFilterEquals*
+            // optional-parameter plans, the datetime pair helpers'
+            // planToString reads, testMultiExpressionWithPlatformAndFrom
+            // Function) joined the flip cohort — the plan handle's rows
+            // ride the query, the text is judged by the plan-text referee
+            // arm (upgraded-H2 golden, rows via replay where derivable);
+            // the walk's text-only classification loses those rows.
+            org.junit.jupiter.api.Assertions.assertEquals(27,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"
@@ -1397,7 +1418,15 @@ public class RelationalCorpusRunner {
             // / view / inferRelationalType refusal spellings are DEAD (Pure
             // bodies over the metamodel store; the natives are deleted) —
             // their rows and wall tests resolve through the database.
-            org.junit.jupiter.api.Assertions.assertEquals(125,
+            // 125 -> 77 (harness burn-down batch 18 — GROUP Q, plan nodes
+            // AS ROWS, 2026-09-03): the execution-plan read vocabulary's
+            // refusals (rootExecutionNode / executionNodes / allNodes /
+            // cast(@SQLExecutionNode).sqlQuery / functionParameters over a
+            // plan handle) are DEAD — the plan model rides the query as
+            // inline rows (PlanRows) and the reads are navigation the
+            // database answers; the allNodes native and its Java arm are
+            // deleted. Walls unchanged at 9.
+            org.junit.jupiter.api.Assertions.assertEquals(77,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
@@ -2058,10 +2087,14 @@ public class RelationalCorpusRunner {
                     // Column and TableAlias `name` [1] now read the shared
                     // relational_elements.name, NULL on the expression-node
                     // kinds' rows — the same idiom, four more witnesses.
+                    // 533 -> 534 (plan nodes AS ROWS, batch 18, 2026-09-03):
+                    // SQLExecutionNode.sqlQuery [1] over the single-table
+                    // plan_nodes.sql_query, NULL on the other node kinds'
+                    // rows — the same idiom, one more witness.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            reqNullAdjudicated() <= 533,
+                            reqNullAdjudicated() <= 534,
                             "required-over-nullable pairings grew past"
-                                    + " the pinned ceiling 533 — a new"
+                                    + " the pinned ceiling 534 — a new"
                                     + " [1]-property over a nullable"
                                     + " column entered the corpus"
                                     + " models"),

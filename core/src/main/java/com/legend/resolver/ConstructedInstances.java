@@ -102,6 +102,17 @@ final class ConstructedInstances {
 
     /** The rows of one constructed tree per store table (the scope's
      * inline relations); empty for an unknown id. */
+    /** Rows computed OUTSIDE the resolver (the executor's plan model as
+     * rows — PlanRows): registered under their scope id, read like any
+     * constructed tree's. */
+    void register(String id, Map<String, List<List<String>>> rows) {
+        rowsById.put(id, rows);
+    }
+
+    boolean has(String id) {
+        return rowsById.containsKey(id);
+    }
+
     Map<String, List<List<String>>> rowsFor(String id) {
         Map<String, List<List<String>>> rows = rowsById.get(id);
         return rows == null ? Map.of() : rows;

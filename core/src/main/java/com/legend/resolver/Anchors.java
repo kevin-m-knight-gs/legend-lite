@@ -47,12 +47,18 @@ final class Anchors {
     private final java.util.function.Predicate<
             com.legend.compiler.spec.typed.TypedNewInstance> constructedRow;
 
+    /** A plan handle whose nodes the store carries as rows (PlanRows)
+     * anchors like a constructed instance. */
+    private final java.util.function.Predicate<TypedNativeCall> planHandle;
+
     Anchors(java.util.function.Predicate<
             com.legend.compiler.spec.typed.TypedPackageableRef> elementRef,
             java.util.function.Predicate<
-                    com.legend.compiler.spec.typed.TypedNewInstance> constructedRow) {
+                    com.legend.compiler.spec.typed.TypedNewInstance> constructedRow,
+            java.util.function.Predicate<TypedNativeCall> planHandle) {
         this.constructedRow = constructedRow;
         this.elementRef = elementRef;
+        this.planHandle = planHandle;
     }
 
     private final java.util.IdentityHashMap<TypedSpec, Boolean> memo =
@@ -82,6 +88,11 @@ final class Anchors {
                 }
                 if (c instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
                         && constructedRow.test(ni) && navigatesSource(n, c)) {
+                    v = true;
+                    break;
+                }
+                if (c instanceof TypedNativeCall pn && planHandle.test(pn)
+                        && navigatesSource(n, c)) {
                     v = true;
                     break;
                 }
@@ -129,10 +140,10 @@ final class Anchors {
             case TypedSortBy sb -> sb.source() == c;
             case com.legend.compiler.spec.typed.TypedCast tc -> tc.source() == c;
             case TypedNativeCall nc -> !nc.args().isEmpty() && nc.args().get(0) == c
-                    && (StoreResolver.isFirstLike(nc) || StoreResolver.isStaticAt(nc)
+                    && (ClassSorts.isFirstLike(nc) || StoreResolver.isStaticAt(nc)
                             || StoreResolver.isClassToOne(nc)
                             || Pipelines.isClassDistinct(nc)
-                            || StoreResolver.classSortOf(nc) != null
+                            || ClassSorts.classSortOf(nc) != null
                             || nc.callee().qualifiedName().equals(
                                     Substitution.ELEMENT_TO_PATH_FQN));
             default -> false;
@@ -149,6 +160,8 @@ final class Anchors {
             // a CONSTRUCTED metamodel instance the store carries as rows
             case com.legend.compiler.spec.typed.TypedNewInstance ni
                     when constructedRow.test(ni) -> true;
+            // a PLAN HANDLE whose nodes the store carries as rows (PlanRows)
+            case TypedNativeCall pn when planHandle.test(pn) -> true;
             // a CLASS-typed property HOP over an object-space chain IS
             // object space (the auto-map flatten re-roots at its target)
             case TypedPropertyAccess pa
@@ -170,7 +183,7 @@ final class Anchors {
             case TypedDrop d -> spaceOf(d.source()) == Space.OBJECT;
             case TypedSlice sl -> spaceOf(sl.source()) == Space.OBJECT;
             case TypedSortBy sb -> spaceOf(sb.source()) == Space.OBJECT;
-            case TypedNativeCall c when StoreResolver.isFirstLike(c) ->
+            case TypedNativeCall c when ClassSorts.isFirstLike(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
             case TypedNativeCall c when StoreResolver.isStaticAt(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
@@ -178,7 +191,7 @@ final class Anchors {
                     spaceOf(c.args().get(0)) == Space.OBJECT;
             case TypedNativeCall c when Pipelines.isClassDistinct(c) ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
-            case TypedNativeCall c when StoreResolver.classSortOf(c) != null ->
+            case TypedNativeCall c when ClassSorts.classSortOf(c) != null ->
                     spaceOf(c.args().get(0)) == Space.OBJECT;
             default -> false;
         };

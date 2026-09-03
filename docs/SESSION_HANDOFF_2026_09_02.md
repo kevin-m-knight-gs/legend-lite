@@ -1325,10 +1325,78 @@ freemarker form) — named. testMultiExpressionWithPlatformAndFromFunction:
 "PureExp source printing for TypedMap pending" (plan-text of a map
 expression) — named.
 
+**Batch 18 — GROUP Q: PLAN NODES AS ROWS (2026-09-03): ratchet 778/1795
+→ 729/1844 (+49, ZERO lost; chain 5m48s, all green).** The executor's
+plan model (PlanNode — the lowering's product) rides the query as inline
+rows of the system store's `plans` / `plan_nodes` / `plan_template_
+functions` / `plan_function_parameters` / `plan_node_closure` tables
+(`plan.PlanRows`, keyed by the handle's call-site id; `PlanAllocations.
+registerPlanRows` registers them under the let binding; the graph-
+lifetime store seeds NONE of them — MetamodelSeeds). The plan reads are
+ordinary navigation over those rows, resolved by the ONE resolver:
+- member-union hops COMPOSED: each hop's subtype witnesses register
+  under the hop's own prefix (`registerSubTypeSubs(..., hopPrefix)`,
+  belowScope registers per op without the sources registry), the
+  top-level table under the composed prefix with a lenient anywhere
+  fallback; a union-threaded key on a composed row reads as the coalesce
+  over its member threads (`FlattenOps.coalesceThreadedReads`, applied by
+  flattenSource / registerAssociationJoins / NavProvenance.spliceOwnStep);
+  composed sources CARRY the constructed scope (three ClassSource sites +
+  spliceOwnStep) so every hop's target reads the inline rows.
+- `chain->cast(@Sub)` BELOW a flatten hop = a PSEUDO-HOP
+  (`ChainDispatch.pseudoHop` → `CastReRoot.reRoot`): the gate filter
+  (raise on a non-member) runs in the segment below, then the chain
+  re-roots at the subtype's own extent joined on the shared primary key
+  (`<prefix><pk>__pk_<table>` thread merge / plain column); the hop above
+  (`.functionParameters`) is the subtype's own route (spliceOwnStep).
+- `allNodes(node, ext)` is a Pure BODY over the closure rows
+  (`$node.subtree.node`; associations PlanNodeSubtrees /
+  PlanNodeClosureNodes on the lite class PlanNodeClosure) — the native
+  signature and `MetamodelSteps`' Java arm DELETED.
+- the plan-rows registration resolves under the runtime's chain mappings
+  (planModel now passes them — the testModelConnection* M2M plans).
+- `UserCallInliner` keeps binder NAMES unless an argument of the frame
+  mentions the name (capture is the only hazard; the plan surface prints
+  binders: `functionParameters = [optionalID:String[0..1]]`); `pair(a,b)
+  .first/.second` folds to the component (the datetime helpers' pairs);
+  `ExecuteChainAssembly.letBound` chases a let bound to another variable
+  DOWN the prefix (a call frame's `let func = $func`).
+- upgraded-H2 plan spellings (the assertEqualsH2Compatible pairs' UPGRADED
+  golden is the oracle's): DATE placeholders `TIMESTAMP'${x}'`, optional-
+  parameter equality null-safe for every kind (the DATE/DATETIME selector
+  forms were the LEGACY halves), lowercase `dateadd(day, …)` on the
+  milestoning adjust channel, `PureExp` `$names -> map([Routed Func:n:
+  String[1] | $n -> toUpper();])`, FreeMarkerConditional block indent,
+  RelationalBlockExecutionNode's `) ` closer, `tempTableColumns … )]`,
+  renderCollection's `{"'" : "''" }`, dotted Integer placeholders bare
+  (`${endDateCalendar.fiscalYear.value}` — `PlanParams.dottedPlanParam`).
+- guardrail moves: `Callees`, `CastReRoot`, `ClassSorts` extracted from
+  StoreResolver; plan-row registration in PlanAllocations; walk text-only
+  asserts 35 → 27 (charter §8.0 row); metamodel quarantine rows 125 → 77
+  (the plan-read refusal spellings are dead; walls 9); required-over-
+  nullable ceiling 533 → 534 (sqlQuery over the single-table plan_nodes).
+NAMED residue in executionPlan/tests after this batch (all walls or
+text diffs, none silent): testTemporalDateVariableInFunctionExpression
+WithPropagation (our milestoned derived-property join SHAPE nests the
+exchange navigation — the engine flattens it; rows underivable: the
+milestoning tables are never seeded in the executionPlan package, so
+text is the contract — 4 tests count as our-rows-underivable in the
+text-verdict census); testDatabaseConnectionSQLPopulation ×2 (the
+SQLExecutionNode `connection` → datasource `testDataSetupSqls` rows —
+next plan-row table); testGroupByWithOpenVariableInAgg ×2 (join ORDER +
+`cast(0.0 as float)` literal), testMapWithOpenVariable /
+testTwoMappingsOneRuntime ×2 (aggregation / union SQL shapes),
+testLegacyFlag* ×2 (tests/query: the LEGACY_SQL_NULL_UNSAFE_EQUALS
+feature flag must reach the plan dialect — withFeatureFlags is identity
+today), the datetime `testPlanWithLocalH2ConnectionWithSQL`
+(transformPlan protocol), testSupportStreamFlagWithGraphFetchAndFrom
+(deferred graph-tree let), the model-connection agg/join/deep trio
+(M2M shapes), withPlatform (STRING_AGG list encoding).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 778 fallbacks / 1795 flipped (batches 14–17 = group D +
-the group Q opener;
+legs).** State: 729 fallbacks / 1844 flipped (batches 14–18 = group D +
+group Q plan nodes as rows), exec-passing 344, quarantine 77 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

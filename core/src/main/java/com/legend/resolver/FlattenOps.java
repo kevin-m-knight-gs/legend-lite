@@ -6,6 +6,12 @@ package com.legend.resolver;
 import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Type;
+import java.util.ArrayList;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -307,7 +313,7 @@ final class FlattenOps {
                 case com.legend.compiler.spec.typed.TypedLimit ignored -> { return true; }
                 case com.legend.compiler.spec.typed.TypedDrop ignored -> { return true; }
                 case com.legend.compiler.spec.typed.TypedSlice ignored -> { return true; }
-                case com.legend.compiler.spec.typed.TypedNativeCall nc when StoreResolver.isFirstLike(nc) || StoreResolver.isStaticAt(nc) -> {
+                case com.legend.compiler.spec.typed.TypedNativeCall nc when ClassSorts.isFirstLike(nc) || StoreResolver.isStaticAt(nc) -> {
                     return true;
                 }
                 case com.legend.compiler.spec.typed.TypedFilter f -> cur = f.source();
@@ -336,6 +342,11 @@ final class FlattenOps {
         boolean rowSetSeen = !many.get(i)
                 && segs.get(i).stream().anyMatch(FlattenOps::isRowSetOp);
         for (int k = i - 1; k >= 0; k--) {
+            if (hops.get(k).startsWith(ChainDispatch.CAST_HOP)) {
+                // the chain above a cast pseudo-hop reads off the subtype's
+                // re-rooted extent, never off this hop's target
+                break;
+            }
             rowSetSeen |= segs.get(k).stream().anyMatch(FlattenOps::isRowSetOp);
             if (many.get(k) && rowSetSeen) {
                 break;
@@ -430,4 +441,57 @@ final class FlattenOps {
         }
     }
 
+
+    /**
+     * Reads of a union-THREADED column off a COMPOSED row. A flattened hop
+     * into a member-union class (a single-table hierarchy) leaves each
+     * key column on the composed row as member threads
+     * {@code <prefix><col>_<ordinal>} — at most one non-null per row (the
+     * member the row IS). A condition re-pointed at the composed row
+     * names the bare {@code <prefix><col>}; when that column is absent
+     * and the threads ride the row, the read is the nested coalesce over
+     * the threads (the normalizer's coalesceReads rule, at the resolver's
+     * row). Other reads pass through untouched.
+     */
+    static TypedSpec coalesceThreadedReads(TypedSpec n, String param,
+            Type.RelationType row,
+            com.legend.compiler.element.TypedFunction coalesce) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(param)) {
+            String col = pa.property();
+            if (row.columns().stream().anyMatch(c -> c.name().equals(col))) {
+                return n;
+            }
+            List<Type.Column> threads = new ArrayList<>();
+            for (int i = 0; ; i++) {
+                String name = col + "_" + i;
+                var c = row.columns().stream()
+                        .filter(x -> x.name().equals(name)).findFirst();
+                if (c.isEmpty()) {
+                    break;
+                }
+                threads.add(c.get());
+            }
+            if (threads.size() < 2) {
+                return n;
+            }
+            TypedSpec acc = null;
+            for (int i = threads.size() - 1; i >= 0; i--) {
+                Type.Column c = threads.get(i);
+                TypedSpec read = new TypedPropertyAccess(v, c.name(),
+                        new ExprType(c.type(),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_ONE));
+                acc = acc == null ? read
+                        : new TypedNativeCall(coalesce, List.of(read, acc),
+                                read.info());
+            }
+            return java.util.Objects.requireNonNull(acc);
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(param)) {
+            return n;
+        }
+        return n.mapChildren(k -> coalesceThreadedReads(k, param, row, coalesce));
+    }
 }

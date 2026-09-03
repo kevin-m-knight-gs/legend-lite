@@ -2157,7 +2157,10 @@ final class Substitution {
             throw new NotImplementedException(form + " over a row of "
                     + target.classFqn() + ": the row carries no columns of '"
                     + fqn + "' (not a mapped subtype on this row) — the"
-                    + " run-time type is undecidable here");
+                    + " run-time type is undecidable here [row columns "
+                    + target.rowType().columns().stream().map(Type.Column::name).toList()
+                    + "; subtype tables " + target.assocs().keySet().stream()
+                            .filter(k -> k.startsWith(SUBTYPE_KEY)).toList() + "]");
         }
         return sub;
     }

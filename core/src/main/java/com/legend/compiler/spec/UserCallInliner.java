@@ -77,6 +77,10 @@ public final class UserCallInliner {
      * (extraction reads them structurally); variables still substitute. */
     private boolean configMode;
     private int fresh;
+    /** Per call frame: the names the frame's arguments mention (see
+     * {@link #bind}); empty outside any frame (top-level rewriting keeps
+     * the unconditional fresh renaming). */
+    private final ArrayDeque<java.util.Set<String>> captureRisk = new ArrayDeque<>();
 
     public UserCallInliner(SpecCompiler specs) {
         this(specs, null);
@@ -180,6 +184,7 @@ public final class UserCallInliner {
         }
         stack.push(key);
         names.push(shown);
+        captureRisk.push(namesIn(args));
         try {
             List<TypedSpec> body = specs.compile(call.callee()).body();
             Map<String, TypedSpec> callEnv = new LinkedHashMap<>();
@@ -221,6 +226,7 @@ public final class UserCallInliner {
         } finally {
             stack.pop();
             names.pop();
+            captureRisk.pop();
         }
     }
 
@@ -295,7 +301,12 @@ public final class UserCallInliner {
         for (int i = 0; i < args.size(); i++) {
             env.put(lam.parameters().get(i), args.get(i));
         }
-        return reduceStatements(lam.body(), env);
+        captureRisk.push(namesIn(args));
+        try {
+            return reduceStatements(lam.body(), env);
+        } finally {
+            captureRisk.pop();
+        }
     }
 
     // =====================================================================
@@ -335,6 +346,26 @@ public final class UserCallInliner {
     private TypedSpec rewriteSwitch(TypedSpec n, Map<String, TypedSpec> env) {
         return switch (n) {
             case TypedUserCall uc -> inlineCall(uc, env);
+
+            // pair(a, b).first / .second — a STRUCTURAL read of a pair the
+            // substitution made visible (a helper returning
+            // pair($plan, $plan->planToString(...)), read through a query
+            // let): the component itself; no pair value is ever built
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa -> {
+                TypedSpec src = rewrite(pa.source(), env);
+                if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall pc
+                        && pc.args().size() == 2
+                        && pc.callee().definition() != null
+                        && pc.callee().signatureKey().equals(
+                                com.legend.builtin.Pure.PAIR_KEY)
+                        && (pa.property().equals("first")
+                                || pa.property().equals("second"))) {
+                    yield pc.args().get(pa.property().equals("first") ? 0 : 1);
+                }
+                yield src == pa.source() ? pa
+                        : new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                                src, pa.property(), pa.info());
+            }
 
             case TypedEval ev -> {
                 TypedSpec fn = rewrite(ev.fn(), env);
@@ -596,12 +627,43 @@ public final class UserCallInliner {
         }
     }
 
-    /** Fresh-bind {@code name} into {@code scope}; returns the fresh name. */
+    /** Bind {@code name} into {@code scope}; returns the binder's name in
+     * the inlined body. A binder keeps its SOURCE name unless an
+     * argument of the call being inlined mentions that name (the one
+     * capture hazard of β-reduction: the argument lands under the
+     * binder) — the plan surface prints binders
+     * ({@code functionParameters = [optionalID:String[0..1]]}), so a
+     * name is renamed only when hygiene demands it. */
     private String bind(String name, Map<String, TypedSpec> scope,
             com.legend.compiler.element.type.ExprType info) {
+        // outside any call frame nothing is substituted under the binder
+        // (query-level lets stay put): no hazard, the source name stands
+        if (captureRisk.isEmpty() || !captureRisk.peek().contains(name)) {
+            scope.put(name, new TypedVariable(name, info));
+            return name;
+        }
         String renamed = "_i" + fresh++;
         scope.put(name, new TypedVariable(renamed, info));
         return renamed;
+    }
+
+    /** The variable names an argument list mentions (free or bound —
+     * the conservative capture set of a call frame). */
+    private static java.util.Set<String> namesIn(List<TypedSpec> args) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(args);
+        while (!work.isEmpty()) {
+            TypedSpec n = work.poll();
+            if (n instanceof TypedVariable v) {
+                out.add(v.name());
+            } else if (n instanceof TypedLambda l) {
+                out.addAll(l.parameters());
+            } else if (n instanceof TypedLet let) {
+                out.add(let.name());
+            }
+            work.addAll(n.children());
+        }
+        return out;
     }
 
     /** Element-wise REFERENCE equality — the identity-preservation
