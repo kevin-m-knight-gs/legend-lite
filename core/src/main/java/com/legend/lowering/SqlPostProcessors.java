@@ -41,19 +41,35 @@ public final class SqlPostProcessors {
      * INLINED runtime value (user helper calls already β-expanded).
      */
     public static Map<String, String> tableReplaceMap(TypedSpec runtimeArg) {
+        return hooks(runtimeArg, java.util.function.UnaryOperator.identity()).tableReplace();
+    }
+
+    /** The runtime argument's recognized SQL post-processors: the
+     * replaceTables renames and whether the CTE-extraction processor
+     * ({@code extractSubqueriesAsCTEs}) is installed. */
+    public record Hooks(Map<String, String> tableReplace, boolean extractCtes) {
+    }
+
+    /** {@code bind}: the caller's let bindings (a pair or a table bound
+     * outside the hook lambda: {@code let oldTable = ...; ...
+     * replaceTables($query, pair($oldTable, $newTable))}). */
+    public static Hooks hooks(TypedSpec runtimeArg,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
         Map<String, String> out = new LinkedHashMap<>();
-        collectConnections(runtimeArg, out);
-        return out;
+        boolean[] cte = {false};
+        collectConnections(runtimeArg, out, cte, bind);
+        return new Hooks(out, cte[0]);
     }
 
     private static void collectConnections(TypedSpec n,
-            Map<String, String> out) {
+            Map<String, String> out, boolean[] cte,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
         if (n instanceof TypedNewInstance ni) {
             TypedSpec aware = ni.properties().get(
                     "sqlQueryPostProcessorsConnectionAware");
             if (aware != null) {
                 for (TypedSpec hook : elements(aware)) {
-                    readHook(hook, out);
+                    readHook(hook, out, cte, bind);
                 }
             }
             // the PLAIN slot carries the same replaceTables shape (hook
@@ -71,7 +87,7 @@ public final class SqlPostProcessors {
                     // the 7 cteExtraction tests are adjudicated
                     // blocked-on-feature until an IR CTE-extraction pass
                     // exists.
-                    readHook(hook, out);
+                    readHook(hook, out, cte, bind);
                 }
             }
         }
@@ -83,13 +99,13 @@ public final class SqlPostProcessors {
                 TypedSpec hooks = cp.overrides().get(key);
                 if (hooks != null) {
                     for (TypedSpec hook : elements(hooks)) {
-                        readHook(hook, out);
+                        readHook(hook, out, cte, bind);
                     }
                 }
             }
         }
         for (TypedSpec c : n.children()) {
-            collectConnections(c, out);
+            collectConnections(c, out, cte, bind);
         }
     }
 
@@ -99,7 +115,28 @@ public final class SqlPostProcessors {
 
     /** One hook lambda: the ONLY recognized body is a terminal
      * {@code replaceTables($query, <pairs>)} call. */
-    private static void readHook(TypedSpec hook, Map<String, String> out) {
+    private static @com.legend.Nullable String calleeOf(TypedSpec n) {
+        return switch (n) {
+            case TypedNativeCall c -> c.callee().qualifiedName();
+            case com.legend.compiler.spec.typed.TypedUserCall u -> u.callee().qualifiedName();
+            default -> null;
+        };
+    }
+
+    private static final String EXTRACT_CTES_FQN =
+            "meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs";
+
+    private static void readHook(TypedSpec hook, Map<String, String> out,
+            boolean[] cte, java.util.function.UnaryOperator<TypedSpec> bind) {
+        // {s | ^Result<SelectSQLQuery|1>(values = $s->extractSubqueriesAsCTEs())}
+        // — the CTE-extraction processor (cteExtractionPostProcessor.pure:139)
+        if (hook instanceof TypedLambda cl && !cl.body().isEmpty()
+                && cl.body().get(cl.body().size() - 1) instanceof TypedNewInstance rni
+                && rni.properties().get("values") instanceof TypedSpec vals
+                && EXTRACT_CTES_FQN.equals(calleeOf(vals))) {
+            cte[0] = true;
+            return;
+        }
         // IDENTITY hook (ledger cluster 63): {query|$query->postprocess(
         // {rel|$rel})} — recognized-and-applied, and the application is
         // a no-op (the inner transform returns its argument). Any other
@@ -130,16 +167,16 @@ public final class SqlPostProcessors {
                     + " not a replaceTables lambda — post-processor"
                     + " recognizer pending for: " + hook);
         }
-        for (TypedSpec pair : elements(call.args().get(1))) {
-            TypedSpec p = peel(pair);
+        for (TypedSpec pair : elements(bind.apply(peel(call.args().get(1), bind)), bind)) {
+            TypedSpec p = peel(pair, bind);
             if (!(p instanceof TypedNativeCall pc)
                     || !pc.callee().qualifiedName().endsWith("::pair")
                     || pc.args().size() != 2) {
                 throw new NotImplementedException("replaceTables pair"
                         + " argument is not a literal pair(): " + pair);
             }
-            composeRename(out, tableName(pc.args().get(0)),
-                    tableName(pc.args().get(1)));
+            composeRename(out, tableName(pc.args().get(0), bind),
+                    tableName(pc.args().get(1), bind));
         }
     }
 
@@ -160,14 +197,15 @@ public final class SqlPostProcessors {
     /** {@code db->schema('X')->toOne()->table('Y')->toOne()} spelled as
      * the lowerer spells FROM sources: {@code Y}, or {@code X.Y} for a
      * non-default schema. */
-    private static String tableName(TypedSpec nav) {
-        TypedSpec cur = peel(nav);
+    private static String tableName(TypedSpec nav,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        TypedSpec cur = peel(nav, bind);
         if (cur instanceof TypedNativeCall t
                 && "meta::relational::metamodel::table"
                         .equals(t.callee().qualifiedName())
                 && t.args().size() == 2) {
             String table = stringOf(t.args().get(1), "table name");
-            TypedSpec sch = peel(t.args().get(0));
+            TypedSpec sch = peel(t.args().get(0), bind);
             if (sch instanceof TypedNativeCall s
                     && "meta::relational::metamodel::schema"
                             .equals(s.callee().qualifiedName())
@@ -190,9 +228,30 @@ public final class SqlPostProcessors {
     }
 
     /** toOne()/cast wrappers peel — identity for navigation. */
+    private static List<TypedSpec> elements(TypedSpec v,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        List<TypedSpec> out = new java.util.ArrayList<>();
+        for (TypedSpec e : elements(v)) {
+            out.add(bind.apply(e));
+        }
+        return out;
+    }
+
     private static TypedSpec peel(TypedSpec v) {
+        return peel(v, java.util.function.UnaryOperator.identity());
+    }
+
+    private static TypedSpec peel(TypedSpec v,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
         TypedSpec cur = v;
         while (true) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedVariable) {
+                TypedSpec bound = bind.apply(cur);
+                if (bound != cur) {
+                    cur = bound;
+                    continue;
+                }
+            }
             if (cur instanceof TypedNativeCall c && c.args().size() == 1
                     && (com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                             || c.callee().qualifiedName()
@@ -227,7 +286,72 @@ public final class SqlPostProcessors {
             case SqlSelect s -> applySelect(s, map);
             case SqlUnion u -> new SqlUnion(u.branches().stream()
                     .map(b -> apply(b, map)).toList(), u.all(), u.outputs());
-            default -> q;
+            case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(
+                    w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
+                            c.name(), apply(c.query(), map))).toList(),
+                    apply(w.body(), map));
+        };
+    }
+
+    /** The frame's recorded post-processing over a lowered query: the
+     * table renames, then CTE extraction when the processor is installed
+     * (the orchestrator supplies both facts — exec never calls here). */
+    public static SqlQuery applyRecorded(SqlQuery q, Map<String, String> tableReplace,
+            boolean extractCtes) {
+        SqlQuery out = apply(q, tableReplace);
+        return extractCtes ? extractSubqueriesAsCtes(out) : out;
+    }
+
+    // ---- CTE extraction (the engine's cteExtractionPostProcessor) ----
+
+    /** {@code extractSubqueriesAsCTEs}: every SUBSELECT in the FROM tree
+     * (the join tree's derived tables) becomes a common table expression
+     * {@code subquery_cte_<level>_<index>} — level = nesting depth from
+     * the root (1 = the root's own subselects), index = a per-level
+     * counter in tree order that carries across siblings; a subselect's
+     * OWN subselects extract first (the child's CTEs precede the
+     * parent's), and the reference keeps the derived table's alias. A
+     * query without subselects is itself. */
+    public static SqlQuery extractSubqueriesAsCtes(SqlQuery q) {
+        if (!(q instanceof SqlSelect root)) {
+            return q;
+        }
+        List<com.legend.sql.SqlWith.Cte> ctes = new java.util.ArrayList<>();
+        java.util.Map<Integer, Integer> levelIndex = new java.util.HashMap<>();
+        SqlSelect body = extractLevel(root, 1, levelIndex, ctes);
+        return ctes.isEmpty() ? q : new com.legend.sql.SqlWith(ctes, body);
+    }
+
+    private static SqlSelect extractLevel(SqlSelect select, int level,
+            java.util.Map<Integer, Integer> levelIndex,
+            List<com.legend.sql.SqlWith.Cte> out) {
+        SqlSource from = extractSource(select.from(), level, levelIndex, out);
+        return from == select.from() ? select : new SqlSelect(select.projections(),
+                select.distinct(), from, select.where(), select.groupBy(),
+                select.having(), select.qualify(), select.orderBy(), select.limit(),
+                select.offset(), select.outputs());
+    }
+
+    private static SqlSource extractSource(SqlSource src, int level,
+            java.util.Map<Integer, Integer> levelIndex,
+            List<com.legend.sql.SqlWith.Cte> out) {
+        return switch (src) {
+            case SqlSource.Join j -> {
+                SqlSource l = extractSource(j.left(), level, levelIndex, out);
+                SqlSource r = extractSource(j.right(), level, levelIndex, out);
+                yield l == j.left() && r == j.right() ? j
+                        : new SqlSource.Join(l, r, j.kind(), j.on());
+            }
+            case SqlSource.Subselect sub when sub.inner() instanceof SqlSelect inner -> {
+                // the child's own subselects first (deeper CTEs precede)
+                SqlSelect processed = extractLevel(inner, level + 1, levelIndex, out);
+                int index = levelIndex.getOrDefault(level, 0) + 1;
+                levelIndex.put(level, index);
+                String name = "subquery_cte_" + level + "_" + index;
+                out.add(new com.legend.sql.SqlWith.Cte(name, processed));
+                yield new SqlSource.Table(name, sub.alias(), sub.outputs());
+            }
+            default -> src;
         };
     }
 

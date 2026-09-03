@@ -8,7 +8,7 @@ import java.util.List;
  * select) keeps a bare {@code a UNION ALL b} renderable without a wrapping
  * {@code SELECT *} &mdash; the lean-SQL tenet applied to set operations.
  */
-public sealed interface SqlQuery permits SqlSelect, SqlUnion {
+public sealed interface SqlQuery permits SqlSelect, SqlUnion, SqlWith {
 
     /** The query's output columns, with Pure types (the typed-results contract). */
     List<OutputCol> outputs();

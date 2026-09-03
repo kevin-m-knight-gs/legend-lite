@@ -685,6 +685,11 @@ public final class SqlTypeCensus {
             u.branches().forEach(SqlTypeCensus::walk);
             return;
         }
+        if (q instanceof com.legend.sql.SqlWith w) {
+            w.ctes().forEach(c -> walk(c.query()));
+            walk(w.body());
+            return;
+        }
         SqlSelect s = (SqlSelect) q;
         List<SqlSource> sources = new ArrayList<>();
         collect(s.from(), sources);

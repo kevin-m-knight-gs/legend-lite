@@ -133,6 +133,12 @@ public final class ScanColumns {
                     scanQuery(b, outer, out, root);
                 }
             }
+            case com.legend.sql.SqlWith w -> {
+                for (var c : w.ctes()) {
+                    scanQuery(c.query(), outer, out, root);
+                }
+                scanQuery(w.body(), outer, out, root);
+            }
         }
     }
 
@@ -269,6 +275,12 @@ public final class ScanColumns {
                 for (SqlQuery b : u.branches()) {
                     resolveThrough(b, col, ctx, outer, out);
                 }
+            }
+            case com.legend.sql.SqlWith w -> {
+                for (var c : w.ctes()) {
+                    resolveThrough(c.query(), col, ctx, outer, out);
+                }
+                resolveThrough(w.body(), col, ctx, outer, out);
             }
         }
     }

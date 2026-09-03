@@ -111,6 +111,19 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     protected void query(StringBuilder sb, SqlQuery q, int depth) {
         switch (q) {
+            case com.legend.sql.SqlWith w -> {
+                sb.append("WITH ");
+                for (int i = 0; i < w.ctes().size(); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(w.ctes().get(i).name()).append(" AS (");
+                    query(sb, w.ctes().get(i).query(), depth + 1);
+                    sb.append(')');
+                }
+                nl(sb, depth);
+                query(sb, w.body(), depth);
+            }
             case SqlSelect s -> select(sb, s, depth);
             case SqlUnion u -> {
                 String op = u.all() ? "UNION ALL" : "UNION";

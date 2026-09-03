@@ -297,8 +297,11 @@ final class StatementExecutor {
             // splice hook as ordinary statements — an assert reading an
             // execute() handle adjudicates over the spliced chain
             // (audit 19d B2; the splice pin: AssertVerdictSpliceTest).
+            // a verdict over a frame runs under THAT frame's post-processing
+            // (its table renames): the rows leg re-executes the frame's
+            // values exactly as the frame ran
             ExecutionResult verdict = AssertVerdicts.tryAdjudicate(
-                    bare, letPrefix, specs, env,
+                    bare, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env),
                     spliceHook(execFrames, letPrefix, specs, env));
             if (verdict != null) {
                 result = verdict;
@@ -353,7 +356,7 @@ final class StatementExecutor {
                     && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
                     && readsStringEntry(preRoot)) {
                 ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
-                        preRoot, letPrefix, specs, env,
+                        preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env),
                         spliceHook(execFrames, letPrefix, specs, env));
                 if (inlinedVerdict != null) {
                     result = inlinedVerdict;
@@ -2072,9 +2075,13 @@ final class StatementExecutor {
                 rtArg = new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(java.util.List.of(rtArg)).get(0);
             }
-            java.util.Map<String, String> tr = com.legend.lowering
-                    .SqlPostProcessors.tableReplaceMap(rtArg);
+            final java.util.List<TypedSpec> lp0 = letPrefix;
+            com.legend.lowering.SqlPostProcessors.Hooks hooks = com.legend.lowering
+                    .SqlPostProcessors.hooks(rtArg, v -> com.legend.compiler.spec
+                            .ExecuteChainAssembly.letBound(v, lp0));
+            java.util.Map<String, String> tr = hooks.tableReplace();
             com.legend.exec.PostProcessBoundary.record(tr);
+            com.legend.exec.PostProcessBoundary.recordExtractCtes(hooks.extractCtes());
             if (!tr.isEmpty()) {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
@@ -2699,8 +2706,10 @@ final class StatementExecutor {
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
         // post-process, then two-phase dynamic pivot (DynamicPivot doc)
         plan = com.legend.exec.DynamicPivot.staticize(
-                com.legend.lowering.SqlPostProcessors.apply(plan,
-                        env.tableReplace()), dialect, connection);
+                com.legend.lowering.SqlPostProcessors.applyRecorded(plan,
+                        env.tableReplace(),
+                        com.legend.exec.PostProcessBoundary.extractCtes()),
+                dialect, connection);
         // DEFERRED relation-toString (dynamic-pivot inners): the column
         // list exists only NOW, post-staticize. The LOWERING layer owns
         // the composition pass (invariant 6d — exec never calls the

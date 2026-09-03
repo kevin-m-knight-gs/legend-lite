@@ -1779,9 +1779,35 @@ engine's SQL-AST conversion library (toPostgresModel.pure) over
 constructed relational-metamodel instances — group G, a Pure-library-
 over-rows leg.
 
+**Batch 29 — SQL POST-PROCESSORS (2026-09-03): ratchet 463/2110 →
+451/2122 (+12, ZERO lost).** The engine's CTE-extraction processor
+(cteExtractionPostProcessor.pure:47-125) is an SQL-IR pass
+(`SqlPostProcessors.extractSubqueriesAsCtes`): every subselect in the
+FROM tree becomes `subquery_cte_<level>_<index>` — level = nesting depth
+from the root, index = a per-level counter in tree order carrying across
+siblings, a child's CTEs extracted before its parent's, the derived
+table's alias kept on the reference. The result is a new query variant
+`SqlWith(ctes, body)` (the sealed SqlQuery's third member; every
+query switch gained an arm; both renderers spell it — the engine style
+as `with a as (...), b as (...) select ...`). The runtime's
+`sqlQueryPostProcessors = [{s | ^Result(values = $s->extractSubqueriesAsCTEs())}]`
+hook is recognized (`SqlPostProcessors.hooks` → `Hooks(tableReplace,
+extractCtes)`; the flag rides `PostProcessBoundary` beside the renames and
+`SqlPostProcessors.applyRecorded` applies both at the execution and
+render seams — exec never calls the middle-end, invariant 6d). replaceTables
+pairs bound through the caller's lets (`let oldTable = ...; pair($oldTable,
+$newTable)`, `[$pair1, $pair2]`) resolve: the recognizer chases variables
+through a binder the frame builder supplies. And a real bug: a VERDICT
+over a frame ran its rows leg under the STATEMENT env, not the frame's
+post-processing env — the golden (renamed table, empty) gave 0 rows and
+our re-execution 7; `tryAdjudicate` now runs under `frameReplaceEnv`.
+Remainder in the family, named: `SQLQuery`-typed hooks (3 — other
+processors: DB2 column rename, transformJoinOp, filter push-down),
+`nonExecutable` (1).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 463 fallbacks / 2110 flipped (batches 14–28 = group D,
+legs).** State: 451 fallbacks / 2122 flipped (batches 14–29 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

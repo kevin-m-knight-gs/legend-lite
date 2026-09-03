@@ -76,6 +76,14 @@ public abstract class SqlRewriter {
                 yield union(bs == u.branches() ? u
                         : new SqlUnion(bs, u.all(), u.outputs()));
             }
+            case SqlWith w -> {
+                List<SqlWith.Cte> cs = mapList(w.ctes(), c -> {
+                    SqlQuery q2 = rewrite(c.query());
+                    return q2 == c.query() ? c : new SqlWith.Cte(c.name(), q2);
+                });
+                SqlQuery b2 = rewrite(w.body());
+                yield cs == w.ctes() && b2 == w.body() ? w : new SqlWith(cs, b2);
+            }
         };
     }
 

@@ -329,6 +329,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             case SqlUnion u -> u.branches().forEach(
                     b -> planQuery(b, groups, true));
+            case com.legend.sql.SqlWith w -> {
+                w.ctes().forEach(c -> planQuery(c.query(), groups, true));
+                planQuery(w.body(), groups, true);
+            }
         }
     }
 
@@ -683,6 +687,21 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected void query(StringBuilder sb, com.legend.sql.SqlQuery q,
             int depth) {
+        // engine CTE text: 'with a as (...), b as (...) select ...'
+        if (q instanceof com.legend.sql.SqlWith w) {
+            sb.append("with ");
+            for (int i = 0; i < w.ctes().size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(w.ctes().get(i).name()).append(" as (");
+                query(sb, w.ctes().get(i).query(), depth);
+                sb.append(')');
+            }
+            sb.append(' ');
+            query(sb, w.body(), depth);
+            return;
+        }
         // engine union text: one line, lowercase, branches joined inline
         if (q instanceof com.legend.sql.SqlUnion u) {
             String op = u.all() ? " union all " : " union ";

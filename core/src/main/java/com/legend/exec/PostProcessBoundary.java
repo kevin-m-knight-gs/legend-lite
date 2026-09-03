@@ -31,4 +31,17 @@ public final class PostProcessBoundary {
     public static Map<String, String> tableReplace() {
         return TABLE_REPLACE.get();
     }
+
+    private static final ThreadLocal<Boolean> EXTRACT_CTES =
+            ThreadLocal.withInitial(() -> false);
+
+    /** Whether the frame's runtime installs the CTE-extraction processor. */
+    public static void recordExtractCtes(boolean on) {
+        EXTRACT_CTES.set(on);
+    }
+
+    public static boolean extractCtes() {
+        return EXTRACT_CTES.get();
+    }
+
 }

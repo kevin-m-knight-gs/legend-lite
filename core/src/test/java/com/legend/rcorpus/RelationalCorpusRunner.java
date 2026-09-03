@@ -808,8 +808,10 @@ public class RelationalCorpusRunner {
                     // as they do into the run, so the milestoning family's
                     // sql-asserts row-verify as platform-arm verdicts (lane
                     // move; +76 flips, 0 lost)
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 22,
-                    "M1 h2-exec verified fell below the 22 floor: "
+                    // 22 -> 20 (batch 29, post-processors): the replaceTables
+                    // tests' sql-asserts left the walk's lane (lane move)
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 20,
+                    "M1 h2-exec verified fell below the 20 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -1406,10 +1408,21 @@ public class RelationalCorpusRunner {
             // ->distinct() == [true]` unrolls per literal element and each
             // element's assert adjudicates through the existing arms
             // (sqlstring 13). +24, 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(463L,
+            // 463/2110 -> 451/2122 (batch 29 — SQL POST-PROCESSORS,
+            // 2026-09-03): the engine's CTE-extraction processor is an
+            // SQL-IR pass (SqlPostProcessors.extractSubqueriesAsCtes — every
+            // FROM-tree subselect becomes subquery_cte_<level>_<index>, the
+            // engine's numbering; a new WITH query variant SqlWith renders
+            // in both styles), recognized from the runtime's
+            // sqlQueryPostProcessors hook; replaceTables pairs bound through
+            // the caller's lets resolve (the recognizer chases lets); a
+            // verdict over a frame runs under THAT frame's post-processing
+            // env (the rows leg re-executed the frame WITHOUT its renames).
+            // +12 (cteExtraction 7, replaceTables 5), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(451L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2110L,
+            org.junit.jupiter.api.Assertions.assertEquals(2122L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1620,8 +1633,9 @@ public class RelationalCorpusRunner {
                     // the oracle SPI as platform-arm verdicts.
                     // 164 -> 128 (batch 26): the same lane move as M1_VERIFIED
                     // 54 -> 22.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 128,
-                    "M1 h2-exec rescued fell below the 128 floor: "
+                    // 128 -> 127 (batch 29): the same lane move
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 127,
+                    "M1 h2-exec rescued fell below the 127 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

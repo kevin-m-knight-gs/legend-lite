@@ -218,6 +218,11 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 29 (SQL post-processors — CTE extraction, let-bound replaceTables, 2026-09-03): chain 6m00s** —
+G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
+463/2110 → 451/2122 (+12, 0 lost); M1 verified floor 22 → 20, rescued 128 → 127
+(lane moves); other pins unchanged.
+
 **Batch 28 (INLINE handles on demand + the unrolled quantified verdict, 2026-09-03): chain 6m00s** —
 G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
 487/2086 → 463/2110 (+24, 0 lost); AssertVerdicts ledger pin 1459 → 1511 (a verdict

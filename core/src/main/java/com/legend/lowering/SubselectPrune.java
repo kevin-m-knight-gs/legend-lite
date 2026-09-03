@@ -84,6 +84,10 @@ final class SubselectPrune {
         switch (q) {
             case SqlSelect s -> collectSelect(s, r);
             case SqlUnion u -> u.branches().forEach(b -> collectQuery(b, r));
+            case com.legend.sql.SqlWith w -> {
+                w.ctes().forEach(c -> collectQuery(c.query(), r));
+                collectQuery(w.body(), r);
+            }
         }
     }
 
@@ -277,6 +281,10 @@ final class SubselectPrune {
             case SqlUnion u -> new SqlUnion(
                     u.branches().stream().map(b -> rewriteQuery(b, r)).toList(),
                     u.all(), u.outputs());
+            case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(
+                    w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
+                            c.name(), rewriteQuery(c.query(), r))).toList(),
+                    rewriteQuery(w.body(), r));
         };
     }
 

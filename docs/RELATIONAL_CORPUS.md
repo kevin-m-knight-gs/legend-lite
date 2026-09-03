@@ -51,8 +51,8 @@ shared source registered by several families cannot double-count. Run with
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
-| postprocessor/tests | 30 | 25 | 1 | 4 | 0 | 0 | 0 | 0 | 3 |
+| postprocessor | 7 | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| postprocessor/tests | 30 | 25 | 1 | 4 | 0 | 0 | 0 | 0 | 0 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | sqlDialectTranslation | 21 | 1 | 0 | 10 | 10 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2367** | 50 | 111 | 47 | 13 | 13 | 29 | 93 |
+| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 90 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2367 PASS = 2235 clean + 132 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 93; flags overlap — the union is 132).
+SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2245 clean + 129 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 90; flags overlap — the union is 129).
 
 ### mapping walls (dropped at assembly)
 
@@ -824,7 +824,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2367 PASS = 2235 clean + 132 carrying softness 
 - 9x no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - 9x host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - 8x Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], pos=SourceInfo[sourceId=, startLine=139, startColumn=121, endLine=139, endColumn=143]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=GenericType[rawFqn=meta::pure::metamodel::function::LambdaFunction, arguments=[FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]
 - 3x unbound variable '$_nr2'
 - 2x unbound variable '$collection'
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
@@ -851,6 +850,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2367 PASS = 2235 clean + 132 carrying softness 
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
+- 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 
 ### per-test outcomes (non-passing)
 
@@ -935,13 +935,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2367 PASS = 2235 clean + 132 carrying softness 
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - ERROR testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testComplexSubQueries [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
-- ERROR testDeepSubQueries [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
-- ERROR testMultipleSubQueries [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
-- ERROR testNoSubQueries [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
-- ERROR testSingleSubQueryFromOperations [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
-- ERROR testSingleSubQueryFromView [postprocessor]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::pos
 - ERROR testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[query], body=[TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::nonExecutable, typeParameters=[], multiplicityParameters=[
 - ERROR testDb2ColumnRename [postprocessor/tests]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
