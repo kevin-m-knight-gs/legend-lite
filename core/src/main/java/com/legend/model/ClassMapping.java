@@ -182,6 +182,34 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      *                          (engine parity: {@code RelationalMapping.variantIdentity}
      *                          in legend-engine's PureModelBuilder).
      */
+    /** The AggregationAware node's aggregate views (engine
+     * aggregateSetImplementations, in declaration order). */
+    record AggregationAware(List<AggregateView> views) {
+        public AggregationAware {
+            views = views == null ? List.of() : List.copyOf(views);
+        }
+    }
+
+    /** One aggregate view: its specification (engine AggregateSpecification —
+     * canAggregate, the group-by functions and the map/aggregate value
+     * pairs, {@code $this}-lambdas over the class kept as SYNTAX facts and
+     * typed once on first routing) and its set (a non-root Relational
+     * mapping of the same class, id {@code <outer>_Aggregate_<index>}). */
+    record AggregateView(int index, boolean canAggregate,
+            List<com.legend.protocol.spec.ValueSpecification> groupByFunctions,
+            List<AggregateValue> aggregateValues, Relational set) {
+        public AggregateView {
+            groupByFunctions = groupByFunctions == null ? List.of() : List.copyOf(groupByFunctions);
+            aggregateValues = aggregateValues == null ? List.of() : List.copyOf(aggregateValues);
+            Objects.requireNonNull(set, "set");
+        }
+    }
+
+    /** {@code (~mapFn: ..., ~aggregateFn: ...)}. */
+    record AggregateValue(com.legend.protocol.spec.ValueSpecification mapFn,
+            com.legend.protocol.spec.ValueSpecification aggregateFn) {
+    }
+
     record Relational(
             String className,
             @com.legend.Nullable String setId,
@@ -195,15 +223,23 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             List<PropertyMapping> propertyMappings,
             @com.legend.Nullable String sourceUrl,
             java.util.Map<String, String> propertyTargetSets,
-            boolean aggregationAwareMain) implements ClassMapping {
+            @com.legend.Nullable AggregationAware aggregation) implements ClassMapping {
 
         // NO short overload: a defaulted propertyTargetSets silently dropped
         // prop[setId] routing at rebuild sites (remediation T2.2); every
         // construction names every field.
-        // aggregationAwareMain: this set IS an AggregationAware mapping's
-        // ~mainMapping (the engine's mainSetImplementation, set id
-        // <setId>_Main) — the execution-activity channel reports the
-        // routed rewrite for such classes (AggregationAwareActivity).
+        // aggregation: non-null = this set IS an AggregationAware mapping's
+        // ~mainMapping (the engine's mainSetImplementation) and the NODE
+        // carries the aggregate views with their specifications — the
+        // engine's AggregationAwareSetImplementation is ONE node (main +
+        // aggregateSetImplementations); every rebuild re-spells it, so no
+        // sidecar can drop it. The router picks a view per query
+        // (AggregationAwareRouting); the views compile as sets like any.
+
+        /** Whether this set is an AggregationAware mapping's main set. */
+        public boolean aggregationAwareMain() {
+            return aggregation != null;
+        }
 
         public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");

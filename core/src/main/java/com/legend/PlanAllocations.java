@@ -250,7 +250,8 @@ final class PlanAllocations {
      * none), and no rewritten query is printed from Java (the routed
      * query as rows is its own leg). */
     static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
-            @com.legend.Nullable String sql, StatementExecutor.ExecEnv env) {
+            @com.legend.Nullable String sql, @com.legend.Nullable String rewrittenQuery,
+            StatementExecutor.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(ec);
         if (sql == null || env.planRows().containsKey(scope)) {
             return;
@@ -258,8 +259,18 @@ final class PlanAllocations {
         java.util.Map<String, java.util.List<java.util.List<String>>> rows =
                 new java.util.LinkedHashMap<>();
         rows.put("results", java.util.List.of(java.util.List.of(scope)));
-        rows.put("activities", java.util.List.of(java.util.List.of(
-                scope + "/0", scope, "0", "RelationalActivity", sql, "", "")));
+        java.util.List<java.util.List<String>> acts = new java.util.ArrayList<>();
+        if (rewrittenQuery != null) {
+            // the engine records the aggregation-aware ROUTING activity
+            // first (it happens at routing, before execution): the routed
+            // query print names the set the router chose
+            acts.add(java.util.List.of(scope + "/0", scope, "0",
+                    "AggregationAwareActivity", "", "", rewrittenQuery));
+        }
+        int k = acts.size();
+        acts.add(java.util.List.of(scope + "/" + k, scope, Integer.toString(k),
+                "RelationalActivity", sql, "", ""));
+        rows.put("activities", acts);
         env.planRows().put(scope, rows);
     }
 

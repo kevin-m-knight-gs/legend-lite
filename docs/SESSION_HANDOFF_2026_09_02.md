@@ -1574,12 +1574,51 @@ testSQLComments (engine trace-id comment). NOT a bug after all: the NavMateriali
 was the inliner loop re-rendering the same query; a depth guard was
 tried and REMOVED.
 
+**Batch 25 — AGGREGATION-AWARE ROUTING DONE RIGHT (2026-09-03, the user's
+challenge "why not fixing agg aware correctly?"): ratchet unchanged
+581/1992 (0 lost; the five nonGroupBy rewrittenQuery reads now flip
+through ROWS, not the Java fold).** The AggregationAware element is ONE
+node on the mapping AST (no sidecar — the user's catch): the flattened
+main Relational carries an `aggregation` component
+(`ClassMapping.AggregationAware` → `AggregateView`s: index, canAggregate,
+the group-by and map/aggregate specification lambdas as SYNTAX facts, and
+the view's own Relational set, non-root, id `<outer>_Aggregate_<i>` — the
+engine's spelling). Every rebuild site re-spells the component (16
+constructions), the name resolver and the store-substitution pre-pass
+recurse into the views (both bugs found by probing: an unqualified join
+db, an unqualified class name). At normalization each view compiles as a
+SET like any set (`AggregateViewLift`: lifted function + non-root
+binding) and the main binding carries the views' facts
+(`ClassBinding.AggregateViewFacts`); class-level lookup skips view ids
+(`.all()` is the main set). The DECISION is the router
+(`resolver.AggregationAwareRouting`, the engine's aggregationAware.pure
+rules): a groupBy over a filtered getAll canonicalizes its group keys,
+aggregate map/reduce lambdas and filter predicates to project paths
+(`generateProjectPath`: property steps over the root, no-op functions
+elided, automap folded, other functions by FQN); the specification
+lambdas type once with `$this` bound to the class
+(`SpecCompiler.typeExpression(expr, bindings)`); `canRewrite` = path in
+the view's group-by paths or every sub-expression rewritable; the first
+view whose group-by and aggregate matches hold (canAggregate=false
+demanding mutual coverage) wins and `StoreResolver.resolveObject` builds
+the class source from THAT set id. Receipt: testRewriteSwitchToProdLine
+YearTable's SQL now reads FROM user_view_multi_agg.SalesTable_ProdLine_Year
+(the golden's table). The activity row records the same choice
+(`registerActivityRows` adds the AggregationAwareActivity first, the
+engine's order; the routed print names the chosen set) and the
+`rewrittenQuery` Java FOLD is deleted for good (`AggAwareActivities`
+remains the routed-query PRINTER — the platform's spelling of the routed
+tree; routed-tree rows + a Pure printer is the later leg). The
+NavMaterializer depth guard tried in batch 24 was a misdiagnosis and is
+gone: the "recursion" was the inliner loop.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 581 fallbacks / 1992 flipped (batches 14–24 = group D,
+legs).** State: 581 fallbacks / 1992 flipped (batches 14–25 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
-expression tree as rows, execution activities as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
+expression tree as rows, execution activities as rows, aggregation-aware
+routing), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

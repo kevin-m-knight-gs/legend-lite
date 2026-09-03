@@ -321,7 +321,8 @@ public final class MappingNormalizer {
                                         declaredPrimaryKeyColumns(cm),
                                         declaredKeys.getOrDefault(SetKeyFacts.setKey(rSrc),
                                                 MappingDefinition.ClassBinding.DeclaredKeys.NONE),
-                                        relationalSourceOf(rSrc))
+                                        relationalSourceOf(rSrc),
+                            List.of())
                                 : new MappingDefinition.ClassBinding.Pure(
                                         cm.className(), cm.setId(),
                                         cm.extendsSetId(), /*root*/ false,
@@ -357,6 +358,10 @@ public final class MappingNormalizer {
                 continue;
             }
             lifted.add(fn);
+            if (cm instanceof ClassMapping.Relational aggMain
+                    && aggMain.aggregation() != null) {
+                AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys);
+            }
             classBindings.add(cm instanceof ClassMapping.Relational rSrc
                     ? new MappingDefinition.ClassBinding.Relational(
                             cm.className(), cm.setId(), cm.extendsSetId(),
@@ -364,7 +369,8 @@ public final class MappingNormalizer {
                             declaredPrimaryKeyColumns(cm),
                             declaredKeys.getOrDefault(SetKeyFacts.setKey(rSrc),
                                     MappingDefinition.ClassBinding.DeclaredKeys.NONE),
-                            relationalSourceOf(rSrc))
+                            relationalSourceOf(rSrc),
+                            AggregateViewLift.facts(rSrc))
                     : new MappingDefinition.ClassBinding.Pure(
                             cm.className(), cm.setId(), cm.extendsSetId(),
                             cm.root(), fn.qualifiedName(),
@@ -429,7 +435,8 @@ public final class MappingNormalizer {
                             fn.qualifiedName(),
                             declaredPrimaryKeyColumns(rcm),
                             SetKeyFacts.declaredKeysOf(rcm),
-                            relationalSourceOf(rcm)));
+                            relationalSourceOf(rcm),
+                            List.of()));
                 }
             }
         }
@@ -532,7 +539,8 @@ public final class MappingNormalizer {
                         cb.root(), fnFqn, cb.primaryKeyColumns(),
                         MappingDefinition.ClassBinding.DeclaredKeys.NONE,
                         inlineRootSource(srcBody, model, md.qualifiedName(),
-                                cb.classFqn(), seen)));
+                                cb.classFqn(), seen),
+                            List.of()));
             } else {
                 classBindings.add(new MappingDefinition.ClassBinding.Pure(
                         cb.classFqn(), cb.setId(), cb.extendsSetId(),
@@ -908,7 +916,7 @@ public final class MappingNormalizer {
                 !child.primaryKey().isEmpty()
                         ? child.primaryKey() : flatParent.primaryKey(),
                 new ArrayList<>(merged.values()), child.sourceUrl(),
-                child.propertyTargetSets(), child.aggregationAwareMain());
+                child.propertyTargetSets(), child.aggregation());
     }
 
     // ====================================================================
@@ -1057,7 +1065,7 @@ public final class MappingNormalizer {
         return synthesizeClassMapping(md, cm, model, false);
     }
 
-    private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
+    static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model,
                                                             boolean setDiscriminated) {
@@ -1736,7 +1744,7 @@ public final class MappingNormalizer {
                     rcm.extendsSetId(), rcm.root(), inferred, rcm.filter(),
                     rcm.distinct(), rcm.groupBy(), rcm.primaryKey(),
                     rcm.propertyMappings(), rcm.sourceUrl(),
-                    rcm.propertyTargetSets(), rcm.aggregationAwareMain());
+                    rcm.propertyTargetSets(), rcm.aggregation());
         }
         var vMain = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "table-backed set without ~mainTable");
@@ -1773,7 +1781,7 @@ public final class MappingNormalizer {
      * stamp {@code Json}; a set whose synthesis is about to wall stamps
      * {@code Undeclared} (unreachable on a lifted binding — the wall
      * poisons first). */
-    private static MappingDefinition.RelationalSource
+    static MappingDefinition.RelationalSource
             relationalSourceOf(ClassMapping.Relational rcm) {
         if (rcm.sourceUrl() != null) {
             return new MappingDefinition.RelationalSource.Json(rcm.sourceUrl());
@@ -2028,7 +2036,7 @@ public final class MappingNormalizer {
                     rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                     rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
-                    rcm.propertyTargetSets(), rcm.aggregationAwareMain());
+                    rcm.propertyTargetSets(), rcm.aggregation());
             return synthTableBackedMapping(md, overView, model,
                     /*backingView*/ null, viewSource);
         }
@@ -2059,7 +2067,7 @@ public final class MappingNormalizer {
                 rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                 new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
                 mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
-                rewrittenPms, null, rcm.propertyTargetSets(), rcm.aggregationAwareMain());
+                rewrittenPms, null, rcm.propertyTargetSets(), rcm.aggregation());
         // VIEW-ON-VIEW on the fallback route: the inferred root may itself
         // be a view (OrgViewOnView -> OrgView -> Org) — flatten another
         // layer; the rewritten PMs now speak the inner view's columns
@@ -2251,7 +2259,7 @@ public final class MappingNormalizer {
                     rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                     rcm.mainTable(), null, rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
-                    rcm.propertyTargetSets(), rcm.aggregationAwareMain());
+                    rcm.propertyTargetSets(), rcm.aggregation());
             return synthTableBackedParts(md, noFilter, model, backingView, innerSrc);
         }
 
@@ -2465,7 +2473,7 @@ public final class MappingNormalizer {
      * mapping identity first; the table's PK is only the fallback and is
      * resolved by the CONSUMER, which has store access). Only plain
      * ColumnRef entries carry a name — expression keys contribute none. */
-    private static List<String> declaredPrimaryKeyColumns(ClassMapping cm) {
+    static List<String> declaredPrimaryKeyColumns(ClassMapping cm) {
         if (!(cm instanceof ClassMapping.Relational rcm)) {
             return List.of();
         }

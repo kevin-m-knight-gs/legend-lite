@@ -44,7 +44,8 @@ final class AggAwareActivities {
     }
 
     /** The routed print for an aggregation-aware frame, else null. */
-    static @Nullable String rewrittenQuery(TypedSpec chain, ModelContext ctx) {
+    static @Nullable String rewrittenQuery(TypedSpec chain, ModelContext ctx,
+            com.legend.compiler.spec.SpecCompiler specs) {
         String mappingFqn = null;
         TypedSpec cur = chain;
         List<TypedSpec> ops = new ArrayList<>();
@@ -72,40 +73,28 @@ final class AggAwareActivities {
         if (root == null || mappingFqn == null) {
             return null;
         }
-        String setId = aggAwareSetId(ctx, mappingFqn, root.classFqn());
+        String setId = com.legend.resolver.AggregationAwareRouting.mainSetId(ctx, mappingFqn, root.classFqn());
         if (setId == null) {
             return null;
         }
         String simple = root.classFqn()
                 .substring(root.classFqn().lastIndexOf("::") + 2);
-        StringBuilder sb = new StringBuilder(" | [").append(setId)
-                .append("_Main Class ").append(simple).append("].all()");
+        // the router's choice (AggregationAwareRouting): the getAll's set
+        // holder names the aggregate view the query rewrote to, else the
+        // main set
+        TypedSpec top = ops.isEmpty() ? null : ops.get(ops.size() - 1);
+        String chosen = top == null ? null
+                : com.legend.resolver.AggregationAwareRouting.chooseSet(ctx, specs,
+                        mappingFqn, root, ops.subList(0, ops.size() - 1), top);
+        StringBuilder sb = new StringBuilder(" | [")
+                .append(chosen != null ? chosen : setId + "_Main")
+                .append(" Class ").append(simple).append("].all()");
         for (TypedSpec op : ops) {
             if (!step(op, sb)) {
                 return null;
             }
         }
         return sb.append(';').toString();
-    }
-
-    /** The AggregationAware main set id binding {@code classFqn} in
-     * {@code mappingFqn} (includes walked), else null. */
-    private static @Nullable String aggAwareSetId(ModelContext ctx,
-            String mappingFqn, String classFqn) {
-        var md = ctx.findMapping(mappingFqn).orElse(null);
-        if (md == null) {
-            return null;
-        }
-        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-            if (cb.classFqn().equals(classFqn)
-                    && cb instanceof com.legend.model.MappingDefinition.ClassBinding.Relational rb
-                    && rb.source() instanceof com.legend.model.MappingDefinition
-                            .RelationalSource.Table t
-                    && t.aggregationAwareMain()) {
-                return cb.setId();
-            }
-        }
-        return null;
     }
 
     private static boolean step(TypedSpec op, StringBuilder sb) {

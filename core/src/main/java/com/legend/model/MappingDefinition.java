@@ -100,7 +100,8 @@ public record MappingDefinition(
                 String functionFqn,
                 List<String> primaryKeyColumns,
                 DeclaredKeys declared,
-                RelationalSource source) implements ClassBinding {
+                RelationalSource source,
+                List<AggregateViewFacts> aggregateViews) implements ClassBinding {
             public Relational {
                 Objects.requireNonNull(classFqn, "classFqn");
                 Objects.requireNonNull(functionFqn, "functionFqn");
@@ -108,6 +109,23 @@ public record MappingDefinition(
                 Objects.requireNonNull(declared, "declared");
                 primaryKeyColumns = primaryKeyColumns == null ? List.of()
                         : List.copyOf(primaryKeyColumns);
+                aggregateViews = aggregateViews == null ? List.of()
+                        : List.copyOf(aggregateViews);
+            }
+        }
+        /** An AggregationAware main set's view FACTS (the engine's
+         * AggregateSpecification, stamped on the compiled binding — the
+         * router matches a query's project paths against them): the
+         * view's set id (its own compiled binding, non-root), whether it
+         * may serve any aggregation, and the specification lambdas as
+         * syntax (typed once on first routing). */
+        record AggregateViewFacts(String setId, boolean canAggregate,
+                List<com.legend.protocol.spec.ValueSpecification> groupByFunctions,
+                List<ClassMapping.AggregateValue> aggregateValues) {
+            public AggregateViewFacts {
+                Objects.requireNonNull(setId, "setId");
+                groupByFunctions = groupByFunctions == null ? List.of() : List.copyOf(groupByFunctions);
+                aggregateValues = aggregateValues == null ? List.of() : List.copyOf(aggregateValues);
             }
         }
 

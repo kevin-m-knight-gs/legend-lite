@@ -252,10 +252,11 @@ public final class MappingFromProtocol {
             return relationFunction(rel);
         }
         if (cm instanceof Protocol.PClassMappingAggregationAware agg) {
-            // FLATTENED BY DESIGN (§M0): the model keeps ~mainMapping flagged
-            // aggregationAwareMain and DROPS the aggregate Views, so a query
-            // asserting rewrite ACTIVITY fails honestly instead of silently
-            // claiming a rewrite happened (MappingGrammarParser:456-512).
+            // The AggregationAware element is ONE node: the ~mainMapping
+            // (the class's root set, flagged by its non-null aggregation
+            // component) carrying the aggregate Views with their
+            // specifications (batch 25, 2026-09-03 — was: flattened, views
+            // dropped, so no rewrite could ever happen).
             // PClassMappingAggregationAware.id is NON-null on the wire: when
             // the source writes no [id], engine DERIVES one from the class
             // FQN (`demo::agg::Sale` -> `demo_agg_Sale`). The model records
@@ -269,12 +270,35 @@ public final class MappingFromProtocol {
                 // set id and root flag: the legacy parser parses the
                 // ~mainMapping body with the OUTER id threaded in
                 // (MappingGrammarParser:487-495), while the wire mints a
-                // derived `<id>_Main` for it
+                // derived `<id>_Main` for it. The aggregate views ride the
+                // NODE (engine aggregateSetImplementations): each a non-root
+                // Relational set of the class, id <outer>_Aggregate_<i>, with
+                // its specification kept as syntax facts.
+                List<ClassMapping.AggregateView> views = new ArrayList<>();
+                for (Protocol.PAggregateSetImplementation asi : agg.aggregateSetImplementations()) {
+                    ClassMapping vcm = classMapping(asi.setImplementation());
+                    if (!(vcm instanceof ClassMapping.Relational v)) {
+                        throw new UnsupportedMappingShape("AggregationAware view #"
+                                + asi.index() + " of " + agg.className()
+                                + " is not a Relational mapping");
+                    }
+                    List<ClassMapping.AggregateValue> avs = new ArrayList<>();
+                    for (Protocol.PAggregateValue av : asi.aggregateValues()) {
+                        avs.add(new ClassMapping.AggregateValue(av.mapFn(), av.aggregateFn()));
+                    }
+                    views.add(new ClassMapping.AggregateView(asi.index(), asi.canAggregate(),
+                            asi.groupByFunctions(), avs,
+                            new ClassMapping.Relational(v.className(), v.setId(),
+                                    v.extendsSetId(), false, v.mainTable(), v.filter(),
+                                    v.distinct(), v.groupBy(), v.primaryKey(),
+                                    v.propertyMappings(), v.sourceUrl(),
+                                    v.propertyTargetSets(), null)));
+                }
                 return new ClassMapping.Relational(r.className(), aggId,
                         r.extendsSetId(), agg.root(), r.mainTable(), r.filter(),
                         r.distinct(), r.groupBy(), r.primaryKey(),
                         r.propertyMappings(), r.sourceUrl(),
-                        r.propertyTargetSets(), true);
+                        r.propertyTargetSets(), new ClassMapping.AggregationAware(views));
             }
             if (agg.mainSetImplementation() instanceof Protocol.PClassMappingPure pm) {
                 // a Pure main serves as-is (no rewrite machinery to flag),
@@ -507,7 +531,7 @@ public final class MappingFromProtocol {
         return new ClassMapping.Relational(rel.className(), rel.id(),
                 rel.extendsClassMappingId(), rel.root(), mainTable,
                 filter, rel.distinct(), groupBy, primaryKey, pms,
-                null, targetSets, false);
+                null, targetSets, null);
     }
 
     /**

@@ -283,7 +283,7 @@ final class AssociationSynthesis {
                 rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                 rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
                 rcm.primaryKey(), pms, rcm.sourceUrl(),
-                rcm.propertyTargetSets(), rcm.aggregationAwareMain());
+                rcm.propertyTargetSets(), rcm.aggregation());
     }
 
     /**

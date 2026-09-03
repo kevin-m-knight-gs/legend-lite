@@ -218,6 +218,13 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 25 (aggregation-aware ROUTING done right, 2026-09-03): chain 5m50s** —
+G1 41s, G2 8s, G4 64s, G5 39s, G6 83s, G7 26s, G9 18s, G8 71s. Ratchet
+unchanged 581/1992 (0 lost; the five nonGroupBy rewrittenQuery reads now flip
+through rows, the Java fold is deleted); all pins unchanged. One failed run on
+the way (the error-shape guardrail: the routing walk's unmatched kinds must
+throw, not yield a placeholder path).
+
 **Batch 24 (execution ACTIVITIES as rows, 2026-09-03): chain 5m54s** —
 G1 40s, G2 9s, G4 65s, G5 44s, G6 78s, G7 26s, G9 18s, G8 74s. Ratchet
 653/1920 → 581/1992 (+72, 0 lost); lane pins moved as lane moves: M1 verified

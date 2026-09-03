@@ -932,6 +932,29 @@ public final class NameResolver {
         return resolveList(mappings, NameResolver::resolveClassMapping, scope);
     }
 
+    /** The AggregationAware node's views resolve with the node: each view
+     * set like any class mapping, its specification lambdas like any
+     * mapping expression. */
+    private static ClassMapping.@com.legend.Nullable AggregationAware resolveAggregation(
+            ClassMapping.@com.legend.Nullable AggregationAware agg, Scope scope) {
+        if (agg == null) {
+            return null;
+        }
+        List<ClassMapping.AggregateView> out = new java.util.ArrayList<>();
+        for (ClassMapping.AggregateView v : agg.views()) {
+            List<ValueSpecification> gbs = v.groupByFunctions().stream()
+                    .map(g -> java.util.Objects.requireNonNull(resolveVs(g, scope))).toList();
+            List<ClassMapping.AggregateValue> avs = v.aggregateValues().stream()
+                    .map(a -> new ClassMapping.AggregateValue(
+                            java.util.Objects.requireNonNull(resolveVs(a.mapFn(), scope)),
+                            java.util.Objects.requireNonNull(resolveVs(a.aggregateFn(), scope))))
+                    .toList();
+            out.add(new ClassMapping.AggregateView(v.index(), v.canAggregate(), gbs, avs,
+                    (ClassMapping.Relational) resolveClassMapping(v.set(), scope)));
+        }
+        return new ClassMapping.AggregationAware(out);
+    }
+
     private static ClassMapping resolveClassMapping(
             ClassMapping cm, Scope scope) {
         return switch (cm) {
@@ -943,15 +966,17 @@ public final class NameResolver {
                 List<RelationalOperation> primaryKey = resolveRelOpList(r.primaryKey(), scope);
                 List<PropertyMapping> props = resolvePropertyMappingList(
                         r.propertyMappings(), scope);
+                ClassMapping.AggregationAware agg = resolveAggregation(r.aggregation(), scope);
                 if (className.equals(r.className()) && mainTable == r.mainTable()
                         && filter == r.filter() && groupBy == r.groupBy()
-                        && primaryKey == r.primaryKey() && props == r.propertyMappings()) {
+                        && primaryKey == r.primaryKey() && props == r.propertyMappings()
+                        && agg == r.aggregation()) {
                     yield r;
                 }
                 yield new ClassMapping.Relational(className, r.setId(), r.extendsSetId(),
                         r.root(), mainTable, filter, r.distinct(),
                         groupBy, primaryKey, props, r.sourceUrl(),
-                        r.propertyTargetSets(), r.aggregationAwareMain());
+                        r.propertyTargetSets(), agg);
             }
             case ClassMapping.Union u -> {
                 String className = resolveName(u.className(), scope);

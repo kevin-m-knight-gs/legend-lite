@@ -204,6 +204,19 @@ public final class SpecCompiler {
         return body.get(body.size() - 1);
     }
 
+    /** Type a bare expression under explicit variable bindings — a mapping
+     * specification lambda body ({@code $this.isCancelled} with {@code
+     * this} bound to the class; {@code $mapped->sum()} with the map's
+     * result bound), typed once by the router. */
+    public TypedSpec typeExpression(ValueSpecification expr,
+            java.util.Map<String, com.legend.compiler.element.type.ExprType> bindings) {
+        Env env = Env.empty();
+        for (var e : bindings.entrySet()) {
+            env = env.with(e.getKey(), e.getValue());
+        }
+        return typer.typeBody(expr, env, Expected.infer());
+    }
+
     /**
      * Type a standalone query as a STATEMENT SEQUENCE (the corpus/engine
      * convention: queries arrive as zero-param lambdas — "|let a = ...; $a;"

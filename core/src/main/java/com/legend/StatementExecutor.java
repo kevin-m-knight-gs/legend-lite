@@ -2034,7 +2034,8 @@ final class StatementExecutor {
                         java.util.List.of(lqChain.chain()), env.runtimeFqn()),
                         env);
             }
-            PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env), env);
+            PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env),
+                    AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
@@ -2092,7 +2093,8 @@ final class StatementExecutor {
             }
             run = executeTyped(body, env);
         }
-        PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env), env);
+        PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env),
+                AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs), env);
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
     }
@@ -2316,12 +2318,6 @@ final class StatementExecutor {
             public @com.legend.Nullable String relationalActivitySql(
                     com.legend.compiler.spec.typed.TypedNativeCall ec) {
                 return PlanAllocations.activitySql(ec, letPrefix, specs, env);
-            }
-
-            @Override
-            public @com.legend.Nullable String aggAwareRewrittenQuery(
-                    TypedSpec chain) {
-                return AggAwareActivities.rewrittenQuery(chain, env.ctx());
             }
 
         });

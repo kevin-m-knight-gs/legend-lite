@@ -95,11 +95,6 @@ public final class ResultEnvelopeSplice {
         @com.legend.Nullable String relationalActivitySql(
                 String frameName, long activityNumber);
 
-        /** The one activity read the platform can DERIVE:
-         * aggregationAware {@code rewrittenQuery} — the routed print
-         * recomputed from the frame's actual chain. Null when the chain
-         * is not that shape. */
-        @com.legend.Nullable String aggAwareRewrittenQuery(TypedSpec chain);
 
         /** The same render for an INLINE execute call (a user-call
          * frame's query). */
@@ -140,12 +135,6 @@ public final class ResultEnvelopeSplice {
             @Override
             public View inlineExecute(TypedNativeCall ec, boolean eager) {
                 return frames.inlineExecute(ec, eager);
-            }
-
-            @Override
-            public @com.legend.Nullable String aggAwareRewrittenQuery(
-                    TypedSpec chain) {
-                return frames.aggAwareRewrittenQuery(chain);
             }
 
             @Override
@@ -310,13 +299,8 @@ public final class ResultEnvelopeSplice {
                 return new TypedNativeCall(w.callee(), args, w.info(), w.pos());
             }
         }
-        // aggregationAware rewrittenQuery: the routed print (a Java fold
-        // — AggAwareActivities — that stands until the router records the
-        // rewrite as routed-tree ROWS; batch 25)
-        TypedSpec act = activityEnvelopeRead(n, frames);
-        if (act != null) {
-            return act;
-        }
+        // (rewrittenQuery is navigation over the activity ROWS: the router's
+        // choice is recorded when the frame is built — batch 25)
         // sql(result[, n]) family (helperFunctions.pure:38-60, INLINED):
         // the activity log's RelationalActivity .sql — the frame's own
         // rendered SQL, same derived-read doctrine as rewrittenQuery
@@ -394,45 +378,6 @@ public final class ResultEnvelopeSplice {
                 && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())) {
             frames.inlineExecute(ec, false);
             return n;
-        }
-        return null;
-    }
-
-    /** The one activity read the platform can DERIVE: aggregationAware
-     * {@code rewrittenQuery} — the routed print recomputed from the
-     * frame's actual chain (via {@link Frames#aggAwareRewrittenQuery}).
-     * Null when not this shape. (F6.1: the trace-comment arm — a
-     * Java-manufactured executionTraceID string — was fabrication and
-     * is gone.) */
-    private static @com.legend.Nullable TypedSpec activityEnvelopeRead(
-            TypedSpec n, Frames frames) {
-        if (!(n instanceof TypedPropertyAccess pa)
-                || !pa.property().equals("rewrittenQuery")) {
-            return null;
-        }
-        TypedSpec inner = pa.source();
-        while (true) {
-            if (inner instanceof TypedCast tc) {
-                inner = tc.source();
-            } else if (inner instanceof TypedNativeCall w
-                    && !w.args().isEmpty()
-                    && (AT_FQN.equals(w.callee().qualifiedName())
-                        || FIRST_FQN.equals(w.callee().qualifiedName())
-                        || TO_ONE_FQN.equals(w.callee().qualifiedName()))) {
-                inner = w.args().get(0);
-            } else {
-                break;
-            }
-        }
-        if (inner instanceof TypedFilter af
-                && activitiesRead(af.source(), frames)
-                && af.source() instanceof TypedPropertyAccess ap2
-                && ap2.source() instanceof TypedVariable av2
-                && frames.frame(av2.name()) instanceof View afr) {
-            String rq = frames.aggAwareRewrittenQuery(afr.chain());
-            if (rq != null) {
-                return new TypedCString(rq, n.info());
-            }
         }
         return null;
     }

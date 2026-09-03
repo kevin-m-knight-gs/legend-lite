@@ -1281,17 +1281,10 @@ public final class StoreResolver {
      * row: the DISTINCT tuple. */
     private TypedDistinct instanceDistinct(ClassSource cs, Pipelines.Materialized m,
                                            TypedSpec pipeline) {
-        // dedup by the MAPPED row (engine instance identity):
-        // narrow to the class's own columns so joined helper
-        // columns cannot defeat the dedup (the two-exists
-        // family's 'expected 1, got 5'). The materialized
-        // TO-ONE navigation slots ride along: a to-one slot's
-        // columns are a function of the row (dedup-neutral) and
-        // a downstream read ($t.column.owner.name after
-        // removeDuplicates) must still find them; a to-many
-        // slot (an exists material) multiplies the row and
-        // stays out; demands on anything else fail loud at
-        // projection resolution.
+        // dedup by the MAPPED row (engine instance identity): the class's
+        // own columns plus its TO-ONE navigation slots (a function of the
+        // row — dedup-neutral; a read after removeDuplicates finds them);
+        // to-many materials (exists) multiply the row and stay out.
         Type.RelationType pipeRow =
                 Type.requireRelationSchema(pipeline.info().type());
         Set<String> own = new LinkedHashSet<>();
@@ -2723,7 +2716,11 @@ public final class StoreResolver {
                 g.forEachDate() ? List.of() : g.milestoning(),
                 g.versionSweep(), g.classFqn());
         final Context fctx = chainContext;
-        ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
+        // AGGREGATION-AWARE rewrite: a groupBy over an aggregation-aware root
+        // re-roots at the view whose specification covers the query
+        String aggSet = AggregationAwareRouting.chooseSet(ctx, specs,
+                dispatch(fctx, g.classFqn()), g, ops, top);
+        ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(), aggSet,
                 (t9, ex9) -> sources.dispatch(fctx.explicitMapping(),
                         fctx.runtimeFqn(), fctx.chainMappings(), t9, ex9),
                 RoutingContext.contextKey(fctx), fctx.constructedScope());

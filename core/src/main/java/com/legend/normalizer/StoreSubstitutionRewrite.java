@@ -58,7 +58,21 @@ final class StoreSubstitutionRewrite {
                 r.primaryKey().stream().map(g -> op(g, m)).toList(),
                 r.propertyMappings().stream().map(p -> pm(p, m)).toList(),
                 r.sourceUrl(), r.propertyTargetSets(),
-                r.aggregationAwareMain());
+                views(r.aggregation(), m));
+    }
+
+    /** The AggregationAware node's views rewrite with the node (each view
+     * is a Relational set: same substitution). */
+    private static ClassMapping.@com.legend.Nullable AggregationAware views(
+            ClassMapping.@com.legend.Nullable AggregationAware agg, Map<String, String> m) {
+        if (agg == null) {
+            return null;
+        }
+        return new ClassMapping.AggregationAware(agg.views().stream()
+                .map(v -> new ClassMapping.AggregateView(v.index(), v.canAggregate(),
+                        v.groupByFunctions(), v.aggregateValues(),
+                        (ClassMapping.Relational) applyWith(v.set(), m)))
+                .toList());
     }
 
     private static @com.legend.Nullable String db(

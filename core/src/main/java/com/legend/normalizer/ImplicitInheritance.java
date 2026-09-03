@@ -96,7 +96,7 @@ final class ImplicitInheritance {
                     child.root(), child.mainTable(), child.filter(),
                     child.distinct(), child.groupBy(), child.primaryKey(),
                     merged, child.sourceUrl(), child.propertyTargetSets(),
-                    child.aggregationAwareMain()));
+                    child.aggregation()));
         }
         return any ? md.withClassMappings(rewritten) : md;
     }

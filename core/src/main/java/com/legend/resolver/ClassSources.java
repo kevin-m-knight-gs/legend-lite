@@ -1323,6 +1323,24 @@ public final class ClassSources {
             }
         }
         if (setId == null && local.size() > 1) {
+            // an AggregationAware main's VIEWS are sets the ROUTER picks by
+            // id (AggregationAwareRouting) — never class-level candidates
+            // (engine: .all() is the main set; a view is a rewrite target)
+            java.util.Set<String> viewIds = new java.util.HashSet<>();
+            for (MappingDefinition.ClassBinding cb : local) {
+                if (cb instanceof MappingDefinition.ClassBinding.Relational rb) {
+                    for (var v : rb.aggregateViews()) {
+                        viewIds.add(v.setId());
+                    }
+                }
+            }
+            if (!viewIds.isEmpty()) {
+                local = local.stream()
+                        .filter(cb -> cb.setId() == null || !viewIds.contains(cb.setId()))
+                        .toList();
+            }
+        }
+        if (setId == null && local.size() > 1) {
             List<MappingDefinition.ClassBinding> roots = local.stream()
                     .filter(MappingDefinition.ClassBinding::root).toList();
             if (roots.size() == 1) {

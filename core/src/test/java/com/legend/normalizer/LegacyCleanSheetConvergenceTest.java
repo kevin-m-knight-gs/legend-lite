@@ -92,7 +92,8 @@ class LegacyCleanSheetConvergenceTest {
         return bindings.stream().map(b -> b instanceof MappingDefinition.ClassBinding.Relational r
                 ? new MappingDefinition.ClassBinding.Relational(r.classFqn(), r.setId(),
                         r.extendsSetId(), r.root(), r.functionFqn(), r.primaryKeyColumns(),
-                        MappingDefinition.ClassBinding.DeclaredKeys.NONE, r.source())
+                        MappingDefinition.ClassBinding.DeclaredKeys.NONE, r.source(),
+                            java.util.List.of())
                 : b).toList();
     }
 
