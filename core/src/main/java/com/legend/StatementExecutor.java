@@ -548,7 +548,10 @@ final class StatementExecutor {
                         .inlineBody(raw);
         boolean temporalRoot = com.legend.compiler.element.Temporal
                 .anyTemporalGetAll(body, env.ctx());
-        body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+        // the same resolver the frame runs with: the caller's lets (a
+        // let-bound milestoning date) and the registered rows ride the
+        // render too
+        body = resolver(specs, env)
                 .resolve(body, env.runtimeFqn(), mappingFqn, chainMappings);
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
@@ -2034,7 +2037,8 @@ final class StatementExecutor {
                         java.util.List.of(lqChain.chain()), env.runtimeFqn()),
                         env);
             }
-            PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env),
+            PlanAllocations.registerActivityRows(ec,
+                    PlanAllocations.activitySql(ec, envelope, letPrefix, specs, env),
                     AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
@@ -2093,7 +2097,8 @@ final class StatementExecutor {
             }
             run = executeTyped(body, env);
         }
-        PlanAllocations.registerActivityRows(ec, PlanAllocations.activitySql(ec, letPrefix, specs, env),
+        PlanAllocations.registerActivityRows(ec,
+                PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
                 AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs), env);
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
@@ -2311,13 +2316,14 @@ final class StatementExecutor {
                     // the activity ROWS
                     return null;
                 }
-                return PlanAllocations.activitySql(f.sourceExec(), letPrefix, specs, env);
+                return PlanAllocations.activitySql(f.sourceExec(), f.chain(), letPrefix, specs, env);
             }
 
             @Override
             public @com.legend.Nullable String relationalActivitySql(
                     com.legend.compiler.spec.typed.TypedNativeCall ec) {
-                return PlanAllocations.activitySql(ec, letPrefix, specs, env);
+                ExecFrame f = buildFrame(ec, letPrefix, false, specs, env);
+                return PlanAllocations.activitySql(ec, f.chain(), letPrefix, specs, env);
             }
 
         });

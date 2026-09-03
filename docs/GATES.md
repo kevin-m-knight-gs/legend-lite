@@ -218,6 +218,12 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 26 (the referee's render is the FRAME's chain — milestoning leg, 2026-09-03): chain 5m53s** —
+G1 41s, G2 8s, G4 62s, G5 43s, G6 80s, G7 26s, G9 19s, G8 74s. Ratchet
+581/1992 → 505/2068 (+76, 0 lost); lane pins moved as lane moves (M1 verified
+54 → 22, M1 rescued 164 → 128, exec-passing declines 275 → 198); other pins
+unchanged.
+
 **Batch 25 (aggregation-aware ROUTING done right, 2026-09-03): chain 5m50s** —
 G1 41s, G2 8s, G4 64s, G5 39s, G6 83s, G7 26s, G9 18s, G8 71s. Ratchet
 unchanged 581/1992 (0 lost; the five nonGroupBy rewrittenQuery reads now flip

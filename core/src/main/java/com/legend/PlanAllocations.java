@@ -204,31 +204,29 @@ final class PlanAllocations {
      * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
      * form, I lower — IR plus rendered text. */
     /** The SQL an execute() call's RelationalActivity records: the
-     * engine-style render of the call's own query — the SAME pipeline as
-     * toSQLString(query, mapping, H2, ext) (the activity log records the
-     * SQL the engine GENERATED; goldens are engine-H2-spelled). Null when
-     * the call's query or mapping is not a literal (a plan-execute, a
-     * variable the frame cannot see). */
+     * engine-style render of the frame's OWN assembled chain (the caller's
+     * lets already folded, the mapping attached — the same chain the frame
+     * runs; the same pipeline as toSQLString(query, mapping, H2, ext)).
+     * Null when the call's mapping is not a literal reference or the chain
+     * does not render (the frame's own walls stand). */
     static @com.legend.Nullable String activitySql(
             com.legend.compiler.spec.typed.TypedNativeCall ec,
+            com.legend.compiler.spec.typed.TypedSpec chain,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
         if (ec.args().size() < 2) {
             return null;
         }
-        // the query and mapping arguments through the caller's lets
-        // (let query = {|...}; execute($query, $mapping, ...))
-        com.legend.compiler.spec.typed.TypedSpec q = com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(ec.args().get(0), letPrefix);
         com.legend.compiler.spec.typed.TypedSpec m = com.legend.compiler.spec.ExecuteChainAssembly
                 .letBound(ec.args().get(1), letPrefix);
-        if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)
-                || !(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+        if (!(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
             return null;
         }
         try {
             var renderer = new com.legend.sql.dialect.EngineStyleH2();
-            StatementExecutor.EngineSql es = StatementExecutor.engineSql(lam, pr.fullPath(), specs, env, renderer);
+            StatementExecutor.EngineSql es = StatementExecutor.engineSql(
+                    java.util.List.of(chain), pr.fullPath(), specs, env, renderer,
+                    java.util.Map.of(), java.util.function.UnaryOperator.identity());
             com.legend.sql.SqlQuery post =
                     com.legend.lowering.SqlPostProcessors.apply(
                             es.plan(), com.legend.exec
@@ -241,7 +239,6 @@ final class PlanAllocations {
             return null;
         }
     }
-
 
     /** An execute() call's Result and activity rows under the call's
      * scope: ONE RelationalActivity carrying the SQL the platform ran

@@ -802,8 +802,14 @@ public class RelationalCorpusRunner {
                     // row-verify through the oracle SPI like every other
                     // flipped sql-assert (lane move, not lost verification;
                     // +65 flips, 0 lost).
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 54,
-                    "M1 h2-exec verified fell below the 54 floor: "
+                    // 54 -> 22 (batch 26 — the referee's SQL render is the
+                    // FRAME's own assembled chain, 2026-09-03): the caller's
+                    // lets (a let-bound milestoning date) fold into the render
+                    // as they do into the run, so the milestoning family's
+                    // sql-asserts row-verify as platform-arm verdicts (lane
+                    // move; +76 flips, 0 lost)
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 22,
+                    "M1 h2-exec verified fell below the 22 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -982,7 +988,10 @@ public class RelationalCorpusRunner {
             // their sql()/sqlRemoveFormatting asserts left the walk's
             // lane for the platform arm (the same lane move as §8.3b-d;
             // the M1 floor moved 82 -> 54 with it).
-            org.junit.jupiter.api.Assertions.assertEquals(275, execPassing,
+            // 275 -> 198 (batch 26 — the referee's render is the frame's
+            // chain): the 76 flipped tests' sql-asserts left the walk's lane
+            // for the platform arm (the same lane move as M1 54 -> 22).
+            org.junit.jupiter.api.Assertions.assertEquals(198, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1368,10 +1377,19 @@ public class RelationalCorpusRunner {
             // 28, routing 13, union 16, tds/groupBy 7, ...), 0 lost.
             // Honest fallback: testSQLComments (the engine's trace-id
             // comment).
-            org.junit.jupiter.api.Assertions.assertEquals(581L,
+            // 581/1992 -> 505/2068 (batch 26 — the referee's render IS the
+            // frame's chain, 2026-09-03): the activity SQL renders from the
+            // frame's own assembled chain (the caller's lets folded, the
+            // mapping attached — one pipeline, not a second re-inlining of
+            // the raw lambda), so every sql()/sqlRemoveFormatting read over a
+            // let-bound-date milestoning query folds in the referee's lane.
+            // +76 (milestoning businessdate 32, contextpropagation 18,
+            // processingDate 3; in-list filters 6; TDS concatenation 4;
+            // routing/tds 4; ...), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(505L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1992L,
+            org.junit.jupiter.api.Assertions.assertEquals(2068L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1580,8 +1598,10 @@ public class RelationalCorpusRunner {
                     // lane move as M1_VERIFIED 82 -> 54 — the 67 flipped
                     // tests' text-rescued sql-asserts now row-verify through
                     // the oracle SPI as platform-arm verdicts.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 164,
-                    "M1 h2-exec rescued fell below the 164 floor: "
+                    // 164 -> 128 (batch 26): the same lane move as M1_VERIFIED
+                    // 54 -> 22.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 128,
+                    "M1 h2-exec rescued fell below the 128 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

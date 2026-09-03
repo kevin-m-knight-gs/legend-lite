@@ -2125,7 +2125,7 @@ public final class Lowerer {
                 // a WHOLE-VARIABLE read in a join condition has no column;
                 // the pre-gate code NPE'd here — loud instead
                 throw new IllegalStateException("join condition reads a whole"
-                        + " variable — only column reads can correlate sides");
+                        + " variable '$" + var + "' — only column reads can correlate sides");
             }
             if (isLeft && leftCarry != null) {
                 // A hosted chain's renamed column substitutes to its

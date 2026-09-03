@@ -1612,13 +1612,39 @@ tree; routed-tree rows + a Pure printer is the later leg). The
 NavMaterializer depth guard tried in batch 24 was a misdiagnosis and is
 gone: the "recursion" was the inliner loop.
 
+**Batch 26 — THE REFEREE'S RENDER IS THE FRAME'S CHAIN (milestoning leg,
+2026-09-03): ratchet 581/1992 → 505/2068 (+76, ZERO lost).** The census
+had ~90 milestoning fallbacks under "join condition reads a whole
+variable" / "class query under TypedMap". Root cause, found by probing:
+the activity SQL (the text the referee's `sql()` arms fold) was rendered
+by a SECOND pipeline — `engineSql` re-inlining the RAW query lambda —
+which had neither the caller's body lets (`let businessDate = %2015-8-15`
+used inside the lambda as a milestoning date) nor the query lets, so the
+render failed (silently), the `sql()` read fell through to the activity
+rows, and the resolver's automap of the final `.sql` read walled as "class
+query under TypedMap" — the wall text the census showed was two
+mechanisms away from the cause. Now `PlanAllocations.activitySql`
+renders the frame's OWN assembled chain (the caller's lets β-folded, the
+mapping attached — the same chain the frame runs; `StatementExecutor.
+engineSql` also builds its resolver through the one factory, so the query
+lets and registered rows ride the render). One pipeline, not two. +76:
+milestoning businessdate 32, contextpropagation 18, processingDate 3;
+in-list filters 6; TDS concatenation 4; routing/tds 4; others. Lane pins
+moved as lane moves (M1 verified 54 → 22, M1 rescued 164 → 128,
+exec-passing declines 275 → 198). Remaining milestoning walls are named
+and small: `repeat` unported ×2, a nested-navigation milestoned property
+×1, a multi-statement lambda ×1, `^SemiStructuredPropertyAccess` ×1, an
+executeInDb binding read ×1, toVariant on the H2 dialect ×2. Temporary
+diagnostics added and removed on the way: the join-condition wall now
+names the variable it read.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 581 fallbacks / 1992 flipped (batches 14–25 = group D,
+legs).** State: 505 fallbacks / 2068 flipped (batches 14–26 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware
-routing), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
+routing, the milestoning render leg), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as
