@@ -2424,6 +2424,29 @@ field is a value. +1 (selfJoin testSelfJoinPropertyMapping — its two
 siblings already flipped). Lanes unchanged (exec-passing 59, M1 rescued
 54; disagree 0).
 
+**RECLASSIFICATION (user catch, 2026-09-03): post-processors are COMPILER
+PASSES, not recursion.** The user asked earlier whether the "recursive"
+family should be compiler walks; for the post-processor tests the answer
+is yes and I argued past it. A post-processor (`sqlQueryPostProcessors` on
+the connection: replaceTables, nonExecutable, CTE extraction, filter
+push-down, DB2 column rename) is a rewrite over the SQL tree; our SQL tree
+is the IR, and batch 29 already serves replaceTables + CTE extraction as
+IR passes recognised from the connection (`Hooks`). The six tests filed
+under "C2 recursion: post-processor lambdas" are therefore NOT tier-2
+witnesses: `nonExecutable` (testReplaceTablePostProcessorWithSubQueries
++1) needs a pass that ANDs `1 = 2` into every select's filter; the
+replaceTables-under-toSQLStringPretty tests need the recogniser to read
+pairs built by model navigation (`db->schema('default')->table('personTable')`)
+instead of let-bound literals only. Production users attach PLATFORM
+post-processors; a custom Pure-bodied SQL-tree walk is a documented
+boundary (the engine exposes its SQL tree as a Pure API, we expose IR
+passes). The recursion design record now covers ONLY toPostgresModel (20)
++ debugPrint (9) + stragglers (4): tier 1 (unroll as M2M composition over
+literal / statically-typed sources, `match` folded on the static class,
+discriminated-row `match` shared with M2M inheritance dispatch) covers
+them all; tier 2 (recursive CTE) has NO remaining corpus witness and is
+parked as a written boundary.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,
