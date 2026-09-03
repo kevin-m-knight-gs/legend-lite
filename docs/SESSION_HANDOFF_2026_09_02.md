@@ -1746,9 +1746,42 @@ objectReferenceIn); the concatenate `assertEquals` scalar-lowering wall
 (7, the assert arm declines a class-frame `.values.name` read over a
 concatenated qualified property); enum-decoded oracle declines (5).
 
+**Batch 28 — INLINE HANDLES ON DEMAND + THE UNROLLED QUANTIFIED VERDICT
+(2026-09-03): ratchet 487/2086 → 463/2110 (+24, ZERO lost).** (1) The
+consolidation batch left handle-row registration at the let; an
+`executionPlan(...)` INSIDE an inlined helper (`relationalMapperSqlQuery`,
+whose runtime is a constructed `^Runtime(... relationalMapperPostProcessor
+...)`) has no let to register at. The resolver now registers an inline
+handle's rows on first meeting through a registrar the executor supplies
+(`StatementExecutor.resolver` → `PlanAllocations.registerHandleRows`;
+`ConstructedInstances.handleRows`) — the one row-registration idiom the
+consolidation batch wanted, reached from the other side. relationalMapper
+8 (the mapper renames already rode the plan model), executionPlan
+datetime 3. Remaining relationalMapper 2: our join chain nests a filter-
+carrying hop as a subselect where the engine flattens it into the ON
+clause (an SQL-shape leg). (2) The toSQLString dialect-table idiom
+`[pair(DB2, sql), pair(H2, sql), ...]->map(p| let driver = $p.first; ...;
+assertEquals($expected, $result, fmt, args))->distinct() == [true]`: the
+verdict UNROLLS per literal element (the collection chased through the
+caller's lets), the inliner reduces the element's lets (`VerdictQueries.
+unrolledElement` — the compiler layer mints the nodes, invariant 7), the
+message-carrying assert normalizes to its two-argument form, and each
+element adjudicates through the existing arms (the SQL-text arm judges
+on rows; sqlstring 13). The AssertVerdicts ledger pin moved 1459 → 1511
+with that justification (a verdict SHAPE, no host evaluation). Also:
+the H2 in-list and chain-mapping render fixes of batch 27 carried into
+these families. Diagnosed and NAMED, not built: the concatenate family's
+7 "assertEquals scalar-lowering" walls are the SQL-text arm DECLINING
+their assertSameSQL (text-divergent, exec-passing lane) and the
+fallthrough lowering the assert's inlined body — a misleading wall text
+over a text-policy fact; the toPostgresModel family (11 + 9) runs the
+engine's SQL-AST conversion library (toPostgresModel.pure) over
+constructed relational-metamodel instances — group G, a Pure-library-
+over-rows leg.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 487 fallbacks / 2086 flipped (batches 14–27 = group D,
+legs).** State: 463 fallbacks / 2110 flipped (batches 14–28 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

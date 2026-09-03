@@ -1347,11 +1347,19 @@ public final class StoreResolver {
             pr -> trackedElementClass(pr) != null, this::constructedRow,
             this::planHandleRow);
 
-    /** A plan handle whose rows the executor registered (PlanRows). */
+    /** A HANDLE call whose rows are registered (at a let by the executor,
+     * or on demand — ConstructedInstances.handleRows). */
     private boolean planHandleRow(TypedNativeCall pn) {
         return com.legend.compiler.element.type.PlatformTypes.handleRowClass(
                         pn.callee().qualifiedName(), pn.callee().returnType()) != null
-                && constructed.has(com.legend.plan.PlanRows.scopeId(pn));
+                && constructed.handleRows(pn);
+    }
+
+    /** The executor's on-demand handle-row builder (PlanAllocations). */
+    public StoreResolver withHandleRegistrar(java.util.function.Function<TypedNativeCall,
+            @com.legend.Nullable Map<String, List<List<String>>>> registrar) {
+        constructed.setHandleRegistrar(registrar);
+        return this;
     }
 
     /** Plan rows computed by the executor (its plan model as rows —
@@ -2563,25 +2571,19 @@ public final class StoreResolver {
                 cur = dn.args().get(0);   // identity over rows (Anchors.isDeactivate)
                 continue;
             }
-            // ->cast(@Sub) in CHAIN position: a cast the mapping PROVES
-            // total (the target is the input's class, or every mapped
-            // member of the input's class conforms to the target) is a
-            // re-typing — the rows already are the target's; a partial-
-            // membership cast needs the witness filter (step 2 serves it
-            // on the instance variable; the chain form is not built).
+            // ->cast(@Sub) in CHAIN position: a cast the mapping PROVES total
+            // is a re-typing; a partial-membership cast needs the witness
+            // filter (step 2 serves it on the instance variable).
             if (cur instanceof TypedCast tc
                     && tc.target() instanceof Type.ClassType tct
                     && tc.source().info().type() instanceof Type.ClassType sct) {
                 if (!tct.fqn().equals(sct.fqn())
                         && !elements().castTotalByRoute(chainContext, tc.source(), tct.fqn())
                         && !elements().totalMembershipCast(chainContext, sct.fqn(), tct.fqn())) {
-                    // PARTIAL membership in CHAIN position (harness burn-
-                    // down leg 1): the chain keeps the union row, GATED —
-                    // a row that does not conform RAISES (pure: cast
-                    // exception; never a silent filter), and every read
-                    // of the target's own properties is the value-
-                    // position $p->cast(@T).prop read (ClassSource.
-                    // castGate → Substitution). One gate per chain.
+                    // PARTIAL membership in CHAIN position: the chain keeps
+                    // the union row, GATED — a non-conforming row RAISES
+                    // (pure cast exception), reads of the target's own
+                    // properties are $p->cast(@T).prop reads (castGate)
                     if (!flattenHops.isEmpty()) {
                         // BELOW a flatten hop: a PSEUDO-HOP (ChainDispatch)
                         chainDispatch.pseudoHop(tc.source(), sct, tct,

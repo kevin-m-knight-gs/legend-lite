@@ -218,6 +218,11 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 28 (INLINE handles on demand + the unrolled quantified verdict, 2026-09-03): chain 6m00s** —
+G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
+487/2086 → 463/2110 (+24, 0 lost); AssertVerdicts ledger pin 1459 → 1511 (a verdict
+shape, justified in the ledger); other pins unchanged.
+
 **Batch 27 (referee render COVERAGE — chain mapping, H2 in-lists, 2026-09-03): chain 6m00s** —
 G1 40s, G2 8s, G4 62s, G5 47s, G6 85s, G7 26s, G9 18s, G8 74s. Ratchet
 505/2068 → 487/2086 (+18, 0 lost); exec-passing declines 198 → 180 (lane move);

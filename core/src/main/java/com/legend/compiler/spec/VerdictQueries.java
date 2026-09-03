@@ -8,6 +8,7 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 
 import java.util.List;
@@ -154,5 +155,54 @@ public final class VerdictQueries {
         return new TypedMap(quantified.source(), predLam,
                 new ExprType(Type.Primitive.BOOLEAN,
                         Multiplicity.Bounded.ZERO_MANY));
+    }
+
+    /** {@code equal(distinct(<map>), [true])} → the map; else the node
+     * (the toSQLString dialect-table idiom's outer wrapper). */
+    public static TypedSpec distinctTrueWrapper(TypedSpec bare) {
+        if (bare instanceof TypedNativeCall eq
+                && (eq.callee().qualifiedName().equals("meta::pure::functions::boolean::equal")
+                        || eq.callee().qualifiedName().equals("meta::pure::functions::boolean::eq"))
+                && eq.args().size() == 2
+                && eq.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                && tc.elements().size() == 1
+                && tc.elements().get(0) instanceof com.legend.compiler.spec.typed.TypedCBoolean b
+                && b.value()
+                && eq.args().get(0) instanceof TypedNativeCall d
+                && d.callee().qualifiedName().equals("meta::pure::functions::collection::distinct")
+                && d.args().size() == 1) {
+            return d.args().get(0);
+        }
+        return bare;
+    }
+
+    /** One element of an UNROLLED quantified assert: the caller's lets,
+     * the lambda's parameter bound to {@code element} as a let, then the
+     * lambda's own statements — reduced by the inliner (the one
+     * substitution engine). The last statement is the element's assert;
+     * a message-carrying assert ({@code assertEquals(e, a, fmt, args)})
+     * normalizes to its two-argument form (the message is failure text,
+     * never part of the verdict). */
+    public static List<TypedSpec> unrolledElement(SpecCompiler specs,
+            List<TypedSpec> letPrefix, TypedLambda lam, TypedSpec element,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
+        List<TypedSpec> seq = new java.util.ArrayList<>(letPrefix);
+        seq.add(new com.legend.compiler.spec.typed.TypedLet(lam.parameters().get(0),
+                element, element.info()));
+        seq.addAll(lam.body());
+        var inliner = hook == null ? new UserCallInliner(specs)
+                : new UserCallInliner(specs, hook);
+        List<TypedSpec> reduced = new java.util.ArrayList<>(inliner.inlineBody(seq));
+        int last = reduced.size() - 1;
+        TypedSpec stmt = reduced.get(last);
+        TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet tl
+                ? tl.value() : stmt;
+        if (bare instanceof TypedNativeCall an && an.args().size() > 2
+                && an.callee().qualifiedName().startsWith("meta::pure::functions::asserts::")) {
+            bare = new TypedNativeCall(an.callee(), an.args().subList(0, 2), an.info(), an.pos());
+        }
+        reduced.set(last, bare);
+        return reduced;
     }
 }

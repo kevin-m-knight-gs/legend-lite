@@ -109,6 +109,31 @@ final class ConstructedInstances {
         rowsById.put(id, rows);
     }
 
+    private java.util.function.@com.legend.Nullable Function<
+            com.legend.compiler.spec.typed.TypedNativeCall,
+            @com.legend.Nullable Map<String, List<List<String>>>> handleRegistrar;
+
+    void setHandleRegistrar(java.util.function.Function<
+            com.legend.compiler.spec.typed.TypedNativeCall,
+            @com.legend.Nullable Map<String, List<List<String>>>> registrar) {
+        this.handleRegistrar = registrar;
+    }
+
+    /** Whether a HANDLE call's rows are registered — registering them ON
+     * DEMAND through the executor's registrar when the resolver first
+     * meets an INLINE handle (an executionPlan(...) inside an inlined
+     * helper: no let to register at). */
+    boolean handleRows(com.legend.compiler.spec.typed.TypedNativeCall pn) {
+        String scope = com.legend.plan.PlanRows.scopeId(pn);
+        if (!has(scope) && handleRegistrar != null) {
+            Map<String, List<List<String>>> rows = handleRegistrar.apply(pn);
+            if (rows != null) {
+                register(scope, rows);
+            }
+        }
+        return has(scope);
+    }
+
     boolean has(String id) {
         return rowsById.containsKey(id);
     }

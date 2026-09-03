@@ -501,7 +501,13 @@ final class StatementExecutor {
     static com.legend.resolver.StoreResolver resolver(
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                .withLetBindings(env.queryLets()).withPlanRows(env.planRows());
+                .withLetBindings(env.queryLets()).withPlanRows(env.planRows())
+                .withHandleRegistrar(pn -> {
+                    // an INLINE handle met by the resolver: build its rows
+                    // now (the let-time path for let-bound handles)
+                    PlanAllocations.registerHandleRows("", pn, java.util.List.of(), specs, env);
+                    return env.planRows().get(com.legend.plan.PlanRows.scopeId(pn));
+                });
     }
 
     record EngineSql(com.legend.sql.SqlQuery plan, String sql,

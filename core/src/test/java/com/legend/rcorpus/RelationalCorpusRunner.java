@@ -1396,10 +1396,20 @@ public class RelationalCorpusRunner {
             // LITERAL collection membership is the in-list
             // (x in ('a', 'b') — let-bound lists and literal ->contains;
             // filter::in 11, exists 2). +18, 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(487L,
+            // 487/2086 -> 463/2110 (batch 28 — INLINE handles on demand +
+            // the unrolled quantified verdict, 2026-09-03): (1) the resolver
+            // registers an INLINE handle's rows on first meeting through the
+            // executor's registrar (an executionPlan(...) inside an inlined
+            // helper has no let to register at — ConstructedInstances.
+            // handleRows; relationalMapper 8, executionPlan datetime 3);
+            // (2) `[pairs]->map(p| lets; assertEquals(e, a, fmt, args))
+            // ->distinct() == [true]` unrolls per literal element and each
+            // element's assert adjudicates through the existing arms
+            // (sqlstring 13). +24, 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(463L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2086L,
+            org.junit.jupiter.api.Assertions.assertEquals(2110L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

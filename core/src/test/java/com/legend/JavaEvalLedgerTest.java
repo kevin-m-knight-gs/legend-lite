@@ -384,7 +384,14 @@ class JavaEvalLedgerTest {
             // the arm, the assertSameSQL hook's sibling).
             // 1450 -> 1459 (TDG scoring flip): the assertSqlEquals
             // root dispatch hook (exact-FQN match + hand-off).
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1459),
+            // 1459 -> 1511 (batch 28, 2026-09-03): the UNROLLED quantified
+            // verdict — `[pairs]->map(p| lets...; assertEquals(e, a, fmt,
+            // args))->distinct() == [true]` (the toSQLString dialect-table
+            // idiom) unrolls per literal element through the inliner
+            // (VerdictQueries.unrolledElement mints the nodes) and each
+            // element's assert adjudicates through the EXISTING arms over
+            // database results — a verdict SHAPE, no host evaluation
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1511),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

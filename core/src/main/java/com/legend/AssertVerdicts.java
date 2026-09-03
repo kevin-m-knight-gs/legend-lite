@@ -97,7 +97,18 @@ final class AssertVerdicts {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
+        TypedSpec unwrapped = com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare);
+        if (unwrapped instanceof com.legend.compiler.spec.typed.TypedMap qm2) {
+            ExecutionResult u = unrolled(qm2, letPrefix, specs, env, rawHook);
+            if (u != null) {
+                return u;
+            }
+        }
         if (bare instanceof com.legend.compiler.spec.typed.TypedMap qm) {
+            ExecutionResult u = unrolled(qm, letPrefix, specs, env, rawHook);
+            if (u != null) {
+                return u;
+            }
             return quantified(qm, letPrefix, specs, env, hook);
         }
         String fqn = calleeFqn(bare);
@@ -680,6 +691,58 @@ final class AssertVerdicts {
      * Null = not a quantified assert (generic path continues); shapes
      * beyond assert/assertFalse with a literal-or-absent message decline
      * LOUDLY. */
+    /** A quantified assert over a LITERAL collection whose lambda carries
+     * lets or a non-boolean assert ({@code [pair(H2, sql), ...]->map(p|
+     * let driver = $p.first; ...; assertEquals($expectedSql, $result,
+     * fmt, args))}): UNROLLED — each element binds the parameter as a let
+     * ahead of the lambda's own lets, the inliner reduces the lets (the
+     * one substitution engine), and the final assert statement
+     * adjudicates as a statement-root verdict. All elements must hold.
+     * Null when not this shape (a runtime collection, a one-statement
+     * predicate lambda — the vector form). */
+    private static @com.legend.Nullable ExecutionResult unrolled(
+            com.legend.compiler.spec.typed.TypedMap qm,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook) {
+        var lam = qm.mapper();
+        // the collection through the caller's lets (let expected = [...])
+        TypedSpec source = com.legend.compiler.spec.ExecuteChainAssembly
+                .letBound(qm.source(), letPrefix);
+        if (!(source instanceof com.legend.compiler.spec.typed.TypedCollection coll)
+                || lam.parameters().size() != 1
+                || lam.body().isEmpty()) {
+            return null;
+        }
+        TypedSpec root = lam.body().get(lam.body().size() - 1);
+        String fqn = calleeFqn(root);
+        if (fqn == null || !fqn.startsWith(PKG)) {
+            return null;
+        }
+        boolean simplePredicate = lam.body().size() == 1
+                && (fqn.endsWith("::assert") || fqn.endsWith("::assertFalse"));
+        if (simplePredicate) {
+            return null;
+        }
+        ExecutionResult last = null;
+        for (TypedSpec element : coll.elements()) {
+            List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
+                    .unrolledElement(specs, letPrefix, lam, element, rawHook);
+            List<TypedSpec> lets = new java.util.ArrayList<>(
+                    reduced.subList(0, reduced.size() - 1));
+            TypedSpec bareStmt = reduced.get(reduced.size() - 1);
+            ExecutionResult v = adjudicate(bareStmt, lets, specs, env, rawHook);
+            if (v == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "unrolled quantified assert: element verdict not"
+                        + " adjudicable for " + calleeFqn(bareStmt));
+            }
+            last = v;
+        }
+        return last == null ? ok() : last;
+    }
+
     private static @com.legend.Nullable ExecutionResult quantified(
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
