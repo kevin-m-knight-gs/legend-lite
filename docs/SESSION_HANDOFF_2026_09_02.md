@@ -1903,9 +1903,38 @@ the bucket, named: toPostgresModel 9 (the C2 recursion leg), concatenate
 stringToFloat::testProject, tds sort testSortQuotes — re-probe with the
 swallowed reason printed before naming their mechanism.
 
+**Batch 35 — THE REFEREE RENDER: literal reductions, firstNotNull, round
+(2026-09-03): ratchet 379/2194 → 369/2204 (+10, ZERO lost).** The "class
+query under TypedMap <<TypedMap(cast@RelationalActivity(at(filter(.activities
+...))), v_amr | .sql)>>" wall (19) is NOT a resolver gap: it is the sql()
+read reaching the resolver un-spliced because the frame's activity render
+(engine-style H2) had thrown a DialectCapability — the swallowed reason
+prints as `[render-debug]` under LL_TMP_DEBUG. Census of those reasons over
+the fallback set: UNNEST placement 5 (to-many navigation under map /
+concatenate flat), LIST_GET 5 (percentile 3, firstNotNull 2), banker's
+ROUND 4, LIST_CONCAT 3 (concatenate of two navigations), LIST_BOOL_AND/OR 4,
+array literal 2, LIST_PRODUCT 1. Landed as dialect spellings in
+`EngineStyleH2` (backend idioms as dialect rules, never lowerer arms): a
+reduction over a LITERAL collection is the engine's infix chain
+(`and([a,b,c])` → `a and b and c`; `[x,y]->times()` → `(x * y)`; sum
+likewise), `firstNotNull` (`$set->filter(v | $v != TDSNull)->first()`) is
+`coalesce(a, b)`, `round` is the bare `round(x[, n])` (rows verdict judges
+the half-even value). Flipped: round 4, tdsFilter and/or 2, firstNotNull 2,
+divide precision 1, columnValueDifference 1. Lane move: exec-passing 149 →
+140 (passes 2374 stable, disagree 0). Still named from the render census:
+percentile 3 (the lowerer's sorted-list pick formula is a DuckDB idiom —
+the semantic node should be a PERCENTILE aggregate the dialects spell:
+quantile_cont / percentile_cont within group), UNNEST 5 + LIST_CONCAT 3
+(the to-many navigation collection as a RELATION — a resolver leg: the
+engine renders `concatenate` of two navigations as a union-all subquery
+joined once), array literal 2 (a let-bound literal collection read by
+at()), columnValueDifferenceWithoutPrevalTest = a real rows divergence now
+(TDSNull vs value in the difference columns), tds extensions
+testFirstNotNull = unresolved type variable T at the lowering boundary.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 379 fallbacks / 2194 flipped (batches 14–34 = group D,
+legs).** State: 369 fallbacks / 2204 flipped (batches 14–35 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

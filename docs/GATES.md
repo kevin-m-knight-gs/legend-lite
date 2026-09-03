@@ -218,6 +218,14 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 35 (referee render: literal-collection reductions, firstNotNull, round in the engine-style H2 dialect, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 379/2194 → 369/2204 (+10, 0 lost); lane move exec-passing 149 → 140
+(passes 2374 stable, disagree 0).
+
+**Batch 34 (assertSameSQL(String, String) takes the exec-read rows verdict, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 394/2179 → 379/2194 (+15, 0 lost); lane moves M1 verified 20 → 12,
+M1 rescued 119 → 109, exec-passing 167 → 149 (passes 2374 stable, disagree 0).
+
 **Batch 33 (runtime connections THROUGH lets — JSON source / chain mappings, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9; per-gate timings not captured this run)** — ratchet 416/2157 → 394/2179 (+22, 0 lost);
 M1 rescued floor 127 → 119 (lane move: passes 2367 → 2374, disagree 0); other pins unchanged.

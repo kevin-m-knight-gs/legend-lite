@@ -98,10 +98,10 @@ shared source registered by several families cannot double-count. Run with
 | tests/query | 87 | 82 | 2 | 3 | 0 | 2 | 2 | 0 | 1 |
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
-| validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 73 |
+| validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 13 |
+| **total** | 2575 | **2374** | 50 | 104 | 47 | 13 | 13 | 29 | 74 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2262 clean + 112 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 73; flags overlap — the union is 112).
+SOFT-PASS RECONCILIATION (F2.1): 2374 PASS = 2261 clean + 113 carrying softness (sqldiff 13, advisory 13, 0-asserts 29, text-rescued 74; flags overlap — the union is 113).
 
 ### mapping walls (dropped at assembly)
 

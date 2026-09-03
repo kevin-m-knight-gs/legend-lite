@@ -1008,7 +1008,10 @@ public class RelationalCorpusRunner {
             // 167 -> 149 (batch 34 — assertSameSQL(String, String) takes the
             // exec-read arm): the 15 flipped tests' assertSameSQL asserts
             // left the walk's lane (lane move, passes 2374 stable).
-            org.junit.jupiter.api.Assertions.assertEquals(149, execPassing,
+            // 149 -> 140 (batch 35 — engine-style H2 literal-reduction /
+            // round spellings): the flipped tests' sql-asserts left the
+            // walk's lane (lane move, passes 2374 stable, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(140, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1480,10 +1483,18 @@ public class RelationalCorpusRunner {
             // forced filter 2, concatenate 3, query::function 3, distinct,
             // embedded exists, association mixed, group open variable),
             // 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(379L,
+            // 379 -> 369 (batch 35, 2026-09-03): the referee's engine-style
+            // H2 render spells reductions over a LITERAL collection as the
+            // engine's infix chain (and([a,b,c]), [x,y]->times()),
+            // firstNotNull as coalesce, round as round(x[, n]) — the
+            // "class query under TypedMap" wall was the sql() read reaching
+            // the resolver because the activity render had failed. +10
+            // (round 4, tdsFilter and/or 2, firstNotNull 2, divide 1,
+            // columnValueDifference 1), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(369L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2194L,
+            org.junit.jupiter.api.Assertions.assertEquals(2204L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
