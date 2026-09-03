@@ -3365,6 +3365,14 @@ final class Typer {
                         instanceof LambdaFunction;
     }
 
+    private static boolean legacyAggCall(ValueSpecification v) {
+        return v instanceof AppliedFunction c
+                && GroupByChecker.isAggSpelling(c.function())
+                && c.parameters().size() == 2
+                && c.parameters().get(0) instanceof LambdaFunction
+                && c.parameters().get(1) instanceof LambdaFunction;
+    }
+
     static boolean deferredLetRhs(ValueSpecification v) {
         // a quote/eval tree carrier — bare, or under the corpus's
         // ->cast(@RootGraphFetchTree<T>) — is a tree LITERAL for binding
@@ -3394,6 +3402,13 @@ final class Typer {
             return true;
         }
         if (legacyColCall(v)) {
+            return true;
+        }
+        // a legacy AGGREGATE value (`agg(x|…, y|…)`, engine AggregateValue)
+        // — bare or a collection of them — types only against the groupBy
+        // that consumes it (GroupByChecker.legacyToModern chases the let)
+        if (legacyAggCall(v) || v instanceof PureCollection apc && !apc.values().isEmpty()
+                && apc.values().stream().allMatch(Typer::legacyAggCall)) {
             return true;
         }
         return v instanceof com.legend.protocol.spec.GraphFetchLiteral

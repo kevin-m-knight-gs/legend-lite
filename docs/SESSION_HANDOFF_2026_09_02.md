@@ -2356,6 +2356,24 @@ class pin 255 → 256 (+EnumValueMapping); the documented-surface tables
 updated; the native-catalog golden regenerated (enumerationMappingByName
 left the native list).
 
+**Batch 49 — LET-BOUND AGGREGATE VALUES (2026-09-03): ratchet 282/2291 →
+281/2292 (+1, ZERO lost).** `let g = agg(x:Person[1]|$x.lastName, y:String[*]
+|$y->count())` typed eagerly and walled ("no overload of 'agg' matches 2
+arguments"): the engine's AggregateValue is a value that only types
+against its groupBy. `Typer.deferredLetRhs` now parks a legacy 2-lambda
+`agg(...)` (or a collection of them) like a column spec, and
+`GroupByChecker.legacyToModern` chases the let (whole argument and per
+element) through `env.resolveAlias`. +1 (executionPlan
+testModelConnectionAgg). PROBED AND NAMED: `Unknown type: 'SQLQuery'`
+(5: sqlQueryToString temp-table statements, pureToSqlQuery
+simpleFunctionExpressionTranslation*, postProcessor filterPushDown /
+Db2ColumnRename / TransformJoinOp) — engine SQL-generation library tests
+(the C2 family's cousins); `StoreContract` (routing-context builders) and
+the connection-equality five (`routerExtensions` over Extension[*] — the
+real qualified property auto-maps; ours is a [1] native) — engine
+internals; `groupByWithWindowSubset` — an unported tds.pure:867 Pure
+function (6 args, a NormalizeRequired-style body).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,

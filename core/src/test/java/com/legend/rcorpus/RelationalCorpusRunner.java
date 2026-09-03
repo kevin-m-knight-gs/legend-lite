@@ -1620,10 +1620,15 @@ public class RelationalCorpusRunner {
             // enumerationMappingByName and toDomainValue are Pure bodies
             // over the rows (the K-side native deleted). +2 (enumeration
             // testEnumMappings, testEnumMappingsWithInclude), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(282L,
+            // 282 -> 281 (batch 49, 2026-09-03): a LET-BOUND legacy aggregate
+            // (`let g = agg(x|…, y|…)`, engine AggregateValue) parks at its
+            // binding (Typer.deferredLetRhs) and types against the groupBy
+            // that consumes it (GroupByChecker.legacyToModern chases the
+            // alias, per element). +1 (testModelConnectionAgg), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(281L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2291L,
+            org.junit.jupiter.api.Assertions.assertEquals(2292L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

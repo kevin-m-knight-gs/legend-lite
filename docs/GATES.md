@@ -218,6 +218,9 @@ Channel B run with the roots pinned at the gate and its own log line
 JVM startup dominate G6, so the wall saving is ~4s of the 13s of test
 time; the cut is kept for its shape (no fact asserted twice).
 
+**Batch 49 (a let-bound legacy aggregate value defers to the groupBy that consumes it, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 282/2291 → 281/2292 (+1, 0 lost); lanes unchanged (exec-passing 60, M1 rescued 54, disagree 0). G1 42s, G2 8s, G4 57s, G5 38s, G6 81s, G7 26s, G9 18s, G8 72s.
+
 **Batch 48 (enumeration mappings as system-store rows; enumerationMappingByName and toDomainValue as Pure bodies over them, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 284/2289 → 282/2291 (+2, 0 lost); lanes unchanged (exec-passing 60, M1 rescued 54, disagree 0); native class pin 255 → 256. G1 40s, G2 8s, G4 57s, G5 38s, G6 79s, G7 25s, G9 18s, G8 72s.
 

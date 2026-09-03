@@ -37,7 +37,7 @@ final class GroupByChecker {
 
     /** The TDS-era agg spelling — bare or its exact FQN (the corpus writes
      * {@code meta::pure::tds::agg('count', x|$x, y|$y->count())}). */
-    private static boolean isAggSpelling(String fn) {
+    static boolean isAggSpelling(String fn) {
         return fn.equals("agg") || fn.equals("meta::pure::tds::agg");
     }
 
@@ -66,9 +66,14 @@ final class GroupByChecker {
         PureCollection keyFns = asCollection(ps.get(1));
         // an aggregate-spec HELPER CALL (getAggValues():AggregateValue<..>[*])
         // expands raw so its agg(mapFn, aggFn) literals reach the shape check
-        ValueSpecification aggsRaw = ps.get(2);
+        // a LET-BOUND aggregate (`let g = agg(x|…, y|…)`) parks at its
+        // binding (Typer.deferredLetRhs) and types HERE, against the
+        // groupBy that consumes it — the alias chase, per element too
+        ValueSpecification aggsRaw = letBound(ps.get(2), env);
         ValueSpecification aggsEx = t.rawSchemaErasedExpansion(aggsRaw);
         PureCollection aggs = asCollection(aggsEx != null ? aggsEx : aggsRaw);
+        aggs = new PureCollection(aggs.values().stream()
+                .map(v -> letBound(v, env)).toList());
         PureCollection aliases = asCollection(ps.get(3));
         int expected = keyFns.values().size() + aggs.values().size();
         if (aliases.values().size() != expected) {
@@ -179,6 +184,14 @@ final class GroupByChecker {
                 && call.parameters().size() == 1
                 && call.parameters().get(0) instanceof Variable av
                 && av.name().equals(aggFn.parameters().get(0).name());
+    }
+
+    private static ValueSpecification letBound(ValueSpecification v, Env env) {
+        if (v instanceof Variable) {
+            ValueSpecification bound = env.resolveAlias(v);
+            return bound != null ? bound : v;
+        }
+        return v;
     }
 
     private static PureCollection asCollection(ValueSpecification v) {
