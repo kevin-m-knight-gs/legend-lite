@@ -106,6 +106,11 @@ public final class SystemMetamodel {
             sb.append("                Filter Pn").append(k[1])
                     .append("(metamodel.plan_nodes.kind = '").append(k[1]).append("')\n");
         }
+        // the expression-tree node kinds over the ONE value_specifications table
+        for (String[] k : VS_KINDS) {
+            sb.append("                Filter Vs").append(k[1])
+                    .append("(metamodel.value_specifications.kind = '").append(k[1]).append("')\n");
+        }
         return sb.toString();
     }
 
@@ -123,6 +128,36 @@ public final class SystemMetamodel {
             "sqlQuery: " + S + " metamodel.plan_nodes.sql_query,\n"
             + "                    sqlComment: " + S + " metamodel.plan_nodes.sql_comment"},
     };
+
+    /** The expression-tree node kinds (real m3 ValueSpecification
+     * subclasses the rows discriminate on — FunctionBodyRows.kindOf):
+     * {class FQN, kind spelling, set id, own property lines}. */
+    static final String[][] VS_KINDS = {
+        {"meta::pure::metamodel::valuespecification::FunctionExpression", "FunctionExpression", "vsFe",
+            "parametersValues[vsFe]: " + S + "@VsToChildren,\n"
+            + "                    parametersValues[vsIv]: " + S + "@VsToChildren,\n"
+            + "                    parametersValues[vsVe]: " + S + "@VsToChildren"},
+        {"meta::pure::metamodel::valuespecification::InstanceValue", "InstanceValue", "vsIv", ""},
+        {"meta::pure::metamodel::valuespecification::VariableExpression", "VariableExpression", "vsVe",
+            "name: " + S + " metamodel.value_specifications.var_name"},
+    };
+
+    private static String pkAssocRoutes() {
+        List<String> lines = new ArrayList<>();
+        for (String[] k : VS_KINDS) {
+            lines.add("                        inferredFor[ipk, " + k[2] + "]: " + S + "@NodeToPkColumns");
+            lines.add("                        inferredPrimaryKeyColumns[" + k[2] + ", ipk]: " + S + "@NodeToPkColumns");
+        }
+        return String.join(",\n", lines);
+    }
+
+    private static String vsRoutes(String prop, String join) {
+        List<String> lines = new ArrayList<>();
+        for (String[] k : VS_KINDS) {
+            lines.add("                    " + prop + "[" + k[2] + "]: " + S + "@" + join);
+        }
+        return String.join(",\n", lines);
+    }
 
     private static String planNodeRoutes(String prop, String join) {
         List<String> lines = new ArrayList<>();
@@ -192,12 +227,45 @@ public final class SystemMetamodel {
                 .append("                {\n")
                 .append("                    ~primaryKey(").append(S).append(" metamodel.functions.id)\n")
                 .append("                    ~mainTable ").append(S).append(" metamodel.functions\n")
-                .append("                    expressionSequence[vs]: ").append(S).append("@FunctionToBody\n")
+                .append(vsRoutes("expressionSequence", "FunctionToBody")).append("\n")
                 .append("                }\n")
-                .append("                *meta::pure::metamodel::valuespecification::ValueSpecification[vs]: Relational\n")
+                // the expression TREE (group H burn, 2026-09-03): every node
+                // is a row discriminated by its m3 kind; parametersValues
+                // are the children rows; the node's Multiplicity is the
+                // real m3 object shape (Multiplicity -> MultiplicityValue
+                // .value) over the same row
+                .append("                *meta::pure::metamodel::valuespecification::ValueSpecification: Operation\n")
+                .append("                {\n")
+                .append("                    ").append(INHERITANCE_OP).append("\n")
+                .append("                }\n");
+        for (String[] k : VS_KINDS) {
+            sb.append("                ").append(k[0]).append("[").append(k[2]).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Vs").append(k[1]).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.value_specifications.id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.value_specifications\n")
+                    .append("                    multiplicity[mult]: ").append(S).append("@VsSelf")
+                    .append(k[3].isEmpty() ? "\n" : ",\n                    " + k[3] + "\n")
+                    .append("                }\n");
+        }
+        sb.append("                *meta::pure::metamodel::multiplicity::Multiplicity[mult]: Relational\n")
                 .append("                {\n")
                 .append("                    ~primaryKey(").append(S).append(" metamodel.value_specifications.id)\n")
                 .append("                    ~mainTable ").append(S).append(" metamodel.value_specifications\n")
+                .append("                    lowerBound[mvLo]: ").append(S).append("@VsSelf,\n")
+                .append("                    upperBound[mvHi]: ").append(S).append("@VsSelf\n")
+                .append("                }\n")
+                .append("                *meta::pure::metamodel::multiplicity::MultiplicityValue[mvLo]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.value_specifications.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.value_specifications\n")
+                .append("                    value: ").append(S).append(" metamodel.value_specifications.mult_lower\n")
+                .append("                }\n")
+                .append("                meta::pure::metamodel::multiplicity::MultiplicityValue[mvHi]: Relational\n")
+                .append("                {\n")
+                .append("                    ~primaryKey(").append(S).append(" metamodel.value_specifications.id)\n")
+                .append("                    ~mainTable ").append(S).append(" metamodel.value_specifications\n")
+                .append("                    value: ").append(S).append(" metamodel.value_specifications.mult_upper\n")
                 .append("                }\n")
                 .append("                *meta::lite::metamodel::InferredPrimaryKeyColumn[ipk]: Relational\n")
                 .append("                {\n")
@@ -209,8 +277,7 @@ public final class SystemMetamodel {
                 .append("                }\n")
                 .append("                meta::lite::metamodel::InferredPrimaryKeys: Relational\n")
                 .append("                {\n                    AssociationMapping\n                    (\n")
-                .append("                        inferredFor[ipk, vs]: ").append(S).append("@NodeToPkColumns,\n")
-                .append("                        inferredPrimaryKeyColumns[vs, ipk]: ").append(S).append("@NodeToPkColumns\n")
+                .append(pkAssocRoutes()).append("\n")
                 .append("                    )\n                }\n");
         // LINEAGE TREES as rows (group E burn, 2026-09-03): a scanRelations
         // handle's relation tree is node rows in PREORDER with their depth's
@@ -508,7 +575,12 @@ public final class SystemMetamodel {
                         id VARCHAR(512) PRIMARY KEY,
                         function_id VARCHAR(512) NOT NULL,
                         ordinal INTEGER NOT NULL,
-                        kind VARCHAR(64) NOT NULL
+                        kind VARCHAR(64) NOT NULL,
+                        parent_id VARCHAR(512),
+                        depth INTEGER NOT NULL,
+                        mult_lower INTEGER NOT NULL,
+                        mult_upper INTEGER,
+                        var_name VARCHAR(256) NOT NULL
                     )
                     Table vs_primary_key_columns
                     (
@@ -553,7 +625,9 @@ public final class SystemMetamodel {
                 Join NodeToFunctionParameters(metamodel.plan_nodes.id = metamodel.plan_function_parameters.node_id)
                 Join NodeToSubtree(metamodel.plan_nodes.id = metamodel.plan_node_closure.ancestor_id)
                 Join SubtreeToNode(metamodel.plan_node_closure.node_id = metamodel.plan_nodes.id)
-                Join FunctionToBody(metamodel.functions.id = metamodel.value_specifications.function_id)
+                Join FunctionToBody(metamodel.functions.id = metamodel.value_specifications.function_id and metamodel.value_specifications.depth = 0)
+                Join VsToChildren(metamodel.value_specifications.id = {target}.parent_id)
+                Join VsSelf(metamodel.value_specifications.id = {target}.id)
                 Join NodeToPkColumns(metamodel.value_specifications.id = metamodel.vs_primary_key_columns.node_id)
                 Join TreeToNodes(metamodel.relation_trees.id = metamodel.relation_tree_nodes.tree_id)
                 Join TreeNodeToColumns(metamodel.relation_tree_nodes.node_id = metamodel.relation_tree_node_columns.node_id)
@@ -780,6 +854,14 @@ public final class SystemMetamodel {
             function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*]
             {
                 $node.subtree.node
+            }
+            function meta::pure::functions::meta::getLowerBound(multiplicity:meta::pure::metamodel::multiplicity::Multiplicity[1]):Integer[1]
+            {
+                $multiplicity.lowerBound->toOne().value->toOne()
+            }
+            function meta::relational::functions::pureToSqlQuery::expressionSequenceReturnsAtLeastToOneDataType(v:meta::pure::metamodel::valuespecification::ValueSpecification[1]):Boolean[1]
+            {
+                $v.multiplicity->toOne()->meta::pure::functions::meta::getLowerBound() >= 1
             }
             function meta::relational::mapping::inferPrimaryKeyColumnNames(vs:meta::pure::metamodel::valuespecification::ValueSpecification[1]):String[*]
             {

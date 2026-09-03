@@ -58,6 +58,22 @@ public final class NormalizeFolds {
         return fold(call);
     }
 
+    /** The reflection identity applied at EMISSION (every native call):
+     * evaluateAndDeactivate over a LAMBDA LITERAL is the literal (real
+     * pure: a lambda evaluates to itself; the generic {@code <T|m>}
+     * signature would strip the function carrier and lose
+     * {@code .expressionSequence}). */
+    public static TypedSpec foldReflection(TypedSpec call) {
+        if (call instanceof TypedNativeCall nc
+                && "meta::pure::functions::meta::evaluateAndDeactivate"
+                        .equals(nc.callee().qualifiedName())
+                && nc.args().size() == 1
+                && nc.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam) {
+            return lam;
+        }
+        return call;
+    }
+
     public static TypedSpec fold(TypedSpec call) {
         if (!(call instanceof TypedNativeCall nc)) {
             return call;

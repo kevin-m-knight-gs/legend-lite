@@ -186,7 +186,23 @@ public final class Pure {
     // leg 3b (dossier D3): the MINIMUM reflection surface — genericType
     // only, so every other ValueSpecification read walls at ordinary
     // property resolution instead of fabricating
-    public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; }");
+    // real m3.pure bootstrap: Multiplicity { lowerBound: MultiplicityValue[1];
+    // upperBound: MultiplicityValue[1] }, MultiplicityValue { value:
+    // Integer[0..1] } (an unbounded upper bound has no value) — group H
+    // burn 2026-09-03: the expression rows carry their multiplicity
+    public static final ClassDefinition MULTIPLICITY_META = nativeClass("native Class meta::pure::metamodel::multiplicity::Multiplicity { lowerBound: meta::pure::metamodel::multiplicity::MultiplicityValue[1]; upperBound: meta::pure::metamodel::multiplicity::MultiplicityValue[1]; }");
+    public static final ClassDefinition MULTIPLICITY_VALUE_META = nativeClass("native Class meta::pure::metamodel::multiplicity::MultiplicityValue { value: meta::pure::metamodel::type::Integer[0..1]; }");
+    // real m3 ValueSpecification.properties[genericType, multiplicity]
+    public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; }");
+    // the expression-tree node kinds (real m3.pure: InstanceValue.values
+    // Any[*]; VariableExpression.name String[1]; FunctionExpression
+    // :1955 — func Function<Any>[1] (not modeled: a function reference
+    // is not a row yet), functionName String[0..1], parametersValues
+    // ValueSpecification[*]; SimpleFunctionExpression extends it)
+    public static final ClassDefinition INSTANCE_VALUE_META = nativeClass("native Class meta::pure::metamodel::valuespecification::InstanceValue extends meta::pure::metamodel::valuespecification::ValueSpecification { values: meta::pure::metamodel::type::Any[*]; }");
+    public static final ClassDefinition VARIABLE_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::VariableExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { name: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
+    public static final ClassDefinition SIMPLE_FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression {}");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
     /** Real m3.pure PackageableElement (extends ModelElement, Referenceable; the

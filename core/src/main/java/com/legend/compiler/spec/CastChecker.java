@@ -51,6 +51,37 @@ final class CastChecker {
                 && (sc.fqn().equals(tc.fqn()) || t.model().isSubtype(sc.fqn(), tc.fqn()))) {
             return a.args().get(0);
         }
+        TypedSpec lam = deactivatedLambda(a.args().get(0), ref.target());
+        if (lam != null) {
+            return lam;
+        }
         return new TypedCast(a.args().get(0), ref.target(), a.out(), false);
+    }
+
+    /** {@code {..}->deactivate()->cast(@InstanceValue).values->at(0)
+     * ->cast(@LambdaFunction<..>)} — the reflection round trip real pure
+     * makes of a lambda literal (deactivate wraps it in an InstanceValue
+     * whose single value is the lambda): the lambda itself. */
+    private static @com.legend.Nullable TypedSpec deactivatedLambda(
+            TypedSpec src, com.legend.compiler.element.type.Type target) {
+        if (!(target instanceof com.legend.compiler.element.type.Type.GenericType g
+                && InferenceKernel.FUNCTION_CARRIER_FQNS.contains(g.rawFqn()))) {
+            return null;
+        }
+        if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall at
+                && at.args().size() == 2
+                && "meta::pure::functions::collection::at".equals(at.callee().qualifiedName())
+                && at.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger k
+                && k.value().longValue() == 0
+                && at.args().get(0) instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.property().equals("values")
+                && pa.source() instanceof TypedCast iv
+                && iv.target() instanceof com.legend.compiler.element.type.Type.ClassType ic
+                && ic.fqn().equals("meta::pure::metamodel::valuespecification::InstanceValue")
+                && iv.source() instanceof com.legend.compiler.spec.typed.TypedDeactivate d
+                && d.inner() instanceof com.legend.compiler.spec.typed.TypedLambda lam) {
+            return lam;
+        }
+        return null;
     }
 }

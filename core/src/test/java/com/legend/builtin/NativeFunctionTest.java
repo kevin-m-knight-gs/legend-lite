@@ -553,10 +553,13 @@ class NativeFunctionTest {
         // Sequence execution node (real executionPlan.pure).
         // 244 -> 245 (batch 20 — group E, lineage trees as rows): the
         // scanRelations RelationTree HANDLE class (real scanRelations.pure:47).
+        // 249 -> 255 (batch 22 — group H, the expression tree as rows):
+        // Multiplicity, MultiplicityValue, InstanceValue, VariableExpression,
+        // FunctionExpression, SimpleFunctionExpression (real m3 shapes)
         // 245 -> 249 (batch 21 — group I, column lineage as rows): the
         // scanProperties / buildPropertyTree / scanColumns chain's classes
         // (PropertyPathNode, Res, PropertyPathTree, ColumnWithContext).
-        assertEquals(249, Pure.allNativeClasses().size(),
+        assertEquals(255, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -967,6 +970,18 @@ class NativeFunctionTest {
                     // function bodies as rows)
                     java.util.Map.entry("meta::pure::metamodel::function::FunctionDefinition",
                     List.of("expressionSequence")),
+                    // group H (2026-09-03): the expression tree as rows — real
+                    // m3 shapes (m3.pure bootstrap: FunctionExpression :1955)
+                    java.util.Map.entry("meta::pure::metamodel::valuespecification::FunctionExpression",
+                    List.of("functionName", "parametersValues")),
+                    java.util.Map.entry("meta::pure::metamodel::valuespecification::InstanceValue",
+                    List.of("values")),
+                    java.util.Map.entry("meta::pure::metamodel::valuespecification::VariableExpression",
+                    List.of("name")),
+                    java.util.Map.entry("meta::pure::metamodel::multiplicity::Multiplicity",
+                    List.of("lowerBound", "upperBound")),
+                    java.util.Map.entry("meta::pure::metamodel::multiplicity::MultiplicityValue",
+                    List.of("value")),
                     java.util.Map.entry("meta::pure::executionPlan::FunctionParametersValidationNode",
                     List.of("functionParameters")),
                     java.util.Map.entry("meta::pure::executionPlan::FunctionParameter",
@@ -1093,10 +1108,12 @@ class NativeFunctionTest {
                 // real M3 declares the property (m3.pure bootstrap,
                 // ValueSpecification.properties[genericType], e.g. :1140);
                 // ONLY genericType so every other read walls loudly
-                assertEquals(List.of("genericType"),
+                // + multiplicity (group H burn 2026-09-03: real m3
+                // ValueSpecification.properties[multiplicity])
+                assertEquals(List.of("genericType", "multiplicity"),
                         c.properties().stream().map(p -> p.name()).toList(),
-                        "ValueSpecification declares exactly genericType"
-                                + " (the deactivate reflection minimum)");
+                        "ValueSpecification declares exactly genericType, multiplicity"
+                                + " (the deactivate reflection minimum + the tree rows)");
             } else if (c.qualifiedName().equals(
                     "meta::pure::metamodel::type::Class")) {
                 // metamodel-store leg (2026-08-28,

@@ -1478,11 +1478,49 @@ column (`p|$p.address`) walls in the inner lowering ("class query under
 TypedMap"), the same 34-test bucket; the Java arm `LineageForm`'s
 scanColumns branch serves that one test and dies with the bucket.
 
+**Batch 22 — GROUP H: THE EXPRESSION TREE AS ROWS (2026-09-03): ratchet
+656/1917 → 653/1920 (+3, ZERO lost).** Every node of a function body is
+now a `value_specifications` row (`FunctionBodyRows.nodeRows`, preorder:
+id, function id, ordinal, m3 kind, parent, depth, multiplicity bounds,
+variable name); the kinds are the real m3 subclasses (`FunctionExpression`
+/ `InstanceValue` / `VariableExpression` — Pure.java declares them with
+their real properties, m3.pure bootstrap :1955; `func` is not modeled
+yet: a function reference is not a row) as an Operation set over the one
+table (`SystemMetamodel.VS_KINDS`, the plan-node idiom); `parametersValues`
+are the children rows (`VsToChildren`); `expressionSequence` is the
+depth-0 rows (the `FunctionToBody` join carries `depth = 0`). The node's
+`multiplicity` is the REAL m3 object shape — `Multiplicity.lowerBound /
+upperBound : MultiplicityValue.value` — mapped over the same row (`VsSelf`
+self-joins; an unbounded upper bound is NULL); `getLowerBound` is the
+real body verbatim (getLowerBound.pure:17) and the engine's
+`expressionSequenceReturnsAtLeastToOneDataType` is a Pure body over it
+(`$v.multiplicity->getLowerBound() >= 1` — the engine's
+findFunctionSequenceMultiplicity fold and the typer's static multiplicity
+agree on every witness). Two reflection folds at TYPING (real-pure
+identities): `evaluateAndDeactivate` over a lambda literal is the literal
+(`NormalizeFolds.foldReflection`, wired at `Typer.emitCall` — the generic
+`<T|m>` signature used to strip the function carrier and lose
+`.expressionSequence`), and `{..}->deactivate()->cast(@InstanceValue)
+.values->at(0)->cast(@LambdaFunction<..>)` is the lambda
+(`CastChecker.deactivatedLambda`). The Java arm `ReflectAsserts` (the
+host multiplicity walk) is DELETED; the metamodel quarantine shrank 34 → 22
+rows (the m3 classes type chains that walled as unknown types). Residue, NAMED — engine-GENERATOR
+internal API with no platform counterpart (their bodies are the engine's
+pureToSQLQuery.pure, never loaded): testFindFunctionSequenceMultiplicity
+(`findFunctionSequenceMultiplicity` pairs + `.func`), testMergeOldAliasTo
+NewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchema
+Name, addDriverTablePkForProject, testImportDataFlow (routeFunction /
+toSQLQuery over RelationalExecutionContext); simpleFunctionExpression
+TranslationNow/Adjust read `toSQLQuery(fe)->sqlQueryToString(H2)` — a
+plan-text handle leg (the plan rows already hold the SQL text), not
+built.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 656 fallbacks / 1917 flipped (batches 14–21 = group D,
+legs).** State: 653 fallbacks / 1920 flipped (batches 14–22 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
-lineage trees as rows, group I column lineage as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
+lineage trees as rows, group I column lineage as rows, group H the
+expression tree as rows), exec-passing 344, quarantine 34 rows / 9 walls (was 125 / 9;
 group F LANDED — batch 7 above; batches 8–13 = speed + architecture,
 ratchet unchanged), exec-passing 344, quarantine 125 rows / 9 walls.
 NEXT = group Q (plan nodes as rows), then A/E/I/H (expression trees as

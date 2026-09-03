@@ -1317,10 +1317,31 @@ public class RelationalCorpusRunner {
             // tuple (to-many exists materials still stay out). +5, 0 lost.
             // Named residue: testNonDataTypeProperty (class-valued project
             // column — the 'class query under TypedMap' bucket).
-            org.junit.jupiter.api.Assertions.assertEquals(656L,
+            // 656/1917 -> 653/1920 (batch 22 — GROUP H, the expression TREE
+            // as rows, 2026-09-03): every node of a function body is a
+            // value_specifications row discriminated by its m3 kind
+            // (FunctionExpression / InstanceValue / VariableExpression —
+            // an Operation set over the one table), parametersValues are
+            // the children rows, and the node's Multiplicity is the real
+            // m3 object shape (Multiplicity.lowerBound.value) over the
+            // same row; getLowerBound is the real body; the engine's
+            // expressionSequenceReturnsAtLeastToOneDataType is a Pure
+            // body over it. Two reflection folds at typing:
+            // evaluateAndDeactivate over a lambda literal is the literal,
+            // and deactivate()->cast(@InstanceValue).values->at(0)
+            // ->cast(@LambdaFunction<..>) is the lambda. +3
+            // (tesIsToOneDataTypeFunctionExpressionSequence ×3), 0 lost.
+            // Named residue (engine-generator INTERNAL API, no platform
+            // counterpart): testFindFunctionSequenceMultiplicity,
+            // testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations,
+            // testFindAliasMappingBySchemaName, addDriverTablePkForProject,
+            // testImportDataFlow; simpleFunctionExpressionTranslationNow/
+            // Adjust read toSQLQuery()->sqlQueryToString(H2) — a plan-text
+            // handle leg, not built yet.
+            org.junit.jupiter.api.Assertions.assertEquals(653L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1917L,
+            org.junit.jupiter.api.Assertions.assertEquals(1920L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1472,7 +1493,11 @@ public class RelationalCorpusRunner {
             // inferPrimaryKeyColumnNames refusal spellings are DEAD — a
             // function value's statements are rows the database navigates
             // (FunctionBodyRows), the inference a stamped fact (PkInference).
-            org.junit.jupiter.api.Assertions.assertEquals(34,
+            org.junit.jupiter.api.Assertions.// 34 -> 22 (batch 22 — group H, 2026-09-03): the real m3
+            // InstanceValue / FunctionExpression / VariableExpression /
+            // Multiplicity classes type reflection chains that used to
+            // wall as unknown types; the rows shrink, nothing scored moved
+            assertEquals(22,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");

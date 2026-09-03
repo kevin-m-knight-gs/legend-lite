@@ -1779,7 +1779,7 @@ final class Typer {
     static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out,
             com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
         return chosen.isNative()
-                ? new TypedNativeCall(chosen, args, out, pos)
+                ? NormalizeFolds.foldReflection(new TypedNativeCall(chosen, args, out, pos))
                 : new TypedUserCall(chosen, args, out);
     }
 

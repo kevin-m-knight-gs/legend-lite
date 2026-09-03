@@ -33,8 +33,10 @@ final class ConnEquality {
     private ConnEquality() {
     }
 
-    /** THE assert-arm host fold dispatcher: connection equality, then
-     * the M3-reflection predicates ({@link ReflectAsserts}). */
+    /** THE assert-arm host fold dispatcher: connection equality (the
+     * M3-reflection predicate arm died with group H — the expression
+     * tree is rows, expressionSequenceReturnsAtLeastToOneDataType a
+     * Pure body over them). */
     static @com.legend.Nullable Boolean tryEval(
             @com.legend.Nullable ValueSpecification v,
             com.legend.compiler.element.ModelContext ctx,
@@ -50,9 +52,7 @@ final class ConnEquality {
                 && EngineTestExecutor.simpleName(af.function()).equals(
                         "runRelationalRouterExtensionConnectionEquality")
                 && af.parameters().size() == 2)) {
-            Boolean r = v == null ? null
-                    : ReflectAsserts.tryEval(v, ctx, imports);
-            return r == null ? null : negate ? !r : r;
+            return null;
         }
         boolean eq = structEquals(af.parameters().get(0),
                 af.parameters().get(1));
