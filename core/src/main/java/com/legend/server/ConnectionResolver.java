@@ -23,8 +23,9 @@ import java.sql.SQLException;
  * across requests (tables persist — the feature) while an EDITED
  * definition or store gets a fresh one (an FQN-only key desynced:
  * engine planCache scar). A spec kind the original resolver folded to
- * in-memory (e.g. {@code LocalH2}) keeps that fold. Unsupported
- * database types stay LOUD.
+ * in-memory (e.g. {@code LocalH2}) keeps that fold. File-backed
+ * embedded connections are cached too, but keyed on the JDBC URL —
+ * see {@link #embeddedFile}. Unsupported database types stay LOUD.
  */
 final class ConnectionResolver {
 
@@ -116,12 +117,43 @@ final class ConnectionResolver {
                 Hash.ofUtf8(def.toString()));
     }
 
+    /**
+     * A file-backed embedded database, cached like its in-memory
+     * siblings. Two reasons the LocalFile arms cannot stay on a bare
+     * {@code DriverManager.getConnection}:
+     *
+     * <ul>
+     *   <li><b>Nothing closes them.</b> {@code resolve} hands the
+     *       connection to a caller that (correctly, for the cached
+     *       arms) never closes it, so every request leaked a handle
+     *       for the life of the process. POSIX hides this until the
+     *       fd ceiling; Windows also pins the file, which is how
+     *       {@code QueryServiceDirectTest} found it.</li>
+     *   <li><b>Identity is the FILE.</b> Keyed on the JDBC URL, not
+     *       on {@link #contentKey} — two models naming the same path
+     *       are the same database, and handing them separate handles
+     *       to one embedded file is what the driver's own lock
+     *       exists to stop.</li>
+     * </ul>
+     *
+     * <p>Unchanged (and still one connection per call): the H2 arms.
+     * Their in-memory spellings keep the database alive with
+     * {@code DB_CLOSE_DELAY=-1} rather than with the handle, so
+     * caching them would fold per-connection session state together —
+     * a semantic change this fix has no evidence to make.
+     */
+    private static Connection embeddedFile(String jdbcUrl) throws SQLException {
+        return STORE.getOrOpen(Hash.ofUtf8(jdbcUrl),
+                ConnectionResolver::dead,
+                () -> DriverManager.getConnection(jdbcUrl));
+    }
+
     private static Connection connect(Hash storesKey, ConnectionDefinition def)
             throws SQLException {
         return switch (def.databaseType()) {
             case DuckDB -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
-                        DriverManager.getConnection("jdbc:duckdb:" + path);
+                        embeddedFile("jdbc:duckdb:" + path);
                 // InMemory — and every spec kind the legacy resolver folded
                 // to in-memory (LocalH2, static specs DuckDB can't reach)
                 default -> STORE.getOrOpen(contentKey(storesKey, def),
@@ -130,7 +162,7 @@ final class ConnectionResolver {
             };
             case SQLite -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
-                        DriverManager.getConnection("jdbc:sqlite:" + path);
+                        embeddedFile("jdbc:sqlite:" + path);
                 default -> STORE.getOrOpen(contentKey(storesKey, def),
                         ConnectionResolver::dead,
                         () -> DriverManager.getConnection("jdbc:sqlite::memory:"));

@@ -93,6 +93,12 @@ class QueryServiceDirectTest {
 
     @AfterAll
     static void teardown() throws Exception {
+        // resolve() hands back the CACHED handle for this file
+        // (ConnectionResolver.embeddedFile). Close it before deleting:
+        // POSIX unlinks a file that is still open, Windows refuses,
+        // so a leaked handle is silent on one platform and fatal on
+        // the other.
+        ConnectionResolver.resolve(sampleModel, "test::TestRuntime").close();
         Files.deleteIfExists(tempDbFile);
         Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
     }

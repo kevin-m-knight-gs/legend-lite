@@ -44,18 +44,22 @@ class LegendHttpServerIntegrationTest {
     }
 
     @AfterAll
-    static void teardown() {
+    static void teardown() throws Exception {
         if (server != null) {
             server.stop();
         }
-        // Clean up temp file
-        try {
-            Files.deleteIfExists(tempDbFile);
-            // DuckDB also creates .wal file
-            Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        // resolve() hands back the CACHED handle for this file
+        // (ConnectionResolver.embeddedFile). Close it before deleting:
+        // POSIX unlinks a file that is still open, Windows refuses,
+        // so a leaked handle is silent on one platform and fatal on
+        // the other.
+        // (This teardown used to printStackTrace the failure and pass,
+        // which on Windows meant a green test and a stray .duckdb in
+        // TEMP after every run. It throws now.)
+        ConnectionResolver.resolve(buildSampleModel(), "test::TestRuntime").close();
+        Files.deleteIfExists(tempDbFile);
+        // DuckDB also creates .wal file
+        Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
     }
 
     // Build sample model following AbstractDatabaseTest pattern - SIMPLE names in
