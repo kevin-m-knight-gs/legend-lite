@@ -64,7 +64,7 @@ class PureModelContextTest {
 
         // Native enum from the bootstrap Pure catalog (not user-declared).
         assertInstanceOf(Type.EnumType.class,
-                ctx.findType(Pure.MONTH.qualifiedName()).orElseThrow());
+                ctx.findType("meta::pure::functions::date::Month").orElseThrow());
     }
 
     @Test
@@ -312,7 +312,7 @@ class PureModelContextTest {
                 Pure.ENUMERATION.qualifiedName());
         assertTrue(extent.contains("model::Color"),
                 "user enum missing from the Enumeration extent");
-        assertTrue(extent.contains(Pure.MONTH.qualifiedName()),
+        assertTrue(extent.contains("meta::pure::functions::date::Month"),
                 "native enum missing from the Enumeration extent");
     }
 

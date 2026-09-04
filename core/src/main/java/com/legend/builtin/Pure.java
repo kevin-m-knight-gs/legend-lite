@@ -143,7 +143,7 @@ public final class Pure {
      * to something other than a {@link ClassDefinition}, or comes back
      * with {@code isNative=false}.
      */
-    private static ClassDefinition nativeClass(String pureSource) {
+    static ClassDefinition nativeClass(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ElementParser.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
@@ -168,9 +168,11 @@ public final class Pure {
 
     // ---- Top of the hierarchy ----
     public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
-    /** M3 ElementOverride: the Typer serves {@code Any.elementOverride}
+    /** M3 ElementOverride (real package meta::pure::metamodel::type — the
+     * hand copy had guessed ::extension until the generated prelude named
+     * the real one, 2026-09-04): the Typer serves {@code Any.elementOverride}
      * reads as this type and folds them EMPTY (never installed here). */
-    public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::extension::ElementOverride {}");
+    public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::type::ElementOverride extends meta::pure::metamodel::type::Any {}");
     // the TDS null-cell TYPE (engine tds.pure:127) — the VALUE stays the
     // one sqlNull() funnel (Typer's TDSNull arms); the class exists so
     // match arms (n:TDSNull[1] — toCSVString) TYPE against it
@@ -179,10 +181,15 @@ public final class Pure {
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
     // ModelElement; letFn's removeDuplicates over classes needs it)
-    public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::ModelElement {}");
+    // real m3.pure Type (tools/m3shape.py): name[0..1] + the generalization
+    // ends — pureToSQLQuery's buildUniqueName reads `$u->type()->toOne().name`
+    public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; generalizations: meta::pure::metamodel::relationship::Generalization[*]; specializations: meta::pure::metamodel::relationship::Generalization[*]; }");
+    public static final ClassDefinition GENERALIZATION = nativeClass("native Class meta::pure::metamodel::relationship::Generalization extends meta::pure::metamodel::type::Any { specific: meta::pure::metamodel::type::Type[1]; general: meta::pure::metamodel::type::generics::GenericType[1]; }");
     /** Real M3 GenericType — {@code $x->genericType().rawType} reflection
      * (inheritance testGetAll: per-instance member class over a union). */
-    public static final ClassDefinition GENERIC_TYPE_META = nativeClass("native Class meta::pure::metamodel::type::generics::GenericType { rawType: meta::pure::metamodel::type::Type[0..1]; }");
+    // real m3.pure GenericType / TypeParameter (tools/m3shape.py, 2026-09-04)
+    public static final ClassDefinition GENERIC_TYPE_META = nativeClass("native Class meta::pure::metamodel::type::generics::GenericType extends meta::pure::metamodel::Referenceable { rawType: meta::pure::metamodel::type::Type[0..1]; typeParameter: meta::pure::metamodel::type::generics::TypeParameter[0..1]; typeVariableValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; typeArguments: meta::pure::metamodel::type::generics::GenericType[*]; multiplicityArguments: meta::pure::metamodel::multiplicity::Multiplicity[*]; }");
+    public static final ClassDefinition TYPE_PARAMETER_META = nativeClass("native Class meta::pure::metamodel::type::generics::TypeParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; contravariant: meta::pure::metamodel::type::Boolean[0..1]; lowerBound: meta::pure::metamodel::type::generics::GenericType[0..1]; upperBound: meta::pure::metamodel::type::generics::GenericType[0..1]; }");
     // leg 3b (dossier D3): the MINIMUM reflection surface — genericType
     // only, so every other ValueSpecification read walls at ordinary
     // property resolution instead of fabricating
@@ -204,7 +211,9 @@ public final class Pure {
     public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
     public static final ClassDefinition SIMPLE_FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression {}");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
-    public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
+    // real m3.pure ModelElement carries name: String[0..1] (tools/m3shape.py) —
+    // every generated PackageableElement (Database, Schema, Mapping…) reads it
+    public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real m3.pure PackageableElement (extends ModelElement, Referenceable; the
      * package property grows by witness) — the elementToPath domain. */
     public static final ClassDefinition PACKAGEABLE_ELEMENT = nativeClass("native Class meta::pure::metamodel::PackageableElement extends meta::pure::metamodel::ModelElement {}");
@@ -212,8 +221,63 @@ public final class Pure {
     // Element; name from ModelElement) — the generic arguments and the
     // function surface are not modeled; ONE property, name, which the
     // metamodel store's properties rows carry (group F burn 2026-09-02).
-    public static final ClassDefinition PROPERTY_METACLASS = nativeClass("native Class meta::pure::metamodel::function::property::Property extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[1]; }");
+    // 2026-09-04: the real parameters <U,V|m> (tools/m3shape.py; the spec's
+    // PropertyMapping.property is Property<Nil,Any|*>[1]). Real m3 also
+    // generalizes to AbstractProperty<V>; our checker pairs generalization
+    // arguments POSITIONALLY with the class's own parameters
+    // (parameterizedGeneralizationsAreIdentityArgument), so that end and the
+    // m3 aggregation/defaultValue ends grow by witness.
+    // (the AbstractProperty ends genericType/multiplicity/owner are copied
+    // DOWN here for the same reason — toPostgresModel's getVariableType
+    // reads $p.genericType.rawType)
+    public static final ClassDefinition PROPERTY_METACLASS = nativeClass("native Class meta::pure::metamodel::function::property::Property<U,V|m> extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[1]; genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; owner: meta::pure::metamodel::PropertyOwner[1]; }");
+    // M3 BOOTSTRAP shapes (2026-09-04, option S): the language's own
+    // metamodel is declared in legend-pure's platform/pure/grammar/m3.pure as
+    // a GRAPH (^Root.children[…] instances), not in class syntax, so the
+    // generated prelude cannot read it — m3 stays hand-declared. These ten
+    // (plus ElementOverride above, re-packaged) are the m3 classes the
+    // generated library declarations name; each shape
+    // is extracted verbatim by tools/m3shape.py (receipt) — run it with the
+    // simple names to re-derive.
+    public static final ClassDefinition PROPERTY_OWNER = nativeClass("native Class meta::pure::metamodel::PropertyOwner extends meta::pure::metamodel::PackageableElement {}");
+    public static final ClassDefinition ABSTRACT_PROPERTY = nativeClass("native Class meta::pure::metamodel::function::property::AbstractProperty<T> extends meta::pure::metamodel::function::Function<T>, meta::pure::metamodel::ModelElement { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; owner: meta::pure::metamodel::PropertyOwner[1]; }");
+    public static final ClassDefinition QUALIFIED_PROPERTY = nativeClass("native Class meta::pure::metamodel::function::property::QualifiedProperty<T> extends meta::pure::metamodel::function::property::AbstractProperty<T>, meta::pure::metamodel::function::FunctionDefinition<T> { id: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition ASSOCIATION_META = nativeClass("native Class meta::pure::metamodel::relationship::Association extends meta::pure::metamodel::PropertyOwner { properties: meta::pure::metamodel::function::property::Property[0..2]; originalMilestonedProperties: meta::pure::metamodel::function::property::Property[0..2]; qualifiedProperties: meta::pure::metamodel::function::property::QualifiedProperty<meta::pure::metamodel::type::Any>[*]; }");
+    public static final ClassDefinition CONSTRAINT_META = nativeClass("native Class meta::pure::metamodel::constraint::Constraint extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; owner: meta::pure::metamodel::type::String[0..1]; externalId: meta::pure::metamodel::type::String[0..1]; functionDefinition: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1]; enforcementLevel: meta::pure::metamodel::type::String[0..1]; messageFunction: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
+    public static final ClassDefinition CONSTRAINTS_OVERRIDE = nativeClass("native Class meta::pure::metamodel::type::ConstraintsOverride extends meta::pure::metamodel::type::ElementOverride { constraintsManager: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; }");
+    public static final ClassDefinition REFERENCE_USAGE = nativeClass("native Class meta::pure::metamodel::ReferenceUsage extends meta::pure::metamodel::type::Any { owner: meta::pure::metamodel::type::Any[1]; propertyName: meta::pure::metamodel::type::String[1]; offset: meta::pure::metamodel::type::Integer[1]; }");
+    public static final ClassDefinition REFERENCEABLE = nativeClass("native Class meta::pure::metamodel::Referenceable extends meta::pure::metamodel::type::Any { referenceUsages: meta::pure::metamodel::ReferenceUsage[*]; }");
+    public static final ClassDefinition PACKAGEABLE_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::PackageableFunction<K> extends meta::pure::metamodel::PackageableElement, meta::pure::metamodel::function::Function<K> { preConstraints: meta::pure::metamodel::constraint::Constraint[*]; postConstraints: meta::pure::metamodel::constraint::Constraint[*]; }");
+    public static final ClassDefinition ANNOTATION = nativeClass("native Class meta::pure::metamodel::extension::Annotation extends meta::pure::metamodel::type::Any { profile: meta::pure::metamodel::extension::Profile[1]; value: meta::pure::metamodel::type::String[1]; modelElements: meta::pure::metamodel::extension::AnnotatedElement[*]; }");
+    public static final ClassDefinition STEREOTYPE = nativeClass("native Class meta::pure::metamodel::extension::Stereotype extends meta::pure::metamodel::extension::Annotation {}");
+    public static final ClassDefinition TAG = nativeClass("native Class meta::pure::metamodel::extension::Tag extends meta::pure::metamodel::extension::Annotation {}");
+    public static final ClassDefinition TAGGED_VALUE = nativeClass("native Class meta::pure::metamodel::extension::TaggedValue extends meta::pure::metamodel::type::Any { tag: meta::pure::metamodel::extension::Tag[1]; value: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition PROFILE = nativeClass("native Class meta::pure::metamodel::extension::Profile extends meta::pure::metamodel::PackageableElement { p_stereotypes: meta::pure::metamodel::extension::Stereotype[*]; p_tags: meta::pure::metamodel::extension::Tag[*]; }");
+    public static final ClassDefinition ELEMENT_WITH_STEREOTYPES = nativeClass("native Class meta::pure::metamodel::extension::ElementWithStereotypes extends meta::pure::metamodel::type::Any { stereotypes: meta::pure::metamodel::extension::Stereotype[*]; }");
+    public static final ClassDefinition ELEMENT_WITH_TAGGED_VALUES = nativeClass("native Class meta::pure::metamodel::extension::ElementWithTaggedValues extends meta::pure::metamodel::type::Any { taggedValues: meta::pure::metamodel::extension::TaggedValue[*]; }");
+    public static final ClassDefinition ANNOTATED_ELEMENT = nativeClass("native Class meta::pure::metamodel::extension::AnnotatedElement extends meta::pure::metamodel::extension::ElementWithStereotypes, meta::pure::metamodel::extension::ElementWithTaggedValues {}");
+    public static final ClassDefinition ENUM_META = nativeClass("native Class meta::pure::metamodel::type::Enum extends meta::pure::metamodel::extension::AnnotatedElement { name: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition RELATION_ELEMENT_ACCESSOR = nativeClass("native Class meta::pure::metamodel::relation::RelationElementAccessor<T> extends meta::pure::metamodel::Referenceable, meta::pure::metamodel::relation::Relation<T> { sourceElementContainer: meta::pure::metamodel::PackageableElement[0..1]; sourceElement: meta::pure::metamodel::type::Any[1]; }");
 
+    // SYSTEM-STORE-COUPLED shapes (kept by hand, 2026-09-04 — option S
+    // receipt): the metamodel-as-relations store represents element
+    // references as ROWS keyed by fqn (class_mappings.mapped_class_fqn →
+    // classes, property_mappings → properties, enum_value_mappings.enum_value
+    // as the value's NAME) and its mapping (SystemMetamodel) types those ends
+    // as the raw row classes: SetImplementation.class: Class[1] (real m3
+    // Class<Any>), PropertyMapping.property: Property[1] (real
+    // Property<Nil,Any|*>), Column.owner: Table[0..1] (real Relation[0..1]),
+    // EnumValueMapping.enum: String[1] (real Enum[1]); the set-implementation
+    // chain keeps PropertyMappingsImplementation under SetImplementation
+    // (real m3 puts both under PropertyOwnerImplementation). Their real
+    // shapes are generated the day the store's element references become
+    // m3 rows (docs/SESSION_HANDOFF_2026_09_02.md, batch 54 follow-ups).
+    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[1]; class: meta::pure::metamodel::type::Class[1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::mapping::Mapping[1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
+    public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation { propertyMappings: meta::pure::mapping::PropertyMapping[*]; }");
+    public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation {}");
+    public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any { property: meta::pure::metamodel::function::property::Property[1]; }");
+    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; nullable: meta::pure::metamodel::type::Boolean[0..1]; owner: meta::relational::metamodel::relation::Table[0..1]; }");
+    public static final ClassDefinition ENUM_VALUE_MAPPING = nativeClass("native Class meta::pure::mapping::EnumValueMapping extends meta::pure::metamodel::type::Any { enum: meta::pure::metamodel::type::String[1]; sourceValues: meta::pure::metamodel::type::String[*]; }");
     // ---- Numeric tower ----
     public static final ClassDefinition NUMBER  = nativeClass("native Class meta::pure::metamodel::type::Number  extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition INTEGER = nativeClass("native Class meta::pure::metamodel::type::Integer extends meta::pure::metamodel::type::Number {}");
@@ -234,9 +298,6 @@ public final class Pure {
 
     // ---- Relation algebra (parameterized) ----
     public static final ClassDefinition RELATION             = nativeClass("native Class meta::pure::metamodel::relation::Relation<T>         extends meta::pure::metamodel::type::Any {}");
-    // real relation.pure — the TDS refinement of Relation (cast target
-    // in testEnumInRelation; taxonomy T2: absent metamodel class)
-    public static final ClassDefinition TDS_RELATION         = nativeClass("native Class meta::pure::metamodel::relation::TDS<T>              extends meta::pure::metamodel::relation::Relation {}");
     public static final ClassDefinition COL_SPEC             = nativeClass("native Class meta::pure::metamodel::relation::ColSpec<T>          extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition COL_SPEC_ARRAY       = nativeClass("native Class meta::pure::metamodel::relation::ColSpecArray<T>     extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition FUNC_COL_SPEC        = nativeClass("native Class meta::pure::metamodel::relation::FuncColSpec<F, R>   extends meta::pure::metamodel::type::Any {}");
@@ -244,237 +305,16 @@ public final class Pure {
     public static final ClassDefinition AGG_COL_SPEC         = nativeClass("native Class meta::pure::metamodel::relation::AggColSpec<F, U, R> extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition AGG_COL_SPEC_ARRAY   = nativeClass("native Class meta::pure::metamodel::relation::AggColSpecArray<F, U, R> extends meta::pure::metamodel::type::Any {}");
 
-    // ===== engine RELATIONAL-RUNTIME surface (K-phase natives) =====
-    // The corpus's own executeInDb WRAPPER functions
-    // (relationalExtension.pure) compile against these classes and inline
-    // to the native leaf below; the CONNECTION VALUE at run time is the
-    // execution context's one ambient JDBC connection (the K dispatch
-    // never evaluates connection expressions).
-    // the real platform_dsl_store/grammar/runtime.pure trio — properties
-    // as REAL pure declares them (the connection VALUES never evaluate;
-    // these exist so connection-resolution chains TYPE-check)
-    public static final ClassDefinition RUNTIME_CONNECTION = nativeClass("native Class meta::core::runtime::Connection {}");
-    public static final ClassDefinition CONNECTION_STORE = nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }");
-    public static final ClassDefinition RUNTIME = nativeClass("native Class meta::core::runtime::Runtime { connectionStores: meta::core::runtime::ConnectionStore[*]; }");
-    // real runtime.pure (engine core) — the corpus instantiates
-    // ^EngineRuntime(mappings=..., connectionStores=...) directly
-    // (taxonomy T2: absent metamodel class)
-    public static final ClassDefinition ENGINE_RUNTIME = nativeClass("native Class meta::core::runtime::EngineRuntime extends meta::core::runtime::Runtime { mappings: meta::pure::mapping::Mapping[*]; }");
-    // real executionContext.pure — the corpus instantiates bare
-    // ^ExecutionContext() as a defaults carrier (testDataGeneration
-    // _Alloy plan calls); properties are optional knobs
-    public static final ClassDefinition EXECUTION_CONTEXT = nativeClass("native Class meta::pure::runtime::ExecutionContext {}");
-    // real executionPlan_generation.pure — the execution-option context
-    // family (taxonomy T2)
-    public static final ClassDefinition MULTI_EXECUTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::MultiExecutionContext extends meta::pure::runtime::ExecutionContext { childExecutionContext: meta::pure::runtime::ExecutionContext[*]; }");
-    public static final ClassDefinition EXECUTION_OPTION = nativeClass("native Class meta::pure::executionPlan::ExecutionOption extends meta::pure::metamodel::type::Any {}");
 
-    // TDG lane S1 (docs/TDG_LANE_CHARTER.md): the engine's relational
-    // CSV-census result classes (real spellings: relationalTest.pure
-    // :17-27 — RelationalCSVData extends EmbeddedData { tables };
-    // RelationalCSVTable { schema, table, values }). ONE metamodel,
-    // shared with the future ###Data opening (charter "ONE METAMODEL").
-    public static final ClassDefinition EMBEDDED_DATA = nativeClass("native Class meta::pure::data::EmbeddedData extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition RELATIONAL_CSV_TABLE = nativeClass("native Class meta::relational::metamodel::data::RelationalCSVTable { schema: meta::pure::metamodel::type::String[1]; table: meta::pure::metamodel::type::String[1]; values: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition RELATIONAL_CSV_DATA = nativeClass("native Class meta::relational::metamodel::data::RelationalCSVData extends meta::pure::data::EmbeddedData { tables: meta::relational::metamodel::data::RelationalCSVTable[*]; }");
 
-    // TDG lane S2 (docs/TDG_LANE_CHARTER.md): the generateTestData result
-    // family, verbatim testDataGeneration.pure:38-70 (metamodel-typed
-    // fields relaxed to Any per the executionPlan precedent; relationTree
-    // stays declared — reads of it wall until a witness demands more).
-    // columnValuePairs carries its REAL spelling Pair<String,Any>[*]
-    // (testDataGeneration.pure:46): the widened Any[*] shadowed the
-    // corpus's own declaration (classDef is native-first) and walled
-    // every $cv.first read in createTableRowIdentifiers' body — Pair is
-    // a platform collection class, not a metamodel fact, so the real
-    // spelling costs nothing.
-    public static final ClassDefinition ROW_IDENTIFIER = nativeClass("native Class meta::relational::testDataGeneration::RowIdentifier { columnValuePairs: meta::pure::functions::collection::Pair<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*]; }");
-    public static final ClassDefinition TABLE_ROW_IDENTIFIERS = nativeClass("native Class meta::relational::testDataGeneration::TableRowIdentifiers { table: meta::pure::metamodel::type::Any[1]; rowIdentifiers: meta::relational::testDataGeneration::RowIdentifier[*]; }");
-    public static final ClassDefinition TEMPORAL_MILESTONING_DATES = nativeClass("native Class meta::relational::testDataGeneration::TemporalMilestoningDates { businessDate: meta::pure::metamodel::type::Date[0..1]; processingDate: meta::pure::metamodel::type::Date[0..1]; snapshotDate: meta::pure::metamodel::type::Date[0..1]; }");
-    public static final ClassDefinition TEST_DATA_GEN_RESULT = nativeClass("native Class meta::relational::testDataGeneration::TestDataGenResult { dataCsvString: meta::pure::metamodel::type::String[1]; relationTree: meta::pure::metamodel::type::Any[1]; sqls: meta::pure::metamodel::type::String[*]; }");
-    public static final ClassDefinition EXECUTION_OPTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::ExecutionOptionContext extends meta::pure::executionPlan::MultiExecutionContext { executionOptions: meta::pure::executionPlan::ExecutionOption[*]; }");
-    // real extension.pure — the plug-in registry class; corpus function
-    // SIGNATURES name it (extensions:Extension[*]) even where the value
-    // only ever passes through
-    public static final ClassDefinition EXTENSION = nativeClass("native Class meta::pure::extension::Extension {}");
-    // Real core/pure/router/extension/router_extension.pure:22 — the
-    // router-facing extension hooks; ONLY the property the corpus
-    // demands (connectionEquality, spelled with its REAL function type)
-    // — the routing/instanceProcessors hooks join by witness.
-    public static final ClassDefinition ROUTER_EXTENSION = nativeClass("native Class meta::pure::router::extension::RouterExtension extends meta::pure::metamodel::type::Any { connectionEquality: meta::pure::metamodel::function::Function<{meta::core::runtime::Connection[1]->meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[1]->meta::pure::metamodel::type::Boolean[1]}>[*]}>[0..1]; }");
     // scalar properties as REAL relationalRuntime.pure declares them (the
     // Function-typed post-processor properties are omitted until demanded);
     // the corpus's testDatabaseConnection(...) constructs these
-    /** Real pure relationalRuntime.pure:133 (abstract marker class; the corpus subclasses it — GenerationFeaturesConfig, relationalRuntimeExtension.pure:15). */
-    public static final ClassDefinition RELATIONAL_QUERY_GENERATION_CONFIG = nativeClass("native Class meta::external::store::relational::runtime::RelationalQueryGenerationConfig {}");
-    /** Real pure graphFetch.pure:89 — the serialize(...) CONFIG carrier.
-     * TYPING-ONLY here: the resolver walls any flag that would change the
-     * envelope (includeType etc.); the all-false shape is a NOP. */
-    public static final ClassDefinition ALLOY_SERIALIZATION_CONFIG = nativeClass("native Class meta::pure::graphFetch::execution::AlloySerializationConfig { typeKeyName: meta::pure::metamodel::type::String[1]; includeType: meta::pure::metamodel::type::Boolean[0..1]; includeEnumType: meta::pure::metamodel::type::Boolean[0..1]; dateTimeFormat: meta::pure::metamodel::type::String[0..1]; removePropertiesWithNullValues: meta::pure::metamodel::type::Boolean[0..1]; removePropertiesWithEmptySets: meta::pure::metamodel::type::Boolean[0..1]; fullyQualifiedTypePath: meta::pure::metamodel::type::Boolean[0..1]; includeObjectReference: meta::pure::metamodel::type::Boolean[0..1]; }");
-    public static final ClassDefinition DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::DatabaseConnection extends meta::core::runtime::Connection { type: meta::relational::runtime::DatabaseType[1]; debug: meta::pure::metamodel::type::Boolean[0..1]; timeZone: meta::pure::metamodel::type::String[0..1]; quoteIdentifiers: meta::pure::metamodel::type::Boolean[0..1]; queryTimeOutInSeconds: meta::pure::metamodel::type::Integer[0..1]; queryGenerationConfigs: meta::external::store::relational::runtime::RelationalQueryGenerationConfig[*]; queryPostProcessorsWithParameter: meta::relational::runtime::PostProcessorWithParameter[*]; sqlQueryPostProcessors: meta::pure::metamodel::function::Function<{meta::relational::metamodel::relation::SelectSQLQuery[1]->meta::pure::mapping::Result<meta::relational::metamodel::relation::SelectSQLQuery|1>[1]}>[*]; sqlQueryPostProcessorsConnectionAware: meta::pure::metamodel::function::Function<{meta::relational::metamodel::relation::SelectSQLQuery[1],meta::external::store::relational::runtime::DatabaseConnection[1]->meta::pure::mapping::Result<meta::relational::metamodel::relation::SelectSQLQuery|1>[1]}>[*]; }");
-    public static final ClassDefinition TEST_DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::TestDatabaseConnection extends meta::external::store::relational::runtime::DatabaseConnection { testDataSetupCsv: meta::pure::metamodel::type::String[0..1]; testDataSetupSqls: meta::pure::metamodel::type::String[*]; }");
-    // the ALLOY connection surface (real connection.pure:29 /
-    // datasourceSpecification.pure:15,34 / authenticationStrategy.pure:15,48)
-    // — corpus getConnection() helpers construct these literally; the
-    // execution still rides the ambient test connection
-    public static final ClassDefinition DATASOURCE_SPECIFICATION = nativeClass("native Class meta::pure::alloy::connections::alloy::specification::DatasourceSpecification extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition LOCAL_H2_DATASOURCE_SPECIFICATION = nativeClass("native Class meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification extends meta::pure::alloy::connections::alloy::specification::DatasourceSpecification { testDataSetupCsv: meta::pure::metamodel::type::String[0..1]; testDataSetupSqls: meta::pure::metamodel::type::String[*]; disableDatabaseToUpper: meta::pure::metamodel::type::Boolean[0..1]; }");
-    public static final ClassDefinition AUTHENTICATION_STRATEGY = nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition DEFAULT_H2_AUTHENTICATION_STRATEGY = nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}");
-    public static final ClassDefinition TEST_DATABASE_AUTHENTICATION_STRATEGY = nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::TestDatabaseAuthenticationStrategy extends meta::pure::alloy::connections::alloy::authentication::DefaultH2AuthenticationStrategy {}");
-    public static final ClassDefinition RELATIONAL_DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::RelationalDatabaseConnection extends meta::external::store::relational::runtime::DatabaseConnection { datasourceSpecification: meta::pure::alloy::connections::alloy::specification::DatasourceSpecification[1]; authenticationStrategy: meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy[1]; postProcessors: meta::pure::alloy::connections::PostProcessor[*]; }");
     // the store METACLASS (real: extends meta::pure::store::Store) — a
     // database REFERENCE is a value of this type (classReference), so the
     // corpus's testRuntime(db:Database[1]) overload family type-checks
     // real relational.pure: Database extends Store
     public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database extends meta::pure::store::Store { schemas: meta::relational::metamodel::Schema[*]; }");
-    // The VIEW/inference metamodel surface (real relational.pure:114-137
-    // + relationalExtension.pure:120): host-evaluated over OUR
-    // DatabaseDefinition — the typeInference family's whole vocabulary
-    public static final ClassDefinition VIEW_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::View extends meta::relational::metamodel::relation::NamedRelation, meta::relational::metamodel::RelationalMappingSpecification { schema: meta::relational::metamodel::Schema[1]; primaryKey: meta::relational::metamodel::Column[*]; columnMappings: meta::relational::mapping::ColumnMapping[*]; }");
-    public static final ClassDefinition COLUMN_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::ColumnMapping extends meta::pure::metamodel::type::Any { columnName: meta::pure::metamodel::type::String[1]; relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
-    public static final ClassDefinition RELATIONAL_OPERATION_ELEMENT = nativeClass("native Class meta::relational::metamodel::RelationalOperationElement extends meta::pure::metamodel::type::Any {}");
-    // CONSTRUCTED relational-op instances (^DynaFunction(...) in the
-    // inference tests — real relational.pure metamodel)
-    public static final ClassDefinition DYNA_FUNCTION_METACLASS = nativeClass("native Class meta::relational::metamodel::DynaFunction extends meta::relational::metamodel::RelationalOperationElement { <<equality.Key>> name: meta::pure::metamodel::type::String[1]; <<equality.Key>> parameters: meta::relational::metamodel::RelationalOperationElement[*]; }");
-    public static final ClassDefinition LITERAL_METACLASS = nativeClass("native Class meta::relational::metamodel::Literal extends meta::relational::metamodel::RelationalOperationElement { <<equality.Key>> value: meta::pure::metamodel::type::Any[1]; }");
-    public static final ClassDefinition LITERAL_LIST_METACLASS = nativeClass("native Class meta::relational::metamodel::LiteralList extends meta::relational::metamodel::RelationalOperationElement { values: meta::relational::metamodel::Literal[*]; }");
-    // The toPostgresModel STANDALONE-SQL bridge surface (real
-    // relational.pure:196-383 + postgres metamodel.pure:378-386 +
-    // toPostgresModel.pure:31-82)
-    public static final ClassDefinition SQL_NODE = nativeClass("native Class meta::external::query::sql::metamodel::Node extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition SQL_EXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::Expression extends meta::external::query::sql::metamodel::Node {}");
-    public static final ClassDefinition SQL_QUALIFIED_NAME = nativeClass("native Class meta::external::query::sql::metamodel::QualifiedName extends meta::pure::metamodel::type::Any { parts: meta::pure::metamodel::type::String[*]; }");
-    public static final ClassDefinition SQL_QUALIFIED_NAME_REF = nativeClass("native Class meta::external::query::sql::metamodel::QualifiedNameReference extends meta::external::query::sql::metamodel::Expression { name: meta::external::query::sql::metamodel::QualifiedName[1]; }");
-    public static final ClassDefinition SQLN_STATEMENT = nativeClass("native Class meta::external::query::sql::metamodel::Statement extends meta::external::query::sql::metamodel::Node {}");
-    public static final ClassDefinition SQLN_RELATION = nativeClass("native Class meta::external::query::sql::metamodel::Relation extends meta::external::query::sql::metamodel::Node {}");
-    public static final ClassDefinition SQLN_QUERYBODY = nativeClass("native Class meta::external::query::sql::metamodel::QueryBody extends meta::external::query::sql::metamodel::Relation {}");
-    public static final ClassDefinition SQLN_SELECTITEM = nativeClass("native Class meta::external::query::sql::metamodel::SelectItem extends meta::external::query::sql::metamodel::Node {}");
-    public static final ClassDefinition SQLN_LITERAL = nativeClass("native Class meta::external::query::sql::metamodel::Literal extends meta::external::query::sql::metamodel::Expression {}");
-    public static final ClassDefinition SQLN_DATELITERAL = nativeClass("native Class meta::external::query::sql::metamodel::DateLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::StrictDate[1]; }");
-    public static final ClassDefinition SQLN_TIMESTAMPLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::TimestampLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::DateTime[1]; }");
-    public static final ClassDefinition SQL_NULL_METACLASS = nativeClass("native Class meta::relational::metamodel::SQLNull extends meta::relational::metamodel::RelationalOperationElement {}");
-    public static final ClassDefinition SQLN_STRINGLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::StringLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::String[1]; quoted: meta::pure::metamodel::type::Boolean[0..1]; }");
-    public static final ClassDefinition SQLN_INTEGERLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::IntegerLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition SQLN_BOOLEANLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::BooleanLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::Boolean[1]; }");
-    public static final ClassDefinition SQLN_DOUBLELITERAL = nativeClass("native Class meta::external::query::sql::metamodel::DoubleLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::Float[1]; }");
-    public static final ClassDefinition SQLN_NULLLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::NullLiteral extends meta::external::query::sql::metamodel::Literal {}");
-    public static final ClassDefinition SQLN_FUNCTIONCALL = nativeClass("native Class meta::external::query::sql::metamodel::FunctionCall extends meta::external::query::sql::metamodel::Expression { name: meta::external::query::sql::metamodel::QualifiedName[1]; distinct: meta::pure::metamodel::type::Boolean[1] = false; arguments: meta::external::query::sql::metamodel::Expression[*]; filter: meta::external::query::sql::metamodel::Expression[0..1]; window: meta::external::query::sql::metamodel::Window[0..1]; }");
-    public static final ClassDefinition SQLN_WINDOW = nativeClass("native Class meta::external::query::sql::metamodel::Window extends meta::external::query::sql::metamodel::Statement { windowRef: meta::pure::metamodel::type::String[0..1]; partitions: meta::external::query::sql::metamodel::Expression[*]; orderBy: meta::external::query::sql::metamodel::SortItem[*]; windowFrame: meta::external::query::sql::metamodel::WindowFrame[0..1]; }");
-    public static final ClassDefinition SQLN_SORTITEM = nativeClass("native Class meta::external::query::sql::metamodel::SortItem extends meta::external::query::sql::metamodel::Node { sortKey: meta::external::query::sql::metamodel::Expression[1]; ordering: meta::external::query::sql::metamodel::SortItemOrdering[1]; nullOrdering: meta::external::query::sql::metamodel::SortItemNullOrdering[1]; }");
-    /** Real postgres metamodel.pure:460 (mode/start/end omitted until demanded). */
-    public static final ClassDefinition SQLN_WINDOWFRAME = nativeClass("native Class meta::external::query::sql::metamodel::WindowFrame extends meta::external::query::sql::metamodel::Node {}");
-    public static final ClassDefinition SQLN_CAST = nativeClass("native Class meta::external::query::sql::metamodel::Cast extends meta::external::query::sql::metamodel::Expression { expression: meta::external::query::sql::metamodel::Expression[1]; type: meta::external::query::sql::metamodel::ColumnType[1]; }");
-    public static final ClassDefinition SQLN_COLUMNTYPE = nativeClass("native Class meta::external::query::sql::metamodel::ColumnType extends meta::external::query::sql::metamodel::Expression { name: meta::pure::metamodel::type::String[1]; parameters: meta::pure::metamodel::type::Integer[*]; }");
-    // The sql-protocol EXTENSION package (postgresSqlModel-extensions
-    // metamodel_extensions.pure:18/62) — placeholder nodes the
-    // toPostgresModel conversion emits for plan-time variables
-    public static final ClassDefinition SQLX_TABLE_PLACEHOLDER = nativeClass("native Class meta::external::query::sql::metamodel::extension::TablePlaceholder extends meta::external::query::sql::metamodel::Relation { name: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition SQLX_INCLAUSE_VAR_PLACEHOLDER = nativeClass("native Class meta::external::query::sql::metamodel::extension::InClauseVariablePlaceholder extends meta::external::query::sql::metamodel::Expression { name: meta::pure::metamodel::type::String[1]; }");
-    // The query-level sql-protocol surface (postgres metamodel.pure:30-110
-    // + extensions:149 — the toPostgresModel SelectSQLQuery conversion)
-    public static final ClassDefinition SQLN_QUERYSPECIFICATION = nativeClass("native Class meta::external::query::sql::metamodel::QuerySpecification extends meta::external::query::sql::metamodel::QueryBody { select: meta::external::query::sql::metamodel::Select[1]; from: meta::external::query::sql::metamodel::Relation[*]; where: meta::external::query::sql::metamodel::Expression[0..1]; groupBy: meta::external::query::sql::metamodel::Expression[*]; having: meta::external::query::sql::metamodel::Expression[0..1]; orderBy: meta::external::query::sql::metamodel::SortItem[*]; limit: meta::external::query::sql::metamodel::Expression[0..1]; offset: meta::external::query::sql::metamodel::Expression[0..1]; }");
-    public static final ClassDefinition SQLX_EXTENDED_QUERY_SPECIFICATION = nativeClass("native Class meta::external::query::sql::metamodel::extension::ExtendedQuerySpecification extends meta::external::query::sql::metamodel::QuerySpecification { qualify: meta::external::query::sql::metamodel::Expression[0..1]; }");
-    public static final ClassDefinition SQLN_WITHQUERY = nativeClass("native Class meta::external::query::sql::metamodel::WithQuery extends meta::external::query::sql::metamodel::Node { name: meta::pure::metamodel::type::String[1]; columns: meta::pure::metamodel::type::String[*]; query: meta::external::query::sql::metamodel::Query[1]; }");
-    public static final ClassDefinition SQLN_WITH = nativeClass("native Class meta::external::query::sql::metamodel::With extends meta::external::query::sql::metamodel::Statement { withQueries: meta::external::query::sql::metamodel::WithQuery[*]; }");
-    public static final ClassDefinition SQLN_QUERYWITHSCOPE = nativeClass("native Class meta::external::query::sql::metamodel::QueryWithScope extends meta::external::query::sql::metamodel::QueryBody { with: meta::external::query::sql::metamodel::With[0..1]; queryBody: meta::external::query::sql::metamodel::QueryBody[1]; }");
-    /** Real: extends SetOperation extends QueryBody (single-inheritance collapse). */
-    public static final ClassDefinition SQLN_UNION = nativeClass("native Class meta::external::query::sql::metamodel::Union extends meta::external::query::sql::metamodel::QueryBody { left: meta::external::query::sql::metamodel::Relation[1]; right: meta::external::query::sql::metamodel::Relation[1]; distinct: meta::pure::metamodel::type::Boolean[1] = false; }");
-    public static final ClassDefinition SQLN_LOGICALBINARYEXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::LogicalBinaryExpression extends meta::external::query::sql::metamodel::Expression { type: meta::external::query::sql::metamodel::LogicalBinaryType[1]; left: meta::external::query::sql::metamodel::Expression[1]; right: meta::external::query::sql::metamodel::Expression[1]; }");
-    public static final ClassDefinition SQLN_ISNULLPREDICATE = nativeClass("native Class meta::external::query::sql::metamodel::IsNullPredicate extends meta::external::query::sql::metamodel::Expression { value: meta::external::query::sql::metamodel::Expression[1]; }");
-    public static final ClassDefinition SQLN_ISNOTNULLPREDICATE = nativeClass("native Class meta::external::query::sql::metamodel::IsNotNullPredicate extends meta::external::query::sql::metamodel::Expression { value: meta::external::query::sql::metamodel::Expression[1]; }");
-    public static final ClassDefinition SQLN_INLISTEXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::InListExpression extends meta::external::query::sql::metamodel::Expression { values: meta::external::query::sql::metamodel::Expression[*]; }");
-    public static final ClassDefinition SQLN_INPREDICATE = nativeClass("native Class meta::external::query::sql::metamodel::InPredicate extends meta::external::query::sql::metamodel::Expression { value: meta::external::query::sql::metamodel::Expression[1]; valueList: meta::external::query::sql::metamodel::Expression[1]; }");
-    public static final ClassDefinition SQLN_COMPARISONEXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::ComparisonExpression extends meta::external::query::sql::metamodel::Expression { left: meta::external::query::sql::metamodel::Expression[1]; right: meta::external::query::sql::metamodel::Expression[1]; operator: meta::external::query::sql::metamodel::ComparisonOperator[1]; }");
-    public static final ClassDefinition SQLN_ALIASEDRELATION = nativeClass("native Class meta::external::query::sql::metamodel::AliasedRelation extends meta::external::query::sql::metamodel::Relation { relation: meta::external::query::sql::metamodel::Relation[1]; alias: meta::pure::metamodel::type::String[1]; columnNames: meta::pure::metamodel::type::String[*]; }");
-    public static final ClassDefinition SQLN_TABLE = nativeClass("native Class meta::external::query::sql::metamodel::Table extends meta::external::query::sql::metamodel::QueryBody { name: meta::external::query::sql::metamodel::QualifiedName[1]; }");
-    public static final ClassDefinition SQLN_TABLEFUNCTION = nativeClass("native Class meta::external::query::sql::metamodel::TableFunction extends meta::external::query::sql::metamodel::QueryBody { functionCall: meta::external::query::sql::metamodel::FunctionCall[1]; }");
-    public static final ClassDefinition SQLN_TABLESUBQUERY = nativeClass("native Class meta::external::query::sql::metamodel::TableSubquery extends meta::external::query::sql::metamodel::QueryBody { query: meta::external::query::sql::metamodel::Query[1]; }");
-    public static final ClassDefinition SQLN_JOIN = nativeClass("native Class meta::external::query::sql::metamodel::Join extends meta::external::query::sql::metamodel::Relation { type: meta::external::query::sql::metamodel::JoinType[1]; left: meta::external::query::sql::metamodel::Relation[1]; right: meta::external::query::sql::metamodel::Relation[1]; criteria: meta::external::query::sql::metamodel::JoinCriteria[0..1]; }");
-    public static final ClassDefinition SQLN_JOINCRITERIA = nativeClass("native Class meta::external::query::sql::metamodel::JoinCriteria extends meta::external::query::sql::metamodel::Node {}");
-    public static final ClassDefinition SQLN_JOINON = nativeClass("native Class meta::external::query::sql::metamodel::JoinOn extends meta::external::query::sql::metamodel::JoinCriteria { expression: meta::external::query::sql::metamodel::Expression[1]; }");
-    public static final ClassDefinition SQLN_QUERY = nativeClass("native Class meta::external::query::sql::metamodel::Query extends meta::external::query::sql::metamodel::Statement { queryBody: meta::external::query::sql::metamodel::QueryBody[1]; }");
-    public static final ClassDefinition SQLN_SINGLECOLUMN = nativeClass("native Class meta::external::query::sql::metamodel::SingleColumn extends meta::external::query::sql::metamodel::SelectItem { alias: meta::pure::metamodel::type::String[0..1]; expression: meta::external::query::sql::metamodel::Expression[1]; }");
-    public static final ClassDefinition SQLN_ALLCOLUMNS = nativeClass("native Class meta::external::query::sql::metamodel::AllColumns extends meta::external::query::sql::metamodel::SelectItem {}");
-    public static final ClassDefinition SQLN_SELECT = nativeClass("native Class meta::external::query::sql::metamodel::Select extends meta::external::query::sql::metamodel::Node { distinct: meta::pure::metamodel::type::Boolean[1] = false; selectItems: meta::external::query::sql::metamodel::SelectItem[*]; }");
-    /** Real toPostgresModel.pure:31 (dynaFunctionConverterMap is a Map-typed reference — Any). */
-    public static final ClassDefinition MODEL_CONVERSION_STATE = nativeClass("native Class meta::relational::functions::toPostgresModel::ModelConversionState extends meta::pure::metamodel::type::Any { isRootSelect: meta::pure::metamodel::type::Boolean[0..1]; processingSelect: meta::pure::metamodel::type::Boolean[0..1]; processingFilter: meta::pure::metamodel::type::Boolean[0..1]; extensions: meta::pure::extension::Extension[*]; dynaFunctionConverterMap: meta::pure::metamodel::type::Any[0..1]; }");
-    public static final ClassDefinition ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::Alias extends meta::relational::metamodel::RelationalOperationElement { <<equality.Key>> name: meta::pure::metamodel::type::String[1]; <<equality.Key>> relationalElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
-    public static final ClassDefinition TABLE_ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAlias extends meta::relational::metamodel::Alias { schema: meta::pure::metamodel::type::String[0..1]; }");
-    // owner (real relational metamodel Column.owner : Relation[0..1]) —
-    // declared TABLE-typed here: the store's column rows own a table (views'
-    // columns are view-column rows), and a nested hop through a union-typed
-    // end under a map read is not materialized yet (named resolver debt);
-    // the scanColumns tests cast the owner to Table (group I burn 2026-09-03)
-    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; owner: meta::relational::metamodel::relation::Table[0..1]; }");
-    public static final ClassDefinition COLUMN_NAME_METACLASS = nativeClass("native Class meta::relational::metamodel::ColumnName extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition TABLE_ALIAS_COLUMN_NAME_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAliasColumnName extends meta::relational::metamodel::RelationalOperationElement { alias: meta::relational::metamodel::TableAlias[1]; columnName: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition TABLE_ALIAS_COLUMN_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAliasColumn extends meta::relational::metamodel::RelationalOperationElement { columnName: meta::pure::metamodel::type::String[0..1]; alias: meta::relational::metamodel::TableAlias[1]; column: meta::relational::metamodel::Column[1]; }");
-    public static final ClassDefinition DATA_TYPE_METACLASS = nativeClass("native Class meta::relational::metamodel::datatype::DataType extends meta::pure::metamodel::type::Any {}");
-    // The SQL data-type hierarchy — real platform_store_relational/grammar/
-    // relational.pure:392-520 (CoreDataType + every kind legend-lite's
-    // RelationalDataType models; Boolean/Json/Unsigned* are not store
-    // types here — grow by witness). Rows: the metamodel store's
-    // data_types table (one filtered set per kind); dataTypeToSqlText is
-    // the real match over these subclasses (metamodel-as-relations,
-    // group F burn 2026-09-02).
-    public static final ClassDefinition CORE_DATA_TYPE = nativeClass("native Class meta::relational::metamodel::datatype::CoreDataType extends meta::relational::metamodel::datatype::DataType {}");
-    public static final ClassDefinition DT_BIGINT = nativeClass("native Class meta::relational::metamodel::datatype::BigInt extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_SMALLINT = nativeClass("native Class meta::relational::metamodel::datatype::SmallInt extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_TINYINT = nativeClass("native Class meta::relational::metamodel::datatype::TinyInt extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_INTEGER = nativeClass("native Class meta::relational::metamodel::datatype::Integer extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_FLOAT = nativeClass("native Class meta::relational::metamodel::datatype::Float extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_DOUBLE = nativeClass("native Class meta::relational::metamodel::datatype::Double extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_REAL = nativeClass("native Class meta::relational::metamodel::datatype::Real extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_BIT = nativeClass("native Class meta::relational::metamodel::datatype::Bit extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_TIMESTAMP = nativeClass("native Class meta::relational::metamodel::datatype::Timestamp extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_DATE = nativeClass("native Class meta::relational::metamodel::datatype::Date extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_DISTINCT = nativeClass("native Class meta::relational::metamodel::datatype::Distinct extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_OTHER = nativeClass("native Class meta::relational::metamodel::datatype::Other extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_SEMI_STRUCTURED = nativeClass("native Class meta::relational::metamodel::datatype::SemiStructured extends meta::relational::metamodel::datatype::CoreDataType {}");
-    public static final ClassDefinition DT_VARCHAR = nativeClass("native Class meta::relational::metamodel::datatype::Varchar extends meta::relational::metamodel::datatype::CoreDataType { size: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition DT_CHAR = nativeClass("native Class meta::relational::metamodel::datatype::Char extends meta::relational::metamodel::datatype::CoreDataType { size: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition DT_BINARY = nativeClass("native Class meta::relational::metamodel::datatype::Binary extends meta::relational::metamodel::datatype::CoreDataType { size: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition DT_VARBINARY = nativeClass("native Class meta::relational::metamodel::datatype::Varbinary extends meta::relational::metamodel::datatype::CoreDataType { size: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition DT_DECIMAL = nativeClass("native Class meta::relational::metamodel::datatype::Decimal extends meta::relational::metamodel::datatype::CoreDataType { precision: meta::pure::metamodel::type::Integer[1]; scale: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition DT_NUMERIC = nativeClass("native Class meta::relational::metamodel::datatype::Numeric extends meta::relational::metamodel::datatype::CoreDataType { precision: meta::pure::metamodel::type::Integer[1]; scale: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition DT_ARRAY = nativeClass("native Class meta::relational::metamodel::datatype::Array extends meta::relational::metamodel::datatype::CoreDataType { type: meta::relational::metamodel::datatype::DataType[0..1]; }");
-    public static final ClassDefinition DT_OBJECT = nativeClass("native Class meta::relational::metamodel::datatype::Object extends meta::relational::metamodel::datatype::CoreDataType { keyType: meta::relational::metamodel::datatype::DataType[1]; valueType: meta::relational::metamodel::datatype::DataType[1]; }");
-    // Window aggregation over relational ops (real platform_store_
-    // relational/grammar/relational.pure:539-563; frame omitted until
-    // demanded)
-    public static final ClassDefinition REL_WINDOW = nativeClass("native Class meta::relational::metamodel::Window extends meta::relational::metamodel::RelationalOperationElement { partition: meta::relational::metamodel::RelationalOperationElement[*]; sortBy: meta::relational::metamodel::SortByInfo[*]; }");
-    public static final ClassDefinition SORT_BY_INFO = nativeClass("native Class meta::relational::metamodel::SortByInfo extends meta::relational::metamodel::RelationalOperationElement { sortByElement: meta::relational::metamodel::RelationalOperationElement[1]; sortDirection: meta::relational::metamodel::SortDirection[0..1]; }");
-    public static final ClassDefinition WINDOW_COLUMN = nativeClass("native Class meta::relational::metamodel::WindowColumn extends meta::relational::metamodel::RelationalOperationElement { columnName: meta::pure::metamodel::type::String[1]; window: meta::relational::metamodel::Window[1]; func: meta::relational::metamodel::DynaFunction[1]; }");
-    // The MAPPING-side inference navigation (real functions_Mapping.pure
-    // :61 + functions_PropertyMappingsImplementation.pure:74 +
-    // relationalMapping.pure:46/66; the real intermediate parents
-    // collapse to single inheritance — subsumption for casts only)
-    // root/id/parent/superSetImplementationId ride SetImplementation in
-    // real mapping.pure (they are PropertyOwnerImplementation properties,
-    // mapping.pure:52-58 — lite flattens that parent; class and parent
-    // are REFERENCE values, declared Any/loose per the class-reference
-    // convention)
-    // parent: Mapping[1] — real platform_dsl_mapping/grammar/mapping.pure
-    // (PropertyOwnerImplementation.parent), typed by the metamodel-store
-    // witness (class_mappings rows navigate to their mapping row).
-    // root: Boolean[1] and class: Class<Any>[1] — real mapping.pure:61-65
-    // (SetImplementation), read as ROWS by the metamodel store's
-    // class_mappings (root = the '*' set, else the class's sole set in
-    // the mapping's own sets — MappingValidator.validateStar; class =
-    // the Class row, D3) — group F burn 2026-09-02.
-    // (class is declared RAW — Class[1], not Class<Any>[1]: the mapping
-    // normalizer classifies class-typed properties by NameRef; the type
-    // argument is not modeled on the property.)
-    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[1]; class: meta::pure::metamodel::type::Class[1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::mapping::Mapping[1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
-    // Real mapping.pure:68 — a SIBLING of SetImplementation under
-    // PropertyOwnerImplementation (InstanceSetImplementation extends
-    // both); with the parent flattened into SetImplementation the chain
-    // collapses to single inheritance, subsumption preserved for the
-    // corpus's cast(@PropertyMappingsImplementation) sites
-    // propertyMappings: PropertyMapping[*] — real mapping.pure:68-72; the
-    // metamodel store's property_mappings rows (group F burn).
-    public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation { propertyMappings: meta::pure::mapping::PropertyMapping[*]; }");
     // Real platform_dsl_mapping/grammar/mapping.pure:40 (extends
     // ValueTransformer<T> — parent flattened to Any until a witness
     // demands the transformer surface, the SetImplementation flatten
@@ -483,49 +323,9 @@ public final class Pure {
     // dropped here so the metamodel rows read it as a plain class hop — the
     // object-space spine keys on ClassType — and enum reads as the value, Any)
     nativeClass("native Class meta::pure::mapping::EnumerationMapping extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<meta::pure::metamodel::type::Any>[1]; enumValueMappings: meta::pure::mapping::EnumValueMapping[*]; }");
-    /** Real platform_dsl_mapping/grammar/mapping.pure:48 — {@code enum: Enum[1]; sourceValues: Any[*]}.
-     * The Enum metaclass is unmodeled here: the value reads as its NAME (String, the enum's wire
-     * spelling); a source value reads as its text. A leaf must be primitive-typed to bind a store
-     * column (an Any-typed leaf takes the variant lane and has no column binding). */
-    public static final ClassDefinition ENUM_VALUE_MAPPING = nativeClass("native Class meta::pure::mapping::EnumValueMapping extends meta::pure::metamodel::type::Any { enum: meta::pure::metamodel::type::String[1]; sourceValues: meta::pure::metamodel::type::String[*]; }");
-    public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation {}");
-    /** Real core/pure/router/store/cluster.pure:43. */
-    public static final ClassDefinition CROSS_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::router::clustering::CrossSetImplementation extends meta::pure::mapping::InstanceSetImplementation { targetStore: meta::pure::store::Store[0..1]; varName: meta::pure::metamodel::type::String[1]; }");
-    // Real relational.pure:105 (userDefinedPrimaryKey/filter/distinct/
-    // groupBy/mainTableAlias omitted until a checker demands them) +
-    // relationalMapping.pure:26/46 — RootRelational keeps the real
-    // TWO-parent shape so mainTable(RelationalMappingSpecification[1])
-    // accepts the corpus's cast(@RootRelationalInstanceSetImplementation)
-    // mainTableAlias: TableAlias[1] — real platform_store_relational/grammar/
-    // relationalMapping.pure (RelationalMappingSpecification), grown by the
-    // metamodel-store witness (mainTable() navigates it).
-    public static final ClassDefinition RELATIONAL_MAPPING_SPECIFICATION = nativeClass("native Class meta::relational::metamodel::RelationalMappingSpecification extends meta::pure::metamodel::type::Any { userDefinedPrimaryKey: meta::pure::metamodel::type::Boolean[1]; distinct: meta::pure::metamodel::type::Boolean[0..1]; groupBy: meta::relational::mapping::GroupByMapping[0..1]; mainTableAlias: meta::relational::metamodel::TableAlias[1]; }");
-    // Real platform_store_relational relationalMapping.pure GroupByMapping
-    // (setMappingOwner elided — grow by witness): the metamodel store maps
-    // one row per ~groupBy set (resolvePrimaryKey's precedence reads it).
-    public static final ClassDefinition GROUP_BY_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::GroupByMapping extends meta::pure::metamodel::type::Any { columns: meta::relational::metamodel::RelationalOperationElement[*]; }");
-    public static final ClassDefinition RELATIONAL_INSTANCE_SET_IMPL = nativeClass("native Class meta::relational::mapping::RelationalInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation { primaryKey: meta::relational::metamodel::RelationalOperationElement[*]; }");
-    public static final ClassDefinition ROOT_RELATIONAL_SET_IMPL = nativeClass("native Class meta::relational::mapping::RootRelationalInstanceSetImplementation extends meta::relational::mapping::RelationalInstanceSetImplementation, meta::relational::metamodel::RelationalMappingSpecification {}");
-    // property: Property[1] — real mapping.pure:119-129 (Property<Nil,Any|*>;
-    // the type arguments are not modeled). Rows: property_mappings ->
-    // properties (group F burn).
-    public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any { property: meta::pure::metamodel::function::property::Property[1]; }");
-    public static final ClassDefinition RELATIONAL_PROPERTY_MAPPING = nativeClass("native Class meta::relational::mapping::RelationalPropertyMapping extends meta::pure::mapping::PropertyMapping { relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     // task #78 step-1 declarations (each cited to the REAL source; class
     // CONSTRAINTS are never ported — constraint evaluation is a separate
     // feature track, declarations only TYPE):
-    /** Real platform_dsl_store/grammar/store.pure:18 (extends PackageableElement — ModelElement is this prelude's analog, see :170). */
-    public static final ClassDefinition STORE = nativeClass("native Class meta::pure::store::Store extends meta::pure::metamodel::ModelElement { includes: meta::pure::store::Store[*]; name: meta::pure::metamodel::type::String[0..1]; }");
-    /** Real core/pure/mapping/modelToModel.pure:37 (toString() qualified property omitted until demanded). */
-    public static final ClassDefinition MODEL_STORE = nativeClass("native Class meta::external::store::model::ModelStore extends meta::pure::store::Store {}");
-    /** Real core/pure/mapping/modelToModel.pure:43 (empty marker; the connection VALUES never evaluate — declarations exist so runtime-construction chains TYPE, XStore leg slice 0). */
-    public static final ClassDefinition PURE_MODEL_CONNECTION = nativeClass("native Class meta::external::store::model::PureModelConnection extends meta::core::runtime::Connection {}");
-    /** Real core/pure/mapping/modelToModel.pure:58 ('class: Class&lt;Any&gt;[1]' — a class REFERENCE value; declared Any here, the reference's own type conforms). */
-    public static final ClassDefinition JSON_MODEL_CONNECTION = nativeClass("native Class meta::external::store::model::JsonModelConnection extends meta::external::store::model::PureModelConnection { class: meta::pure::metamodel::type::Any[1]; url: meta::pure::metamodel::type::String[1]; }");
-    /** Real core/pure/mapping/modelToModel.pure:82. */
-    public static final ClassDefinition MODEL_CHAIN_CONNECTION = nativeClass("native Class meta::external::store::model::ModelChainConnection extends meta::core::runtime::Connection { mappings: meta::pure::mapping::Mapping[*]; }");
-    /** Real relationalRuntimeExtension.pure:15-27 (constraints noDuplicates/knownFeatures not ported). */
-    public static final ClassDefinition GENERATION_FEATURES_CONFIG = nativeClass("native Class meta::external::store::relational::runtime::GenerationFeaturesConfig extends meta::external::store::relational::runtime::RelationalQueryGenerationConfig { enabled: meta::pure::metamodel::type::String[*]; disabled: meta::pure::metamodel::type::String[*]; }");
     /** Real platform_dsl_mapping/grammar/mapping.pure:26 (extends PackageableElement, Testable — ModelElement analog). The mapping METACLASS: a mapping reference is a value of this type. */
     // name rides PackageableElement in real m3 (grammar/mapping.pure:26 —
     // Mapping extends PackageableElement); the corpus constructs the
@@ -533,136 +333,7 @@ public final class Pure {
     // classMappings: SetImplementation[*] — real platform_dsl_mapping/grammar/
     // mapping.pure:26, grown by the metamodel-store witness.
     public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; }");
-    /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
-    // schema carries its REAL type Schema[1] (relational.pure:94): the
-    // old Any[0..1] widening walled every $t.schema.name read
-    // (getQualifiedTableName, the TDG cohort). The Table<->Schema
-    // layout cycle the widening feared is guarded now (LayoutTypes
-    // walk-guard rides a revisited class as JSON; EqualityKeys keys
-    // cycle to unclaimable).
-    // Real relational.pure:45/:50 — the store-relation hierarchy Table
-    // sits under (Relation's real second parent SetRelation flattens per
-    // the single-inheritance idiom; Relation's columns stay off — Table
-    // declares its own typed columns). NamedRelation carries name.
-    public static final ClassDefinition REL_RELATION_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Relation extends meta::relational::metamodel::RelationalOperationElement {}");
-    public static final ClassDefinition NAMED_RELATION_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::NamedRelation extends meta::relational::metamodel::relation::Relation { name: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::relational::metamodel::relation::NamedRelation { columns: meta::relational::metamodel::Column[*]; schema: meta::relational::metamodel::Schema[1]; }");
-    // The generated-SQL metamodel root the POST-PROCESSOR hooks receive
-    // (relationalRuntime.pure:40-42) — opaque here: legend-lite applies
-    // recognized post-processors over its OWN SQL IR
-    // real chain: SelectSQLQuery extends Relation extends
-    // RelationalOperationElement (relational.pure:240) — the conversion
-    // surface dispatches on the RelationalOperationElement parent.
-    // columns rides the Relation parent in real pure (collapsed here);
-    // pivot/leftSideOfFilter/saved*/preIsolation* omitted until demanded.
-    public static final ClassDefinition SELECT_SQL_QUERY = nativeClass("native Class meta::relational::metamodel::relation::SelectSQLQuery extends meta::relational::metamodel::RelationalOperationElement { columns: meta::relational::metamodel::RelationalOperationElement[*]; distinct: meta::pure::metamodel::type::Boolean[0..1]; data: meta::relational::metamodel::join::RootJoinTreeNode[0..1]; filteringOperation: meta::relational::metamodel::RelationalOperationElement[*]; groupBy: meta::relational::metamodel::RelationalOperationElement[*]; havingOperation: meta::relational::metamodel::RelationalOperationElement[*]; qualifyOperation: meta::relational::metamodel::RelationalOperationElement[*]; orderBy: meta::relational::metamodel::OrderBy[*]; fromRow: meta::relational::metamodel::Literal[0..1]; toRow: meta::relational::metamodel::Literal[0..1]; commonTableExpressions: meta::relational::metamodel::relation::CommonTableExpression[*]; }");
-    // The join-tree surface (relational.pure:139-156): RelationalTreeNode
-    // extends TreeNode in real pure — collapsed under
-    // RelationalOperationElement so RootJoinTreeNode (extends
-    // RelationalTreeNode, Relation) conforms to the conversion surface.
-    // childrenData is the TreeNode self-recursive child list — Any-typed
-    // (reference semantics; a self-typed prop cycles the value layout).
-    public static final ClassDefinition RELATIONAL_TREE_NODE = nativeClass("native Class meta::relational::metamodel::join::RelationalTreeNode extends meta::relational::metamodel::RelationalOperationElement { alias: meta::relational::metamodel::TableAlias[1]; childrenData: meta::pure::metamodel::type::Any[*]; }");
-    public static final ClassDefinition ROOT_JOIN_TREE_NODE = nativeClass("native Class meta::relational::metamodel::join::RootJoinTreeNode extends meta::relational::metamodel::join::RelationalTreeNode {}");
-    /** Real relational.pure:148 (database/setMappingOwner/join are references — Any per convention; joinType enum exists as join::JoinType). */
-    public static final ClassDefinition JOIN_TREE_NODE = nativeClass("native Class meta::relational::metamodel::join::JoinTreeNode extends meta::relational::metamodel::join::RelationalTreeNode { setMappingOwner: meta::pure::metamodel::type::Any[0..1]; database: meta::pure::metamodel::type::Any[0..1]; joinName: meta::pure::metamodel::type::String[1]; join: meta::pure::metamodel::type::Any[0..1]; joinType: meta::relational::metamodel::join::JoinType[0..1]; lateral: meta::pure::metamodel::type::Boolean[0..1]; }");
-    /** Real relational.pure:522. */
-    public static final ClassDefinition ORDER_BY = nativeClass("native Class meta::relational::metamodel::OrderBy extends meta::pure::metamodel::type::Any { column: meta::relational::metamodel::RelationalOperationElement[1]; direction: meta::relational::metamodel::SortDirection[1]; }");
-    /** Real relational.pure:259 (sqlQuery is SelectSQLQuery — Any breaks the CTE<->SelectSQLQuery value-layout cycle). */
-    public static final ClassDefinition COMMON_TABLE_EXPRESSION = nativeClass("native Class meta::relational::metamodel::relation::CommonTableExpression extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; sqlQuery: meta::pure::metamodel::type::Any[1]; }");
-    /** Real relational.pure:265 (extends Relation — collapse). */
-    public static final ClassDefinition CTE_REFERENCE = nativeClass("native Class meta::relational::metamodel::relation::CommonTableExpressionReference extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; }");
-    /** Real relational.pure:323 (extends Operation extends Function extends RelationalOperationElement — collapse). */
-    public static final ClassDefinition JOIN_STRINGS_OP = nativeClass("native Class meta::relational::metamodel::operation::JoinStrings extends meta::relational::metamodel::RelationalOperationElement { strings: meta::relational::metamodel::RelationalOperationElement[*]; prefix: meta::relational::metamodel::RelationalOperationElement[0..1]; separator: meta::relational::metamodel::RelationalOperationElement[0..1]; suffix: meta::relational::metamodel::RelationalOperationElement[0..1]; }");
-    /** Real relational.pure:386 — the join-slot property mapping's element. */
-    public static final ClassDefinition ROEWJ = nativeClass("native Class meta::relational::metamodel::RelationalOperationElementWithJoin extends meta::relational::metamodel::RelationalOperationElement { relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[0..1]; joinTreeNode: meta::relational::metamodel::join::JoinTreeNode[0..1]; }");
-    /** Real pureToSQLQuery_union.pure:868 (currentTreeNodes/setImplementations are references — Any). */
-    public static final ClassDefinition REL_UNION = nativeClass("native Class meta::relational::metamodel::relation::Union extends meta::relational::metamodel::RelationalOperationElement { currentTreeNodes: meta::pure::metamodel::type::Any[*]; setImplementations: meta::pure::metamodel::type::Any[*]; queries: meta::relational::metamodel::relation::SelectSQLQuery[*]; }");
-    public static final ClassDefinition REL_UNION_ALL = nativeClass("native Class meta::relational::metamodel::relation::UnionAll extends meta::relational::metamodel::relation::Union {}");
-    /** Real relational.pure:275 (also extends RelationalTds — single-inheritance collapse per this prelude's convention). */
-    public static final ClassDefinition TDS_SELECT_SQL_QUERY = nativeClass("native Class meta::relational::metamodel::relation::TdsSelectSqlQuery extends meta::relational::metamodel::relation::SelectSQLQuery {}");
-    /** Real relational.pure:121 (extends NamedRelation; parameters surface omitted until demanded). */
-    public static final ClassDefinition TABULAR_FUNCTION = nativeClass("native Class meta::relational::metamodel::relation::TabularFunction extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; schema: meta::pure::metamodel::type::Any[0..1]; }");
-    // The pureToSqlQuery PLACEHOLDER metamodel (real pureToSQLQuery/
-    // metamodel.pure:6-23): plan-time variable stand-ins the dialect
-    // conversion maps to sql-extension placeholder nodes. propertyPath/
-    // type/multiplicity are REFERENCE values — declared Any per the
-    // class-reference convention (see JSON_MODEL_CONNECTION).
-    public static final ClassDefinition VAR_PLACEHOLDER = nativeClass("native Class meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; propertyPath: meta::pure::metamodel::type::Any[*]; type: meta::pure::metamodel::type::Any[1]; multiplicity: meta::pure::metamodel::type::Any[0..1]; }");
-    public static final ClassDefinition VAR_SET_PLACEHOLDER = nativeClass("native Class meta::relational::functions::pureToSqlQuery::metamodel::VarSetPlaceHolder extends meta::relational::metamodel::relation::TdsSelectSqlQuery { varName: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition VAR_CROSS_SET_PLACEHOLDER = nativeClass("native Class meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder extends meta::relational::metamodel::relation::Table { varName: meta::pure::metamodel::type::String[1]; crossSetImplementation: meta::pure::router::clustering::CrossSetImplementation[1]; }");
-    // The queryPostProcessorsWithParameter chain (real relationalRuntime
-    // .pure:46/51-70 + cteExtractionPostProcessor.pure:26) — recognized
-    // hooks apply over OUR SQL IR
-    public static final ClassDefinition POST_PROCESSOR_PARAMETER = nativeClass("native Class meta::relational::runtime::PostProcessorParameter extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition RELATIONAL_POST_PROCESSOR = nativeClass("native Class meta::relational::runtime::PostProcessor extends meta::pure::metamodel::type::Any { sqlQueryPostProcessorForExecution: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; sqlQueryPostProcessorForPlan: meta::pure::metamodel::function::ConcreteFunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
-    public static final ClassDefinition POST_PROCESSOR_WITH_PARAMETER = nativeClass("native Class meta::relational::runtime::PostProcessorWithParameter extends meta::pure::metamodel::type::Any { postProcessor: meta::pure::metamodel::function::ConcreteFunctionDefinition<{->meta::relational::runtime::PostProcessor[1]}>[1]; parameters: meta::relational::runtime::PostProcessorParameter[*]; }");
-    public static final ClassDefinition ALLOY_POST_PROCESSOR = nativeClass("native Class meta::pure::alloy::connections::PostProcessor extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition EXTRACT_CTES_POST_PROCESSOR = nativeClass("native Class meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor extends meta::pure::alloy::connections::PostProcessor {}");
-    // The relationalMapper rename surface (real corpus metamodel.pure
-    // :185-208 + runtime/connection/postprocessor.pure:40-43; the
-    // corpus's own defining files are demand-pull-AMBIGUOUS — protocol
-    // versions share the simple names — so the classes register here
-    // like the rest of the relational metamodel). RelationalMapper's
-    // real parents: PackageableElement (ModelElement analog, see :170)
-    // + PostProcessorParameter.
-    public static final ClassDefinition DATABASE_MAPPER = nativeClass("native Class meta::relational::metamodel::DatabaseMapper extends meta::pure::metamodel::type::Any { database: meta::pure::metamodel::type::String[1]; schemas: meta::relational::metamodel::Schema[*]; }");
-    public static final ClassDefinition SCHEMA_MAPPER = nativeClass("native Class meta::relational::metamodel::SchemaMapper extends meta::pure::metamodel::type::Any { from: meta::relational::metamodel::Schema[1]; to: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition TABLE_MAPPER = nativeClass("native Class meta::relational::metamodel::TableMapper extends meta::pure::metamodel::type::Any { from: meta::relational::metamodel::relation::Table[1]; to: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition RELATIONAL_MAPPER = nativeClass("native Class meta::relational::metamodel::RelationalMapper extends meta::pure::metamodel::ModelElement, meta::relational::runtime::PostProcessorParameter { databaseMappers: meta::relational::metamodel::DatabaseMapper[*]; schemaMappers: meta::relational::metamodel::SchemaMapper[*]; tableMappers: meta::relational::metamodel::TableMapper[*]; }");
-    public static final ClassDefinition RELATIONAL_MAPPER_POST_PROCESSOR = nativeClass("native Class meta::pure::alloy::connections::RelationalMapperPostProcessor extends meta::pure::alloy::connections::PostProcessor { relationalMappers: meta::relational::metamodel::RelationalMapper[*]; }");
-    /** Real core/pure/tds/tds.pure:18-23. */
-    public static final ClassDefinition TABULAR_DATA_SET = nativeClass("native Class meta::pure::tds::TabularDataSet extends meta::pure::metamodel::type::Any { columns: meta::pure::tds::TDSColumn[*]; rows: meta::pure::tds::TDSRow[*]; }");
-    /** Real core/pure/tds/tds.pure:25-45 (offset/name; the type surface omitted until demanded). */
-    public static final ClassDefinition TDS_COLUMN = nativeClass("native Class meta::pure::tds::TDSColumn extends meta::pure::metamodel::type::Any { offset: meta::pure::metamodel::type::Integer[0..1]; name: meta::pure::metamodel::type::String[1]; }");
-    /** Real core/pure/tds/tds.pure:76-80 (getString/isNull qualified properties omitted until demanded — the ResultSet Row precedent). */
-    public static final ClassDefinition TDS_ROW = nativeClass("native Class meta::pure::tds::TDSRow extends meta::pure::metamodel::type::Any { parent: meta::pure::tds::TabularDataSet[0..1]; values: meta::pure::metamodel::type::Any[*]; }");
-    /** Real platform_store_relational/grammar/relational.pure (Schema on Database; table lookups land on it). */
-    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; name: meta::pure::metamodel::type::String[1]; database: meta::relational::metamodel::Database[1]; }");
-    /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
-    public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
-    // real platform_store_relational/functions.pure:128 — the relational
-    // execution activity the corpus casts Result.activities to
-    // (taxonomy T2: absent metamodel class)
-    public static final ClassDefinition RELATIONAL_DATA_SOURCE = nativeClass("native Class meta::relational::runtime::DataSource extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition RELATIONAL_ACTIVITY = nativeClass("native Class meta::relational::mapping::RelationalActivity extends meta::pure::mapping::Activity { sql: meta::pure::metamodel::type::String[1]; comment: meta::pure::metamodel::type::String[0..1]; executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; sqlGenerationTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; dataSource: meta::relational::runtime::DataSource[0..1]; }");
-    // real platform_store_relational/functions.pure:50-65 (dataSource and
-    // Row's value(name) qualified property omitted until demanded) — setup
-    // functions INTROSPECT results (println(executeInDb(...).rows.values))
-    public static final ClassDefinition RESULT_SET = nativeClass("native Class meta::relational::metamodel::execute::ResultSet extends meta::pure::metamodel::type::Any { executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; columnNames: meta::pure::metamodel::type::String[*]; rows: meta::relational::metamodel::execute::Row[*]; }");
-    public static final ClassDefinition RESULT_SET_ROW = nativeClass("native Class meta::relational::metamodel::execute::Row extends meta::pure::metamodel::type::Any { values: meta::pure::metamodel::type::Any[*]; parent: meta::relational::metamodel::execute::ResultSet[1]; value(name:meta::pure::metamodel::type::String[1]){$this.values->at($this.parent.columnNames->indexOf($name));}: meta::pure::metamodel::type::Any[1]; }");
-    // real executionPlan.pure:60-73 (func/mapping/runtime/rootExecutionNode
-    // omitted until demanded — each declared property matches the REAL
-    // class member-for-member)
-    public static final ClassDefinition EXECUTION_PLAN_CLASS = nativeClass("native Class meta::pure::executionPlan::ExecutionPlan extends meta::pure::metamodel::type::Any { rootExecutionNode: meta::pure::executionPlan::ExecutionNode[1]; processingTemplateFunctions: meta::pure::metamodel::type::String[*]; }");
-    // real scanRelations.pure:47 — the lineage tree HANDLE (its nodes are
-    // rows of the system store: LineageRows; the engine's relation/join/
-    // columns/children properties are the lite node rows here)
-    public static final ClassDefinition RELATION_TREE = nativeClass("native Class meta::pure::lineage::scanRelations::RelationTree extends meta::pure::metamodel::type::Any {}");
-    // real scanProperties.pure:27/:36/:54 and scanColumns.pure:76 (harness
-    // burn-down group I, 2026-09-03): the column-lineage chain's handles —
-    // scanProperties → Res.result → buildPropertyTree → scanColumns; the
-    // ColumnWithContext rows link to the store's Column rows
-    public static final ClassDefinition PROPERTY_PATH_NODE = nativeClass("native Class meta::pure::lineage::scanProperties::PropertyPathNode extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition SCAN_PROPERTIES_RES = nativeClass("native Class meta::pure::lineage::scanProperties::Res extends meta::pure::metamodel::type::Any { result: meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>[*]; }");
-    public static final ClassDefinition PROPERTY_PATH_TREE = nativeClass("native Class meta::pure::lineage::scanProperties::propertyTree::PropertyPathTree extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition COLUMN_WITH_CONTEXT = nativeClass("native Class meta::pure::lineage::scanColumns::ColumnWithContext extends meta::pure::metamodel::type::Any { column: meta::relational::metamodel::Column[1]; context: meta::pure::metamodel::type::String[1]; }");
-    // the plan NODE surface (real executionPlan.pure:73-83/:178-205 +
-    // relational executionPlan.pure:63-90) — declared subsets; values
-    // answer through the K-side plan model (the plan-handle walks)
-    public static final ClassDefinition EXECUTION_NODE = nativeClass("native Class meta::pure::executionPlan::ExecutionNode extends meta::pure::metamodel::type::Any { executionNodes: meta::pure::executionPlan::ExecutionNode[*]; }");
-    public static final ClassDefinition FUNCTION_PARAMETERS_VALIDATION_NODE = nativeClass("native Class meta::pure::executionPlan::FunctionParametersValidationNode extends meta::pure::executionPlan::ExecutionNode { functionParameters: meta::pure::executionPlan::FunctionParameter[*]; }");
-    // real graphFetchExecutionPlan.pure — the cross-store graph fetch
-    // node pair the corpus casts plan nodes to (taxonomy T2)
-    public static final ClassDefinition GLOBAL_GRAPH_FETCH_EXECUTION_NODE = nativeClass("native Class meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
-    public static final ClassDefinition STORE_MAPPING_GLOBAL_GRAPH_FETCH_EXECUTION_NODE = nativeClass("native Class meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode extends meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode {}");
-    public static final ClassDefinition FUNCTION_PARAMETER = nativeClass("native Class meta::pure::executionPlan::FunctionParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; supportsStream: meta::pure::metamodel::type::Boolean[0..1]; }");
-    public static final ClassDefinition SQL_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::SQLExecutionNode extends meta::pure::executionPlan::ExecutionNode { sqlQuery: meta::pure::metamodel::type::String[1]; sqlComment: meta::pure::metamodel::type::String[0..1]; connection: meta::external::store::relational::runtime::DatabaseConnection[1]; }");
-    public static final ClassDefinition RELATIONAL_INSTANTIATION_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::RelationalInstantiationExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
-    // real executionPlan.pure — the Sequence node (the plan ROOT of a
-    // parameterized query: FunctionParametersValidationNode + the
-    // relational node); plan nodes are ROWS (SystemMetamodel plan_nodes)
-    public static final ClassDefinition SEQUENCE_EXECUTION_NODE = nativeClass("native Class meta::pure::executionPlan::SequenceExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
 
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
@@ -697,39 +368,10 @@ public final class Pure {
     // ---- Variant (semi-structured value carrier) ----
     public static final ClassDefinition VARIANT = nativeClass("native Class meta::pure::metamodel::variant::Variant extends meta::pure::metamodel::type::Any {}");
 
-    // ---- Collection carriers ----
-    // REAL pure declares values (legend-pure platform/pure/anonymousCollections.pure:33-35,
-    // <<equality.Key>>) — property access and ^List(values=...) construction validate against it.
-    public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any { <<equality.Key>> values: T[*]; }");
-    // REAL pure declares first/second (legend-pure platform/pure/anonymousCollections.pure:17-25,
-    // both <<equality.Key>>) — property access and instance construction validate against THEM.
-    public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any { <<equality.Key>> first: U[1]; <<equality.Key>> second: V[1]; }");
-    public static final ClassDefinition MAP = nativeClass("native Class meta::pure::functions::collection::Map<U, V> extends meta::pure::metamodel::type::Any {}");
 
-    // ---- Math helper carrier (rowwise correlation/covariance inputs) ----
-    public static final ClassDefinition ROW_MAPPER = nativeClass("native Class meta::pure::functions::math::mathUtility::RowMapper<T, U> extends meta::pure::metamodel::type::Any {}");
 
-    // ---- Graph-fetch tree carrier ----
-    public static final ClassDefinition ROOT_GRAPH_FETCH_TREE =
-            nativeClass("native Class meta::pure::graphFetch::RootGraphFetchTree<T> extends meta::pure::metamodel::type::Any {}");
-    // real dataQuality.pure:39-44 / :20 — the checked-result surface.
-    // Opaque carriers: defects/source/value are the SERIALIZER's envelope
-    // (the corpus never property-reads a Checked value).
-    public static final ClassDefinition CHECKED =
-            nativeClass("native Class meta::pure::dataQuality::Checked<T> extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition DEFECT =
-            nativeClass("native Class meta::pure::dataQuality::Defect extends meta::pure::metamodel::type::Any {}");
 
-    // ---- Relation-functions helpers ----
-    public static final ClassDefinition WINDOW    = nativeClass("native Class meta::pure::functions::relation::_Window<T>   extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition SORT_INFO = nativeClass("native Class meta::pure::functions::relation::SortInfo<T>  extends meta::pure::metamodel::type::Any {}");
 
-    // ---- Window-frame hierarchy (mirrors engine's frame.pure / range.pure / rows.pure) ----
-    public static final ClassDefinition FRAME                 = nativeClass("native Class meta::pure::functions::relation::Frame                extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition FRAME_VALUE           = nativeClass("native Class meta::pure::functions::relation::FrameValue           extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition UNBOUNDED_FRAME_VALUE = nativeClass("native Class meta::pure::functions::relation::UnboundedFrameValue  extends meta::pure::functions::relation::FrameValue {}");
-    public static final ClassDefinition _RANGE                = nativeClass("native Class meta::pure::functions::relation::_Range               extends meta::pure::functions::relation::Frame {}");
-    public static final ClassDefinition _RANGE_INTERVAL       = nativeClass("native Class meta::pure::functions::relation::_RangeInterval       extends meta::pure::functions::relation::Frame {}");
     public static final ClassDefinition ROWS                  = nativeClass("native Class meta::pure::functions::relation::Rows                 extends meta::pure::functions::relation::Frame {}");
 
     // ================================================================
@@ -759,7 +401,7 @@ public final class Pure {
      * <p>Like {@link #nativeClass(String)}, call sites contain real Pure
      * source verbatim. Class-load fails loudly on any malformed declaration.
      */
-    private static EnumDefinition nativeEnum(String pureSource) {
+    static EnumDefinition nativeEnum(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ElementParser.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
@@ -778,103 +420,16 @@ public final class Pure {
         return def;
     }
 
-    // ---- Relational runtime enums ----
-    // real relationalRuntime.pure:21 — the corpus's testDatabaseConnection
-    // constructs ^TestDatabaseConnection(type=DatabaseType.H2, ...)
-    public static final EnumDefinition SQL_JOIN_TYPE = nativeEnum("""
-            Enum meta::external::query::sql::metamodel::JoinType
-            { CROSS, INNER, LEFT, RIGHT, FULL }
-            """);
-    public static final EnumDefinition SQL_LOGICAL_BINARY_TYPE = nativeEnum("""
-            Enum meta::external::query::sql::metamodel::LogicalBinaryType
-            { AND, OR }
-            """);
-    public static final EnumDefinition SQL_COMPARISON_OPERATOR = nativeEnum("""
-            Enum meta::external::query::sql::metamodel::ComparisonOperator
-            { EQUAL, NOT_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, GREATER_THAN, GREATER_THAN_OR_EQUAL, IS_DISTINCT_FROM }
-            """);
-    public static final EnumDefinition SQL_SORT_ITEM_ORDERING = nativeEnum("""
-            Enum meta::external::query::sql::metamodel::SortItemOrdering
-            { ASCENDING, DESCENDING }
-            """);
-    public static final EnumDefinition SQL_SORT_ITEM_NULL_ORDERING = nativeEnum("""
-            Enum meta::external::query::sql::metamodel::SortItemNullOrdering
-            { FIRST, LAST, UNDEFINED }
-            """);
-    public static final EnumDefinition DATABASE_TYPE = nativeEnum("""
-            Enum meta::relational::runtime::DatabaseType
-            {
-                DB2, H2, MemSQL, Sybase, SybaseIQ, Composite, Postgres, SqlServer,
-                Hive, Snowflake, Presto, Trino, BigQuery, Redshift, Databricks,
-                Spanner, Athena, Aurora, SparkSQL, DuckDB, Oracle, ClickHouse,
-                DebugPrint
-            }
-            """);
 
-    // ---- Date enums ----
-    // executionPlan feature flags (REAL executionPlanFeature.pure:21);
-    // withFeatureFlags is IDENTITY in real pure (:27 — the flag rides the
-    // plan context; our enum source-value translation IS the pushdown).
-    public static final EnumDefinition EXECUTION_PLAN_FEATURE = nativeEnum("""
-            Enum meta::pure::executionPlan::features::Feature
-            {
-                PUSH_DOWN_ENUM_TRANSFORM,
-                VARIANT_TYPE_AS_INPUT,
-                LEGACY_SQL_NULL_UNSAFE_EQUALS
-            }""");
-
-    public static final EnumDefinition DURATION_UNIT = nativeEnum("""
-            Enum meta::pure::functions::date::DurationUnit
-            {
-                YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES,
-                SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS
-            }
-            """);
-
-    public static final EnumDefinition MONTH = nativeEnum("""
-            Enum meta::pure::functions::date::Month
-            {
-                January, February, March, April, May, June,
-                July, August, September, October, November, December
-            }
-            """);
-
-    public static final EnumDefinition QUARTER = nativeEnum("""
-            Enum meta::pure::functions::date::Quarter
-            {
-                Q1, Q2, Q3, Q4
-            }
-            """);
-
-    public static final EnumDefinition DAY_OF_WEEK = nativeEnum("""
-            Enum meta::pure::functions::date::DayOfWeek
-            {
-                Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
-            }
-            """);
 
     // ---- Relation enums ----
     public static final EnumDefinition SORT_TYPE = nativeEnum(
             "Enum meta::pure::functions::relation::SortType { ASC, DESC }");
 
-    // ---- String/date enums (real regexpParameter.pure / formatDate.pure) ----
-    public static final EnumDefinition REGEXP_PARAMETER = nativeEnum("""
-            Enum meta::pure::functions::string::RegexpParameter
-            {
-                CASE_SENSITIVE, CASE_INSENSITIVE, MULTILINE, NON_NEWLINE_SENSITIVE
-            }
-            """);
     public static final EnumDefinition STRICT_DATE_FORMAT = nativeEnum(
             "Enum meta::pure::functions::date::StrictDateFormat { ISO8601 }");
     public static final EnumDefinition DATE_TIME_FORMAT = nativeEnum(
             "Enum meta::pure::functions::date::DateTimeFormat { ISO8601_NanoSecondPrecision }");
-
-    public static final EnumDefinition JOIN_KIND = nativeEnum("""
-            Enum meta::pure::functions::relation::JoinKind
-            {
-                LEFT, RIGHT, FULL, INNER
-            }
-            """);
 
     // ---- Hash enum ----
     public static final EnumDefinition HASH_TYPE = nativeEnum(
@@ -1499,6 +1054,9 @@ public final class Pure {
     public static final NativeFunctionDefinition EVAL__FUNCTION_1 = signature("native function meta::pure::functions::lang::eval<V|m>(func:meta::pure::metamodel::function::Function<{->V[m]}>[1]):V[m];");
     public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_n = signature("native function meta::pure::functions::lang::eval<T,V|m,n>(func:meta::pure::metamodel::function::Function<{T[n]->V[m]}>[1], param:T[n]):V[m];");
     public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_n__U_p = signature("native function meta::pure::functions::lang::eval<T,U,V|m,n,p>(func:meta::pure::metamodel::function::Function<{T[n],U[p]->V[m]}>[1], param1:T[n], param2:U[p]):V[m];");
+    // legend-pure lang/eval.pure:24 verbatim (batch 54: pureToSQLQuery's
+    // extension-dispatch prefix `$f->eval($alias, $selectColumns, $extensions)`)
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_n__U_p__W_q = signature("native function meta::pure::functions::lang::eval<T,U,V,W|m,n,p,q>(func:meta::pure::metamodel::function::Function<{T[n],U[p],W[q]->V[m]}>[1], param1:T[n], param2:U[p], param3:W[q]):V[m];");
     public static final NativeFunctionDefinition EXISTS__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::exists<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EXP__NUMBER_1 = signature("native function meta::pure::functions::math::exp(exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition EXTEND__C_MANY__FUNC_COL_SPEC_1 = signature("native function meta::pure::functions::relation::extend<C,Z>(cl:C[*], f:meta::pure::metamodel::relation::FuncColSpec<{C[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):C[*];");
@@ -1632,6 +1190,9 @@ public final class Pure {
     // stays {T[1]->K[0..1]} (real relation signature).
     public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
+    // legend-pure collection/map/groupBy.pure:18 verbatim (batch 54:
+    // toPostgresModel's converter registry groups its spelled pairs)
+    public static final NativeFunctionDefinition GROUP_BY__X_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::groupBy<X,K>(set:X[*], f:meta::pure::metamodel::function::Function<{X[1]->K[1]}>[1]):meta::pure::functions::collection::Map<K,meta::pure::functions::collection::List<X>>[1];");
     public static final NativeFunctionDefinition GROUP_BY__K_MANY__FUNCTION_MANY__ANY_MANY__STRING_MANY = signature("native function meta::pure::functions::collection::groupBy<K,V,U>(set:K[*], fns:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggs:meta::pure::metamodel::type::Any[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<K>[1];");
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
@@ -1665,6 +1226,9 @@ public final class Pure {
     // element-identity form as a native: over an element REFERENCE it is
     // the path literal, over a metamodel ROW it is the row's key (D2).
     public static final NativeFunctionDefinition ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1 = signature("native function meta::pure::functions::meta::elementToPath(element:meta::pure::metamodel::PackageableElement[1]):meta::pure::metamodel::type::String[1];");
+    // legend-pure meta/elementToPath.pure:29 (a Pure overload there; ONE
+    // lowering rule here): pureToSQLQuery's `$a->type()->elementToPath()`
+    public static final NativeFunctionDefinition ELEMENT_TO_PATH__TYPE_1 = signature("native function meta::pure::functions::meta::elementToPath(element:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition IN__ANY_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IN__ANY_0_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[0..1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_AFTER_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isAfterDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
@@ -1760,9 +1324,6 @@ public final class Pure {
     // Real platform_store_relational/functions.pure:227/:249 — metamodel
     // navigation (ordinary pure over the store metamodel there; typed
     // natives here, evaluated K-side when a consumer demands the values).
-    public static final NativeFunctionDefinition CONVERT_ELEMENT = signature("native function meta::relational::functions::toPostgresModel::convertElement(r:meta::relational::metamodel::RelationalOperationElement[1], state:meta::relational::functions::toPostgresModel::ModelConversionState[1]):meta::external::query::sql::metamodel::Node[1];");
-    public static final NativeFunctionDefinition NEW_STATE = signature("native function meta::relational::functions::toPostgresModel::newState():meta::relational::functions::toPostgresModel::ModelConversionState[1];");
-    public static final NativeFunctionDefinition CONVERT_SELECT_SQL_QUERY = signature("native function meta::relational::functions::toPostgresModel::convertSelectSqlQuery(select:meta::relational::metamodel::relation::SelectSQLQuery[1], state:meta::relational::functions::toPostgresModel::ModelConversionState[1]):meta::external::query::sql::metamodel::Query[1];");
     // Extends-chain navigation over the mapping metamodel (real
     // functions_Mapping.pure:74, functions_PropertyMappingsImplementation
     // .pure:19, engine mappingExtension.pure:163, platform_store_
@@ -1777,6 +1338,12 @@ public final class Pure {
     // deepens the census wall from 'unknown function' to the honest
     // downstream refusal — no evaluation is added here.
     public static final NativeFunctionDefinition ROUTER_EXTENSIONS = signature("native function meta::pure::extension::routerExtensions(_this:meta::pure::extension::Extension[1]):meta::pure::router::extension::RouterExtension[*];");
+    // Real extension.pure:129 — moduleExtension(module) QUALIFIED PROPERTY
+    // ($this.moduleExtensions->filter(f|$f.module == $module)->first()),
+    // registered like routerExtensions (a signature; the body is a view
+    // over the extensions VALUE the program spelled — [] in every corpus
+    // call, so the unroll folds the whole prefix to [])
+    public static final NativeFunctionDefinition MODULE_EXTENSION_OF = signature("native function meta::pure::extension::moduleExtension(_this:meta::pure::extension::Extension[1], module:meta::pure::metamodel::type::String[1]):meta::pure::extension::ModuleExtension[0..1];");
     // Real core/pure/router/printer/printer.pure:43 — the router
     // debug-print of a routed function (testRouting composition tests
     // assert its text).
@@ -1828,15 +1395,7 @@ public final class Pure {
     // Result<T|m> spelling darkens the postprocessor family the same
     // way). T[*] is safe meanwhile — consumers normalize multiplicity.
     public static final ClassDefinition RESULT = nativeClass("native Class meta::pure::mapping::Result<T|m> extends meta::pure::metamodel::type::Any { values: T[m]; activities: meta::pure::mapping::Activity[*]; }");
-    // debug-context surface (REAL legend-pure platform/pure/tools.pure +
-    // essential/tools/debug/noDebug.pure): the corpus's debug-arity execute
-    // calls type against these. RelationalDebugContext/IsolationStrategy
-    // stay CORPUS classes — pureToSQLQuery.pure parses clean since the
-    // #50 walls landed and the corpus runner registers it as a LIBRARY
-    // source (pulled by reference); never promoted to the prelude.
-    public static final ClassDefinition DEBUG_CONTEXT = nativeClass("native Class meta::pure::tools::DebugContext extends meta::pure::metamodel::type::Any { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }");
     public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
-    public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
     // AUDIT R8 CUTOVER (2026-08-28): meta::pure::mapping::execute was an
     // INVENTED FQN (nowhere in the engine or legend-pure checkouts —
     // .pure and .java both grepped) and is DELETED. The real bare
@@ -2272,6 +1831,18 @@ public final class Pure {
     public static final NativeFunctionDefinition MIN_CMP__T_1_MANY = signature("native function meta::pure::functions::collection::min<T>(col:T[1..*], comp:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Integer[1]}>[1]):T[1];");
     public static final NativeFunctionDefinition PAIR__T_1__U_1 = signature("native function meta::pure::functions::collection::pair<T,U>(first:T[1], second:U[1]):meta::pure::functions::collection::Pair<T,U>[1];");
     public static final NativeFunctionDefinition NEW_MAP__PAIRS = signature("native function meta::pure::functions::collection::newMap<U,V>(pairs:meta::pure::functions::collection::Pair<U,V>[*]):meta::pure::functions::collection::Map<U,V>[1];");
+    // engine core collection.pure:145 verbatim (a Pure body there; ONE lowering
+    // rule here — batch 54: toPostgresModel's `$s->defaultIfEmpty(SortDirection.ASC)`)
+    public static final NativeFunctionDefinition DEFAULT_IF_EMPTY__T_MANY__T_ONEMANY = signature("native function meta::pure::functions::collection::defaultIfEmpty<T>(collection:T[*], default:T[1..*]):T[1..*];");
+    // legend-pure lang/creation/dynamicNew.pure:24-25 verbatim (batch 54:
+    // toPostgresModel's convertJoinTreeNode builds Join nodes from KeyValues;
+    // over spelled keys the unroll folds it to the instance literal)
+    public static final NativeFunctionDefinition DYNAMIC_NEW__CLASS_1__KEYVALUE_MANY = signature("native function meta::pure::functions::lang::dynamicNew(class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1], keyExpressions:meta::pure::functions::lang::KeyValue[*]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition DYNAMIC_NEW__GENERICTYPE_1__KEYVALUE_MANY = signature("native function meta::pure::functions::lang::dynamicNew(genericType:meta::pure::metamodel::type::generics::GenericType[1], keyExpressions:meta::pure::functions::lang::KeyValue[*]):meta::pure::metamodel::type::Any[1];");
+    // legend-pure boolean/isTrue.pure:15 verbatim (a Pure body there; ONE rule)
+    public static final NativeFunctionDefinition IS_TRUE__BOOLEAN_01 = signature("native function meta::pure::functions::boolean::isTrue(value:meta::pure::metamodel::type::Boolean[0..1]):meta::pure::metamodel::type::Boolean[1];");
+    // legend-pure collection/map/keyValues.pure:17 verbatim (batch 54)
+    public static final NativeFunctionDefinition KEY_VALUES__MAP_1 = signature("native function meta::pure::functions::collection::keyValues<U,V>(m:meta::pure::functions::collection::Map<U,V>[1]):meta::pure::functions::collection::Pair<U,V>[*];");
     public static final NativeFunctionDefinition MAP_GET__MAP_1__U_1 = signature("native function meta::pure::functions::collection::get<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], key:U[1]):V[0..1];");
     public static final NativeFunctionDefinition MAP_PUT__MAP_1__U_1__V_1 = signature("native function meta::pure::functions::collection::put<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], key:U[1], value:V[1]):meta::pure::functions::collection::Map<U,V>[1];");
     public static final NativeFunctionDefinition MAP_PUT_ALL__MAP_1__PAIRS = signature("native function meta::pure::functions::collection::putAll<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], pairs:meta::pure::functions::collection::Pair<U,V>[*]):meta::pure::functions::collection::Map<U,V>[1];");
@@ -2418,12 +1989,6 @@ public final class Pure {
     // arm (JsonCompare) is the implementation.
     public static final NativeFunctionDefinition ASSERT_JSON_STRINGS_EQUAL__STRING_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertJsonStringsEqual(expected:meta::pure::metamodel::type::String[1], actual:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
-    // V7 §8 leg 3 — the two JSON natives the assert family's loaded
-    // shapes reference, signatures VERBATIM from the real engine
-    // source (core_functions_json/json.pure:19,29 — the §4Q spec-by-
-    // verification pattern, never by loading). No SQL lowering yet: a
-    // side that EXECUTES them declines loudly by name.
-    public static final ClassDefinition JSON_ELEMENT = nativeClass("native Class meta::json::JSONElement extends meta::pure::metamodel::type::Any {}");
     public static final NativeFunctionDefinition PARSE_JSON__STRING_1 = signature("native function meta::json::parseJSON(string:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[1];");
     // Real core/external/format/json/toJSON.pure:54 (the Any[*]
     // overload — TDS/instance serialization the datatype tests assert).
@@ -2431,18 +1996,6 @@ public final class Pure {
     // Real core/external/format/json/toJSON.pure — the JSONElement
     // pretty-printer the graphFetch subType tests compare with.
     public static final NativeFunctionDefinition TO_PRETTY_JSON_STRING = signature("native function meta::json::toPrettyJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1];");
-    // The JSON TREE MODEL — real core_functions_json/json.pure:32-70,
-    // VERBATIM (equality stereotypes omitted; JSONNull's value:Nil[0] is
-    // a property with no value — registered without it). The values ride
-    // the VARIANT lane (PlatformTypes.isVariant): navigation is
-    // TypedJsonAccess (JsonChecker emits it from the property reads).
-    public static final ClassDefinition JSON_BOOLEAN = nativeClass("native Class meta::json::JSONBoolean extends meta::json::JSONElement { value: meta::pure::metamodel::type::Boolean[1]; }");
-    public static final ClassDefinition JSON_STRING = nativeClass("native Class meta::json::JSONString extends meta::json::JSONElement { value: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition JSON_NUMBER = nativeClass("native Class meta::json::JSONNumber extends meta::json::JSONElement { value: meta::pure::metamodel::type::Number[1]; }");
-    public static final ClassDefinition JSON_NULL = nativeClass("native Class meta::json::JSONNull extends meta::json::JSONElement {}");
-    public static final ClassDefinition JSON_ARRAY = nativeClass("native Class meta::json::JSONArray extends meta::json::JSONElement { values: meta::json::JSONElement[*]; }");
-    public static final ClassDefinition JSON_KEY_VALUE = nativeClass("native Class meta::json::JSONKeyValue extends meta::pure::metamodel::type::Any { key: meta::json::JSONString[1]; value: meta::json::JSONElement[1]; }");
-    public static final ClassDefinition JSON_OBJECT = nativeClass("native Class meta::json::JSONObject extends meta::json::JSONElement { keyValuePairs: meta::json::JSONKeyValue[*]; }");
     // Real core/external/format/json/jsonExtension.pure:37 (getValue = the
     // keyValuePairs->filter(key)->value member read) and json.pure:62
     // (toCompactJSONString); signatures verbatim, lowered on the variant
@@ -2670,4 +2223,14 @@ public final class Pure {
     public static final NativeFunctionDefinition _RANGE__UNBOUNDED_1__INT_1__DU_1 = signature("native function meta::pure::functions::relation::_range(offsetFrom:meta::pure::functions::relation::UnboundedFrameValue[1], offsetTo:meta::pure::metamodel::type::Integer[1], offsetToDurationUnit:meta::pure::functions::date::DurationUnit[1]):meta::pure::functions::relation::_RangeInterval[1];");
     public static final NativeFunctionDefinition _RANGE__INT_1__DU_1__UNBOUNDED_1 = signature("native function meta::pure::functions::relation::_range(offsetFrom:meta::pure::metamodel::type::Integer[1], offsetFromDurationUnit:meta::pure::functions::date::DurationUnit[1], offsetTo:meta::pure::functions::relation::UnboundedFrameValue[1]):meta::pure::functions::relation::_RangeInterval[1];");
     public static final NativeFunctionDefinition _RANGE__UNBOUNDED_1__UNBOUNDED_1 = signature("native function meta::pure::functions::relation::_range(offsetFrom:meta::pure::functions::relation::UnboundedFrameValue[1], offsetTo:meta::pure::functions::relation::UnboundedFrameValue[1]):meta::pure::functions::relation::_Range[1];");
+
+    // The GENERATED prelude (Prelude.java, PreludeGeneratorTest — the
+    // library shapes the corpus names, copied from the spec) registers
+    // as the LAST step of this class's initialization: after every
+    // hand-declared constant (the same nativeClass door), before any
+    // index is built. Loading it from the lazy index recursed through
+    // the parser's name-resolution prelude (StackOverflow, 2026-09-04).
+    static {
+        Prelude.load();
+    }
 }

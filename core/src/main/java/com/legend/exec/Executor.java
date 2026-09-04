@@ -557,7 +557,7 @@ public final class Executor {
      * restriction and the wire consumers read (WORLD_MAP §4: the value
      * carries its class as {@code __type}). Scalars pass through
      * {@link #decodeAny} untouched; a Variant ROOT never comes here. */
-    private static @com.legend.Nullable Object structured(@com.legend.Nullable Object v) {
+    public static @com.legend.Nullable Object structured(@com.legend.Nullable Object v) {
         if (v instanceof String s) {
             String t = s.trim();
             if (t.startsWith("{") || t.startsWith("[")) {

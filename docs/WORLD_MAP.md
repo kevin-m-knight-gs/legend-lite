@@ -116,6 +116,19 @@ tenet violation, not an optimization.
    Signatures and class shapes verified against them with receipts.
 2. **The platform ships a prelude of declarations only.** Shapes with keys and
    defaults, native signatures. No bodies. Pinned so they cannot drift.
+   *Amended 2026-09-04 (option S, `docs/DECLARATIONS_HOMEWORK_2026_09_04.md`):
+   behavior is curated, shapes are data.* Native signatures are REGISTERED
+   (we own their meaning). Library SHAPES are GENERATED from the spec files
+   by demand (`core/src/main/java/com/legend/builtin/Prelude.java`,
+   `PreludeGeneratorTest`) — the corpus's type positions, the platform's own
+   Java names and the admitted program libraries (`Corpus.LIBRARY_FILES`)
+   decide what is pulled, with the closure of what those declarations name;
+   constraints are not loaded. By hand stay only: the m3 bootstrap (m3.pure
+   is a graph file — `tools/m3shape.py` is the receipt), the primitives, the
+   platform carriers, and the system-store-coupled shapes named in
+   `Pure.java`. Trigger for the next step (verbatim `.pure` files loaded per
+   build instead of a generated Java file): a shipped legend-lite without
+   the checkouts, or a second module needing its own prelude selection.
 3. **Platform Pure is limited to views over the system tables.** No control
    flow on computed values, no recursion, compiled by the same compiler.
 4. **Every native means one SQL lowering rule.** A native that Java evaluates

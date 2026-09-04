@@ -40,6 +40,13 @@ final class TypeClassifier {
         if (ext.isPresent()) {
             return Optional.of(ext.get());
         }
+        // the m3 Enum METACLASS in a value position means "some enumeration
+        // value" (EnumValueMapping.enum, Enum.name reads): an enumeration-
+        // VALUE type, never a class navigation (InferenceKernel accepts any
+        // enumeration or its name carrier against it)
+        if (fqn.equals(com.legend.compiler.spec.InferenceKernel.ENUM_METACLASS_FQN)) {
+            return Optional.of(new Type.EnumType(fqn));
+        }
         if (isClassFqn(fqn)) {
             return Optional.of(new Type.ClassType(fqn));
         }

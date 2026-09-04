@@ -802,6 +802,16 @@ final class UnionSynthesis {
                     if (!seen.add(c) || c.equals(base)) {
                         continue;
                     }
+                    // STRICTLY BELOW base means inside base's subtree: a
+                    // multiple-inheritance leaf (EmbeddedSetImplementation
+                    // extends InstanceSetImplementation, PropertyMapping)
+                    // also climbs its OTHER parent chain, which leaves the
+                    // subtree and, meeting another inheritance-mapped
+                    // class, recursed back here forever (the generated
+                    // prelude's mapping shapes exposed it, 2026-09-04)
+                    if (!subtree.contains(c)) {
+                        continue;
+                    }
                     ClassMapping cm = rootByClass.get(c);
                     if (cm != null) {
                         if (cm instanceof ClassMapping.Inheritance) {

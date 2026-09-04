@@ -256,12 +256,12 @@ class NativeFunctionTest {
         assertEquals(List.of("T", "Z", "W", "R"), def.typeParameters());
         assertEquals(List.of(), def.multiplicityParameters());
         assertEquals(3, def.parameters().size());
-        assertEquals(tg(Pure.WINDOW, nr("T")), def.parameters().get(1).type());
+        assertEquals(tg(Prelude.cls("meta::pure::functions::relation::_Window"), nr("T")), def.parameters().get(1).type());
         // Structural pin of the nested function type with three input arrows.
         TypeExpression innerFn = new FunctionType(
                 List.of(
                         tp(tg(Pure.RELATION, nr("T")), Multiplicity.exactly(1)),
-                        tp(tg(Pure.WINDOW, nr("T")), Multiplicity.exactly(1)),
+                        tp(tg(Prelude.cls("meta::pure::functions::relation::_Window"), nr("T")), Multiplicity.exactly(1)),
                         tp(nr("T"), Multiplicity.exactly(1))),
                 tp(nr(Pure.ANY), Multiplicity.range(0, 1)));
         assertEquals(tg(Pure.FUNC_COL_SPEC, innerFn, nr("R")),
@@ -276,7 +276,7 @@ class NativeFunctionTest {
     void sortWithSubsetConstraintMultiplicityMany_pinShape() {
         // sort<X,T>(Relation<T>[1], SortInfo<X \u2286 T>[*]): Relation<T>[1]
         TypeExpression relationOfT = tg(Pure.RELATION, nr("T"));
-        TypeExpression sortInfoXsubT = tg(Pure.SORT_INFO,
+        TypeExpression sortInfoXsubT = tg(Prelude.cls("meta::pure::functions::relation::SortInfo"),
                 sa(nr("X"), Op.SUBSET, nr("T")));
         var expected = new NativeFunctionDefinition(
                 "meta::pure::functions::relation::sort",
@@ -562,8 +562,47 @@ class NativeFunctionTest {
         // 255 -> 256 (batch 48, 2026-09-03): +EnumValueMapping (real
         // mapping.pure:48) — enumeration mappings as system-store rows;
         // EnumerationMapping gains its real enumValueMappings end.
-        assertEquals(256, Pure.allNativeClasses().size(),
-                "Pure.allNativeClasses() size pin: review the catalog if this changes");
+        // 256 -> 255 (2026-09-04, option S — docs/DECLARATIONS_HOMEWORK_2026_09_04.md):
+        // the pin covers the HAND-declared classes of Pure.java only; the
+        // generated prelude (Prelude.java, PreludeGeneratorTest) carries the
+        // library shapes the corpus names and is pinned by its own parity
+        // test. Hand copies now shrink: the toPostgresModel natives
+        // (ModelConversionState + 3 functions — a Java port of a Pure
+        // program) are deleted, ModuleExtension/RelationalExtension moved to
+        // the generator.
+        long hand = Pure.allNativeClasses().stream()
+                .filter(c -> !Prelude.classFqns().contains(c.qualifiedName())).count();
+        // 255 -> 264 (2026-09-04, option S): +9 m3 BOOTSTRAP shapes the
+        // generated declarations name (AbstractProperty, QualifiedProperty,
+        // PropertyOwner, Association, Constraint, ConstraintsOverride,
+        // ReferenceUsage, Referenceable, RelationElementAccessor; and
+        // ElementOverride moved to its real package) — m3 is a graph file,
+        // not class syntax, so the generator cannot read it; shapes
+        // extracted by tools/m3shape.py.
+        // 264 -> 60 (2026-09-04, option S cut-over): 204 hand copies of
+        // spec shapes (+13 enums) DELETED from Pure.java — the generator now
+        // carries every library shape the corpus, the native signatures or
+        // the platform's Java names; what stays by hand is m3 (the bootstrap
+        // graph), the primitives, the carriers and 13 Java-referenced
+        // definitions to migrate.
+        // 60 -> 70: +10 more m3 bootstrap shapes the generated declarations
+        // name (PackageableFunction, Annotation, Stereotype, Tag, TaggedValue,
+        // Profile, ElementWithStereotypes, ElementWithTaggedValues,
+        // AnnotatedElement, Enum) — tools/m3shape.py receipts.
+        // 70 -> 68: the two GUESSED sql-node literals (DateLiteral /
+        // TimestampLiteral in ::metamodel — the real ones live in
+        // ::metamodel::extension and are generated) deleted; they had made
+        // every bare `DateLiteral` in the spec's own files ambiguous.
+        // 68 -> 69: +Generalization (m3), Type carries its real name and
+        // generalization ends (buildUniqueName reads Type.name).
+        // 69 -> 70: +TypeParameter (m3); GenericType carries its real ends.
+        // 70 -> 76: the six SYSTEM-STORE-COUPLED shapes back by hand
+        // (SetImplementation, PropertyMappingsImplementation,
+        // InstanceSetImplementation, PropertyMapping, Column,
+        // EnumValueMapping — the metamodel store types element references
+        // as its raw row classes; receipt in Pure.java).
+        assertEquals(76, hand,
+                "Pure.java hand-declared native class count moved: review the catalog");
     }
 
     /**
@@ -763,8 +802,9 @@ class NativeFunctionTest {
                     List.of("schema")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Column",
-                    // owner: real relational metamodel (group I burn 2026-09-03)
-                    List.of("name", "type", "owner")),
+                    // owner: real relational metamodel (group I burn 2026-09-03);
+                    // nullable: real relational.pure (batch 54 — isEqualsFromFilter)
+                    List.of("name", "type", "nullable", "owner")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::ColumnName",
                     List.of("name")),
@@ -1028,7 +1068,7 @@ class NativeFunctionTest {
                     // real m3 generics.pure: rawType is the reflection
                     // surface ($x->genericType().rawType — testGetAll)
                     "meta::pure::metamodel::type::generics::GenericType",
-                    List.of("rawType"));
+                    List.of("rawType", "typeParameter", "typeVariableValues", "typeArguments", "multiplicityArguments"));
 
     /** task #78 step-1 TDS + aggregationAware surfaces (Map.of caps at 10
      * pairs — second map, same contract). */
@@ -1049,6 +1089,39 @@ class NativeFunctionTest {
                     "meta::relational::testDataGeneration::TestDataGenResult",
                     List.of("dataCsvString", "relationTree", "sqls"));
 
+    /** M3 BOOTSTRAP shapes (option S, 2026-09-04): legend-pure's
+     * platform/pure/grammar/m3.pure is a graph file the generator cannot
+     * read; these shapes are extracted verbatim by tools/m3shape.py. */
+    private static final java.util.Map<String, List<String>> M3_BOOTSTRAP_SURFACE_PROPERTIES =
+            java.util.Map.of(
+                    "meta::pure::metamodel::function::property::AbstractProperty",
+                    List.of("genericType", "multiplicity", "owner"),
+                    "meta::pure::metamodel::function::property::QualifiedProperty", List.of("id"),
+                    "meta::pure::metamodel::relationship::Association",
+                    List.of("properties", "originalMilestonedProperties", "qualifiedProperties"),
+                    "meta::pure::metamodel::constraint::Constraint",
+                    List.of("name", "owner", "externalId", "functionDefinition", "enforcementLevel", "messageFunction"),
+                    "meta::pure::metamodel::type::ConstraintsOverride", List.of("constraintsManager"),
+                    "meta::pure::metamodel::ReferenceUsage", List.of("owner", "propertyName", "offset"),
+                    "meta::pure::metamodel::Referenceable", List.of("referenceUsages"),
+                    "meta::pure::metamodel::relation::RelationElementAccessor",
+                    List.of("sourceElementContainer", "sourceElement"),
+                    "meta::pure::metamodel::function::PackageableFunction",
+                    List.of("preConstraints", "postConstraints"),
+                    "meta::pure::metamodel::extension::Annotation", List.of("profile", "value", "modelElements"));
+    private static final java.util.Map<String, List<String>> M3_BOOTSTRAP_SURFACE_PROPERTIES_2 =
+            java.util.Map.of(
+                    "meta::pure::metamodel::extension::TaggedValue", List.of("tag", "value"),
+                    "meta::pure::metamodel::extension::Profile", List.of("p_stereotypes", "p_tags"),
+                    "meta::pure::metamodel::extension::ElementWithStereotypes", List.of("stereotypes"),
+                    "meta::pure::metamodel::extension::ElementWithTaggedValues", List.of("taggedValues"),
+                    "meta::pure::metamodel::type::Enum", List.of("name"),
+                    "meta::pure::metamodel::type::Type", List.of("name", "generalizations", "specializations"),
+                    "meta::pure::metamodel::relationship::Generalization", List.of("specific", "general"),
+                    "meta::pure::metamodel::type::generics::TypeParameter",
+                    List.of("name", "contravariant", "lowerBound", "upperBound"),
+                    "meta::pure::metamodel::ModelElement", List.of("name"));
+
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(
                     // real m3: name rides PackageableElement (the corpus
@@ -1058,7 +1131,8 @@ class NativeFunctionTest {
                     "meta::pure::mapping::Mapping", List.of("name", "classMappings", "enumerationMappings"),
                     // real m3 Property (group F burn 2026-09-02): the
                     // property-mapping rows' property end — name only
-                    "meta::pure::metamodel::function::property::Property", List.of("name"),
+                    "meta::pure::metamodel::function::property::Property",
+                    List.of("name", "genericType", "multiplicity", "owner"),
                     // core/pure/tds/tds.pure:18-23
                     "meta::pure::tds::TabularDataSet", List.of("columns", "rows"),
                     // tds.pure:25-45
@@ -1084,6 +1158,9 @@ class NativeFunctionTest {
         // Pair has first/second (anonymousCollections.pure:17-25), which property
         // access and ^Pair(...) construction validate against.
         for (ClassDefinition c : Pure.allNativeClasses()) {
+            if (Prelude.classFqns().contains(c.qualifiedName())) {
+                continue;   // generated from the spec (PreludeGeneratorTest) — its own pins
+            }
             assertTrue(c.isNative(),
                     () -> "native class '" + c.qualifiedName() + "' has isNative=false");
             if (c.qualifiedName().startsWith("meta::json::JSON")) {
@@ -1166,6 +1243,14 @@ class NativeFunctionTest {
                 assertEquals(PLAN_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
                         () -> c.qualifiedName() + " must match real legend-pure");
+            } else if (M3_BOOTSTRAP_SURFACE_PROPERTIES_2.containsKey(c.qualifiedName())) {
+                assertEquals(M3_BOOTSTRAP_SURFACE_PROPERTIES_2.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real m3.pure (tools/m3shape.py)");
+            } else if (M3_BOOTSTRAP_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
+                assertEquals(M3_BOOTSTRAP_SURFACE_PROPERTIES.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real m3.pure (tools/m3shape.py)");
             } else {
                 assertTrue(c.properties().isEmpty(),
                         () -> "native class '" + c.qualifiedName()
@@ -1196,6 +1281,9 @@ class NativeFunctionTest {
     void everyNativeClassHasUniqueFqn() {
         Set<String> seen = new HashSet<>();
         for (ClassDefinition c : Pure.allNativeClasses()) {
+            if (Prelude.classFqns().contains(c.qualifiedName())) {
+                continue;   // generated from the spec (PreludeGeneratorTest) — its own pins
+            }
             assertTrue(seen.add(c.qualifiedName()),
                     () -> "duplicate native class FQN: " + c.qualifiedName());
         }
@@ -1232,8 +1320,8 @@ class NativeFunctionTest {
         assertEquals(List.of("T"), Pure.RELATION.typeParams());
         assertEquals(List.of("T"), Pure.COL_SPEC.typeParams());
         assertEquals(List.of("T"), Pure.COL_SPEC_ARRAY.typeParams());
-        assertEquals(List.of("T"), Pure.WINDOW.typeParams());
-        assertEquals(List.of("T"), Pure.SORT_INFO.typeParams());
+        assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::_Window").typeParams());
+        assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::SortInfo").typeParams());
         assertEquals(List.of("F"), Pure.FUNCTION.typeParams());
         // Two-parameter generics.
         assertEquals(List.of("F", "R"), Pure.FUNC_COL_SPEC.typeParams());
@@ -1346,6 +1434,9 @@ class NativeFunctionTest {
                 // (real core/pure/router/extension)
                 "meta::pure::router::extension");
         for (ClassDefinition c : Pure.allNativeClasses()) {
+            if (Prelude.classFqns().contains(c.qualifiedName())) {
+                continue;   // generated from the spec (PreludeGeneratorTest) — its own pins
+            }
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
             assertTrue(ok, () -> "native class FQN outside expected packages: " + fqn);
@@ -1370,8 +1461,13 @@ class NativeFunctionTest {
         //     metamodel.pure — the bridge node enums).
         // 19: +SortItemOrdering/SortItemNullOrdering (postgres
         //     metamodel.pure:511/517).
-        assertEquals(19, Pure.allNativeEnums().size(),
-                "Pure.allNativeEnums() size pin: review the catalog if this changes");
+        long handEnums = Pure.allNativeEnums().stream()
+                .filter(e -> !Prelude.enumFqns().contains(e.qualifiedName())).count();
+        // 19 -> 6 (2026-09-04, option S cut-over): 13 hand enum copies of
+        // spec enums deleted; the generator carries them now.
+        assertEquals(6, handEnums,
+                "Pure.java hand-declared native enum count moved: review the catalog"
+                        + " (generated enums live in Prelude.java)");
     }
 
     @Test
@@ -1400,14 +1496,14 @@ class NativeFunctionTest {
         // Spot-check the enums most consumers reach for. If engine extends
         // any of these we'll catch it here before downstream code breaks.
         assertEquals(List.of("ASC", "DESC"), Pure.SORT_TYPE.values());
-        assertEquals(List.of("LEFT", "RIGHT", "FULL", "INNER"), Pure.JOIN_KIND.values());
+        assertEquals(List.of("LEFT", "RIGHT", "FULL", "INNER"), Prelude.enumOf("meta::pure::functions::relation::JoinKind").values());
         assertEquals(List.of("MD5", "SHA1", "SHA256"), Pure.HASH_TYPE.values());
-        assertEquals(List.of("Q1", "Q2", "Q3", "Q4"), Pure.QUARTER.values());
-        assertEquals(10, Pure.DURATION_UNIT.values().size(),
+        assertEquals(List.of("Q1", "Q2", "Q3", "Q4"), Prelude.enumOf("meta::pure::functions::date::Quarter").values());
+        assertEquals(10, Prelude.enumOf("meta::pure::functions::date::DurationUnit").values().size(),
                 "DurationUnit has YEARS..NANOSECONDS = 10 values");
-        assertEquals(12, Pure.MONTH.values().size(),
+        assertEquals(12, Prelude.enumOf("meta::pure::functions::date::Month").values().size(),
                 "Month has January..December = 12 values");
-        assertEquals(7, Pure.DAY_OF_WEEK.values().size(),
+        assertEquals(7, Prelude.enumOf("meta::pure::functions::date::DayOfWeek").values().size(),
                 "DayOfWeek has Monday..Sunday = 7 values");
     }
 

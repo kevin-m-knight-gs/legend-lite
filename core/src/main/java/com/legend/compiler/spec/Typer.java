@@ -2167,9 +2167,14 @@ final class Typer {
         return null;
     }
 
+    TypedSpec synthBody(LambdaFunction lam, Env scope) {   // LambdaBodies: the one body rule
+        return LambdaBodies.synthBody(this, lam, scope);
+    }
+
     /** Type a lambda argument against its function-type parameter, with type vars partly solved in {@code b}. */
     TypedSpec typeLambda(LambdaFunction lam, Type functionParamType, Bindings b, Env env) {
         Type.FunctionType ftype = extractFunctionType(functionParamType);
+        boolean multiStatement = false;
         if (ftype.params().size() != lam.parameters().size()) {
             throw new TypeInferenceException("lambda has " + lam.parameters().size()
                     + " parameter(s) but the function type expects " + ftype.params().size());
@@ -2181,10 +2186,10 @@ final class Typer {
             // drops nothing at lowering). Non-let intermediates stay loud.
             LambdaFunction folded = SourceSubst.inlineLets(lam);
             if (folded == null) {
-                throw new TypeInferenceException(
-                        "only single-expression lambdas are supported yet");
+                multiStatement = true;   // the shared body rule, once params are in scope
+            } else {
+                lam = folded;
             }
-            lam = folded;
         }
 
         Env lambdaScope = env;
@@ -2225,7 +2230,7 @@ final class Typer {
         // (real pure statement semantics; the typed lets stay as STATEMENTS
         // for the consumer's sequencing), the final expression is the value.
         List<TypedSpec> typedStmts = new ArrayList<>();
-        for (int si = 0; si < lam.body().size() - 1; si++) {
+        for (int si = 0; !multiStatement && si < lam.body().size() - 1; si++) {
             ValueSpecification st = lam.body().get(si);
             if (st instanceof AppliedFunction lf2
                     && lf2.function().equals("letFunction")
@@ -2241,7 +2246,8 @@ final class Typer {
             throw new TypeInferenceException("only trailing-expression lambda"
                     + " bodies are supported (a non-let intermediate statement)");
         }
-        TypedSpec body = synth(lam.body().get(lam.body().size() - 1), lambdaScope);
+        TypedSpec body = multiStatement ? synthBody(lam, lambdaScope)
+                : synth(lam.body().get(lam.body().size() - 1), lambdaScope);
 
         // An unbound return variable (map's V) is inferred from the body. A
         // solved return is resolved then CHECKED (subtype-friendly, bindings
@@ -2472,7 +2478,7 @@ final class Typer {
      * pure's function matching collects across imports and signature
      * scoring picks. Single-referent calls keep the plain name path.
      */
-    private List<TypedFunction> functionCandidates(AppliedFunction af) {
+    List<TypedFunction> functionCandidates(AppliedFunction af) {
         if (af.candidateFqns().isEmpty()) {
             return functionCandidates(af.function());
         }
@@ -3084,6 +3090,9 @@ final class Typer {
                 relColName = col.name();
                 yield new ExprType(col.type(), col.multiplicity());
             }
+            // an ENUM VALUE's name (real m3 Enum.name) — the SQL value of an enum IS its name
+            case Type.EnumType ignored when ap.property().equals("name") ->
+                    new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
             default -> throw new TypeInferenceException("cannot access '" + ap.property()
                     + "' on " + source.info().type().typeName());
         };

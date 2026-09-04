@@ -18,6 +18,16 @@ public final class MappingResolutionException extends LegendCompileException {
 
     public MappingResolutionException(@com.legend.Nullable String message,
             @com.legend.Nullable String elementFqn) {
-        super(Phase.MAPPING, message, elementFqn);
+        super(Phase.MAPPING, traced(message), elementFqn);
+    }
+
+    /** {@code -Dlegend.mapping.trace=<fragment>} prints the throw site of a
+     * matching resolution wall (diagnostics only; the message is returned). */
+    private static @com.legend.Nullable String traced(@com.legend.Nullable String message) {
+        String want = System.getProperty("legend.mapping.trace");
+        if (message != null && want != null && message.contains(want)) {
+            new Exception("[mapping] " + message).printStackTrace(System.err);
+        }
+        return message;
     }
 }

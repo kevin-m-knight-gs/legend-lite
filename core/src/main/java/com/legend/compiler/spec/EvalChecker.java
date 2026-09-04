@@ -77,14 +77,16 @@ final class EvalChecker {
             throw new TypeInferenceException("eval: lambda has " + lam.parameters().size()
                     + " parameter(s) but " + rawArgs.size() + " argument(s) were supplied");
         }
+        boolean multiStatement = false;
         if (lam.body().size() != 1) {
-            // [let*, final] folds by source-level let-inlining (SourceSubst)
+            // [let*, final] folds by source-level let-inlining (SourceSubst);
+            // other shapes take the shared body rule below
             LambdaFunction folded = SourceSubst.inlineLets(lam);
             if (folded == null) {
-                throw new TypeInferenceException(
-                        "only single-expression lambdas are supported yet");
+                multiStatement = true;
+            } else {
+                lam = folded;
             }
-            lam = folded;
         }
         List<TypedSpec> args = new ArrayList<>(rawArgs.size());
         Env scope = env;
@@ -117,7 +119,7 @@ final class EvalChecker {
             paramTypes.add(new Type.Param(bound.type(), bound.multiplicity()));
             scope = scope.with(p.name(), bound);
         }
-        TypedSpec body = t.synth(lam.body().get(0), scope);
+        TypedSpec body = multiStatement ? t.synthBody(lam, scope) : t.synth(lam.body().get(0), scope);
         TypedLambda typed = new TypedLambda(names, List.of(body),
                 ExprType.one(new Type.FunctionType(paramTypes,
                         new Type.Param(body.info().type(), body.info().multiplicity()))));
@@ -143,7 +145,7 @@ final class EvalChecker {
                             + declared.typeName());
         }
         // THE registered verbatim signatures govern (eval<T,V|m,n>(
-        // Function<{T[n]->V[m]}>[1], param:T[n]):V[m], arities 1-3): overload
+        // Function<{T[n]->V[m]}>[1], param:T[n]):V[m], arities 1-4): overload
         // selection by arity, param types AND multiplicities via the kernel's
         // FunctionType unification arm, result V[m] from the bindings. The
         // hand-rolled per-arg loop this replaces was the LITE-WEAKENED era.

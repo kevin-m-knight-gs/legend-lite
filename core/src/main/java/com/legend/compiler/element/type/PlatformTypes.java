@@ -299,6 +299,23 @@ public final class PlatformTypes {
         return EXECUTE.equals(fqn) || EXECUTION_PLAN_EXECUTE.equals(fqn);
     }
 
+    /** The m3 profiles the compiler reads semantics from (legend-pure
+     * m3.pure / profiles.pure). */
+    public static final String EQUALITY_PROFILE = "meta::pure::profiles::equality";
+    public static final String TEMPORAL_PROFILE = "meta::pure::profiles::temporal";
+    public static final String PCT_PROFILE = "meta::pure::test::pct::PCT";
+
+    /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}.
+     * The resolver qualifies a bare profile name through the file's
+     * imports and the core-import group when the profile is declared in
+     * the model; a model that does not declare it keeps the bare spelling
+     * — that spelling is the same profile (the m3 profiles are the only
+     * ones the compiler reads). */
+    public static boolean isProfile(String resolvedName, String profileFqn) {
+        return profileFqn.equals(resolvedName)
+                || profileFqn.substring(profileFqn.lastIndexOf(':') + 1).equals(resolvedName);
+    }
+
 
     /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition

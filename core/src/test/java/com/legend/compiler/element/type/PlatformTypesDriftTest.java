@@ -4,6 +4,7 @@ import com.legend.builtin.Pure;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * {@link PlatformTypes}' FQN constants mirror the {@code builtin/Pure}
@@ -18,8 +19,8 @@ class PlatformTypesDriftTest {
         assertEquals(Pure.ANY.qualifiedName(), PlatformTypes.ANY);
         assertEquals(Pure.NIL.qualifiedName(), PlatformTypes.NIL);
         assertEquals(Pure.VARIANT.qualifiedName(), PlatformTypes.VARIANT);
-        assertEquals(Pure.LIST.qualifiedName(), PlatformTypes.LIST);
-        assertEquals(Pure.PAIR.qualifiedName(), PlatformTypes.PAIR);
+        assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.LIST));
+        assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.PAIR));
         assertEquals(Pure.FUNCTION.qualifiedName(), PlatformTypes.FUNCTION);
     }
 }

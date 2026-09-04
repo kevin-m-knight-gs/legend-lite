@@ -774,8 +774,12 @@ final class JoinChainEmission {
         ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
         if (owner == null) return null;
         TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, propName, model);
-        if (!(propType instanceof TypeExpression.NameRef nr)) return null;
-        String tgt = nr.name();
+        // a parameterized declaration (SetImplementation.class: Class<Any>,
+        // PropertyMapping.property: Property<Nil,Any|*> — the real m3 ends)
+        // targets its RAW class: the mapped set is the raw class's
+        String tgt = propType instanceof TypeExpression.NameRef nr ? nr.name()
+                : propType instanceof TypeExpression.Generic g ? g.name() : null;
+        if (tgt == null) return null;
         return model.isMappedClass(tgt) ? tgt : null;
     }
 

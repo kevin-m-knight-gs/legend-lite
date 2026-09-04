@@ -195,6 +195,11 @@ public final class UserCallInliner {
             // activation's, so the unroll is well-founded and bottoms out
             // on the literal's leaves; any other cycle stays the loud wall
             if (literalSize == 0 || literalSize >= enclosingLiteralSize(key)) {
+                // the ENCLOSING activation stands whole (a half-inlined
+                // recursive helper would hand the SQL channel a different
+                // program than the host channel runs — the pk-inference
+                // helpers' composition recursion); dead arms never reach
+                // here since the static re-dispatch prunes them
                 List<String> path = new ArrayList<>(names);
                 java.util.Collections.reverse(path);
                 throw new NotImplementedException("recursion cycle involving " + shown
@@ -208,7 +213,18 @@ public final class UserCallInliner {
         names.push(shown);
         captureRisk.push(namesIn(args));
         try {
-            List<TypedSpec> body = specs.compile(call.callee()).body();
+            List<TypedSpec> body;
+            try {
+                body = specs.compile(call.callee()).body();
+            } catch (TypeInferenceException e) {
+                // the INLINE PATH names which caller demanded this body — a
+                // wall in a dead arm's callee reads as the arm, not as a
+                // random library function
+                List<String> path = new ArrayList<>(names);
+                java.util.Collections.reverse(path);
+                throw new TypeInferenceException(e.getMessage()
+                        + " [inlined via " + String.join(" -> ", path) + "]", e);
+            }
             Map<String, TypedSpec> callEnv = new LinkedHashMap<>();
             // A relation param accepts a SUPERSET schema (covariant call);
             // the spliced body then carries the caller's extra columns in
@@ -251,6 +267,37 @@ public final class UserCallInliner {
             names.pop();
             captureRisk.pop();
         }
+    }
+
+    /** The arms a value of static type {@code t} can reach: the arm's class
+     * is a super- or subtype of {@code t}, or some model class descends from
+     * both (multiple inheritance). Any / non-class inputs keep every arm. */
+    private List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> liveArms(
+            com.legend.compiler.spec.typed.TypedMatchRuntime mr,
+            com.legend.compiler.element.type.Type t) {
+        if (!(t instanceof com.legend.compiler.element.type.Type.ClassType ct)
+                || ct.fqn().equals(com.legend.compiler.element.type.PlatformTypes.ANY)) {
+            return mr.arms();
+        }
+        var ctx = specs.ctx();
+        List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> live = new ArrayList<>();
+        for (var a : mr.arms()) {
+            String armType = a.typeFqn();
+            boolean related = armType.equals(com.legend.compiler.element.type.PlatformTypes.ANY)
+                    || ctx.isSubtype(ct.fqn(), armType) || ctx.isSubtype(armType, ct.fqn());
+            if (!related) {
+                for (String cls : ctx.elementFqns()) {
+                    if (ctx.isSubtype(cls, armType) && ctx.isSubtype(cls, ct.fqn())) {
+                        related = true;
+                        break;
+                    }
+                }
+            }
+            if (related) {
+                live.add(a);
+            }
+        }
+        return live.isEmpty() ? mr.arms() : live;
     }
 
     /** The literal-argument size of the innermost enclosing activation of
@@ -313,8 +360,27 @@ public final class UserCallInliner {
         Map<String, TypedSpec> scope = new LinkedHashMap<>(env);
         for (int i = 0; i < body.size() - 1; i++) {
             if (!(body.get(i) instanceof TypedLet let)) {
+                // a non-let intermediate whose value FOLDS to a literal
+                // structure is dead (a self-check whose asserts folded away
+                // — toPostgresModel's converter registry); anything else
+                // may raise and stays loud
+                TypedSpec reduced = rewrite(body.get(i), scope);
+                if (LiteralUnroll.literalStructure(reduced)) {
+                    continue;
+                }
+                TypedSpec residue = reduced;
+                while (residue instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                        && tc.elements().stream().anyMatch(e -> !LiteralUnroll.literalStructure(e))) {
+                    residue = tc.elements().stream()
+                            .filter(e -> !LiteralUnroll.literalStructure(e)).findFirst().orElse(tc);
+                }
                 throw new NotImplementedException("a non-let intermediate statement ("
-                        + body.get(i).getClass().getSimpleName()
+                        + body.get(i).getClass().getSimpleName() + ", reduced to "
+                        + residue.getClass().getSimpleName()
+                        + (residue instanceof TypedNativeCall rc ? " " + rc.callee().qualifiedName() : "")
+                        + (residue instanceof TypedMap rm ? " over " + rm.source().getClass().getSimpleName()
+                                + (rm.source() instanceof TypedNativeCall sc ? " " + sc.callee().qualifiedName()
+                                        + " of " + sc.args().get(0).getClass().getSimpleName() : "") : "")
                         + ") in an inlined function body is not supported");
             }
             scope.put(let.name(), rewrite(let.value(), scope));
@@ -400,14 +466,32 @@ public final class UserCallInliner {
             }
             case TypedMap m -> {
                 TypedSpec src = rewrite(m.source(), env);
-                if (LiteralUnroll.literalStructure(src) && m.mapper().parameters().size() == 1) {
+                // a SPELLED collection (its elements may be any expression —
+                // lambdas, standing calls: β-substitution is exact for pure
+                // values) applies the mapper per element
+                if (LiteralUnroll.spelledList(src) && m.mapper().parameters().size() == 1) {
+                    // pure's map CONCATENATES the per-element results: a
+                    // result that is neither a spelled collection nor exactly
+                    // one value (a [*] read of an unspelled element) cannot
+                    // be spliced into one spelled list — the map stands
                     List<TypedSpec> out = new ArrayList<>();
+                    boolean spliceable = true;
                     for (TypedSpec e : LiteralUnroll.elements(src)) {
                         Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
                         inner.put(m.mapper().parameters().get(0), e);
-                        out.addAll(LiteralUnroll.elements(reduceStatements(m.mapper().body(), inner)));
+                        TypedSpec r = reduceStatements(m.mapper().body(), inner);
+                        if (!(r instanceof com.legend.compiler.spec.typed.TypedCollection)
+                                && !(r.info().multiplicity() instanceof
+                                        com.legend.compiler.element.type.Multiplicity.Bounded rb
+                                        && rb.lower() == 1 && Integer.valueOf(1).equals(rb.upper()))) {
+                            spliceable = false;
+                            break;
+                        }
+                        out.addAll(LiteralUnroll.elements(r));
                     }
-                    yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, m.info()));
+                    if (spliceable) {
+                        yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, m.info()));
+                    }
                 }
                 TypedLambda mapper = lambda(m.mapper(), env);
                 yield Optional.of(src == m.source() && mapper == m.mapper() ? m
@@ -415,7 +499,7 @@ public final class UserCallInliner {
             }
             case com.legend.compiler.spec.typed.TypedFilter f -> {
                 TypedSpec src = rewrite(f.source(), env);
-                if (LiteralUnroll.literalStructure(src) && f.predicate().parameters().size() == 1) {
+                if (LiteralUnroll.spelledList(src) && f.predicate().parameters().size() == 1) {
                     // CONDITIONAL MEMBERSHIP (WORLD_MAP §4): a predicate that
                     // stays a SQL boolean after the element is substituted
                     // (a computed value inside it) keeps its element under
@@ -444,11 +528,91 @@ public final class UserCallInliner {
                 yield Optional.of(src == f.source() && pred == f.predicate() ? f
                         : f.withChildren(List.of(src, pred)));
             }
+            // fold over a SPELLED list unrolls (WORLD_MAP §4 list shape): the
+            // accumulator is reduced element by element at compile time —
+            // the database never sees a FoldCall whose accumulator is a
+            // constructed instance (toPostgresModel's and/or chains)
+            case com.legend.compiler.spec.typed.TypedFold fd
+                    when fd.reducer().parameters().size() == 2 -> {
+                TypedSpec src = rewrite(fd.source(), env);
+                if (!LiteralUnroll.spelledList(src)) {
+                    yield Optional.empty();
+                }
+                TypedSpec acc = rewrite(fd.init(), env);
+                for (TypedSpec e : LiteralUnroll.elements(src)) {
+                    Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
+                    inner.put(fd.reducer().parameters().get(0), e);
+                    inner.put(fd.reducer().parameters().get(1), acc);
+                    acc = reduceStatements(fd.reducer().body(), inner);
+                }
+                yield Optional.of(acc);
+            }
+            // the COLLECTION groupBy over a spelled collection whose key
+            // lambda folds per element: newMap(pair(key, ^List(values)) …)
+            // — the map's SHAPE is the compiler's (WORLD_MAP §4)
+            case TypedNativeCall gb when com.legend.builtin.Pure.nativeNamed("groupBy",
+                        gb.callee().signatureKey()) && gb.args().size() == 2
+                    && gb.args().get(1) instanceof TypedLambda keyFn
+                    && keyFn.parameters().size() == 1 -> {
+                TypedSpec src = rewrite(gb.args().get(0), env);
+                // a SPELLED collection (elements may be any expression — the
+                // registry's pairs carry lambdas); only the KEYS must fold
+                if (!LiteralUnroll.spelledList(src)) {
+                    TypedLambda kf = lambda(keyFn, env);
+                    yield Optional.of(src == gb.args().get(0) && kf == keyFn ? gb
+                            : gb.withChildren(List.of(src, kf)));
+                }
+                Map<Object, List<TypedSpec>> groups = new LinkedHashMap<>();
+                Map<Object, TypedSpec> keyNodes = new LinkedHashMap<>();
+                for (TypedSpec e : LiteralUnroll.elements(src)) {
+                    Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
+                    inner.put(keyFn.parameters().get(0), e);
+                    TypedSpec key = reduceStatements(keyFn.body(), inner);
+                    Optional<Object> k = LiteralUnroll.scalarValue(key);
+                    if (k.isEmpty()) {
+                        yield Optional.of(gb.withChildren(List.of(src, lambda(keyFn, env))));
+                    }
+                    groups.computeIfAbsent(k.get(), x -> new ArrayList<>()).add(e);
+                    keyNodes.putIfAbsent(k.get(), key);
+                }
+                if (!(gb.info().type() instanceof com.legend.compiler.element.type.Type.GenericType mapT)
+                        || mapT.arguments().size() != 2) {
+                    yield Optional.of(gb.withChildren(List.of(src, lambda(keyFn, env))));
+                }
+                var pairFn = specs.ctx().findFunction("meta::pure::functions::collection::pair").get(0);
+                var newMapFn = specs.ctx().findFunction("meta::pure::functions::collection::newMap").stream()
+                        .filter(f -> f.parameters().size() == 1).findFirst().orElseThrow();
+                ExprType listInfo = new ExprType(mapT.arguments().get(1),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                ExprType pairInfo = new ExprType(new com.legend.compiler.element.type.Type.GenericType(
+                        com.legend.compiler.element.type.PlatformTypes.PAIR, mapT.arguments(),
+                        mapT.multArguments()), com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                List<TypedSpec> pairs = new ArrayList<>();
+                for (var g : groups.entrySet()) {
+                    ExprType valuesInfo = new ExprType(g.getValue().get(0).info().type(),
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY);
+                    TypedSpec list = new com.legend.compiler.spec.typed.TypedNewInstance(
+                            com.legend.compiler.element.type.PlatformTypes.LIST,
+                            Map.of("values", new com.legend.compiler.spec.typed.TypedCollection(
+                                    g.getValue(), valuesInfo)), listInfo);
+                    pairs.add(new TypedNativeCall(pairFn, List.of(keyNodes.get(g.getKey()), list), pairInfo));
+                }
+                yield Optional.of(new TypedNativeCall(newMapFn, List.of(
+                        new com.legend.compiler.spec.typed.TypedCollection(pairs, new ExprType(
+                                pairInfo.type(), com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY))),
+                        gb.info()));
+            }
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr -> {
                 TypedSpec input = rewrite(mr.input(), env);
                 Optional<TypedSpec> extra = mr.extra().map(e -> rewrite(e, env));
+                // a DYNAMIC arm prefix (extension-contributed arms) must fold
+                // to [] before the spelled arms may dispatch
+                Optional<TypedSpec> dyn = mr.dynamicArms().map(d -> rewrite(d, env));
+                boolean dynEmpty = dyn.isEmpty()
+                        || dyn.get() instanceof com.legend.compiler.spec.typed.TypedCollection dc
+                                && LiteralUnroll.elements(dc).isEmpty();
                 Optional<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> arm =
-                        LiteralUnroll.arm(mr, input, specs.ctx());
+                        dynEmpty ? LiteralUnroll.arm(mr, input, specs.ctx()) : Optional.empty();
                 if (arm.isPresent()) {
                     Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
                     inner.put(arm.get().param(), input);
@@ -457,11 +621,30 @@ public final class UserCallInliner {
                     }
                     yield Optional.of(rewrite(arm.get().body(), inner));
                 }
+                // STATIC RE-DISPATCH on the input's declared type: an arm whose
+                // class no model class shares with the input's static type can
+                // never match at runtime — it is dead and is NOT rewritten (a
+                // dead arm's callees may not even type: the join-tree arms
+                // reach engine sqlQueryToString helpers). One survivor
+                // dispatches like a literal; several keep the runtime match.
+                List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> live = dynEmpty
+                        ? liveArms(mr, input.info().type()) : mr.arms();
+                if (dynEmpty && live.size() == 1 && mr.arms().size() > 1
+                        && input.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded ib
+                        && ib.lower() == 1 && Integer.valueOf(1).equals(ib.upper())) {
+                    Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
+                    inner.put(live.get(0).param(), input);
+                    if (mr.extraParam().isPresent()) {
+                        inner.put(mr.extraParam().get(), extra.orElse(input));
+                    }
+                    yield Optional.of(rewrite(live.get(0).body(), inner));
+                }
                 List<TypedSpec> kids = new ArrayList<>();
                 kids.add(input);
                 extra.ifPresent(kids::add);
+                dyn.ifPresent(kids::add);
                 for (com.legend.compiler.spec.typed.TypedMatchRuntime.Arm a : mr.arms()) {
-                    kids.add(rewrite(a.body(), env));
+                    kids.add(live.contains(a) ? rewrite(a.body(), env) : a.body());
                 }
                 yield Optional.of(sameRefs(kids, mr.children()) ? mr : mr.withChildren(kids));
             }

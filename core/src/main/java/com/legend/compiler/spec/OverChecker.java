@@ -49,8 +49,8 @@ final class OverChecker {
     private static boolean isFrame(TypedSpec arg) {
         return arg.info().type() instanceof Type.ClassType ct
                 && (ct.fqn().equals(Pure.ROWS.qualifiedName())
-                        || ct.fqn().equals(Pure._RANGE.qualifiedName())
-                        || ct.fqn().equals(Pure._RANGE_INTERVAL.qualifiedName()));
+                        || ct.fqn().equals("meta::pure::functions::relation::_Range")
+                        || ct.fqn().equals("meta::pure::functions::relation::_RangeInterval"));
     }
 
     private static void collect(TypedSpec arg, List<String> partitions,

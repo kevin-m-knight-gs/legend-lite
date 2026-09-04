@@ -2840,6 +2840,10 @@ public final class Lowerer {
             // equality arm below — silently-true 'NYC'=='NYC' across types
             // was an audit finding.
             case TypedEnumValue e -> new SqlExpr.StringLit(e.value());
+            // an enum value's `.name` IS the value (the name string above)
+            case TypedPropertyAccess pa when pa.property().equals("name")
+                    && pa.source().info().type() instanceof Type.EnumType ->
+                    scalarStructural(pa.source(), columns);
 
             // A bare TYPE REFERENCE in value position ([String, Integer]
             // vs columns.type asserts): type VALUES travel as canonical

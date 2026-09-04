@@ -407,7 +407,12 @@ class JavaEvalLedgerTest {
             // driven evidence projection, no value computed; the side-stamp
             // narrowing itself lives in the compiler layer
             // (ExecuteChainAssembly.narrowSideStamps)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1529),
+            // 1529 -> 1568 (batch 54, 2026-09-04): a wider-DECLARED side
+            // (a program's Node[1]) is narrowed by its wire __type before the
+            // key tree judges; a class-kind side that rode a JSON carrier
+            // decodes to its structure — both are evidence PROJECTION for
+            // the key verdict (WORLD_MAP §4), no Java value computation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1568),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

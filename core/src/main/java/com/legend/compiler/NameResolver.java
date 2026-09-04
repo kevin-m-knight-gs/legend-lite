@@ -203,6 +203,39 @@ public final class NameResolver {
         return resolve(model, knownFqns, wallSink, false);
     }
 
+    /** Real pure's implicit import group, verbatim from legend-pure
+     * {@code platform/pure/grammar/m3.pure} ({@code system::imports::coreImport}). */
+    public static final List<String> CORE_IMPORTS = List.of(
+            "meta::pure::metamodel",
+            "meta::pure::metamodel::type",
+            "meta::pure::metamodel::type::generics",
+            "meta::pure::metamodel::relationship",
+            "meta::pure::metamodel::valuespecification",
+            "meta::pure::metamodel::multiplicity",
+            "meta::pure::metamodel::function",
+            "meta::pure::metamodel::function::property",
+            "meta::pure::metamodel::extension",
+            "meta::pure::metamodel::import",
+            "meta::pure::functions::date",
+            "meta::pure::functions::string",
+            "meta::pure::functions::collection",
+            "meta::pure::functions::meta",
+            "meta::pure::functions::constraints",
+            "meta::pure::functions::lang",
+            "meta::pure::functions::boolean",
+            "meta::pure::functions::tools",
+            "meta::pure::functions::relation",
+            "meta::pure::functions::io",
+            "meta::pure::functions::math",
+            "meta::pure::functions::asserts",
+            "meta::pure::functions::test",
+            "meta::pure::functions::multiplicity",
+            "meta::pure::router",
+            "meta::pure::service",
+            "meta::pure::tds",
+            "meta::pure::tools",
+            "meta::pure::profiles");
+
     private static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
             java.util.@com.legend.Nullable Map<String, String> wallSink,
             boolean preludeOn) {
@@ -607,6 +640,22 @@ public final class NameResolver {
                 return List.of(candidate);
             }
         }
+        // CORE IMPORTS: real pure resolves every file against the
+        // `system::imports::coreImport` group (legend-pure m3.pure:175 —
+        // the m3 packages, meta::pure::functions::*, router/service/tds/
+        // tools/profiles) BELOW the file's own imports; this is how
+        // `ExtendedRoutedValueSpecification extends RoutedValueSpecification`
+        // finds meta::pure::router::RoutedValueSpecification without an
+        // import line. FIRST match in the group's order: this resolver is
+        // kind-blind, and real pure's kinds keep a function and a profile
+        // of the same bare name apart (functionType — functions::meta vs
+        // profiles); the group's order is the spec's.
+        for (String pkg : CORE_IMPORTS) {
+            String candidate = pkg + "::" + name;
+            if (scope.knownFqns().contains(candidate)) {
+                return List.of(candidate);
+            }
+        }
         String prelude = scope.prelude() ? PRELUDE_TYPES.get(name) : null;
         if (prelude != null) {
             List<String> colliding = PRELUDE_COLLISIONS.get(name);
@@ -662,11 +711,15 @@ public final class NameResolver {
         TypeExpression type = resolveType(p.type(), scope);
         List<StereotypeApplication> stereotypes = resolveStereotypes(p.stereotypes(), scope);
         List<TaggedValue> taggedValues = resolveTaggedValues(p.taggedValues(), scope);
-        if (type == p.type() && stereotypes == p.stereotypes() && taggedValues == p.taggedValues()) {
+        // the declared default resolves in the class's own scope (an enum
+        // value, a constructor) — the new-instance checker synthesizes it later
+        ValueSpecification dflt = p.defaultValue() == null ? null : resolveVs(p.defaultValue(), scope);
+        if (type == p.type() && stereotypes == p.stereotypes() && taggedValues == p.taggedValues()
+                && dflt == p.defaultValue()) {
             return p;
         }
         return new PropertyDefinition(p.name(), nn(type),
-                p.multiplicity(), stereotypes, taggedValues, p.hasDefault());
+                p.multiplicity(), stereotypes, taggedValues, p.hasDefault(), dflt);
     }
 
     private static DerivedPropertyDefinition resolveDerivedProperty(

@@ -906,9 +906,9 @@ public final class ElementParser implements TokenStreamCursor {
         // them nominally); the exact-engine surface refuses at the
         // caller's gate as before.
         if (peek() != TokenType.PIPE) {
-            params.add(parseIdentifier());
+            params.add(parseTypeParamName());
             while (match(TokenType.COMMA)) {
-                params.add(parseIdentifier());
+                params.add(parseTypeParamName());
             }
         }
         if (!dialect.refusesPlatformDialect() && match(TokenType.PIPE)) {
@@ -919,6 +919,18 @@ public final class ElementParser implements TokenStreamCursor {
         }
         expect(TokenType.GREATER_THAN);
         return params;
+    }
+
+    /** M3 DIALECT: a VARIANCE marker on a type parameter — {@code
+     * Path<-U,V|m>} (contravariant {@code -U}, covariant {@code +V}, real
+     * m3 path.pure:17). The marker is grammar only: our checker binds type
+     * parameters nominally, so the name is what is kept. */
+    private String parseTypeParamName() {
+        if (!dialect.refusesPlatformDialect()
+                && (peek() == TokenType.MINUS || peek() == TokenType.PLUS)) {
+            advance();
+        }
+        return parseIdentifier();
     }
 
     /**

@@ -26,6 +26,11 @@ final class MatchFold {
     }
 
     static TypedSpec fold(TypedMatchRuntime mr) {
+        if (mr.dynamicArms().isPresent()) {
+            throw new NotImplementedException("scalar match: the arm collection has a"
+                    + " non-literal prefix (extension-contributed arms) that did not fold"
+                    + " to [] — the lowering has no runtime arm list");
+        }
         for (TypedMatchRuntime.Arm arm : mr.arms()) {
             if (staticConforms(mr.input().info().type(), arm.typeFqn())) {
                 return inlineParam(arm.body(), arm.param(), mr.input());

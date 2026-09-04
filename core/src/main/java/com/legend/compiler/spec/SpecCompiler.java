@@ -75,6 +75,12 @@ public final class SpecCompiler {
             // Positions stopgap: name the ENCLOSING FUNCTION (synth FQNs
             // encode owner+property, e.g. test::Person$prop$age) — the
             // expression-level [line:col] is the deferred big lift.
+            // -Dlegend.spec.trace=<name fragment> prints WHO demanded the body
+            String trace = System.getProperty("legend.spec.trace");
+            if (trace != null && fn.qualifiedName().contains(trace)) {
+                new Exception("[spec] compile of " + fn.qualifiedName() + " failed: " + e.getMessage())
+                        .printStackTrace(System.err);
+            }
             throw new TypeInferenceException(
                     "in function '" + fn.qualifiedName() + "': " + e.getMessage(), e);
         }

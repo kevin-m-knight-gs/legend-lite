@@ -48,6 +48,14 @@ final class GroupByChecker {
         if (af.parameters().size() == 3 && isTdsLegacyShape(af)) {
             return check(t, tdsLegacyToModern(af), env);
         }
+        if (af.parameters().size() == 2 && af.parameters().get(1) instanceof LambdaFunction) {
+            // the COLLECTION groupBy (legend-pure collection/map/groupBy.pure:
+            // groupBy<X,K>(X[*], {X[1]->K[1]}):Map<K,List<X>>) — a plain
+            // native call against its verbatim signature; over a spelled
+            // collection the inliner folds it to newMap(pairs)
+            Application a = t.checkGeneric(af, env);
+            return Typer.emitCall(a.chosen(), a.args(), a.out());
+        }
         Application a = t.checkGeneric(af, env);
         return new TypedGroupBy(a.args().get(0), groupKeys(a.args().get(1)),
                 Args.aggCols(a.args().get(2)), a.out());

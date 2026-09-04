@@ -105,7 +105,13 @@ public class CorpusSweepTest {
     // two sources are the PCT infrastructure files pct_core.pure +
     // pctQualifiers.pure — the latter unlocked the 68-test over.pure
     // window scope (relation discovery 287 -> 355).
-    private static final int MAX_PLATFORM_CATALOG = 1561;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
+    // 2026-09-04 (batch 54, option S): +3 adjudicated rows — m3 VARIANCE
+    // markers on class type parameters (real m3 path.pure: Path<-U,V|m>)
+    // now parse in the platform dialect (the prelude generator reads the
+    // spec's declaration files); the engine grammar has no variance slot
+    // (its refusal: type/multiplicity parameters not authorized) —
+    // PURE-DIALECT-generics family; the exact-engine surface is untouched.
+    private static final int MAX_PLATFORM_CATALOG = 1564;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
     // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
     // PCT test-file surface (236/236 now parses at LEGEND_PLATFORM):
     // tagged-value string concatenation, negative-year date literals,

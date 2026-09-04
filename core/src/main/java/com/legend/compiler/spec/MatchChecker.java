@@ -66,8 +66,13 @@ final class MatchChecker {
         // (Match.java walks the runtime value) takes the narrow one —
         // keep ALL branches in a TypedMatchRuntime for the host channel
         // (SQL lowering has no runtime type dispatch and walls loudly).
+        // WORLD_MAP §4: an arm collection with a non-literal PREFIX
+        // (extension-contributed arms) is ALWAYS the runtime form — the
+        // unroll folds the prefix to [] before the spelled arms dispatch
+        Optional<TypedSpec> dynamicArms = dynamicArmsPrefix(params.get(1), env)
+                .map(p -> t.synth(p, env));
         TypedSpec runtimeTyped = runtimeMatch(
-                t, input, extra, branches(params.get(1), env), env);
+                t, input, extra, branches(params.get(1), env), env, dynamicArms);
         if (runtimeTyped != null) {
             return runtimeTyped;
         }
@@ -79,10 +84,9 @@ final class MatchChecker {
         Type lub = null;
         Multiplicity lubMult = null;
         for (LambdaFunction branch : branches(params.get(1), env)) {
-            if (branch.parameters().isEmpty() || branch.parameters().size() > 2
-                    || branch.body().size() != 1) {
+            if (branch.parameters().isEmpty() || branch.parameters().size() > 2) {
                 throw new TypeInferenceException(
-                        "a match branch must be a one- or two-parameter, single-expression lambda");
+                        "a match branch must be a one- or two-parameter lambda");
             }
             if (branch.parameters().size() == 2 && extra.isEmpty()) {
                 throw new TypeInferenceException("a two-parameter match branch needs an extra argument");
@@ -110,7 +114,7 @@ final class MatchChecker {
                 scope = scope.with(second.name(), extraBound);
                 extraParam = Optional.of(second.name());
             }
-            TypedSpec body = t.synth(branch.body().get(0), scope);
+            TypedSpec body = t.synthBody(branch, scope);
             lub = lub == null ? body.info().type()
                     : t.kernel().commonSupertype(lub, body.info().type());
             lubMult = lubMult == null ? body.info().multiplicity()
@@ -136,7 +140,8 @@ final class MatchChecker {
     /** Build the runtime-dispatch node when static selection is unsound
      * (see caller comment); null when the static rule applies. */
     private static @com.legend.Nullable TypedSpec runtimeMatch(Typer t, TypedSpec input,
-            Optional<TypedSpec> extra, List<LambdaFunction> branches, Env env) {
+            Optional<TypedSpec> extra, List<LambdaFunction> branches, Env env,
+            Optional<TypedSpec> dynamicArms) {
         Type inputType = input.info().type();
         boolean narrows = false;
         for (LambdaFunction branch : branches) {
@@ -150,7 +155,7 @@ final class MatchChecker {
                 narrows = true;
             }
         }
-        if (!narrows) {
+        if (!narrows && dynamicArms.isEmpty()) {
             return null;
         }
         List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> arms =
@@ -176,11 +181,7 @@ final class MatchChecker {
                 scope = scope.with(second.name(), extra.get().info());
                 extraParam = Optional.of(second.name());
             }
-            if (branch.body().size() != 1) {
-                throw new TypeInferenceException(
-                        "a match branch must be a single-expression lambda");
-            }
-            TypedSpec body = t.synth(branch.body().get(0), scope);
+            TypedSpec body = t.synthBody(branch, scope);
             arms.add(new com.legend.compiler.spec.typed.TypedMatchRuntime.Arm(
                     typeFqnOf(branchType), param.name(), body));
             lub = lub == null ? body.info().type()
@@ -191,6 +192,7 @@ final class MatchChecker {
         return new com.legend.compiler.spec.typed.TypedMatchRuntime(
                 input, arms, extraParam,
                 extraParam.isPresent() ? extra : Optional.empty(),
+                dynamicArms,
                 new ExprType(
                         java.util.Objects.requireNonNull(lub,
                                 "match() with no arms"),
@@ -225,7 +227,7 @@ final class MatchChecker {
         LambdaFunction oneBranch = null;
         LambdaFunction emptyBranch = null;
         for (LambdaFunction branch : branchList) {
-            if (branch.parameters().size() != 1 || branch.body().size() != 1) {
+            if (branch.parameters().size() != 1) {
                 return null;
             }
             Variable param = branch.parameters().get(0);
@@ -297,7 +299,7 @@ final class MatchChecker {
                         ? Multiplicity.from(param.multiplicity())
                         : input.info().multiplicity();
         Env scope = env.with(param.name(), new ExprType(branchType, bound));
-        TypedSpec body = t.synth(branch.body().get(0), scope);
+        TypedSpec body = t.synthBody(branch, scope);
         return new TypedMatch(input, param.name(), body, Optional.empty(),
                 Optional.empty(), body.info());
     }
@@ -323,6 +325,10 @@ final class MatchChecker {
         if (vs instanceof LambdaFunction lf) {
             return List.of(lf);
         }
+        ValueSpecification spelled = spelledArmsOf(vs);
+        if (spelled != null) {
+            return branches(spelled, env);
+        }
         if (vs instanceof PureCollection c && !c.values().isEmpty()
                 && c.values().stream().allMatch(v -> v instanceof LambdaFunction)) {
             return c.values().stream().map(v -> (LambdaFunction) v).toList();
@@ -335,5 +341,49 @@ final class MatchChecker {
             }
         }
         throw new TypeInferenceException("match expects a collection of branch lambdas");
+    }
+
+    /** The call names a REGISTERED native of that bare name (the name is
+     * resolved against the native registry, never compared to a spelling
+     * the registry does not know). */
+    private static boolean nativeNamed(AppliedFunction af, String bare) {
+        String n = af.function();
+        String simple = n.substring(n.lastIndexOf(':') + 1);
+        return simple.equals(bare) && !com.legend.builtin.Pure.nativeKeysAt(bare).isEmpty();
+    }
+
+    /** The spelled lambda collection inside the engine's
+     * {@code <prefix>->concatenate([arms])->toOneMany()} idiom, or null. */
+    private static @com.legend.Nullable ValueSpecification spelledArmsOf(ValueSpecification vs) {
+        if (vs instanceof AppliedFunction af && af.parameters().size() == 1
+                && nativeNamed(af, "toOneMany")) {
+            return spelledArmsOf(af.parameters().get(0));
+        }
+        if (vs instanceof AppliedFunction af && af.parameters().size() == 2
+                && CoreFn.of(af.function()).filter(f -> f == CoreFn.CONCATENATE).isPresent()
+                && af.parameters().get(1) instanceof PureCollection c
+                && !c.values().isEmpty()
+                && c.values().stream().allMatch(v -> v instanceof LambdaFunction)) {
+            return c;
+        }
+        return null;
+    }
+
+    /** The non-literal PREFIX of that idiom (the extension-contributed
+     * arms), or empty for a wholly spelled arm collection. */
+    private static Optional<ValueSpecification> dynamicArmsPrefix(ValueSpecification vs, Env env) {
+        if (vs instanceof AppliedFunction af && af.parameters().size() == 1
+                && nativeNamed(af, "toOneMany")) {
+            return dynamicArmsPrefix(af.parameters().get(0), env);
+        }
+        if (vs instanceof AppliedFunction af && af.parameters().size() == 2
+                && CoreFn.of(af.function()).filter(f -> f == CoreFn.CONCATENATE).isPresent()
+                && spelledArmsOf(vs) != null) {
+            return Optional.of(af.parameters().get(0));
+        }
+        if (vs instanceof com.legend.protocol.spec.Variable v) {
+            return env.exprAlias(v.name()).flatMap(b -> dynamicArmsPrefix(b, env));
+        }
+        return Optional.empty();
     }
 }

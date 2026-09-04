@@ -30,7 +30,21 @@ class LiteralUnrollLedgerTest {
     private static final Set<String> COMPARE_ONLY = Set.of(
             "instanceOf", "equal", "eq", "not", "and", "or", "in",
             "isEmpty", "isNotEmpty", "at",
-            "toOne", "toOneMany", "first", "last");
+            "toOne", "toOneMany", "first", "last",
+            // the tail of a spelled list is list shape (as at/first/last)
+            "tail",
+            // batch 54 (WORLD_MAP §4 list shape / spelled maps): the size of
+            // a spelled collection, same-kind membership (as `in`), and a
+            // spelled map's pairs and lookup by a spelled key — structure
+            // only, no new scalar value is computed
+            "size", "contains", "keyValues", "get", "defaultIfEmpty",
+            // a spelled-true assert is a no-op; an enumeration's values are
+            // its declaration; dynamicNew over spelled keys is the instance literal
+            "assert", "enumValues", "dynamicNew", "isTrue",
+            // spelled-integer compares (same-kind identity, as equal/eq)
+            "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual",
+            // a spelled pair(a, b) IS an instance literal (first/second)
+            "pair");
 
     @Test
     @DisplayName("LiteralUnroll folds compare-only natives (the pinned set)")

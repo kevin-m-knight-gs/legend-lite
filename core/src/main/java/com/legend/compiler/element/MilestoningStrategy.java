@@ -23,8 +23,8 @@ public enum MilestoningStrategy {
     public static @com.legend.Nullable MilestoningStrategy ofStereotypeOrNull(
             String profileName,
             String stereotypeName) {
-        if (!"temporal".equals(profileName)
-                && !"meta::pure::profiles::temporal".equals(profileName)) {
+        if (!com.legend.compiler.element.type.PlatformTypes.isProfile(profileName,
+                com.legend.compiler.element.type.PlatformTypes.TEMPORAL_PROFILE)) {
             return null;
         }
         return switch (stereotypeName) {

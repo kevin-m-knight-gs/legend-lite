@@ -61,6 +61,10 @@ public final class InferenceKernel {
      * solved variables into {@code b}. Throws {@link TypeInferenceException} on
      * an unsatisfiable constraint.
      */
+    /** The m3 Enum metaclass — classified as an enumeration-VALUE type
+     * (TypeClassifier), never a class navigation. */
+    public static final String ENUM_METACLASS_FQN = "meta::pure::metamodel::type::Enum";
+
     public void unify(Type formal, Type actual, Bindings b) {
         // Function<{...}> is the WRAPPED spelling of a bare FunctionType —
         // signatures use the wrapper, function VALUES carry a carrier
@@ -115,7 +119,13 @@ public final class InferenceKernel {
             case Type.PrecisionDecimal ignored -> requirePrimitiveSubtype(actual, formal);
 
             case Type.EnumType e -> {
-                if (!(actual instanceof Type.EnumType ae && ae.fqn().equals(e.fqn()))) {
+                // the m3 Enum METACLASS in value position is "some enumeration
+                // value" (EnumValueMapping.enum): any enumeration's value
+                // conforms, and so does its name carrier (the system store's
+                // enum_value column — an enum value IS its name here)
+                boolean metaclass = e.fqn().equals(ENUM_METACLASS_FQN)
+                        && (actual instanceof Type.EnumType || actual == Type.Primitive.STRING);
+                if (!metaclass && !(actual instanceof Type.EnumType ae && ae.fqn().equals(e.fqn()))) {
                     throw fail(formal, actual);
                 }
             }
@@ -180,6 +190,15 @@ public final class InferenceKernel {
                     && g.arguments().size() == 1
                     && PlatformTypes.isAny(g.arguments().get(0))
                     && actual instanceof Type.FunctionType -> { }
+            // a parameterized FORMAL against a non-generic actual (a class
+            // row / a raw class instance — the system store's Class<Any>
+            // and Property<Nil,Any> ends): conformance is the raw class's
+            // (the real m3 declarations instantiate what the hand copies
+            // wrote raw; the store's rows are the same rows)
+            case Type.GenericType g when !(actual instanceof Type.GenericType)
+                    && !g.rawFqn().equals(RELATION_FQN)
+                    && !Type.isRelation(actual) ->
+                    unify(new Type.ClassType(g.rawFqn()), actual, b);
             case Type.GenericType g -> {
                 // Nominal on the raw class, with the class lattice — a
                 // parameterized SUBCLASS actual conforms (m3's function

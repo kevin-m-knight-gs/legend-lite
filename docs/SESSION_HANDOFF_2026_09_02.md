@@ -2597,3 +2597,95 @@ move only with their burn and a written justification, paired same-tree
 sweeps byte-identical, save `core/target` rosters before a chain (G8
 cleans), GMT test clock, no engine pure source in the platform, every
 native signature verified against the real .pure.
+
+
+**Batch 54 — OPTION S, SHAPES ARE DATA (2026-09-04): ratchet 267/2306 →
+255/2318 (+12, 0 lost; disagree 0).** The prelude's library shapes are now
+GENERATED: `PreludeGeneratorTest` indexes every `Class`/`Enum` header of the
+engine + legend-pure checkouts, takes the DEMAND (corpus type positions and
+enum-value references, every spelled FQN, corpus class supertypes, the FQNs
+the platform's own Java and native signatures name, the admitted program
+libraries in `Corpus.LIBRARY_FILES`), closes over what those declarations
+name (loud on any dangling or bare name; loud on a hand class with no
+provenance — spec index, m3.pure, or an allowlisted carrier), parses the
+files with our parser in the platform dialect, resolves them with
+`NameResolver` (which now carries real pure's IMPLICIT CORE IMPORTS —
+`system::imports::coreImport`, 29 packages — as a tier below the file's
+own imports), and prints `Prelude.java` (230 classes / 10 enums, equality
+keys and verbatim defaults; round-trip parsed). `Pure.java` lost 217 hand
+copies; the cut exposed three hidden gaps in them (ElementOverride in the
+wrong package, two GUESSED sql literal classes that made the spec's own
+`DateLiteral` ambiguous, `TabularFunction.schema` typed Any). m3 is a graph
+file, so its shapes stay by hand — extracted by `tools/m3shape.py`
+(AbstractProperty, QualifiedProperty, Association, Constraint, PackageableFunction,
+Annotation/Stereotype/Tag/TaggedValue/Profile, Enum, Type with its real ends,
+GenericType/TypeParameter/Generalization, ModelElement.name, Property<U,V|m>).
+The m3 `Enum` metaclass classifies as an enumeration-VALUE type (any
+enumeration or its name carrier conforms).
+
+Compiler work the program needed (all WORLD_MAP §4 structural, pinned by
+LiteralUnrollLedgerTest): `Typer.synthBody` — ONE rule for multi-statement
+lambda bodies (let-inlining, a leading let before a non-let, `fail(..);v`,
+`assert(c,m); v` = `if(c,|v,|fail(m))`) used by match arms, if thunks,
+lambda arguments and eval; static re-dispatch of a runtime match on the
+input's DECLARED type (arms no model class shares with it are dead and are
+not rewritten); the effect scan skips an un-typeable dead callee; folds for
+size/contains/isEmpty/at/first/last over SPELLED lists (elements may be any
+expression; a [0..1] conditional-membership element is not spelled), spelled
+maps (`newMap` over `pair`s with spelled keys: keyValues/get; groupBy over a
+spelled collection whose key folds), defaultIfEmpty, isTrue, assert(true),
+enumValues, dynamicNew over KeyValues, spelled-integer compares, an enum
+value's `.name`, unspelled-property defaults (empty when the class declares
+none), DECLARED DEFAULTS applied at ^new (PropertyDefinition/Property.Stored
+carry the value; NewChecker synthesizes it), a dead intermediate statement
+that folds to a literal is dropped, `toOne` of a spelled one. Verdict: a
+helper-wrapped assert over CLASS values is adjudicated by the key tree (never
+a TDS/relation/result carrier — those keep the grid arm and its float
+policy); a wider-declared side (`Node[1]`) is narrowed by the wire `__type`;
+a class-kind side that rode a JSON carrier is decoded to its structure.
+
+Kept BY HAND with a receipt (`Pure.java`, "SYSTEM-STORE-COUPLED"):
+SetImplementation (`class: Class[1]`, real `Class<Any>`), PropertyMapping
+(`property: Property[1]`, real `Property<Nil,Any|*>`), Column (`owner:
+Table[0..1]`, real `Relation[0..1]`; `nullable` added from the real shape),
+EnumValueMapping (`enum: String[1]`, real `Enum[1]`), and the
+PropertyMappingsImplementation/InstanceSetImplementation chain — the
+metamodel store types element references as its raw row classes. The
+generated versions regressed 20 tests through `$cm.class` whole-value reads,
+the join-target rule (declared supertype vs mapped set — fixed for Generic
+declarations in JoinChainEmission.classTypedTargetIfMapped) and instanceOf
+over a row whose class gained a real ancestor. FOLLOW-UP: represent element
+references as m3 rows in the store, then generate these six too.
+
+toPostgresModel after batch 54: 12/21 pass (literal-only slice A). The
+nine left: store-backed inputs (getTable/getColumn/TestDb reads inside a
+constructed instance — slice B, "store read in scalar position = scalar
+subquery"; the `toOne(filter(TestDb.schemas…))` stamp wall), the join-tree
+tests (`$r->children()` — the arrow-call form of a QUALIFIED property, and
+the join-tree recursion), and the standing sqlQueryToString helpers in live
+arms of store-backed matches. Diagnostics added (property-guarded):
+`-Dlegend.inliner.trace=1` (why a call stands), `-Dlegend.spec.trace=<fn>`
+(who demanded a body), `-Dlegend.mapping.trace=<fragment>` (a resolution
+wall's throw site).
+
+Chain catch (G9 floors fell: essential 314 < 316, grammar 134, standard
+203): the new core-import tier resolves a bare stereotype profile
+(`<<equality.Key>>`, `<<temporal.businesstemporal>>`, `<<PCT.function>>`)
+to its m3 FQN when the model declares it, and three consumers compared the
+BARE spelling — every `<<equality.Key>>` class silently fell back to an
+identity layout (`__id` per construction SITE), so `head`/`first`/`contains`
+/`in`/`equal` over two spellings of one keyed instance disagreed. The rule is
+now ONE: `PlatformTypes.isProfile(resolved, fqn)` — the exact FQN, or the
+bare spelling in a model that does not declare the profile — used by
+ClassCompiler (equality), FunctionCompiler (PCT) and MilestoningStrategy
+(temporal); no bare profile compare remains in main. Restoring the keys
+moved NOTHING in the corpus (per-family counts and decline rosters
+identical). Second catch: the sqltypes ledger's `untyped=1` was the
+FoldCall root of toPostgresModel's `$p->tail()->fold(...)` chain — `tail`
+is a native, and the fold's source was `->cast(@Expression)` over the
+spelled converted-parameter list; `tail` over a spelled list and a `cast`
+over a spelled collection (every element accepted) now fold, the chain
+unrolls to the struct literal, and the ledger is back to 0 (the test itself
+stays a fallback: its verdict is the polymorphic nested-key canon, task #45).
+Chain GREEN: G1 44s (4,396), G2 8s, G4 61s, G5 44s, G6 78s, G7 26s, G9 18s,
+G8 72s.

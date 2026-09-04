@@ -424,6 +424,10 @@ final class Scalars {
         // LIST value (toMany(@T) et al.) — emptiness is length, not
         // NULL-ness (isEmpty([]) = true; IS NULL said false). Scalar
         // ([0..1]) stays the null test.
+        Pure.nativeKeysAt("isTrue").forEach(f -> RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), new SqlExpr.BoolLit(false))));   // empty is false
+        Pure.nativeKeysAt("defaultIfEmpty").forEach(f -> RULES.put(f, (n, args) -> listValued(n.args().get(0))   // col unless empty
+                ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0))), args.get(1))), args.get(0)) : SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), args.get(1))));
         for (String f : Pure.nativeKeysAt("isEmpty")) {
             RULES.put(f, (n, args) -> listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.EQUAL, List.of(

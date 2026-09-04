@@ -360,7 +360,8 @@ public final class FromProtocol {
             props.add(new ClassDefinition.PropertyDefinition(
                     p.name(), p.type(), p.multiplicity(),
                     stereotypes(p.stereotypes()), taggedValues(p.taggedValues()),
-                    p.defaultValue() != null));
+                    p.defaultValue() != null,
+                    p.defaultValue() != null ? p.defaultValue().value() : null));
         }
         List<com.legend.protocol.TypeExpression> supers = new ArrayList<>(c.superTypes().size());
         for (Protocol.PSuperType st : c.superTypes()) {

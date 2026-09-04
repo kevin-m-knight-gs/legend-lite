@@ -24,6 +24,7 @@ public record TypedMatchRuntime(
         List<Arm> arms,
         Optional<String> extraParam,
         Optional<TypedSpec> extra,
+        Optional<TypedSpec> dynamicArms,
         ExprType info) implements TypedSpec {
 
     /** One branch: the declared type FQN it accepts at runtime, the
@@ -38,11 +39,29 @@ public record TypedMatchRuntime(
         }
     }
 
+    /** The common form: every arm spelled. */
+    public TypedMatchRuntime(TypedSpec input, List<Arm> arms, Optional<String> extraParam,
+            Optional<TypedSpec> extra, ExprType info) {
+        this(input, arms, extraParam, extra, Optional.empty(), info);
+    }
+
+    /**
+     * WORLD_MAP §4 — {@code dynamicArms}: a PREFIX of the arm collection
+     * that is an EXPRESSION, not spelled lambdas (the engine's
+     * {@code $state.extensions->map(e|…)->concatenate([arms])} idiom —
+     * extension-contributed arms). The unroll must fold it to the EMPTY
+     * collection before the spelled arms dispatch (extensions = []); a
+     * non-empty residual is a loud wall (the lowering has no runtime arm
+     * list). Dispatch order: the dynamic arms come FIRST in the engine,
+     * so a non-empty prefix can never be skipped.
+     */
+
     @Override
     public List<TypedSpec> children() {
         List<TypedSpec> out = new ArrayList<>();
         out.add(input);
         extra.ifPresent(out::add);
+        dynamicArms.ifPresent(out::add);
         for (Arm a : arms) {
             out.add(a.body());
         }
@@ -51,7 +70,7 @@ public record TypedMatchRuntime(
 
     @Override
     public TypedSpec withChildren(List<TypedSpec> kids) {
-        int fixed = 1 + (extra.isPresent() ? 1 : 0);
+        int fixed = 1 + (extra.isPresent() ? 1 : 0) + (dynamicArms.isPresent() ? 1 : 0);
         TypedSpec.expectChildren(kids, fixed + arms.size(),
                 "TypedMatchRuntime");
         List<Arm> newArms = new ArrayList<>(arms.size());
@@ -59,7 +78,9 @@ public record TypedMatchRuntime(
             Arm a = arms.get(i);
             newArms.add(new Arm(a.typeFqn(), a.param(), kids.get(fixed + i)));
         }
+        int dynAt = 1 + (extra.isPresent() ? 1 : 0);
         return new TypedMatchRuntime(kids.get(0), newArms, extraParam,
-                extra.map(ignored -> kids.get(1)), info);
+                extra.map(ignored -> kids.get(1)),
+                dynamicArms.map(ignored -> kids.get(dynAt)), info);
     }
 }

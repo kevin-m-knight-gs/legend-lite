@@ -94,7 +94,17 @@ public record ClassDefinition(
             Multiplicity multiplicity,
             List<StereotypeApplication> stereotypes,
             List<TaggedValue> taggedValues,
-            boolean hasDefault) {
+            boolean hasDefault,
+            /** The declared default VALUE ({@code distinct: Boolean[1] = false}) —
+             * applied by the new-instance checker to an unspelled property
+             * (real pure's constructor semantics); null when none. */
+            com.legend.protocol.spec.@com.legend.Nullable ValueSpecification defaultValue) {
+        public PropertyDefinition(String name, TypeExpression type,
+                Multiplicity multiplicity,
+                List<StereotypeApplication> stereotypes,
+                List<TaggedValue> taggedValues, boolean hasDefault) {
+            this(name, type, multiplicity, stereotypes, taggedValues, hasDefault, null);
+        }
         public PropertyDefinition {
             Objects.requireNonNull(name, "Property name cannot be null");
             Objects.requireNonNull(type, "Property type cannot be null");

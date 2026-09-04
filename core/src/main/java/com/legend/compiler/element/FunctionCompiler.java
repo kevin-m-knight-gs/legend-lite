@@ -98,9 +98,9 @@ final class FunctionCompiler {
                     && fd.stereotypes() != null
                     && fd.stereotypes().stream().anyMatch(st ->
                             "function".equals(st.stereotypeName())
-                            && (st.profileName().equals("PCT")
-                                    || st.profileName().equals(
-                                            "meta::pure::test::pct::PCT")));
+                            && com.legend.compiler.element.type.PlatformTypes.isProfile(
+                                    st.profileName(),
+                                    com.legend.compiler.element.type.PlatformTypes.PCT_PROFILE));
             if (pctFunction
                     && com.legend.builtin.Pure.nativeKeysAt(bare).stream()
                             .anyMatch(k -> k.startsWith(fqn + "("))) {

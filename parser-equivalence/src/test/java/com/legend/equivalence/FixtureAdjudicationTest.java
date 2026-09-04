@@ -113,6 +113,12 @@ class FixtureAdjudicationTest {
                             + " 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'tags…",
                     "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
                             + " 'X', 'X', 'X', 'X', 'X', 'X', 'X'…",
+                    // the same family, truncated one token earlier: a
+                    // one-character offending token ('+') shifts the
+                    // oracle's message cut into the tenth alternative
+                    // (2026-09-04)
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X', '…",
                     "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
                             + " 'X', 'X', 'X', 'X', 'X', 'X']",
                     "Unexpected token 'X'. Valid alternatives: ['X', 'X',"

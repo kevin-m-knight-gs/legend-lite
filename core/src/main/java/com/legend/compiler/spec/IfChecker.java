@@ -133,15 +133,8 @@ final class IfChecker {
         if (!(vs instanceof LambdaFunction lam) || !lam.parameters().isEmpty()) {
             throw new TypeInferenceException("expected a zero-parameter single-expression thunk");
         }
-        LambdaFunction folded = lam.body().size() == 1 ? lam : SourceSubst.inlineLets(lam);
-        if (folded == null || folded.body().size() != 1) {
-            TypedSpec asFail = failThenValue(t, lam, env);
-            if (asFail != null) {
-                return asFail;
-            }
-            throw new TypeInferenceException("expected a zero-parameter single-expression thunk");
-        }
-        return t.synth(folded.body().get(0), env);
+        // the shared body rule: lets inline, fail/assert prefixes guard
+        return t.synthBody(lam, env);
     }
 
     /** The corpus's {@code | fail('...'); expr;} branch shape (toDDL
@@ -149,7 +142,7 @@ final class IfChecker {
      * call — emitted with the FINAL expression's static type (bottom
      * spirit: the value is unreachable, the throw effect exact). Null =
      * not this shape. */
-    private static @com.legend.Nullable TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
+    static @com.legend.Nullable TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
         List<ValueSpecification> stmts = lam.body();
         if (stmts.size() < 2) {
             return null;

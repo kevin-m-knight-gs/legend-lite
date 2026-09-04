@@ -47,9 +47,11 @@ final class ClassCompiler {
                     classifier.classify(pd.type(), typeParams),
                     TypeClassifier.multiplicity(pd.multiplicity()),
                     pd.stereotypes().stream().anyMatch(st ->
-                            "equality".equals(st.profileName())
+                            com.legend.compiler.element.type.PlatformTypes.isProfile(
+                                    st.profileName(),
+                                    com.legend.compiler.element.type.PlatformTypes.EQUALITY_PROFILE)
                                     && "Key".equals(st.stereotypeName())),
-                    pd.hasDefault()));
+                    pd.hasDefault(), pd.defaultValue()));
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             List<TypedParameter> params = new ArrayList<>(dp.parameters().size());

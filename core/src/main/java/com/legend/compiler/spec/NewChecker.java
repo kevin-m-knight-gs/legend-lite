@@ -199,6 +199,30 @@ final class NewChecker {
         if (!env.lenientNew()) {
             requireAllRequired(t, ni);
         }
+        // DECLARED DEFAULTS (real pure's constructor: an unspelled property
+        // with a declared default value takes it — FunctionCall.distinct =
+        // false): synthesized here so the instance literal SPELLS it and
+        // every downstream reader (folds, lowering, the verdict) sees one shape
+        java.util.ArrayDeque<String> dwalk = new java.util.ArrayDeque<>();
+        java.util.Set<String> dseen = new java.util.HashSet<>();
+        dwalk.add(ni.className());
+        while (!dwalk.isEmpty()) {
+            String cf = dwalk.poll();
+            if (!dseen.add(cf)) {
+                continue;
+            }
+            var tc = t.model().findClass(cf);
+            if (tc.isEmpty()) {
+                continue;
+            }
+            for (Property p : tc.get().properties()) {
+                if (p instanceof Property.Stored s && s.defaultValue() != null
+                        && !properties.containsKey(s.name())) {
+                    properties.put(s.name(), t.synth(s.defaultValue(), env));
+                }
+            }
+            dwalk.addAll(tc.get().superClassFqns());
+        }
         // PARAMETERIZED platform classes: ^Pair(first=..., second=...) types
         // as Pair<t(first), t(second)> — its generic params ARE its property
         // types; a raw ClassType broke zip-over-pair-literals at the

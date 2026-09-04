@@ -61,6 +61,24 @@ public final class Corpus {
             + "legend-engine-pure-code-compiled-core/"
             + "src/main/resources/core/store/m2m/tests");
 
+    /** Named LIBRARY files admitted to the global module as elements
+     * (never setups): each is a PROGRAM library a corpus family imports
+     * (docs/WORLD_MAP.md rule 5 — "a loading rule that did not admit the
+     * file"). The prelude generator scans the same list for the shapes
+     * their signatures name, so the two stay in step. */
+    public static final java.util.List<Path> LIBRARY_FILES = java.util.List.of(
+            // the relational compiler's OWN model vocabulary
+            // (RelationalDebugContext / IsolationStrategy — tests/advanced
+            // testForced*)
+            RELATIONAL.resolve("pureToSQLQuery/pureToSQLQuery.pure"),
+            // toPostgresModel's helper vocabulary (literal, simpleFunctionCall,
+            // cast, …) — sqlDialectTranslation family, batch 54
+            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/"
+                    + "legend-engine-xt-relationalStore-generation/"
+                    + "legend-engine-xt-relationalStore-pure/"
+                    + "legend-engine-xt-relationalStore-sqlDialectTranslation-pure/"
+                    + "src/main/resources/core_external_store_relational_sql_dialect_translation/utils.pure"));
+
     // NOTE (V7 tenet correction 2026-08-28): the corpus lane reads NO
     // legend-pure sources. The assert family is platform-owned registry
     // natives; reference checkouts feed TEST INPUT only (the corpus

@@ -8,6 +8,7 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
@@ -16,6 +17,7 @@ import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedCopyInstance;
 import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedMatchRuntime;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNewInstance;
@@ -84,8 +86,47 @@ final class LiteralUnroll {
             case TypedCBoolean b -> Optional.of(new Scalar(Type.Primitive.BOOLEAN.qualifiedName(), b.value()));
             case TypedCFloat f -> Optional.of(new Scalar(Type.Primitive.FLOAT.qualifiedName(), f.value()));
             case TypedEnumValue ev -> Optional.of(new Scalar(ev.enumFqn(), ev.enumFqn() + "." + ev.value()));
+            case com.legend.compiler.spec.typed.TypedCDate d when d.info().type() instanceof Type.Primitive p ->
+                    Optional.of(new Scalar(p.qualifiedName(), String.valueOf(d.value())));
+            case com.legend.compiler.spec.typed.TypedCDecimal d when d.info().type() instanceof Type.Primitive p ->
+                    Optional.of(new Scalar(p.qualifiedName(), d.value()));
+            case com.legend.compiler.spec.typed.TypedCTime d when d.info().type() instanceof Type.Primitive p ->
+                    Optional.of(new Scalar(p.qualifiedName(), String.valueOf(d.value())));
+            case com.legend.compiler.spec.typed.TypedCLatestDate d when d.info().type() instanceof Type.Primitive p ->
+                    Optional.of(new Scalar(p.qualifiedName(), "%latest"));
+            // a spelled pair is an instance literal of Pair (first/second)
+            case TypedNativeCall c when is(c, "pair") && c.args().size() == 2
+                    && c.args().stream().allMatch(LiteralUnroll::literalStructure) ->
+                    Optional.of(new Instance(PlatformTypes.PAIR, c));
             default -> Optional.empty();
         };
+    }
+
+    /** A SPELLED list: a collection whose elements are each exactly one
+     * value (any expression — lambdas, standing calls, store reads: their
+     * multiplicity is [1..1]); its size and positions are structural. A
+     * conditional-membership element (if(c,|e,|[]) — [0..1]) is not. */
+    static boolean spelledList(TypedSpec s) {
+        if (!(s instanceof TypedCollection tc)) {
+            // a single SPELLED value IS a one-element list (pure's collection
+            // model: `parameters = ^Literal(…)` spells one) — a computed
+            // scalar is not (a query-level toOne/first over it keeps its
+            // shape: the float canon keys on the wrapper)
+            return (literal(s).isPresent() || s instanceof TypedLambda)
+                    && s.info().multiplicity() instanceof Multiplicity.Bounded b
+                    && b.lower() == 1 && Integer.valueOf(1).equals(b.upper());
+        }
+        for (TypedSpec e : tc.elements()) {
+            if (e instanceof TypedCollection) {
+                if (!spelledList(e)) {
+                    return false;
+                }
+            } else if (!(e.info().multiplicity() instanceof Multiplicity.Bounded b)
+                    || b.lower() != 1 || !Integer.valueOf(1).equals(b.upper())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** A value whose STRUCTURE the compiler holds in full (a literal or a
@@ -103,6 +144,7 @@ final class LiteralUnroll {
             case TypedCopyInstance cp -> 1 + size(cp.source())
                     + cp.overrides().values().stream().mapToInt(LiteralUnroll::size).sum();
             case TypedCollection tc -> tc.elements().stream().mapToInt(LiteralUnroll::size).sum();
+            case TypedNativeCall c when is(c, "pair") -> 1 + c.args().stream().mapToInt(LiteralUnroll::size).sum();
             default -> literal(s).isPresent() ? 1 : 0;
         };
     }
@@ -116,6 +158,10 @@ final class LiteralUnroll {
         if (!armType.contains("::") && simpleArm.equals(simpleCls)) {
             return true;
         }
+        // an enumeration VALUE is an instance of the m3 Enum metaclass
+        if (armType.equals("meta::pure::metamodel::type::Enum") && ctx.findEnum(cls).isPresent()) {
+            return true;
+        }
         return ctx.isSubtype(cls, armType);
     }
 
@@ -124,12 +170,82 @@ final class LiteralUnroll {
      * folded — it may be derived, defaulted, or association-backed, and
      * the resolver owns those reads. */
     static Optional<TypedSpec> field(TypedSpec inst, String prop) {
+        // a spelled enum's NAME is structural (WORLD_MAP §4)
+        if (inst instanceof TypedEnumValue ev && prop.equals("name")) {
+            return Optional.of(new com.legend.compiler.spec.typed.TypedCString(ev.value(),
+                    new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE)));
+        }
+        // a field read over a spelled COLLECTION is the collection of the
+        // elements' fields (pure's dot rule over [*]), when every element folds
+        if (inst instanceof TypedCollection tc && literalStructure(tc) && !elements(tc).isEmpty()) {
+            List<TypedSpec> out = new ArrayList<>();
+            for (TypedSpec e : elements(tc)) {
+                Optional<TypedSpec> f = field(e, prop);
+                if (f.isEmpty()) {
+                    return Optional.empty();
+                }
+                out.addAll(elements(f.get()));   // pure's dot rule CONCATENATES the elements' values
+            }
+            ExprType first = out.get(0).info();
+            return Optional.of(new TypedCollection(out, new ExprType(first.type(),
+                    Multiplicity.Bounded.ZERO_MANY)));
+        }
         if (inst instanceof TypedNewInstance ni) {
             return Optional.ofNullable(ni.properties().get(prop));
+        }
+        if (inst instanceof TypedNativeCall c && is(c, "pair") && c.args().size() == 2) {
+            return prop.equals("first") ? Optional.of(c.args().get(0))
+                    : prop.equals("second") ? Optional.of(c.args().get(1)) : Optional.empty();
         }
         if (inst instanceof TypedCopyInstance cp && literalStructure(cp.source())) {
             TypedSpec v = cp.overrides().get(prop);
             return v != null ? Optional.of(v) : field(cp.source(), prop);
+        }
+        return Optional.empty();
+    }
+
+    /** An UNSPELLED property of an instance literal is the class's default
+     * — empty when its multiplicity admits empty and it declares no default
+     * value (WORLD_MAP §4: "an unspelled field is the class's default/empty").
+     * A declared default (whose expression the definition does not carry)
+     * and an unknown class stay unfolded. */
+    private static Optional<TypedSpec> unspelledDefault(TypedPropertyAccess pa, ModelContext ctx) {
+        if (!(pa.source() instanceof TypedNewInstance ni)
+                || !(pa.info().multiplicity() instanceof Multiplicity.Bounded b) || b.lower() != 0) {
+            return Optional.empty();
+        }
+        Optional<com.legend.model.ClassDefinition.PropertyDefinition> decl =
+                declaredProperty(ctx, ni.classFqn(), pa.property(), 0);
+        if (decl.isEmpty() || decl.get().hasDefault()) {
+            return Optional.empty();
+        }
+        return Optional.of(new TypedCollection(List.of(), pa.info()));
+    }
+
+    private static Optional<com.legend.model.ClassDefinition.PropertyDefinition> declaredProperty(
+            ModelContext ctx, String cls, String prop, int depth) {
+        if (depth > 32) {
+            return Optional.empty();
+        }
+        Optional<com.legend.model.ClassDefinition> cd = ctx.findClassDefinition(cls);
+        if (cd.isEmpty()) {
+            return Optional.empty();
+        }
+        for (var p : cd.get().properties()) {
+            if (p.name().equals(prop)) {
+                return Optional.of(p);
+            }
+        }
+        for (com.legend.protocol.TypeExpression sup : cd.get().superClasses()) {
+            String name = sup instanceof com.legend.protocol.TypeExpression.NameRef nr ? nr.name()
+                    : sup instanceof com.legend.protocol.TypeExpression.Generic g ? g.name() : null;
+            if (name != null) {
+                Optional<com.legend.model.ClassDefinition.PropertyDefinition> r =
+                        declaredProperty(ctx, name, prop, depth + 1);
+                if (r.isPresent()) {
+                    return r;
+                }
+            }
         }
         return Optional.empty();
     }
@@ -146,6 +262,26 @@ final class LiteralUnroll {
             out.addAll(elements(e));
         }
         return out;
+    }
+
+    /** Every element is a pair whose KEY is a spelled scalar (values may be
+     * anything — lambdas, standing calls: a lookup never needs them). */
+    private static boolean spelledKeys(TypedSpec pairs) {
+        if (!(pairs instanceof TypedCollection)) {
+            return false;
+        }
+        for (TypedSpec p : elements(pairs)) {
+            if (!(p instanceof TypedNativeCall pc && is(pc, "pair") && pc.args().size() == 2
+                    && literal(pc.args().get(0)).filter(l -> l instanceof Scalar).isPresent())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The spelled scalar value of a literal, for the inliner's key folds. */
+    static Optional<Object> scalarValue(TypedSpec s) {
+        return scalar(s);
     }
 
     private static Optional<Object> scalar(TypedSpec s) {
@@ -172,11 +308,23 @@ final class LiteralUnroll {
      */
     static TypedSpec fold(TypedSpec n, ModelContext ctx) {
         return switch (n) {
-            case TypedPropertyAccess pa -> field(pa.source(), pa.property()).orElse(n);
+            case TypedPropertyAccess pa -> field(pa.source(), pa.property())
+                    .or(() -> unspelledDefault(pa, ctx)).orElse(n);
             case TypedCast tc -> literal(tc.source())
                     .filter(lit -> tc.target() instanceof Type.ClassType target
                             && accepts(ctx, lit.cls(), target.fqn()))
-                    .<TypedSpec>map(lit -> tc.source()).orElse(n);
+                    .<TypedSpec>map(lit -> tc.source())
+                    // a cast over a SPELLED collection is element-wise: the
+                    // collection itself when every element is a literal the
+                    // target accepts (toPostgresModel's converted-parameter
+                    // lists, `->cast(@Expression)` before their fold)
+                    .or(() -> tc.source() instanceof TypedCollection coll
+                            && tc.target() instanceof Type.ClassType target
+                            && literalStructure(coll) && !elements(coll).isEmpty()
+                            && elements(coll).stream().allMatch(e -> literal(e)
+                                    .filter(lit -> accepts(ctx, lit.cls(), target.fqn())).isPresent())
+                            ? Optional.of(coll) : Optional.empty())
+                    .orElse(n);
             case TypedNativeCall c -> nativeFold(c, ctx);
             // a copy of a literal IS a literal: the source's fields with the
             // overrides applied (one instance shape downstream)
@@ -219,6 +367,116 @@ final class LiteralUnroll {
 
     private static TypedSpec nativeFold(TypedNativeCall c, ModelContext ctx) {
         List<TypedSpec> a = c.args();
+        // SPELLED-INTEGER compares (WORLD_MAP §4: "size() == 1" and kin) —
+        // same-kind identity over two spelled integers, never a new value
+        if ((is(c, "greaterThan") || is(c, "lessThan") || is(c, "greaterThanEqual")
+                || is(c, "lessThanEqual")) && a.size() == 2
+                && a.get(0) instanceof TypedCInteger l && a.get(1) instanceof TypedCInteger r) {
+            long x = l.value().longValue();
+            long y = r.value().longValue();
+            return bool(is(c, "greaterThan") ? x > y : is(c, "lessThan") ? x < y
+                    : is(c, "greaterThanEqual") ? x >= y : x <= y);
+        }
+        // LIST SHAPE over a spelled collection (WORLD_MAP §4): its size, and
+        // membership of a spelled scalar (same-kind identity, as `in`)
+        if (is(c, "size") && a.size() == 1 && spelledList(a.get(0))) {
+            return new com.legend.compiler.spec.typed.TypedCInteger(elements(a.get(0)).size(),
+                    new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE));
+        }
+        if (is(c, "defaultIfEmpty") && a.size() == 2 && spelledList(a.get(0))) {
+            return elements(a.get(0)).isEmpty() ? a.get(1) : a.get(0);
+        }
+        // the COLLECTION overload only: pure's [x] == x law resolves
+        // ['ACTIVE']->contains('TIV') to string::contains (substring)
+        if (is(c, "contains")
+                && c.callee().qualifiedName().equals("meta::pure::functions::collection::contains")
+                && a.size() == 2 && literalStructure(a.get(0))) {
+            Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar);
+            if (needle.isPresent()) {
+                Scalar n = (Scalar) needle.get();
+                boolean allScalar = elements(a.get(0)).stream()
+                        .allMatch(e -> literal(e).filter(l -> l instanceof Scalar
+                                && l.cls().equals(n.cls())).isPresent());
+                if (allScalar) {
+                    return bool(elements(a.get(0)).stream().anyMatch(e ->
+                            literal(e).map(l -> ((Scalar) l).value().equals(n.value())).orElse(false)));
+                }
+            }
+        }
+        // isTrue over a spelled boolean or a spelled empty
+        if (is(c, "isTrue") && a.size() == 1) {
+            if (a.get(0) instanceof TypedCBoolean b) {
+                return bool(b.value());
+            }
+            if (a.get(0) instanceof TypedCollection tc && literalStructure(tc) && elements(tc).isEmpty()) {
+                return bool(false);
+            }
+        }
+        // a spelled boolean's assert is a no-op (assert(true, …)); a false
+        // one raises and stays the database's
+        if (is(c, "assert") && !a.isEmpty() && a.get(0) instanceof TypedCBoolean tb && tb.value()) {
+            return bool(true);
+        }
+        // an enumeration's values are its declaration (spelled)
+        if (is(c, "enumValues") && a.size() == 1) {
+            Optional<String> fqn = switch (a.get(0)) {
+                case TypedTypeRef tr -> tr.target() instanceof Type.EnumType et
+                        ? Optional.of(et.fqn()) : Optional.empty();
+                case TypedPackageableRef pr -> Optional.of(pr.fullPath());
+                default -> Optional.empty();
+            };
+            Optional<com.legend.compiler.element.TypedEnum> en = fqn.flatMap(ctx::findEnum);
+            if (en.isPresent()) {
+                ExprType one = new ExprType(new Type.EnumType(en.get().qualifiedName()),
+                        Multiplicity.Bounded.ONE);
+                return new TypedCollection(en.get().values().stream()
+                        .<TypedSpec>map(v -> new TypedEnumValue(en.get().qualifiedName(), v, one))
+                        .toList(), c.info());
+            }
+        }
+        // dynamicNew(Class, [^KeyValue(key, value)…]) over spelled keys IS the
+        // instance literal ^Class(key = value, …)
+        if (is(c, "dynamicNew") && a.size() == 2 && literalStructure(a.get(1))) {
+            String cls = typeTargetFqn(a.get(0)).orElse(null);
+            java.util.Map<String, TypedSpec> props = new java.util.LinkedHashMap<>();
+            boolean spelled = cls != null;
+            for (TypedSpec kv : elements(a.get(1))) {
+                TypedSpec value = kv instanceof TypedNewInstance ni ? ni.properties().get("value") : null;
+                if (kv instanceof TypedNewInstance ni && ni.properties().get("key") instanceof TypedCString k
+                        && value != null) {
+                    props.put(k.value(), value);
+                } else {
+                    spelled = false;
+                }
+            }
+            if (spelled && cls != null) {
+                return new TypedNewInstance(cls, props,
+                        new ExprType(new Type.ClassType(cls), Multiplicity.Bounded.ONE));
+            }
+        }
+        // SPELLED MAPS: newMap over spelled pairs is a structure the compiler
+        // holds — its key/value pairs, and a lookup by a spelled key
+        if (is(c, "keyValues") && a.size() == 1 && a.get(0) instanceof TypedNativeCall nm
+                && is(nm, "newMap") && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
+            return new TypedCollection(elements(nm.args().get(0)), c.info());
+        }
+        if (is(c, "get") && a.size() == 2 && a.get(0) instanceof TypedNativeCall nm
+                && is(nm, "newMap") && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
+            Optional<Literal> key = literal(a.get(1)).filter(l -> l instanceof Scalar);
+            if (key.isPresent()) {
+                Scalar k = (Scalar) key.get();
+                for (TypedSpec p : elements(nm.args().get(0))) {
+                    Optional<Literal> pk = field(p, "first").flatMap(LiteralUnroll::literal);
+                    if (pk.isEmpty() || !(pk.get() instanceof Scalar ps)) {
+                        return c;   // an unspelled key: the database's lookup
+                    }
+                    if (ps.cls().equals(k.cls()) && ps.value().equals(k.value())) {
+                        return field(p, "second").orElse(c);
+                    }
+                }
+                return new TypedCollection(List.of(), c.info());
+            }
+        }
         if (is(c, "instanceOf") && a.size() == 2) {
             return literal(a.get(0)).flatMap(lit -> typeTargetFqn(a.get(1))
                     .<TypedSpec>map(fqn -> bool(accepts(ctx, lit.cls(), fqn)))).orElse(c);
@@ -256,17 +514,27 @@ final class LiteralUnroll {
                     .anyMatch(e -> scalar(e).filter(needle::equals).isPresent()))).orElse(c);
         }
         if ((is(c, "isEmpty") || is(c, "isNotEmpty")) && a.size() == 1
-                && literalStructure(a.get(0))) {
+                && spelledList(a.get(0))) {
             boolean empty = elements(a.get(0)).isEmpty();
             return bool(is(c, "isEmpty") == empty);
         }
-        if (is(c, "at") && a.size() == 2 && literalStructure(a.get(0))
+        if (is(c, "at") && a.size() == 2 && spelledList(a.get(0))
                 && a.get(1) instanceof TypedCInteger k
                 && k.value().intValue() >= 0 && k.value().intValue() < elements(a.get(0)).size()) {
             return elements(a.get(0)).get(k.value().intValue());
         }
+        // toOne / toOneMany of a SPELLED one (a lambda from a spelled map
+        // lookup, an instance literal): the value itself — never a computed
+        // expression (a query-level toOne over an aggregate keeps its shape;
+        // the float canon of calendarAggregations keys on it)
+        if ((is(c, "toOne") || is(c, "toOneMany")) && a.size() >= 1
+                && (a.get(0) instanceof TypedLambda || a.get(0) instanceof TypedNewInstance)
+                && a.get(0).info().multiplicity() instanceof Multiplicity.Bounded ob
+                && ob.lower() == 1 && Integer.valueOf(1).equals(ob.upper())) {
+            return a.get(0);
+        }
         if ((is(c, "toOne") || is(c, "toOneMany") || is(c, "first") || is(c, "last"))
-                && a.size() >= 1 && literalStructure(a.get(0)) && !elements(a.get(0)).isEmpty()) {
+                && a.size() >= 1 && spelledList(a.get(0)) && !elements(a.get(0)).isEmpty()) {
             List<TypedSpec> el = elements(a.get(0));
             if (is(c, "toOneMany")) {
                 return a.get(0);
@@ -278,6 +546,12 @@ final class LiteralUnroll {
                 return el.get(el.size() - 1);
             }
             return c;
+        }
+        // the tail of a spelled list is its shape minus the head
+        // (toPostgresModel's binary-expression chains fold over it)
+        if (is(c, "tail") && a.size() == 1 && a.get(0) instanceof TypedCollection coll
+                && spelledList(coll)) {
+            return sub(coll, 1, Integer.MAX_VALUE, c.info());
         }
         return c;
     }

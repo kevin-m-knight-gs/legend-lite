@@ -379,9 +379,15 @@ final class StatementExecutor {
             // helper-wrapped assert keeps its existing route (the SQL-text
             // arms adjudicate those downstream; adjudicating them here as
             // plain equality regressed ~200 text-golden flips, 2026-09-03)
+            // — and to an assert over CLASS VALUES (toPostgresModel's
+            // assertConversion(expected:Node, input): assertEquals of two
+            // constructed instances — the struct verdict of batch 53; no
+            // SQL-text arm can judge a struct, so nothing downstream is
+            // displaced)
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall
                     && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
-                    && readsStringEntry(preRoot)) {
+                    && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
+                            || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot))) {
                 ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
                         preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env),
                         spliceHook(execFrames, letPrefix, specs, env));
@@ -2146,21 +2152,6 @@ final class StatementExecutor {
                 assembled.relationRooted(), run, env.tableReplace(), ec);
     }
 
-    /** Whether the tree reads a string-entry result (the JSON envelope
-     * or a JSON tree read over it). */
-    private static boolean readsStringEntry(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedJsonResult
-                || n instanceof com.legend.compiler.spec.typed.TypedJsonAccess) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (readsStringEntry(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** A callee body with a NON-LET statement before its last (a
      * statement sequence, not one expression). */
     private static boolean hasNonLetIntermediate(
@@ -2575,7 +2566,21 @@ final class StatementExecutor {
             if (known == null) {
                 memo.put(key, false);   // in-progress: cycles score false
                 boolean effectful = false;
-                for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
+                java.util.List<TypedSpec> calleeBody;
+                try {
+                    calleeBody = specs.compile(uc.callee()).body();
+                } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                    // an UN-TYPEABLE callee (a dead match arm's library
+                    // closure — toPostgresModel's SemiStructuredObjectNavigation
+                    // arm reaching sqlQueryToString's string recursion) cannot
+                    // execute in EITHER channel: this over-approximating
+                    // reachability scan must not decide the test on it — the
+                    // SQL channel's inliner walls the LIVE arm loudly if it is
+                    // ever reached (WORLD_MAP rule 5)
+                    memo.put(key, false);
+                    return false;
+                }
+                for (TypedSpec stmt : calleeBody) {
                     if (containsEffect(stmt, specs, memo)) {
                         effectful = true;
                         break;

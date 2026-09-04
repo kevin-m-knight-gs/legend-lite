@@ -278,11 +278,17 @@ final class AssertVerdicts {
                 // X5: a same-class KEYED pair restricts both sides to
                 // the key tree — the engine's own equality relation for
                 // keyed classes, applied before EITHER channel judges
-                var ik = instanceKeys(args.get(0), args.get(1), env);
+                // a CLASS-kind side that rode a JSON carrier (a polymorphic
+                // Node[1] program value) arrives as object text: decode it
+                // to the structure the key restriction reads (the executor's
+                // own rule for JSON slots — WORLD_MAP §4, __type rides along)
+                List<Object> eVals = structuredSide(args.get(0), ef.values());
+                List<Object> aVals = structuredSide(args.get(1), af.values());
+                var ik = instanceKeys(args.get(0), args.get(1), env, eVals, aVals);
                 List<Object> e = ik != null
-                        ? restrictToKeys(ef.values(), ik, env.ctx()) : ef.values();
+                        ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
                 List<Object> a = ik != null
-                        ? restrictToKeys(af.values(), ik, env.ctx()) : af.values();
+                        ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
                 boolean equal = incidental
                         ? PureAsserts.assertSameElements(e, a) == null
                         : PureAsserts.equal(e, a);
@@ -334,11 +340,17 @@ final class AssertVerdicts {
                 if (ef.grid() != null || af.grid() != null) {
                     return tdsRowValuesSameElements(ef, af);
                 }
-                var ik = instanceKeys(args.get(0), args.get(1), env);
+                // a CLASS-kind side that rode a JSON carrier (a polymorphic
+                // Node[1] program value) arrives as object text: decode it
+                // to the structure the key restriction reads (the executor's
+                // own rule for JSON slots — WORLD_MAP §4, __type rides along)
+                List<Object> eVals = structuredSide(args.get(0), ef.values());
+                List<Object> aVals = structuredSide(args.get(1), af.values());
+                var ik = instanceKeys(args.get(0), args.get(1), env, eVals, aVals);
                 List<Object> e = ik != null
-                        ? restrictToKeys(ef.values(), ik, env.ctx()) : ef.values();
+                        ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
                 List<Object> a = ik != null
-                        ? restrictToKeys(af.values(), ik, env.ctx()) : af.values();
+                        ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
                 String d = PureAsserts.assertSameElements(e, a);
                 com.legend.exec.CanonicalDivergence.probeSameElements(
                         e, a, d == null);
@@ -1822,11 +1834,25 @@ final class AssertVerdicts {
      * plus resolvable {@code <<equality.Key>>} identity). */
     private static com.legend.compiler.element.@com.legend.Nullable EqualityKeys
             instanceKeys(TypedSpec eSpec, TypedSpec aSpec,
-                    StatementExecutor.ExecEnv env) {
+                    StatementExecutor.ExecEnv env, List<Object> eVals, List<Object> aVals) {
         String ef = com.legend.compiler.element.EqualityKeys.fqnOf(
                 eSpec.info().type());
         String af = com.legend.compiler.element.EqualityKeys.fqnOf(
                 aSpec.info().type());
+        // a side DECLARED wider (a program's Node[1] return) whose wire
+        // values all carry the other side's class as their __type IS that
+        // class at runtime — the engine's classifier match holds on the
+        // evidence, not on the declaration (batch 54: assertConversion's
+        // `let actual = convertElement(…)` judged against ^StringLiteral(…))
+        if (ef != null && af != null && !ef.equals(af)) {
+            if (env.ctx().isSubtype(ef, af) && allWireType(aVals, ef)) {
+                af = ef;
+                aSpec = eSpec;
+            } else if (env.ctx().isSubtype(af, ef) && allWireType(eVals, af)) {
+                ef = af;
+                eSpec = aSpec;
+            }
+        }
         if (ef != null && ef.equals(af)) {
             // substitution-aware: the E-side stamp's instantiation
             // (key NAMES are instantiation-independent; nesting follows
@@ -1835,6 +1861,38 @@ final class AssertVerdicts {
                     env.ctx(), eSpec.info().type());
         }
         return null;
+    }
+
+    /** A class-kind side's values with JSON object text decoded to structures. */
+    private static List<Object> structuredSide(TypedSpec spec, List<Object> vals) {
+        if (com.legend.compiler.element.EqualityKeys.fqnOf(spec.info().type()) == null) {
+            return vals;
+        }
+        List<Object> out = new ArrayList<>(vals.size());
+        for (Object v : vals) {
+            out.add(com.legend.exec.Executor.structured(v));
+        }
+        return out;
+    }
+
+    /** Declared classes only (no wire evidence in hand). */
+    private static com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            instanceKeys(TypedSpec eSpec, TypedSpec aSpec, StatementExecutor.ExecEnv env) {
+        return instanceKeys(eSpec, aSpec, env, List.of(), List.of());
+    }
+
+    /** Every wire value is an instance stamped {@code __type} = {@code cls}. */
+    private static boolean allWireType(List<Object> vals, String cls) {
+        if (vals.isEmpty()) {
+            return false;
+        }
+        for (Object v : vals) {
+            if (!(v instanceof java.util.Map<?, ?> m)
+                    || !cls.equals(m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** X5 — the HOST lattice's keyed-instance rule, applied as

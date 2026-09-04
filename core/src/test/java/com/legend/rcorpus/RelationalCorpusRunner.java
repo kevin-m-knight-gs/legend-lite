@@ -176,18 +176,16 @@ public class RelationalCorpusRunner {
                 }
             }
         }
-        // the relational compiler's OWN model vocabulary
-        // (RelationalDebugContext / IsolationStrategy — the tests/advanced
-        // testForced* family constructs them): pureToSQLQuery.pure parses
-        // clean since the #50 walls landed; library elements only, pulled
-        // by reference exactly like the m2m test library
-        Path p2s = Corpus.RELATIONAL.resolve(
-                "pureToSQLQuery/pureToSQLQuery.pure");
-        if (Files.isRegularFile(p2s)) {
-            try {
-                runner.registerLibrarySource(Files.readString(p2s));
-            } catch (Exception ignore) {
-                // unreadable: the family stays walled as before
+        // the named PROGRAM libraries (Corpus.LIBRARY_FILES): library
+        // elements only, pulled by reference exactly like the m2m test
+        // library; the prelude generator reads the same list
+        for (Path lib : Corpus.LIBRARY_FILES) {
+            if (Files.isRegularFile(lib)) {
+                try {
+                    runner.registerLibrarySource(Files.readString(lib));
+                } catch (Exception ignore) {
+                    // unreadable: the family stays walled as before
+                }
             }
         }
         // V7 TENET CORRECTION (2026-08-28, user catch): the assert
@@ -1668,10 +1666,27 @@ public class RelationalCorpusRunner {
             // the rows lane compared instance trees by root name only).
             // +10 (debugPrint wrapH2Boolean 9, routing composition 1),
             // 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(267L,
+            // 267 -> 255 (batch 54, 2026-09-04): OPTION S — the prelude's
+            // library SHAPES are GENERATED from the spec (Prelude.java, 230
+            // classes / 10 enums; 217 hand copies deleted from Pure.java,
+            // three hidden gaps in them found: ElementOverride's package,
+            // two guessed sql literals, TabularFunction.schema typed Any);
+            // the resolver learned real pure's implicit core imports; the
+            // m3 bootstrap shapes come from m3.pure via tools/m3shape.py;
+            // the program toPostgresModel compiles through utils.pure
+            // (Corpus.LIBRARY_FILES) with the structural folds of
+            // WORLD_MAP §4 (size/contains/spelled maps/groupBy/keyValues/
+            // get/defaultIfEmpty/isTrue/assert(true)/enumValues/dynamicNew/
+            // spelled-integer compares/enum .name, unspelled defaults,
+            // declared defaults at ^new, static re-dispatch on the input's
+            // declared type, one body rule for let/fail/assert prefixes),
+            // and a helper-wrapped assert over CLASS values is judged by
+            // the key tree (a wider-declared side by its wire __type).
+            // +12 (toPostgresModel literal-only slice A), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(255L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2306L,
+            org.junit.jupiter.api.Assertions.assertEquals(2318L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1846,10 +1861,15 @@ public class RelationalCorpusRunner {
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
-            org.junit.jupiter.api.Assertions.assertEquals(9,
+            // 9 -> 0 (batch 54, 2026-09-04): the nine quarantined WALL tests
+            // walled on library shapes the hand prelude never declared; the
+            // generated prelude (option S) declares them, so they compile
+            // and are scored like every other test (the witness-row
+            // quarantine of 5 is untouched).
+            org.junit.jupiter.api.Assertions.assertEquals(0,
                     com.legend.exec.CanonicalDivergence
                             .v7QuarantinedWallCount(),
-                    "metamodel quarantine (wall tests) moved off 9 —"
+                    "metamodel quarantine (wall tests) moved off 0 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10h");
             // 117 -> 111 (TDG lane S1): the census folds in the CHECKER
             // — the 6 necessaryColumns asserts route and AGREE.
