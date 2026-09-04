@@ -2809,19 +2809,18 @@ the walls MOVED, no test flipped yet):
      duplicate check). First cut = a REGEX strip (hack, deleted). Second
      cut = Compiler.parseSources keys NativeFunctionDefinition duplicates
      by signature (principled, kept) AND the natives now ENTER the model —
-     after which the family run HANGS (>10 min; sliceb12–14). A third cut
-     (blank the native declarations by the parser's element offsets in
-     Runner) was written and REJECTED by the user before running — the
-     working tree does NOT carry it. FIRST ACTION: measure the hang. Revert
-     ONLY the regex removal (re-add the strip temporarily) and rerun the
-     family with `timeout 300`; if it completes, the parsed natives are the
-     cause (a parsed native re-declared beside the registry's — probably
-     the overload/duplicate-signature path or Pure.nativeKeysAt) and the
-     structural fix is to drop NativeFunctionDefinition elements from
-     LIBRARY sources at assembly (Runner line ~1238, where libraryRaw joins
-     `sources`: parse → filter elements → the model), never text surgery.
-     If it still hangs, bisect the other two edits of that step (orElse
-     signature+rule; signature-keyed duplicates). Get a thread dump the
+     after which the family run HANGS (>10 min; sliceb12–14). A third cut IS in
+     the working tree, UNRUN: `Runner.withoutNativeDeclarations` blanks each
+     native declaration's span by the parser's element offsets (and
+     `elementSource` skips natives). It was never executed — the user
+     stopped the run. FIRST ACTION: measure the hang with that cut in
+     place: rerun the family with `timeout 300`. If it completes, the
+     parsed natives were the cause and the span-blanking stands as the
+     loading rule (or, cleaner, drop NativeFunctionDefinition elements from
+     LIBRARY sources at assembly — Runner line ~1238 where libraryRaw joins
+     `sources` — if a structural filter over parsed elements is possible
+     there). If it still hangs, bisect the other two edits of that step
+     (orElse signature+rule; signature-keyed duplicates). Get a thread dump the
      way that works here: `jstack` from the SAME JDK as the fork
      (/Users/neema/.sdkman/candidates/java/25.0.1-tem/bin/jstack) failed
      with "not ready to participate in attach handshake"; SIGQUIT output
