@@ -68,7 +68,18 @@ class SkipCensusTest {
             "OwnDialectCensusTest.java",
             "ParseSpeedBenchmarkTest.java",
             "SectionParseSentinelTest.java",
-            "SurfaceCensusTest.java");
+            "SurfaceCensusTest.java",
+            // the prelude generator (2026-09-04): it compares Prelude.java
+            // against the SPEC in the legend-engine/legend-pure checkouts,
+            // so with no checkout there is no comparison to make. It read a
+            // hardcoded /Users/<someone>/legend before this and simply
+            // ERRORED everywhere else, which is not a stricter discipline
+            // than a registered skip — it is the same silence with a
+            // stack trace. The loud back-stop is allgates G1, which now
+            // passes -Dlegend.engine.root/-Dlegend.pure.root so the check
+            // RUNS in the standing gate; only CI, which has no checkout,
+            // sees the skip.
+            "PreludeGeneratorTest.java");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");

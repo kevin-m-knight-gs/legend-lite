@@ -78,9 +78,53 @@ class PreludeGeneratorTest {
             "meta::pure::tds::toRelation::TdsToRelationExtension_V_X_X", "protocol-version adapter");
 
 
+    /** The spec checkouts. Defaulted where the REST of the tree defaults
+     *  ({@code rcorpus.Corpus}, {@code tools/allgates.sh}) — this read a
+     *  hardcoded {@code /Users/<someone>/legend} until 2026-09-04, so it
+     *  could only ever pass on one machine. */
+    private static final Path ENGINE_ROOT = Path.of(System.getProperty(
+            "legend.engine.root",
+            System.getProperty("user.home") + "/legend/legend-engine"));
+    private static final Path PURE_ROOT = Path.of(System.getProperty(
+            "legend.pure.root",
+            System.getProperty("user.home") + "/legend/legend-pure"));
+
+    /** Build output is NOT spec. {@code Files.walk} over a built
+     *  legend-pure descends into every module's {@code target/}, where it
+     *  both reads generated {@code .pure} copies as if they were the
+     *  source of truth AND, on Windows, dies with AccessDenied on a
+     *  directory the walk has no business entering. */
+    private static boolean notBuildOutput(Path p) {
+        for (Path part : p) {
+            if ("target".equals(part.toString())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** SKIP, not fail, without the checkouts — the {@code rcorpus.Corpus
+     *  .available()} precedent. A generator-drift check compares this tree
+     *  against an EXTERNAL source of truth; with no spec to read there is
+     *  no comparison to make, and failing would only assert that a bare
+     *  runner is not a workstation.
+     *
+     *  <p>A skip is NOT a pass, and nothing here pretends otherwise: this
+     *  is why {@code tools/allgates.sh} G1 passes {@code -Dlegend.*.root},
+     *  so the check runs for real in the standing local gate. CI, which
+     *  has no checkout, shows it as skipped. If CI ever gains the trees,
+     *  it runs there too with no change here. */
+    private static void requireSpecCheckouts() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                Files.isDirectory(ENGINE_ROOT) && Files.isDirectory(PURE_ROOT),
+                "spec checkouts absent (" + ENGINE_ROOT + ", " + PURE_ROOT
+                        + ") — set -Dlegend.engine.root / -Dlegend.pure.root");
+    }
+
     @Test
     @DisplayName("Prelude.java is the generator's current output (regenerate with -Dprelude.generate=1)")
     void preludeIsCurrent() throws Exception {
+        requireSpecCheckouts();
         String generated = generate();
         if ("1".equals(System.getProperty("prelude.generate"))) {
             Files.writeString(OUT, generated, StandardCharsets.UTF_8);
@@ -98,10 +142,8 @@ class PreludeGeneratorTest {
     // ------------------------------------------------------------------
 
     static String generate() throws IOException {
-        Path engine = Path.of(System.getProperty("legend.engine.root",
-                "/Users/neemsandv/legend/legend-engine"));
-        Path pure = Path.of(System.getProperty("legend.pure.root",
-                "/Users/neemsandv/legend/legend-pure"));
+        Path engine = ENGINE_ROOT;
+        Path pure = PURE_ROOT;
         List<Path> roots = List.of(
                 engine.resolve("legend-engine-xts-relationalStore"),
                 engine.resolve("legend-engine-core/legend-engine-core-pure"),
@@ -118,7 +160,9 @@ class PreludeGeneratorTest {
         Map<String, Path> index = new TreeMap<>();
         for (Path root : roots) {
             try (Stream<Path> s = Files.walk(root)) {
-                for (Path f : s.filter(p -> p.toString().endsWith(".pure")).sorted().toList()) {
+                for (Path f : s.filter(p -> p.toString().endsWith(".pure"))
+                        .filter(PreludeGeneratorTest::notBuildOutput)
+                        .sorted().toList()) {
                     Matcher m = DECL_HEADER.matcher(Files.readString(f, StandardCharsets.UTF_8));
                     while (m.find()) {
                         index.putIfAbsent(m.group(2), f);

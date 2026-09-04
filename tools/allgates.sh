@@ -94,7 +94,12 @@ TREE0=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
 if want 1; then
   g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
   g "       so a warm target/ silently no-ops the null gate)"
-  mvn "${OFF[@]}" -pl core clean test > "$OUT/g1.out" 2>&1
+  # $R1/$R2: PreludeGeneratorTest compares Prelude.java against the SPEC in
+  # the checkouts and Assumptions-skips without them. Skipping is not a pass,
+  # so the standing gate hands it the roots and runs it for real; CI, which
+  # has no checkout, reports it skipped. Every other test in core ignores
+  # these properties.
+  mvn "${OFF[@]}" -pl core clean test "$R1" "$R2" > "$OUT/g1.out" 2>&1
   G1_EXIT=$?
   rec 1 $G1_EXIT; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
   # G1 FAILS FAST (user directive 2026-08-29): the core suite is the
