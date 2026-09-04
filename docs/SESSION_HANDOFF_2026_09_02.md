@@ -2997,3 +2997,30 @@ slice B). Family 13/21. Walls, measured 2026-09-04 with the batch-55b tree:**
   SQL; the TEMP traces used this session (match input/live arms/stack at
   UserCallInliner's TypedMatchRuntime arm; map source shape at the TypedMap
   arm) are gone — re-add locally, never commit.
+
+  ANSWERED after the batch (2026-09-04, probe reverted; the probe diff —
+  mapping joins Schema.tables/Table.schema + the GUARDED row-map arm
+  `constructedRowForm` + a registerNavigations trace — is the patch the
+  session saved beside its logs; re-create from this description):
+  (a) is NOT a join-direction problem and NOT a missing navigate step in
+      the Table class mapping: with `schema[schema]: @SchemaToTables`
+      declared, the emitter mints the `schema` slot. The wall is that the
+      row source under the map is a COMPOSED chain row (`TestDb.schemas.
+      tables` flattened by flattenSource): its binding for `schema` is
+      `toOne($row.schemas_tables_schema)` (the slot under the composed
+      prefix) while the flattened pipeline carries NO navigate steps
+      (`navSteps=[]`) and no AssocSub for the head (`assocs=[]`), so
+      registerNavigations (StoreResolver ~1607, `InnerDemand.navSlotAlias`)
+      never demands it and Substitution.rewritePath (2420) walls. The
+      existing route for "a tail continuing through the target's own
+      class-typed slot" is the flatten's extraHeads/extraTails →
+      NavMaterializer subNavs → provOut (flattenAssocs, StoreResolver 2911)
+      — the LAST hop's own class-typed slot read off the map's row variable
+      must be threaded into that hop's flatten (downstreamHeads reads the
+      project column's paths, so `schema` should already be an extra head
+      — verify with the trace; if it is, the miss is in provOut
+      registration for the last hop). Witness: testConvertTable; four tests
+      share it. TableAliasColumn additionally needs `Table.columns` (a
+      to-many self-join — `columns[col]: @TableToColumns` with `{target}`
+      compiled as a COLUMN read; `relational_elements.ordinal` carries the
+      column ordinal for `->at(0)`).
