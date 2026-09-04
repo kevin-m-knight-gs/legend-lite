@@ -56,3 +56,14 @@ jobs:
       - name: parser-equivalence suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl parser-equivalence test
+
+
+      # One readable verdict for the job — see build.yml.
+      - name: test summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        # `python3` on ubuntu/macos, `python` on the windows image — resolve
+        # it rather than betting on one spelling across three runner images.
+        run: |
+          PY=$(command -v python3 || command -v python)
+          "$PY" tools/ci-summary.py
