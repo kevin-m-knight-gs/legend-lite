@@ -55,7 +55,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor/tests | 30 | 27 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
-| sqlDialectTranslation | 21 | 18 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
+| sqlDialectTranslation | 21 | 19 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2413** | 46 | 83 | 33 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2414** | 46 | 82 | 33 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2413 PASS = 2352 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2414 PASS = 2353 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -534,7 +534,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2413 PASS = 2352 clean + 61 carrying softness (
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s) [inlined via meta::relational::metamodel::execute::loadCsvToDbTable/3]
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRESSID, employees_FIRMID, employees_MANAGERID, employees_locations_ID, employees_locations_PERSONID, employees_locations_PLACE, employees_locations_date]
 - 1x project expects ~[…] column specifications
-- 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=meta::legend::lite::trustOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
+- 1x nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
@@ -587,7 +587,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2413 PASS = 2352 clean + 61 carrying softness (
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s) [inlined via meta::relational::metamodel::execute::loadCsvToDbTable/3]
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRE
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
+- ERROR testExistsAsNullWithSubType [functions/tests/projection]: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
@@ -627,7 +627,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2413 PASS = 2352 clean + 61 carrying softness (
 - ERROR simpleFunctionExpressionTranslationNow [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToS
 - ERROR testFindAliasMappingBySchemaName [pureToSQLQuery/tests]: in call to 'meta::relational::metamodel::relation', argument 1: expected meta::relational::metamodel::TableAlias, got V
 - ERROR testFindFunctionSequenceMultiplicity [pureToSQLQuery/tests]: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testImportDataFlow [pureToSQLQuery/tests]: unknown function 'column' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- ERROR testImportDataFlow [pureToSQLQuery/tests]: unknown function 'newMultiValueMap' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testMergeOldAliasToNewAlias [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V [inlined via meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias/3]
 - ERROR testReAliasMergedJoinOperations [pureToSQLQuery/tests]: store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - ERROR testPrerouting42 [router/tests]: 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
@@ -638,7 +638,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2413 PASS = 2352 clean + 61 carrying softness (
 - ERROR testRoutingOfSimpleQualifiedProperty [router/tests]: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
 - ERROR testConvertJoinTreeNode [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
 - ERROR testConvertSelectSQLQuery [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
-- ERROR testConvertTableAliasColumn [sqlDialectTranslation]: property 'columns' of class 'meta::relational::metamodel::relation::Table' has no binding in mapping 'meta::lite::metamodel::MetamodelMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: in function 'meta::relational::functions::sqlQueryToString::tests::getTempTableSqlStatements': in call to 'meta::relational::functions::sqlQueryToString::ddlSqlQueryToString', argument 2: expected meta::relational::functions::sqlQueryToString::DbConfig, got meta::pure::metamodel::type::Any [inlined 
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
