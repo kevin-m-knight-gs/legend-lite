@@ -1024,6 +1024,14 @@ receipts). declined shrinks, text-only grows, charter §8.0 scope
 table + pins same commit. The BARE-2 sub-reason gap (census §3)
 fixes here too (the plan path sets its outcome).
 
+**§8.0 scope-table receipt, batch 56 (2026-09-04):** exec-passing
+58 → 57 and the walk's M1 text-match lane 1 → 0 (RETIRED, pinned
+exactly empty): the last walk-lane test, testLessThanFilterAsVariable
+(a let-bound lambda in filter position), flipped to the platform arm
+and its sql-assert row-verifies through the oracle SPI (sql-verdict
+agree +1, disagree 0; dual-channel disagree 0). Lane move by
+migration, never lost verification.
+
 **FIRST BURN ROW LANDED — the withMapping fix (2026-08-30, rode
 this batch):** `->withMapping(M)[->cast]->from(runtime)` now slots M
 as THE from-mapping (FromChecker strip beside the

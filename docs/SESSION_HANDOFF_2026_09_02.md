@@ -3148,3 +3148,64 @@ sqlDialectTranslation: only the two row-backed-recursion tests
 (JoinTreeNode, SelectSQLQuery) — LAST. Everything else: the CENSUS after
 55c above (now 245 in core/target/wholetest-flip-fallbacks.txt after
 the corpus run): singles needing no ruling first.
+
+**Batch 56 — two no-decision singles LANDED (2026-09-04): ratchet
+245/2328 → 243/2330, chain GREEN 6m10s (docs/GATES.md batch 56).** A
+let-bound lambda literal in a CORE construct's argument position is its
+literal (Typer.expandLetBoundLambdaArgs at applyCore — NOT at the generic
+entry: that expanded every `execute($query)` and was withdrawn); a
+mapping element read as a metamodel value (`mapping.enumerationMappings`)
+is a property access over its system-store row (Typer.metamodelElementClass,
+the same rule as `db.schemas`). Lane receipt: the walk's M1 text-match
+lane is now EMPTY and pinned retired; exec-passing 58 → 57.
+
+**Probe receipts (2026-09-04, after batch 56) — the census long tail is
+now DESIGN legs, not singles.** Each of these was probed to its wall:
+- objectReferenceIn 7 (`generateObjectReferences`): the spec is
+  pathToElement + eval of a versioned protocol builder
+  (generateAlloyObjectReference: classMappingById/resolveOperation,
+  transformConnection with extensions, resolvePrimaryKeysNames,
+  toJSON) and the consumer decodes base64 JSON. DECISION: a platform
+  object-reference value (Java from spec — an opaque row handle over a
+  set's pk columns) vs the whole protocol-transform program. Ask.
+- `add(Date, Duration)` / `subtract` (testToSQLStringWithCodeBlock and
+  whatever else spells `%date->add(^Duration(...))`): three spec PROGRAMS
+  in the PLATFORM namespace (dateExtension.pure:507-520,
+  `$date->adjust($duration.number, $duration.unit)`). The corpus refuses
+  platform-namespace elements from reference sources (Runner guard), so
+  they need a platform-owned Pure-text library owner (SystemMetamodel's
+  SOURCE carries getLowerBound/allNodes today — a metamodel owner; a
+  date program does not belong there). Leg: `builtin/PlatformLibrary`
+  Pure text compiled like SystemMetamodel.source(), with spec citations.
+- relation accessor on a VIEW (testRelationStoreAccessorOnView):
+  TableReferenceChecker resolves `#>{db.personView}#` as a table and the
+  lowering emits `FROM personView`. ViewRelation.viewRelationExpr builds
+  the view's relation expression but takes a LegacyMappingDefinition
+  (diagnostics + JoinChainEmission's class-typed arm) and a ModelBuilder.
+  Leg: give the expansion a mapping-less owner (diagnostic context), then
+  the checker synths the view relation for an accessor on a view.
+- testJoinFunc (+4 in the "not a known class" bucket): `TestClass` in
+  meta::pure::tds::toRelation resolves nowhere in the spec checkout
+  (no such class in that package; the file imports only join::* and
+  toRelation::*) — an engine oddity, or the bare name resolves through
+  a package we do not model. Census the 5 before touching.
+- testFirstNotNull: `[TDSNull, 1, 2]->firstNotNull()` — the generic T of
+  firstNotNull stays unbound at lowering (the collection's element type
+  over a TDSNull cell + Integer). Typer binding leg (the lub of the null
+  cell and a primitive is the primitive).
+- testExtendDigest_InMemory (+2 unbound `_nrN`): extendWithDigestOnColumns
+  (tdsExtension.pure:209) inlines `toStringForColAccessor($col)->eval($row)`
+  — a function-valued helper over a pair list; the α-renamed binder
+  escapes its scope in the deferred colspec. Inliner leg.
+- testSortQuotes (+1): assertEquals INSIDE a forAll lambda body over a
+  spelled enum list — the verdict is statement-level only; an unroll of
+  forAll over a spelled list into its bodies is the leg.
+- testSQLComments: RelationalActivity.comment's executionTraceID —
+  execution activity metadata; low value.
+- testEnumTheSame's second assert (`EmployeeType.CONTRACT == $map1`)
+  declines the sql-verdict ("enum kind has no literal channel", V7
+  batch 2 decision) and is judged by the canon channel — an enum
+  literal channel is a verdict-quality leg, not a pass.
+- Dynamic mapping compilation (getNoArgFlattenMapping compiles a
+  mapping from a STRING), FunctionExpression reflection
+  (testRoutingContextBuilderFunctions `$fe.func`): decisions.

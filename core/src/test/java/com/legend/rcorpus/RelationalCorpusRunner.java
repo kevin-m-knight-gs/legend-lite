@@ -809,8 +809,15 @@ public class RelationalCorpusRunner {
                     // passes 2377 stable)
                     // 4 -> 1 (batch 41): the flipped projection tests' text-
                     // matched sql-asserts left the walk's lane (lane move)
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 1,
-                    "M1 h2-exec verified fell below the 1 floor: "
+                    // 1 -> 0 (batch 56, 2026-09-04): the LAST walk-lane
+                    // test (testLessThanFilterAsVariable — a let-bound
+                    // lambda in filter position) flipped to the platform
+                    // arm; its sql-assert row-verifies through the oracle
+                    // SPI (sql-verdict agree +1, disagree 0). The walk's
+                    // M1 lane is RETIRED: pinned EXACTLY EMPTY — a test
+                    // re-entering it is a regression to the walk.
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() == 0,
+                    "M1 h2-exec walk lane is retired (pinned empty), got "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -1039,7 +1046,12 @@ public class RelationalCorpusRunner {
             // sql-assert left the walk's lane (its let-bound
             // getNames()->at(0) is a literal-collection fold; lane move,
             // disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(58, execPassing,
+            // 58 -> 57 (batch 56, 2026-09-04): the flipped let-bound-lambda
+            // filter test (testLessThanFilterAsVariable) left the walk's
+            // lane — the walk's M1 text-match lane is now EMPTY (pinned
+            // retired above); its sql-assert row-verifies through the
+            // oracle SPI (sql-verdict agree +1, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(57, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1743,10 +1755,21 @@ public class RelationalCorpusRunner {
             // navigate slot named after a relation accessor (columns/rows)
             // mints clear of it. +1 flip (TableAliasColumn), 0 lost;
             // sql-verdict disagree 0; dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(245L,
+            // Batch 56 (2026-09-04, no-decision singles): a LET-BOUND
+            // lambda literal in a CORE construct's argument position is
+            // its literal (Typer.expandLetBoundLambdaArgs — let is
+            // immutable and referentially transparent; generic/user calls
+            // keep the function VALUE); a MAPPING element read as a
+            // metamodel value (mapping.enumerationMappings) is a property
+            // access over its system-store row exactly like a database's
+            // (Typer.metamodelElementClass). +2 flips
+            // (testLessThanFilterAsVariable, testEnumTheSame), 0 lost;
+            // sql-verdict disagree 0; dual-channel disagree 0; lane move
+            // exec-passing 58 -> 57 (the walk's M1 lane retired, 1 -> 0).
+            org.junit.jupiter.api.Assertions.assertEquals(243L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2328L,
+            org.junit.jupiter.api.Assertions.assertEquals(2330L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

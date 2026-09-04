@@ -1253,6 +1253,7 @@ final class Typer {
      * delegates the rest back to {@link #applyGeneric}.
      */
     private TypedSpec applyCore(CoreFn fn, AppliedFunction af, Env env) {
+        af = expandLetBoundLambdaArgs(af, env);
         return switch (fn) {
             case LET -> LetChecker.check(this, af, env);
             // leg 3b: deactivate(e) is COMPILE-TIME reflection — the node
@@ -1582,13 +1583,34 @@ final class Typer {
         // like a body binder (corpus: `let r = execute(...)` vs the body's
         // `filter(r:TDSRow[1]|…)`) must never be captured by the splice.
         ValueSpecification body = SourceSubst.substitute(
-                alphaRename(folded.body().get(0)), subst);
+                alpha.apply(folded.body().get(0)), subst);
         normalizing.push(key);
         try {
             return synth(new StaticFold(this, env).fold(body), env);
         } finally {
             normalizing.pop();
         }
+    }
+
+    /** A LET-BOUND lambda literal in a CORE construct's argument position
+     * ({@code let f = t|$t.quantity < 45; ->filter($f)}) is its literal:
+     * pure's let is immutable and referentially transparent, and the core
+     * checkers type a lambda literal against their signature
+     * ({@link Args#lambda}) — the engine's router inlines the value at
+     * the same point. Generic and user calls (execute's query carrier)
+     * keep the variable: their checkers take the function VALUE. */
+    private AppliedFunction expandLetBoundLambdaArgs(AppliedFunction af, Env env) {
+        List<ValueSpecification> np = null;
+        for (int i = 0; i < af.parameters().size(); i++) {
+            if (af.parameters().get(i) instanceof Variable v
+                    && env.exprAlias(v.name()).orElse(null) instanceof LambdaFunction bound) {
+                if (np == null) {
+                    np = new ArrayList<>(af.parameters());
+                }
+                np.set(i, bound);
+            }
+        }
+        return np == null ? af : af.withParameters(np);
     }
 
     /** A helper CALL returning a function value over the schema-erasing TDS
@@ -1669,47 +1691,11 @@ final class Typer {
             subst.put(chosen.parameters().get(i).name(), af.parameters().get(i));
         }
         return SourceSubst.substitute(
-                alphaRename(folded.body().get(0)), subst);
+                alpha.apply(folded.body().get(0)), subst);
     }
 
-    private int nrFresh;
-
-    /** Rename every lambda binder in an inlined body to a fresh {@code _nr<N>}
-     * (outermost-first; occurrence substitution is shadow-aware, so inner
-     * same-named binders keep their own scopes until their own rename). */
-    private ValueSpecification alphaRename(ValueSpecification v) {
-        return switch (v) {
-            case LambdaFunction lf -> {
-                java.util.Map<String, ValueSpecification> ren = new java.util.LinkedHashMap<>();
-                List<com.legend.protocol.spec.Variable> params = new ArrayList<>(lf.parameters().size());
-                for (com.legend.protocol.spec.Variable p : lf.parameters()) {
-                    String fresh = "_nr" + nrFresh++;
-                    ren.put(p.name(), new com.legend.protocol.spec.Variable(
-                            fresh, p.type(), p.multiplicity()));
-                    params.add(new com.legend.protocol.spec.Variable(
-                            fresh, p.type(), p.multiplicity()));
-                }
-                yield new LambdaFunction(params, lf.body().stream()
-                        .map(b -> alphaRename(SourceSubst.substitute(b, ren)))
-                        .toList());
-            }
-            case AppliedFunction af2 -> af2.withParameters(
-                    af2.parameters().stream().map(this::alphaRename).toList());
-            case com.legend.protocol.spec.AppliedProperty ap -> new com.legend.protocol.spec.AppliedProperty(
-                    alphaRename(ap.receiver()), ap.property());
-            case com.legend.protocol.spec.PureCollection pc -> new com.legend.protocol.spec.PureCollection(
-                    pc.values().stream().map(this::alphaRename).toList());
-            case com.legend.protocol.spec.ColSpec cs -> new com.legend.protocol.spec.ColSpec(cs.name(),
-                    cs.function1() == null ? null : (LambdaFunction) alphaRename(cs.function1()),
-                    cs.function2() == null ? null : (LambdaFunction) alphaRename(cs.function2()),
-                    cs.alias(),
-                    cs.args().stream().map(this::alphaRename).toList());
-            case com.legend.protocol.spec.ColSpecArray ca -> new com.legend.protocol.spec.ColSpecArray(
-                    ca.colSpecs().stream()
-                            .map(c -> (com.legend.protocol.spec.ColSpec) alphaRename(c)).toList());
-            default -> v.mapChildren(this::alphaRename);
-        };
-    }
+    /** Fresh binder names for inlined bodies (one counter per typer). */
+    private final AlphaRename alpha = new AlphaRename();
 
     /**
      * Run the generic application rule without emitting a node &mdash; the CHECK
@@ -3190,6 +3176,19 @@ final class Typer {
         return Multiplicity.product(outer, inner);
     }
 
+    /** The platform class a packageable ELEMENT reads as when it is used
+     * as a metamodel VALUE (its system-store row): a database or a
+     * mapping; null for any other name. */
+    private @com.legend.Nullable String metamodelElementClass(String fqn) {
+        if (ctx.findDatabase(fqn).isPresent()) {
+            return "meta::relational::metamodel::Database";
+        }
+        if (ctx.findMapping(fqn).isPresent()) {
+            return "meta::pure::mapping::Mapping";
+        }
+        return null;
+    }
+
     /** An enum value reference {@code Kind.VALUE}: both the enumeration and the value must exist. */
     private TypedSpec enumValue(EnumValue ev) {
         if (System.getenv("LL_TDG_DEBUG") != null
@@ -3197,19 +3196,20 @@ final class Typer {
             System.err.println("[tdg-debug] enumValue fqn=" + ev.fullPath()
                     + " found=" + ctx.findEnum(ev.fullPath()).isPresent());
         }
-        // Enum.VALUE and <dbElement>.property parse identically — a
-        // DATABASE element on the left is store-METAMODEL property
-        // access (db.schemas, the typeInference walk surface)
-        if (ctx.findEnum(ev.fullPath()).isEmpty()
-                && ctx.findDatabase(ev.fullPath()).isPresent()) {
-            String dbCls = "meta::relational::metamodel::Database";
-            var dbRef = new com.legend.compiler.spec.typed
+        // Enum.VALUE and <element>.property parse identically — a
+        // DATABASE or MAPPING element on the left is METAMODEL property
+        // access over the element's own system-store row (db.schemas,
+        // mapping.enumerationMappings — the typeInference walk surface)
+        String elCls = ctx.findEnum(ev.fullPath()).isEmpty()
+                ? metamodelElementClass(ev.fullPath()) : null;
+        if (elCls != null) {
+            var elRef = new com.legend.compiler.spec.typed
                     .TypedPackageableRef(ev.fullPath(),
-                            ExprType.one(new Type.ClassType(dbCls)));
-            var pd = ctx.findProperty(dbCls, ev.value()).orElseThrow(
-                    () -> new TypeInferenceException("class Database has"
-                            + " no property '" + ev.value() + "'"));
-            return new TypedPropertyAccess(dbRef, ev.value(),
+                            ExprType.one(new Type.ClassType(elCls)));
+            var pd = ctx.findProperty(elCls, ev.value()).orElseThrow(
+                    () -> new TypeInferenceException("class " + elCls
+                            + " has no property '" + ev.value() + "'"));
+            return new TypedPropertyAccess(elRef, ev.value(),
                     new ExprType(pd.type(), pd.multiplicity()));
         }
         var en = ctx.findEnum(ev.fullPath()).orElseThrow(() -> new TypeInferenceException(

@@ -73,7 +73,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| tests/mapping/enumeration | 26 | 21 | 3 | 2 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/enumeration | 26 | 22 | 3 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/filter | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2414** | 46 | 82 | 33 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2415** | 46 | 81 | 33 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2414 PASS = 2353 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2415 PASS = 2354 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -669,7 +669,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2414 PASS = 2353 clean + 61 carrying softness (
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1, t5.ID... |                     ^
 - ERROR testEnumInRelation [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testEnumTheSame [tests/mapping/enumeration]: unknown enumeration 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping'
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true]
