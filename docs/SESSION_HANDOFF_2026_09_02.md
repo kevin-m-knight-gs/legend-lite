@@ -3061,3 +3061,64 @@ hacks"):**
   Then task #5: census core/target/wholetest-flip-fallbacks.txt by bucket,
   biggest no-decision buckets first, each batch measured + gated +
   committed + pushed.
+
+**Design notes written while hot (2026-09-04, after batch 55c; user
+order: TableAliasColumn first, then everything without a design, the
+recursive CTE LAST):**
+
+  testConvertTableAliasColumn — state: `Table.columns[col]: @TableToColumns`
+  is mapped (self-join, `{target}`), `JoinChainEmission.classTypedTargetIfMapped`
+  treats a property whose declared class is an abstraction of mapped
+  classes as a navigation (Table.columns : RelationalOperationElement[*]
+  routed to the Column set), and `mintNavSlotAlias` mints clear of the
+  platform's relation accessors (`columns`, `rows`) — a slot named
+  `columns` read as the row var's `.columns` accessor (typed String) — all
+  three in the tree, wall moved to: "class-typed property '$_r0.columns'
+  used as a whole value is graph output" (Substitution.rewriteHeadProp).
+  The leg: a POSITIONAL PICK over a to-many navigation inside a row's
+  projection (`$t.columns->at(0)->cast(@Column).name`). Join form (the
+  ruling): a RANKED navigation material — the target rows joined with
+  `row_number() OVER (PARTITION BY <join keys> ORDER BY ordinal) = k+1`
+  (a new NavMaterializer material kind; at(k) → rank k+1, first → 1),
+  never a correlated scalar subquery. Needs the store's column ORDINAL:
+  `RelationalOpRows.columnRow` does not set `relational_elements.ordinal`
+  (index 8) — MetamodelSeeds' column loops (lines ~447-461) must pass the
+  declaration index. One witness today; rank by tests-per-design.
+
+  testConvertJoinTreeNode / testConvertSelectSQLQuery — recursion over
+  the mapping's join-tree ROWS (`preOrderTraversal`: `$r->concatenate(
+  $r->children()->map(c|$c->preOrderTraversal()))`, children row-backed).
+  Facts: the row-backed `$c` keeps every match arm live in the cascade
+  (the honest first step is the loud wall — apply the systemRowClasses
+  narrowing to a VARIABLE bound to a system row, then the recursion
+  stands as "recursion over row-backed children"); the join-tree depth
+  is a compile-time fact of the mapping's rows (the seed knows it), so
+  a depth-bounded unroll is an honest alternative to a recursive CTE;
+  the CTE form: WITH RECURSIVE over join_tree rows (parent_id) producing
+  (node, depth, path) in pre-order, then the fold over the ordered rows
+  — a new execution shape with these two witnesses only. LAST.
+
+  The TableAliasColumn mechanism pieces (mapping `Table.columns[col]:
+  @TableToColumns` + join; `classTypedTargetIfMapped` accepting an
+  abstraction of mapped classes; `mintNavSlotAlias` clear of the
+  relation accessors `columns`/`rows`; the `column()` SystemMetamodel
+  view) are SAVED, not committed — they move a wall, not the ratchet:
+  docs/patches-table-alias-column-leg-2026-09-04.patch (corpus-measured
+  green at 246/2327 without the view; apply with `git apply`). Land them
+  with the ranked-navigation leg.
+
+  CENSUS after 55c (core/target/wholetest-flip-fallbacks.txt, 246): a long
+  tail — the largest buckets are "Assert failed" 11 (real divergences, one
+  probe each), "unknown function" 15 across 8 names (contextHasFlag 3 and
+  isExecutionOptionPresent 1 are programs over a LITERAL execution
+  context in engine core files — admit executionPlanFeature.pure /
+  executionPlan_generation.pure's helpers as library input and let the
+  unroll fold them; routeFunction 2 = engine internals, skip;
+  tdsToJSONKeyValueObjectString 1 = a TDS→JSON-string lowering, one
+  native rule with engine key-value spelling parity; `column` 1 =
+  testImportDataFlow, which then needs pureToSqlQuery internals — skip),
+  hNversion 7 (H2VERSION decision), TDG chained-fetch declines 12
+  (decision), "TypeInferenceException in call to" 5, unbound variable 3,
+  overload shapes 3+3, plan-text operation holes 3. Order: the singles
+  that need no ruling first, then TableAliasColumn's ranked navigation,
+  the recursive CTE last.
