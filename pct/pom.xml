@@ -229,6 +229,21 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <useSystemClassLoader>false</useSystemClassLoader>
+                    <!-- A JVM PER SUITE. Each PCT suite builds a Pure
+                         repository and RETAINS it after finishing, so in one
+                         reused fork the live set climbs suite by suite and
+                         never comes back down — measured at a 4g cap, the
+                         post-full-GC live set went 1570M, 1661M, 2473M, 2562M,
+                         3330M, 3924M, 4035M and then pinned against the
+                         ceiling until Unclassified, the LAST suite, died with
+                         OutOfMemoryError in suite(). A bigger -Xmx only buys
+                         one more suite and the next one added takes it back;
+                         letting each suite's JVM exit bounds the peak at one
+                         suite's ~1.7g instead of the running total. Costs
+                         nothing measurable: 217s either way, because the
+                         repository build dominates and happens per suite
+                         regardless. -->
+                    <reuseForks>false</reuseForks>
                     <!-- PCT failures FAIL the build: known divergences are
                          LEDGERED as expectedFailures pins (reference-adapter
                          parity), never swallowed here. -->

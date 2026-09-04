@@ -108,7 +108,19 @@
                          against the pinned 876/1697). One clock, the
                          engine's. -->
                     <configuration>
-                        <argLine>-Duser.timezone=GMT</argLine>
+                        <!-- -Xmx3g: the SUREFIRE FORK's heap, and this is the
+                             only place that sets it. MAVEN_OPTS belongs to the
+                             maven JVM and never reaches the fork, and neither
+                             does -DargLine, because an explicit <argLine> here
+                             overrides the property of the same name. Unset, the
+                             fork took the JVM default of 25% of RAM — ~4g on a
+                             16g linux/windows runner, ~1.75g on a 7g macOS one,
+                             ~24g on a 96g workstation. So the suites ran with a
+                             different heap on every machine, passed locally,
+                             and OOM'd in CI: pct needs ~1.7g for one suite and
+                             macOS gave it 1.75g. An explicit value makes the
+                             heap a property of the BUILD, not of the runner. -->
+                        <argLine>-Duser.timezone=GMT -Xmx3g</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
