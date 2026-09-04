@@ -1683,10 +1683,23 @@ public class RelationalCorpusRunner {
             // and a helper-wrapped assert over CLASS values is judged by
             // the key tree (a wider-declared side by its wire __type).
             // +12 (toPostgresModel literal-only slice A), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(255L,
+            // 255/2318 -> 252/2321 (batch 55a, 2026-09-04): the Java port
+            // of toPostgresModel and the host metamodel walk are DELETED
+            // (MetamodelWalk 905 + MetamodelSteps 156 + the executor's
+            // planWalk/constructNode/constructOp/nodeValue/walkProp/
+            // walkFilter arms, 583 lines); the three tests the walk still
+            // scored ride the platform: SQLExecutionNode.connection and
+            // its datasource specification are plan rows
+            // (plan_connections / plan_connection_sqls, PlanRows.
+            // connectionRows), a property-less class constructor is the
+            // identity struct (__type alone), assertInstanceOf over a class
+            // value is the wire's __type up the model's subtype relation
+            // (the harness's NodeH string-match arm is deleted). +3, 0 lost
+            // (per-family counts and decline rosters identical).
+            org.junit.jupiter.api.Assertions.assertEquals(252L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2318L,
+            org.junit.jupiter.api.Assertions.assertEquals(2321L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

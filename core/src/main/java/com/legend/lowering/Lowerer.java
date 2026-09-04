@@ -2723,7 +2723,10 @@ public final class Lowerer {
                                             n.properties().get("second"),
                                             "Pair carries second"), columns))));
                 }
-                var layout = classLayout.apply(n.info().type()).orElseThrow(() ->
+                // a property-less class's constructor: the synthetic fields alone
+                var layout = classLayout.apply(n.info().type()).or(() -> n.properties().isEmpty()
+                        ? Optional.of(com.legend.compiler.element.ClassLayouts.syntheticOnlyLayout(instanceIdOf != null))
+                        : Optional.empty()).orElseThrow(() ->
                         new IllegalStateException("class value ^" + n.classFqn()
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));

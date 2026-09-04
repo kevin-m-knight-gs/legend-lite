@@ -2689,3 +2689,53 @@ unrolls to the struct literal, and the ledger is back to 0 (the test itself
 stays a fallback: its verdict is the polymorphic nested-key canon, task #45).
 Chain GREEN: G1 44s (4,396), G2 8s, G4 61s, G5 44s, G6 78s, G7 26s, G9 18s,
 G8 72s.
+
+**Batch 55a — THE JAVA PORT IS DELETED (2026-09-04): ratchet 255/2318 →
+252/2321 (+3, 0 lost; disagree 0).** The user asked why batch 54's measure
+of success — deleting the port — had not happened. Receipt first: a probe
+that cut the walk at its one entry (`planWalk` at the statement root) left
+the ratchet UNMOVED and dropped the family scoreboard by exactly three
+(executionPlan 79 → 77, sqlDialectTranslation 12 → 11): the walk was
+invisible to the ratchet (a walk-scored test is a fallback either way) and
+still scored `testDatabaseConnectionSQLPopulation` + Legacy (the
+`SQLExecutionNode.connection` read — the plan rows carried no connection)
+and `testConvertLiteral` (`^NullLiteral()`, a property-less class with no
+canonical layout). Landed: (1) the plan node's connection as ROWS —
+`plan_connections(node_id, kind, db_type, test_data_setup_csv, ds_kind,
+ds_test_data_setup_csv)` + `plan_connection_sqls(node_id, owner, ordinal,
+text)` (PlanRows.connectionRows; MetamodelSeeds lists them as query-riding),
+mapped as `TestDatabaseConnection[pcTest]` / `RelationalDatabaseConnection
+[pcRel]` under a `DatabaseConnection` inheritance operation and
+`LocalH2DatasourceSpecification[dsH2]` under `DatasourceSpecification`
+(self-join on the connection row; `testDataSetupSqls` through the owner-
+filtered join), routed from `SQLExecutionNode.connection`; the generator
+now emits LocalH2DatasourceSpecification (platform demand). The cast raise
+beside a to-many leaf (`Substitution.castLeafRead`) is stamped per joined
+row — the list is the aggregation above the CASE (the stamp census caught
+the [0..*] raise). (2) A property-less class's constructor is the synthetic
+fields alone (`ClassLayouts.syntheticOnlyLayout`: `__id`+`__type` in an
+identity lane, `__type` in a plain lane). FIRST CUT REVERTED: giving every
+field-less class a layout made `Any` a struct and broke 144 verdicts — the
+rule lives at the constructor, never on the declared type. (3)
+`assertInstanceOf` over a class value: the platform verdict reads the wire's
+`__type` (decoded through `Executor.structured`) up `ctx.isSubtype`; over a
+conforming LITERAL it folds to the spelled-true assert (ledger
++assertInstanceOf). Then the deletion: `MetamodelWalk` (905), `MetamodelSteps`
+(156), the executor's walk arms (583 lines), the harness's `instanceOfAssert`
+NodeH arm; ledger rows/pins moved with receipts. Chain GREEN ~6 min.
+
+What is LEFT on the Java-evaluation register after 55a (JavaEvalLedgerTest,
+stripped lines): StatementExecutor 2,699 (the K-arm executor itself —
+orchestration, frames, verdict routing), AssertVerdicts 1,576 (assert
+verdicts over wire values), PlanText 845 (the engine-text plan PRINTER — a
+Java-stamped printer the routed-tree-rows leg retires), SqlTextVerdicts 690
+(SQL-text assert arms), TdsCompare 444, PureAsserts 313, AggAwareActivities
+227 (the routed-query printer), StoreNav 199, DynamicPivot 118, JsonCompare
+70, GridProbe 52, plus the pct bridge (ValueBridge 355, ModelPacker 266,
+PctExecuteNative 131). Java-stamped FACTS still in main: PkInference,
+ScanRelations/ScanColumns walks (lineage rows), the plan MODEL (planModel/
+planConnOf — the lowering's product that PlanRows turns into rows). The
+walk-era harness lane (`EngineTestExecutor`, core/src/test) still scores the
+252 fallbacks. Hand shapes in Pure.java: 76 (m3 bootstrap, primitives,
+carriers, six SYSTEM-STORE-COUPLED). Nothing of the toPostgresModel port
+remains.

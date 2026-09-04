@@ -481,6 +481,13 @@ final class LiteralUnroll {
             return literal(a.get(0)).flatMap(lit -> typeTargetFqn(a.get(1))
                     .<TypedSpec>map(fqn -> bool(accepts(ctx, lit.cls(), fqn)))).orElse(c);
         }
+        // assertInstanceOf(literal, T) over a CONFORMING literal is the
+        // spelled-true assert (a non-conforming one raises — the database's)
+        if (is(c, "assertInstanceOf") && a.size() >= 2) {
+            return literal(a.get(0)).flatMap(lit -> typeTargetFqn(a.get(1))
+                    .filter(fqn -> accepts(ctx, lit.cls(), fqn))
+                    .<TypedSpec>map(fqn -> bool(true))).orElse(c);
+        }
         // scalar equality of the SAME kind only: a cross-kind compare
         // (1 == 1.0) is the database's verdict (SQL numeric coercion —
         // EqualityWorldsConformanceTest's declared divergence)

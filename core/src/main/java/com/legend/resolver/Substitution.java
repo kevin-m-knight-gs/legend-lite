@@ -2222,9 +2222,13 @@ final class Substitution {
         if (totalMembership(sub)) {
             return leaf;
         }
+        // the raise stands PER JOINED ROW beside the leaf column (a to-many
+        // leaf's list is the aggregation above this CASE): its stamp is
+        // the scalar position, never the read's list multiplicity
         return new TypedIf(witnessTest(fqn), leaf,
                 Optional.of(raise("Cast exception: " + target.classFqn()
-                        + " cannot be cast to " + fqn, pa.info())),
+                        + " cannot be cast to " + fqn,
+                        new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
                 pa.info());
     }
 

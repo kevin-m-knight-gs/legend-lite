@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 432 classes. */
+    /** 431 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -187,6 +187,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::MiddleTierUserNamePasswordAuthenticationStrategy extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy { <<equality.Key>> vaultReference: meta::pure::metamodel::type::String[1]; }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::specification::DatasourceSpecification { }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::specification::DuckDBDatasourceSpecification extends meta::pure::alloy::connections::alloy::specification::DatasourceSpecification { <<equality.Key>> path: meta::pure::metamodel::type::String[0..1]; <<equality.Key>> testDataSetupCsv: meta::pure::metamodel::type::String[0..1]; <<equality.Key>> testDataSetupSqls: meta::pure::metamodel::type::String[*]; }"),
+            Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification extends meta::pure::alloy::connections::alloy::specification::DatasourceSpecification { <<equality.Key>> testDataSetupCsv: meta::pure::metamodel::type::String[0..1]; <<equality.Key>> testDataSetupSqls: meta::pure::metamodel::type::String[*]; <<equality.Key>> disableDatabaseToUpper: meta::pure::metamodel::type::Boolean[0..1]; }"),
             Pure.nativeClass("native Class meta::pure::data::EmbeddedData { }"),
             Pure.nativeClass("native Class meta::pure::dataQuality::Checked<T> { defects: meta::pure::dataQuality::Defect[*]; source: meta::pure::metamodel::type::Any[0..1]; value: T[0..1]; }"),
             Pure.nativeClass("native Class meta::pure::dataQuality::Defect { id: meta::pure::metamodel::type::String[0..1]; externalId: meta::pure::metamodel::type::String[0..1]; message: meta::pure::metamodel::type::String[0..1]; enforcementLevel: meta::pure::dataQuality::EnforcementLevel[0..1]; ruleDefinerPath: meta::pure::metamodel::type::String[1]; ruleType: meta::pure::dataQuality::RuleType[1]; path: meta::pure::dataQuality::RelativePathNode[*]; }"),
@@ -470,8 +471,6 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::relational::metamodel::relation::TdsSelectSqlQuery extends meta::relational::metamodel::relation::SelectSQLQuery, meta::relational::metamodel::RelationalTds { }"),
             Pure.nativeClass("native Class meta::relational::metamodel::relation::TemporalMilestoning extends meta::relational::metamodel::relation::Milestoning { infinityDate: meta::pure::metamodel::type::Date[0..1]; }"),
             Pure.nativeClass("native Class meta::relational::metamodel::relation::TemporalSnapshotMilestoning extends meta::relational::metamodel::relation::TemporalMilestoning { snapshotDate: meta::relational::metamodel::Column[1]; }"),
-            Pure.nativeClass("native Class meta::relational::metamodel::relation::Union extends meta::relational::metamodel::relation::Relation { currentTreeNodes: meta::relational::metamodel::join::RelationalTreeNode[*]; setImplementations: meta::pure::mapping::SetImplementation[*]; queries: meta::relational::metamodel::relation::SelectSQLQuery[*]; }"),
-            Pure.nativeClass("native Class meta::relational::metamodel::relation::UnionAll extends meta::relational::metamodel::relation::Union { }"),
             Pure.nativeClass("native Class meta::relational::metamodel::relation::View extends meta::relational::metamodel::relation::NamedRelation, meta::relational::metamodel::RelationalMappingSpecification, meta::pure::metamodel::extension::AnnotatedElement { schema: meta::relational::metamodel::Schema[1]; primaryKey: meta::relational::metamodel::Column[*]; columnMappings: meta::relational::mapping::ColumnMapping[*]; }"),
             Pure.nativeClass("native Class meta::relational::metamodel::relation::ViewSelectSQLQuery extends meta::relational::metamodel::relation::Table { selectSQLQuery: meta::relational::metamodel::relation::SelectSQLQuery[1]; view: meta::relational::metamodel::relation::View[1]; }"),
             Pure.nativeClass("native Class meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor extends meta::pure::alloy::connections::PostProcessor { }"),

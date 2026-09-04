@@ -529,8 +529,9 @@ final class ArchitectureTest {
 
     /**
      * <strong>E4 final burn — the INTERPRETER performs no JDBC.</strong>
-     * The metamodel channel (MetamodelWalk, MetamodelSteps,
-     * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS only:
+     * The metamodel channel (PlanText, AggAwareActivities — MetamodelWalk
+     * and MetamodelSteps were DELETED in batch 55a) evaluates MODEL
+     * CONSTANTS only:
      * grid chains COMPILE to SQL at the exec seam
      * ({@code GridReads.tryLower} — its JDBC sites are the chartered
      * grid egress, pinned by the eval ledger and scheduled for deletion
@@ -542,8 +543,7 @@ final class ArchitectureTest {
     @Test
     void theInterpreterPerformsNoJdbc() {
         noClasses()
-            .that().haveNameMatching(".*\\.(MetamodelWalk"
-                    + "|MetamodelSteps|PlanText|AggAwareActivities)")
+            .that().haveNameMatching(".*\\.(PlanText|AggAwareActivities)")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.sql..", "javax.sql..",
                     "org.duckdb..", "org.h2..")

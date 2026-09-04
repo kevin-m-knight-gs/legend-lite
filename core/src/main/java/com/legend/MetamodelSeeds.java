@@ -70,6 +70,7 @@ public final class MetamodelSeeds {
             // graph-lifetime store holds none
             case "plans", "plan_nodes", "plan_template_functions",
                     "plan_function_parameters", "plan_node_closure",
+                    "plan_connections", "plan_connection_sqls",
                     // function bodies ride the query too (FunctionBodyRows)
                     "functions", "value_specifications", "vs_primary_key_columns",
                     // lineage trees ride the query too (LineageRows)

@@ -542,6 +542,18 @@ final class AssertVerdicts {
                 if (type == null) {
                     return null;   // non-literal type arg — fall through
                 }
+                // a CLASS value's wire carries its classifier (__type,
+                // batch 53): instanceOf is the model's subtype relation
+                // (a property-less class such as NullLiteral has nothing
+                // else on the wire)
+                if (com.legend.exec.Executor.structured(v) instanceof java.util.Map<?, ?> m
+                        && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
+                                instanceof String wireType) {
+                    boolean ok = wireType.equals(type)
+                            || env.ctx().isSubtype(wireType, type);
+                    return ok ? ok() : fail("expected an instance of " + type
+                            + ", actual: " + wireType);
+                }
                 String d = PureAsserts.assertInstanceOf(v, type);
                 return d == null ? ok() : fail(d);
             }

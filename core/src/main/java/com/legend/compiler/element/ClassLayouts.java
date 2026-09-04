@@ -87,6 +87,19 @@ public final class ClassLayouts {
         return Optional.of(List.copyOf(out));
     }
 
+    /** The layout of a constructed value of a class with NO stored
+     * properties (toPostgresModel's {@code ^NullLiteral()}, {@code
+     * ^SQLNull()}): its only data is its class and, in an identity lane,
+     * its identity — the synthetic fields alone (a plain lane carries
+     * {@code __type} only; an empty struct is not a SQL value). */
+    public static List<Type.Column> syntheticOnlyLayout(boolean withIdentity) {
+        var opt = new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1);
+        Type.Column type = new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING, opt);
+        return withIdentity
+                ? List.of(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING, opt), type)
+                : List.of(type);
+    }
+
     private static Optional<List<Type.Column>> plainLayoutOf(ModelContext ctx, Type t) {
         return switch (t) {
             case Type.ClassType ct when !PlatformTypes.isVariant(ct) ->

@@ -41,6 +41,8 @@ class LiteralUnrollLedgerTest {
             // a spelled-true assert is a no-op; an enumeration's values are
             // its declaration; dynamicNew over spelled keys is the instance literal
             "assert", "enumValues", "dynamicNew", "isTrue",
+            // assertInstanceOf over a conforming literal = assert(true)
+            "assertInstanceOf",
             // spelled-integer compares (same-kind identity, as equal/eq)
             "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual",
             // a spelled pair(a, b) IS an instance literal (first/second)

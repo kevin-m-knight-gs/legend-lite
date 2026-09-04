@@ -76,7 +76,47 @@ public final class PlanRows {
         out.put("plan_template_functions", fns);
         out.put("plan_function_parameters", params);
         out.put("plan_node_closure", closure);
+        List<List<String>> conns = new ArrayList<>();
+        List<List<String>> connSqls = new ArrayList<>();
+        connectionRows(planId, root, null, 0, conns, connSqls);
+        out.put("plan_connections", conns);
+        out.put("plan_connection_sqls", connSqls);
         return out;
+    }
+
+    /** A node's CONNECTION as rows: plan_connections(node_id, kind,
+     * db_type, test_data_setup_csv, ds_kind, ds_test_data_setup_csv) and
+     * plan_connection_sqls(node_id, owner, ordinal, text) — the engine's
+     * plan carries the runtime connection on every SQLExecutionNode with
+     * processRuntimeTestConnections' DDL expansion on testDataSetupSqls
+     * (owner 'conn' = the connection's own sqls, 'ds' = its
+     * LocalH2DatasourceSpecification's). Node ids follow {@link #emit}. */
+    private static void connectionRows(String planId, PlanNode n, @com.legend.Nullable String parentId,
+            int ordinal, List<List<String>> conns, List<List<String>> sqls) {
+        String id = planId + "/" + (parentId == null ? "root" : parentId.substring(planId.length() + 1) + "." + ordinal);
+        PlanConn c = n.connection();
+        if (c != null) {
+            PlanConn.DsSpec ds = c.datasourceSpecification();
+            List<String> row = new ArrayList<>();
+            row.add(id);
+            row.add(c.kind());
+            row.add(c.type());
+            row.add(c.testDataSetupCsv());
+            row.add(ds == null ? null : ds.kind());
+            row.add(ds == null ? null : ds.testDataSetupCsv());
+            conns.add(row);
+            for (int i = 0; i < c.testDataSetupSqls().size(); i++) {
+                sqls.add(List.of(id, "conn", Integer.toString(i), c.testDataSetupSqls().get(i)));
+            }
+            if (ds != null) {
+                for (int i = 0; i < ds.testDataSetupSqls().size(); i++) {
+                    sqls.add(List.of(id, "ds", Integer.toString(i), ds.testDataSetupSqls().get(i)));
+                }
+            }
+        }
+        for (int i = 0; i < n.children().size(); i++) {
+            connectionRows(planId, n.children().get(i), id, i, conns, sqls);
+        }
     }
 
     private static String emit(String planId, PlanNode n, @com.legend.Nullable String parentId,

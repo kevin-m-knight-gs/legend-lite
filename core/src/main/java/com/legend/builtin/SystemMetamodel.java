@@ -106,6 +106,16 @@ public final class SystemMetamodel {
             sb.append("                Filter Pn").append(k[1])
                     .append("(metamodel.plan_nodes.kind = '").append(k[1]).append("')\n");
         }
+        // the plan connection kinds and datasource-specification kinds over
+        // the ONE plan_connections table (PlanRows.connectionRows)
+        for (String[] k : CONNECTION_KINDS) {
+            sb.append("                Filter Pc").append(k[1])
+                    .append("(metamodel.plan_connections.kind = '").append(k[1]).append("')\n");
+        }
+        for (String[] k : DATASOURCE_KINDS) {
+            sb.append("                Filter Ds").append(k[1])
+                    .append("(metamodel.plan_connections.ds_kind = '").append(k[1]).append("')\n");
+        }
         // the expression-tree node kinds over the ONE value_specifications table
         for (String[] k : VS_KINDS) {
             sb.append("                Filter Vs").append(k[1])
@@ -131,7 +141,29 @@ public final class SystemMetamodel {
         {"meta::relational::mapping::RelationalInstantiationExecutionNode", "RelationalInstantiationExecutionNode", "pnRel", ""},
         {"meta::relational::mapping::SQLExecutionNode", "SQLExecutionNode", "pnSql",
             "sqlQuery: " + S + " metamodel.plan_nodes.sql_query,\n"
-            + "                    sqlComment: " + S + " metamodel.plan_nodes.sql_comment"},
+            + "                    sqlComment: " + S + " metamodel.plan_nodes.sql_comment,\n"
+            + "                    connection[pcTest]: " + S + "@NodeToConnection,\n"
+            + "                    connection[pcRel]: " + S + "@NodeToConnection"},
+    };
+
+    /** The plan CONNECTION kinds (the engine's plan carries the runtime
+     * connection on every SQLExecutionNode — PlanRows.connectionRows):
+     * {class FQN, kind spelling, set id, own property lines}. The base
+     * DatabaseConnection is the inheritance operation over them. */
+    static final String[][] CONNECTION_KINDS = {
+        {"meta::external::store::relational::runtime::TestDatabaseConnection", "TestDatabaseConnection", "pcTest",
+            "testDataSetupCsv: " + S + " metamodel.plan_connections.test_data_setup_csv,\n"
+            + "                    testDataSetupSqls: " + S + "@ConnToSqls | metamodel.plan_connection_sqls.text"},
+        {"meta::external::store::relational::runtime::RelationalDatabaseConnection", "RelationalDatabaseConnection", "pcRel",
+            "datasourceSpecification[dsH2]: " + S + "@ConnToDatasource"},
+    };
+
+    /** The datasource-specification kinds over the same connection row
+     * (ds_kind): {class FQN, kind spelling, set id, own property lines}. */
+    static final String[][] DATASOURCE_KINDS = {
+        {"meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification", "LocalH2DatasourceSpecification", "dsH2",
+            "testDataSetupCsv: " + S + " metamodel.plan_connections.ds_test_data_setup_csv,\n"
+            + "                    testDataSetupSqls: " + S + "@DatasourceToSqls | metamodel.plan_connection_sqls.text"},
     };
 
     /** The expression-tree node kinds (real m3 ValueSpecification
@@ -237,6 +269,35 @@ public final class SystemMetamodel {
                 .append("                    ~mainTable ").append(S).append(" metamodel.plan_node_closure\n")
                 .append("                    depth: ").append(S).append(" metamodel.plan_node_closure.depth\n")
                 .append("                }\n");
+        // the plan connections (SQLExecutionNode.connection) and their
+        // datasource specifications: rows of plan_connections under the
+        // node's id; the declared bases are inheritance operations
+        sb.append("                *meta::external::store::relational::runtime::DatabaseConnection: Operation\n")
+                .append("                {\n")
+                .append("                    ").append(INHERITANCE_OP).append("\n")
+                .append("                }\n");
+        for (String[] k : CONNECTION_KINDS) {
+            sb.append("                ").append(k[0]).append("[").append(k[2]).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Pc").append(k[1]).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.plan_connections.node_id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.plan_connections\n")
+                    .append("                    ").append(k[3]).append("\n")
+                    .append("                }\n");
+        }
+        sb.append("                *meta::pure::alloy::connections::alloy::specification::DatasourceSpecification: Operation\n")
+                .append("                {\n")
+                .append("                    ").append(INHERITANCE_OP).append("\n")
+                .append("                }\n");
+        for (String[] k : DATASOURCE_KINDS) {
+            sb.append("                ").append(k[0]).append("[").append(k[2]).append("]: Relational\n")
+                    .append("                {\n")
+                    .append("                    ~filter ").append(S).append(" Ds").append(k[1]).append("\n")
+                    .append("                    ~primaryKey(").append(S).append(" metamodel.plan_connections.node_id)\n")
+                    .append("                    ~mainTable ").append(S).append(" metamodel.plan_connections\n")
+                    .append("                    ").append(k[3]).append("\n")
+                    .append("                }\n");
+        }
         List<String> subtrees = new ArrayList<>();
         List<String> closureNodes = new ArrayList<>();
         for (String[] k : PLAN_NODE_KINDS) {
@@ -634,6 +695,22 @@ public final class SystemMetamodel {
                         node_id VARCHAR(512) PRIMARY KEY,
                         depth INTEGER NOT NULL
                     )
+                    Table plan_connections
+                    (
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        kind VARCHAR(64) NOT NULL,
+                        db_type VARCHAR(64) NOT NULL,
+                        test_data_setup_csv VARCHAR(65535),
+                        ds_kind VARCHAR(64),
+                        ds_test_data_setup_csv VARCHAR(65535)
+                    )
+                    Table plan_connection_sqls
+                    (
+                        node_id VARCHAR(512) PRIMARY KEY,
+                        owner VARCHAR(8) PRIMARY KEY,
+                        ordinal INTEGER PRIMARY KEY,
+                        text VARCHAR(65535) NOT NULL
+                    )
                     Table functions
                     (
                         id VARCHAR(512) PRIMARY KEY,
@@ -709,6 +786,10 @@ public final class SystemMetamodel {
                 Join NodeToFunctionParameters(metamodel.plan_nodes.id = metamodel.plan_function_parameters.node_id)
                 Join NodeToSubtree(metamodel.plan_nodes.id = metamodel.plan_node_closure.ancestor_id)
                 Join SubtreeToNode(metamodel.plan_node_closure.node_id = metamodel.plan_nodes.id)
+                Join NodeToConnection(metamodel.plan_nodes.id = metamodel.plan_connections.node_id)
+                Join ConnToDatasource(metamodel.plan_connections.node_id = {target}.node_id)
+                Join ConnToSqls(metamodel.plan_connections.node_id = metamodel.plan_connection_sqls.node_id and metamodel.plan_connection_sqls.owner = 'conn')
+                Join DatasourceToSqls(metamodel.plan_connections.node_id = metamodel.plan_connection_sqls.node_id and metamodel.plan_connection_sqls.owner = 'ds')
                 Join FunctionToBody(metamodel.functions.id = metamodel.value_specifications.function_id and metamodel.value_specifications.depth = 0)
                 Join VsToChildren(metamodel.value_specifications.id = {target}.parent_id)
                 Join VsSelf(metamodel.value_specifications.id = {target}.id)

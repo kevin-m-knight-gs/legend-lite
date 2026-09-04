@@ -87,10 +87,11 @@ class JavaEvalLedgerTest {
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
-            Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
-            // 195→196 (audit slice 3): the walker's case list learns
-            // the trustOne spelling — recognition, not evaluation.
-            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 196),
+            // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
+            // 2026-09-04): the Java port of toPostgresModel and the host
+            // metamodel walk are gone — the three tests they still scored
+            // ride rows (plan connections) and the identity struct of a
+            // property-less class
             // raw-line history: 888 -> 943 -> 957 (burn batches 1-2:
             // temp-table IN envelope emitters + PureExp let-allocation —
             // engine-parity plan TEXT, the register's own class);
@@ -412,7 +413,11 @@ class JavaEvalLedgerTest {
             // key tree judges; a class-kind side that rode a JSON carrier
             // decodes to its structure — both are evidence PROJECTION for
             // the key verdict (WORLD_MAP §4), no Java value computation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1568),
+            // 1568 -> 1576 (batch 55a): assertInstanceOf over a CLASS value
+            // reads the wire's __type up the model's subtype relation (the
+            // harness's NodeH string-match arm is deleted with the walk) —
+            // a compare on the wire's classifier, no value computation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1576),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -673,9 +678,14 @@ class JavaEvalLedgerTest {
         // (batch 18, 2026-09-03 — plan nodes as rows: the plan model's
         // ROWS registration lives in PlanAllocations; this row's count
         // stands at 40, the walk's own planModel call retires with planWalk.)
+        // 40 -> 5 (batch 55a, 2026-09-04): the walk family is DELETED —
+        // planWalk/walkProp/walkFilter/walkResult/constructNode/constructOp/
+        // nodeValue/typeRefSimple are gone with MetamodelWalk/MetamodelSteps;
+        // what stands is the plan MODEL (planModel, planConnOf,
+        // connectionStoreElementOf) that PlanRows turns into rows.
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
-                        40});
+                        5});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell
@@ -775,7 +785,7 @@ class JavaEvalLedgerTest {
                     // never been registered)
                     "JsonCompare.java",
                     "H2Settings.java",
-                    "MetamodelWalk.java", "PctProbe.java",
+                    "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
                     "QueryPlan.java",
                     // Phase 1c: the LIMIT-0 schema probe — the
@@ -870,7 +880,7 @@ class JavaEvalLedgerTest {
                     "AssertVerdicts.java", "Compiler.java",
                     "ConnectionFlags.java", "ConnectionLets.java",
                     "CrossStoreGuard.java", "LiteralFold.java",
-                    "MetamodelSteps.java", "NonNull.java", "Nullable.java",
+                    "NonNull.java", "Nullable.java",
                     // metamodel-as-relations step 3 (2026-09-02): the
                     // system store's SEED derivations — compile-time
                     // facts (mappings, class mappings, include closure,
