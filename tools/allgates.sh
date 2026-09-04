@@ -212,9 +212,15 @@ if want 9; then
   ( cd pct && mvn "${OFF[@]}" test -Dtest='ChannelB*' "$R1" "$R2" ) > "$OUT/g9.out" 2>&1
   G9_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" "$OUT/g9.out" | tail -1)
   G9=1
-  if [[ "$G9_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
-    R=${BASH_REMATCH[1]}; F=${BASH_REMATCH[2]}; E=${BASH_REMATCH[3]}
-    [ "$R" -ge 5 ] && [ "$F" -eq 0 ] && [ "$E" -eq 0 ] && G9=0
+  # SKIPPED IS COUNTED, and must be zero. Surefire folds skips into "Tests
+  # run", so the old R>=5 test was satisfied by five SKIPPED suites — and
+  # ChannelB.run now Assumptions-skips without the checkouts. That guard is
+  # on the ROOTS, the same condition roots_present already cleared above, so
+  # the two cannot disagree today; this makes the gate say so rather than
+  # rely on it.
+  if [[ "$G9_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+),\ Skipped:\ ([0-9]+) ]]; then
+    R=${BASH_REMATCH[1]}; F=${BASH_REMATCH[2]}; E=${BASH_REMATCH[3]}; S=${BASH_REMATCH[4]}
+    [ "$R" -ge 5 ] && [ "$F" -eq 0 ] && [ "$E" -eq 0 ] && [ "$S" -eq 0 ] && G9=0
   else
     echo "G9 no surefire summary found — treating as failure" >> "$L"
   fi

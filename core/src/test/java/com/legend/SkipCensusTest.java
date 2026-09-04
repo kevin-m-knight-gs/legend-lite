@@ -79,7 +79,17 @@ class SkipCensusTest {
             // passes -Dlegend.engine.root/-Dlegend.pure.root so the check
             // RUNS in the standing gate; only CI, which has no checkout,
             // sees the skip.
-            "PreludeGeneratorTest.java");
+            "PreludeGeneratorTest.java",
+            // pct ChannelB (2026-09-04): the five ChannelB*Test suites
+            // compile the REAL legend-pure/legend-engine trees, so with no
+            // checkout there is nothing to compile — they shared one
+            // NoSuchFileException and reddened every CI leg with it. The
+            // guard lives in ChannelB.run, so this is ONE registered file
+            // rather than five. Loud back-stop: allgates G9, whose
+            // roots_present check refuses to call an absent checkout a pass,
+            // and whose guard condition is the same one ChannelB tests — so
+            // whenever G9 runs, these suites execute for real.
+            "ChannelB.java");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");

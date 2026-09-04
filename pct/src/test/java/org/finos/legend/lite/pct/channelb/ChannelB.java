@@ -59,6 +59,39 @@ public final class ChannelB {
         return run(List.of(modelRoot), scopeDirs, new ArrayList<>());
     }
 
+    /** The spec checkouts ChannelB reads, and the ONE place that decides
+     *  whether they are there. Same defaults, same properties, as
+     *  {@code rcorpus.Corpus} and {@code tools/allgates.sh}.
+     *
+     *  <p>SKIP, not error, when they are absent: ChannelB compiles the
+     *  REAL legend-pure/legend-engine trees, so with no tree there is
+     *  nothing to compile and a NoSuchFileException only reports that a
+     *  bare runner is not a workstation. Five suites shared that one
+     *  failure and reddened every CI leg with it.
+     *
+     *  <p>Guarded on the ROOTS, deliberately, and not on the deep paths
+     *  each suite resolves under them: allgates G9 runs these suites only
+     *  when {@code roots_present} says both roots exist, and its verdict
+     *  counts SKIPPED tests toward "Tests run". A guard on a deeper path
+     *  would let a partial checkout skip five suites INSIDE a gate that
+     *  was already satisfied — a green G9 that ran nothing. On the roots,
+     *  the two conditions coincide: whenever G9 runs, this passes and the
+     *  suites execute for real. A broken tree under a present root still
+     *  fails loudly, which is right.
+     *
+     *  <p>The only assumption-skip site in pct — see
+     *  {@code core} {@code SkipCensusTest}, which pins that file set. */
+    static void requireSpecCheckouts() {
+        Path pure = Path.of(System.getProperty("legend.pure.root",
+                System.getProperty("user.home") + "/legend/legend-pure"));
+        Path engine = Path.of(System.getProperty("legend.engine.root",
+                System.getProperty("user.home") + "/legend/legend-engine"));
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                Files.isDirectory(pure) && Files.isDirectory(engine),
+                "spec checkouts absent (" + pure + ", " + engine + ")"
+                        + " — set -Dlegend.pure.root / -Dlegend.engine.root");
+    }
+
     public static List<Outcome> run(Path modelRoot, List<Path> scopeDirs,
             List<String> wallsOut) throws IOException {
         return run(List.of(modelRoot), scopeDirs, wallsOut);
@@ -72,6 +105,7 @@ public final class ChannelB {
      * roots and matches by the same prefixed name. */
     public static List<Outcome> run(List<Path> modelRoots,
             List<Path> scopeDirs, List<String> wallsOut) throws IOException {
+        requireSpecCheckouts();
         List<Compiler.ModelSource> sources = new ArrayList<>();
         for (int r = 0; r < modelRoots.size(); r++) {
             Path root = modelRoots.get(r);
