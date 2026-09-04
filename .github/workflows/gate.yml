@@ -1,11 +1,16 @@
-# CI GATE — HONEST SCOPE (multiplicity audit s6): this workflow runs the
-# core suite (NullAway null gate + guardrails on a cold compile) ONLY.
-# The corpus sweep and the PCT suites need the local oracle checkouts
-# (legend-engine / legend-pure) and CANNOT run here — the standing full
-# gate is LOCAL: tools/allgates.sh with LEGEND_ENGINE_ROOT/
-# LEGEND_PURE_ROOT at the baselined checkouts. The old third step
-# invoked the corpus runner knowing it would assume-skip on a bare
-# runner — a vacuously green step claiming coverage it never had.
+# CI GATE — the pull-request gate. build.yml already covers every branch
+# push on six platform legs; this workflow's ONE unique trigger is
+# `pull_request`, so keep it and keep its SCOPE IDENTICAL to build.yml's.
+# The two had already drifted: build.yml was widened to the whole reactor
+# while this file went on running `-pl core` and asserting, in a comment
+# headed HONEST SCOPE, that the PCT suites "CANNOT run here" — which is
+# measurably false (pct needs no checkout; see build.yml). A scope claim
+# nobody re-measures is how the narrow scope survived. Change one file,
+# change the other.
+#
+# Scope is the whole reactor, per-module steps, nothing excluded — see the
+# comment block in build.yml for the measurements, and for which reds are
+# structural on a runner with no legend-engine/legend-pure checkout.
 name: gate
 on:
   push:
@@ -15,7 +20,7 @@ on:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,10 +28,22 @@ jobs:
           distribution: temurin
           java-version: 25
           cache: maven
-      - name: core (null gate + suite; clean is load-bearing)
-        run: mvn -B -pl core clean test
-      - name: install core
-        run: mvn -B -pl core install -DskipTests
-      - name: corpus + PCT NOT RUN here (oracle checkouts absent)
-        run: echo "::warning ::Corpus sweep and PCT are NOT run in CI - they require the local legend-engine/legend-pure oracle checkouts. The standing full gate is tools/allgates.sh run locally against the baselined roots."
 
+      - name: compile + install (null gate, guardrails, shade)
+        run: mvn -B -e clean install -DskipTests
+
+      - name: core suite
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl core test
+
+      - name: nlq suite
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl nlq test
+
+      - name: pct suites
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl pct test
+
+      - name: parser-equivalence suite
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl parser-equivalence test

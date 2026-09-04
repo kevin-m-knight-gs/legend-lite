@@ -3,25 +3,77 @@
 # opens a PR. This workflow runs on every branch push, and widens the
 # PLATFORM the build is proven on: linux/windows/macos x JDK 21/25.
 #
-# SCOPE: every module EXCEPT pct and parser-equivalence, written as an
-# EXCLUSION on purpose. An inclusion list is how nlq spent its whole life
-# outside every gate — allgates.sh names it zero times — and drifted red
-# without anyone finding out. A module added later is covered by default.
+# SCOPE: the WHOLE reactor. No module filter, no -Dtest filter, nothing
+# excluded — which is the same principle the previous scope was reaching
+# for and did not go far enough on. That scope was written as an EXCLUSION
+# (`-pl '!pct,!parser-equivalence'`) rather than an inclusion list, because
+# an inclusion list is how nlq spent its whole life outside every gate —
+# allgates.sh names it zero times — and drifted red without anyone finding
+# out. But an exclusion list rots the same way, just slower: it has to be
+# re-justified every time the tree moves, and both of its justifications
+# had quietly expired.
 #
-# The two exclusions are not squeamishness. Both need the local oracle
-# checkouts, passed to the local gates as -Dlegend.engine.root /
-# -Dlegend.pure.root, and a bare runner has neither:
-#   - pct (allgates G6/G7/G9) resolves its legend-* artifacts from Central
-#     fine; it is the PCT corpus itself that lives in the checkouts.
-#   - parser-equivalence (G8) is the dangerous one. Without the roots it
-#     does NOT skip: a committed in-repo fixture tier keeps the corpus
-#     non-empty, so PmcdEquivalenceTest runs on 774 rows instead of 6,033,
-#     reports "0 diff", and the build SUCCEEDS (measured 2026-08-11; see
-#     the roots_present comment in tools/allgates.sh). Running it here
-#     would manufacture a green that means nothing, which is why
-#     allgates.sh refuses it outright rather than let it report.
-# The standing full gate stays LOCAL: tools/allgates.sh with
-# LEGEND_ENGINE_ROOT/LEGEND_PURE_ROOT at the baselined checkouts.
+# Measured on a bare tree, no checkouts, both of them:
+#
+#   * "it is the PCT corpus itself that lives in the checkouts" — no. The
+#     PCT corpus is a classpath JSON off Maven Central
+#     (LegendLitePCTCodeRepositoryProvider). pct runs 1110 tests here with
+#     no checkout at all. The ONLY files under pct/src that read
+#     legend.engine.root / legend.pure.root are the five
+#     channelb/ChannelB*Test classes, and they fail LOUDLY with
+#     NoSuchFileException — so admitting them costs a visible red, never a
+#     vacuous green. (G6 already knew this: it runs pct with
+#     -Dtest='!ChannelB*' and passes the roots to a module that ignores
+#     them.)
+#
+#   * "PmcdEquivalenceTest runs on 774 rows instead of 6,033, reports
+#     '0 diff', and the build SUCCEEDS (measured 2026-08-11)" — that class
+#     no longer exists (CorpusSweepTest carries its history), and the
+#     vacuous green it names has since been closed by a hard corpus-size
+#     floor. Without roots, CorpusSweepTest now FAILS with "corpus floor:
+#     only N sources loaded — check -Dlegend.engine.root/-Dlegend.pure.root",
+#     and so do the other corpus tests. The danger the exclusion was
+#     protecting us from is the one thing that got fixed.
+#
+# So the reactor goes in whole and RED, deliberately. A failure visible on
+# six platforms is worth more than a green that ran two modules of four.
+# The reds are an inventory to work off, not a verdict on the tree, and the
+# final step labels the ones that are structural on a bare runner so nobody
+# re-diagnoses them every run.
+#
+# MEASURED on this commit, bare tree, JDK 25 (Windows):
+#   core                4395 tests  0F 0E 16S   green
+#   nlq                  223 tests  0F 0E 10S   green
+#   pct                 1110 tests  + 5 ChannelB errors, and ONE real red:
+#                       the percentile ULP divergence below
+#   parser-equivalence    47 tests  9F 1E 2S
+# Per leg that is ~5780 tests, up from ~4618 for core+nlq alone.
+#
+# TWO of those parser-equivalence reds are WINDOWS-ONLY, and they are the
+# reason this matrix earns its keep rather than a defect in it:
+#   - OwnCorpusConformanceTest scans zero files and reports an empty
+#     ledger. InlineSnippets filters the walk with
+#     toString().contains("/src/test/"), which on Windows spells
+#     "\src\test\" and matches nothing. Eight such literal-"/" filters
+#     live in that module; its Windows legs read a different corpus than
+#     its Linux legs.
+#   - MutationFuzzTest catches a REAL parser defect:
+#     PmcdParser.parseDocument throws ArrayIndexOutOfBoundsException,
+#     not ParseException, on a truncated mutant. It fires only here
+#     because the deck truncates at src.length()/2 and the fixture is
+#     CRLF on a Windows checkout but LF in git, so the cut lands on a
+#     different character. The bug is real on every platform; only the
+#     input that reaches it is platform-dependent.
+#
+# Also NOT honest yet, and NOT hidden by this file: several
+# parser-equivalence classes still pass green without roots rather than
+# failing on a floor. On the fix list. CI showing all of this is the point.
+#
+# ONE JOB, SEVERAL STEPS, not one `mvn install`: a reactor build stops the
+# modules downstream of a failure, so any red in core would report nlq, pct
+# and parser-equivalence as SKIPPED and we would learn nothing about them.
+# Each module gets its own step under `if: !cancelled()`, so every module
+# reports its own verdict on every run — and a red step still fails the job.
 #
 # The poms compile at release 21, so 21 is the floor and 25 the ceiling we
 # claim to support; fail-fast is off so one platform's red does not suppress
@@ -41,7 +93,7 @@ jobs:
   build:
     name: build (${{ matrix.os }}, JDK ${{ matrix.java }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -54,12 +106,36 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
-      # One invocation. `clean` is load-bearing: the null gate (Error Prone /
-      # NullAway) and core's guardrails only run on a cold compile. `install`
-      # rather than `test` reaches the shade plugin bound to package, and puts
-      # the parent pom in ~/.m2 — without it a module built on its own cannot
-      # resolve org.finos.legend:legend-lite:pom and dies before any test runs.
-      - name: build + test (every module but pct, parser-equivalence)
-        run: mvn -B -e clean install -pl '!pct,!parser-equivalence'
-      - name: corpus + PCT + parser-equivalence NOT RUN here (oracle checkouts absent)
-        run: echo "::warning ::The corpus sweep (allgates G4/G5), PCT (G6/G7/G9) and parser-equivalence (G8) are NOT run in CI - they require the local legend-engine/legend-pure oracle checkouts. The standing full gate is tools/allgates.sh run locally against the baselined roots."
+
+      # Compile every module cold and install it. `clean` is load-bearing —
+      # the NullAway null gate and the compile-time guardrails run only on a
+      # cold compile — and `install`, not `test`, is what exercises the shade
+      # plugin that no test phase reaches. -DskipTests still COMPILES the
+      # test sources (unlike -Dmaven.test.skip), so a test-tree compile error
+      # in any module surfaces here, before any suite has run.
+      - name: compile + install (null gate, guardrails, shade)
+        run: mvn -B -e clean install -DskipTests
+
+      - name: core suite
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl core test
+
+      - name: nlq suite
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl nlq test
+
+      - name: pct suites
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl pct test
+
+      - name: parser-equivalence suite
+        if: ${{ !cancelled() }}
+        run: mvn -B -e -pl parser-equivalence test
+
+      # The reds above already fail the job. This only labels the ones no
+      # code change can clear on a bare runner, so nobody re-diagnoses them
+      # every run. Delete a line the day its cause is fixed — either by
+      # gating the test honestly or by giving CI the checkouts.
+      - name: label the structural reds (oracle checkouts absent here)
+        if: ${{ !cancelled() }}
+        run: echo "::warning ::No legend-engine/legend-pure checkout on this runner. Structural reds, expected until fixed - pct ChannelB*Test (5 classes, allgates G9); parser-equivalence corpus tests. ANY other red is a real regression - as of this commit that means exactly one, the PCT percentile ULP divergence in Test_LegendLite_StandardFunctions_PCT."
