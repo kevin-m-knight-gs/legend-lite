@@ -1024,6 +1024,15 @@ receipts). declined shrinks, text-only grows, charter §8.0 scope
 table + pins same commit. The BARE-2 sub-reason gap (census §3)
 fixes here too (the plan path sets its outcome).
 
+**Lineage-tree row channel, batch 59 (2026-09-04):** a new counted
+verdict channel, `lineage-rows agree/disagree`, for `assertEquals(<tree
+print>, $tree->relationTreeAsString())`: golden and ours both become
+rows through one database query (LineageTreeVerdicts.TREE_ROWS — the
+lineage referee) and compare as rows; a disagreement fails the assert.
+The engine's decorated SQL aliases in join labels resolve to the tree's
+own node names at parse (the engine's `alias = false` label form).
+Census after landing: agree 66, disagree 0.
+
 **§8.0 scope-table receipt, batch 58 (2026-09-04, the H2VERSION
 decision):** assert-sql-text-only 24 → 17: the seven flipped
 H2-compatible tests (three TDG alloy milestoning, two sqlstring

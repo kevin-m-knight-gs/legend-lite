@@ -107,6 +107,10 @@ final class AssertVerdicts {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
+        LineageTreeVerdicts.Verdict lineage = LineageTreeVerdicts.tryArm(bare, letPrefix, specs, env);
+        if (lineage != null) {
+            return lineage.held() ? ok() : fail(lineage.message());
+        }
         TypedSpec unwrapped = com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare);
         if (unwrapped instanceof com.legend.compiler.spec.typed.TypedMap qm2) {
             ExecutionResult u = unrolled(qm2, letPrefix, specs, env, rawHook);

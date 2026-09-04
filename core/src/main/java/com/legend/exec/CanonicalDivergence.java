@@ -154,6 +154,14 @@ public final class CanonicalDivergence {
     /** Unordered-chain grid compares whose content matched only under
      * the declared row-multiset policy (see probeGridText). */
     private static final AtomicLong ROW_ORDER_CANON = new AtomicLong();
+    /** The lineage-tree ROW verdicts (LineageTreeVerdicts): golden and
+     * ours as rows through one database query, compared. */
+    private static final AtomicLong LINEAGE_ROWS_AGREE = new AtomicLong();
+    private static final AtomicLong LINEAGE_ROWS_DISAGREE = new AtomicLong();
+
+    public static void lineageRows(boolean held) {
+        (held ? LINEAGE_ROWS_AGREE : LINEAGE_ROWS_DISAGREE).incrementAndGet();
+    }
 
     private static String trunc(String s) {
         return s.length() > 60 ? s.substring(0, 60) + "…" : s;
@@ -678,7 +686,9 @@ public final class CanonicalDivergence {
                 + " disagree=" + SQL_DISAGREE.get()
                 + " declined=" + SQL_DECLINED.get()
                 + " ulp-policy=" + SQL_ULP_POLICY.get()
-                + " row-order-canon=" + ROW_ORDER_CANON.get();
+                + " row-order-canon=" + ROW_ORDER_CANON.get()
+                + " lineage-rows agree=" + LINEAGE_ROWS_AGREE.get()
+                + " disagree=" + LINEAGE_ROWS_DISAGREE.get();
     }
 
     public static long disagreeCount() {
@@ -703,6 +713,8 @@ public final class CanonicalDivergence {
         SQL_ULP_POLICY.set(0);
         SQL_TDSNULL_POLICY.set(0);
         ROW_ORDER_CANON.set(0);
+        LINEAGE_ROWS_AGREE.set(0);
+        LINEAGE_ROWS_DISAGREE.set(0);
         SAMPLES.clear();
         SQL_DISAGREE_SAMPLES.clear();
         DISAGREE_SAMPLES.clear();

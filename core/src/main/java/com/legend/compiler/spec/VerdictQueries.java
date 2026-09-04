@@ -25,6 +25,7 @@ import java.util.List;
  */
 public final class VerdictQueries {
 
+
     private VerdictQueries() {
     }
 

@@ -1797,10 +1797,21 @@ public class RelationalCorpusRunner {
             // a lambda cast to a function carrier is the lambda. +7 flips
             // (3 TDG alloy milestoning, 2 sqlstring adjust-date, 2
             // businessdate), 0 lost; sql-verdict disagree 0; dual-channel 0.
-            org.junit.jupiter.api.Assertions.assertEquals(234L,
+            // Batch 59 (2026-09-04, the lineage-tree canon): a scanRelations
+            // tree print's join labels spell the engine's decorated SQL
+            // ALIASES (buildUniqueName alias=true: _d#N/_dy/_m/_l/_r/_md/_N
+            // — pureToSQLQuery.pure buildNodeId), an artifact of its SQL
+            // generation the row charter retired; the tree's CONTENT is the
+            // engine's own alias=false form (the relational element's
+            // name). exec/LineageTreeCanon reduces the EXPECTED print's
+            // aliases to the tree's declared node names before BOTH verdict
+            // channels compare (counted: lineage-alias-canon=21). +21 flips
+            // (the whole lineage/scanRelations tree family), 0 lost;
+            // sql-verdict disagree 0; dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(213L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2339L,
+            org.junit.jupiter.api.Assertions.assertEquals(2360L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

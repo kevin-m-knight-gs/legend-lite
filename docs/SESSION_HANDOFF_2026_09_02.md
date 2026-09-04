@@ -3245,3 +3245,14 @@ jar level at the raw-SQL boundary, and the helper's if-with-assert-
 branches is a verdict form. One real divergence surfaced
 (testDateFunctionInMilestonedPropertyWithMilestonedEntity: golden 0 rows
 on H2 vs ours 2) — probe it next as a semantics bug, not a wall.
+
+**Batch 59 — the lineage-tree ROW verdict LANDED (2026-09-04): ratchet
+234/2339 → 213/2360, chain GREEN 6m01s (docs/GATES.md batch 59).** The
+21 walk-carried lineage tests are platform verdicts now: both tree
+prints become rows through one database query and compare as rows
+(LineageTreeVerdicts beside SqlTextVerdicts). User rulings recorded: a
+normalize-the-golden-then-byte-compare policy is NOT acceptable for a
+platform verdict, however well counted — the golden must be brought to
+ROWS by a referee, as the SQL-text charter does; the walk's
+LineageRelationsForm (regex breadcrumb strip) is now deletable with the
+walk. Remaining walk-carried fallbacks: 55 (the 76 minus these 21).

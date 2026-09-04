@@ -422,7 +422,10 @@ class JavaEvalLedgerTest {
             // condition is a value QUERY the database evaluates
             // (StatementExecutor.evalValue); Java only dispatches the taken
             // branch to the existing verdict arms. No value computation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1595),
+            // 1595 -> 1599 (batch 59, the lineage-tree row verdict): the
+            // seam dispatches the assert to LineageTreeVerdicts (its rows
+            // compute in the database) — dispatch only.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1599),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -620,6 +623,11 @@ class JavaEvalLedgerTest {
             // the rows leg through the env's tableReplace channel) — the
             // same recogniser the frame path uses; no evaluation moved here.
             Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 690),
+            // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
+            // the scanRelations sibling of SqlTextVerdicts: both prints
+            // become rows through one DATABASE query (TREE_ROWS) and the
+            // row lists compare; no value computation in Java.
+            Map.entry("core/src/main/java/com/legend/LineageTreeVerdicts.java", 116),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -910,6 +918,10 @@ class JavaEvalLedgerTest {
                     // SqlReplayOracle SPI. Line-pinned below like its
                     // sibling AssertVerdicts.
                     "SqlTextVerdicts.java", "StatementExecutor.java",
+                    // batch 59: the lineage-tree sibling of SqlTextVerdicts —
+                    // golden and ours become rows through ONE database query
+                    // and compare; typed-tree navigation + judgment only
+                    "LineageTreeVerdicts.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,
@@ -951,6 +963,7 @@ class JavaEvalLedgerTest {
             java.util.List.of(
                     "core/src/main/java/com/legend/AssertVerdicts.java",
                     "core/src/main/java/com/legend/SqlTextVerdicts.java",
+                    "core/src/main/java/com/legend/LineageTreeVerdicts.java",
                     "core/src/main/java/com/legend/AssertErrorNative.java");
 
     private static final java.util.List<java.util.regex.Pattern>

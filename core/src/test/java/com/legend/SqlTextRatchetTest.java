@@ -66,6 +66,15 @@ class SqlTextRatchetTest {
 
     static {
         REGISTER.put("StatementExecutor.java", 2);
+        // batch 59: the LINEAGE REFEREE — one query that turns a
+        // scanRelations tree PRINT (the golden literal, and the
+        // database's own print of our LineageRows) into rows
+        // (preorder, indent, kind, name, join label with the engine's
+        // decorated aliases resolved to the tree's node names, columns)
+        // so the two row lists compare. The sibling of the SQL-text
+        // arm's golden execution through SqlReplayOracle: a referee's
+        // parse of a spec cell, never an emission of a user query.
+        REGISTER.put("LineageTreeVerdicts.java", 1);
         REGISTER.put("exec/CsvSeed.java", 4);
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
