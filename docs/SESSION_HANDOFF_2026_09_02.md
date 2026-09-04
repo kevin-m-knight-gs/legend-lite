@@ -3256,3 +3256,30 @@ platform verdict, however well counted — the golden must be brought to
 ROWS by a referee, as the SQL-text charter does; the walk's
 LineageRelationsForm (regex breadcrumb strip) is now deletable with the
 walk. Remaining walk-carried fallbacks: 55 (the 76 minus these 21).
+
+**Union-family probe receipts (2026-09-04, after batch 59; no batch):**
+of the walk-carried union tests, the "Assert failed" ones (testChainedUnions,
+testProjectThroughAsso, testProjectThroughAssoWithJoinInMapping,
+testUnionWithSinglePropertyMapping, testUnionOnViewsMapping) fail ONLY on
+`assert($result2->sql()->contains('union_gen_source_pk_0'))` — a text
+assert on an ENGINE-INTERNAL generated column name (the removeUnion/
+importDataFlow post-processor); their row asserts pass. The two bitemporal
+union tests likewise assert `contains('"lake_thru_0"')` on our SQL text.
+The walk passed all seven as "advisory by policy" (EngineTestExecutor:
+a golden-SQL read anywhere in the assertion). DECISION for the user:
+SQL-text `contains(<engine-internal spelling>)` asserts have no rows
+form — either a counted text-census (the charter's census lane, adv
+ceiling +7) or a design leg that emits the engine's post-processor
+spellings. testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct
+asserts our SQL contains no `max(` after a restrict — ours still computes
+the unused aggregate 5×: a REAL optimizer leg (prune unused aggregates
+under restrict/project), text assert about our own emission.
+testSQLQueryMergingForInnerJoins ×2: `rows.get(col)` column vectors of an
+unordered union compared against a literal with `^TDSNull()` elements —
+two probes (a rows-column-vector order rule; a spelled-TDSNull sentinel
+on the expected side) were neutral on the corpus and REVERTED; the
+remaining mismatch is one element of the expected literal's wire order.
+testUnionTwoRelationMappings_ManyColumnProject ×2: the engine prints
+`null` for firstName under unionTwoRelationMappings while the fixture
+has firstNames — read the mapping (is firstName unmapped in the relation
+mapping?) before touching the print.
