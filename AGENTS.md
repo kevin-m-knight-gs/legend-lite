@@ -50,6 +50,16 @@
 > `meta::pure::functions::` elements
 > (`LibraryPlatformNamespaceGuardTest`).
 >
+> **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
+> `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
+> lowering rule each), PLATFORM SEMANTICS (Java, designed from the engine's
+> Pure as spec — the deletion test decides), or PROGRAMS (input to the
+> compiler, whoever wrote them — never ported to Java). The unroll COMPARES
+> spelled tokens and rearranges shapes; it never COMPUTES a value — the
+> database does, through residual `CASE`s. The platform ships declarations
+> (shapes with keys, native signatures) and views over its own system
+> tables; no other Pure bodies. Residue is named, never ported.
+>
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
 > contracts, open decisions. This file is the short form.
 >
@@ -324,6 +334,7 @@ otherwise, which is how it drifted:
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
 | `docs/ENGINEERING_LOG.md` | Standing tenets + active queue |
 | `docs/TENETS.md` | Eager-Knowledge / lazy-Work, the north star |
+| `docs/WORLD_MAP.md` | Java vs Pure vs input: the three kinds of Pure code, the prelude, compare-not-compute, the decision procedure |
 | `docs/AUDITS.md` | Audit index and reading order |
 | `docs/CORPUS_BURNDOWN_HANDOFF.md` | Corpus burn-down entry point |
 | `docs/RELATIONAL_CORPUS.md` | The corpus scoreboard (a **gate artifact** — regenerated, not hand-edited) |

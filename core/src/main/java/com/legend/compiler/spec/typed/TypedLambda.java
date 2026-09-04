@@ -24,8 +24,23 @@ import java.util.List;
  * @param body       the type-checked body statements
  * @param info       the lambda's classifier (a function carrier over its
  *                   {@code FunctionType})
+ * @param quoted     QUOTED code: the reflection round trip
+ *                   ({@code deactivate()->cast(@InstanceValue).values->at(0)
+ *                   ->cast(@LambdaFunction)}) made the lambda a VALUE whose
+ *                   body is read as an expression tree, never applied — no
+ *                   compile-time fold may evaluate inside it
  */
-public record TypedLambda(List<String> parameters, List<TypedSpec> body, ExprType info) implements TypedSpec {
+public record TypedLambda(List<String> parameters, List<TypedSpec> body, ExprType info,
+        boolean quoted) implements TypedSpec {
+    public TypedLambda(List<String> parameters, List<TypedSpec> body, ExprType info) {
+        this(parameters, body, info, false);
+    }
+
+    /** This lambda as quoted code (see {@link #quoted()}). */
+    public TypedLambda asQuoted() {
+        return quoted ? this : new TypedLambda(parameters, body, info, true);
+    }
+
     public TypedLambda {
         parameters = List.copyOf(parameters);
         body = List.copyOf(body);
@@ -54,6 +69,6 @@ public record TypedLambda(List<String> parameters, List<TypedSpec> body, ExprTyp
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        return new TypedLambda(parameters, kids, info);
+        return new TypedLambda(parameters, kids, info, quoted);
     }
 }

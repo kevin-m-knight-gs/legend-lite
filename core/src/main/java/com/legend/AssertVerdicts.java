@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.compiler.element.ModelContext;
+
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -191,8 +193,9 @@ final class AssertVerdicts {
             return null;
         }
         String name = fqn.substring(PKG.length());
-        List<TypedSpec> args = ((bare instanceof TypedUserCall u)
-                ? u.args() : ((TypedNativeCall) bare).args());
+        List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
+                (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
+                letPrefix, specs);
         switch (name) {
             case "assertEquals", "assertNotEquals" -> {
                 if (args.size() < 2) {
@@ -277,9 +280,9 @@ final class AssertVerdicts {
                 // keyed classes, applied before EITHER channel judges
                 var ik = instanceKeys(args.get(0), args.get(1), env);
                 List<Object> e = ik != null
-                        ? restrictToKeys(ef.values(), ik) : ef.values();
+                        ? restrictToKeys(ef.values(), ik, env.ctx()) : ef.values();
                 List<Object> a = ik != null
-                        ? restrictToKeys(af.values(), ik) : af.values();
+                        ? restrictToKeys(af.values(), ik, env.ctx()) : af.values();
                 boolean equal = incidental
                         ? PureAsserts.assertSameElements(e, a) == null
                         : PureAsserts.equal(e, a);
@@ -333,9 +336,9 @@ final class AssertVerdicts {
                 }
                 var ik = instanceKeys(args.get(0), args.get(1), env);
                 List<Object> e = ik != null
-                        ? restrictToKeys(ef.values(), ik) : ef.values();
+                        ? restrictToKeys(ef.values(), ik, env.ctx()) : ef.values();
                 List<Object> a = ik != null
-                        ? restrictToKeys(af.values(), ik) : af.values();
+                        ? restrictToKeys(af.values(), ik, env.ctx()) : af.values();
                 String d = PureAsserts.assertSameElements(e, a);
                 com.legend.exec.CanonicalDivergence.probeSameElements(
                         e, a, d == null);
@@ -1842,31 +1845,54 @@ final class AssertVerdicts {
      * is the engine's rule, not a leniency). Keyless classes are
      * untouched (their sides never produce a non-null key tree). */
     private static List<Object> restrictToKeys(List<Object> vals,
-            com.legend.compiler.element.EqualityKeys keys) {
+            com.legend.compiler.element.EqualityKeys keys, ModelContext ctx) {
         List<Object> out = new ArrayList<>(vals.size());
         for (Object v : vals) {
-            out.add(restrictOne(v, keys));
+            out.add(restrictOne(v, keys, ctx));
         }
         return out;
     }
 
     private static Object restrictOne(Object v,
-            com.legend.compiler.element.EqualityKeys keys) {
+            com.legend.compiler.element.EqualityKeys keys, ModelContext ctx) {
         if (!(v instanceof java.util.Map<?, ?> m)) {
             return v;
         }
         var out = new java.util.LinkedHashMap<String, Object>();
         for (var k : keys.keys()) {
             Object val = m.get(k.name());
-            if (k.nested() != null && val != null) {
+            if (val != null) {
                 val = val instanceof List<?> l
-                        ? l.stream().map(x -> restrictOne(x, k.nested()))
+                        ? l.stream().map(x -> restrictNested(x, k.nested(), ctx))
                                 .toList()
-                        : restrictOne(val, k.nested());
+                        : restrictNested(val, k.nested(), ctx);
             }
             out.put(k.name(), val);
         }
         return out;
+    }
+
+    /** A value inside a key slot: restricted to the keys of the slot's
+     * DECLARED class when that class is keyed, else to the keys of the
+     * value's OWN class — the wire carries it as {@code __type}
+     * (WORLD_MAP §4: a polymorphic slot's elements are judged by their
+     * own classifier, the engine's rule). A keyless class stays the
+     * whole map (identity). */
+    private static Object restrictNested(Object v,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys declared,
+            ModelContext ctx) {
+        if (declared != null) {
+            return restrictOne(v, declared, ctx);
+        }
+        if (v instanceof java.util.Map<?, ?> m
+                && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
+                        instanceof String own) {
+            var keys = com.legend.compiler.element.EqualityKeys.resolve(ctx, own);
+            if (keys != null) {
+                return restrictOne(v, keys, ctx);
+            }
+        }
+        return v;
     }
 
     /** One assert side under V11: the values (host referee, gates,

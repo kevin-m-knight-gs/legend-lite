@@ -549,6 +549,24 @@ public final class Executor {
      * wireEquals-grade exactness). Same grammar, different target kinds by
      * design.
      */
+    /** A class VALUE riding a JSON slot inside a struct (a polymorphic
+     * field: {@code parameters : RelationalOperationElement[*]}, {@code
+     * relationalElement : RelationalOperationElement[1]}) arrives as
+     * object/array text — the field's declared kind says it is a
+     * structure, so it decodes to the map/list the verdict's key
+     * restriction and the wire consumers read (WORLD_MAP §4: the value
+     * carries its class as {@code __type}). Scalars pass through
+     * {@link #decodeAny} untouched; a Variant ROOT never comes here. */
+    private static @com.legend.Nullable Object structured(@com.legend.Nullable Object v) {
+        if (v instanceof String s) {
+            String t = s.trim();
+            if (t.startsWith("{") || t.startsWith("[")) {
+                return Json.parse(t);
+            }
+        }
+        return v;
+    }
+
     private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
         // org.duckdb.JsonNode) or as text — matched by FULL class name.
@@ -683,7 +701,18 @@ public final class Executor {
                 // string, null the TDSNull slot) — only a Variant ROOT
                 // keeps its JSON text contract
                 if (st.fields().get(i).type() == com.legend.sql.SqlType.Scalar.JSON) {
-                    fv = decodeAny(fv);
+                    fv = structured(decodeAny(fv));
+                }
+                // a polymorphic TO-MANY field (JSON[]: the RelationalOperationElement
+                // parameters of a DynaFunction) decodes per element the same way
+                if (st.fields().get(i).type() instanceof com.legend.sql.SqlType.Array fa
+                        && fa.element() == com.legend.sql.SqlType.Scalar.JSON
+                        && fv instanceof List<?> fl) {
+                    List<Object> decoded = new ArrayList<>(fl.size());
+                    for (Object e : fl) {
+                        decoded.add(structured(decodeAny(e)));
+                    }
+                    fv = decoded;
                 }
                 m.put(st.fields().get(i).name(), fv);
             }

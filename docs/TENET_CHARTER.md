@@ -156,6 +156,31 @@ Ingress obeys the same split in reverse:
   Java never emits text it must then rewrite (`RawSqlBoundary` is for corpus-AUTHORED
   text only — text whose origin is another dialect).
 
+## Clause 6 — Programs are input; the compiler compares, the database computes (ratified 2026-09-03)
+
+The conceptual map is `docs/WORLD_MAP.md`. Pure code is one of three kinds: NATIVES (meaning =
+one Java SQL lowering rule each), PLATFORM SEMANTICS (Java, designed from the engine's Pure as
+spec; the deletion test — "would any user query stop compiling without it?" — decides), and
+PROGRAMS (input to the compiler, whoever wrote them). Consequences:
+
+- **C6.1 — A program is never ported to Java.** A wall in a program is compiler work: a
+  missing structural fold, residual form, lowering, or loading rule. Java that knows a
+  program's name is a violation (`ObservabilityGuardrailTest` string-dispatch pin).
+- **C6.2 — The unroll compares; it never computes.** `LiteralUnroll` may decide only what is
+  visible in the program text: arm choice by a literal's class, spelled fields and defaults,
+  list shape over spelled lists, identity of two spelled scalars of ONE kind, a spelled enum's
+  name, `newMap`/`get`/`groupBy` over spelled pairs, `assert(true)`. Any operation that
+  produces a NEW value (`toLower`, `+`, arithmetic, cross-kind `==`) is the database's, carried
+  as a residual (`CASE` over scalars, lists, same-class structs; conditional membership).
+  This is Clause 4 applied to the unroll: token identity carries no representation rule,
+  so it needs no differential; a value-producing fold does, and is therefore not admitted.
+- **C6.3 — The prelude ships declarations only** (class/enum shapes with keys and defaults,
+  native signatures), verified against the real `.pure`; the ONE body exception is a Pure
+  QUERY over the platform's own system tables (no control flow on computed values, no
+  recursion).
+- **C6.4 — Residue is named, never ported**: recursion over row-backed trees (tier 2),
+  effects, IO, reflection over the live graph.
+
 ## Enforcement map
 
 | Clause | Mechanical enforcement |
@@ -166,6 +191,8 @@ Ingress obeys the same split in reverse:
 | Clause 3 | F1.5 `HostChannelPredicateTest` |
 | Clause 4 | `ConstantPlanParityTest` (exists); Phase 4 render arm cites it |
 | C5.2 | F1.6 R0 ledger (shrink-only) → F7.4 makes the contract true |
+| C6.1 | `ObservabilityGuardrailTest` string-dispatch pin; `ArchitectureTest` metamodel-channel class-list (shrinks with the toPostgresModel leg) |
+| C6.2 | `LiteralUnrollLedgerTest` — the exact fold set of `LiteralUnroll`, compare-only (lands with the residual leg) |
 
 Until a clause's enforcement lands, the clause still governs adjudication — "the guard is
 not built yet" is a schedule fact, not a license.

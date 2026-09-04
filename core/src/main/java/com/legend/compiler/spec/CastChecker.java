@@ -80,7 +80,7 @@ final class CastChecker {
                 && ic.fqn().equals("meta::pure::metamodel::valuespecification::InstanceValue")
                 && iv.source() instanceof com.legend.compiler.spec.typed.TypedDeactivate d
                 && d.inner() instanceof com.legend.compiler.spec.typed.TypedLambda lam) {
-            return lam;
+            return lam.asQuoted();
         }
         return null;
     }

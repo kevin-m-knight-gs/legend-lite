@@ -29,6 +29,12 @@ public final class ClassLayouts {
      * the {@code __id} column an identity layout appends to a keyless
      * class (every producer and consumer compares against this). */
     public static final String SYNTHETIC_ID = "__id";
+    /** WORLD_MAP §4 — the synthetic CLASS field beside the identity: a
+     * value in a polymorphic slot (a {@code RelationalOperationElement[*]}
+     * key carrying DynaFunctions and Literals) is judged by ITS OWN
+     * class's keys, and the wire can only carry that class as data.
+     * Rides the identity layouts only, like {@link #SYNTHETIC_ID}. */
+    public static final String SYNTHETIC_TYPE = "__type";
 
     private ClassLayouts() {
     }
@@ -75,6 +81,8 @@ public final class ClassLayouts {
         }
         List<Type.Column> out = new ArrayList<>(base.get());
         out.add(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING,
+                new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1)));
+        out.add(new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING,
                 new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1)));
         return Optional.of(List.copyOf(out));
     }

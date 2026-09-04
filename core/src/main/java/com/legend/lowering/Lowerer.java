@@ -2382,6 +2382,12 @@ public final class Lowerer {
     // ==================================================================
 
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
+    /** A constructed field's value in its slot's carrier (MixedEncoding.slotCarrier). */
+    private SqlExpr slotValue(TypedSpec value, Type.Column c, ColumnResolver columns) {
+        return MixedEncoding.slotCarrier(scalar(value, columns), isMany(value),
+                sqlTypeOf(value.info().type()), sqlTypeOf(c.type()), () -> "_slot" + aliasCounter++);
+    }
+
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         SqlExpr r = scalarInner(spec, columns);
         // stamp-vs-shape INVARIANT (throws; LL_STAMP_COUNT=1 = census mode)
@@ -2474,10 +2480,12 @@ public final class Lowerer {
                     yield MixedEncoding.variantElement(e0,
                             scalar(e0, columns), cellSlots);
                 }
-                yield new SqlExpr.ArrayLit(c.elements().stream()
+                SqlExpr varr = new SqlExpr.ArrayLit(c.elements().stream()
                         .map(e -> MixedEncoding.variantElement(
                                 e, scalar(e, columns), cellSlots))
                         .toList());
+                // the plain arm's literal FLATTENING (a conditional-membership residual)
+                yield !cellSlots && MixedEncoding.compacts(c) ? new SqlExpr.CompactList(varr) : varr;
             }
             // A NUMBER-LUB LITERAL mix ([25.0, 1]): a raw SQL array would
             // coerce every element to one numeric type (1 -> 1.0) — the
@@ -2531,13 +2539,7 @@ public final class Lowerer {
                 // testSelfJoinPropertyMapping): a ROW-cells list
                 // ($r.values / hand-written property reads) keeps its
                 // NULL cells — TDSNull is DATA on the grid convention.
-                yield CollectionLanes.valueLane(c)
-                        && c.elements().stream().anyMatch(e ->
-                                e.info().multiplicity()
-                                        instanceof Multiplicity.Bounded b
-                                && b.lower() == 0)
-                        ? new SqlExpr.CompactList(arr)
-                        : arr;
+                yield MixedEncoding.compacts(c) ? new SqlExpr.CompactList(arr) : arr;
             }
             // $r.alias.COL — a NAVIGATE slot's struct column flattens to
             // its prefixed physical column (alias_COL).
@@ -2613,11 +2615,6 @@ public final class Lowerer {
         };
     }
 
-    private static String simpleName(String qn) {
-        int cut = qn.lastIndexOf("::");
-        return cut < 0 ? qn : qn.substring(cut + 2);
-    }
-
     /** Scalar lowering, arm group (sequential order preserved:
      * guarded patterns depend on it) — the 523-line dispatch split
      * at arm boundaries; each group defaults to the next. */
@@ -2672,13 +2669,13 @@ public final class Lowerer {
                 SqlExpr src = scalar(cp.source(), columns);
                 yield new SqlExpr.StructLit(layout.stream().map(c -> {
                     // F13: a copy is a NEW instance — mint at the COPY site
-                    if (ClassLayouts.SYNTHETIC_ID.equals(c.name())
-                            && instanceIdOf != null) {
-                        return new SqlExpr.StructLit.Field(c.name(),
-                                new SqlExpr.StringLit(instanceIdOf.apply(cp)));
+                    var sf = MixedEncoding.syntheticField(c,
+                            instanceIdOf == null ? null : instanceIdOf.apply(cp), cp.classFqn());
+                    if (sf != null) {
+                        return sf;
                     }
                     TypedSpec ov = cp.overrides().get(c.name());
-                    SqlExpr v = ov != null ? scalar(ov, columns)
+                    SqlExpr v = ov != null ? slotValue(ov, c, columns)
                             : new SqlExpr.StructGet(src, c.name());
                     boolean manySlot = c.multiplicity() instanceof
                             Multiplicity.Bounded b && b.isMany();
@@ -2732,13 +2729,13 @@ public final class Lowerer {
                                 + " stored properties (or no model rides this lowering)"));
                 yield new SqlExpr.StructLit(layout.stream().map(c -> {
                     // F13: one deterministic id per construction SITE (node)
-                    if (ClassLayouts.SYNTHETIC_ID.equals(c.name())
-                            && instanceIdOf != null) {
-                        return new SqlExpr.StructLit.Field(c.name(),
-                                new SqlExpr.StringLit(instanceIdOf.apply(n)));
+                    var sf = MixedEncoding.syntheticField(c,
+                            instanceIdOf == null ? null : instanceIdOf.apply(n), n.classFqn());
+                    if (sf != null) {
+                        return sf;
                     }
                     TypedSpec value = n.properties().get(c.name());
-                    SqlExpr v = value != null ? scalar(value, columns) : new SqlExpr.NullLit();
+                    SqlExpr v = value == null ? new SqlExpr.NullLit() : slotValue(value, c, columns);
                     // A TO-MANY property is LIST-shaped in the canonical
                     // layout even when this instance supplies one value —
                     // every instance of a class shares ONE struct shape. The
@@ -2854,7 +2851,7 @@ public final class Lowerer {
                     && g.rawFqn().equals(
                             com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     && g.arguments().size() == 1 ->
-                    new SqlExpr.StringLit(simpleName(
+                    new SqlExpr.StringLit(MixedEncoding.simpleName(
                             g.arguments().get(0).typeName()));
 
             default -> scalarRelationalArms(spec, columns);

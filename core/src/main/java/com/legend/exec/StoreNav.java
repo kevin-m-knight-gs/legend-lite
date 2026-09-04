@@ -125,23 +125,13 @@ public final class StoreNav {
                         .isStoreNavFn(b.callee().qualifiedName())) {
             return true;
         }
-        return root instanceof com.legend.compiler.spec.typed
-                .TypedNewInstance ni
-                && HOST_CONSTRUCTION_CLASSES.contains(ni.classFqn());
+        // a ^Class(...) CONSTRUCTION is a VALUE (WORLD_MAP §4: the struct
+        // carrier, judged by its key tree) — never a host-channel root.
+        // The curated construction set the host channel once owned
+        // (DynaFunction/Literal/Alias/FreeMarkerOperationHolder/
+        // VarPlaceHolder) is deleted with it.
+        return false;
     }
-
-    /** The ^Class(...) constructions the host channel owns — a CURATED
-     * set that grows deliberately per slice (pinned by
-     * HostChannelPredicateTest). */
-    static final java.util.Set<String> HOST_CONSTRUCTION_CLASSES =
-            java.util.Set.of(
-                    "meta::relational::metamodel::DynaFunction",
-                    "meta::relational::metamodel::Literal",
-                    "meta::relational::metamodel::Alias",
-                    "meta::relational::functions::pureToSqlQuery::metamodel"
-                            + "::FreeMarkerOperationHolder",
-                    "meta::relational::functions::pureToSqlQuery::metamodel"
-                            + "::VarPlaceHolder");
 
     public static @com.legend.Nullable ExecutionResult tryEval(
             TypedSpec root, Map<String, TypedSpec> lets, ModelContext ctx) {

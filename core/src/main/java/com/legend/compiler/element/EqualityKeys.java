@@ -150,19 +150,20 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
                 continue;
             }
             Type pt = substitute(st.type(), typeArgs);
+            // a class-typed key slot: the DECLARED class's keys when it has
+            // them; a keyless declared class (an abstract polymorphic slot —
+            // DynaFunction.parameters : RelationalOperationElement[*]) leaves
+            // nested = null and the VALUE is judged by its own classifier
+            // (engine equal() recurses per value; WORLD_MAP §4 — the wire
+            // carries the class as __type). A keyless runtime class then
+            // compares by identity, exactly as before.
             EqualityKeys nested = null;
             if (pt instanceof Type.ClassType ct) {
                 nested = resolve(ctx, ct.fqn(), java.util.Map.of(),
                         inProgress);
-                if (nested == null) {
-                    return false;   // keyless/cyclic class as a key
-                }
             } else if (pt instanceof Type.GenericType g) {
                 nested = resolve(ctx, g.rawFqn(), typeArgsOf(ctx, g),
                         inProgress);
-                if (nested == null) {
-                    return false;   // keyless/cyclic class as a key
-                }
             }
             out.add(new Key(st.name(), st.multiplicity().isMany(), nested));
         }

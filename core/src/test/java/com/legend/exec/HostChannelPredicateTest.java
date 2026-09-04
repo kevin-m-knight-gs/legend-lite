@@ -90,30 +90,14 @@ class HostChannelPredicateTest {
     }
 
     @Test
-    void curatedHostConstructionRoutesHost() {
+    void metamodelConstructionIsAValue() {
+        // WORLD_MAP §4 (2026-09-03): a ^Class(...) construction is a VALUE
+        // on the struct carrier, judged by its key tree — the curated
+        // host-construction set is deleted; nothing constructed routes host
         TypedSpec n = typed(
                 "^meta::relational::metamodel::Literal(value='x')");
-        assertTrue(routesHost(n),
-                "the five curated metamodel constructions are the host"
-                        + " channel's typeInference vocabulary");
-    }
-
-    @Test
-    void curatedConstructionSetIsPinned() {
-        // F1.11: the ADMISSION SET itself is pinned — widening it routes
-        // new shapes host-side with no behavioral pin tripping (the
-        // "any native class stole 21 constructions" incident). Growing
-        // this set is a Charter clause-3/4 decision, not an edit.
-        org.junit.jupiter.api.Assertions.assertEquals(
-                java.util.Set.of(
-                        "meta::relational::metamodel::DynaFunction",
-                        "meta::relational::metamodel::Literal",
-                        "meta::relational::metamodel::Alias",
-                        "meta::relational::functions::pureToSqlQuery"
-                                + "::metamodel::FreeMarkerOperationHolder",
-                        "meta::relational::functions::pureToSqlQuery"
-                                + "::metamodel::VarPlaceHolder"),
-                StoreNav.HOST_CONSTRUCTION_CLASSES);
+        assertFalse(routesHost(n),
+                "a metamodel construction is a value, never a host-channel root");
     }
 
     // ---- refused shapes (must NEVER route host) -------------------------

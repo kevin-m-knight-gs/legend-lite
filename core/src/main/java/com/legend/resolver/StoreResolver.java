@@ -329,10 +329,12 @@ public final class StoreResolver {
      * with the source spliced for the param; the resulting hop chain
      * re-enters resolution. Everything else is a chain segment. */
     private TypedSpec objectNode(TypedSpec n, Context context) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
-            // a BARE element reference is a value (an argument, a let);
-            // it anchors a chain only as the SOURCE of one (D3)
-            return n;
+        if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef
+                || n instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+            // a BARE element reference or constructed instance is a VALUE (an
+            // argument, a let; WORLD_MAP §4: the struct carrier, key-tree
+            // verdict) — either roots a chain only as a navigation SOURCE (D3)
+            return structural(n, context);
         }
         return n instanceof TypedMap m
                 ? resolveNode(Pipelines.substituteParam(specs, m.mapper(), m.source()), context)

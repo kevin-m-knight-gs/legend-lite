@@ -1,6 +1,7 @@
 package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedEval;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLet;
@@ -12,6 +13,8 @@ import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.builtin.Pure;
+import com.legend.compiler.element.type.ExprType;
 import com.legend.error.NotImplementedException;
 
 import java.util.ArrayDeque;
@@ -59,6 +62,15 @@ public final class UserCallInliner {
     private final SpecCompiler specs;
     private final java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
     private final ArrayDeque<String> stack = new ArrayDeque<>();
+    /** Per activation: the size of its literal-structure arguments (the
+     * literal unroll's descent measure; 0 = none). */
+    private final ArrayDeque<Integer> literalSizes = new ArrayDeque<>();
+    /** The QUOTED-code frames being rewritten (a quoted lambda, a
+     * deactivate() subject): the literal unroll never evaluates inside —
+     * the lambda body IS the value (witness
+     * tesIsToOneDataTypeFunctionExpressionSequence: {@code ['a','b']->isEmpty()}
+     * must stay a function expression). */
+    private final ArrayDeque<TypedSpec> quotedFrames = new ArrayDeque<>();
     private final ArrayDeque<String> names = new ArrayDeque<>();
     /** Lambda binders in scope at the CURRENT walk position (name → nesting
      * count) — passed to the hook so a query-level splice never captures a
@@ -175,14 +187,24 @@ public final class UserCallInliner {
         String key = call.callee().signatureKey();
         String shown = call.callee().qualifiedName() + "/"
                 + call.callee().parameters().size();
+        int literalSize = args.stream().filter(LiteralUnroll::literalStructure)
+                .mapToInt(LiteralUnroll::size).sum();
         if (stack.contains(key)) {
-            List<String> path = new ArrayList<>(names);
-            java.util.Collections.reverse(path);
-            throw new NotImplementedException("recursion cycle involving " + shown
-                    + " (" + String.join(" -> ", path) + " -> " + shown
-                    + ") — recursive functions cannot lower to SQL");
+            // TIER 1 RECURSION (LiteralUnroll): a recursive call DESCENDS
+            // into a literal argument — strictly smaller than the enclosing
+            // activation's, so the unroll is well-founded and bottoms out
+            // on the literal's leaves; any other cycle stays the loud wall
+            if (literalSize == 0 || literalSize >= enclosingLiteralSize(key)) {
+                List<String> path = new ArrayList<>(names);
+                java.util.Collections.reverse(path);
+                throw new NotImplementedException("recursion cycle involving " + shown
+                        + " (" + String.join(" -> ", path) + " -> " + shown
+                        + ") — recursive functions cannot lower to SQL"
+                        + (literalSize == 0 ? "" : " (the call does not descend into its literal argument)"));
+            }
         }
         stack.push(key);
+        literalSizes.push(literalSize);
         names.push(shown);
         captureRisk.push(namesIn(args));
         try {
@@ -225,9 +247,25 @@ public final class UserCallInliner {
             return new TypedUserCall(call.callee(), args, call.info());
         } finally {
             stack.pop();
+            literalSizes.pop();
             names.pop();
             captureRisk.pop();
         }
+    }
+
+    /** The literal-argument size of the innermost enclosing activation of
+     * {@code key} (the stacks are pushed together). */
+    private int enclosingLiteralSize(String key) {
+        java.util.Iterator<String> k = stack.iterator();
+        java.util.Iterator<Integer> s = literalSizes.iterator();
+        while (k.hasNext()) {
+            String at = k.next();
+            int size = s.next();
+            if (at.equals(key)) {
+                return size;
+            }
+        }
+        throw new IllegalStateException("no enclosing activation of " + key);
     }
 
     /** DIRECT self-recursion in the callee's (resolved) definition body —
@@ -313,6 +351,124 @@ public final class UserCallInliner {
     // The rewriter — exhaustive over the sealed vocabulary (javac-enforced)
     // =====================================================================
 
+    /**
+     * QUOTED code and the TIER 1 literal unroll — the arms that must act
+     * BEFORE a binder's body is rewritten: a quoted lambda / deactivate
+     * subject substitutes variables but never folds; inside an inlined
+     * body (never at the query's own level — a user-authored if/map keeps
+     * its SQL shape: engine parity, witnesses testIfIncludingQualifiers
+     * and the keyless-ctor-under-lambda decline), a literal condition
+     * takes ONLY its branch, a literal collection applies the map/filter
+     * lambda per element, a literal match input picks its arm — so a
+     * recursive call inside descends on the literal instead of standing
+     * on an unbound parameter. Empty when the node is none of these.
+     */
+    private Optional<TypedSpec> literalArms(TypedSpec n, Map<String, TypedSpec> env) {
+        if (n instanceof TypedLambda l && l.quoted()) {
+            quotedFrames.push(n);
+            try {
+                return Optional.of(lambda(l, env));
+            } finally {
+                quotedFrames.pop();
+            }
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedDeactivate d) {
+            quotedFrames.push(n);
+            try {
+                return Optional.of(d.mapChildren(k -> rewrite(k, env)));
+            } finally {
+                quotedFrames.pop();
+            }
+        }
+        if (!quotedFrames.isEmpty() || stack.isEmpty()) {
+            return Optional.empty();
+        }
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedIf i -> {
+                TypedSpec cond = rewrite(i.condition(), env);
+                if (cond instanceof TypedCBoolean lit) {
+                    yield Optional.of(lit.value() ? rewrite(i.thenBranch(), env)
+                            : i.elseBranch().map(e -> rewrite(e, env)).orElseGet(() ->
+                                    new com.legend.compiler.spec.typed.TypedCollection(
+                                            List.of(), i.info())));
+                }
+                TypedSpec then = rewrite(i.thenBranch(), env);
+                Optional<TypedSpec> els = i.elseBranch().map(e -> rewrite(e, env));
+                yield Optional.of(cond == i.condition() && then == i.thenBranch()
+                        && els.equals(i.elseBranch()) ? i
+                        : new com.legend.compiler.spec.typed.TypedIf(cond, then, els, i.info()));
+            }
+            case TypedMap m -> {
+                TypedSpec src = rewrite(m.source(), env);
+                if (LiteralUnroll.literalStructure(src) && m.mapper().parameters().size() == 1) {
+                    List<TypedSpec> out = new ArrayList<>();
+                    for (TypedSpec e : LiteralUnroll.elements(src)) {
+                        Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
+                        inner.put(m.mapper().parameters().get(0), e);
+                        out.addAll(LiteralUnroll.elements(reduceStatements(m.mapper().body(), inner)));
+                    }
+                    yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, m.info()));
+                }
+                TypedLambda mapper = lambda(m.mapper(), env);
+                yield Optional.of(src == m.source() && mapper == m.mapper() ? m
+                        : m.withChildren(List.of(src, mapper)));
+            }
+            case com.legend.compiler.spec.typed.TypedFilter f -> {
+                TypedSpec src = rewrite(f.source(), env);
+                if (LiteralUnroll.literalStructure(src) && f.predicate().parameters().size() == 1) {
+                    // CONDITIONAL MEMBERSHIP (WORLD_MAP §4): a predicate that
+                    // stays a SQL boolean after the element is substituted
+                    // (a computed value inside it) keeps its element under
+                    // that condition — if(cond, |e, |[]) — and the database
+                    // decides; the list shape is still the compiler's
+                    List<TypedSpec> out = new ArrayList<>();
+                    for (TypedSpec e : LiteralUnroll.elements(src)) {
+                        Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
+                        inner.put(f.predicate().parameters().get(0), e);
+                        TypedSpec pred = reduceStatements(f.predicate().body(), inner);
+                        if (pred instanceof TypedCBoolean keep) {
+                            if (keep.value()) {
+                                out.add(e);
+                            }
+                        } else {
+                            ExprType guarded = new ExprType(e.info().type(),
+                                    com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
+                            out.add(new com.legend.compiler.spec.typed.TypedIf(pred, e,
+                                    Optional.of(new com.legend.compiler.spec.typed.TypedCollection(
+                                            List.of(), guarded)), guarded));
+                        }
+                    }
+                    yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, f.info()));
+                }
+                TypedLambda pred = lambda(f.predicate(), env);
+                yield Optional.of(src == f.source() && pred == f.predicate() ? f
+                        : f.withChildren(List.of(src, pred)));
+            }
+            case com.legend.compiler.spec.typed.TypedMatchRuntime mr -> {
+                TypedSpec input = rewrite(mr.input(), env);
+                Optional<TypedSpec> extra = mr.extra().map(e -> rewrite(e, env));
+                Optional<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> arm =
+                        LiteralUnroll.arm(mr, input, specs.ctx());
+                if (arm.isPresent()) {
+                    Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
+                    inner.put(arm.get().param(), input);
+                    if (mr.extraParam().isPresent()) {
+                        inner.put(mr.extraParam().get(), extra.orElse(input));
+                    }
+                    yield Optional.of(rewrite(arm.get().body(), inner));
+                }
+                List<TypedSpec> kids = new ArrayList<>();
+                kids.add(input);
+                extra.ifPresent(kids::add);
+                for (com.legend.compiler.spec.typed.TypedMatchRuntime.Arm a : mr.arms()) {
+                    kids.add(rewrite(a.body(), env));
+                }
+                yield Optional.of(sameRefs(kids, mr.children()) ? mr : mr.withChildren(kids));
+            }
+            default -> Optional.empty();
+        };
+    }
+
     /** Deep literal-if prune over an INLINED body (see
      * NormalizeFolds.foldInlined — engine parity keeps user-authored
      * query ifs; inlined platform plumbing folds). */
@@ -340,10 +496,17 @@ public final class UserCallInliner {
                 return rewrite(h, env);
             }
         }
-        return rewriteSwitch(n, env);
+        // literal-structure folds (tier 1): exact, or the node itself —
+        // never inside quoted code
+        TypedSpec r = rewriteSwitch(n, env);
+        return quotedFrames.isEmpty() ? LiteralUnroll.fold(r, specs.ctx()) : r;
     }
 
     private TypedSpec rewriteSwitch(TypedSpec n, Map<String, TypedSpec> env) {
+        Optional<TypedSpec> quotedOrUnrolled = literalArms(n, env);
+        if (quotedOrUnrolled.isPresent()) {
+            return quotedOrUnrolled.get();
+        }
         return switch (n) {
             case TypedUserCall uc -> inlineCall(uc, env);
 
@@ -493,6 +656,10 @@ public final class UserCallInliner {
                     yield sameRefs(keepRt, c.args()) ? c
                             : c.withChildren(keepRt);
                 }
+                // LAZY if (tier 1 unroll): a condition that folds to a
+                // literal boolean evaluates ONLY the taken branch — a
+                // partial evaluator never rewrites the untaken branch (its
+                // recursion would not descend; its walls are not ours)
                 List<TypedSpec> args = list(c.args(), env);
                 // HIGHER-ORDER map: substitution revealed a literal lambda
                 // where the checker saw a function-valued variable

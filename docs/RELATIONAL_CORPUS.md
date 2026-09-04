@@ -58,7 +58,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlDialectTranslation | 21 | 1 | 0 | 10 | 10 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
+| sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 255 | 1 | 9 | 1 | 1 | 1 | 2 | 1 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2386** | 46 | 99 | 44 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2395** | 46 | 90 | 44 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2386 PASS = 2325 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2395 PASS = 2334 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -822,7 +822,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2386 PASS = 2325 clean + 61 carrying softness (
 ### top error buckets
 
 - 9x no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
-- 9x host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - 8x Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - 3x unbound variable '$_nr2'
 - 2x unbound variable '$collection'
@@ -851,6 +850,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2386 PASS = 2325 clean + 61 carrying softness (
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x no overload of 'meta::pure::functions::lang::eval' accepts 4 argument(s)
+- 1x Unknown type: 'Operation' is not a known primitive, class, or enum
 
 ### per-test outcomes (non-passing)
 
@@ -968,15 +968,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2386 PASS = 2325 clean + 61 carrying softness (
 - ERROR testConvertVarSetPlaceHolder [sqlDialectTranslation]: no scalar lowering registered for resolved overload 'meta::relational::functions::toPostgresModel::newState' with 0 parameter(s)
 - SHAPE testConvertWindowColumn [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: 'Enum' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSomeAST_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseEqualBooleanLit_thenBothWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseEqualTrue_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseEqualYesNoLit_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseNestedByAnd_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseNestedByGroup_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseNestedByNot_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenCaseNestedByOr_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
-- ERROR testWhenJustCase_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (typed relations/StoreNav/walk family) or decline the test with a verdict
 - ERROR testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testJoinUsing [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

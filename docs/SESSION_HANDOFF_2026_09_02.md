@@ -2473,9 +2473,67 @@ non-goal), testPushFiltersDownToJoinsPostProcessorToSQL (filter push-down
 — a platform pass not yet written; needs the abstract `relation::SQLQuery`
 class declared for the hook lambda's parameter type first).
 
+**Batch 53 — THE COMPILER COMPARES, THE DATABASE COMPUTES (2026-09-03): ratchet
+277/2296 → 267/2306 (+10, ZERO lost; disagree 0).** The world map landed with it:
+`docs/WORLD_MAP.md` (three kinds of Pure code — natives / platform semantics /
+PROGRAMS; the deletion test; the prelude; compare-not-compute; the decision
+procedure), `docs/TENET_CHARTER.md` Clause 6, the `AGENTS.md` pointer, and the
+homework that decided it, `docs/OPTION2_HOMEWORK_2026_09_03.md` (all three Pure
+sources read end to end; per-test traces for debugPrint 9 and toPostgresModel 21;
+the probe receipt that without a Java `toLower` the family went 9/9 → 0/9 at the
+un-applied filter lambda, not at the verdict).
+
+Built (WORLD_MAP §4, Charter C6.2): (1) `UserCallInliner.literalArms` — the
+tier-1 unroll: a recursive call re-enters while its literal argument STRICTLY
+DESCENDS (`literalSizes`, no depth constant); `match`/`if`/`map`/`filter` act on
+the literal BEFORE their bodies are rewritten; `filter` over a spelled list with
+a predicate that stays a SQL boolean keeps each element under its own condition
+(the CONDITIONAL-MEMBERSHIP residual, `if(cond, |e, |[])`); quoted code
+(`TypedLambda.quoted`, minted by `CastChecker.deactivatedLambda`; `TypedDeactivate`
+subjects) never folds; nothing folds at the query's own level (engine parity —
+testIfIncludingQualifiers; the keyless-ctor-under-lambda decline). (2)
+`LiteralUnroll` — compare-only folds over literals (arm by class, spelled fields,
+`cast`, copy→instance, list shape: at/slice/limit/drop/concatenate/first/last/
+toOne, same-kind scalar identity, `in`, `isEmpty`, short-circuit `and`/`or`,
+`not`); the nine Java string folds of the first cut are DELETED;
+`LiteralUnrollLedgerTest` pins the set. (3) The verdict for a shape-CASE:
+`StoreNav.owns` no longer claims constructions (HOST_CONSTRUCTION_CLASSES deleted
+— a `^Class(…)` is a VALUE); `StoreResolver.objectNode` treats a bare constructed
+instance as a value (the rows lane had serialised it as rows and compared instance
+trees by their ROOT NAME ONLY — the previously "passing" debugPrint verdicts were
+that shallow); DynaFunction/Literal/Alias carry their `<<equality.Key>>` in the
+prelude; identity layouts carry `__type` beside `__id` (`ClassLayouts.SYNTHETIC_TYPE`,
+`MixedEncoding.syntheticField`); a struct-shaped value in a JSON slot takes the
+variant carrier (`MixedEncoding.slotCarrier` — DuckDB then unifies the two CASE
+branches to ONE struct type); the Executor decodes class values in JSON slots to
+structures (`structured`); `EqualityKeys` no longer poisons a key whose DECLARED
+class is keyless (the value is judged by its own classifier, per the engine's
+recursive equal()); `ExecuteChainAssembly.narrowSideStamps` gives a verdict side
+the COMPILED class of its let-bound program call (a `DynaFunction`, not the
+declared abstract `RelationalOperationElement`); `AssertVerdicts.restrictNested`
+restricts a polymorphic key slot's values by their own class (ledger 1511 → 1529,
+justified in JavaEvalLedgerTest). Receipt: the debugPrint SQL is
+`CASE WHEN len(list_filter([to_json(CASE WHEN lower('true') IN (…) THEN {…} ELSE NULL END), …])) > 0 THEN {castBoolean…} ELSE {case…} END`,
+judged by the DynaFunction key tree.
+
+NAMED after batch 53: (a) the SQL canon for a POLYMORPHIC nested key slot (a
+`CASE` over `__type` per subclass) so the byte verdict of record holds there
+instead of declining to the host referee; (b) the toPostgresModel leg per the
+homework — slice A (13 literal-only tests: admit `toPostgresModel.pure` +
+`dbExtension.pure` to the model, ≈60 SQL-node/relational declarations WITH keys,
+signatures for 3 unreached library functions, folds for fold/tail/init/reverse/
+defaultIfEmpty/newMap/get/groupBy/keyValues/enum toString/spelled-integer
+compare/assert(true)/dynamicNew, unspelled-property defaults, static re-dispatch
+of a runtime match on the narrowed type, qualified-property inlining, then DELETE
+`NEW_STATE`/`CONVERT_ELEMENT`/`CONVERT_SELECT_SQL_QUERY`/`MODEL_CONVERSION_STATE`
+and MetamodelWalk's conversion arms); slice B (6 store-leaf tests: a store read
+in scalar position inside a constructed instance = scalar subquery; `Schema.tables`
++ `Table.schema` mappings; column ordinal); C (2 join-tree-row recursion tests) =
+tier-2 residue.
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
-legs).** State: 297 fallbacks / 2276 flipped (batches 14–43 = group D,
+legs).** State: 267 fallbacks / 2306 flipped (batch 53, 2026-09-03; WORLD_MAP ratified — the toPostgresModel leg is next: slice A 13, slice B 6, C = tier-2 residue 2) (batches 14–43 = group D,
 group Q plan nodes as rows, group A function bodies as rows, group E
 lineage trees as rows, group I column lineage as rows, group H the
 expression tree as rows, execution activities as rows, aggregation-aware

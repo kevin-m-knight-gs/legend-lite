@@ -573,4 +573,61 @@ final class MixedEncoding {
                                 && a.element()
                                         == com.legend.sql.SqlType.Scalar.LITERAL));
     }
+
+    /** A constructed field's value in its layout SLOT's carrier (WORLD_MAP
+     * §4): a struct-shaped value (a class with a layout — a single
+     * {@code [$d]} or a many navigation) bound to a JSON slot (the declared
+     * class is polymorphic/layoutless: {@code parameters :
+     * RelationalOperationElement[*]}) takes the variant carrier per
+     * element — the same {@code to_json} the literal-collection arm
+     * spells, so every instance of the class shares ONE struct type
+     * (DuckDB unifies the shape-CASE branches; the wire decodes per
+     * element). Values already on the JSON carrier pass through. */
+    static SqlExpr slotCarrier(SqlExpr v, boolean many, SqlType valueType,
+            SqlType slot, java.util.function.Supplier<String> fresh) {
+        if (slot != SqlType.Scalar.JSON || !(valueType instanceof SqlType.Struct)) {
+            return v;
+        }
+        if (many) {
+            String x = fresh.get();
+            return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
+                    new SqlExpr.Lambda(List.of(x),
+                            SqlExpr.Call.of(SqlFn.TO_VARIANT, SqlExpr.Column.derived(null, x))));
+        }
+        return SqlExpr.Call.of(SqlFn.TO_VARIANT, v);
+    }
+
+    /** The identity layout's SYNTHETIC fields at a construction/copy site:
+     * F13 {@code __id} (one deterministic id per site — a copy is a NEW
+     * instance) and WORLD_MAP §4 {@code __type} (the constructed class, so
+     * a polymorphic slot's value is judged by its own classifier). Null for
+     * a model field. */
+    static SqlExpr.StructLit.@com.legend.Nullable Field syntheticField(
+            Type.Column c, @com.legend.Nullable String siteId, String classFqn) {
+        if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID.equals(c.name())
+                && siteId != null) {
+            return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(siteId));
+        }
+        if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(c.name())) {
+            return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(classFqn));
+        }
+        return null;
+    }
+
+    static String simpleName(String qn) {
+        int cut = qn.lastIndexOf("::");
+        return cut < 0 ? qn : qn.substring(cut + 2);
+    }
+
+
+    /** Pure LITERAL FLATTENING at construction (audit-of-R1: consumer-site
+     * compaction was whack-a-mole): a VALUE-lane literal collection with an
+     * element that CAN be empty ([0..1]/[0..*] stamped — an optional, a
+     * conditional-membership residual) compacts ONCE so every consumer sees
+     * the pure collection. */
+    static boolean compacts(TypedCollection c) {
+        return CollectionLanes.valueLane(c) && c.elements().stream().anyMatch(e ->
+                e.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() == 0);
+    }
 }

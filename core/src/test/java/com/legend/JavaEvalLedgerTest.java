@@ -400,7 +400,14 @@ class JavaEvalLedgerTest {
             // (VerdictQueries.unrolledElement mints the nodes) and each
             // element's assert adjudicates through the EXISTING arms over
             // database results — a verdict SHAPE, no host evaluation
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1511),
+            // 1511 -> 1529 (batch 53, 2026-09-03, WORLD_MAP §4): the keyed
+            // K-arm restricts a POLYMORPHIC key slot's values by their own
+            // class (restrictNested reads the wire's __type) — the engine's
+            // equal() rule for RelationalOperationElement[*] keys, model-
+            // driven evidence projection, no value computed; the side-stamp
+            // narrowing itself lives in the compiler layer
+            // (ExecuteChainAssembly.narrowSideStamps)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1529),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -43,8 +43,17 @@ public final class SpecCompiler {
      */
     private final Map<TypedFunction, CompiledFunction> memo = new IdentityHashMap<>();
 
+    private final ModelContext ctx;
+
     public SpecCompiler(ModelContext ctx) {
+        this.ctx = ctx;
         this.typer = new Typer(ctx, new InferenceKernel(ctx));
+    }
+
+    /** The model this compiler compiles against (the literal unroll's
+     * class-hierarchy oracle). */
+    public ModelContext ctx() {
+        return ctx;
     }
 
     /**

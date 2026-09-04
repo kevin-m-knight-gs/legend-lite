@@ -336,8 +336,8 @@ public final class Pure {
     public static final ClassDefinition RELATIONAL_OPERATION_ELEMENT = nativeClass("native Class meta::relational::metamodel::RelationalOperationElement extends meta::pure::metamodel::type::Any {}");
     // CONSTRUCTED relational-op instances (^DynaFunction(...) in the
     // inference tests — real relational.pure metamodel)
-    public static final ClassDefinition DYNA_FUNCTION_METACLASS = nativeClass("native Class meta::relational::metamodel::DynaFunction extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; parameters: meta::relational::metamodel::RelationalOperationElement[*]; }");
-    public static final ClassDefinition LITERAL_METACLASS = nativeClass("native Class meta::relational::metamodel::Literal extends meta::relational::metamodel::RelationalOperationElement { value: meta::pure::metamodel::type::Any[1]; }");
+    public static final ClassDefinition DYNA_FUNCTION_METACLASS = nativeClass("native Class meta::relational::metamodel::DynaFunction extends meta::relational::metamodel::RelationalOperationElement { <<equality.Key>> name: meta::pure::metamodel::type::String[1]; <<equality.Key>> parameters: meta::relational::metamodel::RelationalOperationElement[*]; }");
+    public static final ClassDefinition LITERAL_METACLASS = nativeClass("native Class meta::relational::metamodel::Literal extends meta::relational::metamodel::RelationalOperationElement { <<equality.Key>> value: meta::pure::metamodel::type::Any[1]; }");
     public static final ClassDefinition LITERAL_LIST_METACLASS = nativeClass("native Class meta::relational::metamodel::LiteralList extends meta::relational::metamodel::RelationalOperationElement { values: meta::relational::metamodel::Literal[*]; }");
     // The toPostgresModel STANDALONE-SQL bridge surface (real
     // relational.pure:196-383 + postgres metamodel.pure:378-386 +
@@ -399,7 +399,7 @@ public final class Pure {
     public static final ClassDefinition SQLN_SELECT = nativeClass("native Class meta::external::query::sql::metamodel::Select extends meta::external::query::sql::metamodel::Node { distinct: meta::pure::metamodel::type::Boolean[1] = false; selectItems: meta::external::query::sql::metamodel::SelectItem[*]; }");
     /** Real toPostgresModel.pure:31 (dynaFunctionConverterMap is a Map-typed reference — Any). */
     public static final ClassDefinition MODEL_CONVERSION_STATE = nativeClass("native Class meta::relational::functions::toPostgresModel::ModelConversionState extends meta::pure::metamodel::type::Any { isRootSelect: meta::pure::metamodel::type::Boolean[0..1]; processingSelect: meta::pure::metamodel::type::Boolean[0..1]; processingFilter: meta::pure::metamodel::type::Boolean[0..1]; extensions: meta::pure::extension::Extension[*]; dynaFunctionConverterMap: meta::pure::metamodel::type::Any[0..1]; }");
-    public static final ClassDefinition ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::Alias extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; relationalElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
+    public static final ClassDefinition ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::Alias extends meta::relational::metamodel::RelationalOperationElement { <<equality.Key>> name: meta::pure::metamodel::type::String[1]; <<equality.Key>> relationalElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     public static final ClassDefinition TABLE_ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAlias extends meta::relational::metamodel::Alias { schema: meta::pure::metamodel::type::String[0..1]; }");
     // owner (real relational metamodel Column.owner : Relation[0..1]) —
     // declared TABLE-typed here: the store's column rows own a table (views'

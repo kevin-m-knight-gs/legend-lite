@@ -515,4 +515,48 @@ public final class ExecuteChainAssembly {
         }
         return false;
     }
+
+    /**
+     * WORLD_MAP §4 — a verdict side's stamp is what the COMPILER knows about
+     * its value, not the declared type of the function that produced it: a
+     * let-bound program call ({@code let w = wrapH2Boolean($op, [])},
+     * declared {@code RelationalOperationElement[1]}) whose inlined value is
+     * a {@code DynaFunction} (a literal, or a shape-CASE residual over two
+     * DynaFunctions) is judged as a DynaFunction — its key tree, not an
+     * identity the abstract declaration cannot carry. Only a STRICT
+     * narrowing to a subclass re-stamps; the multiplicity stays declared.
+     * The inline runs under the same let prefix the side is evaluated
+     * under, and walls the same way (loud, never caught here).
+     */
+    public static List<TypedSpec> narrowSideStamps(List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs) {
+        List<TypedSpec> out = new java.util.ArrayList<>(args.size());
+        for (TypedSpec a : args) {
+            out.add(narrowSideStamp(a, letPrefix, specs));
+        }
+        return out;
+    }
+
+    private static TypedSpec narrowSideStamp(TypedSpec a, List<TypedSpec> letPrefix,
+            SpecCompiler specs) {
+        if (!(a instanceof com.legend.compiler.spec.typed.TypedVariable v)
+                || !(a.info().type() instanceof Type.ClassType declared)) {
+            return a;
+        }
+        TypedSpec bound = letBound(a, letPrefix);
+        if (!(bound instanceof com.legend.compiler.spec.typed.TypedUserCall)) {
+            return a;
+        }
+        List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+        single.add(bound);
+        List<TypedSpec> inlined = new UserCallInliner(specs).inlineBody(single);
+        TypedSpec value = inlined.get(inlined.size() - 1);
+        if (value.info().type() instanceof Type.ClassType actual
+                && !actual.fqn().equals(declared.fqn())
+                && specs.ctx().isSubtype(actual.fqn(), declared.fqn())) {
+            return new com.legend.compiler.spec.typed.TypedVariable(v.name(),
+                    new ExprType(actual, a.info().multiplicity()));
+        }
+        return a;
+    }
 }

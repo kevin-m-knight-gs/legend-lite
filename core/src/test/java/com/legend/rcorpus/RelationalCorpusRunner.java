@@ -1037,7 +1037,11 @@ public class RelationalCorpusRunner {
             // the walk's lane (lane move, disagree 0).
             // 60 -> 59 (batch 50): the flipped user-defined-date-format
             // test's sql-assert left the walk's lane (lane move, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(59, execPassing,
+            // 59 -> 58 (batch 53): the flipped routing composition test's
+            // sql-assert left the walk's lane (its let-bound
+            // getNames()->at(0) is a literal-collection fold; lane move,
+            // disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(58, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1646,10 +1650,28 @@ public class RelationalCorpusRunner {
             // connection, the runtime's replaceTables applied to the rows
             // leg). +2 (nonExecutable subqueries, toSQLString replaceTables),
             // 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(277L,
+            // 277 -> 267 (batch 53, 2026-09-03): TIER 1 RECURSION (user green
+            // light) — a recursive Pure function over a LITERAL instance
+            // tree unrolls at compile time: the inliner re-enters a
+            // recursive call while its literal argument strictly descends
+            // (well-founded, no depth constant), dispatches match arms /
+            // map / filter / if lazily on the literal BEFORE their bodies
+            // are rewritten, and LiteralUnroll folds property reads, casts,
+            // copies and list shape over literals (never inside quoted
+            // code — TypedLambda.quoted). THE COMPILER COMPARES, THE
+            // DATABASE COMPUTES (docs/WORLD_MAP.md §4): no fold produces a
+            // value — toLower stays a residual, a filter over a spelled
+            // list with an undecided predicate keeps each element under
+            // its own condition, a shape-CASE over two DynaFunctions is
+            // judged by the key tree (equality keys in the prelude, __type
+            // beside __id, a bare constructed instance is a struct VALUE —
+            // the rows lane compared instance trees by root name only).
+            // +10 (debugPrint wrapH2Boolean 9, routing composition 1),
+            // 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(267L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2296L,
+            org.junit.jupiter.api.Assertions.assertEquals(2306L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

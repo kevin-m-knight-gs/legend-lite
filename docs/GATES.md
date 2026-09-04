@@ -221,6 +221,9 @@ time; the cut is kept for its shape (no fact asserted twice).
 **Batch 52 (post-processors as compiler passes: the nonExecutable IR pass; the text verdict arm takes the toSQLString runtime overload with the runtime's table replacements on the rows leg, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 279/2294 → 277/2296 (+2, 0 lost); lane move text-only 25 → 24 (disagree 0); SqlTextVerdicts ledger 669 → 690 (justified). G1 40s, G2 9s, G4 58s, G5 39s, G6 82s, G7 25s, G9 18s, G8 71s.
 
+**Batch 53 (THE COMPILER COMPARES, THE DATABASE COMPUTES — tier-1 unroll with residuals, debugPrint 9 with zero Java value computation; the world map: docs/WORLD_MAP.md + TENET_CHARTER Clause 6, 2026-09-03): chain GREEN
+(gates 1,2,4,5,6,7,8,9)** — ratchet 277/2296 → 267/2306 (+10, 0 lost; disagree 0); lane move exec-passing 59 → 58 (disagree 0); JavaEvalLedger AssertVerdicts 1511 → 1529 (justified: per-class nested key projection; SQL-canon follow-up named); LiteralUnrollLedgerTest pins the compare-only fold set; StoreNav's host construction set DELETED. G1 40s, G2 9s, G4 55s, G5 38s, G6 83s, G7 25s, G9 19s, G8 71s.
+
 **Batch 51 (an Any-typed struct field decodes as its value at the wire, 2026-09-03): chain GREEN
 (gates 1,2,4,5,6,7,8,9)** — ratchet 280/2293 → 279/2294 (+1, 0 lost); lanes unchanged (exec-passing 59, M1 rescued 54, disagree 0). G1 42s, G2 8s, G4 59s, G5 39s, G6 84s, G7 26s, G9 19s, G8 75s.
 
