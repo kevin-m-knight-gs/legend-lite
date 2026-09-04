@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 431 classes. */
+    /** 442 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -181,6 +181,17 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::json::JSONNumber extends meta::json::JSONElement { <<equality.Key>> value: meta::pure::metamodel::type::Number[1]; }"),
             Pure.nativeClass("native Class meta::json::JSONObject extends meta::json::JSONElement { <<equality.Key>> keyValuePairs: meta::json::JSONKeyValue[*]; }"),
             Pure.nativeClass("native Class meta::json::JSONString extends meta::json::JSONElement { <<equality.Key>> value: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::Execution { }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::Ownership { }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::PostValidation<T, m> { description: meta::pure::metamodel::type::String[1]; parameters: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[*]; assertions: meta::legend::service::metamodel::PostValidationAssertion<T|m>[1..*]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::PostValidationAssertion<T, m> { id: meta::pure::metamodel::type::String[1]; assertion: meta::pure::metamodel::function::Function<{T[m]->meta::pure::metamodel::type::Boolean[1]}>[1]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::PureExecution extends meta::legend::service::metamodel::Execution { func: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::PureSingleExecution extends meta::legend::service::metamodel::PureExecution { mapping: meta::pure::mapping::Mapping[0..1]; runtime: meta::core::runtime::Runtime[0..1]; executionOptions: meta::pure::executionPlan::ExecutionOption[*]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::Service extends meta::pure::metamodel::PackageableElement, meta::pure::metamodel::testable::Testable { pattern: meta::pure::metamodel::type::String[1]; owners: meta::pure::metamodel::type::String[*]; ownership: meta::legend::service::metamodel::Ownership[0..1]; autoActivateUpdates: meta::pure::metamodel::type::Boolean[1]; title: meta::pure::metamodel::type::String[0..1]; documentation: meta::pure::metamodel::type::String[1]; execution: meta::legend::service::metamodel::Execution[1]; tags: meta::legend::service::metamodel::ServiceTag[*]; postValidations: meta::legend::service::metamodel::PostValidation<meta::pure::metamodel::type::Any|*>[*]; mcpServer: meta::pure::metamodel::type::String[0..1]; test: meta::legend::service::metamodel::Test[0..1]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::ServiceTag { name: meta::pure::metamodel::type::String[1]; value: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::SingleExecutionTest extends meta::legend::service::metamodel::Test { data: meta::pure::metamodel::type::String[1]; asserts: meta::legend::service::metamodel::TestContainer[1..*]; }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::Test { }"),
+            Pure.nativeClass("native Class meta::legend::service::metamodel::TestContainer { parametersValues: meta::pure::metamodel::type::Any[*]; assert: meta::pure::metamodel::function::FunctionDefinition<{meta::pure::mapping::Result<meta::pure::metamodel::type::Any|*>[1]->meta::pure::metamodel::type::Boolean[1]}>[1]; }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::PostProcessor { }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::RelationalMapperPostProcessor extends meta::pure::alloy::connections::PostProcessor { relationalMappers: meta::relational::metamodel::RelationalMapper[*]; }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy { }"),

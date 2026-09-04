@@ -576,6 +576,12 @@ public final class SystemMetamodel {
                         included_fqn VARCHAR(1024) PRIMARY KEY,
                         include_rank INTEGER NOT NULL
                     )
+                    Table mapping_includes
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        included_fqn VARCHAR(1024) PRIMARY KEY,
+                        ordinal INTEGER NOT NULL
+                    )
                     Table class_mappings
                     (
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
@@ -811,6 +817,8 @@ public final class SystemMetamodel {
                     and metamodel.relational_elements.table_name = {target}.name)
                 Join MappingsToClosure(metamodel.mappings.fqn = metamodel.mapping_includes_closure.mapping_fqn)
                 Join ClosureToVisible(metamodel.mapping_includes_closure.included_fqn = metamodel.mappings.fqn)
+                Join MappingsToIncludes(metamodel.mappings.fqn = metamodel.mapping_includes.mapping_fqn)
+                Join IncludeToIncluded(metamodel.mapping_includes.included_fqn = metamodel.mappings.fqn)
                 Join ClassMappingsToMappings(metamodel.class_mappings.mapping_fqn = metamodel.mappings.fqn)
                 Join EnumerationMappingsToMappings(metamodel.enumeration_mappings.mapping_fqn = metamodel.mappings.fqn)
                 Join EnumerationMappingToValues(metamodel.enumeration_mappings.mapping_fqn = metamodel.enum_value_mappings.mapping_fqn
@@ -1133,7 +1141,15 @@ public final class SystemMetamodel {
                     ~mainTable %1$s metamodel.mappings
                     name: %1$s metamodel.mappings.name,
                     classMappings[rootRel]: %1$s@ClassMappingsToMappings,
-                    enumerationMappings[enumMap]: %1$s@EnumerationMappingsToMappings
+                    enumerationMappings[enumMap]: %1$s@EnumerationMappingsToMappings,
+                    includes[mappingInclude]: %1$s@MappingsToIncludes
+                }
+                *meta::pure::mapping::MappingInclude[mappingInclude]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.mapping_includes.mapping_fqn, %1$s metamodel.mapping_includes.included_fqn)
+                    ~mainTable %1$s metamodel.mapping_includes
+                    owner[mapping]: %1$s@MappingsToIncludes,
+                    included[mapping]: %1$s@IncludeToIncluded
                 }
                 *meta::pure::mapping::EnumerationMapping[enumMap]: Relational
                 {

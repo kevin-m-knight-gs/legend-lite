@@ -526,9 +526,6 @@ public final class CanonicalDivergence {
             "has no property 'expressionSequence'",
             "unknown type 'InstanceValue'",
             "a non-let intermediate statement in a bare lambda literal",
-            // extension-lambda eval (the wall-deepened routerExtensions
-            // auto-map refusal)
-            "'meta::pure::extension::routerExtensions'",
             // PLAN-NODE MODEL WALKS (adjudicated 2026-08-31, §4AE growth
             // rule): allNodes/executionNodes/cast/supportsStream asserts
             // evaluate the tests' filter lambdas over plan-node objects

@@ -601,7 +601,11 @@ class NativeFunctionTest {
         // InstanceSetImplementation, PropertyMapping, Column,
         // EnumValueMapping — the metamodel store types element references
         // as its raw row classes; receipt in Pure.java).
-        assertEquals(76, hand,
+        // 76 -> 78 (batch 57, 2026-09-04): +Package (m3.pure:1469, the
+        // owning-package value — ^Database(package = ::)) and +Testable
+        // (m3.pure:3295, the service metamodel's supertype); both empty
+        // shapes that grow by witness.
+        assertEquals(78, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -1128,7 +1132,9 @@ class NativeFunctionTest {
                     // constructs the empty sentinel ^Mapping(name = ''));
                     // classMappings (mapping.pure:26) — the metamodel
                     // store's witness (step 3, 2026-09-02)
-                    "meta::pure::mapping::Mapping", List.of("name", "classMappings", "enumerationMappings"),
+                    "meta::pure::mapping::Mapping", List.of("name", "classMappings", "enumerationMappings", "includes"),
+                    // m3 PackageableElement.package (tools/m3shape.py) — batch 57
+                    "meta::pure::metamodel::PackageableElement", List.of("package"),
                     // real m3 Property (group F burn 2026-09-02): the
                     // property-mapping rows' property end — name only
                     "meta::pure::metamodel::function::property::Property",

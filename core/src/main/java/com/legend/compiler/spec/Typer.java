@@ -1253,7 +1253,7 @@ final class Typer {
      * delegates the rest back to {@link #applyGeneric}.
      */
     private TypedSpec applyCore(CoreFn fn, AppliedFunction af, Env env) {
-        af = expandLetBoundLambdaArgs(af, env);
+        af = CallShapes.expandLetBoundLambdaArgs(af, env);
         return switch (fn) {
             case LET -> LetChecker.check(this, af, env);
             // leg 3b: deactivate(e) is COMPILE-TIME reflection — the node
@@ -1400,6 +1400,10 @@ final class Typer {
      * {@code sort}, non-{@code ^} {@code new}) call it directly.
      */
     TypedSpec applyGeneric(AppliedFunction af, Env env) {
+        TypedSpec autoMapped = CallShapes.autoMapReceiver(this, af, env);
+        if (autoMapped != null) {
+            return autoMapped;
+        }
         Application a = checkGeneric(af, env);
         if (requiresNormalization(a.chosen())) {
             return inlineNormalized(af, a.chosen(), env);
@@ -1592,47 +1596,16 @@ final class Typer {
         }
     }
 
-    /** A LET-BOUND lambda literal in a CORE construct's argument position
-     * ({@code let f = t|$t.quantity < 45; ->filter($f)}) is its literal:
-     * pure's let is immutable and referentially transparent, and the core
-     * checkers type a lambda literal against their signature
-     * ({@link Args#lambda}) — the engine's router inlines the value at
-     * the same point. Generic and user calls (execute's query carrier)
-     * keep the variable: their checkers take the function VALUE. */
-    private AppliedFunction expandLetBoundLambdaArgs(AppliedFunction af, Env env) {
-        List<ValueSpecification> np = null;
-        for (int i = 0; i < af.parameters().size(); i++) {
-            if (af.parameters().get(i) instanceof Variable v
-                    && env.exprAlias(v.name()).orElse(null) instanceof LambdaFunction bound) {
-                if (np == null) {
-                    np = new ArrayList<>(af.parameters());
-                }
-                np.set(i, bound);
-            }
-        }
-        return np == null ? af : af.withParameters(np);
-    }
-
     /** A helper CALL returning a function value over the schema-erasing TDS
-     * nominals ({@code getFilterLambda():Function<{TDSRow[1]->Boolean[1]}>})
-     * expands to its lambda literal IN ARGUMENT POSITION — the literal then
-     * types against the surrounding signature like any inline lambda (a
-     * {@code TDSRow} annotation refines nothing; the concrete row wins).
-     * A function VALUE over TDSRow can never unify with a row-bound type
-     * variable, so un-expanded it is a guaranteed loud failure. */
+     * nominals expands to its lambda literal IN ARGUMENT POSITION — the
+     * literal types against the surrounding signature like any inline lambda
+     * (a TDSRow annotation refines nothing; a function VALUE over TDSRow can
+     * never unify with a row-bound type variable). */
     private AppliedFunction expandFunctionValuedHelperArgs(AppliedFunction af) {
         List<ValueSpecification> np = null;
         for (int i = 0; i < af.parameters().size(); i++) {
-            if (!(af.parameters().get(i) instanceof AppliedFunction call)) {
-                continue;
-            }
-            boolean erasedFn = functionCandidates(call).stream()
-                    .filter(c -> c.parameters().size() == call.parameters().size())
-                    .anyMatch(c -> {
-                        Type.FunctionType ft = asFunctionType(c.returnType());
-                        return ft != null && isSchemaErased(ft);
-                    });
-            if (!erasedFn) {
+            if (!(af.parameters().get(i) instanceof AppliedFunction call)
+                    || !functionValuedHelperCall(call)) {
                 continue;
             }
             ValueSpecification ex = rawSchemaErasedExpansion(call);
@@ -1645,6 +1618,17 @@ final class Typer {
             np.set(i, ex);
         }
         return np == null ? af : af.withParameters(np);
+    }
+
+    /** A helper CALL returning a function value over the schema-erasing TDS
+     * nominals — what {@link #rawSchemaErasedExpansion} expands. */
+    boolean functionValuedHelperCall(AppliedFunction call) {
+        return functionCandidates(call).stream()
+                .filter(c -> c.parameters().size() == call.parameters().size())
+                .anyMatch(c -> {
+                    Type.FunctionType ft = asFunctionType(c.returnType());
+                    return ft != null && isSchemaErased(ft);
+                });
     }
 
     /**
@@ -1667,8 +1651,14 @@ final class Typer {
         if (arityCands.stream().anyMatch(TypedFunction::isNative)) {
             return null;
         }
+        // NormalizeRequired bodies, and any body RETURNING a function value
+        // over the TDS nominals (a private accessor helper's literal must
+        // reach its consumer's shape rules)
         List<TypedFunction> cands = arityCands.stream()
-                .filter(this::requiresNormalization)
+                .filter(c -> requiresNormalization(c)
+                        || (c.body().isPresent()
+                                && asFunctionType(c.returnType()) instanceof Type.FunctionType rft
+                                && isSchemaErased(rft)))
                 .toList();
         if (System.getenv("LEGEND_LITE_RAW_EXPAND_TRACE") != null) {
             System.err.println("[raw-expand] " + af.function() + " cands="
@@ -1875,6 +1865,17 @@ final class Typer {
                                 + " collection against a non-variable"
                                 + " non-function param slipped the shape gate");
                     }
+                    // the TOP type takes a self-typed lambda as a VALUE
+                    // (cast(lambda, @FunctionDefinition<Any>)): no signature
+                    // to type against — the literal types itself
+                    if (chosen.parameters().get(i).type() instanceof Type.ClassType ac0
+                            && ac0.fqn().equals("meta::pure::metamodel::type::Any")) {
+                        typed[i] = synth(lam, env);
+                        kernel.unifyMult(chosen.parameters().get(i).multiplicity(),
+                                typed[i].info().multiplicity(),
+                                typed[i].info().type(), b);
+                        continue;
+                    }
                     typed[i] = typeLambda(lam, chosen.parameters().get(i).type(), b, env);
                 } else if (isLambdaCollection(raw.get(i))) {
                     // pure [f] ≡ f in call position — each element types
@@ -1977,7 +1978,9 @@ final class Typer {
                 // standalone and T binds to its function type
                 // (evaluateAndDeactivate<T|m>(var:T[m]) over {|...}).
                 case LambdaFunction lf -> isFunctionTyped(t)
-                        || (t instanceof Type.TypeVar
+                        || ((t instanceof Type.TypeVar
+                                || t instanceof Type.ClassType ac
+                                        && ac.fqn().equals("meta::pure::metamodel::type::Any"))
                                 && selfTypable(lf));
                 // a collection of SELF-TYPABLE lambdas also matches a bare
                 // type-variable param ([{|q1},{|q2}]->evaluateAndDeactivate())
@@ -2097,8 +2100,11 @@ final class Typer {
                 want = extractFunctionType(pt).params().size();
             } catch (TypeInferenceException e) {
                 // a deferred LAMBDA against a non-function, non-variable
-                // param can never type
-                if (raw.get(i) instanceof LambdaFunction) {
+                // param can never type — except the TOP type: a lambda
+                // IS an Any (cast(lambda, @FunctionDefinition<Any>))
+                if (raw.get(i) instanceof LambdaFunction
+                        && !(pt instanceof Type.ClassType ac
+                                && ac.fqn().equals("meta::pure::metamodel::type::Any"))) {
                     return false;
                 }
                 continue;
@@ -2496,6 +2502,12 @@ final class Typer {
      * {@code Person[*]} via the generic native path.
      */
     private TypedSpec classReference(PackageableElementPtr ref) {
+        if (ref.fullPath().equals("::")) {
+            // the ROOT package literal (^Database(package = ::)): a
+            // Package value, real m3's Root
+            return new TypedPackageableRef("::",
+                    ExprType.one(new Type.ClassType("meta::pure::metamodel::Package")));
+        }
         var cls = ctx.findClass(ref.fullPath());
         if (cls.isPresent()) {
             // The node carries the RESOLVED FQN — a bare name accepted by
@@ -3079,8 +3091,10 @@ final class Typer {
             // an ENUM VALUE's name (real m3 Enum.name) — the SQL value of an enum IS its name
             case Type.EnumType ignored when ap.property().equals("name") ->
                     new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
-            default -> throw new TypeInferenceException("cannot access '" + ap.property()
+            default -> {
+                throw new TypeInferenceException("cannot access '" + ap.property()
                     + "' on " + source.info().type().typeName());
+            }
         };
         Multiplicity mult = compose(source.info().multiplicity(), member.multiplicity());
         if (ap.property().equals("elementOverride")   // M3: never
@@ -3176,19 +3190,6 @@ final class Typer {
         return Multiplicity.product(outer, inner);
     }
 
-    /** The platform class a packageable ELEMENT reads as when it is used
-     * as a metamodel VALUE (its system-store row): a database or a
-     * mapping; null for any other name. */
-    private @com.legend.Nullable String metamodelElementClass(String fqn) {
-        if (ctx.findDatabase(fqn).isPresent()) {
-            return "meta::relational::metamodel::Database";
-        }
-        if (ctx.findMapping(fqn).isPresent()) {
-            return "meta::pure::mapping::Mapping";
-        }
-        return null;
-    }
-
     /** An enum value reference {@code Kind.VALUE}: both the enumeration and the value must exist. */
     private TypedSpec enumValue(EnumValue ev) {
         if (System.getenv("LL_TDG_DEBUG") != null
@@ -3201,7 +3202,7 @@ final class Typer {
         // access over the element's own system-store row (db.schemas,
         // mapping.enumerationMappings — the typeInference walk surface)
         String elCls = ctx.findEnum(ev.fullPath()).isEmpty()
-                ? metamodelElementClass(ev.fullPath()) : null;
+                ? CallShapes.metamodelElementClass(ctx, ev.fullPath()) : null;
         if (elCls != null) {
             var elRef = new com.legend.compiler.spec.typed
                     .TypedPackageableRef(ev.fullPath(),

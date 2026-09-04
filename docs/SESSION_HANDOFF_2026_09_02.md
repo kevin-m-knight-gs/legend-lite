@@ -3209,3 +3209,31 @@ now DESIGN legs, not singles.** Each of these was probed to its wall:
 - Dynamic mapping compilation (getNoArgFlattenMapping compiles a
   mapping from a STRING), FunctionExpression reflection
   (testRoutingContextBuilderFunctions `$fe.func`): decisions.
+
+**Batch 57 — the mechanical type walls burned one by one (2026-09-04):
+ratchet 243/2330 → 241/2332, chain GREEN 6m05s (docs/GATES.md batch 57
+has the full per-wall ledger).** The user's question that shaped it: "why
+do we keep skipping the supposedly easy mechanical ones?" — answered by a
+one-pass census of all 78 type-related walls (LL_TMP_DEBUG over the whole
+corpus prints every wall's message and stack in one run; never probe them
+one JVM at a time). Verdict after landing: of the ~30 called mechanical,
+2 flipped (repeat), ~12 landed as spec-verified truths that moved their
+test to the NEXT honest wall, and 5 turned out not to be mechanical
+(createTempTable K-arm, toSQLString/8 needs Format+DebugContext, the
+4-arg loadCsvToDbTable has no spec declaration in the checkout,
+createDbConfig returns a CORPUS class, asserts inside map/forAll need a
+statement unroll).
+
+**NEXT SESSION OPENS HERE.** The remaining census is design legs and
+decisions (the 2026-09-04 breakdown in this handoff, plus GATES batch 57's
+"where each probed wall went"). Ranked by tests per design: lineage
+scanRelations tree print (21), the union family (9 Assert-failed), the
+platform Pure-text library owner (Date add/subtract with Duration,
+contextHasFlag, isExecutionOptionPresent — ~8), harness import-scope
+module pull (6), resolver class-query shapes (7), the extension VALUE
+leg (connection equality 5, now at the lowering's match over
+extension-contributed arms), the digest MD5-input spelling (3 tests run
+end to end; compare with the engine's H2 SQL for the joined string).
+Decisions for the user: objectReferenceIn 7, routeFunction 5, hNversion
+7 (+2 that now reach it), TDG chained fetch 12, dynamic mapping
+compilation 4, protocol transforms 2, functionReturnType 1.

@@ -41,6 +41,7 @@ public final class MetamodelSeeds {
             case "mappings" -> mappings(extent(ctx,
                     Pure.MAPPING_METACLASS.qualifiedName()));
             case "mapping_includes_closure" -> includesClosure(ctx);
+            case "mapping_includes" -> includes(ctx);
             case "class_mappings" -> classMappings(ctx);
             case "enumeration_mappings" -> enumerationMappings(ctx, 0);
             case "enum_value_mappings" -> enumerationMappings(ctx, 1);
@@ -137,6 +138,24 @@ public final class MetamodelSeeds {
      * itself last — {@code _classMappingByClass} concatenates the
      * includes' sets before its own, and {@code rootClassMappingByClass}
      * takes the LAST root, so the rank is the fact that ordering reads. */
+    /** The DIRECT includes (Mapping.includes: MappingInclude[*]), in
+     * declaration order — the closure above is the visibility relation. */
+    private static List<List<String>> includes(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+            MappingDefinition md = ctx.findMapping(fqn).orElse(null);
+            if (md == null) {
+                continue;
+            }
+            int i = 0;
+            for (var inc : md.includes()) {
+                rows.add(List.of(fqn, resolveIncludePath(ctx, fqn, inc.mappingPath()),
+                        Integer.toString(i++)));
+            }
+        }
+        return rows;
+    }
+
     private static List<List<String>> includesClosure(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
         for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {

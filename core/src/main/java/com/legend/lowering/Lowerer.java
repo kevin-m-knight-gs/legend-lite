@@ -1352,10 +1352,8 @@ public final class Lowerer {
         return computedColumns(base, columns, info, false, wireForm);
     }
 
-    /**
-     * Lower computed columns over {@code base}: one attempt, isolate ONCE on
-     * an unfoldable ref, then loud (isolation is idempotent for resolution).
-     */
+    /** Lower computed columns over {@code base}: one attempt, isolate ONCE on
+     * an unfoldable ref, then loud (isolation is idempotent for resolution). */
     private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                       ExprType info,
                                       boolean keepExisting,
@@ -2399,6 +2397,7 @@ public final class Lowerer {
 
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
+            case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.
             case TypedCInteger c -> c.value() instanceof java.math.BigInteger big

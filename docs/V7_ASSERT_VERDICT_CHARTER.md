@@ -1024,6 +1024,12 @@ receipts). declined shrinks, text-only grows, charter §8.0 scope
 table + pins same commit. The BARE-2 sub-reason gap (census §3)
 fixes here too (the plan path sets its outcome).
 
+**§8.0 scope-table receipt, batch 57 (2026-09-04):** exec-passing
+55 (57 → 55): the two flipped hybrid-milestoning union tests (the
+`repeat` native) left the walk's lane; their sql-asserts row-verify
+through the oracle SPI (sql-verdict agree +4, disagree 0; M1 rescued
+54 → 52). Lane move by migration.
+
 **§8.0 scope-table receipt, batch 56 (2026-09-04):** exec-passing
 58 → 57 and the walk's M1 text-match lane 1 → 0 (RETIRED, pinned
 exactly empty): the last walk-lane test, testLessThanFilterAsVariable

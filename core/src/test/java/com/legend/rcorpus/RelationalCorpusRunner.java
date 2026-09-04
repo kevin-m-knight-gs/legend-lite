@@ -1051,7 +1051,11 @@ public class RelationalCorpusRunner {
             // lane — the walk's M1 text-match lane is now EMPTY (pinned
             // retired above); its sql-assert row-verifies through the
             // oracle SPI (sql-verdict agree +1, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(57, execPassing,
+            // 57 -> 55 (batch 57, 2026-09-04): the two flipped hybrid-
+            // milestoning union tests (repeat native) left the walk's lane —
+            // their sql-asserts row-verify through the oracle SPI
+            // (sql-verdict agree +4, disagree 0; M1 rescued 54 -> 52).
+            org.junit.jupiter.api.Assertions.assertEquals(55, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1766,10 +1770,25 @@ public class RelationalCorpusRunner {
             // (testLessThanFilterAsVariable, testEnumTheSame), 0 lost;
             // sql-verdict disagree 0; dual-channel disagree 0; lane move
             // exec-passing 58 -> 57 (the walk's M1 lane retired, 1 -> 0).
-            org.junit.jupiter.api.Assertions.assertEquals(243L,
+            // Batch 57 (2026-09-04, the mechanical type walls): registry
+            // truths from the spec — eval arities 4-6, repeat (n copies over
+            // range), Package/Testable m3 shapes with PackageableElement.
+            // package, Mapping.includes (direct include rows), the Service
+            // metamodel generated; typer rules — a lambda IS an Any
+            // (cast(lambda, @FunctionDefinition)), the DOT auto-map over a
+            // many receiver ($exts.routerExtensions()), a mapping element
+            // read as its system-store row; the static fold's map unroll
+            // expands a function-valued helper over the element and folds
+            // inside reified accessor lambdas (the digest inliner escape);
+            // a TDSRow getter over the column lambda's row lowers as the
+            // column read. +2 flips (the hybrid milestoning union pair via
+            // repeat), 0 lost; every other probed wall moved to its next
+            // honest wall (docs/GATES.md batch 57). sql-verdict disagree 0;
+            // dual-channel disagree 0; lane move exec-passing 57 -> 55.
+            org.junit.jupiter.api.Assertions.assertEquals(241L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2330L,
+            org.junit.jupiter.api.Assertions.assertEquals(2332L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1940,7 +1959,13 @@ public class RelationalCorpusRunner {
             // survive name resolution, so the reflection chains over
             // Result<T|m> / FunctionDefinition<{->T[*]}> values type — the
             // walls those rows counted are gone; nothing scored moved
-            assertEquals(5,
+            // 5 -> 0 (batch 57, 2026-09-04): the routerExtensions
+            // multiplicity refusal is DEAD — pure's DOT auto-map over a
+            // many-valued receiver types $exts.routerExtensions(); the five
+            // connection-equality tests now wall honestly at the lowering's
+            // match over extension-contributed arms (the extension VALUE
+            // leg), no longer quarantined; the spelling left the vocabulary
+            assertEquals(0,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 125 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
@@ -2024,8 +2049,11 @@ public class RelationalCorpusRunner {
                     // exec-passing 63 -> 61.
                     // 55 -> 54 (batch 46): the same lane move as
                     // exec-passing 61 -> 60.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 54,
-                    "M1 h2-exec rescued fell below the 54 floor: "
+                    // 54 -> 52 (batch 57, 2026-09-04): the two flipped hybrid-
+                    // milestoning union tests (repeat) row-verify as platform-arm
+                    // verdicts (lane move, disagree 0).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 52,
+                    "M1 h2-exec rescued fell below the 52 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

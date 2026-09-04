@@ -105,6 +105,10 @@ class PreludeGeneratorTest {
         List<Path> roots = List.of(
                 engine.resolve("legend-engine-xts-relationalStore"),
                 engine.resolve("legend-engine-core/legend-engine-core-pure"),
+                // the service metamodel (core_service): ^Service(...) in the
+                // execution-strategy tests (batch 57)
+                engine.resolve("legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/"
+                        + "src/main/resources/core_service"),
                 pure);
         Path corpus = engine.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
                 + "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
@@ -134,9 +138,14 @@ class PreludeGeneratorTest {
                 "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure"),
                 StandardCharsets.UTF_8));
         while (m3h.find()) {
-            String pkg = String.join("::", m3h.group(2).replace("Root.children[", "").replace("].children[", "::")
-                    .replace("].children", "").replace("]", "").split("::"));
-            m3.add(pkg + "::" + m3h.group(1));
+            String at = m3h.group(3);
+            // m3.pure's UN-ANNOTATED bootstrap declarations (no @package):
+            // the root package's Package class and the primitive types
+            String pkg = at == null
+                    ? ("Class".equals(m3h.group(1)) ? "meta::pure::metamodel" : "meta::pure::metamodel::type")
+                    : String.join("::", at.replace("Root.children[", "").replace("].children[", "::")
+                            .replace("].children", "").replace("]", "").split("::"));
+            m3.add(pkg + "::" + m3h.group(2));
         }
         List<String> unprovenanced = new ArrayList<>();
         for (String fqn : handDeclaredFqns()) {
@@ -496,7 +505,7 @@ class PreludeGeneratorTest {
             "^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
     /** An m3.pure bootstrap header: {@code ^Root.…children[Class] Name @Root.…children[pkg].children}. */
     private static final Pattern M3_HEADER = Pattern.compile(
-            "(?m)^\\^Root\\.[^ ]*children\\[(?:Class|PrimitiveType|Enumeration)\\] ([A-Za-z_][A-Za-z0-9_]*) @(Root\\.[^ \\n]*)");
+            "(?m)^\\^Root\\.[^ ]*children\\[(Class|PrimitiveType|Enumeration)\\] ([A-Za-z_][A-Za-z0-9_]*)(?: @(Root\\.[^ \\n]*))?$");
     /** Platform carriers declared by hand with no spec/m3 counterpart, each with its reason. */
     private static final Map<String, String> HAND_CARRIERS = Map.ofEntries(
             // the PRIMITIVE types: m3 PrimitiveType instances (bootstrap), the

@@ -92,11 +92,18 @@ final class StaticFold {
     }
 
     private ValueSpecification fold(ValueSpecification v, Map<String, Object> scope) {
-        Object ev = eval(v, scope);
-        ValueSpecification lit = reify(ev);
+        // a lambda literal is an opaque VALUE to eval (a pair list of
+        // accessors filters statically) but its body still FOLDS here
+        ValueSpecification lit = v instanceof LambdaFunction ? null : reify(eval(v, scope));
         if (lit != null) {
-            return lit;
+            // a reified value may carry lambda LITERALS (the accessor a
+            // pair list selected): their bodies fold under the same scope
+            return lit == v ? lit : structural(lit, scope);
         }
+        return structural(v, scope);
+    }
+
+    private ValueSpecification structural(ValueSpecification v, Map<String, Object> scope) {
         return switch (v) {
             case AppliedFunction af -> foldCall(af, scope);
             case AppliedProperty ap -> new AppliedProperty(
@@ -121,6 +128,33 @@ final class StaticFold {
         };
     }
 
+    /** Every function-valued helper call mentioning {@code pv}, replaced
+     * by its raw expansion ({@link Typer#rawSchemaErasedExpansion}). */
+    private ValueSpecification expandHelperCallsOver(ValueSpecification v, String pv) {
+        if (v instanceof AppliedFunction call && mentions(call, pv)
+                && typer.functionValuedHelperCall(call)) {
+            ValueSpecification ex = typer.rawSchemaErasedExpansion(call);
+            if (ex != null) {
+                return ex;
+            }
+        }
+        return v.mapChildren(x -> expandHelperCallsOver(x, pv));
+    }
+
+    private static boolean mentions(ValueSpecification v, String name) {
+        if (v instanceof Variable var) {
+            return var.name().equals(name);
+        }
+        boolean[] found = {false};
+        v.mapChildren(x -> {
+            if (!found[0] && mentions(x, name)) {
+                found[0] = true;
+            }
+            return x;
+        });
+        return found[0];
+    }
+
     private ValueSpecification foldCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
         // map over a STATIC collection with a runtime lambda body: UNROLL —
@@ -131,11 +165,18 @@ final class StaticFold {
                 && lam.parameters().size() == 1) {
             List<Object> coll = evalList(ps.get(0), scope);
             if (coll != null) {
+                String pv = lam.parameters().get(0).name();
+                // a function-valued helper CALL over the element
+                // (toStringForColAccessor($col)->eval($row)) expands to
+                // its literal FIRST, so the element's .name/.type reads
+                // inside it fold like the body's own — the binder is gone
+                // after the unroll, so a whole-value use would dangle
+                ValueSpecification body = expandHelperCallsOver(single(lam), pv);
                 List<ValueSpecification> parts = new ArrayList<>(coll.size());
                 for (Object e : coll) {
                     Map<String, Object> inner = new LinkedHashMap<>(scope);
-                    inner.put(lam.parameters().get(0).name(), e);
-                    parts.add(fold(single(lam), inner));
+                    inner.put(pv, e);
+                    parts.add(fold(body, inner));
                 }
                 return parts.size() == 1 ? parts.get(0) : new PureCollection(parts);
             }
@@ -155,6 +196,12 @@ final class StaticFold {
     // =====================================================================
 
     private @com.legend.Nullable Object eval(ValueSpecification v, Map<String, Object> scope) {
+        if (v instanceof LambdaFunction) {
+            // a lambda LITERAL is an opaque static value: a pair list of
+            // (type, accessor lambda) filters statically to the one
+            // accessor (toStringForColAccessor), which then evals inline
+            return v;
+        }
         return switch (v) {
             case CString s -> s.value();
             case CInteger i -> i.value().longValue();
@@ -206,6 +253,8 @@ final class StaticFold {
                     Object r = switch (e) {
                         case Col c when ap.property().equals("name") -> c.name();
                         case Col c when ap.property().equals("type") -> new TypeToken(c.type());
+                        case Pair p when ap.property().equals("first") -> p.first();
+                        case Pair p when ap.property().equals("second") -> p.second();
                         default -> null;
                     };
                     if (r == null) {
@@ -573,6 +622,7 @@ final class StaticFold {
                 }
                 yield new PureCollection(vs);
             }
+            case LambdaFunction lf -> lf;
             case null, default -> null;
         };
     }

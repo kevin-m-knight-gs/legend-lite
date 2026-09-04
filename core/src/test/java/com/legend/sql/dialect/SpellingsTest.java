@@ -110,7 +110,7 @@ class SpellingsTest {
             SqlFn.OR,
             SqlFn.PI,
             SqlFn.PLUS,
-            SqlFn.RANGE_FN,
+            SqlFn.RANGE_FN, SqlFn.REPEAT_VALUE,
             SqlFn.REM,
             SqlFn.ROUND,
             SqlFn.ROUND_HALF_UP,

@@ -1753,14 +1753,7 @@ final class Scalars {
                 SqlExpr.Call.of(SqlFn.LIST_GET,
                         SqlExpr.Call.of(SqlFn.MAP_EXTRACT, args.get(0), args.get(1)),
                         new SqlExpr.IntLit(1)));
-        // range(start, stop, step): a ZERO step raises real pure's message
-        for (String f : Pure.nativeKeysAt("range")) {
-            RULES.put(f, (n, args) -> args.size() < 3
-                    ? new SqlExpr.Call(SqlFn.RANGE_FN, args)
-                    : guarded(SqlExpr.Call.of(SqlFn.EQUAL, args.get(2), new SqlExpr.IntLit(0)),
-                            new SqlExpr.StringLit("range step must not be 0"),
-                            new SqlExpr.Call(SqlFn.RANGE_FN, args)));
-        }
+        ListRules.register(RULES);
         // DOMAIN guards RAISED IN SQL with real pure's messages (error()
         // runs in the database — literal AND runtime values alike).
         for (String f : Pure.nativeKeysAt("sqrt")) {

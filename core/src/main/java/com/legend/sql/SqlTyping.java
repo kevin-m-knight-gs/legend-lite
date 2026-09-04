@@ -502,6 +502,8 @@ public final class SqlTyping {
             case SPLIT, REGEXP_EXTRACT_ALL ->
                     typed(new SqlType.Array(SqlType.Scalar.VARCHAR));
             case RANGE_FN -> typed(new SqlType.Array(SqlType.Scalar.BIGINT));
+            case REPEAT_VALUE -> !a.isEmpty() && a.get(0).type() instanceof TypeFact.Typed t0
+                    ? typed(new SqlType.Array(t0.type())) : UNKNOWN;
             case COALESCE -> uniform(a, BOTTOM);
             case LIST_FILTER, LIST_SORT, LIST_SORT_DESC, LIST_TAIL,
                     LIST_INIT, LIST_SLICE, LIST_DISTINCT, LIST_REVERSE ->

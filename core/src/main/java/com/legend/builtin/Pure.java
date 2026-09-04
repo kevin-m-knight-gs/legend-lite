@@ -210,13 +210,24 @@ public final class Pure {
     public static final ClassDefinition VARIABLE_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::VariableExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { name: meta::pure::metamodel::type::String[1]; }");
     public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
     public static final ClassDefinition SIMPLE_FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression {}");
+    /** Real m3.pure Testable (tools/m3shape.py: extends Any; tests: Test[*]
+     * — the tests end is not modeled, grows by witness): the service
+     * metamodel's supertype (core_service Service extends PackageableElement,
+     * Testable), so the generated Service resolves. */
+    public static final ClassDefinition TESTABLE = nativeClass("native Class meta::pure::metamodel::testable::Testable extends meta::pure::metamodel::type::Any {}");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     // real m3.pure ModelElement carries name: String[0..1] (tools/m3shape.py) —
     // every generated PackageableElement (Database, Schema, Mapping…) reads it
     public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real m3.pure PackageableElement (extends ModelElement, Referenceable; the
      * package property grows by witness) — the elementToPath domain. */
-    public static final ClassDefinition PACKAGEABLE_ELEMENT = nativeClass("native Class meta::pure::metamodel::PackageableElement extends meta::pure::metamodel::ModelElement {}");
+    /** Real m3.pure Package (m3.pure:1469 — extends PackageableElement;
+     * its children end grows by witness): the owning-package value
+     * (^Database(package = ::)). */
+    public static final ClassDefinition PACKAGE_METACLASS = nativeClass("native Class meta::pure::metamodel::Package extends meta::pure::metamodel::PackageableElement {}");
+    // m3 PackageableElement.package (legend-pure m3.pure): the owning
+    // package — a constructed element names it (^Database(package = ::))
+    public static final ClassDefinition PACKAGEABLE_ELEMENT = nativeClass("native Class meta::pure::metamodel::PackageableElement extends meta::pure::metamodel::ModelElement { package: meta::pure::metamodel::Package[0..1]; }");
     // Real m3 Property<U,T|m> (AbstractProperty -> Function -> Packageable
     // Element; name from ModelElement) — the generic arguments and the
     // function surface are not modeled; ONE property, name, which the
@@ -332,7 +343,7 @@ public final class Pure {
     // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
     // classMappings: SetImplementation[*] — real platform_dsl_mapping/grammar/
     // mapping.pure:26, grown by the metamodel-store witness.
-    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; }");
+    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; includes: meta::pure::mapping::MappingInclude[*]; }");
     public static final ClassDefinition RELATIONAL_ACTIVITY = nativeClass("native Class meta::relational::mapping::RelationalActivity extends meta::pure::mapping::Activity { sql: meta::pure::metamodel::type::String[1]; comment: meta::pure::metamodel::type::String[0..1]; executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; sqlGenerationTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; dataSource: meta::relational::runtime::DataSource[0..1]; }");
 
     // ---- Function carrier (parameterized over a function-type token) ----
@@ -1057,6 +1068,11 @@ public final class Pure {
     // legend-pure lang/eval.pure:24 verbatim (batch 54: pureToSQLQuery's
     // extension-dispatch prefix `$f->eval($alias, $selectColumns, $extensions)`)
     public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_n__U_p__W_q = signature("native function meta::pure::functions::lang::eval<T,U,V,W|m,n,p,q>(func:meta::pure::metamodel::function::Function<{T[n],U[p],W[q]->V[m]}>[1], param1:T[n], param2:U[p], param3:W[q]):V[m];");
+    // legend-pure lang/eval.pure verbatim, arities 4-6 (batch 57: the
+    // post-processor dispatch `$pp->eval($select, $conn, $ctx, $extensions)`)
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1__4 = signature("native function meta::pure::functions::lang::eval<T,U,V,W,X|m,n,p,q,r>(func:meta::pure::metamodel::function::Function<{T[n],U[p],W[q],X[r]->V[m]}>[1], param1:T[n], param2:U[p], param3:W[q], param4:X[r]):V[m];");
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1__5 = signature("native function meta::pure::functions::lang::eval<T,U,V,W,X,Y|m,n,p,q,r,s>(func:meta::pure::metamodel::function::Function<{T[n],U[p],W[q],X[r],Y[s]->V[m]}>[1], param1:T[n], param2:U[p], param3:W[q], param4:X[r], param5:Y[s]):V[m];");
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1__6 = signature("native function meta::pure::functions::lang::eval<T,U,V,W,X,Y,Z|m,n,p,q,r,s,t>(func:meta::pure::metamodel::function::Function<{T[n],U[p],W[q],X[r],Y[s],Z[t]->V[m]}>[1], param1:T[n], param2:U[p], param3:W[q], param4:X[r], param5:Y[s], param6:Z[t]):V[m];");
     public static final NativeFunctionDefinition EXISTS__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::exists<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EXP__NUMBER_1 = signature("native function meta::pure::functions::math::exp(exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition EXTEND__C_MANY__FUNC_COL_SPEC_1 = signature("native function meta::pure::functions::relation::extend<C,Z>(cl:C[*], f:meta::pure::metamodel::relation::FuncColSpec<{C[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):C[*];");
@@ -2050,6 +2066,8 @@ public final class Pure {
     public static final NativeFunctionDefinition PROJECT__RELATION_1__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::project<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], fs:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
     public static final NativeFunctionDefinition QUARTER_NUMBER__DATE_1 = signature("native function meta::pure::functions::date::quarterNumber(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition QUARTER__DATE_1 = signature("native function meta::pure::functions::date::quarter(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::Quarter[1];");
+    // legend-pure collection/repeat.pure verbatim: n copies of one value
+    public static final NativeFunctionDefinition REPEAT__T_1__INTEGER_1 = signature("native function meta::pure::functions::collection::repeat<T>(element:T[1], n:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition RANGE__INTEGER_1 = signature("native function meta::pure::functions::collection::range(stop:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[*];");
     public static final NativeFunctionDefinition RANGE__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::collection::range(start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[*];");
     public static final NativeFunctionDefinition RANGE__INTEGER_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::collection::range(start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1], step:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[*];");

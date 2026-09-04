@@ -267,6 +267,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_TAIL -> expr(args.get(0), 8) + "[2:]";
             case LIST_INIT -> expr(args.get(0), 8) + "[:-2]";
             case RANGE_FN -> fn("range", args);
+            case REPEAT_VALUE -> "list_transform(range(" + expr(args.get(1), 0) + "), _i -> "
+                    + expr(args.get(0), 0) + ")";
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
     }

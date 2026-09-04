@@ -736,7 +736,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             // Lists (dialect-owned; base throws like the lambda family)
             case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
-                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, REPEAT_VALUE,
                  LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND, LIST_BOOL_OR,
                  LIST_REVERSE, TYPEOF ->
                     listCall(c.fn(), a);
