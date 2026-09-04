@@ -35,6 +35,15 @@ public final class ClassLayouts {
      * class's keys, and the wire can only carry that class as data.
      * Rides the identity layouts only, like {@link #SYNTHETIC_ID}. */
     public static final String SYNTHETIC_TYPE = "__type";
+    /** The synthetic CANON field (F10 proper — the kind-tagged carrier):
+     * a constructed instance's canonical key text, computed at its
+     * CONSTRUCTION site from its own fields (children are built before
+     * parents, so a parent's canon references its children's — finite
+     * for recursive polymorphic shapes where a static expansion is not)
+     * and carried on the wire as JSON, so a JSON-carried nested instance
+     * is judged by the classifier that built it. Rides the identity
+     * layouts only, like {@link #SYNTHETIC_ID}. */
+    public static final String SYNTHETIC_CANON = "__canon";
 
     private ClassLayouts() {
     }
@@ -80,10 +89,10 @@ public final class ClassLayouts {
                     + " identity field");
         }
         List<Type.Column> out = new ArrayList<>(base.get());
-        out.add(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING,
-                new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1)));
-        out.add(new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING,
-                new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1)));
+        var opt = new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1);
+        out.add(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING, opt));
+        out.add(new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING, opt));
+        out.add(new Type.Column(SYNTHETIC_CANON, new Type.ClassType(PlatformTypes.VARIANT), opt));
         return Optional.of(List.copyOf(out));
     }
 
@@ -96,7 +105,8 @@ public final class ClassLayouts {
         var opt = new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1);
         Type.Column type = new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING, opt);
         return withIdentity
-                ? List.of(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING, opt), type)
+                ? List.of(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING, opt), type,
+                        new Type.Column(SYNTHETIC_CANON, new Type.ClassType(PlatformTypes.VARIANT), opt))
                 : List.of(type);
     }
 

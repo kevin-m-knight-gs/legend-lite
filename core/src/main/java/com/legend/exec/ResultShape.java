@@ -69,6 +69,22 @@ public enum ResultShape {
         return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
     }
 
+    /** The VALUE a root carries: the map-binder channel (single synthetic
+     * {@code u_map__} column — a class chain's {@code map} projected as
+     * one cell, the constructed-instance-over-a-row form) IS its cell —
+     * the canon and the equality keys read the cell's type, never the
+     * relation carrier's (the same rule {@link #of(ExprType)} applies to
+     * the shape). Any other root is itself. */
+    public static ExprType valueInfo(ExprType root) {
+        if (Type.schemaView(root.type()) instanceof Type.RelationType rt
+                && rt.columns().size() == 1
+                && rt.columns().get(0).name().startsWith(
+                        com.legend.sql.SqlSelect.SYNTH_MAP_COL)) {
+            return new ExprType(rt.columns().get(0).type(), root.multiplicity());
+        }
+        return root;
+    }
+
     private static boolean isMany(Multiplicity m) {
         return m.requireBounded("ResultShape").isMany();
     }

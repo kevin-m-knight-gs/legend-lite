@@ -749,6 +749,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,
                  LIST_POSITION ->
                     listCall(c.fn(), a);
+            case STRUCT_INSERT -> structInsert(a);
             case LIST_EXISTS -> listExists(a);
             case ALL_DISTINCT -> allDistinct(a);
             case LIST_FOR_ALL -> listForAll(a);
@@ -836,6 +837,12 @@ public class AnsiSqlRenderer implements SqlDialect {
     /** JSON access ({@code v -> key}). */
     protected String variantGet(List<SqlExpr> args) {
         throw new DialectCapability("variant navigation reached a dialect without JSON support");
+    }
+
+    /** struct_insert(s, 'name', v) — a struct with one field appended;
+     * only struct-capable dialects render it. */
+    protected String structInsert(List<SqlExpr> args) {
+        throw new DialectCapability("struct_insert reached a dialect without struct support");
     }
 
     /** Lambda expression — only dialects with lambda-capable functions render these. */

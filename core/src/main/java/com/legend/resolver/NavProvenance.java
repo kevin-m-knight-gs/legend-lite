@@ -83,6 +83,78 @@ final class NavProvenance {
                 .withScope(src.scope());
     }
 
+    /** A navigate-slot hop's NESTED target (flattenNavSlot's inner
+     * materialization): DEPTH through the hop — a downstream path
+     * continuing THROUGH this nested head ({@code $t.schema.name} off the
+     * hop's re-rooted Table) materializes the nested target WITH its own
+     * demanded slots (the association route's depth leg, for slots); its
+     * NavMat is recorded so the hop's provenance carries the SubNav tree.
+     * No such path: the plain materialization with the union keys. */
+    TypedSpec nestedTarget(NavMaterializer navMaterializer, TemporalFrame temporal,
+            ClassSource src, String a2, String tc2, Map<String, String> headNavAlias,
+            java.util.Set<List<String>> downstreamPaths,
+            Map<String, NavMaterializer.NavMat> nestedMats) {
+        List<List<String>> through = FlattenOps.tailsThrough(a2, headNavAlias, downstreamPaths);
+        if (!through.isEmpty()) {
+            String head2 = headNavAlias.entrySet().stream()
+                    .filter(e -> e.getValue().equals(a2)).map(Map.Entry::getKey)
+                    .findFirst().orElse(a2);
+            NavMaterializer.NavMat nm = navMaterializer.navTargetMaterialized(
+                    temporal, src.mappingFqn(), tc2, src.scope(), through,
+                    head2, TemporalContext.NONE);
+            nestedMats.put(a2, nm);
+            return nm.pipeline();
+        }
+        return Pipelines.materialize(
+                NestedUnionKeys.pipeline(sources, src.mappingFqn(), tc2, src.scope(),
+                        a2, headNavAlias, downstreamPaths),
+                java.util.Set.of(), tc2).pipeline();
+    }
+
+    /** The hop's demanded NAV HEADS as provenance (flattenNavSlot): each
+     * head's target rides the composed pipeline under {@code prefix +
+     * its inner prefix}; a head whose nested target materialized WITH
+     * its own demanded slots (the depth leg) carries its join-slot
+     * prefixes (nav-HEAD bindings stay bare — their SubNav dispatches
+     * them) and its SubNav tree, so the next flatten registers each as
+     * a head. Returns the hop's SubNav map (hoisted-filter dispatch). */
+    Map<String, Substitution.SubNav> registerHopHeads(ClassSource src, String prefix,
+            Map<String, String> headNavAlias, Map<String, String> innerPrefixes,
+            Map<String, TypedNavigate> tNavSteps,
+            Map<String, NavMaterializer.NavMat> nestedMats,
+            Map<String, Substitution.AssocSub> provOut) {
+        Map<String, Substitution.SubNav> hopSubNavs = new LinkedHashMap<>();
+        for (var he : headNavAlias.entrySet()) {
+            String ip = innerPrefixes.get(he.getValue());
+            if (ip == null) {
+                continue;   // step not materialized: the read stays loud
+            }
+            var navT = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue())).target();
+            if (!(navT instanceof com.legend.compiler.spec.typed.TypedGetAll ng)) {
+                continue;
+            }
+            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn(), src.scope());
+            NavMaterializer.NavMat nmat = nestedMats.get(he.getValue());
+            if (nmat == null) {
+                provOut.put(he.getKey(), new Substitution.AssocSub(
+                        prefix + ip, sub.rowVar(), sub.bindings(), sub.classFqn(),
+                        Pipelines.slotAliases(sub.pipeline())));
+                hopSubNavs.put(he.getKey(), new Substitution.SubNav(
+                        ip, sub.rowVar(), sub.bindings()));
+                continue;
+            }
+            Map<String, String> subSlotOnly = new LinkedHashMap<>(nmat.slotPrefixes());
+            subSlotOnly.keySet().removeAll(Pipelines.navSteps(sub.pipeline()).keySet());
+            provOut.put(he.getKey(), new Substitution.AssocSub(
+                    prefix + ip, sub.rowVar(), sub.bindings(), sub.classFqn(),
+                    Pipelines.slotAliases(sub.pipeline()),
+                    subSlotOnly, null, null, Map.of(), nmat.subNavs()));
+            hopSubNavs.put(he.getKey(), new Substitution.SubNav(
+                    ip, sub.rowVar(), sub.bindings(), nmat.subNavs()));
+        }
+        return hopSubNavs;
+    }
+
     /** Flatten PROVENANCE for a navigate slot materialized INSIDE a hop
      * (as a tail): the slot's target rows ride the composed pipeline
      * under {@code outerPrefix + sub.prefix()}; the next flatten of that

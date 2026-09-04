@@ -272,6 +272,35 @@ public interface ModelContext {
         return isSubtype(childFqn, parentFqn, new java.util.HashSet<>());
     }
 
+    /** {@code childFqn <: parentFqn} by the DECLARED generalizations alone
+     * — no class is compiled (a scan over every model class must not
+     * compile a poisoned one); a generalization cycle contributes nothing
+     * new. The compiled {@link #isSubtype} stays the typing question. */
+    default boolean isDeclaredSubtype(String childFqn, String parentFqn) {
+        return isDeclaredSubtype(childFqn, parentFqn, new java.util.HashSet<>());
+    }
+
+    private boolean isDeclaredSubtype(String cls, String sup, java.util.Set<String> visited) {
+        if (cls.equals(sup)) {
+            return true;
+        }
+        if (!visited.add(cls)) {
+            return false;
+        }
+        Optional<com.legend.model.ClassDefinition> cd = findClassDefinition(cls);
+        if (cd.isEmpty()) {
+            return false;
+        }
+        for (com.legend.protocol.TypeExpression s : cd.get().superClasses()) {
+            String name = s instanceof com.legend.protocol.TypeExpression.NameRef nr ? nr.name()
+                    : s instanceof com.legend.protocol.TypeExpression.Generic g ? g.name() : null;
+            if (name != null && isDeclaredSubtype(name, sup, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The walk with a VISITED set (DEEP_AUDIT §5b: an inheritance
      * CYCLE — `A extends B` / `B extends A`, which the frontend still
      * accepts — was a StackOverflowError on the first miss; the guard

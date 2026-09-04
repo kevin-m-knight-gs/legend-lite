@@ -36,6 +36,9 @@ public enum SqlFn {
     // forAll([])=true) — the dialect's expansion must honor them.
     LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION,
     LIST_EXISTS, LIST_FOR_ALL,
+    /** struct_insert(struct, name, value): the struct with one field
+     * appended (the construction-site canon rides the bound struct). */
+    STRUCT_INSERT,
     // UNNEST: explode a collection into rows; PLACEMENT (select-list vs
     // LATERAL FROM) is dialect assembly.
     UNNEST,

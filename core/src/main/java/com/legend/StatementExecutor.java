@@ -2491,7 +2491,8 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.Nullable CanonRider rider,
             @com.legend.Nullable ExecutionResult folded, ExecEnv env) {
         com.legend.compiler.element.type.ExprType shapeInfo =
-                declaredInfo != null ? declaredInfo : root.info();
+                declaredInfo != null ? declaredInfo
+                        : com.legend.exec.ResultShape.valueInfo(root.info());
         com.legend.sql.SqlQuery bare = plan;
         com.legend.exec.ResultShape shape = declaredInfo != null
                 ? com.legend.exec.ResultShape.COLLECTION

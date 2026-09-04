@@ -3024,3 +3024,40 @@ slice B). Family 13/21. Walls, measured 2026-09-04 with the batch-55b tree:**
       to-many self-join — `columns[col]: @TableToColumns` with `{target}`
       compiled as a COLUMN read; `relational_elements.ordinal` carries the
       column ordinal for `->at(0)`).
+
+**Batch 55c — the STORE-ROW leg + F10 proper (2026-09-04): ratchet
+251/2322 → 246/2327 (+5, 0 lost), family 13/21 → 18/21 with every
+verdict real, chain GREEN.** The record with the mechanism, the two
+reverted designs (per-read scalar subquery; static `__type` dispatch —
+infinite for Expression-typed keys) and the guardrail refactors is
+docs/GATES.md batch 55c. The user's rulings this batch: LEFT JOINs, never
+a scalar subquery per read; "why are we reimplementing things we already
+have?" — the only nuance was a VALUE (a constructed struct over a store
+row) reaching the assert, expressed as map-over-row; everything else was
+the user-query path's own gaps on the metamodel store (composed-row
+navigate slots, list maps in project columns, slot-prefix collisions).
+
+**NEXT SESSION OPENS HERE — the last three of sqlDialectTranslation,
+then the rest of the corpus (246 fallbacks; user directive 2026-09-04:
+"keep going, burn down all the rest we can, one by one, correctly, no
+hacks"):**
+  (a) testConvertTableAliasColumn: `Table.columns` is unmapped in
+      MetamodelMapping — a to-MANY SELF-JOIN (`columns[col]: @TableToColumns`
+      with `{target}` compiled as a COLUMN read by JoinChainEmission:
+      "expected RelationalOperationElement, got String"); the test reads
+      `$table.columns->at(0)->cast(@Column)` — `relational_elements.ordinal`
+      carries the column ordinal for `at(0)`.
+  (b) testConvertJoinTreeNode / testConvertSelectSQLQuery: preOrderTraversal
+      over the mapping's join-tree ROWS (`childrenData` to-many, row-backed
+      — the §7 tier-2 residue; two witnesses now). The cascade today errors
+      inside the flatten arm (the row-backed `$c` keeps every match arm
+      live); the honest first step is the loud wall "recursion over
+      row-backed children stands" (narrow the arms for a row VARIABLE by
+      the system mapping's kinds beneath its declared class — the same
+      systemRowClasses rule, for a variable bound to a system row), then
+      the design: a recursive CTE over join_tree rows, or a bounded
+      unroll by the mapping's join-tree depth (a compile-time fact from
+      the rows).
+  Then task #5: census core/target/wholetest-flip-fallbacks.txt by bucket,
+  biggest no-decision buckets first, each batch measured + gated +
+  committed + pushed.

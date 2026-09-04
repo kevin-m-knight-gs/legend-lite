@@ -552,6 +552,7 @@ public final class StoreResolver {
             // structurally, the cast rides along
             case com.legend.compiler.spec.typed.TypedCast tc ->
                     structural(tc, context);
+            case TypedNewInstance ni when ConstructedRowForm.chains(ni, this::objectSpace) > 0 -> rowForm(ni, context);
             case TypedPropertyAccess vpa   // genericType().rawType (M3)
                     when GenericTypeReflection.matches(vpa) ->
                     GenericTypeReflection.resolve(vpa, x -> resolveNode(x, context),
@@ -593,6 +594,12 @@ public final class StoreResolver {
                             : "")
                     + " is not resolvable yet (H2 vocabulary)");
         };
+    }
+
+    /** A CONSTRUCTED INSTANCE over a STORE ROW (ConstructedRowForm). */
+    private TypedSpec rowForm(TypedNewInstance ni, Context context) {
+        return ConstructedRowForm.resolve(ni, this::objectSpace, () -> freshVarCounter++,
+                this::resolvedScalarMapProject, this::structural, context);
     }
 
     /** Relation-space wrapper rebuild: children resolve, withChildren
@@ -800,6 +807,7 @@ public final class StoreResolver {
                 Pipelines.closeOverConditions(t.pipeline(), tSlotDemand);
         final Set<String> fNavDemand = tNavDemand;
         Pipelines.Materialized[] innerM = new Pipelines.Materialized[1];
+        Map<String, NavMaterializer.NavMat> nestedMats = new LinkedHashMap<>();
         TypedSpec spliced = src.pipeline();
         if (!bsp.spliceOps().isEmpty()) {
             // non-colliding below-ops splice with THE factory's materials
@@ -854,10 +862,8 @@ public final class StoreResolver {
                             tc.equals(targetClass) ? fSlotDemand : java.util.Set.of(),
                             tc.equals(targetClass) ? fNavDemand : java.util.Set.of(),
                             tc,
-                            (a2, tc2) -> Pipelines.materialize(
-                                    NestedUnionKeys.pipeline(sources, src.mappingFqn(), tc2, src.scope(),
-                                            a2, headNavAlias, downstreamPaths),
-                                    java.util.Set.of(), tc2).pipeline());
+                            (a2, tc2) -> navProvenance.nestedTarget(navMaterializer, temporal,
+                                    src, a2, tc2, headNavAlias, downstreamPaths, nestedMats));
                     if (tc.equals(targetClass)) {
                         innerM[0] = im;
                     }
@@ -875,24 +881,8 @@ public final class StoreResolver {
         // dispatches it) — the row-read rewriter would throw on it
         Map<String, String> innerSlotOnly = new LinkedHashMap<>(innerPrefixes);
         innerSlotOnly.keySet().removeAll(fNavDemand);
-        Map<String, Substitution.SubNav> hopSubNavs = new LinkedHashMap<>();
-        for (var he : headNavAlias.entrySet()) {
-            String ip = innerPrefixes.get(he.getValue());
-            if (ip == null) {
-                continue;   // step not materialized: the read stays loud
-            }
-            var navT = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue())).target();
-            if (!(navT instanceof TypedGetAll ng)) {
-                continue;
-            }
-            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn(), src.scope());
-            provOut.put(he.getKey(), new Substitution.AssocSub(
-                    prefix + ip, sub.rowVar(), sub.bindings(),
-                    sub.classFqn(),
-                    Pipelines.slotAliases(sub.pipeline())));
-            hopSubNavs.put(he.getKey(), new Substitution.SubNav(
-                    ip, sub.rowVar(), sub.bindings()));
-        }
+        Map<String, Substitution.SubNav> hopSubNavs = navProvenance.registerHopHeads(
+                src, prefix, headNavAlias, innerPrefixes, tNavSteps, nestedMats, provOut);
         // audit 21b F3 + POSITIONAL rule: value/graph terminals re-stamp
         // the hop's join INNER (a phantom all-null object must not
         // serialize/count); TDS terminals keep materialize's LEFT —
@@ -1748,7 +1738,9 @@ public final class StoreResolver {
             ClassSource leafSource = CastNav.leafSource(sources, cs,
                     castHeads.get(headKey9), target, headKey9);
             assocs.put(headKey9,
-                    new Substitution.AssocSub(alias + "_",
+                    new Substitution.AssocSub(Pipelines.slotPrefix(alias, cs.rowType(),
+                            Type.requireRelationSchema(java.util.Objects.requireNonNull(
+                                    navMats.get(alias)).pipeline().info().type())),
                     leafSource.rowVar(), leafSource.bindings(),
                     leafSource.classFqn(),
                     Pipelines.slotAliases(target.pipeline()),

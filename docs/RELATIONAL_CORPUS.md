@@ -55,7 +55,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor/tests | 30 | 27 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
-| sqlDialectTranslation | 21 | 13 | 0 | 3 | 5 | 0 | 0 | 0 | 0 |
+| sqlDialectTranslation | 21 | 18 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2408** | 46 | 83 | 38 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2413** | 46 | 83 | 33 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2408 PASS = 2347 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2413 PASS = 2352 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -512,7 +512,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2408 PASS = 2347 clean + 61 carrying softness (
 ### top error buckets
 
 - 3x in function 'meta::relational::functions::sqlstring::toSQL': no overload of 'meta::pure::functions::lang::eval' accepts 5 argument(s) [inlined via meta::relational::functions::sqlstring::toSQL/4]
-- 3x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 3x unbound variable '$_nr2'
 - 2x unbound variable '$collection'
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
@@ -522,6 +521,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2408 PASS = 2347 clean + 61 carrying softness (
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
+- 2x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 1x unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
 - 1x in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan/4]
 - 1x unknown function 'isExecutionOptionPresent' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -636,14 +636,9 @@ SOFT-PASS RECONCILIATION (F2.1): 2408 PASS = 2347 clean + 61 carrying softness (
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testCompositionInMultiStatementPureExpressions [router/tests]: in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::tests::query::routing::routeInternal/1]
 - ERROR testRoutingOfSimpleQualifiedProperty [router/tests]: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
-- SHAPE testConvertAlias [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testConvertJoinTreeNode [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
 - ERROR testConvertSelectSQLQuery [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
-- ERROR testConvertSelectSQLQueryWithCTE [sqlDialectTranslation]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- SHAPE testConvertTable [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- SHAPE testConvertTableAliasColumn [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- SHAPE testConvertTabularFunction [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- SHAPE testConvertUnion [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- ERROR testConvertTableAliasColumn [sqlDialectTranslation]: property 'columns' of class 'meta::relational::metamodel::relation::Table' has no binding in mapping 'meta::lite::metamodel::MetamodelMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: in function 'meta::relational::functions::sqlQueryToString::tests::getTempTableSqlStatements': in call to 'meta::relational::functions::sqlQueryToString::ddlSqlQueryToString', argument 2: expected meta::relational::functions::sqlQueryToString::DbConfig, got meta::pure::metamodel::type::Any [inlined 
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

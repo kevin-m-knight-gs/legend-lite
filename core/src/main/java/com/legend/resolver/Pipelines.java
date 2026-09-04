@@ -455,7 +455,9 @@ public final class Pipelines {
                     stripped.add(js.alias());
                     return left;   // JOIN CANCELLED: nothing reads through it
                 }
-                String prefix = js.alias() + "_";
+                String prefix = slotPrefix(js.alias(),
+                        Type.requireRelationSchema(left.info().type()),
+                        Type.requireRelationSchema(tgt.info().type()));
                 prefixes.put(js.alias(), prefix);
                 // Condition: rewrite reads of PRIOR converted slots' sub-rows
                 // to their prefixed columns (multi-hop chains). The BODY is
@@ -544,6 +546,35 @@ public final class Pipelines {
         }
     }
 
+    /** A slot's column prefix, minted clear of the LEFT row's own column
+     * names (AssociationJoins.prefixFor's rule): a slot {@code schema} over
+     * a row carrying {@code schema_name} must not compose its target's
+     * {@code name} onto that same spelling. Readers take the prefix from
+     * the materialization's map, never from the alias. */
+    static String slotPrefix(String alias, Type.RelationType leftRow,
+            Type.RelationType rightRow) {
+        Set<String> taken = new LinkedHashSet<>();
+        for (Type.Column c : leftRow.columns()) {
+            taken.add(c.name());
+        }
+        String prefix = alias + "_";
+        int ordinal = 2;
+        while (composesDuplicate(prefix, rightRow, taken)) {
+            prefix = alias + "_" + ordinal++ + "_";
+        }
+        return prefix;
+    }
+
+    private static boolean composesDuplicate(String prefix, Type.RelationType rightRow,
+            Set<String> taken) {
+        for (Type.Column c : rightRow.columns()) {
+            if (taken.contains(prefix + c.name())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static TypedSpec walk(TypedSpec n, Set<String> demanded,
                                   Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
                                   Map<String, String> prefixes, Set<String> stripped,
@@ -570,9 +601,11 @@ public final class Pipelines {
                             + nav.target().getClass().getSimpleName()
                             + ", expected the class extent");
                 }
-                String prefix = alias + "_";
-                prefixes.put(alias, prefix);
                 TypedSpec targetPipeline = targets.pipelineFor(alias, ga.classFqn());
+                String prefix = slotPrefix(alias,
+                        Type.requireRelationSchema(left.info().type()),
+                        Type.requireRelationSchema(targetPipeline.info().type()));
+                prefixes.put(alias, prefix);
                 // TARGET-SIDE join-key collection (engine L5135's other
                 // half): a distinct-narrowed target must expose the key
                 // columns this navigation binds on.

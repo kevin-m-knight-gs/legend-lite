@@ -33,6 +33,8 @@ class SpellingsTest {
             // signed-64 conformance wrap (pure hashCode is Integer[1];
             // DuckDB hash() is UBIGINT) — the hashSigned dialect arm
             SqlFn.HASH,
+            // struct_insert(s, name := v): named-argument syntax, coded per dialect
+            SqlFn.STRUCT_INSERT,
             SqlFn.BOOL_TO_TEXT,
             SqlFn.ADD_INTERVAL,
             SqlFn.ADD_INTERVAL_TEMPORAL,

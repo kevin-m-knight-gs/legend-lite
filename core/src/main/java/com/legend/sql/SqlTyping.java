@@ -557,6 +557,24 @@ public final class SqlTyping {
                         new SqlType.Struct.Field("1", aa.element()),
                         new SqlType.Struct.Field("2", ab.element())))));
             }
+            // struct_insert(s, 'name', v): s's fields plus the new one,
+            // typed by the value (its declared slot when the value's own
+            // fact is bottom)
+            case STRUCT_INSERT -> {
+                if (a.size() != 3 || !(a.get(0).type() instanceof TypeFact.Typed st)
+                        || !(st.type() instanceof SqlType.Struct s)
+                        || !(a.get(1) instanceof SqlExpr.StringLit name)) {
+                    yield UNKNOWN;
+                }
+                SqlType vt = a.get(2).type() instanceof TypeFact.Typed vtt ? vtt.type()
+                        : a.get(2).type() instanceof TypeFact.Bottom ? SqlType.Scalar.JSON : null;
+                if (vt == null) {
+                    yield UNKNOWN;
+                }
+                java.util.List<SqlType.Struct.Field> fs = new java.util.ArrayList<>(s.fields());
+                fs.add(new SqlType.Struct.Field(name.value(), vt));
+                yield typed(new SqlType.Struct(fs));
+            }
             case LIST_TRANSFORM -> {
                 if (a.size() != 2 || !(a.get(1) instanceof SqlExpr.Lambda lam)
                         || lam.params().size() != 1) {

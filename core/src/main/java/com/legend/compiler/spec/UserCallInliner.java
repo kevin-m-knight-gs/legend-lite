@@ -421,28 +421,11 @@ public final class UserCallInliner {
         }
     }
 
-    /** {@code cls <: sup} by the DECLARED generalizations alone (no class is
-     * compiled; a generalization cycle contributes nothing new). */
+    /** {@code cls <: sup} by the DECLARED generalizations alone (the
+     * ModelContext rule — no class is compiled). */
     private static boolean declaredSubtype(com.legend.compiler.element.ModelContext ctx,
             String cls, String sup, java.util.Set<String> visited) {
-        if (cls.equals(sup)) {
-            return true;
-        }
-        if (!visited.add(cls)) {
-            return false;
-        }
-        var cd = ctx.findClassDefinition(cls);
-        if (cd.isEmpty()) {
-            return false;
-        }
-        for (com.legend.protocol.TypeExpression s : cd.get().superClasses()) {
-            String name = s instanceof com.legend.protocol.TypeExpression.NameRef nr ? nr.name()
-                    : s instanceof com.legend.protocol.TypeExpression.Generic g ? g.name() : null;
-            if (name != null && declaredSubtype(ctx, name, sup, visited)) {
-                return true;
-            }
-        }
-        return false;
+        return ctx.isDeclaredSubtype(cls, sup);
     }
 
     /** The literal-argument size of the innermost enclosing activation of

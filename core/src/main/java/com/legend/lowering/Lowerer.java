@@ -2384,8 +2384,10 @@ public final class Lowerer {
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
     /** A constructed field's value in its slot's carrier (MixedEncoding.slotCarrier). */
     private SqlExpr slotValue(TypedSpec value, Type.Column c, ColumnResolver columns) {
-        return MixedEncoding.slotCarrier(scalar(value, columns), isMany(value),
-                sqlTypeOf(value.info().type()), sqlTypeOf(c.type()), () -> "_slot" + aliasCounter++);
+        SqlExpr lowered = scalar(value, columns);   // its own SQL type is the carrier truth (a map-binder cell IS its struct)
+        SqlType lt = lowered.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : sqlTypeOf(value.info().type());
+        SqlType valueType = isMany(value) && lt instanceof SqlType.Array la ? la.element() : lt;   // the carrier rule reads the ELEMENT
+        return MixedEncoding.slotCarrier(lowered, isMany(value), valueType, sqlTypeOf(c.type()), () -> "_slot" + aliasCounter++);
     }
 
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
@@ -2667,7 +2669,7 @@ public final class Lowerer {
                         new IllegalStateException("^$var(…) copy of " + cp.classFqn()
                                 + " has no canonical layout"));
                 SqlExpr src = scalar(cp.source(), columns);
-                yield new SqlExpr.StructLit(layout.stream().map(c -> {
+                yield ConstructionCanon.bind(instanceKeysOf, () -> aliasCounter++, cp.info().type(), cp.classFqn(), layout.stream().map(c -> {
                     // F13: a copy is a NEW instance — mint at the COPY site
                     var sf = MixedEncoding.syntheticField(c,
                             instanceIdOf == null ? null : instanceIdOf.apply(cp), cp.classFqn());
@@ -2730,7 +2732,7 @@ public final class Lowerer {
                         new IllegalStateException("class value ^" + n.classFqn()
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));
-                yield new SqlExpr.StructLit(layout.stream().map(c -> {
+                yield ConstructionCanon.bind(instanceKeysOf, () -> aliasCounter++, n.info().type(), n.classFqn(), layout.stream().map(c -> {
                     // F13: one deterministic id per construction SITE (node)
                     var sf = MixedEncoding.syntheticField(c,
                             instanceIdOf == null ? null : instanceIdOf.apply(n), n.classFqn());

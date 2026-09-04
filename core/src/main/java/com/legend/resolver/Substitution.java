@@ -1430,6 +1430,40 @@ final class Substitution {
                                     .getClass().getSimpleName()) + "]");
     }
 
+    /** A LIST VALUE's map (a computed, many-valued String[*] — the
+     * residual {@code if(..)->concatenate(..)} of toPostgresModel's
+     * qualifiedName parts — never a row path, never a class collection):
+     * a list operation, the mapper is data over its own element (the
+     * lowering's list_transform). Pure's map over exactly one value is
+     * application, which {@link #objectSpaceFanOut} keeps. */
+    private boolean listValueMap(TypedMap m) {
+        return m.mapper().parameters().size() == 1
+                && !Type.isRelation(m.source().info().type())
+                && !(m.source().info().type() instanceof Type.ClassType)
+                && m.source().info().multiplicity() instanceof
+                        com.legend.compiler.element.type.Multiplicity.Bounded mb
+                && mb.isMany()
+                && pathOf(m.source(), target.userVar()) == null;
+    }
+
+    /** ->map(l|...) over a navigation IS the auto-map spelling
+     * ($f.employees->map(l|$l.lastName) == $f.employees.lastName, the
+     * engine desugar): inline the mapper param with the source and
+     * substitute the flattened expression. VALUE-POSITION fan-out (task
+     * #78 step 2, engine golden testAdvancedDerivedPropertyThrough
+     * Association: flat LEFT JOIN row explosion, mapper evaluated per
+     * exploded row): ->map(e|body) over an object-space collection inlines
+     * the param with the source — nav reads inside the body become path
+     * reads served by the ONE flat join (dedup by head keeps multi-column
+     * reads on the SAME exploded row). Property-path bodies are the
+     * auto-map spelling of the same rule. Reducer-wrapped maps never reach
+     * this arm (guarded at the reducer call above — audit 12 F4). */
+    private static boolean objectSpaceFanOut(TypedMap m) {
+        return m.mapper().parameters().size() == 1
+                && m.mapper().body().size() == 1
+                && !Type.isRelation(m.source().info().type());
+    }
+
     /** The CHAIN KEY + SUB-NAV TAIL read of {@link #rewriteMultiHop}
      * ($a.links.rs.c.name): null when no registered chain prefix carries
      * the tail as a SubNav descent. */
@@ -1960,25 +1994,10 @@ final class Substitution {
                         ? l   // shadowing: substitution stops (standard capture rule)
                         : new TypedLambda(l.parameters(), rewriteAll(l.body()), l.info());
             }
-            // ->map(l|...) over a navigation IS the auto-map spelling
-            // ($f.employees->map(l|$l.lastName) == $f.employees.lastName,
-            // the engine desugar): inline the mapper param with the source
-            // and substitute the flattened expression
-            case TypedMap m
-                    when m.mapper().parameters().size() == 1
-                    && m.mapper().body().size() == 1
-                    && !Type.isRelation(m.source().info().type()) ->
-                    // VALUE-POSITION fan-out (task #78 step 2, engine golden
-                    // testAdvancedDerivedPropertyThroughAssociation: flat
-                    // LEFT JOIN row explosion, mapper evaluated per exploded
-                    // row): ->map(e|body) over an object-space collection
-                    // inlines the param with the source — nav reads inside
-                    // the body become path reads served by the ONE flat
-                    // join (dedup by head keeps multi-column reads on the
-                    // SAME exploded row). Property-path bodies are the
-                    // auto-map spelling of the same rule. Reducer-wrapped
-                    // maps never reach this arm (guarded at the reducer
-                    // call above — audit 12 F4).
+            case TypedMap m when listValueMap(m) ->
+                    new TypedMap(rewrite(m.source()),
+                            (TypedLambda) rewrite(m.mapper()), m.info());
+            case TypedMap m when objectSpaceFanOut(m) ->
                     rewrite(inlineParam(m.mapper().body().get(0),
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.

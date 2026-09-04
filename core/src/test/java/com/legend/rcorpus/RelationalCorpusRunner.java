@@ -1709,10 +1709,33 @@ public class RelationalCorpusRunner {
             // to its primitive, an empty spelled collection cast, and the
             // native concatenate/zip over spelled lists. +1
             // (testConvertJoinStrings), 0 lost.
-            org.junit.jupiter.api.Assertions.assertEquals(251L,
+            // 251/2322 -> 246/2327 (batch 55c, 2026-09-04): the STORE-ROW leg
+            // — a constructed instance over one toOne-wrapped element chain
+            // (by STRUCTURE: pure is referentially transparent, equal reads
+            // of a store chain are one row) is the map of that chain's row
+            // (StoreResolver.constructedRowForm; the row's navigations are
+            // its join steps, never a subquery per read); the metamodel
+            // store maps Schema.tables / Table.schema; a navigate-slot hop
+            // threads downstream depth into its nested target
+            // (NavMaterializer tails + SubNav provenance — the association
+            // route's depth leg, for slots); slot prefixes mint clear of the
+            // left row's composed names (Pipelines.slotPrefix, one rule at
+            // the three sites); a many-valued list VALUE's map stays a list
+            // map in the substitution; the map-binder channel's VALUE is its
+            // cell for the canon and for a struct slot (ResultShape.valueInfo);
+            // F10 proper: a constructed instance's canonical key text is
+            // computed at its CONSTRUCTION site from its own fields and
+            // rides the wire as the synthetic __canon field (the bound
+            // struct form — one mention per child, linear text), so a
+            // JSON-carried nested instance is judged by the classifier that
+            // built it (17 instance-key-shape declines in the family -> 0,
+            // sql-verdict agree=32 disagree=0). +5 flips (Alias, Table,
+            // TabularFunction, SelectSQLQueryWithCTE, Union), 0 lost;
+            // dual-channel disagree 0; 0-assert passes 29.
+            org.junit.jupiter.api.Assertions.assertEquals(246L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2322L,
+            org.junit.jupiter.api.Assertions.assertEquals(2327L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

@@ -829,6 +829,8 @@ public final class SystemMetamodel {
                 Join DbToSchemas(metamodel.databases.fqn = metamodel.schemas.db_fqn)
                 Join SchemaToViews(metamodel.schemas.db_fqn = metamodel.relational_elements.db_fqn
                     and metamodel.schemas.name = metamodel.relational_elements.schema_name)
+                Join SchemaToTables(metamodel.schemas.db_fqn = metamodel.relational_elements.db_fqn
+                    and metamodel.schemas.name = metamodel.relational_elements.schema_name)
                 Join ViewToColumnMappings(metamodel.relational_elements.db_fqn = metamodel.view_column_mappings.db_fqn
                     and metamodel.relational_elements.schema_name = metamodel.view_column_mappings.schema_name
                     and metamodel.relational_elements.name = metamodel.view_column_mappings.view_name)
@@ -1205,6 +1207,7 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.schemas.db_fqn, %1$s metamodel.schemas.name)
                     ~mainTable %1$s metamodel.schemas
                     name: %1$s metamodel.schemas.name,
+                    tables[tbl]: %1$s@SchemaToTables,
                     views[vw]: %1$s@SchemaToViews
                 }
                 *meta::relational::mapping::ColumnMapping[vcm]: Relational
@@ -1246,7 +1249,8 @@ public final class SystemMetamodel {
                     ~filter %1$s ElTable
                     ~primaryKey(%1$s metamodel.relational_elements.id)
                     ~mainTable %1$s metamodel.relational_elements
-                    name: %1$s metamodel.relational_elements.name
+                    name: %1$s metamodel.relational_elements.name,
+                    schema[schema]: %1$s@SchemaToTables
                 }
                 meta::relational::metamodel::Column[col]: Relational
                 {

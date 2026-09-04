@@ -185,6 +185,15 @@ public final class CanonicalRenderSql {
             // empty rule renders '[]'); claim with a placeholder
             candidates = List.of(t);
             canons.add(new SqlExpr.NullLit());
+        } else if (instFqn != null && valueCol.type() instanceof SqlType.Struct cst
+                && hasCanonField(cst)) {
+            // F10 proper — a constructed instance carries its canon on the
+            // wire (__canon, stamped at its construction site from its
+            // own fields and its class's keys): the side's canon IS it
+            candidates = List.of(t);
+            canons.add(new SqlExpr.Cast(SqlExpr.StructGet.of(valueRef,
+                    com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON),
+                    SqlType.Scalar.VARCHAR));
         } else if (instFqn != null) {
             // X5 — a KEYED instance side: the canon is the key-property
             // render (EqualityUtilities compares keyed classes by key
@@ -477,7 +486,7 @@ public final class CanonicalRenderSql {
             SqlExpr arr = SqlExpr.Call.of(SqlFn.COALESCE,
                     SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
                             new SqlExpr.Lambda(List.of("__e"), leaf)),
-                    new SqlExpr.ArrayLit(List.of()));
+                    emptyArray());
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.IS_NULL, v),
                     new SqlExpr.NullLit())),
@@ -526,7 +535,7 @@ public final class CanonicalRenderSql {
                 c = SqlExpr.Call.of(SqlFn.COALESCE,
                         SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, field,
                                 new SqlExpr.Lambda(List.of("__e"), leaf)),
-                        new SqlExpr.ArrayLit(List.of()));
+                        emptyArray());
             } else if (ft == null) {
                 return null;
             } else {
@@ -596,6 +605,16 @@ public final class CanonicalRenderSql {
             SqlType ft,
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys
                     nested) {
+        // F10 proper: a constructed instance carries its own canon
+        // (__canon, stamped at its construction site) — a nested struct
+        // contributes it directly, a JSON-carried one through its object
+        if (ft instanceof SqlType.Struct st && hasCanonField(st)) {
+            return SqlExpr.StructGet.of(field,
+                    com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON);
+        }
+        if (ft == SqlType.Scalar.JSON) {
+            return jsonSlotCanon(field);
+        }
         if (nested != null) {
             return instanceCanon(field, nested, ft);
         }
@@ -604,6 +623,122 @@ public final class CanonicalRenderSql {
             return null;
         }
         return literalCanon(field, kind);
+    }
+
+    /** The EMPTY key collection (NULL and empty both normalize to it). */
+    private static SqlExpr emptyArray() {
+        return new SqlExpr.ArrayLit(List.of());
+    }
+
+    static boolean hasCanonField(SqlType.Struct st) {
+        return st.fields().stream().anyMatch(f ->
+                com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON.equals(f.name()));
+    }
+
+    /**
+     * F10 proper — the canon a CONSTRUCTION site stamps into its
+     * instance's {@code __canon} field, from the sibling fields: a keyed
+     * class renders its key tree ({@code _type} + keys, the
+     * {@link #instanceCanon} framing) with each key value's canon read
+     * off the value itself — a nested constructed instance contributes
+     * its OWN {@code __canon} (built before its parent, so recursive
+     * polymorphic shapes stay finite), a JSON-carried one the
+     * {@code __canon} in its object (an object without one is its
+     * identity), a scalar its literal spelling; a keyless class is its
+     * identity. An unclaimable leaf marks {@link #TREE_MARKER}: the
+     * verdict declines the pair, never guesses.
+     */
+    public static SqlExpr constructionCanon(List<SqlExpr.StructLit.Field> fields,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys keys,
+            String classFqn) {
+        java.util.Map<String, SqlExpr.StructLit.Field> byName = new java.util.LinkedHashMap<>();
+        for (SqlExpr.StructLit.Field f : fields) {
+            byName.put(f.name(), f);
+        }
+        if (keys == null) {
+            SqlExpr.StructLit.Field idF = byName.get(
+                    com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID);
+            return new SqlExpr.JsonObject(List.of(
+                    new SqlExpr.StringLit("_type"), new SqlExpr.StringLit(classFqn),
+                    new SqlExpr.StringLit("_id"),
+                    idF == null ? new SqlExpr.NullLit() : idF.value()));
+        }
+        List<SqlExpr> kv = new java.util.ArrayList<>();
+        kv.add(new SqlExpr.StringLit("_type"));
+        kv.add(new SqlExpr.StringLit(keys.classFqn()));
+        for (var k : keys.keys()) {
+            SqlExpr.StructLit.Field f = byName.get(k.name());
+            SqlExpr c;
+            if (f == null) {
+                c = new SqlExpr.StringLit(TREE_MARKER);
+            } else {
+                // the VALUE's own type first (the layout is value-built:
+                // a JSON-declared Any slot holding a VARCHAR spells as the
+                // string it is); the declared slot only for an untyped value
+                SqlType ft = f.value().type() instanceof com.legend.sql.TypeFact.Typed tt
+                        ? tt.type() : f.declared();
+                if (k.many()) {
+                    SqlType elem = ft instanceof SqlType.Array at ? at.element() : null;
+                    c = elem == null ? new SqlExpr.StringLit(TREE_MARKER)
+                            : SqlExpr.Call.of(SqlFn.COALESCE,
+                                    SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, f.value(),
+                                            new SqlExpr.Lambda(List.of("__e"),
+                                                    valueCanon(SqlExpr.Column.derived(null, "__e"),
+                                                            elem, k.nested()))),
+                                    emptyArray());
+                } else {
+                    c = SqlExpr.Call.of(SqlFn.COALESCE,
+                            valueCanon(f.value(), ft, k.nested()),
+                            new SqlExpr.StringLit("[]"));
+                }
+            }
+            kv.add(new SqlExpr.StringLit(k.name()));
+            kv.add(c);
+        }
+        return new SqlExpr.JsonObject(kv);
+    }
+
+    /** One value's canon by its CARRIER (the construction-site rule). */
+    private static SqlExpr valueCanon(SqlExpr v, @com.legend.Nullable SqlType t,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys nested) {
+        if (t instanceof SqlType.Struct st) {
+            if (hasCanonField(st)) {
+                return SqlExpr.StructGet.of(v,
+                        com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON);
+            }
+            SqlExpr c = nested == null ? null : instanceCanon(v, nested, st);
+            return c == null ? new SqlExpr.StringLit(TREE_MARKER) : c;
+        }
+        if (t == SqlType.Scalar.JSON) {
+            return jsonSlotCanon(v);
+        }
+        Type kind = t == null ? null : kindOfSqlType(t);
+        SqlExpr lit = kind == null ? null : literalCanon(v, kind);
+        return lit == null ? new SqlExpr.StringLit(TREE_MARKER) : lit;
+    }
+
+    /** A JSON-carried slot's canon: NULL stays NULL; an OBJECT is the
+     * {@code __canon} its constructor stamped (an object without one —
+     * a producer outside the construction sites — is its identity,
+     * {@code _type} + {@code _id}); a scalar takes the Any-cell spelling. */
+    private static SqlExpr jsonSlotCanon(SqlExpr v) {
+        SqlExpr canon = SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
+                new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON));
+        SqlExpr type = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
+                new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)),
+                SqlType.Scalar.VARCHAR);
+        SqlExpr id = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
+                new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)),
+                SqlType.Scalar.VARCHAR);
+        SqlExpr identity = new SqlExpr.JsonObject(List.of(
+                new SqlExpr.StringLit("_type"), type,
+                new SqlExpr.StringLit("_id"), id));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                        new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(eqText(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), "OBJECT"),
+                        SqlExpr.Call.of(SqlFn.COALESCE, canon, identity))),
+                anyJsonCanon(v));
     }
 
     /** PURE'S OWN LITERAL SPELLING of a scalar (user ruling 2026-08-22

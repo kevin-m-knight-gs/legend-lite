@@ -363,6 +363,22 @@ final class FlattenOps {
         return out;
     }
 
+    /** The downstream paths that continue THROUGH the nested head whose
+     * navigate alias is {@code alias} (head → alias per
+     * {@code headNavAlias}), as tails relative to that head's target
+     * (the navigate-slot route's depth leg). */
+    static List<List<String>> tailsThrough(String alias,
+            java.util.Map<String, String> headNavAlias,
+            java.util.Set<List<String>> downstreamPaths) {
+        List<List<String>> out = new java.util.ArrayList<>();
+        for (List<String> p : downstreamPaths) {
+            if (p.size() >= 2 && alias.equals(headNavAlias.get(p.get(0)))) {
+                out.add(List.copyOf(p.subList(1, p.size())));
+            }
+        }
+        return out;
+    }
+
     /** Whether the NEXT outer hop of hop {@code i} is to-many with a
      * row-count op between (then it is not this hop's extra head: it
      * must join ABOVE the op, not inside this hop's target). */

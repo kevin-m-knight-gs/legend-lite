@@ -373,6 +373,13 @@ public final class DuckDb extends AnsiSqlRenderer {
         return "CAST(" + expr(args.get(0), 0) + " AS JSON[])";
     }
 
+    @Override
+    protected String structInsert(List<SqlExpr> args) {
+        String name = ((SqlExpr.StringLit) args.get(1)).value();
+        return "struct_insert(" + expr(args.get(0), 0) + ", \""
+                + name.replace("\"", "\"\"") + "\" := " + expr(args.get(2), 0) + ")";
+    }
+
     /**
      * A scalar cast whose value is a variant ACCESS extracts TEXT first
      * ({@code ->>} strips JSON quoting) — the swap lives HERE, in rendering,
