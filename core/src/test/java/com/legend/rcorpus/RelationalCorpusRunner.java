@@ -1797,21 +1797,28 @@ public class RelationalCorpusRunner {
             // a lambda cast to a function carrier is the lambda. +7 flips
             // (3 TDG alloy milestoning, 2 sqlstring adjust-date, 2
             // businessdate), 0 lost; sql-verdict disagree 0; dual-channel 0.
-            // Batch 59 (2026-09-04, the lineage-tree canon): a scanRelations
-            // tree print's join labels spell the engine's decorated SQL
-            // ALIASES (buildUniqueName alias=true: _d#N/_dy/_m/_l/_r/_md/_N
-            // — pureToSQLQuery.pure buildNodeId), an artifact of its SQL
-            // generation the row charter retired; the tree's CONTENT is the
-            // engine's own alias=false form (the relational element's
-            // name). exec/LineageTreeCanon reduces the EXPECTED print's
-            // aliases to the tree's declared node names before BOTH verdict
-            // channels compare (counted: lineage-alias-canon=21). +21 flips
-            // (the whole lineage/scanRelations tree family), 0 lost;
-            // sql-verdict disagree 0; dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(213L,
+            // Batch 59 (2026-09-04, the lineage-tree ROW verdict): a
+            // scanRelations tree print's join labels spell the engine's
+            // decorated SQL ALIASES (buildUniqueName alias=true:
+            // _d#N/_dy/_m/_l/_r/_md/_N — pureToSQLQuery.pure buildNodeId),
+            // an artifact of its SQL generation the row charter retired.
+            // USER RULING: never normalize the golden text and byte-compare;
+            // LineageTreeVerdicts brings BOTH prints to rows by one referee
+            // query in the database (TREE_ROWS) and the row lists compare
+            // (counted: lineage-rows agree=66). +21 flips (the whole
+            // lineage/scanRelations tree family), 0 lost; sql-verdict
+            // disagree 0; dual-channel disagree 0.
+            // Batch 61 (2026-09-04, acos/asin domain): the engine's H2 SQL
+            // for acos/asin out of [-1, 1] yields NaN and the filter drops
+            // the row; ours raised "Unable to compute acos of 1.1". The
+            // Scalars rule now yields NULL out of domain (CASE WHEN abs(x)
+            // > 1 THEN NULL ELSE acos(x)), the same row outcome. +2 flips
+            // (testFilterUsingArcCosFunction, testFilterUsingArcSinFunction),
+            // 0 lost; sql-verdict disagree 0; dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(211L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2360L,
+            org.junit.jupiter.api.Assertions.assertEquals(2362L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

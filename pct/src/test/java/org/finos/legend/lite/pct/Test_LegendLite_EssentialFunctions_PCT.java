@@ -129,7 +129,18 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // eagerly, so the un-lowerable reflection carrier walls
             // loudly at the Lowerer (correct: deactivate is compile-time
             // and must never reach MIR)
-            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"));
+            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
+            // RELATIONAL DOMAIN SEMANTICS (batch 61, 2026-09-04): the Pure
+            // interpreter raises "Unable to compute acos of 2.0"; the
+            // engine's relational spec cell is the bare acos(%s), whose
+            // out-of-domain answer on H2 is NaN (the relational corpus
+            // asserts the row DROPS — testFilterUsingArcCosFunction). Every
+            // engine relational PCT adapter ledgers these two tests as
+            // expected failures (relational-h2 EssentialFunctions_manifest:
+            // "No error was thrown"; duckdb/postgres: the database's own
+            // error). Ours: the NaN cell cannot be read back as a Float.
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
 
     public static Test suite() {
         // M4 §3.4: the census gate pins this JVM's SqlTypeCensus

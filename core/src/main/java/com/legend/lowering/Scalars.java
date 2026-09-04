@@ -486,6 +486,15 @@ final class Scalars {
                 Map.entry("pi", SqlFn.PI),
                 Map.entry("sin", SqlFn.SIN), Map.entry("cos", SqlFn.COS),
                 Map.entry("tan", SqlFn.TAN), Map.entry("asin", SqlFn.ASIN),
+                // acos/asin: the engine's spec cell is the BARE function
+                // (extensionDefaults.pure 'acos(%s)'); out of domain H2
+                // yields NaN and the row drops. A backend that raises
+                // instead reaches the same answer through ITS dialect's
+                // domain guard (DuckDb.call), never a semantic rule; Pure's
+                // "Unable to compute acos" error is the interpreter's, and
+                // every engine relational PCT adapter ledgers
+                // testArcCosineError as an expected failure (batch 61).
+                Map.entry("acos", SqlFn.ACOS),
                 Map.entry("atan", SqlFn.ATAN),
                 Map.entry("atan2", SqlFn.ATAN2), Map.entry("sinh", SqlFn.SINH),
                 Map.entry("cosh", SqlFn.COSH), Map.entry("tanh", SqlFn.TANH),
@@ -1765,20 +1774,6 @@ final class Scalars {
                         cat(new SqlExpr.StringLit("Unable to compute sqrt of "), floatRepr(x)),
                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)));
             });
-        }
-        for (String name : List.of("acos", "asin")) {
-            SqlFn fn = name.equals("acos") ? SqlFn.ACOS : SqlFn.ASIN;
-            for (String f : Pure.nativeKeysAt(name)) {
-                RULES.put(f, (n, args) -> {
-                    SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE);
-                    return guarded(
-                            SqlExpr.Call.of(SqlFn.GREATER,
-                                    SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(1)),
-                            cat(new SqlExpr.StringLit("Unable to compute " + name + " of "),
-                                    floatRepr(x)),
-                            SqlExpr.Call.of(fn, args.get(0)));
-                });
-            }
         }
         family(SqlFn.BIT_NOT, "bitNot");
         // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.

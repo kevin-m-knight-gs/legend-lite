@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 82 | 2 | 3 | 0 | 1 | 1 | 0 | 0 |
+| tests/query | 87 | 84 | 2 | 1 | 0 | 1 | 1 | 0 | 0 |
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2417** | 47 | 79 | 32 | 12 | 12 | 29 | 21 |
+| **total** | 2575 | **2419** | 47 | 77 | 32 | 12 | 12 | 29 | 21 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2417 PASS = 2358 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
+SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2360 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2417 PASS = 2358 clean + 59 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 213
+tests in the ledger: 211
 
 | bucket | asserts |
 |---|---|
@@ -550,9 +550,9 @@ tests in the ledger: 213
 | wall:typer | 49 |
 | wall:resolver | 29 |
 | pass | 83 |
-| divergence | 49 |
+| divergence | 47 |
 | wall:exec | 14 |
-| not-reached | 62 |
+| not-reached | 60 |
 | referee-cannot-replay | 16 |
 | zero-assert | 3 |
 | wall:lowering | 16 |
@@ -897,10 +897,6 @@ tests in the ledger: 213
 - testGroupByWithFilterFunction_noDatePath #1 meta::pure::functions::asserts::assertEquals -> pass
 - testGroupByWithFilterFunction_noDatePath #2 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, oracle declined: column arity differs: golden N vs frame N): expected select "root" :: assertEqualsH2Compatible (sql-text, oracle declined: column arity differs: golden 10 vs frame 4): expected select "root"."date" as "pk_0", "root"."calendar name" 
 - testGroupByWithFilterFunction_noDatePath #3 - -> not-reached: 2 assert(s) after the failure
-- testFilterUsingArcCosFunction #1 assertSameElements -> divergence: platform-fail: Unable to compute acos of N.N :: Unable to compute acos of 1.1
-- testFilterUsingArcCosFunction #2 - -> not-reached: 1 assert(s) after the failure
-- testFilterUsingArcSinFunction #1 assertSameElements -> divergence: platform-fail: Unable to compute asin of N.N :: Unable to compute asin of 1.1
-- testFilterUsingArcSinFunction #2 - -> not-reached: 1 assert(s) after the failure
 - testFilterTimesWithManyOperands #1 assertSameSQL -> wall:resolver: wall-exec: aggregate '_' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-o :: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - testFilterTimesWithManyOperands #2 - -> not-reached: 1 assert(s) after the failure
 - testLegacyFlagProjectionEmitsPlainEquals #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
@@ -1069,8 +1065,6 @@ tests in the ledger: 213
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: multiplicity [*] is not compatible with [1]
 - FAIL testUnionTwoRelationMappings_ManyColumnProject [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
 - FAIL testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
-- ERROR testFilterUsingArcCosFunction [tests/query]: Unable to compute acos of 1.1
-- ERROR testFilterUsingArcSinFunction [tests/query]: Unable to compute asin of 1.1
 - ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - FAIL testLegacyFlagProjectionEmitsPlainEquals [tests/query]: assert did not hold (false)
 - FAIL testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert did not hold (false)

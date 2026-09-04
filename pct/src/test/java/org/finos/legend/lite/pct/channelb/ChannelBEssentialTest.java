@@ -99,9 +99,20 @@ class ChannelBEssentialTest {
         // all-branch LUB alongside the emission-narrowed info) —
         // testMatchWithMixedReturnType joins; the winnable set is EMPTY
         // modulo the ledger
-        assertTrue(pass >= 316,
+        // 314 (batch 61, 2026-09-04, DELIBERATE −2): testArcCosineError and
+        // testArcSineError now read "AssertFailed: No error was thrown" —
+        // the EXACT status the engine's own relational-h2
+        // EssentialFunctions PCT manifest ledgers for these two tests. The
+        // acos/asin rule is the engine's bare spec cell (extensionDefaults
+        // 'acos(%s)'): out of domain H2 yields NaN and the row drops
+        // (relational corpus testFilterUsingArcCos/ArcSinFunction, +2
+        // flips); the DuckDB dialect's domain guard reaches the same NaN.
+        // The interpreter's "Unable to compute acos" error was a SQL
+        // raise our lowering invented beyond the engine's relational
+        // spec; every engine relational adapter carries this failure.
+        assertTrue(pass >= 314,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 316");
+                        + pass + " < 314");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

@@ -3295,3 +3295,42 @@ bucket. The burn list now reads straight off the ledger: 49 divergences
 (real wrong answers) and 108 walls by owner are the platform work; 30
 decision rows carry the user's names; 7 sql-text-assert + 16
 referee-cannot-replay are the referee/contract legs.
+
+**Batch 61 — acos/asin as the engine's bare spec cell (2026-09-04, chain
+GREEN 6m04s; docs/GATES.md batch 61).** Ratchet 213/2360 → 211/2362
+(testFilterUsingArcCos/ArcSinFunction). The Scalars rule raised the
+interpreter's "Unable to compute acos" in SQL; the engine's relational
+spec cell is bare `acos(%s)` (H2: NaN, row drops). Rule = the plain trig
+family; the DuckDB dialect's domain guard (DuckDb.call, goal #18) yields
+NaN where DuckDB would raise. PCT: the two Pure error tests become
+expected failures with the engine's own relational precedent (h2 manifest
+"No error was thrown"; channel B essential floor 316 → 314, deliberate).
+
+RECEIPTS this stretch (bring to the user, not burns):
+- testDateTimeInclusiveRangeQuery: golden 2 rows, H2 gives 1. Engine
+  literal = nine digits (DateFormat 'S' with count>=3 appends the whole
+  subsecond; client sends `$d->toString()`); relation fixture stores
+  '2014-12-04 15:22:23.123' in TIMESTAMP(9); H2 2.1.214:
+  `TIMESTAMP '…23.123456789' <= x` false, `…23.123456` false, `…23.123`
+  true. The golden can only hold with a millis literal — not the
+  engine's spelling. Bucket stays divergence (golden-vs-H2 skew).
+- testHashFunctions / testToSQLStringForTDSStringJoin / digest ×2: the
+  engine renders `joinStrings([a,b], sep)` as `concat(a, b, sep)` (the
+  separator APPENDED — md5('PeterSmith|') = ee0af362… is the golden's
+  digest); Pure semantics say 'Peter|Smith'. Reproducing the golden means
+  emitting the engine's mis-rendering. DECISION for the user.
+- testInExecutionWithTempTableForDateTimesWithTz: the ONLY fallback using
+  `testRuntime('US/Arizona')`; ConnectionFlags.timeZoneOf reads an inline
+  DatabaseConnection(timeZone=…) only — the string overload's call
+  (relationalSetUp.pure:1218) is invisible, so literals are not shifted.
+  NEXT LEG (small): read the call's own String argument, like the Boolean
+  overload; verify with -Drcorpus.test.
+- testRelationStoreAccessorOnView: `#>{db.personView}#` lowers to `FROM
+  personView` (TableReferenceChecker finds the view as a table; the
+  lowering has no view expansion). ViewRelation (normalizer) expands
+  views for class mappings; the typed accessor path needs the same.
+  Both asserts are then text contracts (executeLegendQuery JSON contains).
+- Scoped runs: `-Drcorpus.only=<family substring>`; a TEST name needs
+  `-Drcorpus.test=<name>` (the family filter selects nothing otherwise).
+  The interactive shell's `grep` is a snapshot function that drops
+  matches — use /usr/bin/grep.
