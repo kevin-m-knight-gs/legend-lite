@@ -255,7 +255,8 @@ public final class WholeTestFlip {
         try {
             resolved = Compiler.resolveQuery(List.copyOf(statements), imports, ctx);
         } catch (RuntimeException e) {
-            return fallback("wall-resolve: " + bucketOf(e.getMessage()), test);
+            return fallback("wall-resolve: " + bucketOf(e.getMessage()), test,
+                    test + " :: " + e.getMessage());
         }
         // EFFECT ATOMICITY (effectful cutover, 2026-09-01 — the charter
         // burn-map item; replaced the static verb classification): every
@@ -292,9 +293,19 @@ public final class WholeTestFlip {
                         + (st.length > 10 ? " < " + st[10] : "")
                         + (st.length > 11 ? " < " + st[11] : ""));
             }
-            return fallback("wall-type: " + bucketOf(e.getMessage()), test);
+            return fallback("wall-type: " + bucketOf(e.getMessage()), test,
+                    test + " :: " + e.getMessage());
         }
         List<Boolean> events = new ArrayList<>();
+        List<AssertLedger.Row> verdicts = new ArrayList<>();
+        List<ValueSpecification> assertStmts = new ArrayList<>();
+        for (ValueSpecification s : statements) {
+            if (s instanceof AppliedFunction af
+                    && EngineTestExecutor.resolvesTo(af, ctx,
+                            EngineTestExecutor.ASSERT_FORM_FQNS)) {
+                assertStmts.add(s);
+            }
+        }
         com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark = null;
         boolean txn = false;
         if (effectful) {
@@ -307,13 +318,19 @@ public final class WholeTestFlip {
             }
         }
         String reason = null;
+        String raw = null;
         try {
             try {
                 // the oracle registers beside the listener (SQLTEXT
                 // charter §2) — the flipped env carries it for the
                 // verdict arms
                 Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
-                        (name, pass, detail) -> events.add(pass),
+                        (name, pass, detail) -> {
+                            events.add(pass);
+                            verdicts.add(new AssertLedger.Row(test, events.size(), name,
+                                    pass ? "pass" : "divergence",
+                                    pass || detail == null ? "" : detail));
+                        },
                         ReplayOracle.INSTANCE);
             } catch (com.legend.error.NotImplementedException e) {
                 if (System.getenv("LL_TMP_DEBUG") != null) {
@@ -331,6 +348,7 @@ public final class WholeTestFlip {
                             + (st.length > 8 ? " < " + st[8] : ""));
                 }
                 reason = "wall-exec: " + bucketOf(e.getMessage());
+                raw = String.valueOf(e.getMessage());
             } catch (com.legend.error.DataError
                     | com.legend.error.AssertFailed e) {
                 // the seam: platform failures are AssertFailed/DataError
@@ -351,6 +369,7 @@ public final class WholeTestFlip {
                             + e.getCause() + "]");
                 }
                 reason = "platform-fail: " + bucketOf(e.getMessage());
+                raw = String.valueOf(e.getMessage());
             } catch (RuntimeException e) {
                 if (System.getenv("LL_TMP_DEBUG") != null) {
                     StackTraceElement[] st = e.getStackTrace();
@@ -365,6 +384,7 @@ public final class WholeTestFlip {
                 }
                 reason = "wall-exec: " + e.getClass().getSimpleName()
                         + ": " + bucketOf(e.getMessage());
+                raw = String.valueOf(e.getMessage());
             }
             long passes = events.stream()
                     .filter(Boolean::booleanValue).count();
@@ -383,6 +403,37 @@ public final class WholeTestFlip {
                 }
             }
             if (reason != null) {
+                // THE ASSERT LEDGER: every verdict so far, the failing
+                // assert's truthful bucket, and the asserts never reached
+                List<AssertLedger.Row> rows = new ArrayList<>(verdicts);
+                boolean lastFailed = !rows.isEmpty()
+                        && !rows.get(rows.size() - 1).outcome().equals("pass");
+                // the failing assert: the listener's own failure row when it
+                // recorded one (its bucket REFINED by the attempt's reason —
+                // a declined referee, a text subject, a decision), else the
+                // wall's row at the assert the attempt stopped on
+                int at = lastFailed ? rows.size() - 1 : verdicts.size();
+                boolean sqlText = at < assertStmts.size()
+                        && EngineTestExecutor.containsSqlProducer(assertStmts.get(at), ctx);
+                String form = at < assertStmts.size()
+                        && assertStmts.get(at) instanceof AppliedFunction fa
+                        ? fa.function() : "-";
+                String why = reason + (raw == null ? "" : " :: " + raw.replace('\n', ' '));
+                String bucket = AssertLedger.bucketOf(why, sqlText);
+                String detail = why.length() > 300 ? why.substring(0, 300) : why;
+                if (lastFailed) {
+                    AssertLedger.Row last = rows.get(rows.size() - 1);
+                    rows.set(rows.size() - 1, new AssertLedger.Row(test, last.ordinal(),
+                            last.form(), bucket, detail));
+                } else if (!reason.startsWith("platform-fail: verdict stream")) {
+                    rows.add(new AssertLedger.Row(test, at + 1, form, bucket, detail));
+                }
+                int notReached = assertStmts.size() - at - 1;
+                if (notReached > 0) {
+                    rows.add(new AssertLedger.Row(test, at + 2, "-", "not-reached",
+                            notReached + " assert(s) after the failure"));
+                }
+                AssertLedger.record(test, rows);
                 return fallback(reason, test);
             }
             FLIPPED.incrementAndGet();
@@ -424,6 +475,14 @@ public final class WholeTestFlip {
      * error message after the name). */
     private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(
             String bucket, String test, String witness) {
+        if (!AssertLedger.rows().containsKey(test)) {
+            // a fallback BEFORE any verdict (assert-free, resolve/type walls):
+            // one test-level ledger row, classified from the unmasked witness
+            String why = bucket + " :: " + String.valueOf(witness).replace('\n', ' ');
+            AssertLedger.record(test, List.of(new AssertLedger.Row(test, 0, "-",
+                    AssertLedger.bucketOf(why, false),
+                    why.length() > 300 ? why.substring(0, 300) : why)));
+        }
         BUCKETS.computeIfAbsent(bucket, k -> new AtomicLong())
                 .incrementAndGet();
         WITNESSES.putIfAbsent(bucket, witness);

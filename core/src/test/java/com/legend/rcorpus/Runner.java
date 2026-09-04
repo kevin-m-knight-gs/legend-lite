@@ -1917,6 +1917,7 @@ public final class Runner {
                 .limit(30)
                 .forEach(e -> sb.append("- ").append(e.getValue()).append("x ")
                         .append(e.getKey()).append('\n'));
+        sb.append(com.legend.harness.AssertLedger.render());
         sb.append("\n### per-test outcomes (non-passing)\n\n");
         for (var e : byFamily.entrySet()) {
             for (Outcome o : e.getValue()) {

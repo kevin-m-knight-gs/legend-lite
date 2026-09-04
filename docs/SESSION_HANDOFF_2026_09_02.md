@@ -3283,3 +3283,15 @@ testUnionTwoRelationMappings_ManyColumnProject ×2: the engine prints
 `null` for firstName under unionTwoRelationMappings while the fixture
 has firstNames — read the mapping (is firstName unmapped in the relation
 mapping?) before touching the print.
+
+**Batch 60 — the ASSERT LEDGER LANDED (2026-09-04, chain GREEN 6m03s;
+docs/GATES.md batch 60).** The truthful per-assert accounting the user
+asked for: docs/RELATIONAL_CORPUS.md "### assert ledger" — clean tests
+count at the test level; partial/failing tests show one row per assert
+(pass / sql-text-assert / referee-cannot-replay / decision:<name> /
+wall:<owner> / divergence / zero-assert / not-reached). USER RULINGS:
+never call a text assert or a zero-assert test a "decline"; name the
+bucket. The burn list now reads straight off the ledger: 49 divergences
+(real wrong answers) and 108 walls by owner are the platform work; 30
+decision rows carry the user's names; 7 sql-text-assert + 16
+referee-cannot-replay are the referee/contract legs.
