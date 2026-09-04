@@ -150,10 +150,27 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl parser-equivalence test
 
-      # The reds above already fail the job. This only labels the ones no
-      # code change can clear on a bare runner, so nobody re-diagnoses them
-      # every run. Delete a line the day its cause is fixed — either by
-      # gating the test honestly or by giving CI the checkouts.
+      # ONE readable verdict for the whole job. Four suite steps x six
+      # matrix legs means the thing you actually want — which tests failed —
+      # is otherwise spread across four collapsed logs per leg. This parses
+      # the surefire XML and writes a table plus the failing cases to the
+      # job summary page. It reports only: the suite steps above already
+      # decided red or green, and a reporter that can fail a build is a
+      # liability. `if: !cancelled()` on purpose — a red job is exactly when
+      # this is worth reading.
+      - name: test summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        # `python3` on ubuntu/macos, `python` on the windows image — resolve
+        # it rather than betting on one spelling across three runner images.
+        run: |
+          PY=$(command -v python3 || command -v python)
+          "$PY" tools/ci-summary.py
+
+      # Structural reds: no code change clears these on a bare runner, so
+      # name them once here instead of re-diagnosing them every run. Delete
+      # a line the day its cause is fixed — by gating the test honestly, or
+      # by giving CI the checkouts.
       - name: label the structural reds (oracle checkouts absent here)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: echo "::warning ::No legend-engine/legend-pure checkout on this runner. Structural reds, expected until fixed - pct ChannelB*Test (5 classes, allgates G9); parser-equivalence corpus tests. ANY other red is a real regression - as of this commit that means exactly one, the PCT percentile ULP divergence in Test_LegendLite_StandardFunctions_PCT."
+        run: echo "::warning ::No legend-engine/legend-pure checkout on this runner. Structural reds, expected until fixed - core PreludeGeneratorTest; pct ChannelB*Test (5 classes, allgates G9); parser-equivalence corpus tests. ANY other red is a real regression."
