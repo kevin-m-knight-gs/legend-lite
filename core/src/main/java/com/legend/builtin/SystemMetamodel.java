@@ -996,6 +996,16 @@ public final class SystemMetamodel {
                 $_this.views->filter(t|$t.name == $name)->first()
             }
 
+            function meta::relational::metamodel::children(_this:meta::relational::metamodel::join::RelationalTreeNode[1]):meta::relational::metamodel::join::JoinTreeNode[*]
+            {
+                $_this.childrenData->cast(@meta::relational::metamodel::join::JoinTreeNode)
+            }
+
+            function meta::relational::metamodel::childByJoinName(_this:meta::relational::metamodel::join::RelationalTreeNode[1], s:String[1]):meta::relational::metamodel::join::JoinTreeNode[0..1]
+            {
+                $_this->children()->filter(c|$c.join.name == $s)->first()
+            }
+
             function meta::pure::mapping::allPropertyMappings(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMapping[*]
             {
                 $_this->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).effectivePropertyMappings

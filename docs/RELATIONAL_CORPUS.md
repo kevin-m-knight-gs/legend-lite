@@ -55,7 +55,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor/tests | 30 | 27 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
-| sqlDialectTranslation | 21 | 12 | 0 | 6 | 3 | 0 | 0 | 0 | 0 |
+| sqlDialectTranslation | 21 | 13 | 0 | 3 | 5 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2407** | 46 | 86 | 36 | 12 | 12 | 29 | 23 |
+| **total** | 2575 | **2408** | 46 | 83 | 38 | 12 | 12 | 29 | 23 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2407 PASS = 2346 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
+SOFT-PASS RECONCILIATION (F2.1): 2408 PASS = 2347 clean + 61 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 23; flags overlap — the union is 61).
 
 ### mapping walls (dropped at assembly)
 
@@ -512,17 +512,16 @@ SOFT-PASS RECONCILIATION (F2.1): 2407 PASS = 2346 clean + 61 carrying softness (
 ### top error buckets
 
 - 3x in function 'meta::relational::functions::sqlstring::toSQL': no overload of 'meta::pure::functions::lang::eval' accepts 5 argument(s) [inlined via meta::relational::functions::sqlstring::toSQL/4]
+- 3x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 3x unbound variable '$_nr2'
 - 2x unbound variable '$collection'
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - 2x in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToSqlQuery::toSQLQuery/6 -> meta::relational::functions::pureToSqlQuery::defaultState/4]
 - 2x 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
-- 2x Unknown type: 'meta::protocols::pure::v1_31_0::metamodel::valueSpecification::raw::Lambda' is not a known primitive, class, or enum
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- 2x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 1x unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
 - 1x in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan/4]
 - 1x unknown function 'isExecutionOptionPresent' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -541,6 +540,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2407 PASS = 2346 clean + 61 carrying softness (
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- 1x no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
 
 ### per-test outcomes (non-passing)
 
@@ -629,22 +629,21 @@ SOFT-PASS RECONCILIATION (F2.1): 2407 PASS = 2346 clean + 61 carrying softness (
 - ERROR testFindFunctionSequenceMultiplicity [pureToSQLQuery/tests]: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testImportDataFlow [pureToSQLQuery/tests]: unknown function 'column' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testMergeOldAliasToNewAlias [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V [inlined via meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias/3]
-- ERROR testReAliasMergedJoinOperations [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData': unknown function 'children' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToSqlQuery::buildAndTransformJoi
+- ERROR testReAliasMergedJoinOperations [pureToSQLQuery/tests]: store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - ERROR testPrerouting42 [router/tests]: 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
 - ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testCompositionInMultiStatementPureExpressions [router/tests]: in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::tests::query::routing::routeInternal/1]
 - ERROR testRoutingOfSimpleQualifiedProperty [router/tests]: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
-- ERROR testConvertAlias [sqlDialectTranslation]: Unknown type: 'meta::protocols::pure::v1_31_0::metamodel::valueSpecification::raw::Lambda' is not a known primitive, class, or enum
-- SHAPE testConvertJoinStrings [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- ERROR testConvertJoinTreeNode [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::preOrderTraversal': unknown function 'children' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> m
-- ERROR testConvertSelectSQLQuery [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::preOrderTraversal': unknown function 'children' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> m
-- ERROR testConvertSelectSQLQueryWithCTE [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::preOrderTraversal': unknown function 'children' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::toPostgresModel::convertSelectSqlQuery/2 -> met
-- ERROR testConvertTable [sqlDialectTranslation]: Unknown type: 'meta::protocols::pure::v1_31_0::metamodel::valueSpecification::raw::Lambda' is not a known primitive, class, or enum
+- SHAPE testConvertAlias [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- ERROR testConvertJoinTreeNode [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
+- ERROR testConvertSelectSQLQuery [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
+- ERROR testConvertSelectSQLQueryWithCTE [sqlDialectTranslation]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testConvertTable [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - SHAPE testConvertTableAliasColumn [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - SHAPE testConvertTabularFunction [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- ERROR testConvertUnion [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::preOrderTraversal': unknown function 'children' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> m
+- SHAPE testConvertUnion [sqlDialectTranslation]: statement 'assertConversion' failed through the pipeline: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: in function 'meta::relational::functions::sqlQueryToString::tests::getTempTableSqlStatements': in call to 'meta::relational::functions::sqlQueryToString::ddlSqlQueryToString', argument 2: expected meta::relational::functions::sqlQueryToString::DbConfig, got meta::pure::metamodel::type::Any [inlined 
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

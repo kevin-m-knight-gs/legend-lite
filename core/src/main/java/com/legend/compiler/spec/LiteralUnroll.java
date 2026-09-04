@@ -312,18 +312,25 @@ final class LiteralUnroll {
                     .or(() -> unspelledDefault(pa, ctx)).orElse(n);
             case TypedCast tc -> literal(tc.source())
                     .filter(lit -> tc.target() instanceof Type.ClassType target
-                            && accepts(ctx, lit.cls(), target.fqn()))
+                            && accepts(ctx, lit.cls(), target.fqn())
+                            // a spelled SCALAR cast to its own primitive (or a
+                            // supertype of it): `$lit.value->cast(@String)`
+                            || lit instanceof Scalar && tc.target() instanceof Type.Primitive prim
+                            && ctx.isSubtype(lit.cls(), prim.qualifiedName()))
                     .<TypedSpec>map(lit -> tc.source())
                     // a cast over a SPELLED collection is element-wise: the
                     // collection itself when every element is a literal the
                     // target accepts (toPostgresModel's converted-parameter
-                    // lists, `->cast(@Expression)` before their fold)
+                    // lists, `->cast(@Expression)` before their fold); the
+                    // EMPTY spelled collection is trivially every class's
                     .or(() -> tc.source() instanceof TypedCollection coll
                             && tc.target() instanceof Type.ClassType target
-                            && literalStructure(coll) && !elements(coll).isEmpty()
+                            && literalStructure(coll)
                             && elements(coll).stream().allMatch(e -> literal(e)
                                     .filter(lit -> accepts(ctx, lit.cls(), target.fqn())).isPresent())
-                            ? Optional.of(coll) : Optional.empty())
+                            ? Optional.of(elements(coll).isEmpty()
+                                    ? new TypedCollection(List.of(), tc.info()) : coll)
+                            : Optional.empty())
                     .orElse(n);
             case TypedNativeCall c -> nativeFold(c, ctx);
             // a copy of a literal IS a literal: the source's fields with the
@@ -554,11 +561,53 @@ final class LiteralUnroll {
             }
             return c;
         }
+        // the concatenation of two SPELLED lists is list shape (WORLD_MAP
+        // §4): the elements in order, whatever each element is — a
+        // preOrderTraversal's `$r->concatenate($r->children()->map(..))`
+        // over a spelled tree is the spelled node list (the TypedConcatenate
+        // node form folds above; this is the plain native call)
+        if (is(c, "concatenate") && a.size() == 2) {
+            if (spelledList(a.get(0)) && spelledList(a.get(1))) {
+                List<TypedSpec> out = new ArrayList<>(elements(a.get(0)));
+                out.addAll(elements(a.get(1)));
+                return new TypedCollection(out, c.info());
+            }
+            // an EMPTY spelled side is the identity: the other side, whatever
+            // it is (the value is unchanged; only the list shape was decided)
+            if (spelledList(a.get(0)) && elements(a.get(0)).isEmpty()) {
+                return a.get(1);
+            }
+            if (spelledList(a.get(1)) && elements(a.get(1)).isEmpty()) {
+                return a.get(0);
+            }
+        }
+        // zip over two SPELLED lists is list shape: the pairs by position,
+        // to the shorter length (a convertJoinTreeNode's nodes zipped with
+        // their converted relations); a pair is an instance literal
+        if (is(c, "zip") && a.size() == 2 && spelledList(a.get(0)) && spelledList(a.get(1))) {
+            List<TypedSpec> l = elements(a.get(0));
+            List<TypedSpec> r = elements(a.get(1));
+            var pairFn = ctx.findFunction("meta::pure::functions::collection::pair").get(0);
+            ExprType pairInfo = new ExprType(c.info().type(), Multiplicity.Bounded.ONE);
+            List<TypedSpec> out = new ArrayList<>();
+            for (int i = 0; i < Math.min(l.size(), r.size()); i++) {
+                out.add(new TypedNativeCall(pairFn, List.of(l.get(i), r.get(i)), pairInfo));
+            }
+            return new TypedCollection(out, c.info());
+        }
         // the tail of a spelled list is its shape minus the head
         // (toPostgresModel's binary-expression chains fold over it)
         if (is(c, "tail") && a.size() == 1 && a.get(0) instanceof TypedCollection coll
                 && spelledList(coll)) {
             return sub(coll, 1, Integer.MAX_VALUE, c.info());
+        }
+        // and its init is its shape minus the last (WORLD_MAP §4 lists
+        // both; convertJoinStrings interleaves separators over init/last)
+        if (is(c, "init") && a.size() == 1 && a.get(0) instanceof TypedCollection coll
+                && spelledList(coll)) {
+            int n = elements(coll).size();
+            return n == 0 ? new TypedCollection(List.of(), c.info())
+                    : sub(coll, 0, n - 1, c.info());
         }
         return c;
     }

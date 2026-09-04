@@ -1696,10 +1696,23 @@ public class RelationalCorpusRunner {
             // value is the wire's __type up the model's subtype relation
             // (the harness's NodeH string-match arm is deleted). +3, 0 lost
             // (per-family counts and decline rosters identical).
-            org.junit.jupiter.api.Assertions.assertEquals(252L,
+            // 252/2321 -> 251/2322 (batch 55b, 2026-09-04): toPostgresModel
+            // slice B, the compiler side — the relational metamodel's
+            // children()/childByJoinName() are SystemMetamodel views
+            // (functions.pure:288-296), a runtime match over a SYSTEM-STORE
+            // row dispatches over the relation's bound kinds (the system
+            // mapping's class bindings beneath the declared class), over a
+            // primitive over its lattice, the arm scan reads declarations
+            // only, the unroll's descent measure is lexicographic (literal
+            // size, then a store argument of a class no enclosing activation
+            // holds), and four structural folds land: a spelled scalar cast
+            // to its primitive, an empty spelled collection cast, and the
+            // native concatenate/zip over spelled lists. +1
+            // (testConvertJoinStrings), 0 lost.
+            org.junit.jupiter.api.Assertions.assertEquals(251L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2321L,
+            org.junit.jupiter.api.Assertions.assertEquals(2322L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

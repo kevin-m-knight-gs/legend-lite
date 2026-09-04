@@ -65,6 +65,9 @@ public final class UserCallInliner {
     /** Per activation: the size of its literal-structure arguments (the
      * literal unroll's descent measure; 0 = none). */
     private final ArrayDeque<Integer> literalSizes = new ArrayDeque<>();
+    /** Per activation: the DECLARED classes of its arguments — the
+     * class-lattice descent measure for a non-literal re-entry. */
+    private final ArrayDeque<java.util.Set<String>> argClassSets = new ArrayDeque<>();
     /** The QUOTED-code frames being rewritten (a quoted lambda, a
      * deactivate() subject): the literal unroll never evaluates inside —
      * the lambda body IS the value (witness
@@ -193,8 +196,22 @@ public final class UserCallInliner {
             // TIER 1 RECURSION (LiteralUnroll): a recursive call DESCENDS
             // into a literal argument — strictly smaller than the enclosing
             // activation's, so the unroll is well-founded and bottoms out
-            // on the literal's leaves; any other cycle stays the loud wall
-            if (literalSize == 0 || literalSize >= enclosingLiteralSize(key)) {
+            // on the literal's leaves; any other cycle stays the loud wall.
+            // The measure is LEXICOGRAPHIC: (literal size, store-argument
+            // classes). It descends when the literal size strictly shrinks,
+            // or stays equal (a constant literal such as the conversion
+            // state rides every level) while a STORE-valued argument of a
+            // class no enclosing activation holds enters — ^Alias(
+            // relationalElement = getTable(..)) re-enters on the Table row;
+            // the class lattice is finite, so the unroll is well-founded.
+            // A store value of a class already held would unroll a
+            // row-backed tree (tier 2) and stands.
+            int enclosing = enclosingLiteralSize(key);
+            boolean literalDescent = literalSize < enclosing;
+            boolean classDescent = literalSize == enclosing
+                    && !argClasses(args).isEmpty()
+                    && java.util.Collections.disjoint(argClasses(args), enclosingArgClasses(key));
+            if (!literalDescent && !classDescent) {
                 // the ENCLOSING activation stands whole (a half-inlined
                 // recursive helper would hand the SQL channel a different
                 // program than the host channel runs — the pk-inference
@@ -210,6 +227,7 @@ public final class UserCallInliner {
         }
         stack.push(key);
         literalSizes.push(literalSize);
+        argClassSets.push(argClasses(args));
         names.push(shown);
         captureRisk.push(namesIn(args));
         try {
@@ -264,30 +282,93 @@ public final class UserCallInliner {
         } finally {
             stack.pop();
             literalSizes.pop();
+            argClassSets.pop();
             names.pop();
             captureRisk.pop();
         }
+    }
+
+    /** The declared classes of the NON-literal arguments (store values;
+     * a literal or non-class argument contributes nothing). */
+    private static java.util.Set<String> argClasses(List<TypedSpec> args) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (TypedSpec a : args) {
+            if (!LiteralUnroll.literalStructure(a)
+                    && a.info().type() instanceof com.legend.compiler.element.type.Type.ClassType ct) {
+                out.add(ct.fqn());
+            }
+        }
+        return out;
+    }
+
+    /** The union of the argument classes of every enclosing activation of {@code key}. */
+    private java.util.Set<String> enclosingArgClasses(String key) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        java.util.Iterator<String> k = stack.iterator();
+        java.util.Iterator<java.util.Set<String>> c = argClassSets.iterator();
+        while (k.hasNext()) {
+            String at = k.next();
+            java.util.Set<String> classes = c.next();
+            if (at.equals(key)) {
+                out.addAll(classes);
+            }
+        }
+        return out;
     }
 
     /** The arms a value of static type {@code t} can reach: the arm's class
      * is a super- or subtype of {@code t}, or some model class descends from
      * both (multiple inheritance). Any / non-class inputs keep every arm. */
     private List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> liveArms(
-            com.legend.compiler.spec.typed.TypedMatchRuntime mr,
-            com.legend.compiler.element.type.Type t) {
+            com.legend.compiler.spec.typed.TypedMatchRuntime mr, TypedSpec input) {
+        com.legend.compiler.element.type.Type t = input.info().type();
+        List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> live = new ArrayList<>();
+        if (t instanceof com.legend.compiler.element.type.Type.Primitive p) {
+            // a PRIMITIVE value's class is its static type (no subclassing):
+            // the arms at or above it in the primitive lattice
+            for (var a : mr.arms()) {
+                if (a.typeFqn().equals(com.legend.compiler.element.type.PlatformTypes.ANY)
+                        || specs.ctx().isSubtype(p.qualifiedName(), a.typeFqn())) {
+                    live.add(a);
+                }
+            }
+            return live.isEmpty() ? mr.arms() : live;
+        }
         if (!(t instanceof com.legend.compiler.element.type.Type.ClassType ct)
                 || ct.fqn().equals(com.legend.compiler.element.type.PlatformTypes.ANY)) {
             return mr.arms();
         }
         var ctx = specs.ctx();
-        List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> live = new ArrayList<>();
+        // A SYSTEM-STORE ROW dispatches over the relation's KINDS: the
+        // classes the system mapping binds beneath the declared class
+        // (Table's rows are Table or View — never ViewSelectSQLQuery, a
+        // class only programs construct). The store's schema is the fact;
+        // the compiler reads it, the database never has to pick among
+        // arms no row can take.
+        java.util.Set<String> rows = systemRowClasses(input, ct.fqn());
+        if (!rows.isEmpty()) {
+            for (var a : mr.arms()) {
+                String armType = a.typeFqn();
+                if (armType.equals(com.legend.compiler.element.type.PlatformTypes.ANY)
+                        || rows.stream().anyMatch(r -> declaredSubtype(ctx, r, armType, new java.util.HashSet<>()))) {
+                    live.add(a);
+                }
+            }
+            return live.isEmpty() ? mr.arms() : live;
+        }
         for (var a : mr.arms()) {
             String armType = a.typeFqn();
             boolean related = armType.equals(com.legend.compiler.element.type.PlatformTypes.ANY)
                     || ctx.isSubtype(ct.fqn(), armType) || ctx.isSubtype(armType, ct.fqn());
             if (!related) {
+                // the multiple-inheritance scan reads DECLARATIONS only: a
+                // compiled subtype check over every model class would
+                // compile every class — including poisoned ones (a corpus
+                // protocol class naming an unloaded type), which is not this
+                // decision's business
                 for (String cls : ctx.elementFqns()) {
-                    if (ctx.isSubtype(cls, armType) && ctx.isSubtype(cls, ct.fqn())) {
+                    if (declaredSubtype(ctx, cls, armType, new java.util.HashSet<>())
+                            && declaredSubtype(ctx, cls, ct.fqn(), new java.util.HashSet<>())) {
                         related = true;
                         break;
                     }
@@ -298,6 +379,70 @@ public final class UserCallInliner {
             }
         }
         return live.isEmpty() ? mr.arms() : live;
+    }
+
+    /** The classes a SYSTEM-STORE read of declared class {@code declared}
+     * can yield: the system mapping's bound classes at or beneath it.
+     * Empty when {@code input} is not a navigation rooted at an element
+     * reference (a metamodel row), or no bound class lies beneath. */
+    private java.util.Set<String> systemRowClasses(TypedSpec input, String declared) {
+        TypedSpec at = input;
+        boolean navigated = false;
+        while (true) {
+            switch (at) {
+                case TypedNativeCall c when !c.args().isEmpty() -> at = c.args().get(0);
+                case com.legend.compiler.spec.typed.TypedFilter f -> at = f.source();
+                case TypedMap m -> at = m.source();
+                case com.legend.compiler.spec.typed.TypedPropertyAccess pa -> {
+                    at = pa.source();
+                    navigated = true;
+                }
+                case com.legend.compiler.spec.typed.TypedPackageableRef pr -> {
+                    if (!navigated) {
+                        return java.util.Set.of();
+                    }
+                    var ctx = specs.ctx();
+                    var md = ctx.findMapping(com.legend.builtin.SystemMetamodel.MAPPING_FQN).orElse(null);
+                    if (md == null) {
+                        return java.util.Set.of();
+                    }
+                    java.util.Set<String> out = new java.util.LinkedHashSet<>();
+                    for (var cb : md.classBindings()) {
+                        if (declaredSubtype(ctx, cb.classFqn(), declared, new java.util.HashSet<>())) {
+                            out.add(cb.classFqn());
+                        }
+                    }
+                    return out;
+                }
+                default -> {
+                    return java.util.Set.of();
+                }
+            }
+        }
+    }
+
+    /** {@code cls <: sup} by the DECLARED generalizations alone (no class is
+     * compiled; a generalization cycle contributes nothing new). */
+    private static boolean declaredSubtype(com.legend.compiler.element.ModelContext ctx,
+            String cls, String sup, java.util.Set<String> visited) {
+        if (cls.equals(sup)) {
+            return true;
+        }
+        if (!visited.add(cls)) {
+            return false;
+        }
+        var cd = ctx.findClassDefinition(cls);
+        if (cd.isEmpty()) {
+            return false;
+        }
+        for (com.legend.protocol.TypeExpression s : cd.get().superClasses()) {
+            String name = s instanceof com.legend.protocol.TypeExpression.NameRef nr ? nr.name()
+                    : s instanceof com.legend.protocol.TypeExpression.Generic g ? g.name() : null;
+            if (name != null && declaredSubtype(ctx, name, sup, visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The literal-argument size of the innermost enclosing activation of
@@ -628,7 +773,7 @@ public final class UserCallInliner {
                 // reach engine sqlQueryToString helpers). One survivor
                 // dispatches like a literal; several keep the runtime match.
                 List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> live = dynEmpty
-                        ? liveArms(mr, input.info().type()) : mr.arms();
+                        ? liveArms(mr, input) : mr.arms();
                 if (dynEmpty && live.size() == 1 && mr.arms().size() > 1
                         && input.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded ib
                         && ib.lower() == 1 && Integer.valueOf(1).equals(ib.upper())) {

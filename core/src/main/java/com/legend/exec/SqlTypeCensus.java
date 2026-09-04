@@ -835,6 +835,9 @@ public final class SqlTypeCensus {
             case SqlExpr.Call c -> c.fn() + "(" + c.args().stream()
                     .map(SqlTypeCensus::sketchLeaf)
                     .collect(java.util.stream.Collectors.joining(","))
+                    // the blind ARGUMENT, down to its leaf (the locator)
+                    + (c.args().stream().anyMatch(x -> x.type() instanceof TypeFact.Unknown)
+                            ? " " + memberAnatomy(c.args()) : "")
                     + ")";
             case SqlExpr.Cast c -> "CAST(" + sketchLeaf(c.value()) + " AS "
                     + c.target() + ")";
@@ -861,6 +864,15 @@ public final class SqlTypeCensus {
             }
             case SqlExpr.ArrayLit al ->
                     "ArrayLit(" + memberAnatomy(al.elements()) + ")";
+            // a struct names its first BLIND field, down to the leaf
+            case SqlExpr.StructLit sl -> {
+                for (SqlExpr.StructLit.Field f : sl.fields()) {
+                    if (f.value().type() instanceof TypeFact.Unknown) {
+                        yield "StructLit(" + f.name() + " := " + sketchLeaf(f.value()) + ")";
+                    }
+                }
+                yield "StructLit(all fields typed)";
+            }
             case SqlExpr.CompactList cl ->
                     "CompactList(" + sketch(cl.list()) + ")";
             case com.legend.sql.SqlAgg.Reducer r ->

@@ -31,8 +31,12 @@ class LiteralUnrollLedgerTest {
             "instanceOf", "equal", "eq", "not", "and", "or", "in",
             "isEmpty", "isNotEmpty", "at",
             "toOne", "toOneMany", "first", "last",
-            // the tail of a spelled list is list shape (as at/first/last)
-            "tail",
+            // the tail of a spelled list is list shape (as at/first/last);
+            // so is the concatenation of two spelled lists (WORLD_MAP §4
+            // names it; batch 55b: preOrderTraversal over a spelled tree)
+            "tail", "init", "concatenate",
+            // zip over two spelled lists is the spelled list of their pairs
+            "zip",
             // batch 54 (WORLD_MAP §4 list shape / spelled maps): the size of
             // a spelled collection, same-kind membership (as `in`), and a
             // spelled map's pairs and lookup by a spelled key — structure

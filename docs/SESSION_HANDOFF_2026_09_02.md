@@ -2780,7 +2780,11 @@ ORDER OF RECORD: toPostgresModel slice B (task #44) FIRST — it burns 6
 named tests; P1 attaches to the next mapping-navigation burn; P2 to the
 next relation burn; P3 last.
 
-**NEXT SESSION OPENS HERE — slice B IN FLIGHT, UNCOMMITTED (2026-09-04,
+**[SUPERSEDED by batch 55b — see "NEXT SESSION OPENS HERE — the store-row
+leg" at the end of this file. The record below is what that session tried;
+its labels were audited in batch 55b and most of them reverted.]**
+
+**slice B IN FLIGHT, UNCOMMITTED (2026-09-04,
 session ended on the user's catch "are you shooting in the dark?" — yes:
 three blind thread-dump attempts and a loading-rule change without a
 measurement. Start by MEASURING, not editing.)**
@@ -2908,3 +2912,88 @@ fatal. A diagnostic for "why did this call stand" is still wanted: the
 honest form is the reason RIDING the standing node (a field on
 TypedUserCall, or the census reading the wall at the frontier), never
 static state.
+
+**Batch 55b — toPostgresModel slice B, the COMPILER side (2026-09-04):
+ratchet 252/2321 → 251/2322 (+1 testConvertJoinStrings, 0 lost), chain
+GREEN ~6m.** Audit of the nine uncommitted files (docs/GATES.md batch 55b
+lists what was kept and reverted, with the reason per item). The lesson of
+the audit: every "principled" receipt of that session was a wall INSIDE a
+match arm that a Table input can never take (ViewSelectSQLQuery, the
+flatten arm → pureToSqlQuery helpers → orElse / buildUniqueName / plus).
+Narrow the match first; the walls behind dead arms are not walls.
+
+Measured mechanism, in order (each moved walls in a family run):
+  1. children()/childByJoinName() are SystemMetamodel VIEWS (the file
+     they come from is the relational store's platform library, never
+     corpus input; the hang was its 12 natives entering the model).
+  2. The arm scan reads declarations (declaredSubtype) — the raw::Lambda
+     poisoned-class walls.
+  3. A runtime match over a SYSTEM-STORE ROW (UserCallInliner.
+     systemRowClasses: a chain of property reads/filters/natives rooted at
+     a TypedPackageableRef) keeps only arms some class bound in
+     MetamodelMapping beneath the declared class reaches (Table → {Table,
+     View} → the Table arm alone). A primitive input keeps its lattice's
+     arms.
+  4. Folds: scalar cast to its primitive (isEmptyStringLiteral's `value->
+     cast(@String) == ''`), cast over `[]`, native concatenate + empty-side
+     identity (preOrderTraversal over the root literal), zip (the
+     convertJoinTreeNode fold's source), init (convertJoinStrings).
+  5. The lexicographic recursion measure (convertElement re-entering on
+     the Table row under an Alias literal).
+
+**NEXT SESSION OPENS HERE — the store-row leg (task #44, the rest of
+slice B). Family 13/21. Walls, measured 2026-09-04 with the batch-55b tree:**
+
+  testConvertAlias / Table / TableAliasColumn / TabularFunction /
+  SelectSQLQueryWithCTE / Union = "class query under TypedNewInstance":
+  the assert operand is a CONSTRUCTED STRUCT whose slots hold reads off
+  ONE toOne-wrapped element chain (`TestDb.schemas.tables->filter(..)->
+  toOne()`, spliced by the inliner at every `$t.…` read — the same node
+  object). testConvertJoinTreeNode / SelectSQLQuery = §7 row-backed
+  recursion residue (their cascade currently errors inside the flatten
+  arm; the honest wall is "recursion over row-backed children stands").
+
+  DESIGN (user-ratified direction 2026-09-04: LEFT JOINS, never a
+  scalar subquery per read — the scalar-subquery form was built, measured
+  (TabularFunction passed on it), and REVERTED as the wrong shape):
+  the constructed instance IS `chain->map(r | ni[chain := $r])` — one FROM
+  source, the struct projected over the row, `$r.schema.name` a navigate
+  step. Built as `StoreResolver.constructedRowForm` (collect toOne-wrapped
+  object chains by identity; exactly one → substitute a row variable,
+  `resolvedScalarMapProject(chain, mapper, [1], context)`), measured, and
+  REVERTED with the batch because it cost two fallbacks elsewhere
+  (testCreateTempTableStatement: a TableAlias instance value reached the
+  lowering boundary once a constructed instance stopped walling;
+  testChainedFiltersQuery: a user-mapping "property not mapped" wall —
+  undiagnosed). Re-add it GUARDED (only when a row chain is found; a
+  constructed instance without one must keep today's loud wall) and
+  measure the full corpus before the family.
+
+  Two questions it exposed, both in the ordinary user-query path on the
+  metamodel store — answer them before anything else:
+  (a) MetamodelMapping maps Table.name only and Schema.views only: no
+      Schema.tables, no Table.schema, no Table.columns. Adding
+      `tables[tbl]: @SchemaToTables` / `schema[schema]: @SchemaToTables`
+      (the SchemaToViews join text) compiles, but the resolver registers
+      NO navigate step for `schema` — `$r.schema.name` walls "navigation
+      through class-typed slot property 'schema' [assocs=[]]"
+      (Substitution.rewritePath:2420) while `Schema.views` over the same
+      join works. Find where the class source's TypedNavigate steps are
+      built from join-mapped class properties (NavigateChecker builds them
+      from the synthesized `$class$` body — locate that synthesizer; the
+      earlier grep found no `navigate(` emitter outside the resolver) and
+      why the Table→Schema direction gets none. `columns[col]` (a to-MANY
+      self-join, `{target}`) compiled as a COLUMN read ("expected
+      RelationalOperationElement, got String") — a second gap; only
+      testConvertTableAliasColumn needs it (`$table.columns->at(0)`, the
+      column ordinal: relational_elements.ordinal exists).
+  (b) Inside the projected struct, `parts->map(p | $p->toIdentifier())`
+      over a String[*] value lowered as a ROW map (DuckDB: starts_with(
+      VARCHAR[], …)) — the project-column rewriter must keep a list map
+      over a non-class list as list_transform.
+
+  Receipts to reuse: LL_TMP_DEBUG=1 prints the wall node (`Anchors.
+  compact`) and `[flip-wall-debug]` stacks; LEGEND_LITE_DUMP_SQL=1 the
+  SQL; the TEMP traces used this session (match input/live arms/stack at
+  UserCallInliner's TypedMatchRuntime arm; map source shape at the TypedMap
+  arm) are gone — re-add locally, never commit.
