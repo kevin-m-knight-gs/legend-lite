@@ -3122,3 +3122,29 @@ recursive CTE LAST):**
   overload shapes 3+3, plan-text operation holes 3. Order: the singles
   that need no ruling first, then TableAliasColumn's ranked navigation,
   the recursive CTE last.
+
+**Batch 55d — TableAliasColumn LANDED (2026-09-04): ratchet 246/2327 →
+245/2328, family 19/21, chain GREEN 6m04s (docs/GATES.md batch 55d).**
+The saved patch (docs/patches-table-alias-column-leg-2026-09-04.patch) is
+now IN the tree — do not re-apply it. What the leg turned out to be: a
+POSITIONAL pick over a to-many navigation is a synthetic head
+(`columns#pN`, SyntheticHeads.POSITIONAL / parkPositional /
+positionalRows) exactly like the filtered heads (`#fN`): the head's join
+target is the physical row with `ordinal == k`, so `$table.columns->at(0)
+->cast(@Column).name` is one more LEFT JOIN step on the row-form
+projection — the SQL: `LEFT OUTER JOIN (SELECT * FROM relational_elements
+WHERE kind = 'Column' AND ordinal = 0) ON db_fqn/schema_name/name =
+table_name`. The store's ORDER column is named once
+(SystemMetamodel.ORDINAL_COLUMN); a navigation whose target has no ordinal
+walls loudly (no k-th row of an unordered collection). The one blind spot
+that cost a session boundary: the lift walk (liftFilteredHeads →
+descend) had no TypedNewInstance arm, so it never reached the fields of
+the constructed instance — the row-form body — and the positional arm
+never fired; a constructed instance is a value node like a collection.
+
+**NEXT SESSION OPENS HERE — the burn continues (user directive: do not
+stop; every batch moves the ratchet; no hacks).** Remaining in
+sqlDialectTranslation: only the two row-backed-recursion tests
+(JoinTreeNode, SelectSQLQuery) — LAST. Everything else: the CENSUS after
+55c above (now 245 in core/target/wholetest-flip-fallbacks.txt after
+the corpus run): singles needing no ruling first.

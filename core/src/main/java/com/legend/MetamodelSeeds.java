@@ -445,20 +445,24 @@ public final class MetamodelSeeds {
                 continue;
             }
             for (DatabaseDefinition.TableDefinition t : db.tables()) {
+                int ordinal = 0;
                 for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
                     rows.put(List.of(dbFqn, "default", t.name(), c.name()),
                             com.legend.compiler.element.RelationalOpRows.columnRow(
                                     dbFqn, "default", t.name(), c.name(),
-                                    OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name())));
+                                    OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name()),
+                                    ordinal++));
                 }
             }
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (DatabaseDefinition.TableDefinition t : s.tables()) {
+                    int ordinal = 0;
                     for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
                         rows.put(List.of(dbFqn, s.name(), t.name(), c.name()),
                                 com.legend.compiler.element.RelationalOpRows.columnRow(
                                         dbFqn, s.name(), t.name(), c.name(),
-                                        OpSeeds.columnTypeId(dbFqn, s.name(), t.name(), c.name())));
+                                        OpSeeds.columnTypeId(dbFqn, s.name(), t.name(), c.name()),
+                                        ordinal++));
                         rows.remove(List.of(dbFqn, "default", t.name(), c.name()));
                     }
                 }

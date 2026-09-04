@@ -66,7 +66,7 @@ final class SyntheticHeads {
      * {@code #cN} convention lives in this record.
      */
     record JoinIdentity(String prop, Kind kind, int seq) {
-        enum Kind { PLAIN, FILTERED, DATED, CONCAT }
+        enum Kind { PLAIN, FILTERED, DATED, CONCAT, POSITIONAL }
 
         JoinIdentity {
             if (prop.indexOf('#') >= 0) {
@@ -92,6 +92,7 @@ final class SyntheticHeads {
                 case 'f' -> Kind.FILTERED;
                 case 'd' -> Kind.DATED;
                 case 'c' -> Kind.CONCAT;
+                case 'p' -> Kind.POSITIONAL;
                 default -> throw new IllegalStateException(
                         "malformed synthetic head (resolver bug): " + head);
             };
@@ -111,6 +112,7 @@ final class SyntheticHeads {
                 case FILTERED -> prop + "#f" + seq;
                 case DATED -> prop + "#d" + seq;
                 case CONCAT -> prop + "#c" + seq;
+                case POSITIONAL -> prop + "#p" + seq;
             };
         }
     }
@@ -126,7 +128,58 @@ final class SyntheticHeads {
 
     boolean hasPred(String head) {
         return preds.containsKey(head) || branchPreds.containsKey(head)
-                || corrPreds.containsKey(head);
+                || corrPreds.containsKey(head) || positional.containsKey(head);
+    }
+
+    /** The positional pick parked on {@code head} ({@code #pN}), or null. */
+    @com.legend.Nullable Integer positionalPick(String head) {
+        return positional.get(head);
+    }
+
+    /** The synthetic identity for a POSITIONAL pick over a to-many
+     * navigation ({@code $t.columns->at(k)}): reused for an equal
+     * (property, k) pair. Materialization filters the target to the row
+     * whose store ORDINAL is k — an ordered collection's position IS data
+     * (the metamodel store seeds Table.columns' declaration order); a
+     * target without an ordinal walls loudly (an unordered navigation has
+     * no k-th row). */
+    String parkPositional(String prop, int k) {
+        for (var e : positional.entrySet()) {
+            if (realHead(e.getKey()).equals(prop) && e.getValue() == k) {
+                return e.getKey();
+            }
+        }
+        String synth = new JoinIdentity(prop, JoinIdentity.Kind.POSITIONAL, count++).encoded();
+        positional.put(synth, k);
+        return synth;
+    }
+
+    /** The k-th row of a target pipeline by the store's ORDINAL column. */
+    private TypedSpec positionalRows(TypedSpec pipe, int k) {
+        Type.RelationType row = Type.requireRelationSchema(pipe.info().type());
+        String ord = com.legend.builtin.SystemMetamodel.ORDINAL_COLUMN;
+        boolean ordered = row.columns().stream().anyMatch(c -> c.name().equals(ord));
+        if (!ordered) {
+            throw new com.legend.error.NotImplementedException(
+                    "positional pick (at/first) over an UNORDERED navigation is not"
+                    + " supported yet — only the metamodel store's ordered collections"
+                    + " carry a row ordinal");
+        }
+        String r = "_pos";
+        var one = Multiplicity.Bounded.ONE;
+        TypedSpec rv = new com.legend.compiler.spec.typed.TypedVariable(r, new ExprType(row, one));
+        TypedSpec read = new TypedPropertyAccess(rv, ord,
+                new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_ONE));
+        var eq = ctx.findFunction("meta::pure::functions::boolean::equal").stream()
+                .filter(f -> f.parameters().size() == 2).findFirst().orElseThrow();
+        TypedSpec cond = new com.legend.compiler.spec.typed.TypedNativeCall(eq, List.of(read,
+                new com.legend.compiler.spec.typed.TypedCInteger((long) k,
+                        new ExprType(Type.Primitive.INTEGER, one))),
+                new ExprType(Type.Primitive.BOOLEAN, one));
+        TypedLambda pred = new TypedLambda(List.of(r), List.of(cond),
+                new ExprType(new Type.FunctionType(List.of(new Type.Param(row, one)),
+                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+        return new com.legend.compiler.spec.typed.TypedFilter(pipe, pred, pipe.info());
     }
 
     /** The CORRELATED predicate parked on {@code head}, or null. */
@@ -170,6 +223,10 @@ final class SyntheticHeads {
      */
     TypedSpec applyToPipe(String head, TypedSpec pipe,
             java.util.function.BiFunction<TypedSpec, TypedLambda, TypedSpec> filter) {
+        Integer k = positional.get(head);
+        if (k != null) {
+            return positionalRows(pipe, k);
+        }
         TypedLambda single = preds.get(head);
         if (single != null) {
             return filter.apply(pipe, single);
@@ -424,6 +481,12 @@ final class SyntheticHeads {
         if (betaLeaf != null) {
             return betaLeaf;
         }
+        if (enabled && n instanceof TypedPropertyAccess pa) {
+            TypedSpec picked = liftPositionalRead(pa);
+            if (picked != null) {
+                return picked;
+            }
+        }
         if (enabled
                 && n instanceof TypedPropertyAccess pa
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f
@@ -479,6 +542,13 @@ final class SyntheticHeads {
         if (ccLift != null) {
             return ccLift;
         }
+        return descend(n, enabled, fc);
+    }
+
+    /** The structural descent: every node kind the lift walks through,
+     * rebuilt with lifted children (unknown kinds pass unchanged). */
+    private TypedSpec descend(TypedSpec n, boolean enabled,
+            @com.legend.Nullable FilterCtx fc) {
         return switch (n) {
             case TypedProject p ->
                     new TypedProject(
@@ -582,6 +652,15 @@ final class SyntheticHeads {
                     new TypedCast(
                             liftFilteredHeads(c.source(), enabled, fc),
                             c.target(), c.info(), c.wire());
+            // A constructed instance is a VALUE node like a collection: the
+            // lift reaches into every field (the map-over-row form's
+            // ^Inst(... $r.columns->at(0).name ...) body).
+            case com.legend.compiler.spec.typed.TypedNewInstance ni -> {
+                java.util.Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
+                ni.properties().forEach((k, v) ->
+                        ps.put(k, liftFilteredHeads(v, enabled, fc)));
+                yield new com.legend.compiler.spec.typed.TypedNewInstance(ni.classFqn(), ps, ni.info());
+            }
             case TypedGroupBy gb ->
                     new TypedGroupBy(
                             liftFilteredHeads(gb.source(), enabled),
@@ -632,6 +711,43 @@ final class SyntheticHeads {
      * reads could otherwise satisfy a null-safe comparison the
      * qual-pred should have guarded (both engine forms drop that
      * row — ValueMapPlacementTest.filterPositionGroupsQualPredWithCmp). */
+    /** A leaf read through a POSITIONAL pick over a bare to-many
+     * navigation head — {@code $t.columns->at(k)[->cast(@C)].name} — lifts
+     * into the synthetic head {@code columns#pN} (a to-one read: the k-th
+     * row by the store ordinal); null for any other shape. */
+    private @com.legend.Nullable TypedSpec liftPositionalRead(TypedPropertyAccess pa) {
+        TypedSpec src = pa.source();
+        Type castTo = null;
+        while (true) {
+            if (src instanceof com.legend.compiler.spec.typed.TypedCast tc) {
+                castTo = castTo == null ? tc.target() : castTo;
+                src = tc.source();
+                continue;
+            }
+            if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                    && c.args().size() == 1
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
+                src = c.args().get(0);
+                continue;
+            }
+            break;
+        }
+        if (!(src instanceof com.legend.compiler.spec.typed.TypedNativeCall at)
+                || !Anchors.isStaticAt(at)
+                || !(at.args().get(0) instanceof TypedPropertyAccess nav)
+                || !isLiftableNav(nav)
+                || !(nav.info().type() instanceof Type.ClassType)
+                || !(nav.info().multiplicity() instanceof Multiplicity.Bounded nb) || !nb.isMany()) {
+            return null;
+        }
+        int k = (int) ((com.legend.compiler.spec.typed.TypedCInteger) at.args().get(1)).value().longValue();
+        Type headType = castTo instanceof Type.ClassType ? castTo : nav.info().type();
+        TypedSpec renamed = new TypedPropertyAccess(nav.source(),
+                parkPositional(nav.property(), k),
+                new ExprType(headType, Multiplicity.Bounded.ZERO_ONE));
+        return new TypedPropertyAccess(renamed, pa.property(), pa.info());
+    }
+
     private TypedSpec liftFilteredReadArm(TypedPropertyAccess pa,
             TypedFilter f, @com.legend.Nullable FilterCtx fc) {
         if (fc != null && f.predicate().body().size() == 1) {
@@ -1270,6 +1386,8 @@ final class SyntheticHeads {
     private final Map<String, TypedLambda> corrPreds =
             new java.util.LinkedHashMap<>();
 
+    /** POSITIONAL heads ({@code #pN}) → the picked index k. */
+    private final Map<String, Integer> positional = new LinkedHashMap<>();
     private final Map<String, TypedLambda> preds =
             new LinkedHashMap<>();
 

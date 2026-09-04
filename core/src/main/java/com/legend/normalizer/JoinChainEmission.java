@@ -692,8 +692,12 @@ final class JoinChainEmission {
         // include-aware: the main table may live in an INCLUDED database
         // (classMappingFilterWithInnerJoin's milestongingDB includes the
         // milestoning db that declares ProductTable.exchange)
+        // a slot named after the platform's RELATION accessors (`columns`,
+        // `rows`) would read as the accessor on the row var — mint clear
         boolean collides = tableHasColumn(model, mainDb, tableName, propName,
-                new java.util.LinkedHashSet<>());
+                new java.util.LinkedHashSet<>())
+                || propName.equals("columns")
+                || propName.equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER);
         String alias = propName;
         if (collides) {
             alias = propName + "_nav";
@@ -780,7 +784,16 @@ final class JoinChainEmission {
         String tgt = propType instanceof TypeExpression.NameRef nr ? nr.name()
                 : propType instanceof TypeExpression.Generic g ? g.name() : null;
         if (tgt == null) return null;
-        return model.isMappedClass(tgt) ? tgt : null;
+        // the declared class itself, or an ABSTRACTION of mapped classes
+        // (Table.columns : RelationalOperationElement[*] routed to the
+        // Column set): either way the property is a navigation, never a
+        // column read; the route names the concrete target downstream
+        return model.isMappedClass(tgt) || hasMappedSubclass(tgt, model) ? tgt : null;
+    }
+
+    private static boolean hasMappedSubclass(String base, ModelBuilder model) {
+        return model.classes().anyMatch(c -> model.isMappedClass(c.qualifiedName())
+                && UnionSynthesis.isSubclassOf(c.qualifiedName(), base, model));
     }
 
     record JoinNavSpec(List<JoinChainElement> chain, @com.legend.Nullable String chainDb) {}

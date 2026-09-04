@@ -57,6 +57,12 @@ public final class SystemMetamodel {
             "meta::lite::metamodel::MetamodelStore";
 
     /** The system mapping — D1's ambient execution context supplies it. */
+    /** The system store's ORDER column: every ordered child collection
+     * (a table's columns, a function's parameters, a key's columns) keeps
+     * each row's declaration position here — a positional read
+     * ({@code ->at(k)}) over such a navigation is a filter on it. */
+    public static final String ORDINAL_COLUMN = "ordinal";
+
     public static final String MAPPING_FQN =
             "meta::lite::metamodel::MetamodelMapping";
 
@@ -831,6 +837,9 @@ public final class SystemMetamodel {
                     and metamodel.schemas.name = metamodel.relational_elements.schema_name)
                 Join SchemaToTables(metamodel.schemas.db_fqn = metamodel.relational_elements.db_fqn
                     and metamodel.schemas.name = metamodel.relational_elements.schema_name)
+                Join TableToColumns(metamodel.relational_elements.db_fqn = {target}.db_fqn
+                    and metamodel.relational_elements.schema_name = {target}.schema_name
+                    and metamodel.relational_elements.name = {target}.table_name)
                 Join ViewToColumnMappings(metamodel.relational_elements.db_fqn = metamodel.view_column_mappings.db_fqn
                     and metamodel.relational_elements.schema_name = metamodel.view_column_mappings.schema_name
                     and metamodel.relational_elements.name = metamodel.view_column_mappings.view_name)
@@ -996,6 +1005,11 @@ public final class SystemMetamodel {
             function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:String[1]):meta::relational::metamodel::relation::View[0..1]
             {
                 $_this.views->filter(t|$t.name == $name)->first()
+            }
+
+            function meta::relational::metamodel::column(_this:meta::relational::metamodel::relation::Table[1], columnName:String[1]):meta::relational::metamodel::Column[0..1]
+            {
+                $_this.columns->cast(@meta::relational::metamodel::Column)->filter(c|$c.name == $columnName)->first()
             }
 
             function meta::relational::metamodel::children(_this:meta::relational::metamodel::join::RelationalTreeNode[1]):meta::relational::metamodel::join::JoinTreeNode[*]
@@ -1250,7 +1264,8 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.relational_elements.id)
                     ~mainTable %1$s metamodel.relational_elements
                     name: %1$s metamodel.relational_elements.name,
-                    schema[schema]: %1$s@SchemaToTables
+                    schema[schema]: %1$s@SchemaToTables,
+                    columns[col]: %1$s@TableToColumns
                 }
                 meta::relational::metamodel::Column[col]: Relational
                 {

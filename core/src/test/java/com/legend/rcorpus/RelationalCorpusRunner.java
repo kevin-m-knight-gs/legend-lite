@@ -1732,10 +1732,21 @@ public class RelationalCorpusRunner {
             // sql-verdict agree=32 disagree=0). +5 flips (Alias, Table,
             // TabularFunction, SelectSQLQueryWithCTE, Union), 0 lost;
             // dual-channel disagree 0; 0-assert passes 29.
-            org.junit.jupiter.api.Assertions.assertEquals(246L,
+            // Batch 55d (2026-09-04): a POSITIONAL pick over a to-many
+            // navigation ($t.columns->at(k)[->cast(@C)].name) lifts into a
+            // synthetic to-one head (columns#pN, SyntheticHeads.POSITIONAL)
+            // whose join target is the physical row with ordinal == k — the
+            // store keeps a column's declaration ordinal
+            // (relational_elements.ordinal); the metamodel store maps
+            // Table.columns (@TableToColumns); the lift walk reaches into
+            // a constructed instance's fields (the map-over-row body); a
+            // navigate slot named after a relation accessor (columns/rows)
+            // mints clear of it. +1 flip (TableAliasColumn), 0 lost;
+            // sql-verdict disagree 0; dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(245L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2327L,
+            org.junit.jupiter.api.Assertions.assertEquals(2328L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

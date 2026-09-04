@@ -80,13 +80,14 @@ public final class RelationalOpRows {
 
     /** A table column: {@code (name, db_fqn, schema_name, table_name, dtype_id)}. */
     public static List<String> columnRow(String dbFqn, String schema, String table,
-            String name, String dtypeId) {
+            String name, String dtypeId, int ordinal) {
         List<String> r = element(columnId(dbFqn, schema, table, name), "Column");
         r.set(2, name);
         r.set(3, dbFqn);
         r.set(4, schema);
         r.set(5, table);
         r.set(6, dtypeId);
+        r.set(8, String.valueOf(ordinal));   // declaration order — Table.columns is an ORDERED collection
         return r;
     }
 
