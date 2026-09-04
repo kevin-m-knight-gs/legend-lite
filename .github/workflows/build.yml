@@ -72,8 +72,17 @@
 # ONE JOB, SEVERAL STEPS, not one `mvn install`: a reactor build stops the
 # modules downstream of a failure, so any red in core would report nlq, pct
 # and parser-equivalence as SKIPPED and we would learn nothing about them.
-# Each module gets its own step under `if: !cancelled()`, so every module
-# reports its own verdict on every run — and a red step still fails the job.
+# Each module gets its own suite step, so every module reports its own
+# verdict on every run — and a red step still fails the job.
+#
+# The suite steps are INDEPENDENT OF EACH OTHER but NOT of the build: they
+# run on `steps.build.outcome == 'success'`, not a bare `!cancelled()`.
+# A failed compile means there is nothing to test, and running four suites
+# against it buys four cascading failures that all say the same thing while
+# burying the one line that matters. `!cancelled()` alone is what produced
+# that on the macOS legs. Note this is deliberately NOT `success()`, which
+# would also chain the suites to each other and put us back to the first
+# red hiding the other three.
 #
 # The poms compile at release 21, so 21 is the floor and 25 the ceiling we
 # claim to support; fail-fast is off so one platform's red does not suppress
@@ -94,6 +103,14 @@ jobs:
     name: build (${{ matrix.os }}, JDK ${{ matrix.java }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    # Both JVMs in this build take the JVM default max heap of 25% of RAM
+    # when left alone: ~4g on the 16g ubuntu/windows runners, ~1.75g on the
+    # 7g macos ones. That is why compile + install OOM'd on macOS and only
+    # macOS. This covers the maven JVM (the shade plugin runs in it); the
+    # FORKED javac that carries ErrorProne + NullAway cannot be reached from
+    # here at all and takes its heap from <maxmem> in core/pom.xml.
+    env:
+      MAVEN_OPTS: -Xmx3g
     strategy:
       fail-fast: false
       matrix:
@@ -114,22 +131,23 @@ jobs:
       # test sources (unlike -Dmaven.test.skip), so a test-tree compile error
       # in any module surfaces here, before any suite has run.
       - name: compile + install (null gate, guardrails, shade)
+        id: build
         run: mvn -B -e clean install -DskipTests
 
       - name: core suite
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl core test
 
       - name: nlq suite
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl nlq test
 
       - name: pct suites
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl pct test
 
       - name: parser-equivalence suite
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl parser-equivalence test
 
       # The reds above already fail the job. This only labels the ones no
@@ -137,5 +155,5 @@ jobs:
       # every run. Delete a line the day its cause is fixed — either by
       # gating the test honestly or by giving CI the checkouts.
       - name: label the structural reds (oracle checkouts absent here)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: echo "::warning ::No legend-engine/legend-pure checkout on this runner. Structural reds, expected until fixed - pct ChannelB*Test (5 classes, allgates G9); parser-equivalence corpus tests. ANY other red is a real regression - as of this commit that means exactly one, the PCT percentile ULP divergence in Test_LegendLite_StandardFunctions_PCT."
