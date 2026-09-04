@@ -130,6 +130,10 @@ class JdbcSurfaceCensusTest {
 
     private static final Set<String> TEST_REGISTER = new TreeSet<>(List.of(
             "core/src/test/java/com/legend/ArchitectureTest.java",
+            // batch 58: reads the referee H2 jar's VERSION constant (no
+            // connection, no statement) to pin the raw-SQL boundary's H2
+            // dialect level to the jar it translates for
+            "core/src/test/java/com/legend/sql/dialect/H2VersionPinTest.java",
             // Charter Clause 2c fixture: World 2 IS a database execution
             // — the two-worlds agreement is the thing under test
             "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",

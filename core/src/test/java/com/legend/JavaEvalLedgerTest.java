@@ -417,7 +417,12 @@ class JavaEvalLedgerTest {
             // reads the wire's __type up the model's subtype relation (the
             // harness's NodeH string-match arm is deleted with the walk) —
             // a compare on the wire's classifier, no value computation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1576),
+            // 1576 -> 1595 (batch 58, the H2VERSION decision): an if whose
+            // BRANCHES are asserts (assertEqualsH2Compatible's body) — the
+            // condition is a value QUERY the database evaluates
+            // (StatementExecutor.evalValue); Java only dispatches the taken
+            // branch to the existing verdict arms. No value computation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1595),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

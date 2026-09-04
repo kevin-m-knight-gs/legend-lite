@@ -142,6 +142,7 @@ final class Scalars {
                     // disjoint by spelling; §0.4 receipts). Never
                     // unspell the literal side; dynamic/unspellable
                     // other sides fall through to the existing lanes.
+                    cargs = VariantShapes.alignLiteralToJson(n.args(), cargs);
                     cargs = MixedEncoding.equalityEmission(
                             n.args().get(0), n.args().get(1), cargs);
                     SqlExpr inv = EnumSourceValues.decodeInvert(

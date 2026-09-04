@@ -1785,10 +1785,22 @@ public class RelationalCorpusRunner {
             // repeat), 0 lost; every other probed wall moved to its next
             // honest wall (docs/GATES.md batch 57). sql-verdict disagree 0;
             // dual-channel disagree 0; lane move exec-passing 57 -> 55.
-            org.junit.jupiter.api.Assertions.assertEquals(241L,
+            // Batch 58 (2026-09-04, the H2VERSION decision): SELECT
+            // H2VERSION() on an H2-typed connection answers the H2 dialect
+            // level the raw-SQL boundary translates from — 2.1.214, the
+            // referee's own jar (H2VersionPinTest ties the literal to
+            // org.h2.engine.Constants.VERSION). Behind it: toOne over a
+            // list-producing call is its checked element; an if whose
+            // branches are asserts adjudicates its condition as a value
+            // query and the taken branch as the verdict; a primitive
+            // literal compared against an Any/JSON cell enters the channel;
+            // a lambda cast to a function carrier is the lambda. +7 flips
+            // (3 TDG alloy milestoning, 2 sqlstring adjust-date, 2
+            // businessdate), 0 lost; sql-verdict disagree 0; dual-channel 0.
+            org.junit.jupiter.api.Assertions.assertEquals(234L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2332L,
+            org.junit.jupiter.api.Assertions.assertEquals(2339L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1827,7 +1839,10 @@ public class RelationalCorpusRunner {
             // walk's text-only lane (lane move).
             // 25 -> 24 (batch 52): the flipped toSQLString replaceTables test's
             // text assert left the walk's text-only lane (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(24,
+            // 24 -> 17 (batch 58, the H2VERSION decision): the seven flipped
+            // H2-compatible tests' text asserts left the walk's text-only
+            // lane for the platform's row verdicts (lane move, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(17,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

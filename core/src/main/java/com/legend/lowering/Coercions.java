@@ -76,6 +76,14 @@ final class Coercions {
                     return new SqlExpr.CheckedOne(
                             new SqlExpr.CompactList(args.get(0)));
                 }
+                // a LIST-producing call over the relation lane (a raw grid's
+                // rows.values — getH2Versions): the SQL value IS a list, so
+                // toOne is its one element, checked
+                if (m.isMany() && args.get(0) instanceof SqlExpr.Call lc
+                        && lc.fn().producesList()) {
+                    return new SqlExpr.CheckedOne(
+                            new SqlExpr.CompactList(args.get(0)));
+                }
                 // VALUE-LANE [0..1] (user ruling 2026-08-26, "if not
                 // relational, follow the type system literally"): a
                 // store-free maybe-empty — []->first(), a value

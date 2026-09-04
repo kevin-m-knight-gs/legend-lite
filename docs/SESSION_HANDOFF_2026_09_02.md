@@ -3237,3 +3237,11 @@ end to end; compare with the engine's H2 SQL for the joined string).
 Decisions for the user: objectReferenceIn 7, routeFunction 5, hNversion
 7 (+2 that now reach it), TDG chained fetch 12, dynamic mapping
 compilation 4, protocol transforms 2, functionReturnType 1.
+
+**Batch 58 — the H2VERSION decision LANDED (2026-09-04): ratchet
+241/2332 → 234/2339, chain GREEN 6m07s (docs/GATES.md batch 58).** The
+whole hNversion bucket is gone: the version probe answers the referee's
+jar level at the raw-SQL boundary, and the helper's if-with-assert-
+branches is a verdict form. One real divergence surfaced
+(testDateFunctionInMilestonedPropertyWithMilestonedEntity: golden 0 rows
+on H2 vs ours 2) — probe it next as a semantics bug, not a wall.

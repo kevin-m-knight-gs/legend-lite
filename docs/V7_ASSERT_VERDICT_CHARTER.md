@@ -1024,6 +1024,14 @@ receipts). declined shrinks, text-only grows, charter §8.0 scope
 table + pins same commit. The BARE-2 sub-reason gap (census §3)
 fixes here too (the plan path sets its outcome).
 
+**§8.0 scope-table receipt, batch 58 (2026-09-04, the H2VERSION
+decision):** assert-sql-text-only 24 → 17: the seven flipped
+H2-compatible tests (three TDG alloy milestoning, two sqlstring
+adjust-date, two businessdate) row-verify through the oracle SPI — the
+H2 version probe answers the referee's own jar (2.1.214), the helper's
+if-with-assert-branches adjudicates as a verdict. Lane move by
+migration; sql-verdict disagree 0; dual-channel disagree 0.
+
 **§8.0 scope-table receipt, batch 57 (2026-09-04):** exec-passing
 55 (57 → 55): the two flipped hybrid-milestoning union tests (the
 `repeat` native) left the walk's lane; their sql-asserts row-verify

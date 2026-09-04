@@ -24,6 +24,27 @@ import java.util.List;
  */
 final class VariantShapes {
 
+    /** A comparison where one side rides the Any/JSON channel and the
+     * other is a primitive LITERAL: the literal enters the channel
+     * (to_json) — a bare VARCHAR would be parsed AS JSON by the engine
+     * (getH2Versions' version cell against '1.4.200'). */
+    static List<SqlExpr> alignLiteralToJson(List<TypedSpec> typed, List<SqlExpr> lowered) {
+        for (int i = 0; i < 2; i++) {
+            int j = 1 - i;
+            if (isJson(lowered.get(i)) && !isJson(lowered.get(j))
+                    && CastPolicy.literalish(typed.get(j))) {
+                SqlExpr wrapped = SqlExpr.Call.of(SqlFn.TO_VARIANT, lowered.get(j));
+                return i == 0 ? List.of(lowered.get(0), wrapped) : List.of(wrapped, lowered.get(1));
+            }
+        }
+        return lowered;
+    }
+
+    private static boolean isJson(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.JSON;
+    }
+
     private VariantShapes() {
     }
 

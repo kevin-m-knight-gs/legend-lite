@@ -168,6 +168,17 @@ public final class RawSqlBoundary {
     public static final java.util.concurrent.atomic.AtomicLong XLATE_NANOS =
             new java.util.concurrent.atomic.AtomicLong();
 
+    /** The H2 dialect LEVEL this boundary translates from: the engine's
+     * v2_1_214 extension (its goldens' "upgraded" branch), the same jar the
+     * harness referee runs ({@code H2VersionPinTest} ties this literal to
+     * {@code org.h2.engine.Constants.VERSION}). {@code SELECT H2VERSION()}
+     * on an H2-typed connection — the engine's assertEqualsH2Compatible /
+     * createDbExtensionForH2 version probe — answers with it. */
+    public static final String H2_DIALECT_VERSION = "2.1.214";
+
+    private static final Pattern H2_VERSION_FN =
+            Pattern.compile("(?i)\\bH2VERSION\\s*\\(\\s*\\)");
+
     public static String h2ToDuckDb(String sql) {
         long t0 = System.nanoTime();
         try {
@@ -183,6 +194,7 @@ public final class RawSqlBoundary {
             sink.add(sql);
         }
         String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
+        out = H2_VERSION_FN.matcher(out).replaceAll("'" + H2_DIALECT_VERSION + "'");
         out = COUNT_STAR_ITEM.matcher(out)
                 .replaceAll("count(*) AS \"COUNT(*)\"");
         // H2 accepts name-first `Drop schema <name> if exists cascade`

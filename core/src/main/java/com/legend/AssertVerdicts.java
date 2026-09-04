@@ -93,6 +93,14 @@ final class AssertVerdicts {
                         ? "quantified-assert" : bare.getClass().getSimpleName();
     }
 
+    /** An if branch's statement: the lambda's last statement, or the
+     * expression itself. */
+    private static TypedSpec branchStatement(TypedSpec branch) {
+        return branch instanceof com.legend.compiler.spec.typed.TypedLambda l
+                && !l.body().isEmpty()
+                ? l.body().get(l.body().size() - 1) : branch;
+    }
+
     private static @com.legend.Nullable ExecutionResult adjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
@@ -112,6 +120,23 @@ final class AssertVerdicts {
                 return u;
             }
             return quantified(qm, letPrefix, specs, env, hook);
+        }
+        // an if whose BRANCHES are asserts (assertEqualsH2Compatible's body
+        // once the H2 version probe answers): the condition is a value
+        // query the database evaluates; the taken branch IS the verdict
+        if (bare instanceof com.legend.compiler.spec.typed.TypedIf ti
+                && ti.elseBranch().isPresent()
+                && calleeFqn(branchStatement(ti.thenBranch())) != null
+                && calleeFqn(branchStatement(ti.elseBranch().get())) != null) {
+            ExecutionResult c = StatementExecutor.evalValue(
+                    ti.condition(), letPrefix, specs, env);
+            if (c instanceof ExecutionResult.Scalar sc
+                    && sc.value() instanceof Boolean taken) {
+                return adjudicate(branchStatement(taken
+                        ? ti.thenBranch() : ti.elseBranch().get()),
+                        letPrefix, specs, env, rawHook);
+            }
+            return null;
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {

@@ -55,6 +55,13 @@ final class CastChecker {
         if (lam != null) {
             return lam;
         }
+        // a lambda LITERAL cast to a function carrier
+        // (cast(lambda, @FunctionDefinition<Any>)) is the lambda: identity
+        if (a.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lit
+                && ref.target() instanceof com.legend.compiler.element.type.Type.GenericType g2
+                && InferenceKernel.FUNCTION_CARRIER_FQNS.contains(g2.rawFqn())) {
+            return lit;
+        }
         return new TypedCast(a.args().get(0), ref.target(), a.out(), false);
     }
 
