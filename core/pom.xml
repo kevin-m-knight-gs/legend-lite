@@ -133,6 +133,14 @@
                         <id>default-compile</id>
                         <configuration>
                             <fork>true</fork>
+                            <!-- The forked javac carries ErrorProne + NullAway,
+                                 the heaviest step in the build, and MAVEN_OPTS
+                                 does NOT reach it — a forked compiler gets its
+                                 heap from here and nowhere else. Unset, it takes
+                                 the JVM default of 25% of RAM, which is ~4g on a
+                                 16g CI runner but ~1.75g on a 7g macOS one, so
+                                 the null gate OOM'd on macOS and only macOS. -->
+                            <maxmem>2g</maxmem>
                             <compilerArgs>
                                 <arg>-XDcompilePolicy=simple</arg>
                                 <arg>-Xmaxerrs</arg>
