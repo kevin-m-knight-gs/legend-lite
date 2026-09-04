@@ -93,6 +93,11 @@ class QueryServiceDirectTest {
 
     @AfterAll
     static void teardown() throws Exception {
+        // Close FIRST. The file-backed connection is cached (it has to be:
+        // nothing else closes it), so the handle outlives the last test and
+        // Windows will not unlink an open file. POSIX would, which is why
+        // this teardown looked correct for as long as it only ran there.
+        ConnectionResolver.resolve(sampleModel, "test::TestRuntime").close();
         Files.deleteIfExists(tempDbFile);
         Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
     }

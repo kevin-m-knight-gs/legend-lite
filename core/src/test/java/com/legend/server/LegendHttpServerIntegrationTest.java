@@ -44,18 +44,18 @@ class LegendHttpServerIntegrationTest {
     }
 
     @AfterAll
-    static void teardown() {
+    static void teardown() throws Exception {
         if (server != null) {
             server.stop();
         }
-        // Clean up temp file
-        try {
-            Files.deleteIfExists(tempDbFile);
-            // DuckDB also creates .wal file
-            Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        // Close FIRST, then delete, and let a failure THROW. This used to
+        // printStackTrace the failure and pass — which on Windows meant a
+        // green test and a stray .duckdb left in TEMP after every run,
+        // because the cached file-backed connection was still open.
+        ConnectionResolver.resolve(buildSampleModel(), "test::TestRuntime").close();
+        Files.deleteIfExists(tempDbFile);
+        // DuckDB also creates .wal file
+        Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
     }
 
     // Build sample model following AbstractDatabaseTest pattern - SIMPLE names in

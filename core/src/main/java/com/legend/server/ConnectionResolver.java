@@ -16,7 +16,7 @@ import java.sql.SQLException;
 /**
  * Runtime-name &rarr; live JDBC connection, resolved directly from the core
  * parse ({@code com.legend.model} records — the engine-lite bridge record
- * round-trip is gone). In-memory connections are cached in the
+ * round-trip is gone). Connections are cached in the
  * content-addressed {@link HandleStore} (D5): the key hashes the
  * connection DEFINITION + FQN + the model's STORE declarations (type
  * audit D100), so the same stores + definition keep their database
@@ -116,12 +116,38 @@ final class ConnectionResolver {
                 Hash.ofUtf8(def.toString()));
     }
 
+
+    /** A FILE-backed embedded database, cached on its JDBC URL.
+     *
+     * <p>Two reasons, and the second is why the key is the URL and not
+     * the content key the in-memory arms use. First: NOTHING closes what
+     * this returns. Every call used to hand back a fresh
+     * {@code DriverManager} connection and no caller owns it, so a
+     * process accumulated one live handle per request against the same
+     * file. POSIX unlinks a file that is still open, so the leak was
+     * invisible there; Windows refuses, and the leak surfaced as
+     * {@code QueryServiceDirectTest} failing to delete its own temp db.
+     * Second: for a file, IDENTITY IS THE FILE. Two definitions naming
+     * one path are the same database — the content key would open a
+     * second connection to it, which is exactly the concurrent-writer
+     * shape DuckDB rejects.
+     *
+     * <p>H2 deliberately does NOT route here: its in-memory spellings
+     * hold the database open with {@code DB_CLOSE_DELAY=-1}, so caching
+     * the connection on top would fold session state across callers.
+     */
+    private static Connection embeddedFile(String jdbcUrl) throws SQLException {
+        return STORE.getOrOpen(Hash.ofUtf8(jdbcUrl),
+                ConnectionResolver::dead,
+                () -> DriverManager.getConnection(jdbcUrl));
+    }
+
     private static Connection connect(Hash storesKey, ConnectionDefinition def)
             throws SQLException {
         return switch (def.databaseType()) {
             case DuckDB -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
-                        DriverManager.getConnection("jdbc:duckdb:" + path);
+                        embeddedFile("jdbc:duckdb:" + path);
                 // InMemory — and every spec kind the legacy resolver folded
                 // to in-memory (LocalH2, static specs DuckDB can't reach)
                 default -> STORE.getOrOpen(contentKey(storesKey, def),
@@ -130,7 +156,7 @@ final class ConnectionResolver {
             };
             case SQLite -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
-                        DriverManager.getConnection("jdbc:sqlite:" + path);
+                        embeddedFile("jdbc:sqlite:" + path);
                 default -> STORE.getOrOpen(contentKey(storesKey, def),
                         ConnectionResolver::dead,
                         () -> DriverManager.getConnection("jdbc:sqlite::memory:"));
