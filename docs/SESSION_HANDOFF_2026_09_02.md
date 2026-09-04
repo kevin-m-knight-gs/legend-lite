@@ -2779,3 +2779,133 @@ with no named corpus tests rides a burn batch):
 ORDER OF RECORD: toPostgresModel slice B (task #44) FIRST — it burns 6
 named tests; P1 attaches to the next mapping-navigation burn; P2 to the
 next relation burn; P3 last.
+
+**NEXT SESSION OPENS HERE — slice B IN FLIGHT, UNCOMMITTED (2026-09-04,
+session ended on the user's catch "are you shooting in the dark?" — yes:
+three blind thread-dump attempts and a loading-rule change without a
+measurement. Start by MEASURING, not editing.)**
+
+Committed state: origin/main = 5da58631 (batch 55a 95ec1bcd + the hand-
+shape census). Ratchet 252/2321, chain GREEN.
+
+Working tree: 9 files changed, +264/−14, NOT committed, NOT gated:
+`Compiler.java`, `builtin/Pure.java`, `compiler/NameResolver.java`,
+`compiler/spec/CastChecker.java`, `compiler/spec/Typer.java`,
+`compiler/spec/UserCallInliner.java`, `lowering/Scalars.java`,
+`rcorpus/Corpus.java`, `rcorpus/Runner.java`. Per change, with its
+receipt (the family runs are `-Drcorpus.only=sqlDialectTranslation`, logs
+sliceb0..sliceb11 in the job tmp dir; the family stayed 12/21 throughout —
+the walls MOVED, no test flipped yet):
+
+  1. Corpus.LIBRARY_FILES += legend-pure `platform_store_relational/
+     functions.pure` (+ `Corpus.PURE_ROOT`): the program helpers
+     `children()`/`childByJoinName()` over RelationalTreeNode that
+     toPostgresModel's preOrderTraversal calls (kind 3, corpus input).
+     PRINCIPLED. Receipt: the 4 join-tree tests moved from "unknown
+     function children" to the next wall (sliceb2).
+  2. Runner.registerLibrarySource: the file's `native function`
+     declarations must not enter the model (the registry is the definition;
+     two same-FQN native overloads in that file also tripped the corpus
+     duplicate check). First cut = a REGEX strip (hack, deleted). Second
+     cut = Compiler.parseSources keys NativeFunctionDefinition duplicates
+     by signature (principled, kept) AND the natives now ENTER the model —
+     after which the family run HANGS (>10 min; sliceb12–14). A third cut
+     (blank the native declarations by the parser's element offsets in
+     Runner) was written and REJECTED by the user before running — the
+     working tree does NOT carry it. FIRST ACTION: measure the hang. Revert
+     ONLY the regex removal (re-add the strip temporarily) and rerun the
+     family with `timeout 300`; if it completes, the parsed natives are the
+     cause (a parsed native re-declared beside the registry's — probably
+     the overload/duplicate-signature path or Pure.nativeKeysAt) and the
+     structural fix is to drop NativeFunctionDefinition elements from
+     LIBRARY sources at assembly (Runner line ~1238, where libraryRaw joins
+     `sources`: parse → filter elements → the model), never text surgery.
+     If it still hangs, bisect the other two edits of that step (orElse
+     signature+rule; signature-keyed duplicates). Get a thread dump the
+     way that works here: `jstack` from the SAME JDK as the fork
+     (/Users/neema/.sdkman/candidates/java/25.0.1-tem/bin/jstack) failed
+     with "not ready to participate in attach handshake"; SIGQUIT output
+     did not reach the log — try `-DforkCount=0` (in-process) so the
+     JVM is Maven's own, then jstack that.
+  3. UserCallInliner.liveArms: the multiple-inheritance scan reads
+     DECLARATIONS (`declaredSubtype`), never compiles every model class
+     (a poisoned corpus protocol class — `raw::Lambda` unknown — was
+     compiled by the old `ctx.isSubtype` scan and walled testConvertAlias/
+     Table). PRINCIPLED; receipt sliceb2.
+  4. UserCallInliner.staticArm: a runtime match over a value of DECLARED
+     class C dispatches to the first arm whose class covers C when no
+     earlier arm names a strict subclass of C (pure's first-arm-wins over
+     the runtime class). PRINCIPLED. Not yet observed to fire: the
+     `convertElement(getTable(..))` match still stands — see 6.
+  5. NameResolver: a FUNCTION-call name keeps EVERY core-import package's
+     definition as an overload candidate (`resolveNameMulti(.., true)`);
+     TYPE positions keep first-match. PRINCIPLED (real pure matches by
+     signature across the group). Needed because 7 added string::plus and
+     bare `plus` then resolved to it alone.
+  6. UserCallInliner.inlineCall recursion measure, now LEXICOGRAPHIC:
+     (literal size strictly shrinks) OR (equal literal size AND a STORE-
+     valued argument of a class no enclosing activation of that key holds
+     — `argClasses` = declared classes of NON-literal args; `argClassSets`
+     stack). Well-founded (finite class lattice). Receipt sliceb10: the
+     inner `convertElement(Table row)` no longer stands on "does not
+     descend"; the next wall was `orElse` unknown inside the
+     SemiStructuredArrayFlatten arm — which means that arm was treated as
+     LIVE for a Table-declared input, i.e. liveArms/staticArm did NOT
+     narrow to the Table arm. UNEXPLAINED; the arm list order is in
+     toPostgresModel.pure:84-135 (Table arm at ~105, no View arm). Check
+     the input's typed class at the match (LL_TMP_DEBUG prints the wall
+     node) before trusting 4.
+  7. Pure.java `PLUS__STRING_MANY` = real `string::plus(strings:String[*])`
+     (essential/string/plus.pure) + Scalars rule (concat over a literal
+     list; string_agg '' over a list value) + Typer.checkGeneric fallback:
+     `a + b` over strings whose pairwise overload fails (an optional
+     operand) retypes as the collection form. PRINCIPLED. Receipt sliceb8:
+     buildUniqueName's `plus(String[1], String[0..1])` wall gone.
+     native-catalog.txt NOT regenerated yet (NativeFunctionTest will
+     diff; regenerate from target/native-catalog-actual.txt, +2 lines with
+     8).
+  8. Pure.java `OR_ELSE__T_01__T_1` = real `lang::orElse<T>(maybe:T[0..1],
+     dflt:T[1])` + Scalars COALESCE rule. PRINCIPLED, UNMEASURED (the run
+     after it hung).
+  9. CastChecker: a cast to a STRICT supertype keeps a TypedCast node so
+     the static type WIDENS (pure types `->cast(@QueryBody)` as QueryBody;
+     a fold seeded from it accepts Union) — SQL identity (CastPolicy: class
+     targets flow). PRINCIPLED, UNMEASURED beyond the family (watch the
+     resolver's chain-position cast rules and the PCT cast tests in G6).
+  10. Compiler.parseSources: NativeFunctionDefinition duplicate key carries
+     the parameter signature (as FunctionDefinition already did).
+     PRINCIPLED, part of the hang suspect set.
+
+Walls left per test (sliceb10, before the hang): testConvertAlias /
+JoinStrings / SelectSQLQuery / SelectSQLQueryWithCTE / TableAliasColumn /
+TabularFunction / Union = "class query under TypedNewInstance" (the
+STORE READ IN A CONSTRUCTED INSTANCE'S SLOT — slice B's real leg, not
+started); testConvertJoinTreeNode = "class query under TypedFold";
+testConvertTable = the standing convertElement (item 6).
+
+The slot leg, designed not built: in StoreResolver.anchoredNode, before
+the default wall, a value node (TypedNewInstance / TypedUserCall /
+TypedFold …) whose only anchored subterm is ONE object-space class chain
+of multiplicity [1] (e.g. `getTable(..)` = `TestDb.schemas.tables->
+filter(..)->toOne()`, spliced verbatim at every occurrence) rewrites to
+`chain->map(_r | body[chain := $_r])` and resolves through
+`resolvedScalarMapProject(chain, lambda, [1], context)` DIRECTLY (not via
+resolveNode: Anchors.spaceOf puts a class-result map in OBJECT space and
+objectNode would substitute the param back and loop). The mapper body is
+a struct-valued column (TypedNewInstance lowers to StructLit; row-var
+property reads become columns); the verdict's `side()` reads the single
+row's struct. A body that still reads a to-many navigation off the row
+var (`$table.columns->at(0)->cast(@Column)` — the "column ordinal") needs
+the project-column lambda to carry that nested read (SubQueryLift-style
+scalar subquery, or the nested-assoc materials); measure with
+testConvertTableAliasColumn first. SubQueryLift is the closest existing
+idiom (value-position class subqueries under lambdas).
+
+Hacks removed this stretch (do not re-add): the regex native strip; a
+static WeakHashMap "standing reason" side table on the inliner (static
+diagnostic sink — INSTRUMENT STATE MATCHES FACT LIFETIME); an
+LL_INLINER_TRACE rethrow that made every legitimately standing helper
+fatal. A diagnostic for "why did this call stand" is still wanted: the
+honest form is the reason RIDING the standing node (a field on
+TypedUserCall, or the census reading the wall at the frontier), never
+static state.
