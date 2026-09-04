@@ -2739,3 +2739,43 @@ walk-era harness lane (`EngineTestExecutor`, core/src/test) still scores the
 252 fallbacks. Hand shapes in Pure.java: 76 (m3 bootstrap, primitives,
 carriers, six SYSTEM-STORE-COUPLED). Nothing of the toPostgresModel port
 remains.
+
+**THE 76 HAND SHAPES — census and the legs that retire them (user question
+2026-09-04 "why is there still hand-crafted stuff in Pure.java?"):**
+measured against the checkouts (`Class <fqn>` declarations in Pure source):
+53 have NO Pure declaration anywhere — they are the m3 bootstrap
+(`meta::pure::metamodel::*`: Any/Type/Class/Property/Function/
+ValueSpecification/Multiplicity/Profile/… and the 12 primitives), whose only
+source is legend-pure's m3.pure written in the bootstrap GRAPH notation
+(`^Package(...)` instance literals; zero `Class` lines — our Pure parser
+cannot read it; tools/m3shape.py scrapes receipts, it is not a loader); 3
+more (Nil, ConcreteFunctionDefinition, relation::Column) sit in forms the
+header scan does not index; 20 ARE declared in the spec and are hand only
+because something of ours is coupled to a different shape: 10 platform
+CARRIERS the checker/lowering key on (`Relation<T>`, ColSpec/FuncColSpec/
+AggColSpec + arrays with function-type parameters, `Result<T|m>` with its
+multiplicity parameter, Variant, TDSNull, Rows) and 10 SYSTEM-STORE-COUPLED
+(Database, Mapping, Column, SetImplementation, PropertyMapping,
+PropertyMappingsImplementation, InstanceSetImplementation,
+EnumerationMapping, EnumValueMapping, RelationalActivity — the store types
+element references as raw row classes: `class: Class[1]` vs `Class<Any>`,
+`property: Property[1]` vs `Property<Nil,Any|*>`, `Column.owner: Table` vs
+`Relation`, `enum: String` vs `Enum`; batch 54 generated six and lost 20).
+Three legs, none a batch on its own (WORLD_MAP rule: a mechanism-only leg
+with no named corpus tests rides a burn batch):
+  (P1) element references as m3 rows in the system store (Class/Property/
+       Enum rows, references by id) → the 10 store-coupled shapes generate;
+       rides the first burn batch that needs class/property navigation from
+       a mapping row (the class-query-under-map remainder, `$cm.class`).
+  (P2) carrier parameterization in the checker: multiplicity parameters
+       (`Result<T|m>`), function-type parameters on the column specs,
+       `Relation<T>` as a declared generic → the 10 carriers generate and
+       PlatformTypesDriftTest pins the generated text; rides a relation-
+       function burn (the tds/relation families).
+  (P3) an m3 GRAPH-notation loader (the `^Package(...)` bootstrap form) →
+       the 53 m3 shapes + primitives come from m3.pure, tools/m3shape.py and
+       the hand block die; pure cleanup, no corpus tests — after zero, or
+       as the closing leg of the "flip to verbatim .pure files" trigger.
+ORDER OF RECORD: toPostgresModel slice B (task #44) FIRST — it burns 6
+named tests; P1 attaches to the next mapping-navigation burn; P2 to the
+next relation burn; P3 last.
