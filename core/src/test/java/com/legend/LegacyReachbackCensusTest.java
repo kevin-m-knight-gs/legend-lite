@@ -5,6 +5,8 @@ package com.legend;
 
 import org.junit.jupiter.api.Test;
 
+import com.legend.testing.WalkedPath;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -109,7 +111,7 @@ class LegacyReachbackCensusTest {
                     String src = stripComments(Files.readString(f));
                     int n = count(src);
                     if (n > 0) {
-                        found.put(f.normalize().toString()
+                        found.put(WalkedPath.spell(f.normalize(), "/")
                                 .replaceFirst("^\\.\\./", ""), n);
                     }
                 }
