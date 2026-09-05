@@ -669,8 +669,18 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        SqlReplayOracle.RowVerdict rv = oracle.verifyFetchTexts(
-                env.connection(), golden, ours);
+        // batch 64: a hop addressed as $testData.sqls->at(i) carries its
+        // hop index and the carrier's generator node — the oracle's
+        // chained arm replays ancestor temps from the earlier hops'
+        // goldens and compares the hop's transcript rows
+        TdgHop hop = tdgHop(actualSide, letPrefix);
+        SqlReplayOracle.RowVerdict rv = hop == null
+                ? oracle.verifyFetchTexts(env.connection(), golden, ours)
+                : oracle.verifyFetchChain(env.connection(), hop.index(),
+                        golden, ours, () -> fetchTranscript(
+                                com.legend.testdatagen.TestDataGenerationNatives
+                                        .transcript(hop.source(), env.ctx(),
+                                                env.connection())));
         return switch (rv.outcome()) {
             case MATCH -> {
                 if (textEqual) {
@@ -699,6 +709,93 @@ final class SqlTextVerdicts {
      * ({@code CsvCensusChecker.literalTestData}). */
     private static final String TDG_RESULT_FQN =
             "meta::relational::testDataGeneration::TestDataGenResult";
+
+    /** A generator fetch hop: its index in {@code sqls} and the carrier's
+     * kept generator node. */
+    private record TdgHop(int index,
+            com.legend.compiler.spec.typed.TypedTestDataGen source) {
+    }
+
+    /** The hop address of a {@code $testData.sqls->at(i)} side: after the
+     * fold the at() receiver IS the carrier's sqls collection (postFold
+     * reads the property over the instance literal), the carrier is the
+     * letPrefix binding whose sqls equals that collection, and its
+     * {@code source} is the generator node the fold kept. Null = not
+     * the shape (the plain fetch-text verdict owns it). */
+    private static @com.legend.Nullable TdgHop tdgHop(TypedSpec actualSide,
+            List<TypedSpec> letPrefix) {
+        if (!(actualSide instanceof TypedNativeCall at
+                && at.callee().qualifiedName().equals(
+                        com.legend.builtin.Pure.AT__T_MANY__INTEGER_1
+                                .qualifiedName())
+                && at.args().size() == 2
+                && at.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCInteger idx)) {
+            return null;
+        }
+        TypedSpec receiver = at.args().get(0);
+        // the let-bound spelling: $testData.sqls, the let still holding
+        // the generator call (the fold runs at the let's own execution)
+        String var = receiver instanceof
+                com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.property().equals("sqls")
+                && pa.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable v
+                ? v.name() : null;
+        for (TypedSpec l : letPrefix) {
+            if (!(l instanceof com.legend.compiler.spec.typed.TypedLet let)) {
+                continue;
+            }
+            if (let.value() instanceof
+                            com.legend.compiler.spec.typed.TypedNewInstance ni
+                    && TDG_RESULT_FQN.equals(ni.classFqn())
+                    && ni.properties().get("source") instanceof
+                            com.legend.compiler.spec.typed.TypedTestDataGen g
+                    && (receiver.equals(ni.properties().get("sqls"))
+                            || let.name().equals(var))) {
+                return new TdgHop(idx.value().intValue(), g);
+            }
+            if (let.name().equals(var)) {
+                com.legend.compiler.spec.typed.TypedTestDataGen g =
+                        generatorIn(let.value());
+                if (g != null) {
+                    return new TdgHop(idx.value().intValue(), g);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The generator's run in the SPI's own terms (exec never depends on
+     * the generator package). */
+    private static SqlReplayOracle.FetchTranscript fetchTranscript(
+            com.legend.testdatagen.TestDataGenerator.Result r) {
+        List<SqlReplayOracle.FetchHop> hops = new java.util.ArrayList<>();
+        if (r.fetches() != null) {
+            for (com.legend.testdatagen.TestDataGenerator.Fetch f : r.fetches()) {
+                hops.add(new SqlReplayOracle.FetchHop(f.parentIndex(),
+                        f.table(), f.columns(), f.rows()));
+            }
+        }
+        return new SqlReplayOracle.FetchTranscript(r.sqls(), hops);
+    }
+
+    /** The generator node inside a let's value (through toOne and other
+     * wrappers); null when absent or a plan flavor. */
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTestDataGen
+            generatorIn(TypedSpec t) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(t);
+        while (!work.isEmpty()) {
+            TypedSpec cur = work.poll();
+            if (cur instanceof com.legend.compiler.spec.typed.TypedTestDataGen g
+                    && !"plan".equals(g.flavor())) {
+                return g;
+            }
+            work.addAll(cur.children());
+        }
+        return null;
+    }
 
     /** A generateTestData producer under {@code t} — the typed carrier
      * node, the exact platform FQN, OR the carrier's FOLDED instance

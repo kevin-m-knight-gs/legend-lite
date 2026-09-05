@@ -3438,3 +3438,43 @@ divergence; do NOT touch Render for it. Also checked: the engine's H2
 PCT manifest fails the joinStrings PCT tests for an unrelated reason
 (toVariantList translation), so the digest family has no manifest
 precedent — it remains the user's decision.
+
+**Batch 64 — chained generator fetch as a ROW verdict (2026-09-04,
+chain GREEN ~6m; docs/GATES.md batch 64).** Ratchet 207/2366 →
+197/2376 (+10 chained testDataGeneration tests). USER DIRECTION after
+the one-by-one review of the walk's pass mechanisms: delete the harness
+code that does the platform's job — first make the goldens the referee
+CAN replay into row verdicts at the platform seam. The walk's
+tdgChainedVerify moved behind the oracle SPI (verifyFetchChain: hop
+address from `$testData.sqls->at(i)` + the let-bound generator node;
+ancestor temps from the attempt's remembered goldens; transcript rows
+multiset-compared). Lane pins moved as migration (exec-passing 55→21,
+rescued floor 52→18, ledger SqlTextVerdicts 690→765).
+
+THE WALK'S PASS MECHANISMS (traced in EngineTestExecutor, 2026-09-04):
+scoreAssert counts ADVISORY_MARKER and "sql-text:" divergences as
+advisory, never failures; Runner.score passes a test with ≥1 verified
+assert, or 0 asserts + executed statements; a byte-equal golden text
+whose H2 replay is unavailable RETURNS NULL = counted verified
+(sqlTextVerify "match-noreplay"); `assert(sql->contains(..))` evaluates
+the predicate over our engine-style text = "verified". The 71
+walk-only passes (of 207 fallbacks at batch 63): 26 text-policy, 34
+Java forms (ObjectRefs = port of generateObjectReferences,
+ConnEquality = port of storeContract equality, TestDataGenForm,
+PlanAsserts/ElqSplice), ~4 real platform gaps, ~5 unclassified.
+CORRECTION: the TDG chained fetches and the tempTableForIn goldens
+WERE row-verified in the walk (tdgChainedReplay; extraSeeds) — the
+platform seam lacked the plumbing, batch 64 moved the first.
+
+NEXT in this leg (user go 2026-09-04): (c) numbered
+`tempTableForIn_N` goldens (3 tests: values from the query's typed
+in([...]) literal → a structured temp spec across the SPI; the oracle
+spells the H2 DDL as the walk's literalTempSeeds did — TIMESTAMP/DATE/
+VARCHAR(1024)/BIGINT); (d) compare on the golden's columns when our
+frame projects more (graph keys mismatch, 1); (e) value frames for
+forced-isolation goldens (2); (b) the population-golden temp
+(`tempTableForIn_<var>`, 2 tests) is a two-statement engine plan vs
+our one-statement plan — golden(0) has no counterpart; receipt, not a
+burn. Then delete the walk's match-noreplay return and the forms one
+by one; then objectReferenceIn and connection equality as Pure
+programs over the metamodel relations.

@@ -108,7 +108,92 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     public static com.legend.sql.dialect.RawSqlBoundary.LedgerMark
             beginAttempt(Connection conn) throws SQLException {
         conn.setAutoCommit(false);
+        ATTEMPT_GOLDENS.clear();
         return com.legend.sql.dialect.RawSqlBoundary.mark();
+    }
+
+    /** The attempt's generator-fetch goldens by hop index (the walk's
+     * TDG_GOLDENS, attempt-scoped): a chained hop's ancestor temps
+     * materialize from these. Cleared per attempt. */
+    private static final java.util.Map<Integer, String> ATTEMPT_GOLDENS =
+            new java.util.HashMap<>();
+
+    @Override
+    public com.legend.exec.SqlReplayOracle.RowVerdict verifyFetchChain(
+            Connection session, int hopIndex, String goldenSql,
+            String ourSql,
+            java.util.function.Supplier<com.legend.exec.SqlReplayOracle
+                    .FetchTranscript> transcript) {
+        if (hopIndex >= 0) {
+            ATTEMPT_GOLDENS.put(hopIndex, goldenSql);
+        }
+        if (!ourSql.contains("tdg_")) {
+            return verifyFetchTexts(session, goldenSql, ourSql);
+        }
+        try {
+            com.legend.exec.SqlReplayOracle.FetchTranscript r =
+                    transcript.get();
+            List<com.legend.exec.SqlReplayOracle.FetchHop> fetches =
+                    r.hops();
+            if (hopIndex < 0 || hopIndex >= fetches.size()) {
+                throw new H2Verify.Unverifiable(
+                        "chained fetch — transcript index out of range", null);
+            }
+            if (!r.sqls().get(hopIndex).equals(ourSql)) {
+                throw new H2Verify.Unverifiable("chained fetch — transcript"
+                        + " text mismatch (determinism receipt failed)", null);
+            }
+            com.legend.exec.SqlReplayOracle.FetchHop f =
+                    fetches.get(hopIndex);
+            if (f.parentIndex() < 0) {
+                throw new H2Verify.Unverifiable("chained fetch — view fetch"
+                        + " over temps (no single-parent chain)", null);
+            }
+            List<Integer> chain = new java.util.ArrayList<>();
+            for (int j = f.parentIndex(); j >= 0;
+                    j = fetches.get(j).parentIndex()) {
+                chain.add(0, j);
+            }
+            List<String[]> ancestors = new java.util.ArrayList<>();
+            for (int j : chain) {
+                String gj = ATTEMPT_GOLDENS.get(j);
+                if (gj == null) {
+                    throw new H2Verify.Unverifiable("chained fetch — ancestor"
+                            + " golden (index " + j + ") not asserted before"
+                            + " this hop", null);
+                }
+                ancestors.add(new String[]{
+                        "testDataGen_Temp_" + fetches.get(j).table(), gj});
+            }
+            String parentTemp = "testDataGen_Temp_"
+                    + fetches.get(f.parentIndex()).table();
+            if (!goldenSql.toLowerCase().contains(parentTemp.toLowerCase())) {
+                throw new H2Verify.Unverifiable("chained fetch — golden does"
+                        + " not reference derived parent temp " + parentTemp,
+                        null);
+            }
+            String d = tdgChainedReplay(
+                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    ancestors, goldenSql,
+                    H2Verify.transcriptRows(f.columns(), f.rows()));
+            return d == null
+                    ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
+                    : com.legend.exec.SqlReplayOracle.RowVerdict
+                            .diverged(d);
+        } catch (H2Verify.Unverifiable u) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(u.getMessage()));
+        } catch (RuntimeException e) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm-tdg: "
+                        + String.valueOf(e.getMessage()).replace('\n', ' '));
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(e.getMessage()));
+        }
     }
 
     /** Commit the attempt: the world advances (ledger entries stand,

@@ -60,11 +60,11 @@ public final class TestDataGenerationNatives {
                         // a [1] string, not a collection — unwrap
                         .children().get(0);
             }
-            TestDataGenerator.Result r = runGenerate(g, ctx, conn);
+            TestDataGenerator.Result r = transcript(g, ctx, conn);
             return com.legend.compiler.spec.CsvCensusChecker.literalTestData(
                     java.util.Objects.requireNonNull(r.dataCsvString(),
                             "generateTestData produced no csv"),
-                    r.sqls(), g.info());
+                    r.sqls(), g.info(), g);
         }
         List<TypedSpec> kids = stmt.children();
         if (kids.isEmpty()) {
@@ -178,7 +178,11 @@ public final class TestDataGenerationNatives {
      * engine's own argument vocabulary. (A near-twin parser lives in
      * the harness's TestDataGenForm for the S3-deferred sqls-text
      * advisory; S4 deletes that copy.) */
-    private static TestDataGenerator.Result runGenerate(
+    /** The generator's run for a typed {@code generateTestData} call —
+     * the fold's own run, and (batch 64) the sql-text verdict's
+     * chained-fetch TRANSCRIPT: deterministic reads over static seeds,
+     * so a re-run yields the same fetch texts and rows. */
+    public static TestDataGenerator.Result transcript(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
             ModelContext ctx, java.sql.Connection conn) {
         List<ValueSpecification> ps = g.params();

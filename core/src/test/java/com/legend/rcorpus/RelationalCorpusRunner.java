@@ -1055,7 +1055,15 @@ public class RelationalCorpusRunner {
             // milestoning union tests (repeat native) left the walk's lane —
             // their sql-asserts row-verify through the oracle SPI
             // (sql-verdict agree +4, disagree 0; M1 rescued 54 -> 52).
-            org.junit.jupiter.api.Assertions.assertEquals(55, execPassing,
+            // 55 -> 21 (batch 64, 2026-09-04): the ten chained
+            // testDataGeneration tests left the walk's lane — the platform
+            // arm's chained-fetch verdict (SqlReplayOracle.verifyFetchChain:
+            // ancestor temps materialized from the earlier hops' goldens,
+            // the hop's transcript rows multiset-compared) replaced the
+            // walk's tdgChainedVerify for them; their 34 fetch-text asserts
+            // are ROW verdicts now (sql-verdict disagree 0; dual-channel
+            // disagree 0). The walk's exec-passing lane keeps 21.
+            org.junit.jupiter.api.Assertions.assertEquals(21, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1839,10 +1847,25 @@ public class RelationalCorpusRunner {
             // testProjectWithIfWhereOneSideIsEnumLiteral,
             // testProjectionWithEnumThroughAssociation), 0 lost;
             // sql-verdict disagree 0; dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(207L,
+            // Batch 64 (2026-09-04, the chained generator fetch as a ROW
+            // verdict): the walk's tdgChainedVerify mechanism moved behind
+            // the oracle SPI (verifyFetchChain) — the platform arm
+            // addresses a hop by its $testData.sqls->at(i) index and the
+            // let-bound generator node, the oracle remembers each hop's
+            // golden for the attempt, materializes the ancestor temps
+            // (testDataGen_Temp_<T>) from those goldens root-first, runs
+            // the hop's golden and multiset-compares the hop's transcript
+            // rows (the generator re-run: deterministic reads, text
+            // receipt). +10 flips (testDataGeneration: testSimpleTwoTable,
+            // ...MultipleStartRows, testSelfJoin, testUnion, testUnionToUnion,
+            // testInheritanceMultipleTableJoin, testTableToTDSMultipleJoins,
+            // testTableToTdsWithJoinAndOLAPGroupBy, ...WithJoinAndUnion,
+            // ...WithJoinToSameTable), 0 lost; sql-verdict disagree 0;
+            // dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(197L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2366L,
+            org.junit.jupiter.api.Assertions.assertEquals(2376L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2109,8 +2132,13 @@ public class RelationalCorpusRunner {
                     // 54 -> 52 (batch 57, 2026-09-04): the two flipped hybrid-
                     // milestoning union tests (repeat) row-verify as platform-arm
                     // verdicts (lane move, disagree 0).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 52,
-                    "M1 h2-exec rescued fell below the 52 floor: "
+                    // 52 -> 18 (batch 64, 2026-09-04): the same lane move as
+                    // exec-passing 55 -> 21 — the ten chained
+                    // testDataGeneration tests' 34 fetch-text asserts now
+                    // row-verify as platform-arm verdicts (the oracle SPI's
+                    // verifyFetchChain); their walk-lane rescues CLEARED.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 18,
+                    "M1 h2-exec rescued fell below the 18 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

@@ -40,6 +40,35 @@ public interface SqlReplayOracle {
     RowVerdict verifyFetchTexts(java.sql.Connection session,
             String goldenSql, String ourSql);
 
+    /** The CHAINED generator-fetch verdict (batch 64 — the walk's
+     * chained replay behind the SPI): hop {@code hopIndex}'s golden is
+     * remembered for the attempt; a hop whose fetch joins the generator's
+     * own temp tables replays its golden on the oracle with every
+     * ANCESTOR temp materialized from that ancestor's remembered golden
+     * (root-first — the engine fills each temp with the parent fetch's
+     * rows, i.e. the parent golden's result) and multiset-compares
+     * against the hop's transcript rows: the generator re-run through
+     * {@code transcript} (deterministic reads over static seeds; the
+     * hop's text must match byte-exactly, a receipt). A hop without
+     * temps is {@link #verifyFetchTexts}. */
+    RowVerdict verifyFetchChain(java.sql.Connection session, int hopIndex,
+            String goldenSql, String ourSql,
+            java.util.function.Supplier<FetchTranscript> transcript);
+
+    /** A generator run's fetch transcript in the SPI's own terms (exec
+     * never depends on the generator package): the fetch texts and each
+     * hop's parent index, table, columns and rows. */
+    record FetchTranscript(java.util.List<String> sqls,
+            java.util.List<FetchHop> hops) {
+    }
+
+    /** One generator fetch: its parent hop (-1 = a root), the table it
+     * fetched, and the rows it fetched. */
+    record FetchHop(int parentIndex, String table,
+            java.util.List<String> columns,
+            java.util.List<java.util.List<Object>> rows) {
+    }
+
     /** One materialized oracle result: {@code labels}/{@code
      * jdbcTypes} aligned by column, {@code rows} of raw cells. */
     record OracleRows(java.util.List<String> labels,

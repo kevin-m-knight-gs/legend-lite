@@ -1041,6 +1041,21 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 64 (2026-09-04):** exec-passing
+21 (55 → 21): the ten chained testDataGeneration tests left the walk's
+lane — the platform arm's chained-fetch verdict
+(`SqlReplayOracle.verifyFetchChain`: the hop addressed by its
+`$testData.sqls->at(i)` index and the let-bound generator node; the
+oracle remembers each hop's golden for the attempt, materializes the
+ancestor `testDataGen_Temp_<T>` temps from those goldens root-first,
+runs the hop's golden and multiset-compares the hop's transcript rows,
+the generator re-run under a byte-exact text receipt) replaced the
+walk's tdgChainedVerify for them: 34 fetch-text asserts are ROW
+verdicts (sql-verdict disagree 0; dual-channel disagree 0). Ratchet
+207/2366 → 197/2376. Lane move by migration; the walk's own chained
+arm is now reachable only by testQualifier (its hop-0 golden spelled
+`sqlRemoveFormatting('literal')`).
+
 **§8.0 scope-table receipt, batch 57 (2026-09-04):** exec-passing
 55 (57 → 55): the two flipped hybrid-milestoning union tests (the
 `repeat` native) left the walk's lane; their sql-asserts row-verify

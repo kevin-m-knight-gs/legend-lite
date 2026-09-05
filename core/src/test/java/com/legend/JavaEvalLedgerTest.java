@@ -622,7 +622,13 @@ class JavaEvalLedgerTest {
             // the connection, the runtime's post-processor hooks applied to
             // the rows leg through the env's tableReplace channel) — the
             // same recogniser the frame path uses; no evaluation moved here.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 690),
+            // 690 -> 765 (batch 64, 2026-09-04): the chained generator-fetch
+            // arm ADDRESSES a hop ($testData.sqls->at(i) → index + the
+            // let-bound generator node) and hands the oracle SPI the
+            // generator re-run as a supplier in the SPI's own transcript
+            // terms — routing of a fact to the referee; the replay, temps
+            // and compare live in the oracle.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 765),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

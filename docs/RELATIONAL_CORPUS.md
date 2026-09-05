@@ -62,7 +62,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 255 | 3 | 7 | 1 | 1 | 1 | 2 | 1 |
-| testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 11 |
+| testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 1 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 0 | 1 | 2 | 2 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2423** | 43 | 77 | 32 | 12 | 12 | 29 | 21 |
+| **total** | 2575 | **2423** | 43 | 77 | 32 | 12 | 12 | 29 | 11 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2364 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
+SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2374 clean + 49 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 11; flags overlap — the union is 49).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,17 +542,17 @@ SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2364 clean + 59 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 207
+tests in the ledger: 197
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
-| wall:resolver | 29 |
-| pass | 77 |
+| wall:resolver | 30 |
+| pass | 61 |
 | divergence | 43 |
 | wall:exec | 14 |
-| not-reached | 56 |
+| not-reached | 45 |
 | referee-cannot-replay | 16 |
 | zero-assert | 3 |
 | wall:lowering | 16 |
@@ -561,7 +561,7 @@ tests in the ledger: 207
 | decision:dynamic-compilation | 2 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
-| decision:tdg-chained-fetch | 12 |
+| decision:tdg-chained-fetch | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
 - executeProjectWithNestedDerivedProperty #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::json::tdsToJSONKe :: in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unpor
@@ -751,52 +751,15 @@ tests in the ledger: 207
 - testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates #0 - -> wall:typer: wall-type: generateTestData needs its query lambda and mapping reference INLINE at the call site (>=N args) :: meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates :: generateTestData needs its query lambda and mapping reference INLINE at th
 - testInheritanceMultipleLevel #1 meta::pure::functions::asserts::assertSize -> pass
 - testInheritanceMultipleLevel #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testInheritanceMultipleLevel #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"bicycle_0".ID, "bicycle_0".b_PersonID  from testD
-- testInheritanceMultipleLevel #4 - -> not-reached: 3 assert(s) after the failure
-- testInheritanceMultipleTableJoin #1 meta::pure::functions::asserts::assertSize -> pass
-- testInheritanceMultipleTableJoin #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testInheritanceMultipleTableJoin #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top N :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top 20 "bicycle_0".ID, "bicycle_0".b_Description
-- testInheritanceMultipleTableJoin #4 - -> not-reached: 2 assert(s) after the failure
+- testInheritanceMultipleLevel #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
+- testInheritanceMultipleLevel #4 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
+- testInheritanceMultipleLevel #5 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
+- testInheritanceMultipleLevel #6 meta::pure::functions::asserts::assertSameElements -> pass
+- testInheritanceMultipleLevel #7 - -> wall:resolver: wall-exec: multi-hop navigation vehicles#fN.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embed :: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[v
 - testQualifier #1 meta::pure::functions::asserts::assertSize -> pass
 - testQualifier #2 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> pass
-- testQualifier #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"producttable_0".ID, "producttable_0".NAME  from t
+- testQualifier #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — ancestor golden (index N) not asserted before this hop): expe :: assertSqlEquals (tdg fetch-text, declined: chained fetch — ancestor golden (index 0) not asserted before this hop): expected  select top 20  	"producttable_0".ID
 - testQualifier #4 - -> not-reached: 2 assert(s) after the failure
-- testSelfJoin #1 meta::pure::functions::asserts::assertSize -> pass
-- testSelfJoin #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testSelfJoin #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"persontable_0".FIRSTNAME, "persontable_0".ID, "pe
-- testSelfJoin #4 - -> not-reached: 2 assert(s) after the failure
-- testSimpleTwoTable #1 meta::pure::functions::asserts::assertSize -> pass
-- testSimpleTwoTable #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testSimpleTwoTable #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"bicycle_0".ID, "bicycle_0".b_PersonID  from testD
-- testSimpleTwoTable #4 - -> not-reached: 1 assert(s) after the failure
-- testSimpleTwoTableMultipleStartRows #1 meta::pure::functions::asserts::assertSize -> pass
-- testSimpleTwoTableMultipleStartRows #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testSimpleTwoTableMultipleStartRows #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"bicycle_0".ID, "bicycle_0".b_PersonID  from testD
-- testSimpleTwoTableMultipleStartRows #4 - -> not-reached: 1 assert(s) after the failure
-- testTableToTDSMultipleJoins #1 meta::pure::functions::asserts::assertSize -> pass
-- testTableToTDSMultipleJoins #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testTableToTDSMultipleJoins #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top N :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top 20 "firmtable_0".CEOID, "firmtable_0".ID fro
-- testTableToTDSMultipleJoins #4 - -> not-reached: 3 assert(s) after the failure
-- testTableToTdsWithJoinAndOLAPGroupBy #1 meta::pure::functions::asserts::assertSize -> pass
-- testTableToTdsWithJoinAndOLAPGroupBy #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testTableToTdsWithJoinAndOLAPGroupBy #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top N :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top 20 "firmtable_0".CEOID, "firmtable_0".ID fro
-- testTableToTdsWithJoinAndOLAPGroupBy #4 - -> not-reached: 1 assert(s) after the failure
-- testTableToTdsWithJoinAndUnion #1 meta::pure::functions::asserts::assertSize -> pass
-- testTableToTdsWithJoinAndUnion #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testTableToTdsWithJoinAndUnion #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top N :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top 20 "addresstable_0".COMMENTS, "addresstable_
-- testTableToTdsWithJoinAndUnion #4 - -> not-reached: 3 assert(s) after the failure
-- testTableToTdsWithJoinToSameTable #1 meta::pure::functions::asserts::assertSize -> pass
-- testTableToTdsWithJoinToSameTable #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testTableToTdsWithJoinToSameTable #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top N :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected select top 20 "persontable_0".ADDRESSID, "persontable_0
-- testTableToTdsWithJoinToSameTable #4 - -> not-reached: 1 assert(s) after the failure
-- testUnion #1 meta::pure::functions::asserts::assertSize -> pass
-- testUnion #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testUnion #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"personmaster_0".FirmID, "personmaster_0".ID, "per
-- testUnion #4 - -> not-reached: 5 assert(s) after the failure
-- testUnionToUnion #1 meta::pure::functions::asserts::assertSize -> pass
-- testUnionToUnion #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testUnionToUnion #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> decision:tdg-chained-fetch: platform-fail: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  :: assertSqlEquals (tdg fetch-text, declined: chained fetch — generator temp tables not replayable): expected  select top 20  	"personset1_0".FirmID, "personset1_0".ID, "persons
-- testUnionToUnion #4 - -> not-reached: 5 assert(s) after the failure
 - testRelationalMapperTwoDBs #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'select "root".NAME as "name", "synonymtable_N".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNe ::  expected: 'select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.prod
 - testRelationalMapperWithJoin #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'select "addresstable_N".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snD ::  expected: 'select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persont
 - testConnectionEqualityAllButOnePropertySame #1 assert -> wall:lowering: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list

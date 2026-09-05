@@ -117,6 +117,16 @@ public final class CsvCensusChecker {
      * loudly until a witness demands the tree as a value. */
     public static TypedSpec literalTestData(String dataCsvString,
             java.util.List<String> sqls, ExprType info) {
+        return literalTestData(dataCsvString, sqls, info, null);
+    }
+
+    /** The folded carrier WITH its generator node kept as {@code source}
+     * (batch 64): the sql-text verdict's chained-fetch arm re-runs the
+     * generator for the hop's transcript rows (deterministic reads over
+     * static seeds) — the fold discards the rows, never the call. */
+    public static TypedSpec literalTestData(String dataCsvString,
+            java.util.List<String> sqls, ExprType info,
+            @com.legend.Nullable TypedSpec source) {
         ExprType str = new ExprType(Type.Primitive.STRING,
                 Multiplicity.Bounded.ONE);
         java.util.List<TypedSpec> sqlRows = new java.util.ArrayList<>(sqls.size());
@@ -130,6 +140,9 @@ public final class CsvCensusChecker {
         props.put("sqls", new com.legend.compiler.spec.typed
                 .TypedCollection(sqlRows, new ExprType(Type.Primitive.STRING,
                         Multiplicity.Bounded.ZERO_MANY)));
+        if (source != null) {
+            props.put("source", source);
+        }
         return new com.legend.compiler.spec.typed.TypedNewInstance(
                 "meta::relational::testDataGeneration::TestDataGenResult",
                 props, info);
