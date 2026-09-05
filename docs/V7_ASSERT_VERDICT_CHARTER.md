@@ -1061,6 +1061,18 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 72c (2026-09-05, the deletion only):**
+exec-passing 7, text-only 15, unable-to-exec 9 unchanged; ratchet unchanged
+168/2405 (census 2575); disagree 0 both channels. The walk's Java port of the
+relational store contract's connection equality (`harness/ConnEquality.java`,
+its let-fold and assert-fold call sites) is DELETED; the five
+connectionEquality tests, already fallbacks, now fail in BOTH channels with
+the loud lowering wall "scalar match: the arm collection has a non-literal
+prefix (extension-contributed arms) that did not fold to []" — family `tests`
+re-baselined by hand 33 → 28 pass (error 3 → 8). USER DECISION: park the
+platform leg (branch wip/72c-extension-registry-read) and return with the
+code-as-data leg; the research is docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md.
+
 **§8.0 scope-table receipt, batch 72b (2026-09-05):** exec-passing 7,
 text-only 15, unable-to-exec 9 unchanged; ratchet 176/2397 → 168/2405 (the
 eight objectReferenceIn tests are platform JSON row verdicts; the walk's

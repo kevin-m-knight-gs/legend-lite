@@ -3703,3 +3703,25 @@ not CAST AS VARCHAR (escapes). SQL_TEXT_OUTCOME reset per assert. NEXT leg B
 relationalExtensions()->routerExtensions() to the spelled contract, prepend a
 folded dynamic arm prefix as spelled arms (UserCallInliner match arm),
 hierarchicalProperties over metamodel.classes/properties rows.
+
+**Batch 72c — connection equality PARKED; the walk's Java deleted (2026-09-05;
+GATES batch 72c).** Ratchet unchanged 168/2405; the five connectionEquality
+tests fail in both channels (loud wall), family `tests` re-baselined 33 → 28
+by hand. What happened: the honest replacement for the morning's named fold
+(Java naming relationalStoreContract — a hack shape the user caught) walled
+three times, each an UNREAD field of the engine's ~40-field extension record:
+the inliner evaluates records and lets eagerly, so one field read meant
+compiling the engine's whole plug-in surface (its M2M interpreter, SQL
+planner state, H2 dialect renderer, grammar printer). A by-need design
+(records/lets evaluate on read, boundary force) was written and reviewed
+(WALK_ONLY_PLAN §5) and NOT implemented: user decision — delete the walk,
+let the five fail, park the mechanism on branch wip/72c-extension-registry-read
+(90f7e666), burn the rest, and come back with the CODE-AS-DATA leg (the query
+tree as m3 instances; sized, not probed). READ FIRST:
+docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md — the whole research with receipts
+(chain trace, three probes, by-need design + precedents + the one semantic
+deviation, why unread programs do not compile in three kinds, the
+executeInMemory five-feature analysis, what exists, sizing, decision record).
+NEXT (user order): "a full honest breakdown of what is left that can actually
+be implemented for real" — the 168 fallbacks off the assert ledger,
+implementable vs decision, then burn those to zero.

@@ -375,3 +375,87 @@ Left unverified (stated, not guessed):
   inferred from the resultSourcing wall text; the typer wall
   (`createTempTable` unknown) is what the probe shows first.
 - The typing of a literal collection of two execute frames (leg C).
+
+## 5. Batch 72c design: connection equality by READING the engine's extension record (2026-09-05, for review before implementation)
+
+### 5.1 The expression (testRelationalExtension.pure:28-36)
+
+```
+let extensions = meta::relational::extension::relationalExtensions().routerExtensions();
+$c1->match($extensions.connectionEquality->map(e | $e->eval($c2))
+           ->concatenate([a:Connection[1] | true])->toOneMany());
+```
+
+### 5.2 The chain, traced by hand (every program the compile-time reader meets)
+
+| # | program | what it spells | read by this test |
+|---|---|---|---|
+| 1 | `relationalExtensions()` — core_relational extensions/extension.pure:62-65 | `relationalExtension()->concatenate(h2SqlDialectExtension())`. Registered in Pure.java as a BODILESS native (typing surface for the extension argument); the corpus loads the program as a setup file | whole |
+| 2 | `relationalExtension()` — extension.pure:72-252 | `^Extension` with 14 fields: `type` (string); `availableStores = defaultExtensions().availableStores->concatenate(relationalStoreContract())`; `serializerExtension` (function reference); `grammarSerializerExtensions = relationGrammarExtension()` (call); three `executionPlan_execution_*` lambdas; `tdsToRelation = tdsToRelationExtension()` (call → a record with one closure field; its class `TdsToRelationExtension_V_X_X` was EXCLUDED from the prelude because it names the template protocol package — admitted today); `tdsSchema_resolveSchemaImpl`, `testExtension_testedBy` (lambdas); `validTestPackages` (string); `availableFeatures = ExecutionPlanFeatureFlagExtension().availableFeatures`; `moduleExtensions = [^RelationElementAccessorExtension(module = …Name(), instancePrimaryKeyResolver = lambda)]` | `availableStores`, `availableFeatures` only |
+| 3 | `h2SqlDialectExtension()` — h2SqlDialect.pure:59-72 | `^Extension(type, moduleExtensions = [^SqlDialectTranslationModuleExtension(module = …Name(), extraSqlDialects = h2SqlDialect())])`; `h2SqlDialect()` (42-57) assembles the whole H2 dialect from nine helpers (node processors, function-processor map, keywords, …) | nothing: `availableStores`/`availableFeatures` are unspelled → declared `[*]` → empty |
+| 4 | `defaultExtensions()` — core/pure/extensions/functions.pure:84-93 | `^Extension(type, availableStores = [modelStoreContract(), aggregationAwareStoreContract()])` | `availableStores` |
+| 5 | `modelStoreContract()` — core/store/m2m/storeContract.pure:20-43 | `^StoreContract`, no lets; strings, function references, lambdas, booleans; NO `connectionEquality` | `connectionEquality` (absent → `[0..1]` default, router_extension.pure:28) |
+| 6 | `aggregationAwareStoreContract()` — core/store/aggregationAware/storeContract.pure:26-39 | same shape; NO `connectionEquality` | same |
+| 7 | `relationalStoreContract()` — core_relational contract/storeContract.pure:37-184 | `let defaultState = defaultState([], newMap(...))` (the QUERY PLANNER's state — its body calls `buildClassMappingsById`; never portable, never needed) then `^StoreContract` with ~25 fields; `$defaultState` is used ONLY inside the `supports` closure (line 62); `connectionEquality` (48-60) = `{b:Connection[1] \| [d:RelationalDatabaseConnection[1] \| let bAsRDB = $b->cast(…); let comparison = $d.type == $bAsRDB.type && … && compareObjectsWithPossiblyNoProperties(…) && postProcessorsMatch(…)]}` | `connectionEquality` |
+| 8 | `ExecutionPlanFeatureFlagExtension()` — featureFlag.pure:64-89 | one trailing `let shared = ^Extension(type, availableFeatures = ^FeatureExtension(id, routeFunctionExpressions = [pair(lambda, lambda)]))` (a trailing let is the value) | `availableFeatures` → the FeatureExtension record → its `connectionEquality` absent → empty |
+| 9 | `routerExtensions` — core extension.pure:46-49 (qualified property; ported this batch as a platform function in SystemMetamodel) | `$this.availableStores->concatenate($this.availableFeatures)->cast(@RouterExtension)`; StoreContract extends RouterExtension (storeContract.pure:9), FeatureExtension extends RouterExtension (extension.pure:140) | whole |
+| 10 | `.connectionEquality` over `[modelSC, aggSC, relationalSC, featureExt]` | `[relational closure]` — three unspelled keys fold to their empty default (LiteralUnroll.collectionFieldWithDefaults, landed this batch) | — |
+| 11 | `->map(e \| $e->eval($c2))`, concatenate, `$c1->match(…)` | applying the closure yields ONE typed arm; the arm list is now spelled → static dispatch on `$c1`'s class (UserCallInliner.spelledArms, landed); the comparison folds over the two spelled `^RelationalDatabaseConnection` literals; `compareObjectsWithPossiblyNoProperties` → `hierarchicalProperties` over the metamodel rows (SystemMetamodel `class_ancestry`, landed). This tail ran end to end under the (deleted) named-fold version: 5/5 flipped, corpus 163/2410 | — |
+
+### 5.3 What today's three probes hit, in order
+
+1. `Unknown type 'TdsToRelationExtension_V_X_X'` — field 2.`tdsToRelation`. Fixed: the prelude generator's protocol exclusion now admits the one TEMPLATE package (`meta::protocols::pure::vX_X_X::metamodel::m3`), +39 lines of generated shapes.
+2. `unknown function 'executeInMemory'` via `modelStoreContract → execution` — the inliner compiled a CLOSURE field (`executeStoreQuery`) that nobody applies. Fixed: a lambda stored in a record field stands until applied (generalizes the existing postprocessor-config rule).
+3. `unknown function 'buildClassMappingsById'` via `relationalStoreContract → defaultState` — an EAGER let whose only use is inside a standing closure.
+
+Next in line if evaluation stays eager (read off the table, not probed): `grammarSerializerExtensions = relationGrammarExtension()`, `tdsToRelationExtension()`, `moduleExtensions`, and through the H2 record `h2SqlDialect()` with its nine helpers — none of it read by the test.
+
+### 5.4 Diagnosis
+
+The inliner evaluates every field of a record and every let of a body eagerly. The engine's extension record is forty fields wide; this test reads one. Eager evaluation makes the test depend on compiling the engine's whole plug-in surface at compile time. Every wall today is that one pattern, not five bugs.
+
+### 5.5 The rule: records and lets evaluate BY NEED
+
+- **R1 — record fields stand.** Rewriting `^Record(…)` substitutes variables into every field but inlines no call (the inliner's existing "config" mode, today used only for postprocessor config). Closure fields stand even when the record is forced: a closure's body compiles when applied.
+- **R2 — a field read forces the field it names.** `$rec.f`, and `$recs.f` over a spelled collection (absent keys → declared defaults), yields the field's standing value rewritten in normal mode. Only that field.
+- **R3 — lets are classified by their uses in the rest of the body.** No use → not evaluated (dead let). Every use inside a record field → substituted standing (R1 governs it from there). Any other use → eager, exactly as today.
+- **R4 — the query boundary forces.** After the top-level rewrite, a record that survives is data for the lowering: its non-closure fields are forced whole, nested records included; query-level lets the resolver reads (queryLets) likewise. A tree with no standing call skips the pass (containment check), so tests without records never pay it.
+
+Semantics: Pure is strict, but these programs are effect-free, so skipping fields no read reaches is dead-code elimination — result-preserving. What changes is WHEN evaluation happens and whether unread code is compiled at all.
+
+Where it lives: UserCallInliner (record arm, property-access arm, reduceStatements, inlineBody) plus one shared `read(pa, ctx)` helper in LiteralUnroll. No Java names any program (WORLD_MAP rule 5). No new native. About 80 lines.
+
+### 5.6 Interactions checked (the ramifications list)
+
+- **Renaming and capture.** Standing fields are rewritten under the frame's env at standing time — variables already substituted, lambdas already renamed. Forcing runs with an empty env.
+- **Recursion detection (callee stack).** Forcing happens at the READ site or the boundary, where the stack is the reader's. A standing call whose forced inlining re-enters a function already on the stack is flagged as recursion where eager evaluation would not have been. Judged rare (a field holding a call to the function that reads it); the corpus measures it.
+- **Dynamic-arm match inside a standing closure.** The inliner leaves it in place; the "did not fold to []" throw is MatchFold's at lowering, which a standing closure reaches only if its record does — unchanged from today's config rule.
+- **`reduceStatements`' non-let-intermediate wall** is not reached by standing lambda bodies (`lambda()` rewrites statements one by one).
+- **The boundary pass** is one more rewrite over trees that still carry a user call; rewrite is idempotent on inlined trees (folds included).
+- **Closures that reach the lowering** (already true since fix 2 above): a record with a lambda field now carries the lambda's user calls to the lowering instead of their inlined bodies. Which corpus tests build such records is unknown → the full corpus before any commit.
+- **Guards**: CodeShapeGuardrail file limit 3500 (UserCallInliner 1371, LiteralUnroll 677 — room), string-dispatch pin 87, catch-returns-value pin 15 (no new catch), native catalog (walledKey +, routerExtensions −), NativeCatalogGovernance INTERNAL_DESUGAR 17, ArchitectureTest 6c'.
+
+### 5.7 Not covered, by decision
+
+Records built by code rather than spelled (`newMap`-built dictionaries of closures such as H2's processor maps — not read here); dispatch on a runtime value that is not a row; the planner state (`defaultState`) — never evaluated under R3.
+
+### 5.8 Measurement, in order
+
+1. `-Drcorpus.test=testConnectionEquality` → 5 flips expected.
+2. Full corpus with the engine root → 163/2410 expected, ZERO regressions; a regression is analyzed, never pinned around.
+3. Guards (5.6), native catalog regenerated, chain.
+4. Pins move with the burn; GATES/charter/handoff/memory; commit named files (incl. `git rm` ConnEquality.java); push.
+
+## 6. Parking note (2026-09-05, user decision)
+
+Group B (the five connection-equality tests) is PARKED: the walk's Java
+comparison (`harness/ConnEquality.java`) is deleted, the tests fail in both
+channels with the loud wall "scalar match: the arm collection has a
+non-literal prefix (extension-contributed arms) that did not fold to []", and
+the compile-time mechanism of §5 lives on branch
+`wip/72c-extension-registry-read`, not on main. The full research — the
+chain trace, the by-need design, why the unread programs do not compile, and
+the code-as-data leg that would run these five the right way — is
+docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md. Next: the both-channel set (§2,
+now 22 with these five), burned to zero; then the code-as-data leg, sized
+before it is started.

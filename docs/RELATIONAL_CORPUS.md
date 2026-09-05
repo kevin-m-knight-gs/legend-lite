@@ -63,7 +63,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 255 | 3 | 7 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
-| tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
+| tests | 39 | 28 | 2 | 8 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2424** | 41 | 78 | 32 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2419** | 41 | 83 | 32 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2384 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -509,6 +509,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (
 
 ### top error buckets
 
+- 5x scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
 - 3x in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} cannot also bind {meta::relational::metamodel::relation::SelectSQLQuery[1] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} [inlined via meta::relational::functions::sqlstring::toSQL/4]
 - 2x unbound variable '$collection'
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
@@ -538,7 +539,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
-- 1x in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOperationElement ret=meta::relational::metamodel::RelationalOperationElement[Bounded[lower=1, upper=1]]; meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::join::RelationalTreeNode ret=meta::relational::metamodel::join::RelationalTreeNode[Bounded[lower=1, upper=1]]] [inlined via meta::relational::milestoning::applyMilestoningFilters/5]
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
@@ -917,6 +917,11 @@ tests in the ledger: 168
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
 - FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) where "synonymtablenew_0".TYPE = 'CUSIP' and "synonymtablenew_0".NAME = 'CUSIP1'
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select "persontable_0"."address_NAME" as "address" from snDBDefault.default.firmTableNew as "root" left outer join (select "root".*, "addresstable_0".NAME as "address_NAME" from snDBDefault.default.personTable as "root" left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "root".ADDRESSID) where "root".LASTNAME = 'Smith') as "persontable_0" on ("root".ID = "persontable_0".FIRMID)
+- ERROR testConnectionEqualityAllButOnePropertySame [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
+- ERROR testConnectionEqualityAllSameStatic [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
+- ERROR testConnectionEqualityTypeDiff [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
+- ERROR testConnectionEqualityTypeSameSpecDiff [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
+- ERROR testConnectionEqualityTypeSpecSameAuthDiff [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
 - SHAPE testExecuteInDbToTDS [tests]: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - ERROR testResultToJsonStream [tests]: 'GeographicEntityType' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExtractDBsWithSubstituition [tests]: in function 'meta::relational::runtime::extractDBs': unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::runtime::extractDBs/1 -> meta::relational::runtime::extractDBs/2]
