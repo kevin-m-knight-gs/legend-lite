@@ -104,7 +104,21 @@ public final class AssertLedger {
             // '2014-12-01'. Every other cell agrees. Pure's adjust keeps
             // the input's precision (PCT); ours prints the date.
             "meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest",
-            "alloy-adjust-widening");
+            "alloy-adjust-widening",
+            // batch 70 (2026-09-05, corrected): the qualifier
+            // employeesByCityOrManagerAndLastName ends in ->toOne() (Person[1]),
+            // so for a firm with no matching Smith pure's `[]->toOne()` is a
+            // RUNTIME ERROR — pure has no answer. The engine never raises it
+            // relationally: its DEFAULT strategy drops the parent (1 row, the
+            // structure goldens, row-identical to ours) and its FORCED debug
+            // strategy (RelationalDebugContext.forcedIsolation =
+            // BuildCorrelatedSubQuery) keeps it with a NULL (4 rows, these
+            // goldens). Two conventions for an undefined case: a DECISION row,
+            // not a defect and not a divergence of ours.
+            "meta::relational::tests::advanced::forced::structure::testQualifierWithOperation",
+            "decision:empty-toOne-forced-isolation",
+            "meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation",
+            "decision:empty-toOne-forced-isolation");
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect
@@ -113,7 +127,12 @@ public final class AssertLedger {
         String bucket = bucketOf(reason, subjectIsSqlText);
         String defect = ENGINE_GOLDEN_DEFECTS.get(test);
         boolean rowsDiffer = bucket.equals("divergence") || bucket.equals("sql-text-assert");
-        return defect != null && rowsDiffer ? "engine-golden-defect:" + defect : bucket;
+        if (defect == null || !rowsDiffer) {
+            return bucket;
+        }
+        // a registered "decision:<name>" is the bucket verbatim (the golden
+        // is one engine convention for a case pure leaves undefined)
+        return defect.startsWith("decision:") ? defect : "engine-golden-defect:" + defect;
     }
 
     /** The bucket of a whole-test fallback reason (the flip's reason text). */

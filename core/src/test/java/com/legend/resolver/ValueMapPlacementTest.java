@@ -211,4 +211,23 @@ class ValueMapPlacementTest {
                 + "->from(m::M, m::RT)");
         assertEquals(List.of("GammaT"), exec(sql), sql);
     }
+
+    @Test
+    @DisplayName("BARE many read reduced by the body: every parent keeps a value (LEFT)")
+    void bareManyReduceKeepsParents() throws SQLException {
+        // batch 70 (user-ratified rule): no toOne narrows the read, and
+        // joinStrings over an empty String[*] is '' — an org with no
+        // matching child contributes '' + 'T' = 'T', one value per org.
+        // The head joins LEFT with its predicate in-target (the engine's
+        // BuildCorrelatedSubQuery shape); the toOne-narrowed pins above
+        // keep INNER (pure has no answer for an empty toOne). (Real pure's
+        // `String[*] + String[1]` — plus(strings:String[*]) — is the same
+        // reduction; our typer's string plus is binary [1] today, a spec
+        // gap noted in the handoff.)
+        String sql = sqlOf("m::Org.all()->map(o|"
+                + "$o.children->filter(c|$c.name == 'Beta').name->joinStrings(',') + 'T')"
+                + "->from(m::M, m::RT)");
+        assertEquals(List.of("BetaT", "T", "T"), exec(sql), sql);
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+    }
 }

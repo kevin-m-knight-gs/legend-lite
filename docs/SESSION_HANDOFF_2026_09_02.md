@@ -3632,3 +3632,16 @@ depth-3 correlated predicate rides the same keyed subselect), THEN batch
 69 = the deletion. METAMODEL-STORE LEG (user Q): key facts on Column
 rows / a table_keys relation + Runtime/ConnectionStore rows; the PK grid
 = one SQL over the store existence-filtered against information_schema.
+
+**Batch 70 — the isolation join rule + the toOne correction (2026-09-05,
+chain GREEN; GATES batch 70).** Ratchet unchanged 179/2394. Value
+position: INNER when the body flattens or the read is toOne-narrowed;
+LEFT when a BARE many read is reduced by the body (witness
+ValueMapPlacementTest.bareManyReduceKeepsParents). The forced pair =
+decision:empty-toOne-forced-isolation (pure: `[]->toOne()` errors; two
+engine conventions); the default structure goldens are not defects.
+SPEC GAP: `String[*] + String[1]` (plus(strings:String[*])) does not
+type — typer leg. OPEN: isolationTest depth-3 correlated predicate.
+NEXT: batch 69 = the deletion (the fix-before-delete order is
+satisfied: 5 fixed, 2 legs fixed in 69c, 2 receipted, forced pair =
+named decision, isolationTest = named wall).

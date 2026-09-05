@@ -556,13 +556,14 @@ tests in the ledger: 179
 | wall:lowering | 15 |
 | decision:objectReferenceIn | 7 |
 | pass | 36 |
-| sql-text-assert | 8 |
+| sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | zero-assert | 1 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
 | engine-golden-defect:alloy-adjust-widening | 1 |
 | engine-golden-defect:joinStrings-rendering | 4 |
+| decision:empty-toOne-forced-isolation | 2 |
 | engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
@@ -738,10 +739,10 @@ tests in the ledger: 179
 - testTranslateDbType #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h :: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCo
 - testQualifierWithOperation #1 meta::pure::functions::asserts::assertSize -> pass
 - testQualifierWithOperation #2 meta::pure::functions::asserts::assertEquals -> pass
-- testQualifierWithOperation #3 meta::pure::functions::asserts::assertEquals -> sql-text-assert: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
+- testQualifierWithOperation #3 meta::pure::functions::asserts::assertEquals -> decision:empty-toOne-forced-isolation: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
 - testTwoQualifiersWithOperation #1 meta::pure::functions::asserts::assertSize -> pass
 - testTwoQualifiersWithOperation #2 meta::pure::functions::asserts::assertEquals -> pass
-- testTwoQualifiersWithOperation #3 meta::pure::functions::asserts::assertEquals -> sql-text-assert: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
+- testTwoQualifiersWithOperation #3 meta::pure::functions::asserts::assertEquals -> decision:empty-toOne-forced-isolation: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
 - isolationTest #1 assertEquals -> wall:resolver: wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat :: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head a
 - isolationTest #2 - -> not-reached: 1 assert(s) after the failure
 - relationalResultSourcingOfListExecutionPlan #1 assertEquals -> wall:exec: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('result') is not supported

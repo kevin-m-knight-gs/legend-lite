@@ -872,10 +872,26 @@ final class SyntheticHeads {
         // ValueMapPlacementTest.doubleNullConjunctRuleParity caught it);
         // with INNER the pad row never exists. Row-identical to the
         // engine's emission on every measured cell.
+        // THE JOIN KIND FOLLOWS THE MAPPER BODY'S PER-PARENT MULTIPLICITY
+        // (batch 70, user-ratified 2026-09-05): a body that IS the
+        // flattened navigation ([*]) drops non-matching parents by pure's
+        // own flattening — INNER, row-identical. A body that REDUCES a
+        // BARE many-valued read to one value per parent (plus over
+        // String[*], joinStrings, an aggregate: `$f.employees->filter(..)
+        // .firstName + 'Test'`) keeps every parent — pure's plus over an
+        // empty operand is 'Test', one value per firm — so that head joins
+        // LEFT with its predicate in-target. A read NARROWED by toOne()
+        // stays INNER (liftValueRead): pure has no answer for an empty
+        // toOne (a runtime error), so the engine's measured default cell
+        // is the only spec — the forced-isolation goldens are the engine's
+        // OTHER convention for that undefined case, a named decision.
+        boolean reduces = mapper.body().get(mapper.body().size() - 1)
+                .info().multiplicity() instanceof Multiplicity.Bounded rb
+                && Integer.valueOf(1).equals(rb.upper());
         boolean[] lifted = {false};
         List<TypedSpec> body2 = new java.util.ArrayList<>(mapper.body().size());
         for (TypedSpec b : mapper.body()) {
-            body2.add(liftValueRead(b, mapper, lifted));
+            body2.add(liftValueRead(b, mapper, lifted, !reduces));
         }
         if (!lifted[0]) {
             return m;
@@ -898,7 +914,7 @@ final class SyntheticHeads {
      * every occurrence's INNER join must match — the measured
      * ALL-preds-AND-one-WHERE row behavior, by composition. */
     private TypedSpec liftValueRead(TypedSpec n, TypedLambda mapper,
-            boolean[] lifted) {
+            boolean[] lifted, boolean rowDropping) {
         if (n instanceof TypedLambda) {
             return n;
         }
@@ -909,24 +925,31 @@ final class SyntheticHeads {
                 && f.info().type() instanceof Type.ClassType
                 && isLiftableNav(f.source())
                 && mapper.parameters().get(0).equals(bottomVarOf(f.source()))) {
+            // a `->toOne()`/`->first()` NARROWED read keeps the row-dropping
+            // join whatever the body does: pure has NO answer for an empty
+            // toOne (a runtime error), so the engine's measured cell is the
+            // only spec there (ValueMapPlacementTest pins); only a BARE
+            // many-valued read reduced by the body (`.firstName + 'Test'`)
+            // has pure's one-value-per-parent answer and joins LEFT
+            boolean dropping = rowDropping || !(pa.source() instanceof TypedFilter);
             TypedSpec renamed;
             if (f.source() instanceof com.legend.compiler.spec.typed
                     .TypedMilestonedAccess ma) {
                 renamed = new TypedMilestonedAccess(
                         ma.source(),
-                        parkFiltered(ma.property(), f.predicate(), true),
+                        parkFiltered(ma.property(), f.predicate(), dropping),
                         ma.dates(), ma.sweep(), ma.info());
             } else {
                 var hp = (TypedPropertyAccess) f.source();
                 renamed = new TypedPropertyAccess(
                         hp.source(),
-                        parkFiltered(hp.property(), f.predicate(), true),
+                        parkFiltered(hp.property(), f.predicate(), dropping),
                         hp.info());
             }
             lifted[0] = true;
             return new TypedPropertyAccess(renamed, pa.property(), pa.info());
         }
-        return rebuildChildren(n, c -> liftValueRead(c, mapper, lifted));
+        return rebuildChildren(n, c -> liftValueRead(c, mapper, lifted, rowDropping));
     }
 
     /**
