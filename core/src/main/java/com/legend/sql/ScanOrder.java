@@ -20,9 +20,10 @@ import java.util.List;
  *       replaying them on DuckDB opts the HOST-channel statements in.
  *       The platform default stays order-honest.</li>
  * </ul>
- * Scope of the key (measured, not asserted): only join trees carrying
- * a SUBSELECT frame — plain-table joins keep their natural order —
- * rooted at a bare table scan; never over DISTINCT/GROUP BY/aggregate
+ * Scope of the key (measured, not asserted): join trees — with or
+ * without a subselect frame (batch 63: DuckDB's hash join reorders the
+ * joined table's rows within a driving row; H2's nested loop does not)
+ * — rooted at a bare table scan; never over DISTINCT/GROUP BY/aggregate
  * roots (one-row or set semantics), never over a user ORDER BY. A
  * root select carrying LIMIT/OFFSET orders at the same level (order
  * applies before the cap); a bare cap WRAPPER over an orderable inner

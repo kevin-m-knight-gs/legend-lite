@@ -3388,3 +3388,36 @@ in-memory TDS extension; #4 rendered-CSV row diverges), the union
 relation-mapping print ×2 (engine golden prints firstName BLANK though
 the fixture has names — read before touching), testRelationStoreAccessorOnView
 (view expansion on the typed accessor path).
+
+**Receipts after batch 63 (2026-09-04, probes stopped per the 3-probe
+rule; nothing landed):**
+- testSimpleMappingQueryWithFilterInProject: the golden encodes an ENGINE
+  BUG — `$x.firm.employees->filter(e|$e.age < 35).firstName` lists
+  employees exactly when the ROOT person is under 35 (John 30 → John;
+  Oliver 26 → Fabrice 45 + Oliver; Fabrice 45 → none; David 52 → none;
+  fixture relationMappingSetup.pure persons). Ours (Fabrice → Oliver,
+  Oliver → Oliver, John → John, David → null) is Pure's semantics.
+  Bucket: engine-golden-bug. A cap-key probe (ScanOrder keying a bare
+  capped scan) was neutral for it and REVERTED (no witness).
+- testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter:
+  DuckDB "Referenced table t5 not found (candidate t4), LINE 16" on the
+  executed statement (dumped via [sql-fail]); the SAME text replays
+  clean on duckdb_jdbc 1.4.4.0 and 1.5.0.0, prepared statement, with the
+  fixture DDL (job tmp binder.sql). The difference lives in the harness
+  session (settings / seeded table shapes) — next: dump `SHOW TABLES`
+  and `SELECT * FROM duckdb_settings()` from the failing session.
+- testUnionTwoRelationMappings_ManyColumnProject ×2: fixture stores
+  firstName_s1 = '' (testUnion.pure myDB); our SQL is right and our
+  actual prints blank; our EXPECTED side prints `null` (legend-pure's
+  TDS literal maps '' and 'null' cells to NULL — TDSExtension
+  CsvSpecs.nullValueLiterals — and Render prints a NULL cell as `null`).
+  The engine passes, so its `#TDS` print of a NULL cell and of '' must
+  coincide (blank). Before changing Render's `null` spelling, find one
+  PCT relation expectation that prints a null cell (the DuckDB PCT suite
+  passes with the current spelling — a witness must exist or not).
+- testInExecutionWithTempTableForDateTimesWithTz: the runtime time zone
+  reaches only the plan-text dialect (planDialect/EngineStyleH2); the
+  executing lowering never shifts date literals. Leg: thread the
+  connection's timeZone from the execute site into the DuckDB emission
+  and shift DateTime literals (engine convertDateToSqlString with
+  dbTimeZone) — one witness.
