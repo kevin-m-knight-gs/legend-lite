@@ -1069,7 +1069,14 @@ public class RelationalCorpusRunner {
             // TempTable spec (SqlReplayOracle.verify overload) and the
             // oracle materializes tempTableForIn_N before the replay; their
             // sql-asserts are ROW verdicts (disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(17, execPassing,
+            // 17 -> 14 (batch 66, 2026-09-05): the eleventh chained TDG test
+            // (testQualifier — its hop-0 golden spelled through the String
+            // sqlRemoveFormatting) and two multi-node PLAN tests
+            // (testMapWithOpenVariable, testExecutionPlanForQueryWithVariable-
+            // RundateWithinLambda — Allocation nodes replayed on the oracle,
+            // holes filled, the final SQL's rows compared) left the walk's
+            // lane for platform-arm ROW verdicts (disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(14, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1878,10 +1885,24 @@ public class RelationalCorpusRunner {
             // +4 flips (testInExecutionWithTempTableFor{DateTimes,Dates,
             // Numbers,Strings}), 0 lost; sql-verdict disagree 0;
             // dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(193L,
+            // Batch 66 (2026-09-05, the golden PLAN replayed node by node):
+            // the oracle's verifyPlan runs a plan text's nodes in order —
+            // an Allocation's Constant literal or Relational rows bind the
+            // later holes, the engine's template helpers (collectionSize,
+            // renderCollection, varPlaceHolderToString,
+            // optionalVarPlaceHolderOperationSelector, GMTtoTZ, ?replace)
+            // evaluate by their published bodies, the final node's filled
+            // SQL replays for rows (harness PlanReplay behind the SPI);
+            // collection parameters bind two referee elements; the plan
+            // lambda's leading lets scope our rows leg; testQualifier's
+            // hop-0 spelling reaches the chained TDG arm. +3 flips
+            // (testMapWithOpenVariable, testExecutionPlanForQueryWith-
+            // VariableRundateWithinLambda, testQualifier), 0 lost;
+            // sql-verdict disagree 0; dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(190L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2380L,
+            org.junit.jupiter.api.Assertions.assertEquals(2383L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1923,7 +1944,11 @@ public class RelationalCorpusRunner {
             // 24 -> 17 (batch 58, the H2VERSION decision): the seven flipped
             // H2-compatible tests' text asserts left the walk's text-only
             // lane for the platform's row verdicts (lane move, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(17,
+            // 17 -> 16 (batch 66, 2026-09-05): testMapWithOpenVariable's
+            // plan-text assert left the walk's text-only lane — the oracle's
+            // plan replay (Allocation nodes run, holes filled, the final
+            // SQL's rows compared) judges it (lane move, disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(16,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"
@@ -2157,8 +2182,10 @@ public class RelationalCorpusRunner {
                     // exec-passing 21 -> 17 — the four in-list temp-table
                     // tests' sql-asserts now row-verify as platform-arm
                     // verdicts (the oracle materializes tempTableForIn_N).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 14,
-                    "M1 h2-exec rescued fell below the 14 floor: "
+                    // 14 -> 11 (batch 66, 2026-09-05): the same lane move as
+                    // exec-passing 17 -> 14 (testQualifier + two plan tests).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 11,
+                    "M1 h2-exec rescued fell below the 11 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

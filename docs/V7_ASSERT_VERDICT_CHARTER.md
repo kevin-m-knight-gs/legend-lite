@@ -1041,6 +1041,32 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 66 (2026-09-05):** exec-passing
+14 (17 → 14), text-only 16 (17 → 16): the golden PLAN replayed node by
+node — `SqlReplayOracle.verifyPlan` (harness PlanReplay behind the
+SPI) runs a plan text's nodes in order: an Allocation's Constant
+literal or Relational rows bind the later holes; the engine's own
+template helpers evaluate by their published bodies
+(relationalMappingExecution.pure: collectionSize, renderCollection,
+varPlaceHolderToString, optionalVarPlaceHolderOperationSelector,
+GMTtoTZ — PlanDateParameter's GMT→zone move; the `?replace` builtin);
+the final node's filled SQL replays for rows. The arm binds collection
+parameters (two referee elements) and scopes a plan lambda's leading
+lets over our rows leg; the chained-TDG hop finder sees through
+`sqlRemoveFormatting(String)`. +3 flips (testMapWithOpenVariable,
+testExecutionPlanForQueryWithVariableRundateWithinLambda,
+testQualifier); ROW verdicts, disagree 0. Ratchet 193/2380 →
+190/2383; M1 rescued 14 → 11. Lane move by migration. NAMED residue:
+testGroupByWithOpenVariableInAgg ×2 are FIXTURE-LESS plans (the engine
+never executes them — SALES_GCS exists on neither side; text is the
+contract); testIsEmptyOnCollection's golden is
+planToStringWithoutFormatting (its SQL lost its spaces — not a
+statement); testPlanForDateTimeVariableESTTimeZone's plan assert now
+ROW-verifies (host=pass rows=pass) but its template-function-list
+assert keeps the test on the walk; enumMap_* and
+renderCollectionWithTz template operations are not modeled (named
+declines).
+
 **§8.0 scope-table receipt, batch 65 (2026-09-04):** exec-passing
 17 (21 → 17): the four inline in-list temp-table tests
 (testInExecutionWithTempTableFor{DateTimes,Dates,Numbers,Strings}) left

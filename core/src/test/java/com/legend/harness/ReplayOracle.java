@@ -112,6 +112,10 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         return com.legend.sql.dialect.RawSqlBoundary.mark();
     }
 
+    private static String flat(String sql) {
+        return sql.replace("\n", "").replace("\t", "");
+    }
+
     /** The attempt's generator-fetch goldens by hop index (the walk's
      * TDG_GOLDENS, attempt-scoped): a chained hop's ancestor temps
      * materialize from these. Cleared per attempt. */
@@ -139,7 +143,10 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                 throw new H2Verify.Unverifiable(
                         "chained fetch — transcript index out of range", null);
             }
-            if (!r.sqls().get(hopIndex).equals(ourSql)) {
+            // the receipt compares under the corpus's own flattening
+            // (sqlRemoveFormatting strips newlines and tabs): the
+            // H2Compatible spelling hands the arm the flattened hop text
+            if (!flat(r.sqls().get(hopIndex)).equals(flat(ourSql))) {
                 throw new H2Verify.Unverifiable("chained fetch — transcript"
                         + " text mismatch (determinism receipt failed)", null);
             }
@@ -614,6 +621,42 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         try {
             return verifyArmed(session, goldenSql, ours, mappingFqn,
                     rootClassFqn, ctx, tempSeeds(temps));
+        } finally {
+            H2Verify.EXTENT_SUBSET.remove();
+        }
+    }
+
+    /** The golden PLAN replay (batch 66): {@link PlanReplay} runs the
+     * plan's nodes in order on this oracle (Allocation values fetched
+     * here, template operations evaluated by the engine's published
+     * bodies) and the final node's filled SQL replays for rows. */
+    @Override
+    public com.legend.exec.SqlReplayOracle.RowVerdict verifyPlan(
+            Connection session, String goldenPlan,
+            java.util.Map<String, List<String>> bindings,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx) {
+        H2Verify.EXTENT_SUBSET.set(extentSubset);
+        try {
+            String sql = PlanReplay.finalSql(goldenPlan, bindings, s -> {
+                try {
+                    return rows(s);
+                } catch (SQLException e) {
+                    throw new H2Verify.Unverifiable("plan-text: allocation"
+                            + " node replay: " + e.getMessage(), e);
+                }
+            });
+            return verifyArmed(session, sql, ours, mappingFqn, rootClassFqn,
+                    ctx, null);
+        } catch (H2Verify.Unverifiable u) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm-plan: " + u.getMessage());
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(u.getMessage()));
         } finally {
             H2Verify.EXTENT_SUBSET.remove();
         }

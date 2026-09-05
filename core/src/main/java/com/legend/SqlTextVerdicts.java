@@ -526,35 +526,27 @@ final class SqlTextVerdicts {
         for (var e : bindings.spellings().entrySet()) {
             filled = filled.replace("${" + e.getKey() + "}", e.getValue());
         }
-        if (filled.contains("${")) {
-            SqlTextEmission.textVerdict("plan-hole-not-simple (freemarker"
-                    + " operation)");
-            return textEqual ? ok()
-                    : fail(name + " (plan-text, operation hole — text is"
-                            + " the contract): expected " + golden
-                            + ", got " + ours);
-        }
-        // a PLAN-TEXT golden replays its one SQL node, never the plan
-        // text itself (the sqltext homework's 12 "Syntax error in SQL
-        // statement Relational(" misroutes); a multi-node plan has no
-        // single replayable SQL — text stays the contract, counted
-        String replay = planReplaySql(filled);
-        if (replay == null) {
-            SqlTextEmission.textVerdict("plan-text: multi-node plan (no"
-                    + " single sql node to replay)");
-            return textEqual ? ok()
-                    : fail(name + " (plan-text, multi-node — text is the"
-                            + " contract): expected " + golden + ", got "
-                            + ours);
-        }
         List<TypedSpec> bound = new java.util.ArrayList<>(letPrefix);
         bound.addAll(bindings.lets());
+        // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
+        // scopes its leading lets over the last statement — the rows leg
+        // evaluates the last statement under them (batch 66)
+        bound.addAll(lam.body().subList(0, lam.body().size() - 1));
+        // a PLAN-TEXT golden replays its SQL, never the plan text itself
+        // (the sqltext homework's 12 "Syntax error in SQL statement
+        // Relational(" misroutes). ONE sql node with simple holes replays
+        // directly; a multi-node plan (Allocation values feeding the
+        // later holes) or a template OPERATION hole (collectionSize,
+        // renderCollection, GMTtoTZ, ...) is the oracle's plan replay
+        // (batch 66): the referee runs the plan's nodes in order.
+        String replay = filled.contains("${") ? null : planReplaySql(filled);
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         lam.body().get(lam.body().size() - 1), mapping),
                 replay, mapping.fullPath(), rootClassFqn(lam),
                 com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(lam.body().size() - 1)), bound,
-                specs, env, hook, lam);
+                specs, env, hook, lam,
+                replay == null ? golden : null, bindings.lists());
     }
 
     /** The SQL a golden replays: a bare SQL golden is itself; a plan
@@ -724,6 +716,15 @@ final class SqlTextVerdicts {
      * the shape (the plain fetch-text verdict owns it). */
     private static @com.legend.Nullable TdgHop tdgHop(TypedSpec actualSide,
             List<TypedSpec> letPrefix) {
+        // the H2Compatible spelling flattens the hop's text through the
+        // String overload: $testData.sqls->at(i)->sqlRemoveFormatting()
+        if (actualSide instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && uc.callee().qualifiedName().equals(
+                        com.legend.compiler.spec.ResultEnvelopeSplice
+                                .SQL_REMOVE_FORMATTING_FQN)
+                && uc.args().size() == 1) {
+            actualSide = uc.args().get(0);
+        }
         if (!(actualSide instanceof TypedNativeCall at
                 && at.callee().qualifiedName().equals(
                         com.legend.builtin.Pure.AT__T_MANY__INTEGER_1
@@ -931,6 +932,26 @@ final class SqlTextVerdicts {
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook,
             @com.legend.Nullable TypedSpec query) {
+        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                rowsRead, replaySqlOrNull, mappingFqn, classFqn, extentSubset,
+                letPrefix, specs, env, hook, query, null, java.util.Map.of());
+    }
+
+    /** {@link #rowsLegAndVerdict} with a golden PLAN for the oracle's
+     * plan replay ({@code goldenPlan} non-null: the nodes run in order,
+     * {@code planBindings} = the referee's parameter values). */
+    private static ExecutionResult rowsLegAndVerdict(String name,
+            String golden, String ours, boolean textEqual,
+            SqlReplayOracle oracle, TypedSpec rowsRead,
+            @com.legend.Nullable String replaySqlOrNull,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String classFqn, boolean extentSubset,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
+            @com.legend.Nullable TypedSpec query,
+            @com.legend.Nullable String goldenPlan,
+            java.util.Map<String, List<String>> planBindings) {
         ExecutionResult rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();
@@ -956,11 +977,14 @@ final class SqlTextVerdicts {
                     : fail(name + " (sql-text, rows underivable):"
                             + " expected " + golden + ", got " + ours);
         }
-        SqlReplayOracle.RowVerdict rv = oracle.verify(env.connection(),
-                replaySqlOrNull != null ? replaySqlOrNull : golden,
-                rows, mappingFqn, classFqn, extentSubset, env.ctx(),
-                inListTemps(golden, query != null ? query : rowsRead,
-                        letPrefix));
+        SqlReplayOracle.RowVerdict rv = goldenPlan != null
+                ? oracle.verifyPlan(env.connection(), goldenPlan, planBindings,
+                        rows, mappingFqn, classFqn, extentSubset, env.ctx())
+                : oracle.verify(env.connection(),
+                        replaySqlOrNull != null ? replaySqlOrNull : golden,
+                        rows, mappingFqn, classFqn, extentSubset, env.ctx(),
+                        inListTemps(golden, query != null ? query : rowsRead,
+                                letPrefix));
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number

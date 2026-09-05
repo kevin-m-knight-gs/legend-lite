@@ -632,7 +632,11 @@ class JavaEvalLedgerTest {
             // table — the arm reads the query's in([...]) literal (typed
             // literals, no evaluation) into a TempTable spec for the oracle;
             // the frame's query rides FrameFacts to the rows leg.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 830),
+            // 830 -> 842 (batch 66, 2026-09-05): the plan-text arm hands a
+            // multi-node plan and the referee bindings to the oracle's plan
+            // replay (verifyPlan) — routing; the lambda's leading lets scope
+            // the rows leg; the hop finder sees through sqlRemoveFormatting.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 842),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

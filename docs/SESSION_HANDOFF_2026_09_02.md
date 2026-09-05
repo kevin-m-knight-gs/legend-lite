@@ -3502,3 +3502,32 @@ text verified pass (EngineTestExecutor.sqlTextVerify / the assert arm)
 docs/RELATIONAL_CORPUS.md is the gate (readBaseline) and must be
 re-baselined by hand with the note; then the forms (ObjectRefs →
 objectReferenceIn as a Pure program; ConnEquality).
+
+**Batch 66 — the golden PLAN replayed node by node (2026-09-05, chain
+GREEN ~6m; docs/GATES.md batch 66).** Ratchet 193/2380 → 190/2383.
+harness/PlanReplay (behind SqlReplayOracle.verifyPlan): Allocation
+nodes (Constant literal / Relational rows fetched on the oracle) bind
+the holes; the engine's template helpers evaluate by their published
+bodies; the final SQL replays. VerdictQueries.refereeBindings binds
+[*] String/Integer params (two elements, `lists`); the plan lambda's
+leading lets scope our rows leg; tdgHop sees through
+sqlRemoveFormatting(String). Receipts in the charter batch-66 entry.
+
+ONE-BY-ONE ORDER AGREED (2026-09-05, user: "go one by one … we never
+resolved assert free"): next batch 67 = (1) query-chaining golden(1)
+replay (materialize tempTableForIn_<var> from golden(0)'s rows, attempt
+cache; golden(0) itself = decision:plan-structure, no counterpart
+statement on our one-statement plan); (2) forced-isolation VALUE frames
+through the existing golden-side NULL-drop compare (H2Verify
+FORCED_MECHANISM guard throws before reaching it; the worry was
+strategy TEXT, rows are sound); (3) testToSqlGenerationFirstDayOfWeek
+= a POSTGRES golden replayed on H2 (H2 DATE_TRUNC week starts Sunday:
+golden 2014-11-30 vs ours/Postgres Monday 2014-12-01) — route the
+explicit non-H2 DatabaseType to the foreign-dialect text residue;
+(4) assert-free: bucket stays zero-assert; the platform lane runs the
+body's statements (a clean run = zero-assert pass under the 0-assert
+ceiling; inert = named zero-assert:inert row, not a fallback);
+(5) graph-keys over-fetch (testQueryOfMilestonedTypeWithFilterInMapping):
+compare on the golden's columns + an `over-fetch` census bucket —
+POLICY, needs the user's yes. Then batch 68 = the deletion of the
+walk's byte-match-without-replay and contains-over-our-text passes.

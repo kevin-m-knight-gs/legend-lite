@@ -125,6 +125,24 @@ public interface SqlReplayOracle {
                 extentSubset, ctx);
     }
 
+    /** A golden PLAN's replay (batch 66): the plan text's nodes run in
+     * order on the oracle — an Allocation's value (a Constant's literal;
+     * a Relational node's rows) binds the later holes, the template
+     * operations (collectionSize, renderCollection,
+     * optionalVarPlaceHolderOperationSelector, GMTtoTZ) evaluate over
+     * the bindings, and the final Relational node's filled SQL replays;
+     * its rows compare with ours. {@code bindings}: parameter name →
+     * raw spellings (a scalar is one element). The default declines. */
+    default RowVerdict verifyPlan(java.sql.Connection session, String goldenPlan,
+            java.util.Map<String, java.util.List<String>> bindings,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx) {
+        return RowVerdict.declined("plan replay not supported by this oracle");
+    }
+
     record RowVerdict(Outcome outcome, @com.legend.Nullable String detail) {
         public enum Outcome { MATCH, DIVERGED, DECLINED }
 

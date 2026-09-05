@@ -84,7 +84,19 @@ public final class VerdictQueries {
      * bindable scalar (enum/class/collection — the arm declines
      * COUNTED; the charter's measure-first residue). */
     public record PlanBindings(List<TypedSpec> lets,
-            java.util.Map<String, String> spellings) {
+            java.util.Map<String, String> spellings,
+            java.util.Map<String, List<String>> lists) {
+        public PlanBindings(List<TypedSpec> lets,
+                java.util.Map<String, String> spellings) {
+            this(lets, spellings, singletons(spellings));
+        }
+
+        private static java.util.Map<String, List<String>> singletons(
+                java.util.Map<String, String> spellings) {
+            java.util.Map<String, List<String>> out = new java.util.LinkedHashMap<>();
+            spellings.forEach((k, v) -> out.put(k, List.of(v)));
+            return out;
+        }
     }
 
     public static @com.legend.Nullable PlanBindings refereeBindings(
@@ -97,11 +109,37 @@ public final class VerdictQueries {
         List<TypedSpec> lets = new java.util.ArrayList<>();
         java.util.Map<String, String> spellings =
                 new java.util.LinkedHashMap<>();
+        java.util.Map<String, List<String>> lists =
+                new java.util.LinkedHashMap<>();
         for (int i = 0; i < lam.parameters().size(); i++) {
             String name = lam.parameters().get(i);
             Type pt = ft.params().get(i).type();
             TypedSpec value;
             String spelling;
+            if (ft.params().get(i).multiplicity().isMany()
+                    && (pt == Type.Primitive.STRING
+                            || pt == Type.Primitive.INTEGER)) {
+                // a COLLECTION parameter (batch 66): two fixed referee
+                // elements — the plan's template operations
+                // (collectionSize, renderCollection) evaluate over them
+                // at the oracle; our side runs the same two
+                boolean str = pt == Type.Primitive.STRING;
+                List<TypedSpec> elems = str
+                        ? List.of(new com.legend.compiler.spec.typed.TypedCString(
+                                        "A", scalar(pt)),
+                                new com.legend.compiler.spec.typed.TypedCString(
+                                        "B", scalar(pt)))
+                        : List.of(new com.legend.compiler.spec.typed.TypedCInteger(
+                                        22L, scalar(pt)),
+                                new com.legend.compiler.spec.typed.TypedCInteger(
+                                        23L, scalar(pt)));
+                ExprType many = new ExprType(pt, Multiplicity.Bounded.ZERO_MANY);
+                lets.add(new com.legend.compiler.spec.typed.TypedLet(name,
+                        new com.legend.compiler.spec.typed.TypedCollection(
+                                elems, many), many));
+                lists.put(name, str ? List.of("A", "B") : List.of("22", "23"));
+                continue;
+            }
             if (pt == Type.Primitive.STRING) {
                 value = new com.legend.compiler.spec.typed.TypedCString(
                         "A", scalar(Type.Primitive.STRING));
@@ -137,8 +175,9 @@ public final class VerdictQueries {
             lets.add(new com.legend.compiler.spec.typed.TypedLet(
                     name, value, value.info()));
             spellings.put(name, spelling);
+            lists.put(name, List.of(spelling));
         }
-        return new PlanBindings(lets, spellings);
+        return new PlanBindings(lets, spellings, lists);
     }
 
     private static ExprType scalar(Type t) {
