@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 79 | 9 | 4 | 16 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 249 | 6 | 4 | 0 | 2 | 2 | 0 | 4 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 148 | 2 | 5 | 0 | 1 | 1 | 0 | 1 |
+| functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2419** | 47 | 77 | 32 | 12 | 12 | 29 | 21 |
+| **total** | 2575 | **2420** | 46 | 77 | 32 | 12 | 12 | 29 | 21 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2360 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
+SOFT-PASS RECONCILIATION (F2.1): 2420 PASS = 2361 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2360 clean + 59 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 211
+tests in the ledger: 210
 
 | bucket | asserts |
 |---|---|
@@ -550,9 +550,9 @@ tests in the ledger: 211
 | wall:typer | 49 |
 | wall:resolver | 29 |
 | pass | 83 |
-| divergence | 47 |
+| divergence | 46 |
 | wall:exec | 14 |
-| not-reached | 60 |
+| not-reached | 59 |
 | referee-cannot-replay | 16 |
 | zero-assert | 3 |
 | wall:lowering | 16 |
@@ -654,8 +654,6 @@ tests in the ledger: 211
 - testSubAggregationWithDeepAndOverlap_WithColVar #2 - -> not-reached: 2 assert(s) after the failure
 - testExistsAsNullWithSubType #1 assertSize -> wall:resolver: wall-exec: nested navigation '_' inside an exists/isEmpty predic :: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - testExistsAsNullWithSubType #2 - -> not-reached: 2 assert(s) after the failure
-- testIsolatioWhereNoConstaintsAndInnerJoin #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: ['_', '_', '_', '_', '_', '_', ' ::  expected: ['Firm A, Europe', 'Firm B, Europe', 'Firm C, Europe', 'Firm X, Europe', 'Firm X, Europe', 'Firm X, Europe', 'Firm X, UK'] actual:   ['Firm A, Europe', 'Firm B, Europe', 'Firm C, Europe', 'Firm X, Europe']
-- testIsolatioWhereNoConstaintsAndInnerJoin #2 - -> not-reached: 1 assert(s) after the failure
 - testChainedFiltersQuery #1 assertSize -> wall:resolver: wall-exec: MappingResolutionException: property '_' of class '_' is not mapped in mapping 'meta::relationa :: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - testChainedFiltersQuery #2 - -> not-reached: 2 assert(s) after the failure
 - testFilterAfterJoinInRelationWithExtendedPrimitives #1 meta::relational::functions::asserts::assertSameSQL -> referee-cannot-replay: platform-fail: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""n :: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""name"",""persontable_0"".FIRSTNAMEas""empl
@@ -964,7 +962,6 @@ tests in the ledger: 211
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRE
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
-- FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)

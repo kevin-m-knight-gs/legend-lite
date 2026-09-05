@@ -3334,3 +3334,38 @@ RECEIPTS this stretch (bring to the user, not burns):
   `-Drcorpus.test=<name>` (the family filter selects nothing otherwise).
   The interactive shell's `grep` is a snapshot function that drops
   matches — use /usr/bin/grep.
+
+**Batch 62 — the join chain's terminal column (2026-09-04, chain GREEN
+5m50s; docs/GATES.md batch 62).** Ratchet 211/2362 → 210/2363
+(testIsolatioWhereNoConstaintsAndInnerJoin). Engine rule
+(resolveJoinElement): a `@J > @J | table.COL` terminal is re-resolved
+in the joined cursor; ours read the spelled table (the root) and lost
+the fan-out. RelOpTranslator.joinNavigation rebases terminal columns
+the chain end declares (Pipeline.aliasToTargetColumns, recorded at
+hoist time in JoinChainEmission); undeclared columns stay where spelled
+(the view-hop witnesses testView/testViewWithJoinsAndDistinct broke on
+the unguarded cut). Known gap: an `(INNER)` hop inside a chain still
+emits LEFT OUTER (engine: LEFT OUTER to an inner-joined isolated
+subselect) — rows agree on the fixture; a witness will name it.
+
+USER RULING (2026-09-04): batch 61's PCT trade is kept. Surface any
+PCT-affecting trade BEFORE committing (memory:
+lane-seam-relational-precedent).
+
+NEXT (measured, small): the three enum positional tests
+(testProjectWithIfWhereBothSidesUseTheSameEnumMapping,
+testProjectWithIfWhereOneSideIsEnumLiteral,
+testProjectionWithEnumThroughAssociation) assert rows->at(i) over
+`Product ⋈ Product_Synonym` with no sort; H2 emits product scan order
+then synonym scan order (fixture 11→P1, 12→P2, 13→P1 ⇒ (P1,11),(P1,13),
+(P2,12)). ScanOrder's key is the driving table's rowid only and only
+over join trees with a SUBSELECT frame; the leg = a lexicographic key
+(root rowid, then each joined base table's rowid in join order) and
+plain-table joins in scope — engine-corpus-compat pass only
+(StableScanOrder), measured by the full run.
+Other receipts: testMultipleJoinsInPropertyMappingWithDatesInClass —
+our execute SQL matches the golden (6 rows) but the assert side
+re-derives `$result.values.tableProperty` as a fresh class query
+(ResultEnvelopeSplice.valuesRead splices .values into the chain) whose
+join pruning drops the fan-out (3): a navigation over an EXECUTED
+result must keep the executed row set — a verdict-seam leg.

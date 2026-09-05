@@ -458,6 +458,8 @@ final class JoinChainEmission {
                         List.of(p.expr, slot, condLambda));
             }
             p.aliasToTargetTable.put(slotAlias, targetTable);
+            p.aliasToTargetColumns.put(slotAlias,
+                    targetColumnNames(hopDb, targetTable, viewTarget, model));
             if (!emitNavigate) p.pathToSlot.put(pathKey, slotAlias);
             prevTable = targetTable;
             prevAlias = slotAlias;
@@ -1089,6 +1091,25 @@ final class JoinChainEmission {
             case RelationalOperation.Group g -> nullTolerant(g.inner());
             default -> false;
         };
+    }
+
+    /** The declared column names of a hop's target relation — a view's
+     * column mappings, else the physical table's columns; empty when
+     * unknown (the terminal rebase then leaves the column where spelled). */
+    private static Set<String> targetColumnNames(String dbFqn, String targetTable,
+            @com.legend.Nullable String viewTarget, ModelBuilder model) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        if (viewTarget != null) {
+            model.findView(dbFqn, viewTarget).ifPresent(v ->
+                    v.columnMappings().forEach(c -> out.add(c.name())));
+            return out;
+        }
+        DatabaseDefinition.TableDefinition t =
+                PhysicalTables.find(dbFqn, targetTable, model);
+        if (t != null) {
+            t.columns().forEach(c -> out.add(c.name()));
+        }
+        return out;
     }
 
     private static DatabaseDefinition.@com.legend.Nullable TableDefinition findPhysicalTable(

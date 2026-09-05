@@ -1815,10 +1815,21 @@ public class RelationalCorpusRunner {
             // > 1 THEN NULL ELSE acos(x)), the same row outcome. +2 flips
             // (testFilterUsingArcCosFunction, testFilterUsingArcSinFunction),
             // 0 lost; sql-verdict disagree 0; dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(211L,
+            // Batch 62 (2026-09-04, the join chain's terminal column): the
+            // engine re-resolves a `@J > @J | table.COL` terminal in the
+            // JOINED cursor (pureToSQLQuery resolveJoinElement:
+            // reprocessAliases old alias -> op.alias); the spelled table is
+            // grammar. RelOpTranslator rebases terminal column refs the
+            // chain end DECLARES to the chain end (Pipeline records each
+            // slot's target columns); a column it does not declare stays
+            // where spelled (TestMappingWithViewJoins' `| firmTable
+            // .LEGALNAME` after a hop onto a view). +1 flip
+            // (testIsolatioWhereNoConstaintsAndInnerJoin), 0 lost;
+            // sql-verdict disagree 0; dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(210L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2362L,
+            org.junit.jupiter.api.Assertions.assertEquals(2363L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

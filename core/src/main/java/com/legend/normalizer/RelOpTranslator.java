@@ -65,8 +65,16 @@ final class RelOpTranslator {
 
         @com.legend.Nullable String targetTable(@com.legend.Nullable String alias);
 
+        /** Whether the hoisted slot's target relation declares {@code column}
+         * (unquoted-identifier case rules). */
+        boolean targetHasColumn(@com.legend.Nullable String alias, String column);
+
         /** Outside any pipeline: nothing is ambiguous, no slots exist. */
         PipelineView NONE = new PipelineView() {
+            @Override public boolean targetHasColumn(
+                    @com.legend.Nullable String alias, String column) {
+                return false;
+            }
             @Override public Set<String> ambiguousTables() {
                 return Set.of();
             }
@@ -578,34 +586,76 @@ final class RelOpTranslator {
                             .map(e -> translate(e, tableScope, targetVarOrNull,
                                     rowBindOrNull, pipeline))
                             .toList());
-            case RelationalOperation.JoinNavigation jn -> {
-                // The chain has been hoisted into the pipeline as a
-                // join(~alias, ...) step. Its sub-row is $row.<alias>;
-                // the terminal (if any) reads from that sub-row's
-                // table scope.
-                if (rowBindOrNull == null || !pipeline.hasSlots()) {
-                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                            "Nested JoinNavigation in scope without pipeline; "
-                          + "JoinNav inside association predicates or join "
-                          + "conditions is not supported.");
-                }
-                String alias = java.util.Objects.requireNonNull(pipeline.slotFor(jn.chain()),
-                        "no pipeline slot for join chain");
-                ValueSpecification subRow = new AppliedProperty(
-                        java.util.Objects.requireNonNull(rowBindOrNull,
-                                "slot navigation without a row binding"),
-                        alias);
-                if (jn.terminal() == null) yield subRow;
-                String terminalTable = pipeline.targetTable(alias);
-                Map<String, ValueSpecification> innerScope = new LinkedHashMap<>(tableScope);
-                if (terminalTable != null) innerScope.put(terminalTable, subRow);
-                yield translate(jn.terminal(), innerScope, targetVarOrNull,
-                        rowBindOrNull, pipeline);
-            }
+            case RelationalOperation.JoinNavigation jn -> joinNavigation(jn,
+                    tableScope, targetVarOrNull, rowBindOrNull, pipeline);
             // group-1 types never reach here (their arms matched above);
             // javac still needs coverage over the sealed hierarchy
             default -> throw new IllegalStateException(
                     "relational-op dispatch: unexpected " + op.getClass());
+        };
+    }
+
+    /** A hoisted join chain: the pipeline carries it as a join(~alias, ...)
+     * step whose sub-row is $row.&lt;alias&gt;; the terminal (if any) reads
+     * from that sub-row's table scope. */
+    private static ValueSpecification joinNavigation(
+            RelationalOperation.JoinNavigation jn,
+            Map<String, ValueSpecification> tableScope,
+            @com.legend.Nullable ValueSpecification targetVarOrNull,
+            @com.legend.Nullable Variable rowBindOrNull,
+            PipelineView pipeline) {
+        if (rowBindOrNull == null || !pipeline.hasSlots()) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "Nested JoinNavigation in scope without pipeline; "
+                  + "JoinNav inside association predicates or join "
+                  + "conditions is not supported.");
+        }
+        String alias = java.util.Objects.requireNonNull(pipeline.slotFor(jn.chain()),
+                "no pipeline slot for join chain");
+        ValueSpecification subRow = new AppliedProperty(rowBindOrNull, alias);
+        if (jn.terminal() == null) {
+            return subRow;
+        }
+        String terminalTable = pipeline.targetTable(alias);
+        Map<String, ValueSpecification> innerScope = new LinkedHashMap<>(tableScope);
+        if (terminalTable != null) {
+            innerScope.put(terminalTable, subRow);
+        }
+        // ENGINE (pureToSQLQuery.pure resolveJoinElement): the terminal's
+        // columns are re-resolved in the JOINED cursor — reprocessAliases
+        // (OldAliasToNewAlias(tac.alias -> op.alias)) for a plain column,
+        // the extracted columns for a DynaFunction. The spelled table is
+        // grammar: `| firmTable.ADDRESSID` after a chain ending on
+        // personTable reads personTable's ADDRESSID (golden:
+        // "persontable_0".ADDRESSID exported from the isolated subselect).
+        // Resolving it by its spelled name read the ROOT row and dropped
+        // the chain's fan-out (testIsolatioWhereNoConstaintsAndInnerJoin).
+        // A column the chain end does NOT declare stays where it is
+        // spelled (TestMappingWithViewJoins: `| firmTable.LEGALNAME` after
+        // a hop onto a view without LEGALNAME reads the root — the
+        // engine's extracted-column projection finds it there). Batch 62.
+        RelationalOperation terminal = terminalTable == null
+                ? jn.terminal()
+                : rebaseToTable(jn.terminal(), terminalTable,
+                        c -> !c.table().equals(terminalTable)
+                                && pipeline.targetHasColumn(alias, c.column()));
+        return translate(terminal, innerScope, targetVarOrNull, rowBindOrNull,
+                pipeline);
+    }
+
+    /** Every column reference inside a join chain's terminal re-aliased to
+     * the chain-end table (the engine's reprocessAliases); nested join
+     * navigations keep their own chains. */
+    private static RelationalOperation rebaseToTable(RelationalOperation t,
+            String table,
+            java.util.function.Predicate<RelationalOperation.ColumnRef> moves) {
+        return switch (t) {
+            case RelationalOperation.ColumnRef cr -> moves.test(cr)
+                    ? new RelationalOperation.ColumnRef(cr.databaseName(), table,
+                            cr.column())
+                    : cr;
+            case RelationalOperation.JoinNavigation nested -> nested;
+            default -> t.mapChildren(x -> rebaseToTable(x, table, moves));
         };
     }
 

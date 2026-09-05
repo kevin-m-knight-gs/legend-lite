@@ -85,6 +85,20 @@ final class Pipeline {
                     @com.legend.Nullable String alias) {
                 return aliasToTargetTable.get(alias);
             }
+            @Override public boolean targetHasColumn(
+                    @com.legend.Nullable String alias, String column) {
+                for (String c : aliasToTargetColumns.getOrDefault(alias, Set.of())) {
+                    if (c.equalsIgnoreCase(column)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
         };
     }
+
+    /** Column names of each hoisted chain slot's TARGET relation (table
+     * or view), recorded beside {@link #aliasToTargetTable} — the
+     * terminal-column rebase reads them. */
+    final Map<String, Set<String>> aliasToTargetColumns = new LinkedHashMap<>();
 }
