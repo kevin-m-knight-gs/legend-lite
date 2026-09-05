@@ -3531,3 +3531,22 @@ ceiling; inert = named zero-assert:inert row, not a fallback);
 compare on the golden's columns + an `over-fetch` census bucket —
 POLICY, needs the user's yes. Then batch 68 = the deletion of the
 walk's byte-match-without-replay and contains-over-our-text passes.
+
+**Batch 67 — the two-statement in-list plan as rows; assert-free bodies
+on the platform (2026-09-05, chain GREEN ~6m; docs/GATES.md batch 67).**
+Ratchet 190/2383 → 187/2386. golden(0) = the let's value (rows leg =
+the let expression wrapped in the frame's mapping); golden(1) = the
+population temp filled from golden(0) at the oracle (attempt cache
+ATTEMPT_SQL_GOLDENS). Assert-free bodies run through the platform and
+score "N statements executed". Forced-isolation guard restored with
+the measured reason. USER RULINGS this stretch: (1) firstDayOfWeek —
+Pure normalizes; the engine's H2 dialect fails to (Sunday); ours is
+Pure's Monday; (2) joinStrings — the engine's rendering is wrong on
+every dialect; (3) both → an `engine-golden-defect` ledger bucket with
+receipts, still failing on rows; (4) over-fetch → FIX it (batch 68:
+implicitly inherited PMs excluded from the whole-instance projection —
+StoreResolver's bindings iterations ~923/1109 — and served on demand
+through the ancestor set; ImplicitInheritance records the inherited
+names; witness testQueryOfMilestonedTypeWithFilterInMapping);
+(5) then batch 69 = the deletion of the walk's text-only verified
+passes (re-baseline families by hand with the note).

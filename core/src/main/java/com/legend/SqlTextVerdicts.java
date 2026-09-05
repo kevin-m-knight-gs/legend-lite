@@ -99,7 +99,17 @@ final class SqlTextVerdicts {
                     .letBound(producer.args().get(2), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
-            dbType = ConnectionFlags.databaseTypeOf(rt);
+            if (ConnectionFlags.connectionInstanceOf(rt) == null) {
+                // a DRIVER that is neither an enum literal nor a runtime
+                // (the per-driver pair loop's `$p.first`): its dialect is
+                // not statically known — never ASSUMED H2 (batch 67: a
+                // Postgres golden replayed on H2 read DATE_TRUNC week as
+                // Sunday, a referee-dialect skew, not ours). The
+                // foreign-dialect residue owns it: text is the contract.
+                dbType = "unresolved";
+            } else {
+                dbType = ConnectionFlags.databaseTypeOf(rt);
+            }
             if (dbType == null) {
                 return null;
             }
@@ -384,6 +394,20 @@ final class SqlTextVerdicts {
         TypedSpec resultArg = read.args().get(0);
         String golden = scalarString(StatementExecutor.evalValue(
                 goldenSide, letPrefix, specs, env, null, false, hook));
+        if (read.args().size() == 2
+                && read.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCInteger k
+                && k.value().longValue() > 0) {
+            // the engine's n-th statement: owned ONLY as the main
+            // statement of its two-statement in-list plan (the golden
+            // reads tempTableForIn_<let>) — ours is our one statement,
+            // read at index 0; any other n>0 keeps its current path
+            if (golden == null || !NAMED_IN_TEMP.matcher(golden).find()) {
+                return null;
+            }
+            producerSide = com.legend.compiler.spec.VerdictQueries
+                    .firstStatementRead(read);
+        }
         String ours = scalarString(StatementExecutor.evalValue(
                 producerSide, letPrefix, specs, env, null, false, hook));
         if (golden == null || ours == null) {
@@ -399,11 +423,68 @@ final class SqlTextVerdicts {
                             + " outside tests: there are no goldens)");
         }
         FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        // the engine's two-statement in-list plan (batch 67): golden(0)
+        // is the POPULATION statement of `let v = <to-many expr>` inside
+        // the query lambda — its rows ARE that let's value, so the rows
+        // leg evaluates the let's expression; golden(1) reads
+        // tempTableForIn_<v>, which the oracle materializes from the
+        // attempt's remembered population golden (TempTable "population")
+        PopulationShape pop = populationShape(golden, fm.query());
+        if (pop != null && pop.rowsRead() != null && fm.mappingRef() != null) {
+            // the let's expression runs through the one router, wrapped
+            // in the frame's own mapping like every rows leg
+            return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            pop.rowsRead(), fm.mappingRef()),
+                    null, fm.mapping(), null, false,
+                    letPrefix, specs, env, hook, fm.query());
+        }
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
-                specs, env, hook, fm.query());
+                specs, env, hook, fm.query(), null, java.util.Map.of(),
+                pop == null ? List.of() : pop.temps());
+    }
+
+    private record PopulationShape(@com.legend.Nullable TypedSpec rowsRead,
+            List<SqlReplayOracle.TempTable> temps) {
+    }
+
+    private static final java.util.regex.Pattern NAMED_IN_TEMP =
+            java.util.regex.Pattern.compile("tempTableForIn_([A-Za-z_][A-Za-z0-9_]*)");
+
+    /** The population shapes of a golden against the frame's query
+     * lambda: a `select distinct` golden whose leading let feeds a temp
+     * (rows leg = the let's expression, wrapped like the frame), or a
+     * golden reading {@code tempTableForIn_<let>} (a "population" temp
+     * spec the oracle fills from the remembered population golden). */
+    private static @com.legend.Nullable PopulationShape populationShape(
+            String golden, @com.legend.Nullable TypedSpec query) {
+        if (!(query instanceof TypedLambda lam) || lam.body().size() < 2) {
+            return null;
+        }
+        java.util.regex.Matcher m = NAMED_IN_TEMP.matcher(golden);
+        String var = m.find() && !m.group(1).matches("\\d+") ? m.group(1) : null;
+        for (TypedSpec s : lam.body().subList(0, lam.body().size() - 1)) {
+            if (!(s instanceof com.legend.compiler.spec.typed.TypedLet let)
+                    || !let.value().info().multiplicity().isMany()) {
+                continue;
+            }
+            if (var != null && let.name().equals(var)) {
+                String kind = let.value().info().type()
+                        == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                        ? "population:integer" : "population:string";
+                return new PopulationShape(null, List.of(
+                        new SqlReplayOracle.TempTable("tempTableForIn_" + var,
+                                kind, List.of())));
+            }
+            if (var == null && golden.toLowerCase(java.util.Locale.ROOT)
+                    .startsWith("select distinct")) {
+                return new PopulationShape(let.value(), List.of());
+            }
+        }
+        return null;
     }
 
     /** The exec-sql-read producer node: a {@code sql($res)} /
@@ -436,7 +517,10 @@ final class SqlTextVerdicts {
                                         && uc.args().get(1) instanceof
                                         com.legend.compiler.spec.typed
                                         .TypedCInteger k
-                                        && k.value().longValue() == 0)) {
+                                        && k.value().longValue() >= 0)) {
+                    // n > 0 names the n-th ENGINE statement; the arm owns
+                    // it only for the two-statement in-list plan (batch
+                    // 67) and refuses the rest below
                     return uc;
                 }
             }
@@ -952,6 +1036,27 @@ final class SqlTextVerdicts {
             @com.legend.Nullable TypedSpec query,
             @com.legend.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings) {
+        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                rowsRead, replaySqlOrNull, mappingFqn, classFqn, extentSubset,
+                letPrefix, specs, env, hook, query, goldenPlan, planBindings,
+                List.of());
+    }
+
+    /** {@link #rowsLegAndVerdict} with extra temp tables the golden reads
+     * ({@code temps} — beside the inline in-list temp the arm derives). */
+    private static ExecutionResult rowsLegAndVerdict(String name,
+            String golden, String ours, boolean textEqual,
+            SqlReplayOracle oracle, TypedSpec rowsRead,
+            @com.legend.Nullable String replaySqlOrNull,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String classFqn, boolean extentSubset,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
+            @com.legend.Nullable TypedSpec query,
+            @com.legend.Nullable String goldenPlan,
+            java.util.Map<String, List<String>> planBindings,
+            List<SqlReplayOracle.TempTable> temps) {
         ExecutionResult rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();
@@ -983,8 +1088,10 @@ final class SqlTextVerdicts {
                 : oracle.verify(env.connection(),
                         replaySqlOrNull != null ? replaySqlOrNull : golden,
                         rows, mappingFqn, classFqn, extentSubset, env.ctx(),
-                        inListTemps(golden, query != null ? query : rowsRead,
-                                letPrefix));
+                        temps.isEmpty()
+                                ? inListTemps(golden, query != null ? query : rowsRead,
+                                        letPrefix)
+                                : temps);
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number
@@ -1060,7 +1167,8 @@ final class SqlTextVerdicts {
      * compare's pk-collapse licence). */
     private record FrameFacts(@com.legend.Nullable String mapping,
             @com.legend.Nullable String cls, boolean extentSubset,
-            @com.legend.Nullable TypedSpec query) {
+            @com.legend.Nullable TypedSpec query,
+            @com.legend.Nullable TypedPackageableRef mappingRef) {
     }
 
     private static FrameFacts frameMappingAndClass(TypedSpec resultArg,
@@ -1102,9 +1210,10 @@ final class SqlTextVerdicts {
                     && !lam2.body().isEmpty()
                     && com.legend.compiler.spec.VerdictQueries.extentSubset(
                             lam2.body().get(lam2.body().size() - 1));
-            return new FrameFacts(mapping, cls, subset, lamArg);
+            return new FrameFacts(mapping, cls, subset, lamArg,
+                    ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null);
         }
-        return new FrameFacts(null, null, false, null);
+        return new FrameFacts(null, null, false, null, null);
     }
 
     private static @com.legend.Nullable String rootClassFqn(

@@ -109,6 +109,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             beginAttempt(Connection conn) throws SQLException {
         conn.setAutoCommit(false);
         ATTEMPT_GOLDENS.clear();
+        ATTEMPT_SQL_GOLDENS.clear();
         return com.legend.sql.dialect.RawSqlBoundary.mark();
     }
 
@@ -619,12 +620,54 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
         H2Verify.EXTENT_SUBSET.set(extentSubset);
         try {
+            List<String> seeds = tempSeeds(temps);
+            // a POPULATION temp (batch 67): the engine's two-statement
+            // in-list plan fills tempTableForIn_<let> with its population
+            // statement's rows — the attempt's most recent `select
+            // distinct` golden, remembered below
+            for (var t : temps) {
+                if (t.kind().startsWith("population")) {
+                    String pop = null;
+                    for (int i = ATTEMPT_SQL_GOLDENS.size() - 1; i >= 0; i--) {
+                        if (ATTEMPT_SQL_GOLDENS.get(i).toLowerCase(java.util.Locale.ROOT)
+                                .startsWith("select distinct")) {
+                            pop = ATTEMPT_SQL_GOLDENS.get(i);
+                            break;
+                        }
+                    }
+                    if (pop == null) {
+                        throw new H2Verify.Unverifiable("population temp "
+                                + t.name() + ": no population golden asserted"
+                                + " before this statement", null);
+                    }
+                    seeds = new java.util.ArrayList<>(seeds == null ? List.of() : seeds);
+                    seeds.add("DROP TABLE IF EXISTS " + t.name());
+                    seeds.add("CREATE LOCAL TEMPORARY TABLE " + t.name()
+                            + " (ColumnForStoringInCollection "
+                            + (t.kind().endsWith("integer") ? "BIGINT" : "VARCHAR(1024)")
+                            + ")");
+                    seeds.add("INSERT INTO " + t.name() + " " + pop);
+                }
+            }
+            ATTEMPT_SQL_GOLDENS.add(goldenSql);
             return verifyArmed(session, goldenSql, ours, mappingFqn,
-                    rootClassFqn, ctx, tempSeeds(temps));
+                    rootClassFqn, ctx, seeds);
+        } catch (H2Verify.Unverifiable u) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm: " + u.getMessage());
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(u.getMessage()));
         } finally {
             H2Verify.EXTENT_SUBSET.remove();
         }
     }
+
+    /** Every golden verified in the attempt, in order — a later
+     * statement's population temp fills from the earlier one. Cleared
+     * per attempt. */
+    private static final List<String> ATTEMPT_SQL_GOLDENS =
+            new java.util.ArrayList<>();
 
     /** The golden PLAN replay (batch 66): {@link PlanReplay} runs the
      * plan's nodes in order on this oracle (Allocation values fetched

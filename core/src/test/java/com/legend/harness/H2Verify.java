@@ -385,7 +385,15 @@ public final class H2Verify {
                 && !(ours instanceof ExecutionResult.Tabular)
                 && !(ours instanceof ExecutionResult.Graph)) {
             // see FORCED_MECHANISM: value-frame strategies are
-            // row-divergent by the engine's own goldens
+            // row-divergent by the engine's own goldens. MEASURED
+            // (batch 67, 2026-09-05, guard lifted and put back): the
+            // forced golden for testQualifierWithOperation yields 4
+            // rows on H2 — 'PeterTest' and three 'Test' (H2's concat
+            // treats a NULL operand as ''), NOT null rows the value
+            // compare could drop — while the engine's own value assert
+            // (assertSize 1) executes the DEFAULT strategy. The golden
+            // text pins a debug strategy the engine never runs for the
+            // value; no row compare is sound.
             throw new Unverifiable(
                     "forced-isolation golden over a VALUE frame"
                     + " (engine debug-mechanism pin)", null);
@@ -809,6 +817,17 @@ public final class H2Verify {
                             + e.getMessage(), e);
                 }
                 if (theirsCols[0] != tab.columns().size()) {
+                    if (theirsCols[0] == 1 && goldenSql.toLowerCase(
+                            java.util.Locale.ROOT).startsWith("select distinct")) {
+                        // the POPULATION statement of the engine's
+                        // two-statement in-list plan (select distinct X
+                        // → tempTableForIn_<var>): our one-statement plan
+                        // has no counterpart — a plan-STRUCTURE contract,
+                        // named (batch 67)
+                        throw new Unverifiable("population statement of a"
+                                + " chained plan — no counterpart statement"
+                                + " in our one-statement plan", null);
+                    }
                     // our frame carries harness-added columns (driver
                     // PKs, order keys) the golden never selects — an
                     // ARITY gap is a layer difference, not a divergence

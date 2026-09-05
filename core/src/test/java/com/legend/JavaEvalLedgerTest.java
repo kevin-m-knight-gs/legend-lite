@@ -636,7 +636,13 @@ class JavaEvalLedgerTest {
             // multi-node plan and the referee bindings to the oracle's plan
             // replay (verifyPlan) — routing; the lambda's leading lets scope
             // the rows leg; the hop finder sees through sqlRemoveFormatting.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 842),
+            // 842 -> 919 (batch 67, 2026-09-05): the exec-read arm ADDRESSES
+            // the engine's two-statement in-list plan — the population
+            // statement's rows leg is the query lambda's let expression, the
+            // main statement's temp is a "population" TempTable spec for the
+            // oracle; the n>0 read is owned for that shape. Routing of typed
+            // facts; the replay and the compare stay in the oracle.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 919),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

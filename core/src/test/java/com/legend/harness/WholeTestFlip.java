@@ -244,10 +244,12 @@ public final class WholeTestFlip {
                 }
                 executable++;
             }
-            if (printMaterial) {
-                return fallback("assert-free-print", test);
-            }
-            if (executable == 0) {
+            // (batch 67, 2026-09-05): an assert-free body that HAS
+            // statements — prints included — runs through the platform
+            // like the engine's own runner runs it; a clean run is a
+            // zero-assert pass under the 0-assert ceiling. Only a body
+            // with NOTHING to execute stays a named zero-assert row.
+            if (executable == 0 && !printMaterial) {
                 return fallback("assert-free-inert", test);
             }
         }
@@ -438,9 +440,11 @@ public final class WholeTestFlip {
             }
             FLIPPED.incrementAndGet();
             FLIPPED_TESTS.add(test);
+            // every statement of the body ran through the platform — an
+            // assert-free body (prints included, batch 67) is the engine's
+            // "N statements executed" pass, never a SHAPE
             return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
-                    asserts > 0 ? statements.size() : executable,
-                    List.of(), List.of());
+                    statements.size(), List.of(), List.of());
         } finally {
             if (txn) {
                 // failure exit: restore the family-session WORLD to the

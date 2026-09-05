@@ -79,6 +79,12 @@ public final class AssertLedger {
         if (r.contains("chained fetch")) {
             return "decision:tdg-chained-fetch";
         }
+        if (r.contains("population statement of a chained plan")) {
+            // the engine's two-statement in-list plan asserted by index:
+            // golden(0) is its population statement — a plan-structure
+            // contract with no counterpart in our one-statement plan
+            return "decision:plan-structure";
+        }
         if (r.contains("oracle declined") || r.contains("rows underivable")
                 || r.contains("declined:")) {
             return "referee-cannot-replay";

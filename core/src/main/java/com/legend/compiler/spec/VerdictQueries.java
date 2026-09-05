@@ -34,6 +34,16 @@ public final class VerdictQueries {
      * {@code from(<the producer's mapping>)}, runtime left to the
      * executing env. SqlTextVerdicts fetches and judges; the mint is
      * compiler emission (Invariant 7). */
+    /** The FIRST-statement form of an indexed SQL read ({@code
+     * sqlRemoveFormatting($res, n)} → {@code sqlRemoveFormatting($res)}):
+     * the verdict arm reads our one statement where the engine's plan
+     * names its n-th (batch 67). Compiler-layer minting (Invariant 7). */
+    public static com.legend.compiler.spec.typed.TypedUserCall firstStatementRead(
+            com.legend.compiler.spec.typed.TypedUserCall read) {
+        return new com.legend.compiler.spec.typed.TypedUserCall(
+                read.callee(), List.of(read.args().get(0)), read.info());
+    }
+
     public static TypedSpec fromWrapped(TypedSpec query,
             com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
         return new com.legend.compiler.spec.typed.TypedFrom(query,

@@ -1076,7 +1076,11 @@ public class RelationalCorpusRunner {
             // RundateWithinLambda — Allocation nodes replayed on the oracle,
             // holes filled, the final SQL's rows compared) left the walk's
             // lane for platform-arm ROW verdicts (disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(14, execPassing,
+            // 14 -> 12 (batch 67, 2026-09-05): the two in-list query-chaining
+            // tests left the walk's lane — golden(0) verifies as the rows of
+            // the let it populates, golden(1) through tempTableForIn_<let>
+            // filled from golden(0)'s rows at the oracle (disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(12, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1899,10 +1903,30 @@ public class RelationalCorpusRunner {
             // (testMapWithOpenVariable, testExecutionPlanForQueryWith-
             // VariableRundateWithinLambda, testQualifier), 0 lost;
             // sql-verdict disagree 0; dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(190L,
+            // Batch 67 (2026-09-05, one by one through the remaining rows):
+            // the engine's two-statement in-list plan — golden(0) is the
+            // population statement of `let v = <to-many expr>` in the query
+            // lambda, so its rows ARE that let's value (the rows leg
+            // evaluates the let's expression, wrapped in the frame's
+            // mapping); golden(1) reads tempTableForIn_<v>, which the
+            // oracle fills from the attempt's remembered population golden
+            // (SqlReplayOracle.TempTable "population"); the exec-read arm
+            // owns sqlRemoveFormatting($res, n>0) for that shape only. An
+            // assert-free body WITH statements (prints) runs through the
+            // platform — a clean run is a zero-assert pass (the engine's
+            // own contract); only a body with nothing to execute stays a
+            // named zero-assert row. +3 flips
+            // (testInExecutionWithTempTableAndQueryChaining,
+            // ...OnIntegerColumn, twoDBRenameColumns), 0 lost; sql-verdict
+            // disagree 0; dual-channel disagree 0. NOT burned, measured:
+            // forced-isolation value frames (H2 concat(NULL,'Test') = 'Test'
+            // — the forced golden's rows are not droppable NULLs; guard
+            // restored), firstDayOfWeek (H2 weeks start Sunday, DuckDB and
+            // Pure's own tests Monday — a named divergence).
+            org.junit.jupiter.api.Assertions.assertEquals(187L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2383L,
+            org.junit.jupiter.api.Assertions.assertEquals(2386L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2008,7 +2032,11 @@ public class RelationalCorpusRunner {
             // verdicts (lane move).
             // 14 -> 13 (batch 38): one more gated test's unable-to-exec
             // sql-assert now takes a platform-arm verdict (lane move).
-            org.junit.jupiter.api.Assertions.assertEquals(13,
+            // 13 -> 11 (batch 67, 2026-09-05): the 2 statement-pairing arity
+            // rows of the tempTable family are BURNED — golden(0) verifies
+            // as the rows of the let it populates, golden(1) replays with
+            // tempTableForIn_<let> filled from golden(0)'s rows.
+            org.junit.jupiter.api.Assertions.assertEquals(11,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),

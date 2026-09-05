@@ -1041,6 +1041,28 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 67 (2026-09-05):** exec-passing
+12 (14 → 12): the engine's two-statement in-list plan as ROW verdicts —
+golden(0), the population statement of `let v = <to-many expr>` inside
+the query lambda, verifies against that let's value (the rows leg
+evaluates the let expression wrapped in the frame's mapping);
+golden(1), reading `tempTableForIn_<v>`, replays with the temp filled
+from golden(0)'s rows (the oracle's attempt-remembered population
+golden, `SqlReplayOracle.TempTable` kind "population"); the exec-read
+arm owns `sqlRemoveFormatting($res, n>0)` only for this shape. An
+assert-free body with statements runs through the platform (a clean run
+= zero-assert pass, the engine's own contract). +3 flips
+(testInExecutionWithTempTableAndQueryChaining ×2, twoDBRenameColumns);
+disagree 0. Ratchet 190/2383 → 187/2386. MEASURED, NOT BURNED: the
+forced-isolation value-frame guard was lifted and put back — the
+forced golden yields 'PeterTest' + three 'Test' (H2's concat treats a
+NULL operand as ''), not droppable NULL rows, while the engine's own
+value assert runs the default strategy; testToSqlGenerationFirstDayOfWeek
+is H2's Sunday week start vs DuckDB's and Pure's own Monday
+(dateExtension.pure:18-19) — a named dialect divergence, our answer is
+Pure's; a driver argument that is neither an enum literal nor a runtime
+is never assumed H2 any more (foreign-dialect residue).
+
 **§8.0 scope-table receipt, batch 66 (2026-09-05):** exec-passing
 14 (17 → 14), text-only 16 (17 → 16): the golden PLAN replayed node by
 node — `SqlReplayOracle.verifyPlan` (harness PlanReplay behind the

@@ -75,6 +75,11 @@ class SqlTextRatchetTest {
         // arm's golden execution through SqlReplayOracle: a referee's
         // parse of a spec cell, never an emission of a user query.
         REGISTER.put("LineageTreeVerdicts.java", 1);
+        // batch 67 (2026-09-05): the exec-read arm RECOGNIZES the engine's
+        // population statement (`select distinct <col> from <table>`) in
+        // a GOLDEN — a referee's read of the spec text's shape (the let
+        // it populates supplies our rows), never an emission of ours.
+        REGISTER.put("SqlTextVerdicts.java", 1);
         REGISTER.put("exec/CsvSeed.java", 4);
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure

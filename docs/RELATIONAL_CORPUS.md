@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 249 | 6 | 4 | 0 | 2 | 2 | 0 | 0 |
+| functions/tests | 259 | 249 | 6 | 4 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2425** | 41 | 77 | 32 | 12 | 12 | 29 | 6 |
+| **total** | 2575 | **2425** | 41 | 77 | 32 | 10 | 10 | 29 | 6 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2425 PASS = 2381 clean + 44 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 6; flags overlap — the union is 44).
+SOFT-PASS RECONCILIATION (F2.1): 2425 PASS = 2383 clean + 42 carrying softness (sqldiff 10, advisory 10, 0-asserts 29, text-rescued 6; flags overlap — the union is 42).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,23 +542,23 @@ SOFT-PASS RECONCILIATION (F2.1): 2425 PASS = 2381 clean + 44 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 190
+tests in the ledger: 187
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
 | wall:resolver | 30 |
-| pass | 51 |
+| pass | 45 |
 | divergence | 38 |
 | wall:exec | 14 |
-| not-reached | 44 |
-| referee-cannot-replay | 16 |
-| zero-assert | 3 |
+| not-reached | 42 |
+| referee-cannot-replay | 14 |
 | wall:lowering | 16 |
 | decision:objectReferenceIn | 7 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
+| zero-assert | 2 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
 
@@ -595,7 +595,6 @@ tests in the ledger: 190
 - testTwoMappingsOneRuntime #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), "" ::  expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]
 - testTwoMappingsOneRuntimeWithoutExternalMapping #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), "" ::  expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]
 - testViewToTDS #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatibleP :: in function 'meta::pure::tds::viewToTDS': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatiblePureType' — no function of this name in the nat
-- twoDBRenameColumns #0 - -> zero-assert: assert-free-print :: meta::pure::executionPlan::tests::twoDBRenameColumns
 - withPlatform #1 assertEquals -> wall:lowering: wall-exec: DialectCapability: collection reduction '_' reached a dialect without a list encoding :: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - testFetchDbPrimaryKeysMetaData #1 assertEq -> wall:lowering: wall-exec: IllegalStateException: no SQL type for generic Function<{FunctionDefinition<meta::pure::metamodel::type::Any>[N], meta::core::runtime::Runtime[ :: no SQL type for generic Function<{FunctionDefinition<meta::pure::metamodel::type::Any>[1], meta::core::runtime::Runtime[1] -> FunctionDefiniti
 - testFetchDbPrimaryKeysMetaData #2 - -> not-reached: 4 assert(s) after the failure
@@ -613,16 +612,6 @@ tests in the ledger: 190
 - testQualifierConcatenateTwoSimilarJoins #2 - -> not-reached: 1 assert(s) after the failure
 - testQualifierConcatenateTwoSimilarJoinsEmbedded #1 assertEquals -> wall:exec: wall-exec: class-typed property '_' of association target 'meta::relational::tests::projection::function::concatenate::model::SubA :: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - testQualifierConcatenateTwoSimilarJoinsEmbedded #2 - -> not-reached: 1 assert(s) after the failure
-- testInExecutionWithTempTableAndQueryChaining #1 meta::pure::functions::asserts::assertSize -> pass
-- testInExecutionWithTempTableAndQueryChaining #2 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableAndQueryChaining #3 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableAndQueryChaining #4 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: column arity differs: golden N vs frame N): expected select distinct "root".FIR :: assertEquals (sql-text, oracle declined: column arity differs: golden 1 vs frame 2): expected select distinct "root".FIRSTNAME from validPersonTable as "root", g
-- testInExecutionWithTempTableAndQueryChaining #5 - -> not-reached: 1 assert(s) after the failure
-- testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #1 meta::pure::functions::asserts::assertSize -> pass
-- testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #2 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #3 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #4 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: column arity differs: golden N vs frame N): expected select distinct "root".AGE :: assertEquals (sql-text, oracle declined: column arity differs: golden 1 vs frame 2): expected select distinct "root".AGE from validPersonTable as "root", got sel
-- testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #5 - -> not-reached: 1 assert(s) after the failure
 - testInExecutionWithTempTableForDateTimesWithTz #1 meta::pure::functions::asserts::assertSize -> divergence: platform-fail: assertSize: expected N, got N :: assertSize: expected 5, got 0
 - testInExecutionWithTempTableForDateTimesWithTz #2 - -> not-reached: 2 assert(s) after the failure
 - testIsEmptyOnCollection #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statem :: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statement): expected Sequence(type=TDS[(name,St
