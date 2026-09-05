@@ -84,7 +84,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 27 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/modelJoin | 48 | 47 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation | 109 | 105 | 2 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2419** | 41 | 83 | 32 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2421** | 41 | 81 | 32 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2384 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2421 PASS = 2386 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -518,7 +518,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2384 clean + 35 carrying softness (
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
-- 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 2x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 1x unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
 - 1x in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan/4]
@@ -539,16 +538,17 @@ SOFT-PASS RECONCILIATION (F2.1): 2419 PASS = 2384 clean + 35 carrying softness (
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
+- 1x in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOperationElement ret=meta::relational::metamodel::RelationalOperationElement[Bounded[lower=1, upper=1]]; meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::join::RelationalTreeNode ret=meta::relational::metamodel::join::RelationalTreeNode[Bounded[lower=1, upper=1]]] [inlined via meta::relational::milestoning::applyMilestoningFilters/5]
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 168
+tests in the ledger: 166
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 46 |
-| wall:resolver | 31 |
+| wall:resolver | 29 |
 | wall:exec | 11 |
 | divergence | 28 |
 | not-reached | 38 |
@@ -751,8 +751,6 @@ tests in the ledger: 168
 - testMultipleJoinsInPropertyMappingWithDatesInClass #2 meta::pure::functions::asserts::assertSameElements -> divergence: platform-fail: expected: ['_', '_', '_', '_', '_', '_'] ::  expected: ['Row1', 'Row1', 'Row2', 'Row2', 'Row3', 'Row3'] actual:   ['Row1', 'Row2', 'Row3']
 - testMultipleJoinsInPropertyMappingWithDatesInClass #3 - -> not-reached: 5 assert(s) after the failure
 - testNestedModelJoinCompoundInnerCondition #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::relationa :: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (asso
-- testQualifiedPropertyInQuery #1 assertEquals -> wall:resolver: wall-exec: nested navigation '_' inside an exists/isEmpty predicate is not supported yet :: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- testSubFilter #1 assertEquals -> wall:resolver: wall-exec: nested navigation '_' inside an exists/isEmpty predicate is not supported yet :: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - testToManyWithQualifierWithFilterOnJoin #1 assertSameElements -> wall:resolver: wall-exec: multi-hop navigation account.incomeFunctionSplits#fN.incomeFunction.Classification.name through an embedded/slot head is :: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head su
 - testToManyWithQualifierWithFilterOnJoin #2 - -> not-reached: 1 assert(s) after the failure
 - testDateTimeInclusiveRangeQuery #1 meta::pure::functions::relation::assertTdsEquivalent -> divergence: platform-fail: [settlementDateTime] (N rows) ::  [settlementDateTime] (2 rows)  is not equivalent to: [settlementDateTime] (1 rows)
@@ -940,8 +938,6 @@ tests in the ledger: 168
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3] [expected types=[String, String, String, String, String, String]; got types=[String, String, String]]
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
-- ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- ERROR testSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
 - ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: a navigation join over this union demands key column 'firm_ID', which NO union member carries

@@ -3734,3 +3734,17 @@ planner/router/renderer/DDL under test), OTHER STORES 8, NAMED 16 (receipts,
 registered defects, parked). "Burn to zero" = the 68; order L1 navigation
 shapes (15) → L8 natives/small typer (12) → L4+L3 union/isolation/relation
 mapping (10) → L13/L5/L6/L7 → the rest. Each leg = its own batch.
+
+**Batch 73 / L1a (2026-09-05, chain GREEN 6m11s; GATES batch 73).** 168/2405 →
+166/2407: the model-join pair (testSubFilter, testQualifiedPropertyInQuery). A
+filtered navigation's predicate reading an association OF THE TARGET
+(`$e.address.city`) now widens the target pipe with the nested LEFT join —
+the same navigate() rule the association CONDITION already used
+(AssociationJoins.collectNestedAssocReads → widenNestedAssocs) — and the
+predicate's substitution reads it through a SubNav (predFilteredPipe). Guard
+lesson: associationJoin hit the 250-line method pin; split at the seam. L1's
+open sub-legs and the two multi-hop designs are recorded in
+docs/BURN_BREAKDOWN_2026_09_05.md (L1 status). NEXT: L8's cheap items
+(filter-over-spelled-list fold with class-reference equality for
+testFirstNotNull; SQLResult.toSQLString typing surface; `filterReportDates`
+path-argument typing), then L1's sub-legs as designs.

@@ -1147,6 +1147,19 @@ final class AssociationJoins {
         String condTgtVar = scanCondTargetReads(cs, assoc, real, targetClass,
                 target, targetSlots, targetDemand, tNavSteps3.keySet(),
                 tNavDemand3, nestedAssocReads);
+        // the SYNTHETIC PREDICATE's nested-association reads (L1, 2026-09-05:
+        // `employees->filter(e | $e.address.city == 'NYC')` — the filter
+        // reads an association OF THE TARGET): the same navigate() rule
+        // widens the target pipe with the nested join; the pred then reads
+        // the nested target through a SubNav registered on the widened row
+        for (TypedLambda sp : synthPreds) {
+            if (!sp.parameters().isEmpty()) {
+                for (TypedSpec b : sp.body()) {
+                    collectNestedAssocReads(b, sp.parameters().get(0),
+                            targetClass, nestedAssocReads);
+                }
+            }
+        }
         targetDemand = Pipelines.closeOverConditions(
                 target.pipeline(), targetDemand);
         Map<String, NavMaterializer.NavMat> tailMats = new java.util.LinkedHashMap<>();
@@ -1174,33 +1187,14 @@ final class AssociationJoins {
         TypedSpec basePipe = temporal.temporalTargetPipe(cs, target, chainKey,
                 temporal.applyJoinTemporalFilters(tMat0.pipeline(), target,
                         Map.of()));
-        // NESTED-ASSOCIATION widening (the navigate() rule): a condition
-        // reading $tgt.<assocProp>.<col> joins the nested association's
-        // target into the materialized pipe, prefixed — the recursive
-        // navigate, exactly the chain-walk precedent (task #78)
-        Map<String, String> nestedPrefixByProp =
-                new java.util.LinkedHashMap<>();
-        for (var ne : nestedAssocReads.entrySet()) {
-            AssocJoin aj2 = aggJoinMaterial(temporal, target, ne.getKey(),
-                    context, ne.getValue(), java.util.Set.of());
-            String pfx = ne.getKey() + "_";
-            Type.RelationType curRow = Type.requireRelationSchema(basePipe.info().type());
-            java.util.List<Type.Column> wcols =
-                    new java.util.ArrayList<>(curRow.columns());
-            for (Type.Column c : aj2.targetRow().columns()) {
-                wcols.add(new Type.Column(pfx + c.name(),
-                        c.type(), c.multiplicity()));
-            }
-            basePipe = new com.legend.compiler.spec.typed.TypedJoin(
-                    basePipe, aj2.targetPipeline(),
-                    leftKind(), java.util.Objects.requireNonNull(aj2.condition()),
-                    java.util.Optional.of(pfx), null,
-                    new ExprType(Type.relation(new Type.RelationType(wcols)),
-                            com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE),
-                false /* resolver-synth */);
-            nestedPrefixByProp.put(ne.getKey(), pfx);
-        }
+        // NESTED-ASSOCIATION widening (the navigate() rule): a condition or
+        // the synthetic predicate reading $tgt.<assocProp>.<col> joins the
+        // nested association's target into the materialized pipe, prefixed
+        NestedWidening nw = widenNestedAssocs(temporal, target, context,
+                nestedAssocReads, basePipe);
+        basePipe = nw.pipe();
+        Map<String, String> nestedPrefixByProp = nw.prefixByProp();
+        Map<String, Substitution.SubNav> nestedSubNavs = nw.subNavs();
         final Pipelines.Materialized tMat = new Pipelines.Materialized(
                 basePipe, tMat0.slotPrefixes(), tMat0.stripped());
 
@@ -1261,7 +1255,7 @@ final class AssociationJoins {
         tPipe = temporal.applyJoinTemporalFilters(tPipe, target, Map.of());
         tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
                 CorrelatedSubselects.predFilteredPipe(p, target, tMat.slotPrefixes(),
-                        pred, cs.mappingFqn()));
+                        nestedSubNavs, pred, cs.mappingFqn()));
         Map<String, Substitution.SubNav> tailSubNavs =
                 new java.util.LinkedHashMap<>();
         for (var tne : tailNavAliases.entrySet()) {
@@ -1889,6 +1883,49 @@ final class AssociationJoins {
                                 .Bounded.ONE));
     }
 
+
+    /** The target pipe widened with one LEFT join per nested-association
+     * read (prefix {@code <prop>_}), the prefixes, and a SubNav per read
+     * for the synthetic predicate's substitution. */
+    private record NestedWidening(TypedSpec pipe,
+            Map<String, String> prefixByProp,
+            Map<String, Substitution.SubNav> subNavs) {
+    }
+
+    /** NESTED-ASSOCIATION widening (the navigate() rule): a condition or a
+     * synthetic predicate reading {@code $tgt.<assocProp>.<col>} joins the
+     * nested association's target into the materialized pipe, prefixed —
+     * the recursive navigate, exactly the chain-walk precedent (task #78). */
+    private NestedWidening widenNestedAssocs(TemporalFrame temporal,
+            ClassSource target, StoreResolver.Context context,
+            Map<String, Set<String>> nestedAssocReads, TypedSpec basePipe) {
+        Map<String, String> prefixByProp = new java.util.LinkedHashMap<>();
+        Map<String, Substitution.SubNav> subNavs = new java.util.LinkedHashMap<>();
+        for (var ne : nestedAssocReads.entrySet()) {
+            AssocJoin aj2 = aggJoinMaterial(temporal, target, ne.getKey(),
+                    context, ne.getValue(), java.util.Set.of());
+            String pfx = ne.getKey() + "_";
+            subNavs.put(ne.getKey(), new Substitution.SubNav(pfx,
+                    aj2.target().rowVar(), aj2.target().bindings()));
+            Type.RelationType curRow = Type.requireRelationSchema(basePipe.info().type());
+            java.util.List<Type.Column> wcols =
+                    new java.util.ArrayList<>(curRow.columns());
+            for (Type.Column c : aj2.targetRow().columns()) {
+                wcols.add(new Type.Column(pfx + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+            basePipe = new com.legend.compiler.spec.typed.TypedJoin(
+                    basePipe, aj2.targetPipeline(),
+                    leftKind(), java.util.Objects.requireNonNull(aj2.condition()),
+                    java.util.Optional.of(pfx), null,
+                    new ExprType(Type.relation(new Type.RelationType(wcols)),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE),
+                false /* resolver-synth */);
+            prefixByProp.put(ne.getKey(), pfx);
+        }
+        return new NestedWidening(basePipe, prefixByProp, subNavs);
+    }
 
     /** The association CONDITION's target-side reads: slot/navigate
      * demand plus NESTED-association reads (the navigate() rule) —

@@ -1969,10 +1969,17 @@ public class RelationalCorpusRunner {
             // database expression over the frame's mapping facts; runtime
             // references decode in SQL and a closed from() inside a
             // predicate resolves first. The walk's ObjectRefs.java is gone.
-            org.junit.jupiter.api.Assertions.assertEquals(168L,
+            // batch 73 / L1a (2026-09-05): 168 -> 166 — a filtered
+            // navigation's predicate reading an association OF THE TARGET
+            // (`employees->filter(e | $e.address.city == 'NYC')`, the model
+            // join family) widens the target pipe with the nested join
+            // exactly like the association condition already did (the
+            // navigate() rule) and reads it through a SubNav on the widened
+            // row (AssociationJoins.associationJoin).
+            org.junit.jupiter.api.Assertions.assertEquals(166L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2405L,
+            org.junit.jupiter.api.Assertions.assertEquals(2407L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

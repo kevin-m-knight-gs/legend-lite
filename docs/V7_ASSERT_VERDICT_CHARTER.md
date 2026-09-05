@@ -1061,6 +1061,13 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 73 / L1a (2026-09-05):** exec-passing 7,
+text-only 15, unable-to-exec 9 unchanged; ratchet 168/2405 → 166/2407
+(testSubFilter, testQualifiedPropertyInQuery — TDS row verdicts over the
+model-join mapping: a filtered navigation's predicate reading an association
+of the target widens the target pipe with the nested join and reads it through
+a SubNav); disagree 0 both channels. No lane moved.
+
 **§8.0 scope-table receipt, batch 72c (2026-09-05, the deletion only):**
 exec-passing 7, text-only 15, unable-to-exec 9 unchanged; ratchet unchanged
 168/2405 (census 2575); disagree 0 both channels. The walk's Java port of the

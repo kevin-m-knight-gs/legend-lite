@@ -34,6 +34,17 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 73 / L1a LANDED** — testQualifiedPropertyInQuery and testSubFilter
+flipped (166/2407): the synthetic predicate's nested-association reads widen the
+target pipe like the association condition already did. Sub-legs found by the
+probes, still open: (i) testExistsAsNullWithSubType — inside a nested exists scope
+a class-typed slot mapped to TWO subtype sets registers only one set's bindings
+(the `stc_<Sub>___id` leaf is missing from the AssocSub); (ii) the three multi-hop
+tests are two designs: a filtered to-many hop INSIDE a 4-hop chain with an
+embedded+join tail (multigrain), and join slots behind subtype witnesses
+(`stc_<Sub>___<joinProp>.<leaf>` — the cast chain `employees->subType(@PersonExtension).manager…`
+and the union member `vehicles->subType(@Bicycle).person.name`).
+
 | test | wall | note |
 |---|---|---|
 | projection::exists::testExistsAsNullWithSubType | nested navigation inside exists/isEmpty | rows + assertSameSQL (text behind) |
