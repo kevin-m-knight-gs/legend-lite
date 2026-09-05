@@ -1041,6 +1041,27 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 receipt, batch 67b — the `engine-golden-defect` bucket (2026-09-05, USER
+RULING "quarantine/bucket those as engine bugs"):** four asserts whose GOLDEN
+carries the engine's own departure from Pure's semantics; ours follows Pure;
+the rows verdict truthfully FAILS and the ledger bucket names why. Register =
+AssertLedger.ENGINE_GOLDEN_DEFECTS, EXACT test FQN → defect, consulted only when
+the platform produced rows that differ (walls stay walls; passes never reach the
+ledger). (1) `joinStrings-rendering` — engine relational rendering of
+`joinStrings([a, b], sep)` is `concat(a, b, sep)` on EVERY dialect: the
+separator trails instead of joining ('PeterSmith|' where Pure gives
+'Peter|Smith'); the digest goldens are md5 OF THAT STRING
+(ee0af362d8c1e4fa8c805dfeadd1aa37 = md5('PeterSmith|')) — so even the value
+expectations encode the bug. Tests: testToSQLStringForTDSStringJoin,
+testExtendDigest_Relational, testJoinWithExtendWithDigestOnColumnsOnBothQueries.
+(2) `h2-week-start` — the engine renders firstDayOfWeek as
+`date_trunc('week', x)`; H2 starts the week on SUNDAY under that call, Pure's own
+dateExtension tests (dateExtension.pure:18-19) and DuckDB say MONDAY, as ours
+does; the engine's H2 dialect extension does not compensate — an H2-dialect
+defect of the engine, one database. Test: testToSqlGenerationFirstDayOfWeek.
+NOT registered: testHashFunctions hashes `firstName + lastName` (plus, not
+joinStrings); its 7-row divergence is unexplained — next probe.
+
 **§8.0 scope-table receipt, batch 67 (2026-09-05):** exec-passing
 12 (14 → 12): the engine's two-statement in-list plan as ROW verdicts —
 golden(0), the population statement of `let v = <to-many expr>` inside

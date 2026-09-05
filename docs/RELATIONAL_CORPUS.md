@@ -550,7 +550,7 @@ tests in the ledger: 187
 | wall:typer | 49 |
 | wall:resolver | 30 |
 | pass | 45 |
-| divergence | 38 |
+| divergence | 34 |
 | wall:exec | 14 |
 | not-reached | 42 |
 | referee-cannot-replay | 14 |
@@ -561,6 +561,8 @@ tests in the ledger: 187
 | zero-assert | 2 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
+| engine-golden-defect:joinStrings-rendering | 3 |
+| engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
 - executeProjectWithNestedDerivedProperty #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::json::tdsToJSONKe :: in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unpor
@@ -707,14 +709,14 @@ tests in the ledger: 187
 - iqrClassifyTest #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::pure::tds::tests::extensions::iqrClassifyTest :: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - rowValueDifferenceTest #0 - -> wall:typer: wall-type: cannot access '_' on String :: meta::pure::tds::tests::extensions::rowValueDifferenceTest :: cannot access 'name' on String
 - testExtendDigest_InMemory #1 assertEquals -> wall:lowering: wall-exec: lowering not yet implemented for TypedNativeCall ('_' in relation position) :: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::zip' in relation position)
-- testExtendDigest_Relational #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: ['_', '_'] ::  expected: ['9e103ea06a6999b4c5a86cf25d68b083', 'b7bbee4d9b6a2736c25b00dded9344c7'] actual:   ['5e922469e9dee06b7d638775371ac834', '6923b8e81fa52e1863d80db5f31759ce']
+- testExtendDigest_Relational #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', '_'] ::  expected: ['9e103ea06a6999b4c5a86cf25d68b083', 'b7bbee4d9b6a2736c25b00dded9344c7'] actual:   ['5e922469e9dee06b7d638775371ac834', '6923b8e81fa52e1863d80db5f31759ce']
 - testFirstNotNull #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: unresolved type variable T reached the lowering boundary :: unresolved type variable T reached the lowering boundary
 - testFirstNotNull #2 - -> not-reached: 1 assert(s) after the failure
 - zScoreTest #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::pure::tds::tests::extensions::zScoreTest :: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - resolveSchemaTest #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualif :: meta::relational::tds::schema::tests::resolveSchemaTest :: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a full
 - testSortQuotes #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s) :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
 - testJoinWithExtendWithDigestOnColumnsOnBothQueries #1 meta::pure::functions::asserts::assertSize -> pass
-- testJoinWithExtendWithDigestOnColumnsOnBothQueries #2 meta::pure::functions::asserts::assertSameElements -> divergence: platform-fail: expected: ['_', 'N,John,Johnson ::  expected: ['1,Peter,Smith,1,ee0af362d8c1e4fa8c805dfeadd1aa37,Firm X,1,d41d8cd98f00b204e9800998ecf8427e', '2,John,Johnson,1,f8758ee5b78e87c2c62f4bed81ce3537,Firm X,1,d41d8cd98f00b204e9800998ecf8427e', '3,John,Hill,1,5a60b85c13b6c8273a6d2d55ff6a7815,F
+- testJoinWithExtendWithDigestOnColumnsOnBothQueries #2 meta::pure::functions::asserts::assertSameElements -> engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', 'N,John,Johnson ::  expected: ['1,Peter,Smith,1,ee0af362d8c1e4fa8c805dfeadd1aa37,Firm X,1,d41d8cd98f00b204e9800998ecf8427e', '2,John,Johnson,1,f8758ee5b78e87c2c62f4bed81ce3537,Firm X,1,d41d8cd98f00b204e9800998ecf8427e', '3,John,Hill,1,5a60b85c13b6c8273a6d2d55ff6a7815,F
 - testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #1 meta::pure::functions::asserts::assertSize -> pass
 - testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #2 meta::pure::functions::asserts::assertEquals -> pass
 - testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #3 meta::pure::functions::asserts::assert -> pass
@@ -828,14 +830,14 @@ tests in the ledger: 187
 - testNotEqualityInFilterOnOptionalPropertiesLegacy #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "person
 - testSqlGenerationDivide_AllDBs #1 meta::relational::functions::asserts::assertSameSQL -> divergence: platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select ((N.N * "root".quantity) / N) from tradeTabl :: assertSameSQL (sql-text, DB2 — text is the contract): expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trad
 - testSqlGenerationDivide_AllDBs #2 - -> not-reached: 1 assert(s) after the failure
-- testToSQLStringForTDSStringJoin #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 7 row(s), our pipeline 
+- testToSQLStringForTDSStringJoin #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 7 row(s), our pipeline 
 - testToSQLStringWithAbs #1 meta::pure::functions::asserts::assertEquals -> pass
 - testToSQLStringWithAbs #2 assert -> wall:resolver: wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary) :: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - testToSQLStringWithAbs #3 - -> not-reached: 1 assert(s) after the failure
 - testToSQLStringWithAggregation #1 assert -> wall:resolver: wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary) :: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - testToSQLStringWithAggregation #2 - -> not-reached: 1 assert(s) after the failure
 - testToSQLStringWithCodeBlock #0 - -> wall:typer: wall-type: in call to '_', argument N: expected Date, got meta::pure :: meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock :: in call to 'meta::relational::tests::functions::sqlstring::filterReportDates', argument 2: expected Date, got meta::pure::metamodel::type::Any
-- testToSqlGenerationFirstDayOfWeek #1 meta::pure::functions::boolean::equal -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 11 row(s), our pipeline
+- testToSqlGenerationFirstDayOfWeek #1 meta::pure::functions::boolean::equal -> engine-golden-defect:h2-week-start: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 11 row(s), our pipeline
 
 ### per-test outcomes (non-passing)
 

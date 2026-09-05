@@ -3550,3 +3550,16 @@ through the ancestor set; ImplicitInheritance records the inherited
 names; witness testQueryOfMilestonedTypeWithFilterInMapping);
 (5) then batch 69 = the deletion of the walk's text-only verified
 passes (re-baseline families by hand with the note).
+
+**Batch 67b — the `engine-golden-defect` ledger bucket (2026-09-05, chain
+GREEN; GATES batch 67b; charter §8.0 receipt).** Ratchet unchanged
+187/2386. AssertLedger.ENGINE_GOLDEN_DEFECTS (exact FQN, rows-differ
+only): joinStrings-rendering ×3, h2-week-start ×1. testHashFunctions
+stays `divergence` (hashes firstName + lastName; 7 golden rows vs ours —
+probe with LEGEND_LITE_DUMP_SQL=1 -Drcorpus.test=testHashFunctions).
+Residue after batch 68 (user asked): contains-over-text 11 (6 with
+passing row asserts first + 5 plan/legacy-flag), foreign-dialect text
+5, engine-defect candidates with receipts not yet registered 2
+(filter-in-project, DateTime 9-digit literal), referee-cannot-replay 14
+(SELECTTOP1/missing-schema goldens 3, forced value frames 2,
+unformatted plan text 4, graph-keys 3 → batch 68, arity 2).

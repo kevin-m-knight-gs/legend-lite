@@ -421,7 +421,7 @@ public final class WholeTestFlip {
                         && assertStmts.get(at) instanceof AppliedFunction fa
                         ? fa.function() : "-";
                 String why = reason + (raw == null ? "" : " :: " + raw.replace('\n', ' '));
-                String bucket = AssertLedger.bucketOf(why, sqlText);
+                String bucket = AssertLedger.bucketOf(test, why, sqlText);
                 String detail = why.length() > 300 ? why.substring(0, 300) : why;
                 if (lastFailed) {
                     AssertLedger.Row last = rows.get(rows.size() - 1);

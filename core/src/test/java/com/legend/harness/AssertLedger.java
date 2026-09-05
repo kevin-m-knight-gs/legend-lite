@@ -27,6 +27,10 @@ import java.util.Map;
  *       recursion, dynamic compilation);</li>
  *   <li>{@code wall:<owner>} — a platform gap with its owner;</li>
  *   <li>{@code divergence} — rows produced and wrong;</li>
+ *   <li>{@code engine-golden-defect:<name>} — rows produced and
+ *       different because the GOLDEN carries the engine's own departure
+ *       from Pure (registered per exact test with a receipt; see
+ *       {@link #ENGINE_GOLDEN_DEFECTS});</li>
  *   <li>{@code not-reached} — asserts after the first failure.</li>
  * </ul>
  */
@@ -53,6 +57,46 @@ public final class AssertLedger {
 
     public static void reset() {
         ROWS.clear();
+    }
+
+    /**
+     * ENGINE GOLDEN DEFECTS (user ruling 2026-09-05, "quarantine/bucket
+     * those as engine bugs"): tests whose GOLDEN encodes the engine's own
+     * departure from Pure's semantics — ours follows Pure, the rows
+     * verdict truthfully fails, and the bucket says WHY. One row per exact
+     * test FQN → the defect, each with a receipt in
+     * docs/V7_ASSERT_VERDICT_CHARTER.md §8.0. Consulted only when the
+     * platform produced rows that differ (a wall stays a wall; a pass
+     * never reaches the ledger), so a register row can hide nothing.
+     * <ul>
+     *   <li>{@code joinStrings-rendering} — the engine renders
+     *       {@code joinStrings([a, b], sep)} as {@code concat(a, b, sep)}
+     *       on EVERY dialect (the separator trails instead of joining:
+     *       'PeterSmith|'; the digest goldens are md5 of that string);</li>
+     *   <li>{@code h2-week-start} — under the engine's
+     *       {@code date_trunc('week')} H2 starts the week on Sunday; Pure's
+     *       own dateExtension tests say Monday, as ours (and DuckDB) do —
+     *       the engine's H2 dialect fails to normalize.</li>
+     * </ul>
+     */
+    private static final Map<String, String> ENGINE_GOLDEN_DEFECTS = Map.of(
+            "meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin",
+            "joinStrings-rendering",
+            "meta::pure::tds::tests::extensions::testExtendDigest_Relational",
+            "joinStrings-rendering",
+            "meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries",
+            "joinStrings-rendering",
+            "meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek",
+            "h2-week-start");
+
+    /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
+     * reason's bucket, refined to the registered engine-golden defect
+     * only when rows were produced and differ. */
+    public static String bucketOf(String test, String reason, boolean subjectIsSqlText) {
+        String bucket = bucketOf(reason, subjectIsSqlText);
+        String defect = ENGINE_GOLDEN_DEFECTS.get(test);
+        boolean rowsDiffer = bucket.equals("divergence") || bucket.equals("sql-text-assert");
+        return defect != null && rowsDiffer ? "engine-golden-defect:" + defect : bucket;
     }
 
     /** The bucket of a whole-test fallback reason (the flip's reason text). */
