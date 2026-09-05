@@ -1412,7 +1412,7 @@ final class Typer {
         if (shadow != null) {
             return shadow;
         }
-        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out(), af.pos()));
+        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out(), af.pos()), env);
     }
 
     /** Leg 6a — the receiver's OWN qualified property SHADOWS an
@@ -1469,7 +1469,7 @@ final class Typer {
      * exactly as TDS types as its relation. Statement shapes (DDL, DML,
      * multi-statement blobs) keep the declared opaque handle — they are
      * EFFECTS and ride the execute-once path. */
-    private TypedSpec rawGridOrSelf(TypedSpec call) {
+    private TypedSpec rawGridOrSelf(TypedSpec call, Env env) {
         if (!(call instanceof TypedNativeCall nc)) {
             return call;
         }
@@ -1484,7 +1484,7 @@ final class Typer {
             sql = com.legend.sql.RawSql.splitStatements(lit.value()).get(0);
         } else if (com.legend.compiler.element.type.PlatformTypes
                 .isFetchDbFn(fqn)) {
-            sql = CatalogGrids.sql(nc, ctx);
+            sql = CatalogGrids.sql(nc, ctx, name -> env.exprAlias(name).map(rhs -> synth(rhs, env)));   // (69c) let-bound connection → its db
             if (sql != null) {
                 // §4bZ-U leg 4: the JDBC spec fixes the metadata result
                 // shape and the catalog projections are OURS — a

@@ -1086,7 +1086,10 @@ public class RelationalCorpusRunner {
             // guard is gone, the forced golden's 4 rows ('PeterTest' + three
             // 'Test', pure's plus over an empty operand) row-diverge from
             // our 1-row INNER-joined frame: an honest divergence of OURS.
-            org.junit.jupiter.api.Assertions.assertEquals(10, execPassing,
+            // 10 -> 9 (batch 69c): the datePeriods group-by's exec-passing
+            // assert (its CSV value assert ran beside the text declines)
+            // left the walk's lane — the whole test flipped
+            org.junit.jupiter.api.Assertions.assertEquals(9, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1938,10 +1941,17 @@ public class RelationalCorpusRunner {
             // pair (^TDSNull() on the variant carrier), the zoned plan's
             // template functions (the helper's parameter let), the
             // assert-free let-execute body
-            org.junit.jupiter.api.Assertions.assertEquals(181L,
+            // batch 69c (2026-09-05): 181 -> 179 — fetchDb primary keys (a
+            // function-typed property is not a layout slot; the PK grid
+            // finds its database through the typer's let channel) and the
+            // datePeriods group-by (a let-bound instance read lifts as a
+            // scalar subquery on the execute route too; the chained-plan
+            // warning is stripped; the toSQLString arm takes multi-statement
+            // lambdas)
+            org.junit.jupiter.api.Assertions.assertEquals(179L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2392L,
+            org.junit.jupiter.api.Assertions.assertEquals(2394L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1987,7 +1997,10 @@ public class RelationalCorpusRunner {
             // plan-text assert left the walk's text-only lane — the oracle's
             // plan replay (Allocation nodes run, holes filled, the final
             // SQL's rows compared) judges it (lane move, disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(16,
+            // 16 -> 15 (batch 69c): the datePeriods toSQLString assert over
+            // the chained plan (statement 0 + the engine's warning line) is
+            // a row verdict on the calendar let's rows
+            org.junit.jupiter.api.Assertions.assertEquals(15,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"
@@ -2056,7 +2069,9 @@ public class RelationalCorpusRunner {
             // Product set's implicitly inherited stockProductName /
             // classificationType) are ROW VERDICTS now: the envelope
             // projects the set's own property mappings only
-            org.junit.jupiter.api.Assertions.assertEquals(9,
+            // 9 -> 8 (batch 69c): the datePeriods "column arity differs"
+            // decline is a row verdict (golden(0) = the calendar let's rows)
+            org.junit.jupiter.api.Assertions.assertEquals(8,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),

@@ -1041,6 +1041,17 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 69c (2026-09-05):** exec-passing 10 → 9,
+text-only 16 → 15, unable-to-exec 9 → 8 — one test, the datePeriods
+testGroupByWithFilterFunction_noDatePath, left all three walk lanes at once:
+its CSV value assert (exec-passing beside the declines), its index-less
+toSQLString assert over the chained plan (text-only: statement 0 + the
+engine's chained-plan warning, now stripped and routed to the calendar let's
+rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
+— now the let statement's own rows). Disagree 0 both channels. fetchDb
+primary keys flipped without a lane move (a lowering wall, never a sql-text
+row).
+
 **§8.0 scope-table receipt, batch 69a (2026-09-05):** exec-passing 12 → 10 —
 the forced-isolation pair (testQualifierWithOperation,
 testTwoQualifiersWithOperation) left the walk's exec-passing lane: the

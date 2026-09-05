@@ -187,6 +187,11 @@ public final class StoreResolver {
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet l) {
                 letBindings.put(l.name(), l.value());
             }
+            // in-query CLASS SUBQUERIES under lambdas lift FIRST on the
+            // execute() route too (batch 69c — the from() route lifted at
+            // its TypedFrom, the driver-runtime route never did: the
+            // datePeriods agg's `$reportEndDate.day` reached substitution)
+            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings);
             out.add(resolveNode(stmt, context));
         }
         for (int i = 0; i < out.size(); i++) {

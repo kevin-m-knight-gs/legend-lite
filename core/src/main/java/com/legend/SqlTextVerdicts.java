@@ -82,7 +82,7 @@ final class SqlTextVerdicts {
                         producer.args().get(0), letPrefix);
         if (producer.args().size() < 3
                 || !(lamArg instanceof TypedLambda lam)
-                || lam.body().size() != 1
+                || lam.body().isEmpty()
                 || !(producer.args().get(1)
                         instanceof TypedPackageableRef mapping)) {
             return null;
@@ -135,6 +135,7 @@ final class SqlTextVerdicts {
         if (golden == null || ours == null) {
             return null;
         }
+        golden = stripChainedPlanWarning(golden);
         // from here every path is THIS arm's verdict — the marker lets
         // the dual-channel probe bucket walk-vs-arm outcomes as the
         // DESIGNED text-vs-rows divergence, never pinned disagreement
@@ -157,13 +158,34 @@ final class SqlTextVerdicts {
                             + " — text is the contract): expected "
                             + golden + ", got " + ours);
         }
+        // a MULTI-STATEMENT lambda (leading lets, then the query — the
+        // datePeriods `$fn`): the engine's plan is one statement per
+        // store-backed let, and its index-less toSQLString prints
+        // statement 0 (+ the chained-plan warning, stripped above) — so
+        // the golden is let 0's OWN rows when the lambda has statement
+        // lets (batch 69c); the lets scope the rows leg either way
+        List<TypedSpec> lamPrefix = new java.util.ArrayList<>(letPrefix);
+        lamPrefix.addAll(lam.body().subList(0, lam.body().size() - 1));
+        List<com.legend.compiler.spec.typed.TypedLet> stmtLets = statementLets(lam);
+        if (!stmtLets.isEmpty() && !isPopulationGolden(golden)) {
+            com.legend.compiler.spec.typed.TypedLet let0 = stmtLets.get(0);
+            String letCls = let0.value().info().type()
+                    instanceof com.legend.compiler.element.type.Type.ClassType ct
+                    ? ct.fqn() : null;
+            return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            let0.value(), mapping),
+                    null, mapping.fullPath(), letCls, false,
+                    lamPrefix, specs, env, hook, lam);
+        }
+        TypedSpec query = lam.body().get(lam.body().size() - 1);
         // OUR ROWS (§3.5c): the referee executes the producer's own
         // query — mapping from the producer, runtime from the env
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                        lam.body().get(0), mapping),
+                        query, mapping),
                 null, mapping.fullPath(), rootClassFqn(lam),
-                com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(0)), letPrefix,
+                com.legend.compiler.spec.VerdictQueries.extentSubset(query), lamPrefix,
                 specs, env, hook, lam);
     }
 
@@ -344,6 +366,7 @@ final class SqlTextVerdicts {
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        golden = stripChainedPlanWarning(golden);
         SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
@@ -468,6 +491,7 @@ final class SqlTextVerdicts {
         if (golden == null || ours == null) {
             return null;
         }
+        golden = stripChainedPlanWarning(golden);
         SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
@@ -513,6 +537,19 @@ final class SqlTextVerdicts {
 
     private record PopulationShape(@com.legend.Nullable TypedSpec rowsRead,
             List<SqlReplayOracle.TempTable> temps) {
+    }
+
+    /** The engine's index-less {@code sqlRemoveFormatting($res)} over a
+     * CHAINED plan prints statement 0 and appends this warning line
+     * (relationalMappingExecution.pure): the referee reads the SQL and
+     * drops the message before replay — a spec-text shape, like the
+     * population statement's. */
+    private static final String CHAINED_PLAN_WARNING =
+            "\nWarning: Results only shown for first relational query.";
+
+    private static String stripChainedPlanWarning(String golden) {
+        int at = golden.indexOf(CHAINED_PLAN_WARNING);
+        return at < 0 ? golden : golden.substring(0, at);
     }
 
     /** The statement index of an exec-sql read: {@code sql($res, n)} /

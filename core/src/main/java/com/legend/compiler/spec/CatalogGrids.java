@@ -33,7 +33,9 @@ public final class CatalogGrids {
      * keeps its declared type and WALLS loudly at the pipeline. */
     public static @com.legend.Nullable String sql(
             com.legend.compiler.spec.typed.TypedNativeCall nc,
-            com.legend.compiler.element.ModelContext ctx) {
+            com.legend.compiler.element.ModelContext ctx,
+            java.util.function.Function<String, java.util.Optional<
+                    com.legend.compiler.spec.typed.TypedSpec>> lets) {
         String fqn = nc.callee().qualifiedName();
         var kind = com.legend.compiler.element.type.PlatformTypes
                 .fetchDbKind(fqn);
@@ -49,7 +51,7 @@ public final class CatalogGrids {
                 case TABLES -> fetchSql(fqn, a1, a2, null);
                 case COLUMNS -> fetchSql(fqn, a1, a2, a3);
                 case PRIMARY_KEYS -> pkSql(
-                        pkFacts(ctx, nc.args().get(0), java.util.Map.of()),
+                        pkFacts(ctx, nc.args().get(0), lets),
                         a1, a2);
             };
         } catch (com.legend.error.NotImplementedException e) {
@@ -219,8 +221,8 @@ public final class CatalogGrids {
     public static List<String[]> pkFacts(
             com.legend.compiler.element.@com.legend.Nullable ModelContext ctx,
             com.legend.compiler.spec.typed.TypedSpec connArg,
-            java.util.Map<String,
-                    com.legend.compiler.spec.typed.TypedSpec> lets) {
+            java.util.function.Function<String, java.util.Optional<
+                    com.legend.compiler.spec.typed.TypedSpec>> lets) {
         String dbFqn = ctx == null ? null
                 : findDbRef(ctx, connArg, lets, new java.util.HashSet<>());
         if (ctx == null || dbFqn == null) {
@@ -272,8 +274,8 @@ public final class CatalogGrids {
     private static @com.legend.Nullable String findDbRef(
             com.legend.compiler.element.ModelContext ctx,
             com.legend.compiler.spec.typed.TypedSpec n,
-            java.util.Map<String,
-                    com.legend.compiler.spec.typed.TypedSpec> lets,
+            java.util.function.Function<String, java.util.Optional<
+                    com.legend.compiler.spec.typed.TypedSpec>> lets,
             java.util.Set<String> visitedVars) {
         if (n instanceof
                 com.legend.compiler.spec.typed.TypedPackageableRef pr
@@ -281,7 +283,7 @@ public final class CatalogGrids {
             return pr.fullPath();
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            var bound = lets.get(v.name());
+            var bound = lets.apply(v.name()).orElse(null);
             return bound != null && visitedVars.add(v.name())
                     ? findDbRef(ctx, bound, lets, visitedVars) : null;
         }

@@ -649,7 +649,13 @@ class JavaEvalLedgerTest {
             // verdict tail extracted so the n-th read routes there too).
             // Routing of typed facts; the replay and compare stay in the
             // oracle.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1011),
+            // 1011 -> 1035 (batch 69c): the engine's chained-plan warning
+            // line is stripped off a golden before replay (a spec-text
+            // shape), and the toSQLString arm takes MULTI-STATEMENT lambdas
+            // — golden(0) routes to statement let 0's rows, the lets scope
+            // the rows leg. Routing; the replay and compare stay in the
+            // oracle.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1035),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 1 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 84 | 2 | 1 | 0 | 1 | 1 | 0 | 0 |
+| tests/query | 87 | 84 | 2 | 1 | 0 | 0 | 0 | 0 | 0 |
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2424** | 41 | 78 | 32 | 7 | 7 | 29 | 4 |
+| **total** | 2575 | **2424** | 41 | 78 | 32 | 6 | 6 | 29 | 4 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2387 clean + 37 carrying softness (sqldiff 7, advisory 7, 0-asserts 29, text-rescued 4; flags overlap — the union is 37).
+SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2388 clean + 36 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 4; flags overlap — the union is 36).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,20 +542,20 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2387 clean + 37 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 181
+tests in the ledger: 179
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
-| wall:resolver | 32 |
+| wall:resolver | 31 |
 | wall:exec | 14 |
 | divergence | 28 |
-| not-reached | 39 |
+| not-reached | 38 |
 | referee-cannot-replay | 9 |
-| wall:lowering | 16 |
+| wall:lowering | 15 |
 | decision:objectReferenceIn | 7 |
-| pass | 40 |
+| pass | 36 |
 | sql-text-assert | 8 |
 | decision:dynamic-compilation | 2 |
 | zero-assert | 1 |
@@ -596,8 +596,6 @@ tests in the ledger: 181
 - testTwoMappingsOneRuntimeWithoutExternalMapping #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), "" ::  expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]
 - testViewToTDS #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatibleP :: in function 'meta::pure::tds::viewToTDS': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatiblePureType' — no function of this name in the nat
 - withPlatform #1 assertEquals -> wall:lowering: wall-exec: DialectCapability: collection reduction '_' reached a dialect without a list encoding :: collection reduction 'STRING_AGG' reached a dialect without a list encoding
-- testFetchDbPrimaryKeysMetaData #1 assertEq -> wall:lowering: wall-exec: IllegalStateException: no SQL type for generic Function<{FunctionDefinition<meta::pure::metamodel::type::Any>[N], meta::core::runtime::Runtime[ :: no SQL type for generic Function<{FunctionDefinition<meta::pure::metamodel::type::Any>[1], meta::core::runtime::Runtime[1] -> FunctionDefiniti
-- testFetchDbPrimaryKeysMetaData #2 - -> not-reached: 4 assert(s) after the failure
 - testObjectReferenceInEmbeddedMapping #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInEmbeddedMapping :: unknown function 'generateObjectReferences' — no function of this name in the native or user 
 - testObjectReferenceInSimple #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInSimple :: unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (
 - testObjectReferenceInWithBiTemporalMilestoning #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithBiTemporalMilestoning :: unknown function 'generateObjectReferences' — no function of this name in the nativ
@@ -658,7 +656,7 @@ tests in the ledger: 181
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testNonDataTypeProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - testTableToTdsWithConcatenate #0 - -> wall:typer: wall-type: in call to '_', argument N: column mismatch: type variable T bound to relat :: meta::pure::lineage::scanRelations::test::testTableToTdsWithConcatenate :: in call to 'meta::pure::functions::collection::concatenate', argument 2: column mismatch: type variable T bound to relation [firstName]
-- testTableToTdsWithCrossJoin #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for generic Function<{FunctionDefinition<meta::pure::metamodel::type::Any>[N], meta::core::runtime::Runtime[ :: no SQL type for generic Function<{FunctionDefinition<meta::pure::metamodel::type::Any>[1], meta::core::runtime::Runtime[1] -> FunctionDefiniti
+- testTableToTdsWithCrossJoin #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testTdsJoinConcatenateAndJoin #0 - -> wall:typer: wall-type: in call to '_', argument N: column mismatch: type variable T bound to relat :: meta::pure::lineage::scanRelations::test::testTdsJoinConcatenateAndJoin :: in call to 'meta::pure::functions::collection::concatenate', argument 2: column mismatch: type variable T bound to relation [First_1, A
 - testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [met
 - testBusinessDateInjectionFromVarReference #0 - -> wall:typer: wall-type: multi-statement lambda body with non-let, non-fail, non-assert statements :: meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReference :: multi-statement lambda body with non-let, non-fail, non-assert statements
@@ -800,11 +798,6 @@ tests in the ledger: 181
 - testUnionWithSinglePropertyMapping #3 - -> not-reached: 1 assert(s) after the failure
 - testUnionTwoRelationMappings_ManyColumnProject #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana ::  expected: '#TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Robe
 - testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana ::  expected: '#TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Robe
-- testGroupByWithFilterFunction_noDatePath #1 meta::pure::functions::asserts::assertEquals -> pass
-- testGroupByWithFilterFunction_noDatePath #2 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> pass
-- testGroupByWithFilterFunction_noDatePath #3 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> pass
-- testGroupByWithFilterFunction_noDatePath #4 meta::pure::functions::asserts::assertEquals -> pass
-- testGroupByWithFilterFunction_noDatePath #5 - -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-pa :: filtered-navigation read 'day' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=s]
 - testFilterTimesWithManyOperands #1 assertSameSQL -> wall:resolver: wall-exec: aggregate '_' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-o :: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - testFilterTimesWithManyOperands #2 - -> not-reached: 1 assert(s) after the failure
 - testLegacyFlagProjectionEmitsPlainEquals #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed

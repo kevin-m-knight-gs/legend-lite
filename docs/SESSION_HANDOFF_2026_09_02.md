@@ -3615,3 +3615,20 @@ fix-before-delete order (user): of the 11 — 5 fixed/receipted, forced
 pair = honest divergence pending the isolation-family DECISION (task
 #17), isolationTest + datePeriods + fetchDb = named walls (task #18).
 NEXT: user decision on #17, then batch 69 = the deletion.
+
+**Batch 69c — fetchDb primary keys + datePeriods fixed (2026-09-05,
+chain GREEN; GATES batch 69c; charter §8.0 receipt).** Ratchet 181/2392
+→ 179/2394. ClassLayouts skips Function-typed properties; CatalogGrids
+finds the PK grid's database through the typer's let channel;
+SubQueryLift lifts let-bound instance reads, runs on the execute route,
+stops at a TypedFrom; SqlTextVerdicts strips the chained-plan warning
+and the toSQLString arm takes multi-statement lambdas. The
+fix-before-delete order is COMPLETE except the isolation family: NEXT =
+the isolation leg (task #17, user-approved rule: join kind follows the
+mapper body's per-parent multiplicity — LEFT + keyed subselect when the
+body reduces to one value per parent; the forced pair pass, the two
+default structure goldens → engine-golden-defect; isolationTest's
+depth-3 correlated predicate rides the same keyed subselect), THEN batch
+69 = the deletion. METAMODEL-STORE LEG (user Q): key facts on Column
+rows / a table_keys relation + Runtime/ConnectionStore rows; the PK grid
+= one SQL over the store existence-filtered against information_schema.

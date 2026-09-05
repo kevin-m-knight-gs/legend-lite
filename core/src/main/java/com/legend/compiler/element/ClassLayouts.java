@@ -151,8 +151,19 @@ public final class ClassLayouts {
             if (!(p instanceof Property.Stored stored)) {
                 continue;
             }
-            Type.Column col = new Type.Column(stored.name(),
-                    substitute(stored.type(), typeArgs), stored.multiplicity());
+            Type declared = substitute(stored.type(), typeArgs);
+            if (declared instanceof Type.FunctionType
+                    || (declared instanceof Type.GenericType g
+                            && g.rawFqn().equals(PlatformTypes.FUNCTION))) {
+                // a FUNCTION-typed property is CODE, not data (the engine's
+                // Runtime.preprocessFunction hook, Function<{FunctionDefinition,
+                // Runtime -> FunctionDefinition}>): it has no SQL carrier and
+                // no slot in the instance's canonical layout — a constructed
+                // ^Runtime(connectionStores=...) lowers without it (batch 69c,
+                // fetchDbPrimaryKeysMetaData's connection chain)
+                continue;
+            }
+            Type.Column col = new Type.Column(stored.name(), declared, stored.multiplicity());
             Type.Column prev = out.get(stored.name());
             if (prev != null && isSuper) {
                 if (!prev.type().equals(col.type())) {

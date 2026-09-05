@@ -50,8 +50,25 @@ final class SubQueryLift {
     private static TypedSpec walk(TypedSpec n, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
             Map<String, TypedSpec> letBindings, boolean underLambda) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedFrom) {
+            // a from() carries its OWN mapping/runtime context: its
+            // subqueries lift when the resolver reaches it (the TypedFrom
+            // arm lifts under fromContext) — never under the enclosing
+            // statement's context (batch 69c: the driver-route statement
+            // `toCSV(from(...))` lifted the calendar read with no mapping)
+            return n;
+        }
         if (underLambda && n instanceof TypedPropertyAccess pa) {
-            TypedSpec chain = peelScalarWraps(pa.source());
+            // a LET-BOUND instance read ($reportEndDate.day where
+            // `let reportEndDate = FiscalCalendarDate.all()->filter(..)
+            // ->toOne()` is the query lambda's own statement let — batch
+            // 69c, datePeriods): the engine runs the let as its own
+            // statement and inlines the value; our one plan reads it as
+            // the same scalar subquery a written-out chain gets
+            TypedSpec src = pa.source() instanceof TypedVariable lv
+                    && letBindings.containsKey(lv.name())
+                    ? letBindings.get(lv.name()) : pa.source();
+            TypedSpec chain = peelScalarWraps(src);
             if (chain != null && StoreResolver.containsGetAll(chain)
                     && uncorrelated(chain,
                             new java.util.LinkedHashSet<>(
