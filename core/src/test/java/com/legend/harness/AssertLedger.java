@@ -86,6 +86,14 @@ public final class AssertLedger {
             "joinStrings-rendering",
             "meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries",
             "joinStrings-rendering",
+            // traced 2026-09-05: its golden's `tds_digest` column is
+            // rawtohex(hash('MD5', concat(FIRSTNAME, LASTNAME, '|'))) —
+            // the golden-only row is Anthony Allen with
+            // aceae941… = md5('AnthonyAllen|'), ours 0a8c4f1f… =
+            // md5('Anthony|Allen'); the five other columns agree cell for
+            // cell (lowercase hex on both sides)
+            "meta::relational::tests::functions::sqlstring::testHashFunctions",
+            "joinStrings-rendering",
             "meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek",
             "h2-week-start");
 

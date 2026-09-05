@@ -1059,8 +1059,12 @@ testExtendDigest_Relational, testJoinWithExtendWithDigestOnColumnsOnBothQueries.
 dateExtension tests (dateExtension.pure:18-19) and DuckDB say MONDAY, as ours
 does; the engine's H2 dialect extension does not compensate — an H2-dialect
 defect of the engine, one database. Test: testToSqlGenerationFirstDayOfWeek.
-NOT registered: testHashFunctions hashes `firstName + lastName` (plus, not
-joinStrings); its 7-row divergence is unexplained — next probe.
+testHashFunctions (traced 2026-09-05, batch 67c): its plus-column agrees, but its
+`tds_digest` column is `joinStrings([...], '|')->hash(MD5)` and the golden renders
+it `rawtohex(hash('MD5', concat(FIRSTNAME, LASTNAME, '|')))` — golden-only row
+Anthony Allen: aceae941… = md5('AnthonyAllen|'), ours 0a8c4f1f… =
+md5('Anthony|Allen'); the other five columns agree cell for cell, lowercase hex
+both sides. Registered under `joinStrings-rendering`.
 
 **§8.0 scope-table receipt, batch 67 (2026-09-05):** exec-passing
 12 (14 → 12): the engine's two-statement in-list plan as ROW verdicts —

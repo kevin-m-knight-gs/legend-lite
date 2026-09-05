@@ -550,7 +550,7 @@ tests in the ledger: 187
 | wall:typer | 49 |
 | wall:resolver | 30 |
 | pass | 45 |
-| divergence | 34 |
+| divergence | 33 |
 | wall:exec | 14 |
 | not-reached | 42 |
 | referee-cannot-replay | 14 |
@@ -561,7 +561,7 @@ tests in the ledger: 187
 | zero-assert | 2 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
-| engine-golden-defect:joinStrings-rendering | 3 |
+| engine-golden-defect:joinStrings-rendering | 4 |
 | engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
@@ -823,7 +823,7 @@ tests in the ledger: 187
 - testLegacyFlagProjectionEmitsPlainEquals #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testLegacyFlagRestoresOptionalParamFreeMarkerSelector #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testEqualityInFilterOnOptionalPropertiesLegacy #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "person
-- testHashFunctions #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 7 row(s), our pipeline 
+- testHashFunctions #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 7 row(s), our pipeline 
 - testIsDistinctSQLGeneration #1 meta::relational::functions::asserts::assertSameSQL -> pass
 - testIsDistinctSQLGeneration #2 meta::relational::functions::asserts::assertSameSQL -> divergence: platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "LegalName", case when (count( :: assertSameSQL (sql-text, DB2 — text is the contract): expected select "root".LEGALNAME as "LegalName", case when (count(distinct("personTable_d#4_d_m1".FIRSTNAME
 - testNonExecutableSQLString #1 assertSameSQL -> wall:typer: wall-exec: TypeInferenceException: in function '_': no overload of 'meta::relational::functi :: in function 'meta::relational::functions::sqlstring::toNonExecutableSQLString': no overload of 'meta::relational::functions::sqlstring::toSQLString' matches 8 argument(s) of these shapes — candidates: [me

@@ -3563,3 +3563,10 @@ passing row asserts first + 5 plan/legacy-flag), foreign-dialect text
 (filter-in-project, DateTime 9-digit literal), referee-cannot-replay 14
 (SELECTTOP1/missing-schema goldens 3, forced value frames 2,
 unformatted plan text 4, graph-keys 3 → batch 68, arity 2).
+
+**Batch 67c — testHashFunctions traced (2026-09-05).** Its `tds_digest`
+column is joinStrings('|')->hash(MD5); the golden renders the trailing
+separator (md5('AnthonyAllen|') vs ours md5('Anthony|Allen')); all other
+cells agree, lowercase hex both sides. Registered under
+`joinStrings-rendering` (now 4 tests + the digest pair). Hash needs NO
+platform work.
