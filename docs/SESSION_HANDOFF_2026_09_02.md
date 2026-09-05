@@ -3725,3 +3725,12 @@ executeInMemory five-feature analysis, what exists, sizing, decision record).
 NEXT (user order): "a full honest breakdown of what is left that can actually
 be implemented for real" — the 168 fallbacks off the assert ledger,
 implementable vs decision, then burn those to zero.
+
+**The honest breakdown of the 168 (2026-09-05, docs/BURN_BREAKDOWN_2026_09_05.md).**
+Every remaining fallback read at the source with its ledger row. IMPL 68 (16
+legs, real rows/values verdicts possible), TEXT 44 (the engine's alias / plan /
+foreign-dialect spelling is the contract), ENGINE 32 (the engine's own
+planner/router/renderer/DDL under test), OTHER STORES 8, NAMED 16 (receipts,
+registered defects, parked). "Burn to zero" = the 68; order L1 navigation
+shapes (15) → L8 natives/small typer (12) → L4+L3 union/isolation/relation
+mapping (10) → L13/L5/L6/L7 → the rest. Each leg = its own batch.
