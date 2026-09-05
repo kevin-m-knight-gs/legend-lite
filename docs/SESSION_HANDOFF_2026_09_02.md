@@ -3421,3 +3421,20 @@ rule; nothing landed):**
   connection's timeZone from the execute site into the DuckDB emission
   and shift DateTime literals (engine convertDateToSqlString with
   dbTimeZone) — one witness.
+
+**Union relation-mapping print — TRACED (2026-09-04, supersedes the
+receipt above):** the engine's relation toString (core_functions_relation
+toString.pure) prints a cell through s.pure: an EMPTY cell prints the
+word `null` (`'null'` quoted for Variant) — exactly Render's rule, so
+Render stays. The TDS literal's blank cell is NULL (legend-pure
+TDSExtension CsvSpecs nullValueLiterals '' / 'null'); the engine's test
+H2 runs `MODE=LEGACY` (H2Manager defaultH2Properties) where an inserted
+'' stays '' (jshell, h2-2.1.214: mem default '', MODE=Oracle NULL,
+MODE=LEGACY ''); RelationalResult/ResultColumn read VARCHAR with
+getString unchanged. So the engine itself would print `Anand,,…` against
+an expected `Anand,null,…`. The golden is not explainable by the code
+read — either not green upstream or a conversion not found. Bucket stays
+divergence; do NOT touch Render for it. Also checked: the engine's H2
+PCT manifest fails the joinStrings PCT tests for an unrelated reason
+(toVariantList translation), so the digest family has no manifest
+precedent — it remains the user's decision.
