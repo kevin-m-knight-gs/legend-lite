@@ -84,7 +84,12 @@ class SqlTextRatchetTest {
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
         // text composition, no JDBC)
-        REGISTER.put("compiler/spec/CatalogGrids.java", 9);
+        // 9 -> 10 (batch 71, 2026-09-05): the primary-keys grid is a
+        // LIVE-catalog query like its three siblings (information_schema
+        // key_column_usage + table_constraints) — the model-fact VALUES
+        // splice it replaces died with the Java fact-walk; catalog text
+        // is the registered class this file exists for
+        REGISTER.put("compiler/spec/CatalogGrids.java", 10);
         // 3 -> 4 (metamodel-store leg 2026-08-28): metamodelSeed's
         // registry-extent INSERT joins the one DDL owner — system
         // setup text beside the create/drop it already renders

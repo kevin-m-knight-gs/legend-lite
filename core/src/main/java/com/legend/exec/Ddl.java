@@ -18,12 +18,15 @@ import com.legend.model.RelationalDataType;
  * HAND-WRITTEN corpus text only — text whose origin really is another
  * dialect.
  *
- * <p>No PRIMARY KEY / NOT NULL constraints are emitted — a DELIBERATE
- * DIVERGENCE from the engine (its dropAndCreateTableInDb defaults
- * applyConstraints=true): milestoned test tables seed several versions
- * of one id, and DuckDB would reject the re-seeds the engine's H2 setup
- * tolerates. Parity here is with legend-lite's own legacy replay, not
- * the engine.
+ * <p>Constraints: the {@code dropAndCreateTableInDb} native emits the
+ * declared {@code PRIMARY KEY(...)} and {@code NULL}/{@code NOT NULL}
+ * exactly like the engine (its {@code applyConstraints} defaults true —
+ * batch 71, measured across the corpus: zero seed failures, so no
+ * fixture re-seeds a keyed table it created through the native; the one
+ * failure was declared-quoted key names, now spelled per flavor). The
+ * HARNESS's ambient CSV seed ({@code CsvSeed}) still creates its tables
+ * without constraints: milestoned test data holds several versions of
+ * one id, and that seeding has no engine counterpart to match.
  */
 public final class Ddl {
 
@@ -58,9 +61,22 @@ public final class Ddl {
                 duckTarget ? Flavor.DUCK_EXEC : Flavor.H2_EXEC);
     }
 
-    /** THE create-table generator, flavor-dispatched ({@link Flavor}). */
+    /** THE create-table generator, flavor-dispatched ({@link Flavor});
+     * constraints ride the ENGINE_TEXT flavor only. */
     public static String createTable(DatabaseDefinition.TableDefinition def,
             @com.legend.Nullable String schema, Flavor f) {
+        return createTable(def, schema, f, f == Flavor.ENGINE_TEXT);
+    }
+
+    /** {@code constraints}: emit the engine's {@code NULL}/{@code NOT NULL}
+     * and trailing {@code PRIMARY KEY(...)} in an EXECUTION flavor too —
+     * the {@code dropAndCreateTableInDb} native (engine parity: its
+     * {@code applyConstraints} defaults true, so the physical table the
+     * engine's test creates CARRIES its declared key and the live catalog
+     * answers {@code fetchDbPrimaryKeysMetaData}); the ambient seed stays
+     * unconstrained (this file's header). */
+    public static String createTable(DatabaseDefinition.TableDefinition def,
+            @com.legend.Nullable String schema, Flavor f, boolean constraints) {
         StringBuilder sb = new StringBuilder("Create Table ")
                 .append(qualify(schema, def.name())).append("(");
         boolean first = true;
@@ -96,15 +112,29 @@ public final class Ddl {
                         case DUCK_EXEC -> '"' + col.name() + '"';
                     })
                     .append(' ').append(spell(col.dataType(), f));
-            if (f == Flavor.ENGINE_TEXT) {
+            if (constraints) {
                 sb.append(col.primaryKey() || col.notNull()
                         ? " NOT NULL" : " NULL");
             }
         }
-        if (f == Flavor.ENGINE_TEXT) {
+        if (constraints) {
+            // the key list spells each column the way its DEFINITION was
+            // spelled in this flavor: the engine joins the metamodel NAMES
+            // raw, and a declared-quoted column's metamodel name CARRIES
+            // its quotes (datePeriods calendar: PRIMARY KEY("date",
+            // "calendar name")) — our model unquotes the name and stamps
+            // quoted(), so the quotes come back here; the execution
+            // flavors use their own identifier rule (batch 71)
             java.util.List<String> pks = def.columns().stream()
                     .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
-                    .map(DatabaseDefinition.ColumnDefinition::name).toList();
+                    .map(col -> switch (f) {
+                        case ENGINE_TEXT -> col.quoted()
+                                ? '"' + col.name() + '"' : col.name();
+                        case H2_EXEC -> col.quoted()
+                                ? '"' + col.name() + '"'
+                                : execIdentifier(col.name());
+                        case DUCK_EXEC -> '"' + col.name() + '"';
+                    }).toList();
             if (!pks.isEmpty()) {
                 // the engine joins the pk NAMES RAW (translateCreateTable-
                 // StatementDefault: '$t.primaryKey->map(c|$c.name)', no

@@ -3645,3 +3645,16 @@ type — typer leg. OPEN: isolationTest depth-3 correlated predicate.
 NEXT: batch 69 = the deletion (the fix-before-delete order is
 satisfied: 5 fixed, 2 legs fixed in 69c, 2 receipted, forced pair =
 named decision, isolationTest = named wall).
+
+**Batch 71 — fetchDb primary keys the engine's way (2026-09-05, chain
+GREEN; GATES batch 71).** Ratchet unchanged 179/2394; 0 failed seeds.
+The native emits the engine's constraints (quoted key names per
+flavor); the PK grid is a live-catalog query; the model fact-walk and
+the typer's db lookup are gone; CsvSeed stays unconstrained. Rulings:
+fetchDb* = physical introspection, live catalog is the truth; the store
+= what the model declares; no statement reads both stores; no runtime
+rows. NEXT: batch 69 = the deletion (measured: ratchet unchanged,
+unable-to-exec 8 → 9). THEN the 33 walk-only Java-form/wall tests (the
+"Pure programs instead of Java" leg: objectReferenceIn 7, connection
+equality 5, routeFunction 5, recursion 2, protocol 2, dynamic 2, ~10
+walls).

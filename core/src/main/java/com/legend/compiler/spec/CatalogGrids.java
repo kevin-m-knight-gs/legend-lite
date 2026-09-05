@@ -28,14 +28,11 @@ public final class CatalogGrids {
     /** The catalog grid's SQL for a {@code fetchDb*} call with LITERAL
      * patterns — the Typer's retype gate (Phase 1c: the call types as
      * its relation, late-bound like every raw grid). Null = not
-     * compile-time recognizable (a variable pattern, or a PK grid whose
-     * connection carries no database reference at typing) — the call
-     * keeps its declared type and WALLS loudly at the pipeline. */
+     * compile-time recognizable (a variable pattern) — the call keeps
+     * its declared type and WALLS loudly at the pipeline. All four grids
+     * read the LIVE catalog (batch 71: primary keys too). */
     public static @com.legend.Nullable String sql(
-            com.legend.compiler.spec.typed.TypedNativeCall nc,
-            com.legend.compiler.element.ModelContext ctx,
-            java.util.function.Function<String, java.util.Optional<
-                    com.legend.compiler.spec.typed.TypedSpec>> lets) {
+            com.legend.compiler.spec.typed.TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
         var kind = com.legend.compiler.element.type.PlatformTypes
                 .fetchDbKind(fqn);
@@ -45,18 +42,12 @@ public final class CatalogGrids {
         if (bad(a1) || bad(a2) || bad(a3)) {
             return null;
         }
-        try {
-            return switch (kind) {
-                case SCHEMAS -> fetchSql(fqn, a1, null, null);
-                case TABLES -> fetchSql(fqn, a1, a2, null);
-                case COLUMNS -> fetchSql(fqn, a1, a2, a3);
-                case PRIMARY_KEYS -> pkSql(
-                        pkFacts(ctx, nc.args().get(0), lets),
-                        a1, a2);
-            };
-        } catch (com.legend.error.NotImplementedException e) {
-            return null;   // no db ref at typing — the seam's case
-        }
+        return switch (kind) {
+            case SCHEMAS -> fetchSql(fqn, a1, null, null);
+            case TABLES -> fetchSql(fqn, a1, a2, null);
+            case COLUMNS -> fetchSql(fqn, a1, a2, a3);
+            case PRIMARY_KEYS -> fetchSql(fqn, a1, a2, null);
+        };
     }
 
     /** Sentinel-based literal pattern: null = empty ([]), the string =
@@ -124,50 +115,31 @@ public final class CatalogGrids {
                     + like("upper(table_name)", tablePattern)
                     + like("upper(column_name)", columnPattern)
                     + " ORDER BY 2, 3, ordinal_position";
-            case PRIMARY_KEYS -> throw new IllegalStateException(
-                    "primary keys route through fetchPrimaryKeys (model"
-                    + " facts — the ambient DDL omits PK constraints)");
+            // batch 71 (engine parity): legend-pure's native is
+            // DatabaseMetaData.getPrimaryKeys over the LIVE database, and
+            // the engine's dropAndCreateTableInDb creates the test tables
+            // WITH their declared key (applyConstraints defaults true) —
+            // ours now does too, so the live catalog answers here exactly
+            // like the three grids above. The standard key_column_usage /
+            // table_constraints pair reads identically on DuckDB 1.4.4 and
+            // H2 2.1.214 (probed 2026-09-05: ordinal positions, quoted
+            // names). No model facts, no store, no connection chase.
+            case PRIMARY_KEYS -> "SELECT NULL AS \"TABLE_CAT\","
+                    + " upper(k.table_schema) AS \"TABLE_SCHEM\","
+                    + " upper(k.table_name) AS \"TABLE_NAME\","
+                    + " upper(k.column_name) AS \"COLUMN_NAME\","
+                    + " k.ordinal_position AS \"KEY_SEQ\", NULL AS \"PK_NAME\""
+                    + " FROM information_schema.key_column_usage k"
+                    + " JOIN information_schema.table_constraints t"
+                    + " ON k.constraint_name = t.constraint_name"
+                    + " AND k.table_schema = t.table_schema"
+                    + " AND k.table_name = t.table_name"
+                    + " WHERE t.constraint_type = 'PRIMARY KEY'"
+                    + " AND k.table_schema" + NOT_SYSTEM
+                    + like("upper(k.table_schema)", schemaPattern)
+                    + like("upper(k.table_name)", tablePattern)
+                    + " ORDER BY 2, 3, 5";
         };
-    }
-
-    /** The PRIMARY_KEYS grid: the connection store's PK facts are MODEL
-     * text (the ambient DDL deliberately omits the constraints —
-     * milestoned re-seeds), composed as literal rows and
-     * existence-filtered against the LIVE catalog in SQL; the database
-     * produces every value, uppercased by the same engine-parity rule. */
-    /** The PK catalog query TEXT alone (null = no facts → empty grid) —
-     * the E4.e grid-read compiler composes over it. */
-    public static @com.legend.Nullable String pkSql(List<String[]> facts,
-            @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern) {
-        if (facts.isEmpty()) {
-            return null;
-        }
-        StringBuilder values = new StringBuilder();
-        for (String[] f : facts) {
-            if (values.length() > 0) {
-                values.append(", ");
-            }
-            values.append("(NULL, upper('").append(esc(f[0]))
-                    .append("'), upper('").append(esc(f[1]))
-                    .append("'), upper('").append(esc(f[2]))
-                    .append("'), ").append(Integer.parseInt(f[3]))
-                    .append(", NULL)");
-        }
-        return "SELECT * FROM (VALUES " + values
-                + ") AS pk(\"TABLE_CAT\", \"TABLE_SCHEM\", \"TABLE_NAME\","
-                + " \"COLUMN_NAME\", \"KEY_SEQ\", \"PK_NAME\")"
-                + " WHERE EXISTS (SELECT 1 FROM information_schema.tables t"
-                + " WHERE upper(t.table_name) = pk.\"TABLE_NAME\""
-                + " AND (pk.\"TABLE_SCHEM\" = 'DEFAULT'"
-                + " OR upper(t.table_schema) = pk.\"TABLE_SCHEM\"))"
-                + like("pk.\"TABLE_SCHEM\"", schemaPattern)
-                + like("pk.\"TABLE_NAME\"", tablePattern)
-                + " ORDER BY 2, 3, 5";
-    }
-
-    private static String esc(String s) {
-        return s.replace("'", "''");
     }
 
     /** THE DECLARED METADATA SCHEMA (§4bZ-U leg 4): the JDBC
@@ -211,89 +183,6 @@ public final class CatalogGrids {
             case PRIMARY_KEYS -> List.of("TABLE_CAT", "TABLE_SCHEM",
                     "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME");
         };
-    }
-
-    /** The PK fact rows (schema, table, column, seq) of the connection's
-     * store — the database referenced inside the connection argument's
-     * typed tree (variables resolve through the enclosing lets),
-     * include-closure merged. MODEL-fact collection (compilation-class),
-     * never value evaluation. */
-    public static List<String[]> pkFacts(
-            com.legend.compiler.element.@com.legend.Nullable ModelContext ctx,
-            com.legend.compiler.spec.typed.TypedSpec connArg,
-            java.util.function.Function<String, java.util.Optional<
-                    com.legend.compiler.spec.typed.TypedSpec>> lets) {
-        String dbFqn = ctx == null ? null
-                : findDbRef(ctx, connArg, lets, new java.util.HashSet<>());
-        if (ctx == null || dbFqn == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "fetchDb primary keys — no database reference found"
-                    + " in the connection argument");
-        }
-        List<String[]> facts = new ArrayList<>();
-        collectPks(ctx, dbFqn, facts, new java.util.LinkedHashSet<>());
-        return facts;
-    }
-
-    private static void collectPks(
-            com.legend.compiler.element.ModelContext ctx, String dbFqn,
-            List<String[]> out, java.util.Set<String> seen) {
-        if (!seen.add(dbFqn)) {
-            return;
-        }
-        var dbo = ctx.findDatabase(dbFqn);
-        if (dbo.isEmpty()) {
-            return;
-        }
-        var db = dbo.get();
-        for (String inc : db.includes()) {
-            collectPks(ctx, inc, out, seen);
-        }
-        for (var t : db.tables()) {
-            tablePks("default", t, out);
-        }
-        for (var sd : db.schemas()) {
-            for (var t : sd.tables()) {
-                tablePks(sd.name(), t, out);
-            }
-        }
-    }
-
-    private static void tablePks(String schema,
-            com.legend.model.DatabaseDefinition.TableDefinition t,
-            List<String[]> out) {
-        int seq = 1;
-        for (var c : t.columns()) {
-            if (c.primaryKey()) {
-                out.add(new String[] {schema, t.name(), c.name(),
-                        String.valueOf(seq++)});
-            }
-        }
-    }
-
-    private static @com.legend.Nullable String findDbRef(
-            com.legend.compiler.element.ModelContext ctx,
-            com.legend.compiler.spec.typed.TypedSpec n,
-            java.util.function.Function<String, java.util.Optional<
-                    com.legend.compiler.spec.typed.TypedSpec>> lets,
-            java.util.Set<String> visitedVars) {
-        if (n instanceof
-                com.legend.compiler.spec.typed.TypedPackageableRef pr
-                && ctx.isDatabase(pr.fullPath())) {
-            return pr.fullPath();
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            var bound = lets.apply(v.name()).orElse(null);
-            return bound != null && visitedVars.add(v.name())
-                    ? findDbRef(ctx, bound, lets, visitedVars) : null;
-        }
-        for (var c : n.children()) {
-            String hit = findDbRef(ctx, c, lets, visitedVars);
-            if (hit != null) {
-                return hit;
-            }
-        }
-        return null;
     }
 
     /** The parameterized-type head ({@code DECIMAL(10,2)} → DECIMAL) —

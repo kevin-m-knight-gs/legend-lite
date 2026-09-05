@@ -2756,13 +2756,17 @@ final class StatementExecutor {
         boolean rawH2 = env.dialect().rawH2IsNative();
         String drop = Ddl.dropTable(schema, table);
         Executor.executeRaw(connection, drop);
+        // engine parity (batch 71 experiment): the native's DDL carries the
+        // declared key and nullability, exactly like the engine's
+        // dropAndCreateTableInDb (applyConstraints defaults true)
         Executor.executeRaw(connection,
-                Ddl.createTable(def, schema, !rawH2));
+                Ddl.createTable(def, schema,
+                        rawH2 ? Ddl.Flavor.H2_EXEC : Ddl.Flavor.DUCK_EXEC, true));
         java.util.List<String> mirror =
                 com.legend.sql.dialect.RawSqlBoundary.recording();
         if (!rawH2 && mirror != null) {
             mirror.add(drop);
-            mirror.add(Ddl.createTable(def, schema));
+            mirror.add(Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true));
         }
         // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
         // constraints; our DuckDB DDL deliberately omits them (milestoned
