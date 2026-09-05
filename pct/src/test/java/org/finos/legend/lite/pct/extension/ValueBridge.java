@@ -393,6 +393,24 @@ final class ValueBridge {
                     + type + " — no kind re-derivation");
         }
         if (value instanceof Double d) {
+            // NON-FINITE STOPS HERE, with OUR wording. Pure has no NaN
+            // and no infinity — CanonicalForm.renderFloat already calls
+            // them "OUT of the claimed domain" — so a backend that hands
+            // one back (DuckDB acos(2.0) -> NaN) is off the Float
+            // surface and the bridge must say so.
+            //
+            // Left to fall through, BigDecimal.valueOf(NaN) threw, and
+            // its MESSAGE is JDK-dependent: JDK 21 routes through
+            // new BigDecimal(Double.toString(d)) and complains
+            // 'Character N is neither a decimal digit number...', while
+            // JDK 25 short-circuits to 'Infinite or NaN'. The PCT
+            // ledger pins actual messages verbatim, so one pin could
+            // never match both JDKs and the matrix went red on 21 only.
+            // A domain wall we own is stable on every JDK.
+            if (!Double.isFinite(d)) {
+                throw new ArithmeticException(
+                        "non-finite Float result: " + d);
+            }
             return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
         }
         // Dates — THE wire temporal (D-arc 2026-08-21): PureDateLiteral

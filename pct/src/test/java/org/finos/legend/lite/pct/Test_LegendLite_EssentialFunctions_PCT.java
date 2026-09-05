@@ -139,8 +139,15 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // expected failures (relational-h2 EssentialFunctions_manifest:
             // "No error was thrown"; duckdb/postgres: the database's own
             // error). Ours: the NaN cell cannot be read back as a Float.
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
+            //
+            // The pin is OUR OWN wording on purpose (ValueBridge's
+            // non-finite wall). It used to read "Infinite or NaN", which
+            // is BigDecimal.valueOf's message on JDK 25 — on JDK 21 the
+            // same call says "Character N is neither a decimal digit
+            // number...", so the pin matched one half of the matrix and
+            // reddened the other. A message we own is stable on both.
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"non-finite Float result: NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"non-finite Float result: NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
 
     public static Test suite() {
         // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
