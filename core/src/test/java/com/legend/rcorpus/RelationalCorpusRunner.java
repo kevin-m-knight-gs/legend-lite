@@ -1826,10 +1826,23 @@ public class RelationalCorpusRunner {
             // .LEGALNAME` after a hop onto a view). +1 flip
             // (testIsolatioWhereNoConstaintsAndInnerJoin), 0 lost;
             // sql-verdict disagree 0; dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(210L,
+            // Batch 63 (2026-09-04, the joined table's scan order): the
+            // engine-corpus-compat scan-order key (ScanOrder, StableScanOrder
+            // — flag-gated, host channel only) is now LEXICOGRAPHIC over the
+            // join tree's base-table scans in join order and covers
+            // plain-table joins: H2's nested loop emits the driving scan's
+            // order and, within one driving row, the joined table's scan
+            // order; DuckDB's hash join does not (Product ⋈ Product_Synonym
+            // with synonyms 11→P1, 12→P2, 13→P1: (P1,11),(P1,13),(P2,12)).
+            // +3 flips (the enum projection rows->at(i) tests:
+            // testProjectWithIfWhereBothSidesUseTheSameEnumMapping,
+            // testProjectWithIfWhereOneSideIsEnumLiteral,
+            // testProjectionWithEnumThroughAssociation), 0 lost;
+            // sql-verdict disagree 0; dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(207L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2363L,
+            org.junit.jupiter.api.Assertions.assertEquals(2366L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

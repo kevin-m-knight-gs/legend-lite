@@ -73,7 +73,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| tests/mapping/enumeration | 26 | 22 | 3 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/enumeration | 26 | 25 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/filter | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2420** | 46 | 77 | 32 | 12 | 12 | 29 | 21 |
+| **total** | 2575 | **2423** | 43 | 77 | 32 | 12 | 12 | 29 | 21 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2420 PASS = 2361 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
+SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2364 clean + 59 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 21; flags overlap — the union is 59).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,17 +542,17 @@ SOFT-PASS RECONCILIATION (F2.1): 2420 PASS = 2361 clean + 59 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 210
+tests in the ledger: 207
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
 | wall:resolver | 29 |
-| pass | 83 |
-| divergence | 46 |
+| pass | 77 |
+| divergence | 43 |
 | wall:exec | 14 |
-| not-reached | 59 |
+| not-reached | 56 |
 | referee-cannot-replay | 16 |
 | zero-assert | 3 |
 | wall:lowering | 16 |
@@ -830,18 +830,6 @@ tests in the ledger: 210
 - testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter #2 - -> not-reached: 1 assert(s) after the failure
 - otherwiseTestQualifierPropertyConstantExpression #0 - -> zero-assert: assert-free-inert :: meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression
 - testEnumInRelation #1 assertEquals -> wall:resolver: wall-exec: class query under TypedPropertyAccess is not resolvable yet (HN vocabulary) :: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- testProjectWithIfWhereBothSidesUseTheSameEnumMapping #1 meta::pure::functions::asserts::assertSize -> pass
-- testProjectWithIfWhereBothSidesUseTheSameEnumMapping #2 meta::pure::functions::asserts::assertEquals -> pass
-- testProjectWithIfWhereBothSidesUseTheSameEnumMapping #3 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (TDSRow.values) expected: ['_', '_'] :: assertEquals (TDSRow.values) expected: ['My Product', 'GS_NUMBER'] actual:   ['My Product 2', 'CUSIP']
-- testProjectWithIfWhereBothSidesUseTheSameEnumMapping #4 - -> not-reached: 1 assert(s) after the failure
-- testProjectWithIfWhereOneSideIsEnumLiteral #1 meta::pure::functions::asserts::assertSize -> pass
-- testProjectWithIfWhereOneSideIsEnumLiteral #2 meta::pure::functions::asserts::assertEquals -> pass
-- testProjectWithIfWhereOneSideIsEnumLiteral #3 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (TDSRow.values) expected: ['_', '_'] :: assertEquals (TDSRow.values) expected: ['My Product', 'GS_NUMBER'] actual:   ['My Product 2', 'GS_NUMBER']
-- testProjectWithIfWhereOneSideIsEnumLiteral #4 - -> not-reached: 1 assert(s) after the failure
-- testProjectionWithEnumThroughAssociation #1 meta::pure::functions::asserts::assertSize -> pass
-- testProjectionWithEnumThroughAssociation #2 meta::pure::functions::asserts::assertEquals -> pass
-- testProjectionWithEnumThroughAssociation #3 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (TDSRow.values) expected: ['_', '_', false] :: assertEquals (TDSRow.values) expected: ['GS_NUMBER', 'GS_NUMBER', false] actual:   ['CUSIP', 'CUSIP', true]
-- testProjectionWithEnumThroughAssociation #4 - -> not-reached: 1 assert(s) after the failure
 - testStoreSubstitution #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or :: meta::relational::tests::mapping::include::testStoreSubstitution :: unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform 
 - testForcedSubTypeProjectDirect #1 assertSameElements -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-p :: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
 - testMultipleJoinsInPropertyMappingWithDatesInClass #1 meta::pure::functions::asserts::assertSize -> pass
@@ -1032,7 +1020,7 @@ tests in the ledger: 210
 - ERROR testResultToJsonStream [tests]: 'GeographicEntityType' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExtractDBsWithSubstituition [tests]: in function 'meta::relational::runtime::extractDBs': unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::runtime::extractDBs/1 -> meta::relational::runtime::extractDBs/2]
 - ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCoreTypeToDbSpecificType/2]
-- FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n
+- FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: no scalar lowering registered for resolved overload 'meta::json::toJSON' with 1 parameter(s)
 - ERROR testProjectThroughAssociation [tests/injection]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]
@@ -1040,9 +1028,6 @@ tests in the ledger: 210
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1, t5.ID... |                     ^
 - ERROR testEnumInRelation [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
-- FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
-- FAIL testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true]
 - SHAPE testStoreSubstitution [tests/mapping/include]: assert form 'assertIs/2' is not supported yet
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3] [expected types=[String, String, String, String, String, String]; got types=[String, String, String]]

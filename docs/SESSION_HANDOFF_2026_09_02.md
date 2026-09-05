@@ -3369,3 +3369,22 @@ re-derives `$result.values.tableProperty` as a fresh class query
 (ResultEnvelopeSplice.valuesRead splices .values into the chain) whose
 join pruning drops the fan-out (3): a navigation over an EXECUTED
 result must keep the executed row set — a verdict-seam leg.
+
+**Batch 63 — the joined table's scan order (2026-09-04, chain GREEN
+6m02s; docs/GATES.md batch 63).** Ratchet 210/2363 → 207/2366 (the
+three enum projection rows->at(i) tests). ScanOrder.ordered's key is
+lexicographic over the join tree's base-table scans in join order and
+plain-table joins are in scope (H2 nested loop vs DuckDB hash join).
+Engine-corpus-compat only (StableScanOrder flag); the assert boundary
+(CanonicalRenderSql) uses the same key. Nothing else moved.
+
+NEXT candidates (each needs one -Drcorpus.test scoped run with
+LEGEND_LITE_DUMP_SQL=1): testSimpleMappingQueryWithFilterInProject
+(to-many filter inside a relation-mapping project — 5 expected rows with
+TDSNull), testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter
+(Binder: t5 not found — an alias-scope bug in our union+isolation
+emission), columnValueDifferenceWithoutPrevalTest (relational vs
+in-memory TDS extension; #4 rendered-CSV row diverges), the union
+relation-mapping print ×2 (engine golden prints firstName BLANK though
+the fixture has names — read before touching), testRelationStoreAccessorOnView
+(view expansion on the typed accessor path).

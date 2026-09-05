@@ -57,9 +57,38 @@ public final class ScanOrder {
         return q;
     }
 
+    /** The key is LEXICOGRAPHIC over the join tree's base-table scans in
+     * join order — the driving table first, then each joined table: H2's
+     * nested-loop join emits the driving scan's order and, within one
+     * driving row, the joined table's scan order (Product ⋈
+     * Product_Synonym with synonyms 11→P1, 12→P2, 13→P1 reads (P1,11),
+     * (P1,13), (P2,12) — the enum projection tests' rows->at(i)). Frames
+     * (subselects) contribute no key. */
     private static SqlSelect ordered(SqlSelect s, SqlSource.Table base) {
-        return s.withOrderBy(List.of(new SqlSelect.SortKey(
-                new SqlExpr.RowOrder(base.alias()), true, null, null)));
+        List<SqlSelect.SortKey> keys = new java.util.ArrayList<>();
+        for (SqlSource.Table t : scanTables(s.from())) {
+            keys.add(new SqlSelect.SortKey(
+                    new SqlExpr.RowOrder(t.alias()), true, null, null));
+        }
+        if (keys.isEmpty()) {
+            keys.add(new SqlSelect.SortKey(
+                    new SqlExpr.RowOrder(base.alias()), true, null, null));
+        }
+        return s.withOrderBy(keys);
+    }
+
+    /** Base-table scans of a join tree in join order (leftmost first). */
+    private static List<SqlSource.Table> scanTables(SqlSource from) {
+        List<SqlSource.Table> out = new java.util.ArrayList<>();
+        if (from instanceof SqlSource.Join j) {
+            out.addAll(scanTables(j.left()));
+            if (j.right() instanceof SqlSource.Table t) {
+                out.add(t);
+            }
+        } else if (from instanceof SqlSource.Table t) {
+            out.add(t);
+        }
+        return out;
     }
 
 
@@ -75,13 +104,14 @@ public final class ScanOrder {
                         p -> containsReducer(p.expr()))) {
             return null;
         }
-        boolean hasFrame = false;
+        // plain-table joins are in scope too (batch 63): DuckDB's hash
+        // join does not preserve the joined table's scan order within a
+        // driving row, which H2's nested loop does
         SqlSource leftmost = s.from();
         while (leftmost instanceof SqlSource.Join j) {
-            hasFrame |= j.right() instanceof SqlSource.Subselect;
             leftmost = j.left();
         }
-        return hasFrame && leftmost instanceof SqlSource.Table t ? t : null;
+        return leftmost instanceof SqlSource.Table t ? t : null;
     }
 
     /** A top-level aggregate anywhere in the expression — Reducer,
