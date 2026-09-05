@@ -1288,7 +1288,8 @@ public final class EngineTestExecutor {
         } catch (H2Verify.Unverifiable u) {
             sqlTextOutcome((match ? "match-noreplay" : "diff-noreplay")
                     + " :: " + u.getMessage());
-            return match ? null
+            // batch 69: a matched text without a row replay is advisory
+            return match ? ADVISORY_MARKER
                     : "sql-text: expected " + golden + ", got " + ours;
         }
     }
@@ -1447,9 +1448,14 @@ public final class EngineTestExecutor {
                     return null;
                 }
                 if (java.util.Objects.equals(h2rows, ADVISORY_MARKER)) {
+                    // batch 69 (user direction 2026-09-04: delete the
+                    // harness code that does the platform's job): a
+                    // byte-equal golden the referee could NOT replay is
+                    // text agreement, not a row verdict — advisory,
+                    // never counted verified (it was, as "match-noreplay")
                     H2Verify.M1_UNVERIFIABLE.increment();
                     sqlTextOutcome("match-noreplay");
-                    return null;
+                    return ADVISORY_MARKER;
                 }
                 H2Verify.M1_DIVERGED.increment();
                 sqlTextOutcome("exec-diverged");
@@ -2473,7 +2479,14 @@ public final class EngineTestExecutor {
                             boolean want = simpleName(af.function())
                                     .equals("assert");   // F6.9 polarity
                             if (Boolean.valueOf(want).equals(pv)) {
-                                return null;   // REAL verified pass
+                                // batch 69: a predicate over OUR OWN
+                                // generated SQL text holding is a text
+                                // contract, not a row verdict — advisory
+                                // (it was counted a "REAL verified pass";
+                                // the platform's ledger names the same
+                                // assert sql-text-assert)
+                                sqlTextOutcome("predicate-held");
+                                return ADVISORY_MARKER;
                             }
                             // dialect-owned text: a failed text-predicate
                             // is a RECORDED divergence, never a hard test

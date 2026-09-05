@@ -2071,7 +2071,11 @@ public class RelationalCorpusRunner {
             // projects the set's own property mappings only
             // 9 -> 8 (batch 69c): the datePeriods "column arity differs"
             // decline is a row verdict (golden(0) = the calendar let's rows)
-            org.junit.jupiter.api.Assertions.assertEquals(8,
+            // 8 -> 9 (batch 69, the deletion): a byte-equal golden the
+            // referee could not replay is ADVISORY now, never verified —
+            // one such assert moves from the walk's "verified" count into
+            // this lane's decline census (the truth: text agreement only)
+            org.junit.jupiter.api.Assertions.assertEquals(9,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),

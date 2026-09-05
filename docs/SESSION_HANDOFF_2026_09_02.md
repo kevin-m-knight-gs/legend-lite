@@ -3658,3 +3658,14 @@ unable-to-exec 8 → 9). THEN the 33 walk-only Java-form/wall tests (the
 "Pure programs instead of Java" leg: objectReferenceIn 7, connection
 equality 5, routeFunction 5, recursion 2, protocol 2, dynamic 2, ~10
 walls).
+
+**Batch 69 — THE DELETION (2026-09-05, chain GREEN; GATES batch 69).**
+The walk's three text-only "verified" returns (byte-equal golden
+without replay ×2, contains over our own text) are advisory. Ratchet
+unchanged 179/2394; no family moved; unable-to-exec 8 → 9. Every
+verified assert in the walk is a row or value verdict now. NEXT: the 33
+walk-only Java-form/wall tests — objectReferenceIn (7) as a Pure
+program first (present the plan: protocol transform is a decision
+bucket), connection equality (5), routeFunction (5), recursion (2),
+protocol (2), dynamic (2), ~10 resolver/typer/lowering walls; each
+retires a Java form in EngineTestExecutor when its platform leg lands.

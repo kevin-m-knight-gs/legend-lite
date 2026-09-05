@@ -1041,6 +1041,15 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 69 — THE DELETION (2026-09-05):**
+unable-to-exec 8 → 9 — the walk's three text-only "verified" returns are
+advisory (a byte-equal golden the referee could not replay, at two sites;
+a contains predicate that held over our own generated text): one such
+assert now counts in this lane's decline census instead of the walk's
+verified total. exec-passing 9, text-only 15 unchanged; ratchet 179/2394
+unchanged; no family baseline moved; disagree 0 both channels. Every
+verified assert the walk reports is a row or value verdict.
+
 **§8.0 scope-table receipt, batch 69c (2026-09-05):** exec-passing 10 → 9,
 text-only 16 → 15, unable-to-exec 9 → 8 — one test, the datePeriods
 testGroupByWithFilterFunction_noDatePath, left all three walk lanes at once:
