@@ -683,6 +683,33 @@ public final class ClassSources {
                 rowVar, bindings, rowType), keysPerPair);
     }
 
+    /**
+     * The property names a relational set maps ITSELF (batch 68, the
+     * engine rule): binding metadata stamped before the implicit
+     * same-extent inheritance pre-pass merged an ancestor's mappings in.
+     * Empty = no restriction — an explicit {@code extends} set carries its
+     * parent's mappings by contract, a function-form or unknown binding
+     * declares none.
+     */
+    java.util.Set<String> ownPropertiesOf(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId) {
+        MappingDefinition mapping = ctx.findMapping(mappingFqn).orElse(null);
+        if (mapping == null) {
+            return java.util.Set.of();
+        }
+        MappingDefinition.ClassBinding binding = setId != null
+                ? findBinding(mapping, classFqn, setId, new LinkedHashSet<>())
+                : null;
+        if (binding == null) {
+            binding = findBinding(mapping, classFqn, new LinkedHashSet<>());
+        }
+        if (binding instanceof MappingDefinition.ClassBinding.Relational r
+                && r.extendsSetId() == null) {
+            return new java.util.LinkedHashSet<>(r.declared().ownProperties());
+        }
+        return java.util.Set.of();
+    }
+
     private ClassSource build(String mappingFqn, String classFqn,
             @com.legend.Nullable String setId,
             @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,

@@ -135,12 +135,19 @@ public record MappingDefinition(
          * {@code groupByColumns} = the ~groupBy column names;
          * {@code primaryKeyColumns} = the ~primaryKey column names;
          * {@code mappedColumns} = the direct column property mappings'
-         * columns in declaration order (a ~distinct set's compiled key).
-         * A function-form binding declares none ({@link #NONE}). */
+         * columns in declaration order (a ~distinct set's compiled key);
+         * {@code ownProperties} = the property names the set maps ITSELF,
+         * in declaration order — stamped before the implicit same-extent
+         * inheritance pre-pass merges an ancestor's mappings in (batch 68:
+         * the engine's set projects its OWN property mappings; an inherited
+         * property is served on access through the declaring ancestor's
+         * set, never fetched with the instance). A function-form binding
+         * declares none ({@link #NONE}). */
         record DeclaredKeys(boolean distinct, List<String> groupByColumns,
-                List<String> primaryKeyColumns, List<String> mappedColumns) {
+                List<String> primaryKeyColumns, List<String> mappedColumns,
+                List<String> ownProperties) {
             public static final DeclaredKeys NONE =
-                    new DeclaredKeys(false, List.of(), List.of(), List.of());
+                    new DeclaredKeys(false, List.of(), List.of(), List.of(), List.of());
 
             public DeclaredKeys {
                 groupByColumns = groupByColumns == null ? List.of()
@@ -149,6 +156,8 @@ public record MappingDefinition(
                         : List.copyOf(primaryKeyColumns);
                 mappedColumns = mappedColumns == null ? List.of()
                         : List.copyOf(mappedColumns);
+                ownProperties = ownProperties == null ? List.of()
+                        : List.copyOf(ownProperties);
             }
         }
 

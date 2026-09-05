@@ -78,6 +78,14 @@ final class GraphEmission {
             throw new com.legend.error.NotImplementedException(dw.getValue());
         }
         List<TypedGraphTree> tree = new ArrayList<>();
+        // the engine's instance select projects the set's OWN property
+        // mappings (batch 68): a property the implicit same-extent
+        // inheritance pre-pass merged from an ancestor's set is served on
+        // ACCESS through that binding, never fetched with the instance
+        // (StockProduct over milestoningmap: id, name, type — not the
+        // Product set's stockProductName / classificationType joins)
+        java.util.Set<String> own = sources.ownPropertiesOf(
+                cs.mappingFqn(), cs.classFqn(), cs.setId());
         for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
             // subtype-dispatch pseudo-bindings are CAST machinery, not
             // properties of the class — the implicit envelope never
@@ -86,6 +94,9 @@ final class GraphEmission {
             if (com.legend.model.ClassMapping.isSubTypeColumn(e.getKey())
                     || com.legend.model.ClassMapping.isPrimaryKeyBinding(e.getKey())) {
                 continue;   // ...and so are the D3 key pseudo-bindings
+            }
+            if (!own.isEmpty() && !own.contains(e.getKey())) {
+                continue;   // implicitly inherited: on demand, not eager
             }
             TypedSpec inner = e.getValue();
             if (inner instanceof TypedNativeCall c

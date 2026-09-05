@@ -1041,6 +1041,17 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 68 (2026-09-05):** unable-to-exec 11 → 9 —
+the two "graph keys mismatch golden aliases" declines
+(testQueryOfMilestonedTypeWithFilterInMapping,
+testQueryOfMilestonedTypeUsingLatestWithFilterInMapping) are ROW verdicts: the
+bare-root serialize envelope projects the set's OWN property mappings
+(ClassBinding.DeclaredKeys.ownProperties, stamped before the implicit
+inheritance merge), so StockProduct's frame keys are the golden's
+[id, name, type] + the pk/k_businessDate coordinates; the implicitly inherited
+stockProductName/classificationType bindings stay demand-readable. exec-passing
+12 and text-only 16 unchanged; disagree 0 both channels.
+
 **§8.0 receipt, batch 67b — the `engine-golden-defect` bucket (2026-09-05, USER
 RULING "quarantine/bucket those as engine bugs"):** four asserts whose GOLDEN
 carries the engine's own departure from Pure's semantics; ours follows Pure;

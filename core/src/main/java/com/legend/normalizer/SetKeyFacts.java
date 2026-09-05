@@ -31,7 +31,16 @@ final class SetKeyFacts {
             ClassMapping.Relational r) {
         return new MappingDefinition.ClassBinding.DeclaredKeys(r.distinct(),
                 columnNames(r.groupBy()), columnNames(r.primaryKey()),
-                mappedColumnNames(r));
+                mappedColumnNames(r), ownPropertyNames(r));
+    }
+
+    /** The property names the set maps itself (pre-inheritance-merge). */
+    static List<String> ownPropertyNames(ClassMapping.Relational rcm) {
+        List<String> out = new ArrayList<>();
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            out.add(pm.propertyName());
+        }
+        return out;
     }
 
     /** Column-ref operations' column names (other shapes: no key fact). */

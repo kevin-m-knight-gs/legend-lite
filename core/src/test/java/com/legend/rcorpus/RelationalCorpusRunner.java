@@ -1923,10 +1923,15 @@ public class RelationalCorpusRunner {
             // — the forced golden's rows are not droppable NULLs; guard
             // restored), firstDayOfWeek (H2 weeks start Sunday, DuckDB and
             // Pure's own tests Monday — a named divergence).
-            org.junit.jupiter.api.Assertions.assertEquals(187L,
+            // batch 68 (2026-09-05): 187 -> 185 — the instance envelope
+            // projects the set's OWN property mappings; the implicitly
+            // inherited ones are served on access (StockProduct over
+            // milestoningmap: the two milestoned filter-in-mapping tests'
+            // graph keys now equal the golden's [id, name, type])
+            org.junit.jupiter.api.Assertions.assertEquals(185L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2386L,
+            org.junit.jupiter.api.Assertions.assertEquals(2388L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2036,7 +2041,12 @@ public class RelationalCorpusRunner {
             // rows of the tempTable family are BURNED — golden(0) verifies
             // as the rows of the let it populates, golden(1) replays with
             // tempTableForIn_<let> filled from golden(0)'s rows.
-            org.junit.jupiter.api.Assertions.assertEquals(11,
+            // batch 68: 11 -> 9 — the two "graph keys mismatch golden
+            // aliases" declines (StockProduct's envelope carried the
+            // Product set's implicitly inherited stockProductName /
+            // classificationType) are ROW VERDICTS now: the envelope
+            // projects the set's own property mappings only
+            org.junit.jupiter.api.Assertions.assertEquals(9,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),

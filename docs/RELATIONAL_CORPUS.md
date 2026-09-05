@@ -47,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 223 | 2 | 2 | 1 | 1 | 1 | 0 | 1 |
+| milestoning/tests | 228 | 224 | 1 | 2 | 1 | 0 | 0 | 0 | 1 |
 | modelJoins | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2425** | 41 | 77 | 32 | 10 | 10 | 29 | 6 |
+| **total** | 2575 | **2426** | 40 | 77 | 32 | 9 | 9 | 29 | 6 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2425 PASS = 2383 clean + 42 carrying softness (sqldiff 10, advisory 10, 0-asserts 29, text-rescued 6; flags overlap — the union is 42).
+SOFT-PASS RECONCILIATION (F2.1): 2426 PASS = 2385 clean + 41 carrying softness (sqldiff 9, advisory 9, 0-asserts 29, text-rescued 6; flags overlap — the union is 41).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,18 +542,18 @@ SOFT-PASS RECONCILIATION (F2.1): 2425 PASS = 2383 clean + 42 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 187
+tests in the ledger: 185
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
 | wall:resolver | 30 |
-| pass | 45 |
+| pass | 43 |
 | divergence | 33 |
 | wall:exec | 14 |
 | not-reached | 42 |
-| referee-cannot-replay | 14 |
+| referee-cannot-replay | 12 |
 | wall:lowering | 16 |
 | decision:objectReferenceIn | 7 |
 | sql-text-assert | 6 |
@@ -667,11 +667,7 @@ tests in the ledger: 187
 - testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 assertSameSQL -> wall:resolver: wall-exec: milestoned property access '_' on a NESTED navigation is not supported yet :: milestoned property access 'product' on a NESTED navigation is not supported yet
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #1 meta::pure::functions::asserts::assertEquals -> pass
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #2 TypedIf -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 0 row(s), our pipeline 
-- testQueryOfMilestonedTypeWithFilterInMapping #1 meta::pure::functions::asserts::assertEquals -> pass
-- testQueryOfMilestonedTypeWithFilterInMapping #2 meta::pure::functions::asserts::assertEquals -> pass
-- testQueryOfMilestonedTypeWithFilterInMapping #3 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, oracle declined: graph keys mismatch golden aliases: golden [id, name, type] vs fram :: assertEqualsH2Compatible (sql-text, oracle declined: graph keys mismatch golden aliases: golden [id, name, type] vs frame [classificationType, id, name, stockPro
 - testViewChainsWithBusinessDate #0 - -> wall:typer: wall-type: no overload of '_' accepts N argument(s) :: meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate :: no overload of 'meta::relational::functions::sqlstring::toSQLString' accepts 5 argument(s)
-- testQueryOfMilestonedTypeUsingLatestWithFilterInMapping #1 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, oracle declined: graph keys mismatch golden aliases: golden [id, name, type] vs fram :: assertEqualsH2Compatible (sql-text, oracle declined: graph keys mismatch golden aliases: golden [id, name, type] vs frame [classificationType, id, name, stockPro
 - testPersonToFirmUsingFromProject #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext :: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::e
 - testPersonToFirmUsingProject #0 - -> zero-assert: assert-free-inert :: meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
 - testProp3 #1 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Relational :: assertEqualsH2Compatible (sql-text, rows underivable): expected Relational (   type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]   resultColumns = [("name", VARCHAR(200)), ("prop3", "
@@ -906,7 +902,6 @@ tests in the ledger: 187
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
 - FAIL testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-text: expected select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "ProductClassificationSystemTable_d#5_d#2_m1" on ("root".classificationSystemId = "ProductClassificationSystemTable_d#5_d#2_m1".id and "ProductClassificationSystemTable_d#5_d#2_m1".from_z <= DATE'2015-01-01' and "ProductClassificationSystemTable_d#5_d#2_m1".thru_z > DATE'2015-01-01') left outer join SystemTable as "SystemTable_d#5_l_d#2_m1_r" on ("ProductClassificationSystemTable_d#5_d#2_m1".name = "SystemTable_d#5_l_d#2_m1_r".name) where "SystemTable_d#5_l_d#2_m1_r".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16', got select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "productclassificationsystemtable_0" on ("root".classificationSystemId = "productclassificationsystemtable_0".id and "productclassificationsystemtable_0".from_z <= DATE'2015-10-16' and "productclassificationsystemtable_0".thru_z > DATE'2015-10-16') left outer join SystemTable as "systemtable_0" on ("productclassificationsystemtable_0".name = "systemtable_0".name) where "systemtable_0".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16'
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", '9999-12-31T00:00:00.0000+0000' as "k_businessDate" from ProductTable as "root" where "root".type = 'STOCK' and "root".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000', got select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", "productdescriptiontable_0".description as "stockProductName", "productclassificationtable_0".type as "classificationType", '9999-12-31T00:00:00.0000' as "k_businessDate" from ProductTable as "root" left outer join StockProductTable as "stockproducttable_0" on ("root".id = "stockproducttable_0".id and "stockproducttable_0".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000') left outer join ProductDescriptionTable as "productdescriptiontable_0" on ("stockproducttable_0".id = "productdescriptiontable_0".id) left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000') where "root".type = 'STOCK' and "root".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000'
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: plan wall: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity': $this.entityIdFk 
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - ERROR testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall

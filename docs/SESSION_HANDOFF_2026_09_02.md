@@ -3570,3 +3570,22 @@ separator (md5('AnthonyAllen|') vs ours md5('Anthony|Allen')); all other
 cells agree, lowercase hex both sides. Registered under
 `joinStrings-rendering` (now 4 tests + the digest pair). Hash needs NO
 platform work.
+
+**Batch 68 — the instance over-fetch FIXED (2026-09-05, chain GREEN ~6m;
+GATES batch 68; charter §8.0 receipt).** Ratchet 187/2386 → 185/2388;
+unable-to-exec 11 → 9. Engine rule: a set projects its OWN property
+mappings; implicitly inherited ones are served on access.
+DeclaredKeys.ownProperties (SetKeyFacts, pre-merge) → ClassSources
+.ownPropertiesOf (extends-less relational bindings only) →
+GraphEmission.synthesizeScalarTree skips the rest. NEXT: batch 69 =
+delete the walk's match-noreplay and contains-over-our-text verified
+passes (EngineTestExecutor), re-baseline families by hand in
+docs/RELATIONAL_CORPUS.md with the GATES note; small platform leg to
+carry: the two group-by-with-filter-function arity declines (golden 10
+columns vs frame 4). USER Q&A this stretch: the 26-row table was
+walk-relative (walk PASS ∩ platform fallback ∩ text mechanism, batch
+63); the 211-row ledger is every failing ASSERT — 11 contains rows (6
+with passing row asserts first + 5 plan/legacy-flag) have no row form
+and stay text-contract rows; of the 12 unreplayable, ~3 worth a look
+(arity 2, missing schema 1), 9 are squashed/unformatted text or the
+measured forced frames.
