@@ -154,7 +154,7 @@ final class SqlTextVerdicts {
                         lam.body().get(0), mapping),
                 null, mapping.fullPath(), rootClassFqn(lam),
                 com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(0)), letPrefix,
-                specs, env, hook);
+                specs, env, hook, lam);
     }
 
     /** SQLTEXT charter §8.3b — the ROOT arm for
@@ -228,7 +228,7 @@ final class SqlTextVerdicts {
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
-                specs, env, hook);
+                specs, env, hook, fm.query());
     }
 
     /** SQLTEXT charter §8.3d — the DUAL-GOLDEN arm:
@@ -318,7 +318,7 @@ final class SqlTextVerdicts {
                 textEqual, oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
-                specs, env, hook);
+                specs, env, hook, fm.query());
     }
 
     /** SQLTEXT charter §8.3c — the EXEC-SQL-READ arm (the ~700-test
@@ -403,7 +403,7 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, fm.mapping(), fm.cls(), fm.extentSubset(), letPrefix,
-                specs, env, hook);
+                specs, env, hook, fm.query());
     }
 
     /** The exec-sql-read producer node: a {@code sql($res)} /
@@ -554,7 +554,7 @@ final class SqlTextVerdicts {
                         lam.body().get(lam.body().size() - 1), mapping),
                 replay, mapping.fullPath(), rootClassFqn(lam),
                 com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(lam.body().size() - 1)), bound,
-                specs, env, hook);
+                specs, env, hook, lam);
     }
 
     /** The SQL a golden replays: a bare SQL golden is itself; a plan
@@ -766,6 +766,78 @@ final class SqlTextVerdicts {
         return null;
     }
 
+    private static final java.util.regex.Pattern NUMBERED_IN_TEMP =
+            java.util.regex.Pattern.compile("tempTableForIn_(\\d+)");
+
+    /** The engine-session temp table a golden reads for an INLINE in-list
+     * (batch 65): the engine numbers {@code tempTableForIn_N} by plan
+     * node and fills it with the query's literal collection — so the
+     * table's rows ARE the query's {@code in([...])} literal, read off
+     * the typed query (exactly one inline in-collection, one temp name).
+     * Empty when the golden reads no numbered temp or the shape is not
+     * this one (the oracle's decline stays counted). */
+    private static List<SqlReplayOracle.TempTable> inListTemps(String golden,
+            TypedSpec query, List<TypedSpec> letPrefix) {
+        var m = NUMBERED_IN_TEMP.matcher(golden);
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        while (m.find()) {
+            names.add(m.group());
+        }
+        if (names.size() != 1) {
+            return List.of();
+        }
+        List<com.legend.compiler.spec.typed.TypedCollection> lists =
+                new java.util.ArrayList<>();
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        // the frame's own query (the exec-read arms resolve it through
+        // the splice hook) or the wrapped rows leg; the lets are in scope
+        work.add(query);
+        work.addAll(letPrefix);
+        while (!work.isEmpty()) {
+            TypedSpec cur = work.poll();
+            if (cur instanceof TypedNativeCall nc
+                    && nc.callee().qualifiedName().equals(
+                            com.legend.builtin.Pure.IN__ANY_1__ANY_MANY
+                                    .qualifiedName())
+                    && nc.args().size() == 2
+                    && nc.args().get(1) instanceof
+                            com.legend.compiler.spec.typed.TypedCollection c) {
+                lists.add(c);
+            }
+            work.addAll(cur.children());
+        }
+        if (lists.size() != 1) {
+            return List.of();
+        }
+        String kind = null;
+        List<String> values = new java.util.ArrayList<>();
+        for (TypedSpec e : lists.get(0).elements()) {
+            String k;
+            String v;
+            if (e instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+                k = d.value() instanceof com.legend.values.PureDateLiteral
+                        .StrictDate ? "date" : "datetime";
+                v = d.value().toEngineString();
+            } else if (e instanceof com.legend.compiler.spec.typed.TypedCString s) {
+                k = "string";
+                v = s.value();
+            } else if (e instanceof com.legend.compiler.spec.typed.TypedCInteger i) {
+                k = "integer";
+                v = String.valueOf(i.value());
+            } else {
+                return List.of();   // an unwitnessed literal kind
+            }
+            if (kind != null && !kind.equals(k)) {
+                return List.of();
+            }
+            kind = k;
+            values.add(v);
+        }
+        return kind == null ? List.of()
+                : List.of(new SqlReplayOracle.TempTable(
+                        names.iterator().next(), kind, values));
+    }
+
     /** The generator's run in the SPI's own terms (exec never depends on
      * the generator package). */
     private static SqlReplayOracle.FetchTranscript fetchTranscript(
@@ -857,7 +929,8 @@ final class SqlTextVerdicts {
             @com.legend.Nullable String classFqn, boolean extentSubset,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
+            @com.legend.Nullable TypedSpec query) {
         ExecutionResult rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();
@@ -885,7 +958,9 @@ final class SqlTextVerdicts {
         }
         SqlReplayOracle.RowVerdict rv = oracle.verify(env.connection(),
                 replaySqlOrNull != null ? replaySqlOrNull : golden,
-                rows, mappingFqn, classFqn, extentSubset, env.ctx());
+                rows, mappingFqn, classFqn, extentSubset, env.ctx(),
+                inListTemps(golden, query != null ? query : rowsRead,
+                        letPrefix));
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number
@@ -960,7 +1035,8 @@ final class SqlTextVerdicts {
      * fact (a class extent through subset-preserving ops — the graph
      * compare's pk-collapse licence). */
     private record FrameFacts(@com.legend.Nullable String mapping,
-            @com.legend.Nullable String cls, boolean extentSubset) {
+            @com.legend.Nullable String cls, boolean extentSubset,
+            @com.legend.Nullable TypedSpec query) {
     }
 
     private static FrameFacts frameMappingAndClass(TypedSpec resultArg,
@@ -1002,9 +1078,9 @@ final class SqlTextVerdicts {
                     && !lam2.body().isEmpty()
                     && com.legend.compiler.spec.VerdictQueries.extentSubset(
                             lam2.body().get(lam2.body().size() - 1));
-            return new FrameFacts(mapping, cls, subset);
+            return new FrameFacts(mapping, cls, subset, lamArg);
         }
-        return new FrameFacts(null, null, false);
+        return new FrameFacts(null, null, false, null);
     }
 
     private static @com.legend.Nullable String rootClassFqn(

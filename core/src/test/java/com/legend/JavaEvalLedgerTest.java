@@ -628,7 +628,11 @@ class JavaEvalLedgerTest {
             // generator re-run as a supplier in the SPI's own transcript
             // terms — routing of a fact to the referee; the replay, temps
             // and compare live in the oracle.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 765),
+            // 765 -> 830 (batch 65, 2026-09-04): the inline in-list temp
+            // table — the arm reads the query's in([...]) literal (typed
+            // literals, no evaluation) into a TempTable spec for the oracle;
+            // the frame's query rides FrameFacts to the rows leg.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 830),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

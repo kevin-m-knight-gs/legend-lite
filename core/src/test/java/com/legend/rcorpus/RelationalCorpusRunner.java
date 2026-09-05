@@ -1063,7 +1063,13 @@ public class RelationalCorpusRunner {
             // walk's tdgChainedVerify for them; their 34 fetch-text asserts
             // are ROW verdicts now (sql-verdict disagree 0; dual-channel
             // disagree 0). The walk's exec-passing lane keeps 21.
-            org.junit.jupiter.api.Assertions.assertEquals(21, execPassing,
+            // 21 -> 17 (batch 65, 2026-09-04): the four inline in-list
+            // temp-table tests left the walk's lane — the platform arm
+            // hands the oracle the query's in([...]) literal as a
+            // TempTable spec (SqlReplayOracle.verify overload) and the
+            // oracle materializes tempTableForIn_N before the replay; their
+            // sql-asserts are ROW verdicts (disagree 0).
+            org.junit.jupiter.api.Assertions.assertEquals(17, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1862,10 +1868,20 @@ public class RelationalCorpusRunner {
             // testTableToTdsWithJoinAndOLAPGroupBy, ...WithJoinAndUnion,
             // ...WithJoinToSameTable), 0 lost; sql-verdict disagree 0;
             // dual-channel disagree 0.
-            org.junit.jupiter.api.Assertions.assertEquals(197L,
+            // Batch 65 (2026-09-04, the inline in-list temp table): the
+            // engine's tempTableForIn_N holds the query's in([...]) literal
+            // (numbered by plan node); the platform arm reads the literal
+            // off the frame's typed query (exactly one inline in-collection,
+            // one temp name in the golden) and hands the oracle a TempTable
+            // spec in Pure terms (kind + values); the oracle spells the H2
+            // temp (the walk's literalTempSeeds) as per-verify statements.
+            // +4 flips (testInExecutionWithTempTableFor{DateTimes,Dates,
+            // Numbers,Strings}), 0 lost; sql-verdict disagree 0;
+            // dual-channel disagree 0.
+            org.junit.jupiter.api.Assertions.assertEquals(193L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2376L,
+            org.junit.jupiter.api.Assertions.assertEquals(2380L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2137,8 +2153,12 @@ public class RelationalCorpusRunner {
                     // testDataGeneration tests' 34 fetch-text asserts now
                     // row-verify as platform-arm verdicts (the oracle SPI's
                     // verifyFetchChain); their walk-lane rescues CLEARED.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 18,
-                    "M1 h2-exec rescued fell below the 18 floor: "
+                    // 18 -> 14 (batch 65, 2026-09-04): the same lane move as
+                    // exec-passing 21 -> 17 — the four in-list temp-table
+                    // tests' sql-asserts now row-verify as platform-arm
+                    // verdicts (the oracle materializes tempTableForIn_N).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 14,
+                    "M1 h2-exec rescued fell below the 14 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

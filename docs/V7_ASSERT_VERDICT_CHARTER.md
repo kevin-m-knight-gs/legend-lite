@@ -1041,6 +1041,25 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 65 (2026-09-04):** exec-passing
+17 (21 → 17): the four inline in-list temp-table tests
+(testInExecutionWithTempTableFor{DateTimes,Dates,Numbers,Strings}) left
+the walk's lane — the engine's `tempTableForIn_N` holds the query's
+`in([...])` literal; the platform arm reads the literal off the frame's
+typed query (SqlTextVerdicts.inListTemps: one inline in-collection, one
+numbered temp in the golden) and hands the oracle a `TempTable` spec in
+Pure terms; the oracle materializes the H2 temp (ReplayOracle.tempSeeds
+— the walk's literalTempSeeds) as per-verify statements before the
+replay. ROW verdicts (disagree 0). Ratchet 197/2376 → 193/2380; M1
+rescued 18 → 14. Lane move by migration. NOT burned, by design: the
+population-golden temp (`tempTableForIn_<var>`, 2 tests) is the
+engine's two-statement plan against our one-statement plan — golden(0)
+has no counterpart statement; the forced-isolation VALUE-frame goldens
+(2) pin an engine debug strategy whose rows differ from the observable
+value (H2Verify FORCED_MECHANISM: 4 rows incl. NULL-minted vs 1); the
+graph-keys mismatch (1) is our frame fetching properties the golden
+never selects — our bug, kept loud.
+
 **§8.0 scope-table receipt, batch 64 (2026-09-04):** exec-passing
 21 (55 → 21): the ten chained testDataGeneration tests left the walk's
 lane — the platform arm's chained-fetch verdict

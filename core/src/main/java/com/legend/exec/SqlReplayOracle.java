@@ -101,6 +101,30 @@ public interface SqlReplayOracle {
      * text said); DECLINED = the oracle could not answer
      * ({@code detail} = the counted reason; the caller's §4 policy
      * applies — e.g. text stays the contract). */
+    /** A golden's ENGINE-SESSION temp table the referee materializes
+     * before the replay (batch 65): the engine's {@code tempTableForIn_N}
+     * holds the query's in-list literal — {@code values} in the
+     * literal's Pure spelling (dates as the literal's engine string),
+     * {@code kind} the literal's Pure type ({@code date}, {@code
+     * datetime}, {@code string}, {@code integer}). The oracle spells the
+     * table in its own dialect. */
+    record TempTable(String name, String kind, java.util.List<String> values) {
+    }
+
+    /** {@link #verify} with the golden's temp tables materialized on the
+     * oracle session first; the default ignores them (an oracle without
+     * temp support declines through the missing table as before). */
+    default RowVerdict verify(java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx,
+            java.util.List<TempTable> temps) {
+        return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
+                extentSubset, ctx);
+    }
+
     record RowVerdict(Outcome outcome, @com.legend.Nullable String detail) {
         public enum Outcome { MATCH, DIVERGED, DECLINED }
 

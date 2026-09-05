@@ -3478,3 +3478,27 @@ our one-statement plan — golden(0) has no counterpart; receipt, not a
 burn. Then delete the walk's match-noreplay return and the forms one
 by one; then objectReferenceIn and connection equality as Pure
 programs over the metamodel relations.
+
+**Batch 65 — the inline in-list temp table as a ROW verdict (2026-09-05,
+chain GREEN ~6m; docs/GATES.md batch 65).** Ratchet 197/2376 →
+193/2380. SqlTextVerdicts.inListTemps + SqlReplayOracle.TempTable +
+ReplayOracle.tempSeeds: the walk's literalTempSeeds behind the SPI. The
+frame's query reaches the rows leg via FrameFacts.query (the exec-read
+arms' letPrefix is EMPTY — the frame is spliced; do not search
+letPrefix for frame queries). Receipts by design: population-golden
+temps (2), forced-isolation value frames (2), graph-keys over-fetch (1).
+
+TALLY of the 26 text-policy walk-passers (batch 63 census): 13
+recovered as row verdicts (10 chained TDG in batch 64, 3 in-list in
+batch 65; a 4th in-list test that had counted as row-diverged flipped
+too). Remaining 13: testQualifier (hop-0 golden spelled
+sqlRemoveFormatting('literal') — small), population-golden 2 + forced
+2 + graph-keys 1 (receipts), rows-diverged 3 (joinStrings ×2 = user
+decision, firstDayOfWeek), `assert(sql->contains)` 6 + plan text 1 +
+assert-free 2 (truthful buckets, never rows). NEXT = batch 66: delete
+the walk's match-noreplay verified return and the contains-over-our-
+text verified pass (EngineTestExecutor.sqlTextVerify / the assert arm)
+— a deliberate scoreboard drop; the per-family baseline in
+docs/RELATIONAL_CORPUS.md is the gate (readBaseline) and must be
+re-baselined by hand with the note; then the forms (ObjectRefs →
+objectReferenceIn as a Pure program; ConnEquality).

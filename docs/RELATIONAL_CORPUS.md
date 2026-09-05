@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 79 | 9 | 4 | 16 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 249 | 6 | 4 | 0 | 2 | 2 | 0 | 4 |
+| functions/tests | 259 | 249 | 6 | 4 | 0 | 2 | 2 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2423** | 43 | 77 | 32 | 12 | 12 | 29 | 11 |
+| **total** | 2575 | **2423** | 43 | 77 | 32 | 12 | 12 | 29 | 7 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2374 clean + 49 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 11; flags overlap — the union is 49).
+SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2378 clean + 45 carrying softness (sqldiff 12, advisory 12, 0-asserts 29, text-rescued 7; flags overlap — the union is 45).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,22 +542,22 @@ SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2374 clean + 49 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 197
+tests in the ledger: 193
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
 | wall:resolver | 30 |
-| pass | 61 |
+| pass | 53 |
 | divergence | 43 |
 | wall:exec | 14 |
 | not-reached | 45 |
-| referee-cannot-replay | 16 |
+| referee-cannot-replay | 13 |
 | zero-assert | 3 |
 | wall:lowering | 16 |
 | decision:objectReferenceIn | 7 |
-| sql-text-assert | 7 |
+| sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
@@ -625,20 +625,8 @@ tests in the ledger: 197
 - testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #3 meta::pure::functions::asserts::assertSameElements -> pass
 - testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #4 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: column arity differs: golden N vs frame N): expected select distinct "root".AGE :: assertEquals (sql-text, oracle declined: column arity differs: golden 1 vs frame 2): expected select distinct "root".AGE from validPersonTable as "root", got sel
 - testInExecutionWithTempTableAndQueryChainingOnIntegerColumn #5 - -> not-reached: 1 assert(s) after the failure
-- testInExecutionWithTempTableForDateTimes #1 meta::pure::functions::asserts::assertSize -> pass
-- testInExecutionWithTempTableForDateTimes #2 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableForDateTimes #3 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "TEMPTABLEFORIN_N" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "TEMPTABLEFORIN_4" not found; SQL statement: select "root".ID as "TradeId" from tradeTable as "root" where 
 - testInExecutionWithTempTableForDateTimesWithTz #1 meta::pure::functions::asserts::assertSize -> divergence: platform-fail: assertSize: expected N, got N :: assertSize: expected 5, got 0
 - testInExecutionWithTempTableForDateTimesWithTz #2 - -> not-reached: 2 assert(s) after the failure
-- testInExecutionWithTempTableForDates #1 meta::pure::functions::asserts::assertSize -> pass
-- testInExecutionWithTempTableForDates #2 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableForDates #3 meta::pure::functions::asserts::assertEquals -> sql-text-assert: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 0 row(s), our pipeline 
-- testInExecutionWithTempTableForNumbers #1 meta::pure::functions::asserts::assertSize -> pass
-- testInExecutionWithTempTableForNumbers #2 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableForNumbers #3 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "TEMPTABLEFORIN_N" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "TEMPTABLEFORIN_8" not found; SQL statement: select concat("root".FIRSTNAME, ' ', "root".LASTNAME) as "full
-- testInExecutionWithTempTableForStrings #1 meta::pure::functions::asserts::assertSize -> pass
-- testInExecutionWithTempTableForStrings #2 meta::pure::functions::asserts::assertSameElements -> pass
-- testInExecutionWithTempTableForStrings #3 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Cannot parse "DATE" constant "Peter"; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Cannot parse "DATE" constant "Peter"; SQL statement: select "root".LASTNAME as "lastName" from personTable as "
 - testIsEmptyOnCollection #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (plan-text, operation hole — text is the contract): expected Sequence(type=TDS[(name,String,VARCHAR(N),"" :: assertEquals (plan-text, operation hole — text is the contract): expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functio
 - testIsEmptyOnCollection #2 - -> not-reached: 1 assert(s) after the failure
 - testAll #1 assertSize -> wall:lowering: wall-exec: lowering not yet implemented for TypedSerializeGraph :: lowering not yet implemented for TypedSerializeGraph

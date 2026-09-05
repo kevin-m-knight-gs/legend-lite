@@ -593,13 +593,66 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         // the platform's typed chain — a class extent through subset-
         // preserving ops) arms the graph compare's pk-collapse exactly as
         // the walk lane arms it (EngineTestExecutor.extentSubset)
+        return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
+                extentSubset, ctx, List.of());
+    }
+
+    /** The engine-session temp tables of a golden, materialized on the
+     * oracle for this verify (batch 65 — the walk's literalTempSeeds
+     * behind the SPI): PER-VERIFY statements, never the mirror's cursor
+     * (verifyAuto's extraSeeds). */
+    @Override
+    public com.legend.exec.SqlReplayOracle.RowVerdict verify(
+            java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx,
+            List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
         H2Verify.EXTENT_SUBSET.set(extentSubset);
         try {
             return verifyArmed(session, goldenSql, ours, mappingFqn,
-                    rootClassFqn, ctx);
+                    rootClassFqn, ctx, tempSeeds(temps));
         } finally {
             H2Verify.EXTENT_SUBSET.remove();
         }
+    }
+
+    /** H2 statements creating a golden's temp tables from their Pure
+     * literal values: drop-first (re-runnable on the live mirror), the
+     * engine's own column name, the literal kind's H2 type. */
+    static @com.legend.Nullable List<String> tempSeeds(
+            List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
+        if (temps.isEmpty()) {
+            return null;
+        }
+        List<String> out = new java.util.ArrayList<>();
+        for (var t : temps) {
+            String colType = switch (t.kind()) {
+                case "date" -> "DATE";
+                case "datetime" -> "TIMESTAMP";
+                case "integer" -> "BIGINT";
+                default -> "VARCHAR(1024)";
+            };
+            out.add("DROP TABLE IF EXISTS " + t.name());
+            out.add("CREATE LOCAL TEMPORARY TABLE " + t.name()
+                    + " (ColumnForStoringInCollection " + colType + ")");
+            for (String v : t.values()) {
+                String lit = switch (t.kind()) {
+                    case "date" -> "DATE '" + v + "'";
+                    // pure date literals are UTC; H2's TIMESTAMP parser
+                    // takes the bare form
+                    case "datetime" -> "TIMESTAMP '"
+                            + v.replaceAll("(\\+0000|Z)$", "").replace('T', ' ')
+                            + "'";
+                    case "integer" -> v;
+                    default -> "'" + v.replace("'", "''") + "'";
+                };
+                out.add("INSERT INTO " + t.name() + " VALUES (" + lit + ")");
+            }
+        }
+        return out;
     }
 
     private com.legend.exec.SqlReplayOracle.RowVerdict verifyArmed(
@@ -607,7 +660,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String rootClassFqn,
-            com.legend.compiler.element.ModelContext ctx) {
+            com.legend.compiler.element.ModelContext ctx,
+            @com.legend.Nullable List<String> extraSeeds) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
                 new java.util.LinkedHashMap<>();
         if (mappingFqn != null
@@ -640,7 +694,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         try {
             String r = verifyAuto(session,
                     com.legend.sql.dialect.RawSqlBoundary.recording(),
-                    goldenSql, ours, enumDecode, enumProp);
+                    extraSeeds, goldenSql, ours, enumDecode, enumProp);
             return r == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
                     : com.legend.exec.SqlReplayOracle.RowVerdict
