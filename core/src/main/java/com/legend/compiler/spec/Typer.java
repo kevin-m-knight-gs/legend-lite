@@ -409,10 +409,10 @@ final class Typer {
                         ValueSpecification body =
                                 new AppliedFunction("if", List.of(
                                         new AppliedFunction("isEmpty", List.of(cell)),
-                                        new LambdaFunction(List.of(),
-                                                List.of(new CString(
-                                                        com.legend.compiler.element.type
-                                                                .PlatformTypes.TDS_NULL_CELL))),
+                                        new LambdaFunction(List.of(),   // the ^TDSNull() INSTANCE (69a)
+                                                List.of(new com.legend.protocol.spec.NewInstance(
+                                                        com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN,
+                                                        List.of(), List.of(), List.of()))),
                                         new LambdaFunction(List.of(),
                                                 List.of(new AppliedFunction("cast", List.of(
                                                         new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,

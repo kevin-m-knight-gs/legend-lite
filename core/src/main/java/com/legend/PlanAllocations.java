@@ -129,13 +129,15 @@ final class PlanAllocations {
      * functions (relationalPlanSupportFunctions(connection),
      * executionPlan_generation.pure:215). */
     static java.util.List<String> planTemplateFunctions(
-            com.legend.compiler.spec.typed.TypedNativeCall pep, StatementExecutor.ExecEnv env) {
+            com.legend.compiler.spec.typed.TypedNativeCall pep,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            StatementExecutor.ExecEnv env) {
         java.util.List<String> supportFns = new java.util.ArrayList<>(
                 com.legend.plan.PlanSupportFunctions
                         .relationalPlanSupportFunctions(
                                 pep.args().size() > 2
                                         ? ConnectionFlags.timeZoneOf(
-                                                pep.args().get(2))
+                                                pep.args().get(2), letPrefix)
                                         : null));
         if (pep.args().get(0) instanceof com.legend.compiler.spec
                         .typed.TypedLambda plam
@@ -190,7 +192,7 @@ final class PlanAllocations {
         try {
             com.legend.plan.PlanNode model = StatementExecutor.planModel(pnBound, specs, env);
             var rows = com.legend.plan.PlanRows.rows(scope, model,
-                    planTemplateFunctions(pnBound, env));
+                    planTemplateFunctions(pnBound, letPrefix, env));
             env.planRows().put(scope, rows);
             env.planRows().put(com.legend.plan.PlanRows.scopeId(pnBound), rows);
         } catch (com.legend.error.NotImplementedException

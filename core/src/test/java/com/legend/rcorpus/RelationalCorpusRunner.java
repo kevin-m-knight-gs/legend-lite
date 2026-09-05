@@ -1080,7 +1080,13 @@ public class RelationalCorpusRunner {
             // tests left the walk's lane — golden(0) verifies as the rows of
             // the let it populates, golden(1) through tempTableForIn_<let>
             // filled from golden(0)'s rows at the oracle (disagree 0).
-            org.junit.jupiter.api.Assertions.assertEquals(12, execPassing,
+            // 12 -> 10 (batch 69a, 2026-09-05): the forced-isolation pair
+            // (testQualifierWithOperation, testTwoQualifiersWithOperation)
+            // left the walk's exec-passing lane — the referee's value-frame
+            // guard is gone, the forced golden's 4 rows ('PeterTest' + three
+            // 'Test', pure's plus over an empty operand) row-diverge from
+            // our 1-row INNER-joined frame: an honest divergence of OURS.
+            org.junit.jupiter.api.Assertions.assertEquals(10, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1928,10 +1934,14 @@ public class RelationalCorpusRunner {
             // inherited ones are served on access (StockProduct over
             // milestoningmap: the two milestoned filter-in-mapping tests'
             // graph keys now equal the golden's [id, name, type])
-            org.junit.jupiter.api.Assertions.assertEquals(185L,
+            // batch 69a (2026-09-05): 185 -> 181 — the union sqlQueryMerging
+            // pair (^TDSNull() on the variant carrier), the zoned plan's
+            // template functions (the helper's parameter let), the
+            // assert-free let-execute body
+            org.junit.jupiter.api.Assertions.assertEquals(181L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2388L,
+            org.junit.jupiter.api.Assertions.assertEquals(2392L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2222,8 +2232,13 @@ public class RelationalCorpusRunner {
                     // verdicts (the oracle materializes tempTableForIn_N).
                     // 14 -> 11 (batch 66, 2026-09-05): the same lane move as
                     // exec-passing 17 -> 14 (testQualifier + two plan tests).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 11,
-                    "M1 h2-exec rescued fell below the 11 floor: "
+                    // 11 -> 9 (batch 69a, 2026-09-05): the union
+                    // sqlQueryMerging pair's text-divergent RESCUES cleared —
+                    // both tests flipped (the ^TDSNull() instance on the
+                    // variant carrier); their asserts are platform-arm row
+                    // verdicts now (disagree 0).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 9,
+                    "M1 h2-exec rescued fell below the 9 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

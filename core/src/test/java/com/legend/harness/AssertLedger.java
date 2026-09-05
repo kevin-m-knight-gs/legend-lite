@@ -95,7 +95,16 @@ public final class AssertLedger {
             "meta::relational::tests::functions::sqlstring::testHashFunctions",
             "joinStrings-rendering",
             "meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek",
-            "h2-week-start");
+            "h2-week-start",
+            // traced 2026-09-05: <<test.AlloyOnly>> — the executor's
+            // relational adjust(date, 0, DAYS) comes back a TIMESTAMP and
+            // prints '2014-12-01T00:00:00.000000000+0000'; the interpreter
+            // sibling (columnValueDifferenceTest, line 152 of
+            // testTdsExtension.pure) asserts the SAME relational rows as
+            // '2014-12-01'. Every other cell agrees. Pure's adjust keeps
+            // the input's precision (PCT); ours prints the date.
+            "meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest",
+            "alloy-adjust-widening");
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect
@@ -136,6 +145,14 @@ public final class AssertLedger {
             // golden(0) is its population statement — a plan-structure
             // contract with no counterpart in our one-statement plan
             return "decision:plan-structure";
+        }
+        if (r.contains("rows underivable") && r.contains("does not exist")) {
+            // the frame's own rows could not be produced because the
+            // fixture never created the table (testProp3's m2m2r schema
+            // has no setUp anywhere in the engine): nobody can replay a
+            // plan over a store that was never seeded — the engine's own
+            // test is plan-text only, by construction
+            return "referee-cannot-replay:no-fixture";
         }
         if (r.contains("oracle declined") || r.contains("rows underivable")
                 || r.contains("declined:")) {

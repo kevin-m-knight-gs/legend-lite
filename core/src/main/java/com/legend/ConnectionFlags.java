@@ -103,15 +103,43 @@ final class ConnectionFlags {
      * (an inline DatabaseConnection(timeZone='US/Arizona')). Null when
      * absent — the default-zone connection. */
     static @com.legend.Nullable String timeZoneOf(TypedSpec runtimeArg) {
+        return timeZoneOf(runtimeArg, java.util.List.of());
+    }
+
+    /** {@code letPrefix}-aware form (batch 69a): the corpus helper
+     * {@code executionPlanForQueryWithDateTimeVariableFor...(tz)} binds
+     * the connection through TWO lets ({@code let connection = ^Test
+     * DatabaseConnection(timeZone=$tz); let runtime = ^Runtime(... =
+     * $connection)}) — a variable met on the walk resolves through the
+     * prefix and the walk continues into its value. */
+    static @com.legend.Nullable String timeZoneOf(TypedSpec runtimeArg,
+            java.util.List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(runtimeArg);
+        java.util.Set<TypedSpec> seen = java.util.Collections.newSetFromMap(
+                new java.util.IdentityHashMap<>());
         while (!work.isEmpty()) {
             TypedSpec t = work.poll();
+            if (!seen.add(t)) {
+                continue;
+            }
+            if (t instanceof com.legend.compiler.spec.typed.TypedVariable) {
+                TypedSpec bound = com.legend.compiler.spec.ExecuteChainAssembly
+                        .letBound(t, letPrefix);
+                if (bound != t) {
+                    work.add(bound);
+                }
+                continue;
+            }
             if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
-                    && ni.properties().get("timeZone")
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString tzs) {
-                return tzs.value();
+                    && ni.properties().get("timeZone") != null) {
+                // the property may be the helper's PARAMETER bound as a
+                // frame let (`timeZone=$timeZone`) — resolve it too
+                TypedSpec tzv = com.legend.compiler.spec.ExecuteChainAssembly
+                        .letBound(ni.properties().get("timeZone"), letPrefix);
+                if (tzv instanceof com.legend.compiler.spec.typed.TypedCString tzs) {
+                    return tzs.value();
+                }
             }
             work.addAll(t.children());
         }

@@ -233,8 +233,19 @@ public final class WholeTestFlip {
             // lets-only body stays SHAPE ('no verifying assertions')
             // exactly as the walk scores it.
             for (ValueSpecification s : statements) {
-                if (!(s instanceof AppliedFunction af2)
-                        || af2.function().equals("letFunction")) {
+                if (!(s instanceof AppliedFunction af2)) {
+                    continue;
+                }
+                if (af2.function().equals("letFunction")) {
+                    // a let that RUNS a store query (`let r = execute(...)`)
+                    // is the engine's work too — the runner executes the
+                    // let; only value-only lets are inert
+                    if (af2.parameters().size() == 2
+                            && af2.parameters().get(1) instanceof AppliedFunction lv
+                            && EngineTestExecutor.resolvesTo(lv, ctx,
+                                    ExecCallFinder.EXECUTE_FQNS)) {
+                        executable++;
+                    }
                     continue;
                 }
                 if (EngineTestExecutor.resolvesTo(af2, ctx,

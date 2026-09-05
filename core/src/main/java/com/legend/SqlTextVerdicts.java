@@ -266,10 +266,29 @@ final class SqlTextVerdicts {
         // the exec-sql-read chase finds the frame behind the read.
         TypedSpec oursExpr;
         TypedSpec resultArg;
+        int readK = 0;
         if (actualSide.info().type()
                 == com.legend.compiler.element.type.Type.Primitive.STRING) {
             com.legend.compiler.spec.typed.TypedUserCall read =
                     findSqlRead(actualSide, letPrefix);
+            readK = read == null ? 0 : readIndex(read);
+            if (read != null && readK > 0) {
+                // the engine's n-th statement against our ONE statement
+                // (statement-per-let plan, batch 69a): our text is our
+                // index-0 read; golden(n) routes below by statementRoute
+                oursExpr = com.legend.compiler.spec.VerdictQueries
+                        .firstStatementRead(read);
+                resultArg = read.args().get(0);
+                String goldenN = scalarString(StatementExecutor.evalValue(
+                        goldenSide, letPrefix, specs, env, null, false, hook));
+                String oursN = scalarString(StatementExecutor.evalValue(
+                        oursExpr, letPrefix, specs, env, null, false, hook));
+                if (goldenN == null || oursN == null) {
+                    return null;
+                }
+                return h2CompatVerdict(goldenN, oursN, resultArg, readK,
+                        letPrefix, specs, env, hook);
+            }
             if (read == null) {
                 // §5: the plan-text spelling (a plan-node .sqlQuery
                 // navigation) — the upgraded golden replays (same
@@ -314,6 +333,17 @@ final class SqlTextVerdicts {
                             ? "golden side" : "actual side")
                             + " did not evaluate to a string");
         }
+        return h2CompatVerdict(golden, ours, resultArg, readK, letPrefix,
+                specs, env, hook);
+    }
+
+    /** The H2Compatible verdict tail: rows leg + verdict for golden(k)
+     * over the frame behind {@code resultArg}. */
+    private static @com.legend.Nullable ExecutionResult h2CompatVerdict(
+            String golden, String ours, TypedSpec resultArg, int readK,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
         SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
@@ -324,6 +354,23 @@ final class SqlTextVerdicts {
                             + " outside tests: there are no goldens)");
         }
         FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        // the engine's statement-per-let plan (batch 69a): golden(k) may
+        // be a statement LET's own rows — same routing as the exec-read arm
+        StatementRoute route = statementRoute(readK, golden, fm);
+        if (route == null) {
+            return null;
+        }
+        if (route.let() != null && fm.mappingRef() != null) {
+            String letCls = route.let().value().info().type()
+                    instanceof com.legend.compiler.element.type.Type.ClassType ct
+                    ? ct.fqn() : null;
+            return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
+                    textEqual, oracle,
+                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            route.let().value(), fm.mappingRef()),
+                    null, fm.mapping(), letCls, false,
+                    letPrefix, specs, env, hook, fm.query());
+        }
         return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                 textEqual, oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
@@ -394,20 +441,28 @@ final class SqlTextVerdicts {
         TypedSpec resultArg = read.args().get(0);
         String golden = scalarString(StatementExecutor.evalValue(
                 goldenSide, letPrefix, specs, env, null, false, hook));
-        if (read.args().size() == 2
-                && read.args().get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedCInteger k
-                && k.value().longValue() > 0) {
-            // the engine's n-th statement: owned ONLY as the main
-            // statement of its two-statement in-list plan (the golden
-            // reads tempTableForIn_<let>) — ours is our one statement,
-            // read at index 0; any other n>0 keeps its current path
-            if (golden == null || !NAMED_IN_TEMP.matcher(golden).find()) {
-                return null;
-            }
+        // THE ENGINE'S PLAN IS ONE STATEMENT PER STORE-BACKED LET of the
+        // query lambda, in order, then the main statement (batch 69a,
+        // 2026-09-05 — the datePeriods shape `let reportEndDate =
+        // FiscalCalendarDate.all()->filter(..)->toOne()` asserts
+        // sqlRemoveFormatting($res, 0) = the calendar instance select and
+        // sqlRemoveFormatting($res, 1) = the group-by): golden(k) for
+        // k < #lets is let k's OWN rows (its expression through the one
+        // router, wrapped like the frame); golden(#lets) is the main
+        // statement — ours is our ONE statement, read at index 0. The
+        // in-list plan (batch 67) keeps its named route: golden n>0
+        // reading tempTableForIn_<let> is the main statement.
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        int k = readIndex(read);
+        StatementRoute route = statementRoute(k, golden, fm);
+        if (route == null) {
+            return null;
+        }
+        if (k > 0) {
             producerSide = com.legend.compiler.spec.VerdictQueries
                     .firstStatementRead(read);
         }
+        com.legend.compiler.spec.typed.TypedLet letStatement = route.let();
         String ours = scalarString(StatementExecutor.evalValue(
                 producerSide, letPrefix, specs, env, null, false, hook));
         if (golden == null || ours == null) {
@@ -422,7 +477,16 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        if (letStatement != null && fm.mappingRef() != null) {
+            String letCls = letStatement.value().info().type()
+                    instanceof com.legend.compiler.element.type.Type.ClassType ct
+                    ? ct.fqn() : null;
+            return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            letStatement.value(), fm.mappingRef()),
+                    null, fm.mapping(), letCls, false,
+                    letPrefix, specs, env, hook, fm.query());
+        }
         // the engine's two-statement in-list plan (batch 67): golden(0)
         // is the POPULATION statement of `let v = <to-many expr>` inside
         // the query lambda — its rows ARE that let's value, so the rows
@@ -449,6 +513,69 @@ final class SqlTextVerdicts {
 
     private record PopulationShape(@com.legend.Nullable TypedSpec rowsRead,
             List<SqlReplayOracle.TempTable> temps) {
+    }
+
+    /** The statement index of an exec-sql read: {@code sql($res, n)} /
+     * {@code sqlRemoveFormatting($res, n)} → n; the one-argument forms
+     * → 0. */
+    private static int readIndex(com.legend.compiler.spec.typed.TypedUserCall read) {
+        return read.args().size() == 2
+                && read.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCInteger ki
+                ? ki.value().intValue() : 0;
+    }
+
+    /** Which engine statement golden(k) is: {@code let} = the k-th
+     * statement let (its rows are the let's own); a null let = the MAIN
+     * statement (k == #lets; k == 0 with no lets; the in-list plan's
+     * named temp read; the `select distinct` population golden the
+     * batch-67 route owns). */
+    private record StatementRoute(
+            com.legend.compiler.spec.typed.@com.legend.Nullable TypedLet let) {
+    }
+
+    private static @com.legend.Nullable StatementRoute statementRoute(int k,
+            @com.legend.Nullable String golden, FrameFacts fm) {
+        List<com.legend.compiler.spec.typed.TypedLet> lets = statementLets(fm.query());
+        if (golden != null && NAMED_IN_TEMP.matcher(golden).find()) {
+            return new StatementRoute(null);
+        }
+        if (k < lets.size()) {
+            if (k == 0 && golden != null && isPopulationGolden(golden)) {
+                return new StatementRoute(null);
+            }
+            return new StatementRoute(lets.get(k));
+        }
+        return k == lets.size() ? new StatementRoute(null) : null;
+    }
+
+    /** The engine's population statement shape (batch 67): the ONE
+     * recognizer of that golden text, shared by both routes. */
+    private static boolean isPopulationGolden(String golden) {
+        return golden.toLowerCase(java.util.Locale.ROOT)
+                .startsWith("select distinct");
+    }
+
+    /** The query lambda's leading lets that are STATEMENTS of the
+     * engine's plan — a class instance, instances, or a relation, each
+     * executed as its own SQL in declaration order; value-only lets
+     * (dates, strings from helpers) are not statements. */
+    private static List<com.legend.compiler.spec.typed.TypedLet> statementLets(
+            @com.legend.Nullable TypedSpec query) {
+        List<com.legend.compiler.spec.typed.TypedLet> out = new java.util.ArrayList<>();
+        if (!(query instanceof TypedLambda lam) || lam.body().size() < 2) {
+            return out;
+        }
+        for (TypedSpec s : lam.body().subList(0, lam.body().size() - 1)) {
+            if (s instanceof com.legend.compiler.spec.typed.TypedLet let) {
+                com.legend.compiler.element.type.Type t = let.value().info().type();
+                if (t instanceof com.legend.compiler.element.type.Type.ClassType
+                        || t instanceof com.legend.compiler.element.type.Type.RelationType) {
+                    out.add(let);
+                }
+            }
+        }
+        return out;
     }
 
     private static final java.util.regex.Pattern NAMED_IN_TEMP =
@@ -479,8 +606,7 @@ final class SqlTextVerdicts {
                         new SqlReplayOracle.TempTable("tempTableForIn_" + var,
                                 kind, List.of())));
             }
-            if (var == null && golden.toLowerCase(java.util.Locale.ROOT)
-                    .startsWith("select distinct")) {
+            if (var == null && isPopulationGolden(golden)) {
                 return new PopulationShape(let.value(), List.of());
             }
         }

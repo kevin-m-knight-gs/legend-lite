@@ -3589,3 +3589,17 @@ with passing row asserts first + 5 plan/legacy-flag) have no row form
 and stay text-contract rows; of the 12 unreplayable, ~3 worth a look
 (arity 2, missing schema 1), 9 are squashed/unformatted text or the
 measured forced frames.
+
+**Batch 69a — fix-before-delete, the walk-passing SQL-lane residue
+(2026-09-05, chain GREEN ~6m; GATES batch 69a; charter §8.0 receipt).**
+USER ORDER: fix the 11 (4 unreplayable, 5 rows differ, 2 odd) BEFORE
+batch 69's deletion. Ratchet 185/2388 → 181/2392. Fixed: union
+sqlQueryMerging ×2 (^TDSNull() instance + JSON-null value law),
+ESTTimeZone plan templates (helper lets + parameter let), assert-free
+let-execute body. Receipts: alloy-adjust-widening, no-fixture. Truth:
+the forced pair = OUR inner-join bug (guard deleted; tests/advanced
+re-baselined 66 → 64). datePeriods golden(0) verifies (statement lets),
+golden(1) walls in the resolver. OPEN: isolation-family design (INNER
+vs LEFT for value-position filtered navigations — USER DECISION
+pending), isolationTest's silently dropped correlated predicate,
+fetchDb Function-typed lowering wall. THEN batch 69 = the deletion.

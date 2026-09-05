@@ -1041,6 +1041,21 @@ H2 version probe answers the referee's own jar (2.1.214), the helper's
 if-with-assert-branches adjudicates as a verdict. Lane move by
 migration; sql-verdict disagree 0; dual-channel disagree 0.
 
+**§8.0 scope-table receipt, batch 69a (2026-09-05):** exec-passing 12 → 10 —
+the forced-isolation pair (testQualifierWithOperation,
+testTwoQualifiersWithOperation) left the walk's exec-passing lane: the
+value-frame guard is gone and the forced golden's rows ('PeterTest' + three
+'Test' — LEFT join of the isolated filtered subselect onto firmTable; pure's
+plus over an empty operand) row-diverge from our 1-row INNER-joined frame —
+an honest divergence of OURS (the walk fails them too; tests/advanced
+re-baselined 66 → 64 by hand). M1 rescued floor 11 → 9: the union
+sqlQueryMerging pair's text-divergent rescues cleared (both flipped —
+^TDSNull() on the variant carrier). unable-to-exec 9 and text-only 16
+unchanged; disagree 0 both channels. New ledger names:
+`engine-golden-defect:alloy-adjust-widening` (columnValueDifferenceWithoutPrevalTest,
+AlloyOnly; interpreter sibling prints the date) and
+`referee-cannot-replay:no-fixture` (testProp3).
+
 **§8.0 scope-table receipt, batch 68 (2026-09-05):** unable-to-exec 11 → 9 —
 the two "graph keys mismatch golden aliases" declines
 (testQueryOfMilestonedTypeWithFilterInMapping,

@@ -374,12 +374,26 @@ final class MixedEncoding {
                 && !thenB.info().type().equals(elseB.info().type());
         return new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(cond,
-                        mixed && !(thenS instanceof SqlExpr.NullLit)
-                                ? SqlExpr.Call.of(SqlFn.TO_VARIANT, thenS)
-                                : thenS)),
-                mixed && !(elseS instanceof SqlExpr.NullLit)
-                        ? SqlExpr.Call.of(SqlFn.TO_VARIANT, elseS)
-                        : elseS);
+                        mixed ? variantBranch(thenB, thenS) : thenS)),
+                mixed && elseB != null ? variantBranch(elseB, elseS) : elseS);
+    }
+
+    /** One branch of a mixed-kind if on the variant carrier: a value is
+     * TO_VARIANT-wrapped; a [1]-stamped NULL literal (the ^TDSNull()
+     * instance — batch 69a) is the JSON null VALUE by the value law, so
+     * the branch survives as an element; an optional NULL stays bare. */
+    private static SqlExpr variantBranch(
+            com.legend.compiler.spec.typed.TypedSpec b, SqlExpr s) {
+        if (!(s instanceof SqlExpr.NullLit)) {
+            return SqlExpr.Call.of(SqlFn.TO_VARIANT, s);
+        }
+        boolean oneStamped = b.info().multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded mb
+                && mb.lower() >= 1 && Integer.valueOf(1).equals(mb.upper());
+        return oneStamped
+                ? new SqlExpr.Cast(new SqlExpr.StringLit("null"),
+                        com.legend.sql.SqlType.Scalar.JSON)
+                : s;
     }
 
     /**

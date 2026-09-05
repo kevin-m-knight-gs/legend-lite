@@ -642,7 +642,14 @@ class JavaEvalLedgerTest {
             // main statement's temp is a "population" TempTable spec for the
             // oracle; the n>0 read is owned for that shape. Routing of typed
             // facts; the replay and the compare stay in the oracle.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 919),
+            // 919 -> 1011 (batch 69a, 2026-09-05): the engine's plan is one
+            // statement per store-backed LET of the query lambda — golden(k)
+            // routes to let k's own rows (statementRoute/statementLets),
+            // shared by the exec-read arm and the H2Compatible arm (its
+            // verdict tail extracted so the n-th read routes there too).
+            // Routing of typed facts; the replay and compare stay in the
+            // oracle.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1011),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

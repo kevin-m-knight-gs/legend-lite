@@ -381,23 +381,16 @@ public final class H2Verify {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
             throws SQLException {
-        if (FORCED_MECHANISM.get()
-                && !(ours instanceof ExecutionResult.Tabular)
-                && !(ours instanceof ExecutionResult.Graph)) {
-            // see FORCED_MECHANISM: value-frame strategies are
-            // row-divergent by the engine's own goldens. MEASURED
-            // (batch 67, 2026-09-05, guard lifted and put back): the
-            // forced golden for testQualifierWithOperation yields 4
-            // rows on H2 — 'PeterTest' and three 'Test' (H2's concat
-            // treats a NULL operand as ''), NOT null rows the value
-            // compare could drop — while the engine's own value assert
-            // (assertSize 1) executes the DEFAULT strategy. The golden
-            // text pins a debug strategy the engine never runs for the
-            // value; no row compare is sound.
-            throw new Unverifiable(
-                    "forced-isolation golden over a VALUE frame"
-                    + " (engine debug-mechanism pin)", null);
-        }
+        // (batch 69a, 2026-09-05: the forced-isolation VALUE-frame guard
+        // is GONE. Re-measured with the fixture read: the forced golden
+        // for testQualifierWithOperation yields 'PeterTest' + three
+        // 'Test' because it LEFT-joins the isolated, filtered employee
+        // subselect onto firmTable — one value per firm, the firms
+        // without a matching Smith contributing `[] + 'Test'` = 'Test'
+        // (pure's plus(String[*]) ignores an empty operand). That IS
+        // pure's answer; our one-row frame INNER-joins the filtered
+        // navigation and drops the three parents — a divergence of
+        // OURS, and the ledger says so now.)
         if (instantInSelectList(goldenSql)) {
             // A golden that PROJECTS the current instant is TWO INSTANTS
             // by construction: the oracle replays it later than our

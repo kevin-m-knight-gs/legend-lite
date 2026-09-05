@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 255 | 3 | 7 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 66 | 1 | 0 | 1 | 2 | 2 | 0 | 0 |
+| tests/advanced | 68 | 64 | 3 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -92,16 +92,16 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 3 |
+| tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 1 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 84 | 2 | 1 | 0 | 1 | 1 | 0 | 0 |
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2426** | 40 | 77 | 32 | 9 | 9 | 29 | 6 |
+| **total** | 2575 | **2424** | 42 | 77 | 32 | 7 | 7 | 29 | 4 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2426 PASS = 2385 clean + 41 carrying softness (sqldiff 9, advisory 9, 0-asserts 29, text-rescued 6; flags overlap — the union is 41).
+SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2387 clean + 37 carrying softness (sqldiff 7, advisory 7, 0-asserts 29, text-rescued 4; flags overlap — the union is 37).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,25 +542,26 @@ SOFT-PASS RECONCILIATION (F2.1): 2426 PASS = 2385 clean + 41 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 185
+tests in the ledger: 181
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
-| wall:resolver | 30 |
-| pass | 43 |
-| divergence | 33 |
+| wall:resolver | 31 |
 | wall:exec | 14 |
-| not-reached | 42 |
-| referee-cannot-replay | 12 |
+| divergence | 29 |
+| not-reached | 39 |
+| referee-cannot-replay | 9 |
 | wall:lowering | 16 |
 | decision:objectReferenceIn | 7 |
-| sql-text-assert | 6 |
+| pass | 40 |
+| sql-text-assert | 8 |
 | decision:dynamic-compilation | 2 |
-| zero-assert | 2 |
+| zero-assert | 1 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
+| engine-golden-defect:alloy-adjust-widening | 1 |
 | engine-golden-defect:joinStrings-rendering | 4 |
 | engine-golden-defect:h2-week-start | 1 |
 
@@ -568,9 +569,6 @@ tests in the ledger: 185
 - executeProjectWithNestedDerivedProperty #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::json::tdsToJSONKe :: in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unpor
 - planGraphFetchWithDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - planGraphFetchWithNestedDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
-- testPlanForDateTimeVariableESTTimeZone #1 meta::pure::functions::asserts::assertEquals -> pass
-- testPlanForDateTimeVariableESTTimeZone #2 meta::pure::functions::asserts::assert -> pass
-- testPlanForDateTimeVariableESTTimeZone #3 meta::pure::functions::asserts::assertSameElements -> divergence: platform-fail: expected: ['<#function GMTtoTZ tz paramDate><#if paramDate?is_enumerable && !paramDate?has_content><#return paramDate><# ::  expected: ['<#function GMTtoTZ tz paramDate><#if paramDate?is_enumerable && !paramDate?has_content><#return paramDate><#else><#return (tz+" "+paramDate)?date.@a
 - testPlanWithLocalH2ConnectionWithSQL #0 - -> decision:protocol-transform: wall-type: unknown function '_' — no funct :: meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL :: unknown function 'meta::protocols::pure::vX_X_X::transformation::fromPureGraph::executionPlan::transformPlan' — no function of this name in the native or user catalog (un
 - testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m :: meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode :: unknown function 'evaluate' — no function of this name i
 - testPureExecutionStrategyForRelationalInstantiationExecutionNode #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m :: meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForRelationalInstantiationExecutionNode :: unknown function 'evaluate' — no function of this name in t
@@ -701,7 +699,7 @@ tests in the ledger: 185
 - columnValueDifferenceWithoutPrevalTest #1 meta::pure::functions::asserts::assertNotEmpty -> pass
 - columnValueDifferenceWithoutPrevalTest #2 meta::pure::functions::asserts::assertNotEmpty -> pass
 - columnValueDifferenceWithoutPrevalTest #3 meta::pure::functions::asserts::assertEquals -> pass
-- columnValueDifferenceWithoutPrevalTest #4 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (rendered CSVJOIN:;): line N: expected <N-N-NTN:N:N.N+N|true|N.N|TDSNull|N.N|N|TDSNu :: assertEquals (rendered CSVJOIN:;): line 0: expected <2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2
+- columnValueDifferenceWithoutPrevalTest #4 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:alloy-adjust-widening: platform-fail: assertEquals (rendered CSVJOIN:;): line N: expected <N-N-NTN:N:N.N+N|true|N.N|TDSNull|N.N|N|TDSNu :: assertEquals (rendered CSVJOIN:;): line 0: expected <2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2
 - iqrClassifyTest #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::pure::tds::tests::extensions::iqrClassifyTest :: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - rowValueDifferenceTest #0 - -> wall:typer: wall-type: cannot access '_' on String :: meta::pure::tds::tests::extensions::rowValueDifferenceTest :: cannot access 'name' on String
 - testExtendDigest_InMemory #1 assertEquals -> wall:lowering: wall-exec: lowering not yet implemented for TypedNativeCall ('_' in relation position) :: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::zip' in relation position)
@@ -742,10 +740,10 @@ tests in the ledger: 185
 - testTranslateDbType #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h :: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCo
 - testQualifierWithOperation #1 meta::pure::functions::asserts::assertSize -> pass
 - testQualifierWithOperation #2 meta::pure::functions::asserts::assertEquals -> pass
-- testQualifierWithOperation #3 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: forced-isolation golden over a VALUE frame (engine debug-mechanism pin)): expec :: assertEquals (sql-text, oracle declined: forced-isolation golden over a VALUE frame (engine debug-mechanism pin)): expected select concat("persontable_0".FIRSTNA
+- testQualifierWithOperation #3 meta::pure::functions::asserts::assertEquals -> sql-text-assert: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
 - testTwoQualifiersWithOperation #1 meta::pure::functions::asserts::assertSize -> pass
 - testTwoQualifiersWithOperation #2 meta::pure::functions::asserts::assertEquals -> pass
-- testTwoQualifiersWithOperation #3 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: forced-isolation golden over a VALUE frame (engine debug-mechanism pin)): expec :: assertEquals (sql-text, oracle declined: forced-isolation golden over a VALUE frame (engine debug-mechanism pin)): expected select concat("persontable_0".FIRSTNA
+- testTwoQualifiersWithOperation #3 meta::pure::functions::asserts::assertEquals -> sql-text-assert: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
 - isolationTest #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (rendered CSVTEXT): line-count N != N (expected first line: firmname,employeeProductName,testCol) :: assertEquals (rendered CSVTEXT): line-count 7 != 10 (expected first line: firmname,employeeProductName,testCol)
 - isolationTest #2 - -> not-reached: 1 assert(s) after the failure
 - relationalResultSourcingOfListExecutionPlan #1 assertEquals -> wall:exec: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('result') is not supported
@@ -759,7 +757,6 @@ tests in the ledger: 185
 - testProject #2 assertEquals -> wall:lowering: wall-exec: lowering not yet implemented for TypedNativeCall ('_' in relation position) :: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter #1 assertEquals -> divergence: platform-fail: Binder Error: Referenced table "tN" not found! :: Binder Error: Referenced table "t5" not found! Candidate tables: "t4"  LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1, t5.ID...                     ^
 - testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter #2 - -> not-reached: 1 assert(s) after the failure
-- otherwiseTestQualifierPropertyConstantExpression #0 - -> zero-assert: assert-free-inert :: meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression
 - testEnumInRelation #1 assertEquals -> wall:resolver: wall-exec: class query under TypedPropertyAccess is not resolvable yet (HN vocabulary) :: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - testStoreSubstitution #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or :: meta::relational::tests::mapping::include::testStoreSubstitution :: unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform 
 - testForcedSubTypeProjectDirect #1 assertSameElements -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-p :: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
@@ -784,14 +781,6 @@ tests in the ledger: 185
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #2 - -> not-reached: 4 assert(s) after the failure
 - testBiTemporalUnionJoin_milestoningColumnInOnClause #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
-- testSQLQueryMergingForInnerJoins #1 meta::relational::functions::asserts::assertSameSQL -> pass
-- testSQLQueryMergingForInnerJoins #2 meta::pure::functions::asserts::assertEquals -> pass
-- testSQLQueryMergingForInnerJoins #3 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: [[], [], '_', '_'] ::  expected: [[], [], '8', '8'] actual:   ['8', '8', 'TDSNull', 'TDSNull']
-- testSQLQueryMergingForInnerJoins #4 - -> not-reached: 1 assert(s) after the failure
-- testSQLQueryMergingForInnerJoins2 #1 meta::relational::functions::asserts::assertSameSQL -> pass
-- testSQLQueryMergingForInnerJoins2 #2 meta::pure::functions::asserts::assertEquals -> pass
-- testSQLQueryMergingForInnerJoins2 #3 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: [[], [], '_', '_'] ::  expected: [[], [], '8', '8'] actual:   ['8', '8', 'TDSNull', 'TDSNull']
-- testSQLQueryMergingForInnerJoins2 #4 - -> not-reached: 1 assert(s) after the failure
 - testChainedUnions #1 meta::pure::functions::asserts::assertEquals -> pass
 - testChainedUnions #2 meta::pure::functions::asserts::assertSameElements -> pass
 - testChainedUnions #3 meta::pure::functions::asserts::assert -> sql-text-assert: platform-fail: Assert failed :: Assert failed
@@ -812,8 +801,10 @@ tests in the ledger: 185
 - testUnionTwoRelationMappings_ManyColumnProject #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana ::  expected: '#TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Robe
 - testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana ::  expected: '#TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Robe
 - testGroupByWithFilterFunction_noDatePath #1 meta::pure::functions::asserts::assertEquals -> pass
-- testGroupByWithFilterFunction_noDatePath #2 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, oracle declined: column arity differs: golden N vs frame N): expected select "root" :: assertEqualsH2Compatible (sql-text, oracle declined: column arity differs: golden 10 vs frame 4): expected select "root"."date" as "pk_0", "root"."calendar name" 
-- testGroupByWithFilterFunction_noDatePath #3 - -> not-reached: 2 assert(s) after the failure
+- testGroupByWithFilterFunction_noDatePath #2 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> pass
+- testGroupByWithFilterFunction_noDatePath #3 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> pass
+- testGroupByWithFilterFunction_noDatePath #4 meta::pure::functions::asserts::assertEquals -> pass
+- testGroupByWithFilterFunction_noDatePath #5 - -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-pa :: filtered-navigation read 'day' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=s]
 - testFilterTimesWithManyOperands #1 assertSameSQL -> wall:resolver: wall-exec: aggregate '_' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-o :: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - testFilterTimesWithManyOperands #2 - -> not-reached: 1 assert(s) after the failure
 - testLegacyFlagProjectionEmitsPlainEquals #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
@@ -948,6 +939,8 @@ tests in the ledger: 185
 - ERROR testResultToJsonStream [tests]: 'GeographicEntityType' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExtractDBsWithSubstituition [tests]: in function 'meta::relational::runtime::extractDBs': unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::runtime::extractDBs/1 -> meta::relational::runtime::extractDBs/2]
 - ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCoreTypeToDbSpecificType/2]
+- FAIL testQualifierWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [Test, Test, Test], ours-only []
+- FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [, , ], ours-only []
 - FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: no scalar lowering registered for resolved overload 'meta::json::toJSON' with 1 parameter(s)
