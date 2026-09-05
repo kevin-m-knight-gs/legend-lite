@@ -1635,6 +1635,8 @@ public final class StoreResolver {
             // target is the parent-copy subselect (fold 2b).
             if (assocMaterial.explodingReroutePred(path, mid) != null
                     && !demandedNavs.contains(alias)) {
+                // (69b) the tail loop reaches the first tail hop only
+                synthetics.unappliedCorrelatedWall(path, mid + 1);
                 corrNavHeads.putIfAbsent(headKey, alias);
                 continue;
             }
@@ -1645,6 +1647,8 @@ public final class StoreResolver {
                 // (loud read), never an unfiltered join
                 continue;
             }
+            // (69b) a tail-hop correlated pred the reroute did not take walls
+            synthetics.unappliedCorrelatedWall(path, mid);
             if (demandedNavs.contains(alias)) {
                 continue;
             }

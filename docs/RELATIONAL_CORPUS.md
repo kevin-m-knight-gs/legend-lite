@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 255 | 3 | 7 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 64 | 3 | 0 | 1 | 0 | 0 | 0 | 0 |
+| tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2424** | 42 | 77 | 32 | 7 | 7 | 29 | 4 |
+| **total** | 2575 | **2424** | 41 | 78 | 32 | 7 | 7 | 29 | 4 |
 
 SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2387 clean + 37 carrying softness (sqldiff 7, advisory 7, 0-asserts 29, text-rescued 4; flags overlap — the union is 37).
 
@@ -548,9 +548,9 @@ tests in the ledger: 181
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 49 |
-| wall:resolver | 31 |
+| wall:resolver | 32 |
 | wall:exec | 14 |
-| divergence | 29 |
+| divergence | 28 |
 | not-reached | 39 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 16 |
@@ -744,7 +744,7 @@ tests in the ledger: 181
 - testTwoQualifiersWithOperation #1 meta::pure::functions::asserts::assertSize -> pass
 - testTwoQualifiersWithOperation #2 meta::pure::functions::asserts::assertEquals -> pass
 - testTwoQualifiersWithOperation #3 meta::pure::functions::asserts::assertEquals -> sql-text-assert: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
-- isolationTest #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (rendered CSVTEXT): line-count N != N (expected first line: firmname,employeeProductName,testCol) :: assertEquals (rendered CSVTEXT): line-count 7 != 10 (expected first line: firmname,employeeProductName,testCol)
+- isolationTest #1 assertEquals -> wall:resolver: wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat :: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head a
 - isolationTest #2 - -> not-reached: 1 assert(s) after the failure
 - relationalResultSourcingOfListExecutionPlan #1 assertEquals -> wall:exec: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('result') is not supported
 - testSimpleTypeMappingProjectNulls #1 meta::pure::functions::asserts::assertEquals -> pass
@@ -941,7 +941,7 @@ tests in the ledger: 181
 - ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCoreTypeToDbSpecificType/2]
 - FAIL testQualifierWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [Test, Test, Test], ours-only []
 - FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [, , ], ours-only []
-- FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n
+- ERROR isolationTest [tests/advanced]: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head and first-tail-hop predicates only)
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: no scalar lowering registered for resolved overload 'meta::json::toJSON' with 1 parameter(s)
 - ERROR testProjectThroughAssociation [tests/injection]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]

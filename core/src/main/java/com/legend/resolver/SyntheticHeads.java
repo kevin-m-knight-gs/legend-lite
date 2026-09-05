@@ -299,6 +299,31 @@ final class SyntheticHeads {
         return innerValueHeads.contains(head);
     }
 
+    /** Batch 69b: a correlated filter predicate parked on a hop at index
+     * &ge; {@code from} of a nav-slot chain has NO application site — the
+     * parent-copy reroute's tail loop applies head and first-tail-hop
+     * predicates only, and the slot spine never parks a sub-hop
+     * correlated pred in-target (isolationTest:
+     * {@code employees.group.children->filter(c | ... == $x.employees
+     * .product.name)} answered with EVERY child; the chain could not
+     * reroute because a plain path had already demanded its parent
+     * alias). Wall loudly — a wrong answer is never a gap. */
+    void unappliedCorrelatedWall(List<String> path, int from) {
+        for (int hi = from; hi < path.size(); hi++) {
+            if (correlatedPred(path.get(hi)) != null) {
+                throw new com.legend.error.NotImplementedException(
+                        "correlated filter predicate on hop '"
+                        + realHead(path.get(hi))
+                        + "' at depth " + (hi + 1) + " of the navigation "
+                        + String.join(".", path.stream()
+                                .map(SyntheticHeads::realHead).toList())
+                        + " has no application site yet (the parent-copy"
+                        + " reroute applies head and first-tail-hop"
+                        + " predicates only)");
+            }
+        }
+    }
+
     /** The predicate body with its binder renamed to a canonical name —
      * the inliner alpha-freshens per call site (e, e_1, e_2 under an
      * outer shadowing scope), which defeated plain record equality (the

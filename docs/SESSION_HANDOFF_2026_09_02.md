@@ -3603,3 +3603,15 @@ golden(1) walls in the resolver. OPEN: isolation-family design (INNER
 vs LEFT for value-position filtered navigations — USER DECISION
 pending), isolationTest's silently dropped correlated predicate,
 fetchDb Function-typed lowering wall. THEN batch 69 = the deletion.
+
+**Batch 69b — isolationTest walls loudly (2026-09-05, chain GREEN; GATES
+batch 69b).** Ratchet unchanged 181/2392. The silently dropped
+correlated predicate (tail hop of a 3-hop chain whose parent alias a
+plain path had already demanded) is StoreResolver.unappliedCorrelatedWall
+now. LEG: apply a correlated predicate at depth ≥ 2 (extend the
+parent-copy reroute's tail loop past aj.targetSubNavs(), and let a chain
+reroute even when its parent alias is already on the spine). The
+fix-before-delete order (user): of the 11 — 5 fixed/receipted, forced
+pair = honest divergence pending the isolation-family DECISION (task
+#17), isolationTest + datePeriods + fetchDb = named walls (task #18).
+NEXT: user decision on #17, then batch 69 = the deletion.
