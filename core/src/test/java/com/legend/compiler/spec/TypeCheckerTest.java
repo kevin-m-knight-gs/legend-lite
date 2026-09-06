@@ -341,10 +341,18 @@ class TypeCheckerTest {
     }
 
     @Test
-    void concatenateMismatchedSchemasThrows() {
-        // The shared T cannot bind two different row-structs.
-        assertThrows(TypeInferenceException.class, () -> typeQuery(
-                T_PERSON + "->select(~FIRST_NAME)->concatenate(" + T_PERSON + ")"));
+    void concatenateMismatchedSchemasTypeWithTheLeftSchema() {
+        // ARITY (batch 84): the engine's TDS concatenate is schema-erased —
+        // a width mismatch compiles there and fails only when the database
+        // unites the selects (a UNION arity error, loud). The typer keeps
+        // the LEFT schema and never refuses what the engine compiles (a
+        // lineage query that never executes must type); the same rule
+        // serves the Relation<T> spelling, whose engine-side compile
+        // refusal the database reproduces at execution.
+        TypedSpec c = typeQuery(
+                T_PERSON + "->select(~FIRST_NAME)->concatenate(" + T_PERSON + ")");
+        assertInstanceOf(TypedConcatenate.class, c);
+        assertEquals(1, schemaOf(c).columns().size());
     }
 
     @Test

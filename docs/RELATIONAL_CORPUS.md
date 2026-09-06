@@ -46,7 +46,7 @@ shared source registered by several families cannot double-count. Run with
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| lineage/scanRelations | 49 | 48 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | milestoning/tests | 228 | 225 | 1 | 2 | 0 | 0 | 0 | 0 | 0 |
 | modelJoins | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2434** | 37 | 76 | 28 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2435** | 37 | 76 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2434 PASS = 2399 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2435 PASS = 2400 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,12 +542,12 @@ SOFT-PASS RECONCILIATION (F2.1): 2434 PASS = 2399 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 153
+tests in the ledger: 152
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 38 |
+| wall:typer | 37 |
 | wall:resolver | 29 |
 | wall:exec | 10 |
 | divergence | 24 |
@@ -646,7 +646,6 @@ tests in the ledger: 153
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testNonDataTypeProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - testTableToTdsWithCrossJoin #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
-- testTdsJoinConcatenateAndJoin #0 - -> wall:typer: wall-type: concatenate: N column(s) [First_N, Age_N, First_N, Age_N, First_N, Age_N, Restated] cannot unite with N column(s) [First :: meta::pure::lineage::scanRelations::test::testTdsJoinConcatenateAndJoin :: concatenate: 7 column(s) [First_1, Age_1, First_2, Age_2, First_3, Age_3, Restated] cannot
 - testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [met
 - testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 assertSameSQL -> wall:resolver: wall-exec: milestoned property access '_' on a NESTED navigation is not supported yet :: milestoned property access 'product' on a NESTED navigation is not supported yet
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #1 meta::pure::functions::asserts::assertEquals -> pass
@@ -847,7 +846,6 @@ tests in the ledger: 153
 - ERROR testCreateTempTableStatement [helperFunctions/tests]: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
-- SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
 - ERROR testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOpe
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
 - FAIL testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-text: expected select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "ProductClassificationSystemTable_d#5_d#2_m1" on ("root".classificationSystemId = "ProductClassificationSystemTable_d#5_d#2_m1".id and "ProductClassificationSystemTable_d#5_d#2_m1".from_z <= DATE'2015-01-01' and "ProductClassificationSystemTable_d#5_d#2_m1".thru_z > DATE'2015-01-01') left outer join SystemTable as "SystemTable_d#5_l_d#2_m1_r" on ("ProductClassificationSystemTable_d#5_d#2_m1".name = "SystemTable_d#5_l_d#2_m1_r".name) where "SystemTable_d#5_l_d#2_m1_r".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16', got select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "productclassificationsystemtable_0" on ("root".classificationSystemId = "productclassificationsystemtable_0".id and "productclassificationsystemtable_0".from_z <= DATE'2015-10-16' and "productclassificationsystemtable_0".thru_z > DATE'2015-10-16') left outer join SystemTable as "systemtable_0" on ("productclassificationsystemtable_0".name = "systemtable_0".name) where "systemtable_0".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16'

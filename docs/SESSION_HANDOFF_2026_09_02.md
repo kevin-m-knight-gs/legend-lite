@@ -3944,3 +3944,18 @@ engine checkout: functions/tests/loadCsvToDbTable/employees.csv — and
 inserting rows; CsvSeed already spells inserts); toJSON(TDS) as a DB render
 (the engine's {"columns":[{name,type,metaType}],"rows":[{"values":[…]}]}
 envelope — Render family, F4.2); the tz temp-table divergence (probe first).
+
+**Batch 84 (2026-09-06, chain GREEN 6m30s; GATES batch 84).** 153/2420 →
+152/2421; IMPL 51. ConcatenateChecker: arity to the database; ScanRelations:
+class-projection tds-join route (named joins, wrapper ops, decorated-alias
+child order); LineageTreeVerdicts alias grammar + `_d\d+`. GUARD LESSON: an
+edit script's early assertion aborted before the pin/doc edits — three chains;
+check `git diff --stat` names every intended file before launching. NEXT =
+batch 85: loadCsvToDbTable(file, table, conn) as a platform-owned EFFECT
+native: the pure native (legend-pure LoadCsvToDbTable.java) reads the
+classpath CSV, DROPS the header row and inserts positionally with the table's
+column types; ours: a thread-local resource resolver in exec (the harness
+registers engine-root/src/main/resources + path → text, like the replay
+oracle), the table from the store navigation (StoreNav.nav → TableDefinition;
+schema/db from the chain), INSERT rows quoted per CsvSeed's spelling; then
+`Person.all()` over csvMapping reads Joe/Jill.

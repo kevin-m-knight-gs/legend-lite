@@ -2067,10 +2067,17 @@ public class RelationalCorpusRunner {
             // `-- "executionTraceID" : "<uuid>"` (exec.ExecutionTrace at the
             // one JDBC boundary) and the frame's RelationalActivity records
             // the comment of its own run. testSQLComments.
-            org.junit.jupiter.api.Assertions.assertEquals(153L,
+            // batch 84 / L8+L9 (2026-09-06): 153 -> 152 — the engine's TDS
+            // concatenate is schema-erased (a width mismatch compiles; the
+            // database judges the arity), and the lineage scanner takes a
+            // TDS-join spine rooted at CLASS projections (named join columns,
+            // wrapper ops on the spine, the engine's decorated-alias child
+            // order); the referee's alias grammar strips `_d0`-style suffixes.
+            // testTdsJoinConcatenateAndJoin.
+            org.junit.jupiter.api.Assertions.assertEquals(152L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2420L,
+            org.junit.jupiter.api.Assertions.assertEquals(2421L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

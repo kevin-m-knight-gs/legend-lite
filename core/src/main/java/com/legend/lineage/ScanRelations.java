@@ -158,7 +158,7 @@ public final class ScanRelations {
         List<Node> out = new ArrayList<>();
         for (ValueSpecification b : branches) {
             LambdaFunction bl = new LambdaFunction(List.of(), List.of(b));
-            List<Node> tds = tableToTdsRoots(ctx, bl);
+            List<Node> tds = tableToTdsRoots(ctx, bl, mappingFqn);
             out.addAll(tds.isEmpty()
                     ? buildRoots(ctx, bl, mappingFqn, false, extentRoots)
                     : tds);
@@ -231,7 +231,7 @@ public final class ScanRelations {
         // the plan; the direct-table shape needs no mapping walk). Gated
         // to the DATA consumer — treeString's lineage goldens keep their
         // current vocabulary.
-        List<Node> tdsRoots = tableToTdsRoots(ctx, query);
+        List<Node> tdsRoots = tableToTdsRoots(ctx, query, mappingFqn);
         List<Rel> out = new ArrayList<>();
         if (!tdsRoots.isEmpty()) {
             for (Node r : tdsRoots) {
@@ -266,7 +266,7 @@ public final class ScanRelations {
      * fetch set (PK rides via the consumer); no matching literal = the
      * bare-tableToTDS whole-table shape. */
     private static List<Node> tableToTdsRoots(ModelContext ctx,
-            ValueSpecification n) {
+            ValueSpecification n, String mappingFqn) {
         List<Node> out = new ArrayList<>();
         if (containsCall(n, "join")) {
             // ->join(tableToTDS(...), TYPE, {a,b|...}) chains: each right
@@ -295,7 +295,7 @@ public final class ScanRelations {
             for (ValueSpecification spine : spines) {
                 Map<String, String[]> aliases = new LinkedHashMap<>();
                 Map<String, Node> byTable = new LinkedHashMap<>();
-                parseTdsJoinChain(ctx, spine, out, aliases, byTable);
+                parseTdsJoinChain(ctx, spine, out, aliases, byTable, mappingFqn);
             }
             if (spines.size() > 1) {
                 out.sort(java.util.Comparator.comparing(nd -> nd.table));
@@ -362,14 +362,35 @@ public final class ScanRelations {
      * {@code alias -> [table, physicalColumn]}. */
     private static void parseTdsJoinChain(ModelContext ctx,
             ValueSpecification v, List<Node> roots,
-            Map<String, String[]> aliases, Map<String, Node> byTable) {
+            Map<String, String[]> aliases, Map<String, Node> byTable,
+            String mappingFqn) {
+        // a WRAPPER op over the join spine (extend/restrict/sort/…
+        // between joins — testTdsJoinConcatenateAndJoin's extend) reads
+        // no table of its own: the spine continues underneath (batch 84)
+        while (v instanceof AppliedFunction w
+                && !w.function().substring(w.function().lastIndexOf(':') + 1)
+                        .equals("join")
+                && !w.function().substring(w.function().lastIndexOf(':') + 1)
+                        .equals("project")
+                && !w.parameters().isEmpty()
+                && containsCall(w.parameters().get(0), "join")) {
+            v = w.parameters().get(0);
+        }
         if (v instanceof AppliedFunction af && af.function()
                 .substring(af.function().lastIndexOf(':') + 1)
                 .equals("join") && af.parameters().size() >= 3) {
             parseTdsJoinChain(ctx, af.parameters().get(0), roots, aliases,
-                    byTable);
+                    byTable, mappingFqn);
             TdsSrc right = parseTdsSource(ctx, af.parameters().get(1),
-                    aliases, byTable);
+                    aliases, byTable, mappingFqn);
+            // the NAMED form join(left, right, TYPE, 'L', 'R') (tds.pure)
+            // — the engine's TDS join by column names (batch 84)
+            if (af.parameters().size() == 5
+                    && af.parameters().get(3) instanceof com.legend.protocol.spec.CString ln
+                    && af.parameters().get(4) instanceof com.legend.protocol.spec.CString rn) {
+                attachTdsJoinNamed(ln.value(), rn.value(), right, aliases, byTable);
+                return;
+            }
             if (!(lastParam(af) instanceof LambdaFunction cl)
                     || cl.parameters().size() != 2 || cl.body().isEmpty()) {
                 throw new NotImplementedException("scanRelations:"
@@ -379,8 +400,38 @@ public final class ScanRelations {
             attachTdsJoin(cl, right, aliases, byTable);
             return;
         }
-        TdsSrc base = parseTdsSource(ctx, v, aliases, byTable);
+        TdsSrc base = parseTdsSource(ctx, v, aliases, byTable, mappingFqn);
         roots.add(base.node());
+    }
+
+    /** The named TDS join {@code join(l, r, TYPE, 'L', 'R')}: the owner
+     * of the left alias gains the right node as a child. Siblings print
+     * in the engine's decorated-alias order — the OUTERMOST join first
+     * (its alias breadcrumb is the shortest), so the key descends with
+     * the attach index (testTdsJoinConcatenateAndJoin's arms). */
+    private static void attachTdsJoinNamed(String lAlias, String rAlias,
+            TdsSrc rightSrc, Map<String, String[]> aliases,
+            Map<String, Node> byTable) {
+        String[] l = aliases.get(lAlias);
+        if (l == null) {
+            throw new NotImplementedException("scanRelations: tds join alias '"
+                    + lAlias + "' is not a projected column");
+        }
+        String[] own = rightSrc.own().get(rAlias);
+        String r = own != null ? own[1] : rAlias;
+        Node right = rightSrc.node();
+        Node parent = java.util.Objects.requireNonNull(byTable.get(l[0]),
+                "tds join condition references unseeded table " + l[0]);
+        parent.cols.add(l[1]);
+        right.cols.add(r);
+        right.cond = new RelationalOperation.Comparison(
+                new RelationalOperation.ColumnRef(null, l[0], l[1]),
+                com.legend.model.ComparisonOp.EQ,
+                new RelationalOperation.TargetColumnRef(r));
+        right.labelOverride = "equal_\"joinleft_\"\"" + lAlias
+                + "\"_\"joinright_\"\"" + rAlias + "\"";
+        parent.children.put(String.format("%03d", 999 - parent.children.size())
+                + right.table + "(tds_join)", right);
     }
 
     /** A parsed tds source with ITS OWN alias map (alias ->
@@ -474,7 +525,7 @@ public final class ScanRelations {
      * merges its alias map (or the identity map) into {@code aliases}. */
     private static TdsSrc parseTdsSource(ModelContext ctx,
             ValueSpecification v, Map<String, String[]> aliases,
-            Map<String, Node> byTable) {
+            Map<String, Node> byTable, String mappingFqn) {
         List<AppliedFunction> projects = new ArrayList<>();
         ValueSpecification cur = v;
         while (cur instanceof AppliedFunction af && af.function()
@@ -485,6 +536,10 @@ public final class ScanRelations {
         }
         List<Node> found = new ArrayList<>();
         collectTableToTds(ctx, cur, found);
+        if (found.isEmpty() && rootClassFqn(cur) != null) {
+            return classProjectionSource(ctx, cur, projects, aliases, byTable,
+                    mappingFqn);
+        }
         if (found.size() != 1) {
             throw new NotImplementedException("scanRelations: tableToTDS"
                     + " join side is not a single table source");
@@ -536,6 +591,100 @@ public final class ScanRelations {
         // accumulated view: LEFT-most binding wins duplicate names
         own.forEach(aliases::putIfAbsent);
         return new TdsSrc(node, own);
+    }
+
+    /** A TDS-join side rooted at a CLASS extent (batch 84:
+     * {@code X.all()[->filter(…)]->project([col(p|$p.prop, 'alias')…])}
+     * or the (lambdas, names) form): the class's root table node under
+     * the mapping (rootClassMappings), the projected and filtered
+     * properties' COLUMN mappings as its scanned columns, and the alias
+     * map alias → [table, column] for the joins above. A projected
+     * property that is not a plain column mapping is loud. */
+    private static TdsSrc classProjectionSource(ModelContext ctx,
+            ValueSpecification extent, List<AppliedFunction> projects,
+            Map<String, String[]> aliases, Map<String, Node> byTable,
+            String mappingFqn) {
+        String classFqn = java.util.Objects.requireNonNull(rootClassFqn(extent));
+        LegacyMappingDefinition md = mapping(ctx, mappingFqn);
+        ClassMapping.Relational cm = rootClassMappings(ctx, md, classFqn).get(0);
+        Node node = new Node(java.util.Objects.requireNonNull(
+                mainDbOf(cm), "root set without a main db"),
+                mainTableOf(cm), null);
+        byTable.putIfAbsent(node.table, node);
+        Map<String, String[]> own = new LinkedHashMap<>();
+        // filter reads under the extent demand their columns
+        for (String prop : propertyReads(extent)) {
+            node.cols.add(classColumn(ctx, md, cm, prop));
+        }
+        for (AppliedFunction pr : projects) {
+            List<ValueSpecification> specs = pr.parameters().size() > 1
+                    ? flatValues(pr.parameters().get(1)) : List.of();
+            List<ValueSpecification> names = pr.parameters().size() > 2
+                    ? flatValues(pr.parameters().get(2)) : List.of();
+            for (int i = 0; i < specs.size(); i++) {
+                ValueSpecification sp = specs.get(i);
+                LambdaFunction fn;
+                String alias;
+                if (sp instanceof AppliedFunction col
+                        && col.function().substring(col.function().lastIndexOf(':') + 1).equals("col")
+                        && col.parameters().size() >= 2
+                        && col.parameters().get(0) instanceof LambdaFunction cf
+                        && col.parameters().get(1) instanceof com.legend.protocol.spec.CString cn) {
+                    fn = cf;
+                    alias = cn.value();
+                } else if (sp instanceof LambdaFunction lf && i < names.size()
+                        && names.get(i) instanceof com.legend.protocol.spec.CString nn) {
+                    fn = lf;
+                    alias = nn.value();
+                } else {
+                    throw new NotImplementedException("scanRelations: class"
+                            + " projection column is not col(fn, 'name') or"
+                            + " (lambda, name)");
+                }
+                for (String prop : propertyReads(fn)) {
+                    String column = classColumn(ctx, md, cm, prop);
+                    node.cols.add(column);
+                    own.put(alias, new String[]{node.table, column});
+                }
+            }
+        }
+        aliases.putAll(own);
+        return new TdsSrc(node, own);
+    }
+
+    /** The single-hop property reads {@code $x.prop} under {@code n}. */
+    private static List<String> propertyReads(ValueSpecification n) {
+        List<String> out = new ArrayList<>();
+        if (n instanceof AppliedProperty ap
+                && ap.receiver() instanceof com.legend.protocol.spec.Variable) {
+            out.add(ap.property());
+        } else if (n instanceof AppliedFunction af) {
+            for (ValueSpecification p : af.parameters()) {
+                out.addAll(propertyReads(p));
+            }
+        } else if (n instanceof LambdaFunction lf) {
+            for (ValueSpecification b : lf.body()) {
+                out.addAll(propertyReads(b));
+            }
+        } else if (n instanceof com.legend.protocol.spec.PureCollection pc) {
+            for (ValueSpecification e : pc.values()) {
+                out.addAll(propertyReads(e));
+            }
+        } else if (n instanceof AppliedProperty ap2) {
+            out.addAll(propertyReads(ap2.receiver()));
+        }
+        return out;
+    }
+
+    private static String classColumn(ModelContext ctx, LegacyMappingDefinition md,
+            ClassMapping.Relational cm, String prop) {
+        for (PropertyMapping pm : pmsFor(ctx, md, cm, prop)) {
+            if (pm instanceof PropertyMapping.Column c) {
+                return c.column();
+            }
+        }
+        throw new NotImplementedException("scanRelations: property '" + prop
+                + "' of " + cm.className() + " is not a plain column mapping");
     }
 
     private static List<ValueSpecification> flatValues(ValueSpecification v) {

@@ -88,14 +88,16 @@ final class ConcatenateChecker {
                 Type.relationSchema(left.info().type()));
         Type.RelationType rs = java.util.Objects.requireNonNull(
                 Type.relationSchema(right.info().type()));
-        if (ls.columns().size() != rs.columns().size()) {
-            throw new TypeInferenceException("concatenate: " + ls.columns().size()
-                    + " column(s) " + names(ls) + " cannot unite with "
-                    + rs.columns().size() + " column(s) " + names(rs)
-                    + " (relation concatenate is positional: same arity)");
-        }
+        // ARITY (batch 84): the engine's TDS concatenate is schema-erased
+        // (TabularDataSet) — a width mismatch COMPILES there and fails only
+        // when the database unites the selects; a lineage query that never
+        // executes (scanRelations testTdsJoinConcatenateAndJoin: 7 vs 6
+        // columns) must type. The common prefix aligns positionally, the
+        // result carries the LEFT schema, and the database judges the arity
+        // loudly at execution (a UNION arity error, never silent rows).
+        int common = Math.min(ls.columns().size(), rs.columns().size());
         List<TypedRename.ColRename> renames = new ArrayList<>();
-        for (int i = 0; i < ls.columns().size(); i++) {
+        for (int i = 0; i < common; i++) {
             Type.Column lc = ls.columns().get(i);
             Type.Column rc = rs.columns().get(i);
             if (!compatible(lc.type(), rc.type())) {
@@ -122,7 +124,4 @@ final class ConcatenateChecker {
                 && pa.isNumeric() && pb.isNumeric();
     }
 
-    private static List<String> names(Type.RelationType rt) {
-        return rt.columns().stream().map(Type.Column::name).toList();
-    }
 }

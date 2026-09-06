@@ -57,7 +57,7 @@ final class LineageTreeVerdicts {
               FROM lines),
             names AS (SELECT string_agg(name, '|' ORDER BY length(name) DESC, name) AS alt FROM (SELECT DISTINCT name FROM nodes WHERE name <> ''))
             SELECT to_json(struct_pack(preorder := preorder, indent := indent, kind := kind, name := name,
-              label := regexp_replace(label, '(' || coalesce((SELECT alt FROM names), 'root') || '|root|unionBase|unionAlias|"joinleft_"|"joinright_")(_d#\\d+|_dy\\d+|_md|_d|_m\\d+|_i\\d+|_l|_r|_f|_\\d+|#\\d+)+', '\\1', 'g'),
+              label := regexp_replace(label, '(' || coalesce((SELECT alt FROM names), 'root') || '|root|unionBase|unionAlias|"joinleft_"|"joinright_")(_d#\\d+|_dy\\d+|_md|_d\\d+|_d|_m\\d+|_i\\d+|_l|_r|_f|_\\d+|#\\d+)+', '\\1', 'g'),
               cols := cols))
             FROM nodes ORDER BY preorder
             """;
