@@ -4185,3 +4185,12 @@ lowering boundary — tableToTDS(tableReference) join with a constant predicate)
 testGroupByWithWindowSubset (program admission), L5 XStore Relation-function
 ModelJoins, testCheckedWithCircularConstraints, m2m2r, isolationTest, the embedded-
 head trio, rowValueDifference.
+
+**Batch 98 / L9b lineage cross join (2026-09-06, chain GREEN 6m15s; GATES batch 98).**
+137/2436 → 136/2437; IMPL 24. ScanRelations.attachTdsJoin cross-join arm. NEXT probes:
+testChainedFiltersQuery (filter position: employees#f0 then locations#f1 on the
+target — a lifted filtered sub-slot in FILTER position), testPksWithImportDataFlow
+(RelationalExecutionContext(importDataFlowAddFks=true) appends the union's member
+key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
+must fold from the let-bound context instance at compile time, the union row
+already carries the suffixed keys), the relation-union 12-column distinct pair.

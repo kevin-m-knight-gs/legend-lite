@@ -452,6 +452,18 @@ public final class ScanRelations {
         Node right = rightSrc.node();
         ValueSpecification body = cl.body().get(cl.body().size() - 1);
         String leftVar = cl.parameters().get(0).name();
+        // CROSS JOIN ({a, b | true}): no key columns, no synthetic edge
+        // condition — the right table hangs under the spine's ROOT with
+        // the bare tdsJoin label (scanRelations golden
+        // testTableToTdsWithCrossJoin: `firmTable(tdsJoin) [CEOID, ID]`,
+        // the projected columns only)
+        if (body instanceof com.legend.protocol.spec.CBoolean cb && cb.value()) {
+            Node parent = byTable.values().iterator().next();
+            right.labelOverride = "tdsJoin";
+            parent.children.put(String.format("%03d", 999 - parent.children.size())
+                    + right.table + "(tds_join)", right);
+            return;
+        }
         if (!(body instanceof AppliedFunction eq
                 && eq.function().substring(eq.function().lastIndexOf(':') + 1)
                         .equals("equal")

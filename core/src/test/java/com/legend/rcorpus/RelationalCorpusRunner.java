@@ -2166,10 +2166,15 @@ public class RelationalCorpusRunner {
             // (ClassConcatenates.mapOverExecuted), and a value-typed union's
             // plan outputs are its branches' column (Lowerer.union).
             // query::function::concatenate::testAll.
-            org.junit.jupiter.api.Assertions.assertEquals(137L,
+            // batch 98 / L9 (2026-09-06): 137 -> 136 — a tableToTDS join with a
+            // constant-true condition ({a, b | true}, a cross join) hangs the
+            // right table under the spine's root with the bare tdsJoin label
+            // and no key columns (ScanRelations.attachTdsJoin); the lineage
+            // rows verdict replays the tree. testTableToTdsWithCrossJoin.
+            org.junit.jupiter.api.Assertions.assertEquals(136L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2436L,
+            org.junit.jupiter.api.Assertions.assertEquals(2437L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

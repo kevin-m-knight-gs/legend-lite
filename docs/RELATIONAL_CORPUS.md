@@ -46,7 +46,7 @@ shared source registered by several families cannot double-count. Run with
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| lineage/scanRelations | 49 | 48 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| lineage/scanRelations | 49 | 49 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | milestoning/tests | 228 | 226 | 1 | 1 | 0 | 0 | 0 | 0 | 0 |
 | modelJoins | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2450** | 36 | 62 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2451** | 36 | 62 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2450 PASS = 2415 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2451 PASS = 2416 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2450 PASS = 2415 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 137
+tests in the ledger: 136
 
 | bucket | asserts |
 |---|---|
@@ -553,7 +553,7 @@ tests in the ledger: 137
 | divergence | 21 |
 | not-reached | 26 |
 | referee-cannot-replay | 9 |
-| wall:lowering | 11 |
+| wall:lowering | 10 |
 | pass | 29 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
@@ -635,7 +635,6 @@ tests in the ledger: 137
 - dropAndCreateTempTable #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, :: meta::relational::tests::ddl::dropAndCreateTempTable :: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testNonDataTypeProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- testTableToTdsWithCrossJoin #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [met
 - testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 meta::relational::functions::asserts::assertSameSQL -> engine-golden-defect:instance-filter-ungated: platform-fail: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gol :: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 2 row(s), our pipeline
 - testPersonToFirmUsingFromProject #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext :: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::e
@@ -814,7 +813,6 @@ tests in the ledger: 137
 - ERROR dropAndCreateTempTable [helperFunctions/tests]: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testCreateTempTableStatement [helperFunctions/tests]: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
 - ERROR testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOpe
 - FAIL testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s), our pipeline gave 2 row(s); golden-only [1], ours-only [<null>]
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: plan wall: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity': $this.entityIdFk 

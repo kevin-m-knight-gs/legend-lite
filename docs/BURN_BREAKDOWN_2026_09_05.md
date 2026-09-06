@@ -190,10 +190,12 @@ row JSON envelope — a golden-to-rows referee arm).
 
 ### L9 Lineage row verdicts (2)
 
+Status: **batch 98 / L9b LANDED (2026-09-06)** — testTableToTdsWithCrossJoin flipped (136/2437): ScanRelations.attachTdsJoin's cross-join arm. testNonDataTypeProperty stays (scanColumns over a class-typed project column — Phase H4 whole-value read).
+
 | test | detail |
 |---|---|
 | lineage::scanColumns::testNonDataTypeProperty | class query under TypedMap (H2 vocabulary) — scanColumns over a project with a class-typed column |
-| lineage::scanRelations::testTableToTdsWithCrossJoin | no SQL type for TableAlias at the lowering boundary — `tableToTDS(tableReference(...))` join (the same store-row leg as batch 55) |
+| lineage::scanRelations::testTableToTdsWithCrossJoin | **FLIPPED batch 98** — the lineage scanner's tableToTDS join chain accepts a constant-true condition (a cross join: the right table under the spine's root, bare `tdsJoin` label, no keys); the TableAlias lowering wall was the generic path after the lineage arm refused the shape |
 
 ### L10 Time zone and temp tables (1)
 
@@ -407,7 +409,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 → **25**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 (25) → batch 98 −1 → **24**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 
