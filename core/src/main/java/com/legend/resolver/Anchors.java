@@ -341,4 +341,48 @@ final class Anchors {
                 || com.legend.compiler.element.type.PlatformTypes.isTdsType(cur.info().type())
                 ? cur : null;
     }
+
+    /** A TDS-shaped type: a schema-bearing {@code Relation<..>}, the
+     * {@code TDS<T>} relation class (tds.pure:17), or TabularDataSet. */
+    static boolean tdsLike(Type t) {
+        return Type.isRelation(t)
+                || (t instanceof Type.GenericType g
+                        && (g.rawFqn().equals("meta::pure::metamodel::relation::TDS")
+                            || g.rawFqn().equals(com.legend.compiler.element.type
+                                    .PlatformTypes.TABULAR_DATA_SET)))
+                || (t instanceof Type.ClassType c
+                        && c.fqn().equals(com.legend.compiler.element.type
+                                .PlatformTypes.TABULAR_DATA_SET));
+    }
+
+    /** A cast to a TDS-shaped type over a TDS-shaped chain is a type-level
+     * no-op ({@code $result.values->cast(@TDS<Any>)}): the chain beneath. */
+    static TypedSpec peelTdsCasts(TypedSpec n) {
+        while (n instanceof com.legend.compiler.spec.typed.TypedCast tc
+                && tdsLike(tc.target()) && tdsLike(tc.source().info().type())) {
+            n = tc.source();
+        }
+        return n;
+    }
+
+    /** The TDS class's {@code csv} property (tds.pure:19) over a RELATION-
+     * shaped chain (an executed result cast to {@code TDS<Any>}): the read
+     * over the chain beneath the type-level casts — the chain resolves
+     * structurally, the read rides along as the lowerer's CSV render
+     * (Render.lowerTdsCsvProperty). Null = not that shape. */
+    static @com.legend.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,
+            java.util.function.Predicate<TypedSpec> anchored) {
+        if (!pa.property().equals("csv") || !tdsLike(pa.source().info().type())) {
+            return null;
+        }
+        TypedSpec chain = peelTdsCasts(pa.source());
+        return anchored.test(chain)
+                ? new TypedPropertyAccess(chain, "csv", pa.info()) : null;
+    }
+
+    /** The LL_TMP_DEBUG node dump suffix of a resolver wall message. */
+    static String debugSuffix(TypedSpec n) {
+        return System.getenv("LL_TMP_DEBUG") != null
+                ? " <<" + compact(n, 8) + ">>" : "";
+    }
 }

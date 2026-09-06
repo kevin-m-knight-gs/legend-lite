@@ -579,15 +579,16 @@ public final class StoreResolver {
                                 return sources.get(dispatch(sc, f), f, sc.constructedScope()).pipeline();
                             },
                             ctx.elementFqns());
+            // TDS.csv over a relation-shaped chain: structural, the lowerer renders
+            case TypedPropertyAccess csvRead when Anchors.tdsCsvRead(csvRead, this::anchored) != null ->
+                    structural(java.util.Objects.requireNonNull(Anchors.tdsCsvRead(csvRead, this::anchored)), context);
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
                 TypedSpec am = Pipelines.literalOrAutoMapRead(vpa);
                 if (am == null) {
                     throw new NotImplementedException("class query under"
                             + " TypedPropertyAccess is not resolvable yet"
-                            + " (H2 vocabulary)"
-                            + (System.getenv("LL_TMP_DEBUG") != null
-                                    ? " <<" + Anchors.compact(n, 8) + ">>" : ""));
+                            + " (H2 vocabulary)" + Anchors.debugSuffix(n));
                 }
                 yield resolveNode(am, context);
             }

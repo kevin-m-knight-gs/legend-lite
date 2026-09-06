@@ -4064,3 +4064,14 @@ OTHER SIZED: rowValueDifferenceTest needs the engine's rowValueDifference TDS
 program admitted + `.columns` as TDSColumn instances (`$c.type->elementToPath()`)
 + println effects — a multi-seam leg; testEnumInRelation = `~[...]` relation
 project over a class extent with enum-mapped columns and `.csv` (probe next).
+
+**Batch 91 / L1 TDS.csv (2026-09-06, chain GREEN 6m34s; GATES batch 91).** 143/2430 →
+142/2431; IMPL 34. TDS.csv over an executed relation (cast to TDS<Any> peeled) =
+Anchors.tdsCsvRead → Render.lowerTdsCsvProperty (header ', ', rows ',', TDSNull,
+no trailing newline). NEXT: map FUSION in the lift canon — `map(map(xs, t | f), u |
+$u.leaf)` → `map(xs, t | f.leaf)` (sound: auto-map flattens both) — hands the
+AutoMap sibling (`$b.trades.productAtTimeOfTrade.name` = the typer's auto-map of
+the derived property, then `.name` auto-mapped over it) to batch 90's
+parent-scoped route; then testForcedSubTypeProjectDirect, the embedded-head
+chain (multigrain: incomeFunctionSplits#f.incomeFunction(embedded).Classification
+(slot).name), filterOrders (instance filter over a milestoned qualified property).

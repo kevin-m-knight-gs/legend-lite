@@ -134,6 +134,51 @@ public final class Render {
      *  is a typed fact, never a value sniff). */
     static SqlSelect csv(SqlSelect inner, List<Type.Column> relCols,
             boolean renderTdsNull, String rowAlias) {
+        return csv(inner, relCols, renderTdsNull, rowAlias, ",", true);
+    }
+
+    /** The TDS class's {@code csv} property (tds.pure:19) over a relation:
+     *  the engine's TDS csv text — header names joined {@code ', '},
+     *  rows of ','-joined cells with NULL spelled TDSNull, lines joined
+     *  '\n' and NO trailing newline (enumeration golden
+     *  testEnumInRelation: {@code 'name, dateOfHire, type, active, firm,
+     *  role\nAlice,1983-03-15,CONTRACT,YES,FIRM_A,JUNIOR\n...'}). */
+    static SqlExpr lowerTdsCsvProperty(
+            com.legend.compiler.spec.typed.TypedPropertyAccess read,
+            java.util.function.Function<
+                    com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
+            String alias) {
+        SqlSelect inner = relation.apply(read.source());
+        return new SqlExpr.ScalarSubquery(csv(inner,
+                typedColumns(inner, read.source()), true, alias, ", ", false));
+    }
+
+    /** The typed relation columns of {@code inner}'s outputs, by name. */
+    private static List<Type.Column> typedColumns(SqlSelect inner,
+            com.legend.compiler.spec.typed.TypedSpec rel) {
+        java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
+        if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt) {
+            for (Type.Column col : rt.columns()) {
+                byName.put(col.name(), col);
+            }
+        }
+        return inner.outputs().stream()
+                .map(oc -> {
+                    Type.Column t = byName.get(oc.name());
+                    if (t == null) {
+                        throw new IllegalStateException("csv: output column '"
+                                + oc.name() + "' has no typed relation column");
+                    }
+                    return t;
+                }).toList();
+    }
+
+    /** {@code headerSep}: the header's name separator (',' for toCSV,
+     *  ', ' for the TDS csv property); {@code trailingNewline}: toCSV
+     *  ends every row with '\n', the csv property does not. */
+    private static SqlSelect csv(SqlSelect inner, List<Type.Column> relCols,
+            boolean renderTdsNull, String rowAlias, String headerSep,
+            boolean trailingNewline) {
         List<OutputCol> cols = inner.outputs();
         if (cols.size() != relCols.size()) {
             throw new IllegalStateException("toCSV: " + cols.size()
@@ -165,7 +210,7 @@ public final class Render {
         // the header line: names through the SAME escape expression
         SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
         for (int i = 1; i < cols.size(); i++) {
-            header = cat(header, new SqlExpr.StringLit(","),
+            header = cat(header, new SqlExpr.StringLit(headerSep),
                     escapeCsv(new SqlExpr.StringLit(cols.get(i).name())));
         }
         SqlExpr nl = new SqlExpr.StringLit("\n");
@@ -177,7 +222,8 @@ public final class Render {
                         List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR, false, com.legend.sql.OutputCol.Origin.DERIVED), nl),
                         false, aggOrder),
                 new SqlExpr.StringLit(""));
-        SqlExpr text = cat(header, nl, rowsJoined, nl);
+        SqlExpr text = trailingNewline ? cat(header, nl, rowsJoined, nl)
+                : cat(header, nl, rowsJoined);
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
                 .withProjections(rowProjs);

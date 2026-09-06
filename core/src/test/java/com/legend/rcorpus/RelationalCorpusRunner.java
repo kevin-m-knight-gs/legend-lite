@@ -2115,10 +2115,17 @@ public class RelationalCorpusRunner {
             // ON clause (Pipelines.TargetResolver.conditionFor, NavMaterializer)
             // — the engine's nested join with the filter in the join
             // condition. injection::testProjectThroughAssociation.
-            org.junit.jupiter.api.Assertions.assertEquals(143L,
+            // batch 91 / L1 (2026-09-06): 143 -> 142 — the TDS class's csv
+            // property (tds.pure:19) over an executed result cast to TDS<Any>
+            // is a relation read the lowerer renders (header names joined
+            // ', ', ','-joined cells with TDSNull, no trailing newline —
+            // the golden's own text); the cast is a type-level no-op
+            // (Anchors.tdsCsvRead / Render.lowerTdsCsvProperty).
+            // enumeration::testEnumInRelation.
+            org.junit.jupiter.api.Assertions.assertEquals(142L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2430L,
+            org.junit.jupiter.api.Assertions.assertEquals(2431L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

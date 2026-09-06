@@ -2960,6 +2960,14 @@ public final class Lowerer {
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
                 Render.lowerToCsv(tc, this::relation, nextAlias(), deferredTds);
+            // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
+            // over a relation: the csv TEXT the engine prints for a TDS —
+            // header names joined ', ', ','-joined cells with TDSNull, no
+            // trailing newline (enumeration golden testEnumInRelation)
+            case TypedPropertyAccess csvRead
+                    when csvRead.property().equals("csv")
+                    && Type.relationSchema(csvRead.source().info().type()) != null ->
+                Render.lowerTdsCsvProperty(csvRead, this::relation, nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
