@@ -4048,3 +4048,19 @@ associationJoin's andCorrelatedIntoCondition + the hop>0 left re-pointing
 should serve plain-property outer reads; testForcedSubTypeProjectDirect:
 `$r->subType(@Bicycle).person.name` in project), then rowValueDifferenceTest
 (TDSColumn instances), then the embedded-head trio.
+
+**Batch 90 / L1 mapper-scoped filtered navigation (2026-09-06, chain GREEN 6m34s; GATES batch 90).**
+144/2429 → 143/2430; IMPL 35. Lift inside class-collection mappers + PARENT-SCOPED heads
+(SyntheticHeads.markParentScoped) + Pipelines.TargetResolver.conditionFor +
+NavMaterializer.subHopResolver (andCorrelatedIntoCondition on the sub-hop ON).
+FAMILY LEFT: testProjectThroughAssociationAutoMap = TYPER shape (auto-map of a
+derived property over a to-many receiver inlines `$this := $b.trades`; the real
+semantics is map(trades, t | body[$this := t]) — fix at the Typer's auto-map arm,
+then batch 90's route serves it); testForcedSubTypeProjectDirect = a navigate
+slot (`person : @PersonBicycle > @PersonPersonMid`) reached through a subtype
+cast of the root — the subtype AssocSub (registerSubTypeSubs) has no slot
+materialization; isolationTest = depth-2 pred whose outer read hops a parent nav.
+OTHER SIZED: rowValueDifferenceTest needs the engine's rowValueDifference TDS
+program admitted + `.columns` as TDSColumn instances (`$c.type->elementToPath()`)
++ println effects — a multi-seam leg; testEnumInRelation = `~[...]` relation
+project over a class extent with enum-mapped columns and `.csv` (probe next).

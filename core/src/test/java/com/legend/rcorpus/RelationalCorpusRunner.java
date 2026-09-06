@@ -2107,10 +2107,18 @@ public class RelationalCorpusRunner {
             // metaType, rows as values arrays), emitted by the database over
             // the chain (TdsJsonChecker -> TypedJsonResult TDS_JSON ->
             // JsonEmission). testSimpleTypeMappingProjectNulls.
-            org.junit.jupiter.api.Assertions.assertEquals(144L,
+            // batch 90 / L1 (2026-09-06): 144 -> 143 — a filtered navigation
+            // inside a class-collection mapper lifts like the root's
+            // ($b.trades->map(t | $t.products->filter(p | $p.date == $t.d)
+            // ->toOne().name)); its predicate is PARENT-SCOPED (outer reads =
+            // the mapper's own element) and composes into the sub-hop join's
+            // ON clause (Pipelines.TargetResolver.conditionFor, NavMaterializer)
+            // — the engine's nested join with the filter in the join
+            // condition. injection::testProjectThroughAssociation.
+            org.junit.jupiter.api.Assertions.assertEquals(143L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2429L,
+            org.junit.jupiter.api.Assertions.assertEquals(2430L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

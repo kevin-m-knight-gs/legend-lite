@@ -313,8 +313,17 @@ final class SyntheticHeads {
      * reroute because a plain path had already demanded its parent
      * alias). Wall loudly — a wrong answer is never a gap. */
     void unappliedCorrelatedWall(List<String> path, int from) {
+        unappliedCorrelatedWall(path, from, false);
+    }
+
+    /** {@code parentScopedApply}: the slot spine's sub-hop joins compose
+     * parent-scoped predicates (NavMaterializer.conditionFor) — those
+     * heads have an application site and pass. */
+    void unappliedCorrelatedWall(List<String> path, int from,
+            boolean parentScopedApply) {
         for (int hi = from; hi < path.size(); hi++) {
-            if (correlatedPred(path.get(hi)) != null) {
+            if (correlatedPred(path.get(hi)) != null
+                    && !(parentScopedApply && isParentScoped(path.get(hi)))) {
                 throw new com.legend.error.NotImplementedException(
                         "correlated filter predicate on hop '"
                         + realHead(path.get(hi))
@@ -660,12 +669,33 @@ final class SyntheticHeads {
                             ma.dates(), ma.sweep(), ma.info());
             // auto-map mapper bodies are VALUE flattenings (empties drop) —
             // the TDS lift stays off inside them; unlifted shapes keep
-            // their loud error
-            case TypedMap m ->
-                    new TypedMap(
+            // their loud error. EXCEPT a mapper over a CLASS collection
+            // (an auto-mapped navigation, `$b.trades->map(t | $t.products
+            // ->filter(p | $p.date == $t.d)->toOne().name)` — the
+            // qualifier-inlined chained shape, injection
+            // testProjectThroughAssociation): its filtered navigations off
+            // the mapper's own element lift exactly like the root's, the
+            // chained hop then carries the correlated predicate in its
+            // ON clause (registerAssociationJoins hop>0 + associationJoin's
+            // andCorrelatedIntoCondition)
+            case TypedMap m -> {
+                boolean classMapper = enabled && m.source().info().type()
+                        instanceof Type.ClassType
+                        && m.mapper().parameters().size() == 1;
+                if (classMapper) {
+                    mapperScope.push(m.mapper().parameters().get(0));
+                }
+                try {
+                    yield new TypedMap(
                             liftFilteredHeads(m.source(), enabled),
-                            (TypedLambda) liftFilteredHeads(m.mapper(), false),
+                            (TypedLambda) liftFilteredHeads(m.mapper(), classMapper),
                             m.info());
+                } finally {
+                    if (classMapper) {
+                        mapperScope.pop();
+                    }
+                }
+            }
             case TypedIf i ->
                     new TypedIf(
                             liftFilteredHeads(i.condition(), enabled, fc),
@@ -801,17 +831,72 @@ final class SyntheticHeads {
         }
         TypedSpec head = liftFilteredHeads(f.source(), true);
         TypedSpec renamed;
+        String synth;
         if (head instanceof com.legend.compiler.spec.typed
                 .TypedMilestonedAccess ma) {
-            renamed = new TypedMilestonedAccess(ma.source(),
-                    parkFiltered(ma.property(), f.predicate()),
+            synth = parkFiltered(ma.property(), f.predicate());
+            renamed = new TypedMilestonedAccess(ma.source(), synth,
                     ma.dates(), ma.sweep(), ma.info());
         } else {
             var hp = (TypedPropertyAccess) head;
-            renamed = new TypedPropertyAccess(hp.source(),
-                    parkFiltered(hp.property(), f.predicate()), hp.info());
+            synth = parkFiltered(hp.property(), f.predicate());
+            renamed = new TypedPropertyAccess(hp.source(), synth, hp.info());
         }
+        markParentScoped(synth, f);
         return new TypedPropertyAccess(renamed, pa.property(), pa.info());
+    }
+
+    /** The lift is walking a mapper body over a CLASS collection: the
+     * mapper's element variable, innermost first. */
+    private final java.util.ArrayDeque<String> mapperScope = new java.util.ArrayDeque<>();
+
+    /** Heads minted INSIDE a class-collection mapper whose filtered
+     * navigation hangs directly off the mapper's element and whose
+     * correlated predicate reads ONLY that element: the predicate's outer
+     * reads are the PARENT hop's own row — the sub-hop join's ON clause
+     * is its application site (NavMaterializer's conditionFor). Any other
+     * correlated sub-hop predicate keeps the unapplied wall. */
+    private final Set<String> parentScopedHeads = new java.util.LinkedHashSet<>();
+
+    boolean isParentScoped(String head) {
+        return parentScopedHeads.contains(head);
+    }
+
+    private void markParentScoped(String synth, TypedFilter f) {
+        String scope = mapperScope.peek();
+        if (scope == null || !corrPreds.containsKey(synth)
+                || !(f.source() instanceof TypedPropertyAccess src0)
+                || !(src0.source() instanceof TypedVariable v0)
+                || !v0.name().equals(scope)) {
+            return;
+        }
+        TypedLambda pred = f.predicate();
+        Set<String> reads = new java.util.LinkedHashSet<>();
+        for (TypedSpec b : pred.body()) {
+            readVarNames(b, reads);
+        }
+        reads.removeAll(pred.parameters());
+        if (reads.equals(Set.of(scope))) {
+            parentScopedHeads.add(synth);
+        }
+    }
+
+    private static void readVarNames(TypedSpec n, Set<String> out) {
+        if (n instanceof TypedVariable v) {
+            out.add(v.name());
+        }
+        if (n instanceof TypedLambda l) {
+            Set<String> inner = new java.util.LinkedHashSet<>();
+            for (TypedSpec b : l.body()) {
+                readVarNames(b, inner);
+            }
+            inner.removeAll(l.parameters());
+            out.addAll(inner);
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            readVarNames(c, out);
+        }
     }
 
     private @com.legend.Nullable TypedSpec liftAggBareFilter(

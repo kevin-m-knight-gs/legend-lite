@@ -1663,8 +1663,8 @@ public final class StoreResolver {
                 // (loud read), never an unfiltered join
                 continue;
             }
-            // (69b) a tail-hop correlated pred the reroute did not take walls
-            synthetics.unappliedCorrelatedWall(path, mid);
+            // (69b) unapplied tail-hop pred walls; PARENT-SCOPED composes (conditionFor)
+            synthetics.unappliedCorrelatedWall(path, mid, true);
             if (demandedNavs.contains(alias)) {
                 continue;
             }
@@ -2349,11 +2349,16 @@ public final class StoreResolver {
                     continue;
                 }
                 if (hop > 0 && synthetics.hasPred(path.get(hop))
-                        && synthetics.correlatedPred(path.get(hop)) != null) {
-                    // CORRELATED pred on a chained MID hop: parent-copy
-                    // reroute serves hop-0 only — loud until the chained
-                    // variant. CLOSED preds fall through (associationJoin
-                    // parks them on the hop's target pipeline).
+                        && synthetics.correlatedPred(path.get(hop)) != null
+                        && assocMaterial.corrPredDemandsParentNav(
+                                java.util.Objects.requireNonNull(
+                                        synthetics.correlatedPred(path.get(hop))))) {
+                    // CORRELATED pred on a chained MID hop demanding a
+                    // parent NAV: parent-copy reroute serves hop-0 only —
+                    // loud until the chained variant. Plain-property outer
+                    // reads compose into the hop's ON (associationJoin's
+                    // andCorrelatedIntoCondition + the hop>0 re-pointing);
+                    // CLOSED preds park on the hop's target pipeline.
                     throw new com.legend.error.NotImplementedException(
                             "correlated filtered navigation as a chained"
                             + " association hop ('"

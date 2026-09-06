@@ -66,7 +66,7 @@ shared source registered by several families cannot double-count. Run with
 | tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
+| tests/injection | 3 | 2 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 32 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2443** | 36 | 69 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2444** | 36 | 68 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2443 PASS = 2408 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2444 PASS = 2409 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,16 +542,16 @@ SOFT-PASS RECONCILIATION (F2.1): 2443 PASS = 2408 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 144
+tests in the ledger: 143
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 36 |
-| wall:resolver | 28 |
+| wall:resolver | 27 |
 | wall:exec | 8 |
 | divergence | 23 |
-| not-reached | 30 |
+| not-reached | 29 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 12 |
 | pass | 30 |
@@ -715,8 +715,6 @@ tests in the ledger: 144
 - isolationTest #1 assertEquals -> wall:resolver: wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat :: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head a
 - isolationTest #2 - -> not-reached: 1 assert(s) after the failure
 - relationalResultSourcingOfListExecutionPlan #1 assertEquals -> wall:exec: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('result') is not supported
-- testProjectThroughAssociation #1 assertEquals -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-p :: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]
-- testProjectThroughAssociation #2 - -> not-reached: 1 assert(s) after the failure
 - testProjectThroughAssociationAutoMap #1 assertEquals -> wall:resolver: wall-exec: object-space expression node TypedFilter is not substitutable yet (HN vocabulary): TypedFilter[source=TypedPropertyAcces :: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVari
 - testProjectThroughAssociationAutoMap #2 - -> not-reached: 1 assert(s) after the failure
 - testEnumInRelation #1 assertEquals -> wall:resolver: wall-exec: class query under TypedPropertyAccess is not resolvable yet (HN vocabulary) :: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -879,7 +877,6 @@ tests in the ledger: 144
 - FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [, , ], ours-only []
 - ERROR isolationTest [tests/advanced]: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head and first-tail-hop predicates only)
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
-- ERROR testProjectThroughAssociation [tests/injection]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - ERROR testEnumInRelation [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - SHAPE testStoreSubstitution [tests/mapping/include]: assert form 'assertIs/2' is not supported yet

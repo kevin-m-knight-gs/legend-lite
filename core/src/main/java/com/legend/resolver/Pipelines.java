@@ -140,6 +140,16 @@ public final class Pipelines {
     /** Resolves a navigate step's target class to its (slot-stripped) pipeline. */
     interface TargetResolver {
         TypedSpec pipelineFor(String alias, String targetClassFqn);
+
+        /** The navigate step's join condition for {@code alias} after the
+         * resolver's own rewrites — a resolver that parks material on the
+         * step (a correlated filter predicate whose outer reads are the
+         * PARENT row's plain properties) composes it here; the engine's
+         * nested join carries such a filter in its ON clause. Default:
+         * the condition unchanged. */
+        default TypedLambda conditionFor(String alias, TypedLambda cond) {
+            return cond;
+        }
     }
 
     /** All navigate-step aliases in {@code pipeline} (class-typed Join PMs). */
@@ -635,6 +645,7 @@ public final class Pipelines {
                 // condition reads rename through the key map, symmetric
                 // to the normalizer's source-side renameGroupedNavCond.
                 cond = renameGroupedTargetReads(cond, targetPipeline);
+                cond = targets.conditionFor(alias, cond);
                 Type.RelationType leftRow = Type.requireRelationSchema(left.info().type());
                 Type.RelationType rightRow =
                         Type.requireRelationSchema(targetPipeline.info().type());

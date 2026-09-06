@@ -277,19 +277,9 @@ final class NavMaterializer {
         final TypedSpec pfm = pipelineForMat;
         Pipelines.Materialized matM = Pipelines.materialize(
                 pfm, tDemand, tNavs,
-                targetClassFqn, (alias, cls) ->
-                        compositeByAlias.containsKey(alias)
-                                ? java.util.Objects.requireNonNull(
-                                        compositeByAlias.get(alias))
-                                : java.util.Objects.requireNonNull(
-                                        subPipeFor(temporal, t, alias, cls,
-                                                mappingFqn, subTails,
-                                                midByAlias, subMats,
-                                                subClsByAlias, chainPrefix,
-                                                hopCtx),
-                                        () -> "sub-navigation '" + alias
-                                                + "' has no materializable"
-                                                + " pipeline"));
+                targetClassFqn, subHopResolver(temporal, t, mappingFqn, subTails,
+                        midByAlias, subMats, subClsByAlias, chainPrefix, hopCtx,
+                        compositeByAlias));
         Map<String, Substitution.SubNav> subTree = new LinkedHashMap<>();
         for (var sm : subMats.entrySet()) {
             String prop = midByAlias.get(sm.getKey());
@@ -392,6 +382,60 @@ final class NavMaterializer {
     /** ONE demanded sub-nav target pipeline: recursive materialization,
      * lifted-pred application, per-hop temporal stamping (the materialize
      * resolver body, extracted so composites can pre-build). */
+
+    /** The sub-hop target resolver of one materialization: sub pipes by
+     * alias (composited steps first), and the parent-scoped predicate
+     * composition on a sub-hop's join condition. */
+    private Pipelines.TargetResolver subHopResolver(TemporalFrame temporal,
+            ClassSource t, String mappingFqn,
+            Map<String, List<List<String>>> subTails,
+            Map<String, String> midByAlias, Map<String, NavMat> subMats,
+            Map<String, String> subClsByAlias, @com.legend.Nullable String chainPrefix,
+            TemporalContext hopCtx, Map<String, TypedSpec> compositeByAlias) {
+        return new Pipelines.TargetResolver() {
+            @Override
+            public TypedSpec pipelineFor(String alias, String cls) {
+                return compositeByAlias.containsKey(alias)
+                        ? java.util.Objects.requireNonNull(
+                                compositeByAlias.get(alias))
+                        : java.util.Objects.requireNonNull(
+                                subPipeFor(temporal, t, alias, cls,
+                                        mappingFqn, subTails,
+                                        midByAlias, subMats,
+                                        subClsByAlias, chainPrefix,
+                                        hopCtx),
+                                () -> "sub-navigation '" + alias
+                                        + "' has no materializable"
+                                        + " pipeline");
+            }
+
+            /** A sub-hop whose lifted predicate is correlated to
+             * THIS target's row (a mapper-scoped lift: `$b.trades
+             * ->map(t | $t.products->filter(p | $p.date == $t.d)
+             * ...)` — the pred's outer reads are the parent hop's
+             * plain properties) composes into the sub-hop's ON
+             * clause: the engine's nested join with the filter in
+             * the join condition (injection
+             * testProjectThroughAssociation). */
+            @Override
+            public TypedLambda conditionFor(String alias, TypedLambda cond) {
+                String midProp = midByAlias.get(alias);
+                if (midProp == null || !synthetics.isParentScoped(midProp)) {
+                    return cond;
+                }
+                TypedLambda pred = synthetics.correlatedPred(midProp);
+                NavMat sm = subMats.get(alias);
+                String cls = subClsByAlias.get(alias);
+                if (pred == null || sm == null || cls == null) {
+                    return cond;
+                }
+                return assocs.andCorrelatedIntoCondition(cond, pred, t,
+                        sources.get(mappingFqn, cls, t.scope()),
+                        sm.slotPrefixes());
+            }
+};
+    }
+
     private @com.legend.Nullable TypedSpec subPipeFor(TemporalFrame temporal, ClassSource t,
             String alias, String cls, String mappingFqn,
             Map<String, List<List<String>>> subTails,
