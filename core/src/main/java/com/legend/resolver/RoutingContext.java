@@ -33,7 +33,9 @@ final class RoutingContext {
      * when the node is not one (or its mapping argument is not a plain
      * reference — those keep the outer context). */
     static com.legend.compiler.spec.typed.@com.legend.Nullable
-            TypedPackageableRef routedEntryMapping(TypedNativeCall nc) {
+            TypedPackageableRef routedEntryMapping(TypedNativeCall nc0,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        TypedNativeCall nc = entryCall(nc0, bind);
         String f = nc.callee().qualifiedName();
         boolean routed = com.legend.compiler.element.type.PlatformTypes
                 .isExecuteFqn(f);
@@ -42,25 +44,43 @@ final class RoutingContext {
                         .typed.TypedPackageableRef mr ? mr : null;
     }
 
-    static StoreResolver.Context routedContext(TypedNativeCall nc,
-            StoreResolver.Context outer,
-            com.legend.compiler.spec.SpecCompiler specs) {
-        var mr = java.util.Objects.requireNonNull(routedEntryMapping(nc));
-        java.util.List<String> chain = java.util.List.of();
-        if (nc.args().size() >= 3) {
-            TypedSpec rt = nc.args().get(2);
-            if (rt instanceof TypedUserCall) {
-                // the runtime is usually a HELPER call (m2m2r::runtime())
-                // — inline once so the chain walker sees the constructed
-                // ModelChainConnection (same rule as the plan lane's
-                // connection-flag inlining)
-                rt = new com.legend.compiler.spec.UserCallInliner(specs)
-                        .inlineBody(java.util.List.of(rt)).get(0);
-            }
-            chain = TypedFrom.chainMappingsIn(rt);
+    /** The call whose mapping and runtime arguments NAME the routing: an
+     * execute / executionPlan call itself, or the executionPlan BUILD a
+     * plan-execute peels to ({@code $plan->execute(values, ext)} where
+     * {@code $plan} is let-bound to {@code executionPlan(f, m, rt, ext)}) —
+     * a plan execution re-evaluated as a value routes exactly as the plan
+     * statement did. */
+    static TypedNativeCall entryCall(TypedNativeCall nc,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        if (com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN_EXECUTE
+                        .equals(nc.callee().qualifiedName())
+                && !nc.args().isEmpty()
+                && bind.apply(nc.args().get(0)) instanceof TypedNativeCall pb
+                && com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN
+                        .equals(pb.callee().qualifiedName())) {
+            return pb;
         }
-        return new StoreResolver.Context(mr.fullPath(),
-                outer.runtimeFqn(), chain);
+        return nc;
+    }
+
+    static StoreResolver.Context routedContext(TypedNativeCall nc0,
+            StoreResolver.Context outer,
+            com.legend.compiler.spec.SpecCompiler specs,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        TypedNativeCall nc = entryCall(nc0, bind);
+        var mr = java.util.Objects.requireNonNull(routedEntryMapping(nc, bind));
+        TypedSpec rt = nc.args().size() >= 3 ? nc.args().get(2) : null;
+        if (rt instanceof TypedUserCall) {
+            // a HELPER-built runtime (m2m2r::runtime()) is brought to its
+            // VALUE before the context is read
+            rt = new com.legend.compiler.spec.UserCallInliner(specs)
+                    .inlineBody(java.util.List.of(rt)).get(0);
+        }
+        var bound = com.legend.compiler.spec.typed.ExecutionContext.reader()
+                .read(java.util.Optional.of(mr), rt);
+        // a call that declares no chain of its own INHERITS the enclosing one
+        return new StoreResolver.Context(mr.fullPath(), outer.runtimeFqn(),
+                bound.inheritingChain(outer.chainMappings()).chainMappings());
     }
 
     /** The context in effect at the chain's getAll: fold every in-chain

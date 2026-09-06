@@ -103,6 +103,15 @@ equality with the platform-flipped 2451, then delete the walk, the flip machiner
 forms, the censuses (test and main side), the harness-named Compiler overloads, and fold
 H2Verify's comparison policy into the platform's. Runs BEFORE the NavPath cleanup.
 
+STEP A LANDED (batch 114, 2026-09-06): execution context as a VALUE — docs/EXECUTION_CONTEXT_DESIGN
+_2026_09_06.md; ExecutionContext + ContextReading (compiler/spec/typed), TypedFrom(source, context,
+executedExtent, info); binders = FromChecker, ExecuteChainAssembly.chain, RoutingContext (entryCall peels
+plan-execute), StatementExecutor.boundContext; setups once per statement (establishContexts);
+ConnectionFlags and the TypedFrom walks DELETED; ratchets in PlatformNamesGuardrailTest (name checks
+73 → 0; no walker outside the reader). Both batch-113 regressions closed: 122/2451, minimal 2454.
+LESSON: a census that is a static sink counts BOTH harnesses in gate 4 (the "42 vs 21" confusion) —
+read pins under the gate's own configuration, never a scoped run.
+
 STEP 1 LANDED (batch 113, 2026-09-06): StatementInline (core/src/main/java/com/legend/compiler) —
 helper programs splice at the query front door, so the old runner's expandHelperCalls is
 redundant; MinimalCorpus + MinimalCorpusTest + corpus-library.pure run in gate 4 beside the old
@@ -4522,3 +4531,13 @@ roster 2452 = 2449 + 3. StatementInline + PlatformTypes.isStatementOnly/isVerdic
 ModelContext.findFunctionDefinitions; pom `surefire.excludedGroups` wired; gate 4 runs
 MinimalCorpusTest. NEXT = step 2 (delete the old harness + converge the frame route), then the
 single-shot design. See §0 Phase 1b.
+
+**Batch 114 / execution context as a VALUE (2026-09-06, chain GREEN 6m46s; GATES batch 114).**
+124/2449 → 122/2451 (m2m2r + paginate closed by the one binding); minimal harness 2454.
+ExecutionContext / ContextReading / TypedFrom(context); ConnectionFlags deleted; setups once per
+statement; PlatformNamesGuardrailTest ratchets (73 literal name checks → 0). NEXT = step B: delete
+the old harness (EngineTestExecutor 4.1k, RelationalCorpusRunner 3.9k, Runner 2.0k, H2Verify 1.3k,
+WholeTestFlip/FlipProbe/WholeTestCensus, the forms; main-side censuses referenced from ~30 sites) AND
+converge the executor's call-frame route (executeCallStatement / hasNonLetIntermediate /
+helperValueLet / callArgumentFrame, hostChannel for the walk) into StatementInline; gate 4 =
+MinimalCorpusTest alone. THEN the single-shot design (WITH seeds + one verdict SELECT).

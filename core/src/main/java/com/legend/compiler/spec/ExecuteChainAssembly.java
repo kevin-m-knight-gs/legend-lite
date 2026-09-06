@@ -480,19 +480,18 @@ public final class ExecuteChainAssembly {
             // harness-ambient EXCEPT ModelChainConnection mappings — the
             // XStore chain: an M2M mapping's ~src classes resolve THROUGH
             // them (same rule as FromChecker's instance-runtime arm)
-            java.util.function.UnaryOperator<TypedSpec> bind =
-                    v -> letBound(v, letPrefix);
-            List<String> chainMappings = ec.args().size() >= 3
-                    ? TypedFrom.chainMappingsIn(
-                            letBound(ec.args().get(2), letPrefix), bind)
-                    : List.of();
-            Map<String, String> jsonSources = ec.args().size() >= 3
-                    ? TypedFrom.jsonSourcesIn(
-                            letBound(ec.args().get(2), letPrefix),
-                            java.util.function.UnaryOperator.identity(), bind)
-                    : Map.of();
-            chain = new TypedFrom(chain, Optional.of(p.mref()), runtime,
-                    chainMappings, jsonSources, chain.info());
+            // the runtime argument brought to its VALUE (lets chased, helper
+            // calls inlined) and read ONCE
+            TypedSpec rtValue = ec.args().size() >= 3
+                    ? new UserCallInliner(specs).inlineBody(List.of(
+                            letBound(ec.args().get(2), letPrefix))).get(0)
+                    : null;
+            com.legend.compiler.spec.typed.ExecutionContext bound =
+                    com.legend.compiler.spec.typed.ExecutionContext.reader()
+                            .bind(v -> letBound(v, letPrefix))
+                            .read(Optional.of(p.mref()), rtValue)
+                            .withRuntime(runtime);
+            chain = new TypedFrom(chain, bound, chain.info());
         }
         // a TDS-typed root (tableToTDS, a TabularDataSet-declared value)
         // is ONE relation like a schema-typed one: its values envelope

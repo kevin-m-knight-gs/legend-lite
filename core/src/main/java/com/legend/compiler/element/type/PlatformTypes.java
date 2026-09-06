@@ -425,6 +425,74 @@ public final class PlatformTypes {
     public static final String GENERATE_SEED_DATA_STRING =
             "meta::relational::testDataGeneration::generateSeedDataString";
 
+    // ---- the execution context's vocabulary (ExecutionContext.Reader is
+    // the only reader of these classes' fields) ----
+    public static final String RUNTIME = "meta::core::runtime::Runtime";
+    public static final String CONNECTION_STORE = "meta::core::runtime::ConnectionStore";
+    public static final String WITH_CHAINED_MAPPINGS = "meta::pure::mapping::withChainedMappings";
+    public static final String MODEL_CHAIN_CONNECTION =
+            "meta::external::store::model::ModelChainConnection";
+    public static final String JSON_MODEL_CONNECTION =
+            "meta::external::store::model::JsonModelConnection";
+    public static final String LOCAL_H2_DATASOURCE_SPECIFICATION =
+            "meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification";
+    public static final String DATABASE_CONNECTION =
+            "meta::external::store::relational::runtime::DatabaseConnection";
+    public static final String RELATIONAL_DATABASE_CONNECTION =
+            "meta::external::store::relational::runtime::RelationalDatabaseConnection";
+    public static final String TEST_DATABASE_CONNECTION =
+            "meta::external::store::relational::runtime::TestDatabaseConnection";
+    /** The corpus's runtime builder — a platform-owned function (the
+     * quoteIdentifiers overload carries the flag as its argument). */
+    public static final String TEST_RUNTIME =
+            "meta::external::store::relational::tests::testRuntime";
+    public static final String IS_EMPTY = "meta::pure::functions::collection::isEmpty";
+    public static final String PLUS = "meta::pure::functions::math::plus";
+
+    /** The three relational connection classes (exact FQN). */
+    public static boolean isRelationalConnectionClass(String fqn) {
+        return DATABASE_CONNECTION.equals(fqn)
+                || RELATIONAL_DATABASE_CONNECTION.equals(fqn)
+                || TEST_DATABASE_CONNECTION.equals(fqn);
+    }
+
+    /** The plan-text simple name of a relational connection class, given
+     * its FQN or (in an UNCHECKED helper body) its bare class name; null
+     * for any other class. */
+    public static @com.legend.Nullable String relationalConnectionSimpleName(String nameOrFqn) {
+        if (DATABASE_CONNECTION.equals(nameOrFqn) || "DatabaseConnection".equals(nameOrFqn)) {
+            return "DatabaseConnection";
+        }
+        if (RELATIONAL_DATABASE_CONNECTION.equals(nameOrFqn)
+                || "RelationalDatabaseConnection".equals(nameOrFqn)) {
+            return "RelationalDatabaseConnection";
+        }
+        if (TEST_DATABASE_CONNECTION.equals(nameOrFqn)
+                || "TestDatabaseConnection".equals(nameOrFqn)) {
+            return "TestDatabaseConnection";
+        }
+        return null;
+    }
+
+    /** FQN or bare (unchecked helper body) spelling. */
+    public static boolean isModelChainConnection(String nameOrFqn) {
+        return MODEL_CHAIN_CONNECTION.equals(nameOrFqn) || "ModelChainConnection".equals(nameOrFqn);
+    }
+
+    public static boolean isJsonModelConnection(String nameOrFqn) {
+        return JSON_MODEL_CONNECTION.equals(nameOrFqn) || "JsonModelConnection".equals(nameOrFqn);
+    }
+
+    public static boolean isLocalH2DatasourceSpecification(String nameOrFqn) {
+        return LOCAL_H2_DATASOURCE_SPECIFICATION.equals(nameOrFqn)
+                || "LocalH2DatasourceSpecification".equals(nameOrFqn);
+    }
+
+    /** The string/number {@code +} in a raw body: bare or FQN spelling. */
+    public static boolean isPlus(String nameOrFqn) {
+        return PLUS.equals(nameOrFqn) || "plus".equals(nameOrFqn);
+    }
+
     /** The asserts package: every function in it is a VERDICT the
      * statement channel adjudicates (AssertVerdicts). */
     public static final String ASSERTS_PACKAGE = "meta::pure::functions::asserts::";

@@ -100,7 +100,9 @@ final class SqlTextVerdicts {
                     .letBound(in.runtime(), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
-            if (ConnectionFlags.connectionInstanceOf(rt) == null) {
+            String boundDb = com.legend.compiler.spec.typed.ExecutionContext.reader()
+                    .read(java.util.Optional.empty(), rt).databaseType();
+            if (boundDb == null) {
                 // a DRIVER that is neither an enum literal nor a runtime
                 // (the per-driver pair loop's `$p.first`): its dialect is
                 // not statically known — never ASSUMED H2 (batch 67: a
@@ -109,7 +111,7 @@ final class SqlTextVerdicts {
                 // foreign-dialect residue owns it: text is the contract.
                 dbType = "unresolved";
             } else {
-                dbType = ConnectionFlags.databaseTypeOf(rt);
+                dbType = boundDb;
             }
             if (dbType == null) {
                 return null;

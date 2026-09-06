@@ -2308,10 +2308,15 @@ public class RelationalCorpusRunner {
             // divergence or a route difference is NOT yet attributed). Both
             // are open rows for the deletion leg, where the frame route and
             // the splice converge into one mechanism.
-            org.junit.jupiter.api.Assertions.assertEquals(124L,
+            // 124 -> 122 (batch 114, execution context as a VALUE): both
+            // tests pass again — the context (chain mappings, the runtime's
+            // inline seed SQL, connection flags) is read ONCE off the
+            // runtime value (ExecutionContext.Reader) and established once
+            // per statement; no route can forget to ask for it.
+            org.junit.jupiter.api.Assertions.assertEquals(122L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2449L,
+            org.junit.jupiter.api.Assertions.assertEquals(2451L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -3406,6 +3411,11 @@ public class RelationalCorpusRunner {
                             // per-test attribution; 21 attributed + 21 unattributed
                             // in the sweep, no new cell class. Scheduled for
                             // deletion with the old runner.
+                            // CORRECTION (batch 114): the 21 unattributed rows are
+                            // the MINIMAL harness's — gate 4 runs both harnesses in
+                            // one JVM and this census is a static sink counting both
+                            // (the old runner alone reads 21). 42 stands until the
+                            // census is deleted with the old runner (step B).
                                     .disagreeCount(),
                             "canonical-byte divergence moved: "
                                     + com.legend.exec.CanonicalDivergence

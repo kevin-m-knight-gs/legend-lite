@@ -195,6 +195,7 @@ final class StatementExecutor {
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
+            establishContexts(stmt, env);
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 // let tds = $r.values(->at(0)/->toOne()): over a RELATION-
@@ -529,15 +530,18 @@ final class StatementExecutor {
                             com.legend.compiler.spec.ExecuteChainAssembly
                                     .letBound(in.runtime(), letPrefix)))
                     .get(0);
-            var ni = ConnectionFlags.connectionInstanceOf(rt);
-            if (ni == null) {
+            String boundDb = com.legend.compiler.spec.typed.ExecutionContext.reader()
+                    .read(java.util.Optional.empty(), rt).databaseType();
+            if (boundDb == null) {
                 throw new com.legend.error.NotImplementedException(
                         "toSQLString over a toSQL handle whose runtime carries"
                                 + " no statically readable connection");
             }
-            db = String.valueOf(ConnectionFlags.dbTypeOf(ni));
+            db = boundDb;
         } else {
-            db = String.valueOf(ConnectionFlags.databaseTypeOf(dbArg));
+            String dbBound = com.legend.compiler.spec.typed.ExecutionContext.reader()
+                    .read(java.util.Optional.empty(), dbArg).databaseType();
+            db = dbBound == null ? "H2" : dbBound;
         }
         com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
             case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
@@ -855,22 +859,18 @@ final class StatementExecutor {
         // HELPER call carries them inside its body — inline once so the
         // property walkers see the constructed connection (the
         // quoteIdentifiers-flag goldens' testRuntime(quote) idiom)
-        TypedSpec rtArg = hasRuntimeArg
-                ? new com.legend.compiler.spec.UserCallInliner(specs)
-                        .inlineBody(java.util.List.of(ep.args().get(2)))
-                        .get(0)
-                : null;
-        boolean quote = rtArg != null && ConnectionFlags.quoteIdentifiersOf(rtArg);
-        String tz = rtArg != null ? ConnectionFlags.timeZoneOf(rtArg) : null;
-        String fromConn = rtArg == null
+        com.legend.compiler.spec.typed.ExecutionContext pc = hasRuntimeArg
+                ? boundContext(ep.args().get(2), specs) : null;
+        boolean quote = pc != null && pc.quoteIdentifiers();
+        String tz = pc != null ? pc.timeZone() : null;
+        String fromConn = pc == null
                 ? firstFromConnectionName(
                         lam.body().get(lam.body().size() - 1))
                 : null;
-        String connName = rtArg != null
-                ? ConnectionFlags.connectionNameOf(rtArg)
+        String connName = pc != null && pc.connectionName() != null ? pc.connectionName()
                 : fromConn != null ? fromConn
                 : "TestDatabaseConnection(type = \"H2\")";
-        String dbType = rtArg != null ? ConnectionFlags.databaseTypeOf(rtArg) : "H2";
+        String dbType = pc != null && pc.databaseType() != null ? pc.databaseType() : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
                 // a lone LET is a sequence too (E2E §4.4 cluster 1):
                 // the engine prints Allocation, never bare Relational
@@ -894,10 +894,7 @@ final class StatementExecutor {
                     com.legend.compiler.element.type.Type.Primitive.STRING);
         }
         java.util.List<String> chainMaps = new java.util.ArrayList<>(
-                rtArg != null
-                        ? com.legend.compiler.spec.typed.TypedFrom
-                                .chainMappingsIn(rtArg)
-                        : java.util.List.of());
+                pc != null ? pc.chainMappings() : java.util.List.of());
         queryChain.stream().filter(m2 -> !chainMaps.contains(m2))
                 .forEach(chainMaps::add);
         ExecutionResult crossDb = crossDbTdsPlan(lam, mappingFqn, specs,
@@ -1055,34 +1052,18 @@ final class StatementExecutor {
      * connection-name hint (instance-runtime from()). */
     private static @com.legend.Nullable String firstFromConnectionName(
             com.legend.compiler.spec.typed.TypedSpec t) {
-        if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
-                && fr.connectionName() != null) {
-            return fr.connectionName();
-        }
-        for (com.legend.compiler.spec.typed.TypedSpec c : t.children()) {
-            String r = firstFromConnectionName(c);
-            if (r != null) {
-                return r;
-            }
-        }
-        return null;
+        return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()
+                .map(com.legend.compiler.spec.typed.TypedFrom::connectionName)
+                .filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 
     /** Pre-order search for the first {@code TypedFrom} carrying
      * chainMappings (the query-side withChainedMappings channel). */
     private static java.util.List<String> firstFromChainMappings(
             com.legend.compiler.spec.typed.TypedSpec t) {
-        if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
-                && !fr.chainMappings().isEmpty()) {
-            return fr.chainMappings();
-        }
-        for (com.legend.compiler.spec.typed.TypedSpec c : t.children()) {
-            java.util.List<String> r = firstFromChainMappings(c);
-            if (!r.isEmpty()) {
-                return r;
-            }
-        }
-        return java.util.List.of();
+        return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()
+                .map(com.legend.compiler.spec.typed.TypedFrom::chainMappings)
+                .filter(c -> !c.isEmpty()).findFirst().orElse(java.util.List.of());
     }
 
     /** Pre-order search for the first {@code ->from(mapping, …)} in the
@@ -1207,14 +1188,14 @@ final class StatementExecutor {
      * text; a LocalH2DatasourceSpecification concatenates the expansion
      * onto its declared sqls. */
     private static com.legend.plan.@com.legend.Nullable PlanConn planConnOf(
-            @com.legend.Nullable TypedSpec rtArg, ExecEnv env) {
-        if (rtArg == null) {
+            com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext pc, ExecEnv env) {
+        if (pc == null) {
             return new com.legend.plan.PlanConn(
                     "TestDatabaseConnection", "H2", null,
                     java.util.List.of(), null);
         }
-        var ni = ConnectionFlags.connectionInstanceOf(rtArg);
-        String storeFqn = connectionStoreElementOf(rtArg);
+        var ni = pc.connectionInstance();
+        String storeFqn = pc.storeFqn();
         com.legend.model.DatabaseDefinition db = storeFqn == null ? null
                 : env.ctx().findDatabase(storeFqn).orElse(null);
         java.util.function.Function<String, java.util.Optional<
@@ -1225,19 +1206,13 @@ final class StatementExecutor {
                     "TestDatabaseConnection", "H2", null,
                     java.util.List.of(), null);
         }
-        String kind = switch (ni.classFqn()) {
-            case "meta::external::store::relational::runtime"
-                    + "::DatabaseConnection" -> "DatabaseConnection";
-            case "meta::external::store::relational::runtime"
-                    + "::RelationalDatabaseConnection" ->
-                    "RelationalDatabaseConnection";
-            case "meta::external::store::relational::runtime"
-                    + "::TestDatabaseConnection" -> "TestDatabaseConnection";
-            default -> throw new IllegalStateException(
-                    "plan connection: unmatched connection class "
-                    + ni.classFqn());
-        };
-        String type = String.valueOf(ConnectionFlags.dbTypeOf(ni));
+        String kind = com.legend.compiler.element.type.PlatformTypes
+                .relationalConnectionSimpleName(ni.classFqn());
+        if (kind == null) {
+            throw new IllegalStateException(
+                    "plan connection: unmatched connection class " + ni.classFqn());
+        }
+        String type = com.legend.compiler.spec.typed.ExecutionContext.Reader.databaseType(ni);
         String csv = ni.properties().get("testDataSetupCsv")
                 instanceof com.legend.compiler.spec.typed.TypedCString c
                 ? c.value() : null;
@@ -1249,9 +1224,8 @@ final class StatementExecutor {
         if (ni.properties().get("datasourceSpecification")
                 instanceof com.legend.compiler.spec.typed
                         .TypedNewInstance ds
-                && ds.classFqn().equals("meta::pure::alloy::connections"
-                        + "::alloy::specification"
-                        + "::LocalH2DatasourceSpecification")) {
+                && com.legend.compiler.element.type.PlatformTypes
+                        .LOCAL_H2_DATASOURCE_SPECIFICATION.equals(ds.classFqn())) {
             String specCsv = ds.properties().get("testDataSetupCsv")
                     instanceof com.legend.compiler.spec.typed
                             .TypedCString sc2
@@ -1266,26 +1240,15 @@ final class StatementExecutor {
         return new com.legend.plan.PlanConn(kind, type, csv, sqls, spec);
     }
 
-    /** The ConnectionStore's {@code element} store reference under the
-     * runtime argument (exact-FQN dispatch), or null. */
-    private static @com.legend.Nullable String connectionStoreElementOf(
-            TypedSpec rtArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(rtArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed
-                            .TypedNewInstance ni
-                    && "meta::core::runtime::ConnectionStore"
-                            .equals(ni.classFqn())
-                    && ni.properties().get("element")
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedPackageableRef pr) {
-                return pr.fullPath();
-            }
-            work.addAll(t.children());
-        }
-        return null;
+    /** The execution context an executionPlan / execute / toSQLString call
+     * binds through its RUNTIME argument: the argument is brought to its
+     * VALUE (helper calls inlined) and read ONCE. */
+    static com.legend.compiler.spec.typed.ExecutionContext boundContext(
+            TypedSpec runtimeArg, SpecCompiler specs) {
+        TypedSpec value = new com.legend.compiler.spec.UserCallInliner(specs)
+                .inlineBody(java.util.List.of(runtimeArg)).get(0);
+        return com.legend.compiler.spec.typed.ExecutionContext.reader()
+                .read(java.util.Optional.empty(), value);
     }
 
     /** The engine-style PLAN renderer for a connection DatabaseType —
@@ -1332,13 +1295,10 @@ final class StatementExecutor {
         }
         // same helper-call inlining as planToString: testRuntime(true)
         // carries the connection flags inside its body
-        TypedSpec rtArg2 = ep.args().size() > 2
-                ? new com.legend.compiler.spec.UserCallInliner(specs)
-                        .inlineBody(java.util.List.of(ep.args().get(2)))
-                        .get(0)
-                : null;
-        boolean quote = rtArg2 != null && ConnectionFlags.quoteIdentifiersOf(rtArg2);
-        String tz = rtArg2 != null ? ConnectionFlags.timeZoneOf(rtArg2) : null;
+        com.legend.compiler.spec.typed.ExecutionContext pc2 = ep.args().size() > 2
+                ? boundContext(ep.args().get(2), specs) : null;
+        boolean quote = pc2 != null && pc2.quoteIdentifiers();
+        String tz = pc2 != null ? pc2.timeZone() : null;
         var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
@@ -1381,10 +1341,7 @@ final class StatementExecutor {
         // from's chain) dispatch the M2M source layers — the same
         // context planToString resolves under (testModelConnection*)
         java.util.List<String> chainMaps = new java.util.ArrayList<>(
-                rtArg2 != null
-                        ? com.legend.compiler.spec.typed.TypedFrom
-                                .chainMappingsIn(rtArg2)
-                        : java.util.List.of());
+                pc2 != null ? pc2.chainMappings() : java.util.List.of());
         firstFromChainMappings(term).stream()
                 .filter(m2 -> !chainMaps.contains(m2)).forEach(chainMaps::add);
         EngineSql es = engineSql(java.util.List.of(term), pmFqn,
@@ -1394,7 +1351,7 @@ final class StatementExecutor {
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
                 java.util.List.of(),
                 com.legend.plan.PlanNode.EXEC_TRACE_COMMENT,
-                planConnOf(rtArg2, env));
+                planConnOf(pc2, env));
         com.legend.plan.PlanNode rel = new com.legend.plan.PlanNode(
                 "RelationalInstantiationExecutionNode",
                 java.util.List.of(sqlNode), null, java.util.List.of());
@@ -1536,14 +1493,6 @@ final class StatementExecutor {
             TypedSpec envelope = com.legend.compiler.spec.ExecuteChainAssembly
                     .legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
             ExecutionResult lqRun = null;
-            if (!eager) {
-                // an INLINE string-entry call reads its value where it
-                // stands (no eager run): the runtime's testDataSetupSqls
-                // still establish the connection's data first — the
-                // engine runs them when it opens the connection, before
-                // the query (the eager path runs them inside executeTyped)
-                runRuntimeSetups(java.util.List.of(), lqChain.chain(), env);
-            }
             if (eager) {
                 com.legend.resolver.StoreResolver lqResolver =
                         resolver(specs, env);
@@ -1589,7 +1538,10 @@ final class StatementExecutor {
             // the connection's time zone: every DateTime literal of this
             // frame's SQL spells in it (batch 86)
             com.legend.exec.PostProcessBoundary.recordTimeZone(
-                    ConnectionFlags.timeZoneOf(rtArg, letPrefix));
+                    com.legend.compiler.spec.typed.ExecutionContext.reader()
+                            .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
+                                    .letBound(v, letPrefix))
+                            .read(java.util.Optional.empty(), rtArg).timeZone());
             com.legend.exec.PostProcessBoundary.recordExtractCtes(hooks.extractCtes());
             com.legend.exec.PostProcessBoundary.recordNonExecutable(hooks.nonExecutable());
             if (!tr.isEmpty()) {
@@ -2121,18 +2073,17 @@ final class StatementExecutor {
      * harness semantics). {@code fromChain} carries the unwrapped
      * top-level from() setups; nested from() (a graph query whose
      * serialize wraps the from) contribute via the walk. */
-    private static void runRuntimeSetups(java.util.List<String> fromChain,
-            TypedSpec root, ExecEnv env) {
-        java.util.List<String> setups = new java.util.ArrayList<>(fromChain);
-        java.util.ArrayDeque<TypedSpec> walk = new java.util.ArrayDeque<>();
-        walk.add(root);
-        while (!walk.isEmpty()) {
-            TypedSpec t = walk.poll();
-            if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-                setups.addAll(fr.sqlSetups());
-                setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx()));
-            }
-            walk.addAll(t.children());
+    /** A statement's execution contexts are ESTABLISHED before it runs:
+     * every from() under it seeds its connection's inline test data (the
+     * engine runs a LocalH2 connection's testDataSetupSqls when it opens
+     * the connection, before the query) — once, here, for every route the
+     * statement then takes (frames, plan text, verdict sides). */
+    private static void establishContexts(TypedSpec statement, ExecEnv env) {
+        java.util.List<String> setups = new java.util.ArrayList<>();
+        for (com.legend.compiler.spec.typed.TypedFrom fr
+                : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
+            setups.addAll(fr.sqlSetups());
+            setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx()));
         }
         for (String blob : setups) {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
@@ -2350,16 +2301,12 @@ final class StatementExecutor {
         // the Executor's null-drop applies (pure collections hold no
         // empties — the no-match parent contributes nothing, task #78).
         com.legend.compiler.element.type.ExprType declaredInfo = null;
-        java.util.List<String> runtimeSetups = new java.util.ArrayList<>();
         while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
             if (declaredInfo == null) {
                 declaredInfo = fr.info();
             }
-            runtimeSetups.addAll(fr.sqlSetups());
-            runtimeSetups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx()));
             root = fr.source();
         }
-        runRuntimeSetups(runtimeSetups, root, env);
         // CATALOG DISPATCH (EFFECT rows, ladder census §10m): the
         // effectful K-natives run their registered arm when evaluation
         // reaches the call — one lookup, no name literals.

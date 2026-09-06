@@ -253,16 +253,20 @@ final class JsonSourceFrame {
     private static StoreResolver.Context scoped(
             com.legend.compiler.spec.typed.TypedFrom fr,
             StoreResolver.Context outer) {
+        // a from() that declares no chain of its own INHERITS the enclosing
+        // one (a plan execution re-evaluated as a value under a chained
+        // runtime)
+        var bound = fr.context().inheritingChain(outer.chainMappings());
         if (fr.mapping().isPresent()) {
             return new StoreResolver.Context(fr.mapping().get().fullPath(),
                     fr.runtime().map(r -> r.fullPath())
                             .orElse(outer.runtimeFqn()),
-                    fr.chainMappings(), fr.jsonSources(), null);
+                    bound.chainMappings(), fr.jsonSources(), null);
         }
         if (fr.runtime().isPresent()) {
             return new StoreResolver.Context(null,
                     fr.runtime().get().fullPath(),
-                    fr.chainMappings(), fr.jsonSources(), null);
+                    bound.chainMappings(), fr.jsonSources(), null);
         }
         if (!fr.chainMappings().isEmpty() || !fr.jsonSources().isEmpty()) {
             // INSTANCE-runtime from() (no mapping ref, no runtime ref)

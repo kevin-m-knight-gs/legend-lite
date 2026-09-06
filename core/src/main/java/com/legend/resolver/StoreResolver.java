@@ -91,6 +91,13 @@ public final class StoreResolver {
     private final Map<String, TypedSpec> letBindings =
             new java.util.LinkedHashMap<>();
 
+    /** A variable's let binding in this body (the engine's inScopeVars),
+     * else the node itself. */
+    private TypedSpec letBound(TypedSpec v) {
+        return v instanceof com.legend.compiler.spec.typed.TypedVariable tv
+                && letBindings.containsKey(tv.name()) ? letBindings.get(tv.name()) : v;
+    }
+
     /** Pre-seed the let env with bindings a caller already consumed
      * (the inliner β-reduces query lets, but graph-tree date args keep
      * their source spelling and resolve here — engine inScopeVars). */
@@ -324,10 +331,7 @@ public final class StoreResolver {
             TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
                     inner, ctx, specs, letBindings);
             return new TypedFrom(resolveNode(liftedSrc, inner),
-                    from.mapping(), from.runtime(),
-                    from.chainMappings(), from.jsonSources(),
-                    from.sqlSetups(), from.csvSetups(), from.connectionName(),
-                    from.executedExtent(), from.info());
+                    from.context(), from.executedExtent(), from.info());
         }
         // zip over two projections of ONE source -> two-column project
         if (n instanceof TypedMap zm
@@ -563,10 +567,10 @@ public final class StoreResolver {
                             .PREVAL.equals(pn.callee().qualifiedName()) -> pn;
             // execute() args resolve under the CALL'S OWN routing
             case TypedNativeCall nc
-                    when RoutingContext.routedEntryMapping(nc) != null ->
+                    when RoutingContext.routedEntryMapping(nc, this::letBound) != null ->
                     structural(Pipelines.classEmptinessRewrite(nc,
                             this::objectSpace),
-                            RoutingContext.routedContext(nc, context, specs));
+                            RoutingContext.routedContext(nc, context, specs, this::letBound));
             // scalar/relation NATIVES over chains bottoming at a getAll:
             // args resolve structurally; CLASS-typed emptiness rewrites
             // FIRST (constant-project relation -> lowerer EXISTS; map §2).

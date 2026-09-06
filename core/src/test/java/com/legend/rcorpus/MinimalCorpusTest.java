@@ -78,11 +78,11 @@ class MinimalCorpusTest {
             System.out.println("[corpus2] FAIL " + f);
         }
         if (only.isEmpty()) {
-            // the ONE pin: the pass roster never shrinks (2452 at cutover,
-            // 2026-09-06 = the old runner's platform-scored 2449 + the
+            // the ONE pin: the pass roster never shrinks (2454 at batch 114,
+            // 2026-09-06 = the old runner's platform-scored 2451 + the
             // assert-free twin and the two vacuous placeholders it walked)
-            org.junit.jupiter.api.Assertions.assertTrue(pass.size() >= 2452,
-                    "corpus pass roster shrank: " + pass.size() + " < 2452");
+            org.junit.jupiter.api.Assertions.assertTrue(pass.size() >= 2454,
+                    "corpus pass roster shrank: " + pass.size() + " < 2454");
         }
     }
 }

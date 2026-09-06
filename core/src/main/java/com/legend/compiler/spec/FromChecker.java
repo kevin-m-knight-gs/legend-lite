@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.spec.typed.ExecutionContext;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -51,81 +53,46 @@ final class FromChecker {
         }
         Application a = t.checkGeneric(af, env);
         List<TypedPackageableRef> refs = new ArrayList<>(a.args().size() - 1);
-        List<String> chainMappings = new ArrayList<>();
-        String connectionName = null;
-        java.util.Map<String, String> jsonSources =
-                new java.util.LinkedHashMap<>();
-        List<String> sqlSetups = new java.util.ArrayList<>();
-        List<TypedFrom.CsvSetup> csvSetups = new java.util.ArrayList<>();
+        // the runtime VALUE argument (a constructed instance, a helper call,
+        // a let-bound variable): the special form's rule reads the execution
+        // context off it ONCE (ExecutionContext.Reader) — the instance's
+        // connection content is otherwise harness-ambient (the module
+        // runtime supplies the connections), so the runtime SLOT stays empty
+        // and the mapping ref alone names the context
+        ExecutionContext bound = ExecutionContext.NONE;
         for (int i = 1; i < a.args().size(); i++) {
             if (a.args().get(i) instanceof TypedPackageableRef ref) {
                 refs.add(ref);
                 continue;
             }
-            // helper-CONSTRUCTED runtimes — from(src, mapping,
-            // testRuntimeUS()) where the helper builds ^Runtime(
-            // connectionStores=...): the instance's CONNECTION content is
-            // harness-owned (the module runtime supplies connections for
-            // every module Database; connection timezone divergences
-            // surface as visible row FAILs), so the execution context
-            // reduces to the mapping ref and the runtime SLOT stays
-            // EMPTY. A runtime-only from() then walls loudly downstream
-            // ("class query requires an execution context"). Anything not
-            // statically Runtime-typed stays loud here.
-            // EXCEPTION (XStore leg slice 1): a ModelChainConnection inside
-            // the instance carries MAPPING FQNs that change RESOLUTION —
-            // an M2M mapping's ~src classes resolve THROUGH them. Collect
-            // them onto the node; everything else stays harness-owned.
             if (a.args().get(i).info().type()
                     instanceof com.legend.compiler.element.type.Type
                             .ClassType ct
-                    && (ct.fqn().equals("meta::core::runtime::Runtime")
-                            || t.model().isSubtype(ct.fqn(),
-                                    "meta::core::runtime::Runtime"))) {
-                chainMappings.addAll(TypedFrom.chainMappingsIn(
-                        a.args().get(i)));
-                jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i),
-                        t::classFqnOf));
-                java.util.function.Function<String, java.util.Optional<
-                        java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                        fnBody = fq -> t.model().findFunction(fq).stream()
-                                .map(com.legend.compiler.element
-                                        .TypedFunction::body)
-                                .filter(java.util.Optional::isPresent)
-                                .map(java.util.Optional::get)
-                                .findFirst();
-                java.util.function.Function<com.legend.compiler.spec.typed.TypedCopyInstance,
-                        @com.legend.Nullable String> dbOfCopy = cp -> {
-                    var store = connectionStoreOf(t, env, cp.source());
-                    return store != null && store.properties().get("element")
-                            instanceof TypedPackageableRef el ? el.fullPath() : null;
-                };
-                TypedFrom.Setups direct = TypedFrom.setupsIn(a.args().get(i), fnBody, dbOfCopy);
-                sqlSetups.addAll(direct.sql());
-                csvSetups.addAll(direct.csv());
+                    && (ct.fqn().equals(PlatformTypes.RUNTIME)
+                            || t.model().isSubtype(ct.fqn(), PlatformTypes.RUNTIME))) {
                 // a LET-BOUND runtime ($runtime = getModelChainRuntime($m) /
-                // ^EngineRuntime(...) / a copy with inline test data, in the
-                // enclosing body — the string-entry query shapes): the
-                // let's rhs TYPES here through the alias channel and the
-                // same collectors read it (the engine establishes the
-                // connection's data and chain mappings whichever way the
-                // runtime value arrives)
-                if (a.args().get(i) instanceof com.legend.compiler.spec.typed
-                                .TypedVariable
+                // ^EngineRuntime(...)): the let's rhs TYPES here through
+                // the alias channel and IS the value read
+                TypedSpec value = a.args().get(i);
+                if (value instanceof com.legend.compiler.spec.typed.TypedVariable
                         && env.resolveAlias(af.parameters().get(i))
                                 instanceof com.legend.protocol.spec.ValueSpecification raw
                         && !(raw instanceof com.legend.protocol.spec.Variable)) {
-                    TypedSpec rt = t.synth(raw, env);
-                    chainMappings.addAll(TypedFrom.chainMappingsIn(rt));
-                    jsonSources.putAll(TypedFrom.jsonSourcesIn(rt, t::classFqnOf));
-                    TypedFrom.Setups aliased = TypedFrom.setupsIn(rt, fnBody, dbOfCopy);
-                    sqlSetups.addAll(aliased.sql());
-                    csvSetups.addAll(aliased.csv());
+                    value = t.synth(raw, env);
                 }
-                if (connectionName == null) {
-                    connectionName = TypedFrom.connectionNameIn(
-                            a.args().get(i));
-                }
+                bound = ExecutionContext.reader()
+                        .fnBody(fq -> t.model().findFunction(fq).stream()
+                                .map(com.legend.compiler.element.TypedFunction::body)
+                                .filter(java.util.Optional::isPresent)
+                                .map(java.util.Optional::get)
+                                .findFirst())
+                        .canon(t::classFqnOf)
+                        .dbOfCopy(cp -> {
+                            var store = connectionStoreOf(t, env, cp.source());
+                            return store != null && store.properties().get("element")
+                                    instanceof TypedPackageableRef el ? el.fullPath() : null;
+                        })
+                        .read(Optional.empty(), value);
                 continue;
             }
             throw new TypeInferenceException("from() argument " + i
@@ -152,10 +119,11 @@ final class FromChecker {
         // and the node strips (same channel as ModelChainConnection)
         TypedSpec src = a.args().get(0);
         if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall wc
-                && "meta::pure::mapping::withChainedMappings"
-                        .equals(wc.callee().qualifiedName())
+                && PlatformTypes.WITH_CHAINED_MAPPINGS.equals(wc.callee().qualifiedName())
                 && wc.args().size() == 2) {
-            collectMappingRefs(wc.args().get(1), chainMappings);
+            List<String> queryChain = new ArrayList<>();
+            collectMappingRefs(wc.args().get(1), queryChain);
+            bound = bound.plusChain(queryChain);
             src = wc.args().get(0);
         }
         // withMapping (real mappingExtension.pure:386 — the from()
@@ -170,10 +138,8 @@ final class FromChecker {
         if (wmRef[0] != null && mapping.isEmpty()) {
             mapping = Optional.of(wmRef[0]);
         }
-        return new TypedFrom(src, mapping, runtime,
-                List.copyOf(chainMappings),
-                java.util.Map.copyOf(jsonSources), List.copyOf(sqlSetups),
-                List.copyOf(csvSetups), connectionName, false, a.out());
+        return new TypedFrom(src, bound.withMapping(mapping).withRuntime(runtime),
+                false, a.out());
     }
 
     /** Strip a {@code withMapping(M)} marker off the from-source spine,

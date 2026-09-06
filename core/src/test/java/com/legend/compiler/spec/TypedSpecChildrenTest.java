@@ -284,8 +284,11 @@ class TypedSpecChildrenTest {
             return new com.legend.compiler.spec.typed.TypedMatchRuntime.Arm(
                     "test::T", "p", leaf());
         }
-        if (type == com.legend.compiler.spec.typed.TypedFrom.CsvSetup.class) {
-            return new com.legend.compiler.spec.typed.TypedFrom.CsvSetup("csv", null);
+        if (type == com.legend.compiler.spec.typed.ExecutionContext.CsvSetup.class) {
+            return new com.legend.compiler.spec.typed.ExecutionContext.CsvSetup("csv", null);
+        }
+        if (type == com.legend.compiler.spec.typed.ExecutionContext.class) {
+            return com.legend.compiler.spec.typed.ExecutionContext.NONE;
         }
         if (type == com.legend.protocol.SourceInfo.class) {
             // the span component (TypedNativeCall.pos — Phase 4)

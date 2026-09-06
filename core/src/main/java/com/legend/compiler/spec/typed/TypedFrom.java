@@ -8,596 +8,93 @@ import java.util.Optional;
 /**
  * An execution-context binding {@code ->from(runtime)} / {@code ->from(mapping,
  * runtime)} (engine {@code TypedFrom}) &mdash; a type passthrough
- * ({@code Relation<T>[1]} / {@code T[*]}) that slots the referenced mapping and
- * runtime onto the node for the back-end.
+ * ({@code Relation<T>[1]} / {@code T[*]}) that carries the bound
+ * {@link ExecutionContext} for the back-end. The context is a VALUE read once
+ * by the special form's rule (docs/EXECUTION_CONTEXT_DESIGN_2026_09_06.md);
+ * the accessors below are its fields.
  *
  * @param source  the value being bound to an execution context
- * @param mapping the mapping reference (the M2M three-argument form), if present
- * @param runtime the runtime reference, if present
- * @param chainMappings mapping FQNs carried by a ModelChainConnection inside
- *                an INSTANCE-runtime argument (the XStore chain: an M2M
- *                mapping's ~src classes resolve THROUGH these) — empty for
- *                reference runtimes
+ * @param context the bound execution context
+ * @param executedExtent EXECUTED EXTENT (batch 78): this envelope stands for
+ *                the VALUES of an executed {@code execute()} frame — the
+ *                instances the engine materialized — so a read over it ranges
+ *                over the extent's rows. Set by the result-envelope splice
+ *                only; a query's own from() never carries it.
  * @param info    the source type unchanged
  */
-public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
-                        Optional<TypedPackageableRef> runtime,
-                        List<String> chainMappings,
-                        java.util.Map<String, String> jsonSources,
-                        List<String> sqlSetups,
-                        List<CsvSetup> csvSetups,
-                        @com.legend.Nullable String connectionName,
-                        boolean executedExtent,
-                        ExprType info) implements TypedSpec {
-    /** EXECUTED EXTENT (batch 78): this envelope stands for the VALUES of
-     * an executed {@code execute()} frame — the instances the engine
-     * materialized — so a read over it ranges over the extent's rows:
-     * the set's own join-mapped primitive properties join whether or not
-     * the read demands them (six instances of a class whose properties
-     * join a versioned table read back six values, never three). Set by
-     * the result-envelope splice only; a query's own from() never
-     * carries it. */
+public record TypedFrom(TypedSpec source, ExecutionContext context,
+                        boolean executedExtent, ExprType info) implements TypedSpec {
 
-    /** A {@code testDataSetupCsv} block under a runtime-valued expression
-     * with the DATABASE it seeds (the enclosing connection store's
-     * {@code element}; null when no store is in view): a FACT the compiler
-     * records — the executor turns it into seed SQL (CsvSeed) when it
-     * establishes the connection, exactly like {@link #sqlSetups}. */
-    public record CsvSetup(String csv, @com.legend.Nullable String dbFqn) {
+    public TypedFrom(TypedSpec source, ExecutionContext context, ExprType info) {
+        this(source, context, false, info);
     }
 
+    /** References only (a wrapper envelope). */
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
-                     Optional<TypedPackageableRef> runtime,
-                     List<String> chainMappings,
-                     java.util.Map<String, String> jsonSources,
-                     List<String> sqlSetups,
-                     @com.legend.Nullable String connectionName,
-                     ExprType info) {
-        this(source, mapping, runtime, chainMappings, jsonSources, sqlSetups,
-                List.of(), connectionName, false, info);
+                     Optional<TypedPackageableRef> runtime, ExprType info) {
+        this(source, ExecutionContext.of(mapping, runtime), false, info);
     }
 
     /** The same envelope flagged as an executed frame's extent. */
     public TypedFrom withExecutedExtent() {
-        return new TypedFrom(source, mapping, runtime, chainMappings,
-                jsonSources, sqlSetups, csvSetups, connectionName, true, info);
+        return new TypedFrom(source, context, true, info);
     }
 
-    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
-                     Optional<TypedPackageableRef> runtime, ExprType info) {
-        this(source, mapping, runtime, List.of(), java.util.Map.of(),
-                List.of(), null, info);
+    /** The same envelope under another context. */
+    public TypedFrom withContext(ExecutionContext c) {
+        return new TypedFrom(source, c, executedExtent, info);
     }
 
-    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
-                     Optional<TypedPackageableRef> runtime,
-                     List<String> chainMappings, ExprType info) {
-        this(source, mapping, runtime, chainMappings, java.util.Map.of(),
-                List.of(), null, info);
+    public Optional<TypedPackageableRef> mapping() {
+        return context.mapping();
     }
 
-    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
-                     Optional<TypedPackageableRef> runtime,
-                     List<String> chainMappings,
-                     java.util.Map<String, String> jsonSources,
-                     ExprType info) {
-        this(source, mapping, runtime, chainMappings, jsonSources, List.of(),
-                null, info);
+    public Optional<TypedPackageableRef> runtime() {
+        return context.runtime();
     }
 
-    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
-                     Optional<TypedPackageableRef> runtime,
-                     List<String> chainMappings,
-                     java.util.Map<String, String> jsonSources,
-                     List<String> sqlSetups,
-                     ExprType info) {
-        this(source, mapping, runtime, chainMappings, jsonSources, sqlSetups,
-                null, info);
+    public List<String> chainMappings() {
+        return context.chainMappings();
     }
 
-    /** The plan-text CONNECTION SPELLING of the first connection instance
-     * under an INSTANCE-runtime expression ({@code
-     * RelationalDatabaseConnection(type = "H2")}) — null when no instance
-     * connection appears (ref runtimes; the plan surface falls back to
-     * TestDatabaseConnection). Exact-FQN dispatch. */
-    public static @com.legend.Nullable String connectionNameIn(TypedSpec n) {
-        if (n instanceof TypedNewInstance ni) {
-            String simple = switch (ni.classFqn()) {
-                case "meta::external::store::relational::runtime"
-                        + "::DatabaseConnection" -> "DatabaseConnection";
-                case "meta::external::store::relational::runtime"
-                        + "::RelationalDatabaseConnection" ->
-                        "RelationalDatabaseConnection";
-                case "meta::external::store::relational::runtime"
-                        + "::TestDatabaseConnection" ->
-                        "TestDatabaseConnection";
-                default -> null;
-            };
-            if (simple != null) {
-                String db = ni.properties().get("type") instanceof
-                        TypedEnumValue ev ? String.valueOf(ev.value()) : "H2";
-                return simple + "(type = \"" + db + "\")";
-            }
-        }
-        // HELPER-CONSTRUCTED runtimes (from(testRuntimeXY())): the
-        // instance lives in the callee's RAW body — chase it at parse
-        // level (bare + FQN spellings, the RelationalDebugContext-gate
-        // convention)
-        if (n instanceof TypedUserCall uc
-                && uc.callee().body().isPresent()) {
-            for (com.legend.protocol.spec.ValueSpecification b
-                    : uc.callee().body().get()) {
-                String r = rawConnectionNameIn(b);
-                if (r != null) {
-                    return r;
-                }
-            }
-        }
-        for (TypedSpec c : n.children()) {
-            String r = connectionNameIn(c);
-            if (r != null) {
-                return r;
-            }
-        }
-        return null;
+    public java.util.Map<String, String> jsonSources() {
+        return context.jsonSources();
     }
 
-    private static @com.legend.Nullable String rawConnectionNameIn(
-            com.legend.protocol.spec.ValueSpecification n) {
-        if (n instanceof com.legend.protocol.spec.NewInstance ni) {
-            String cn = ni.className();
-            String simple = switch (cn) {
-                case "DatabaseConnection",
-                        "meta::external::store::relational::runtime"
-                        + "::DatabaseConnection" -> "DatabaseConnection";
-                case "RelationalDatabaseConnection",
-                        "meta::external::store::relational::runtime"
-                        + "::RelationalDatabaseConnection" ->
-                        "RelationalDatabaseConnection";
-                case "TestDatabaseConnection",
-                        "meta::external::store::relational::runtime"
-                        + "::TestDatabaseConnection" ->
-                        "TestDatabaseConnection";
-                default -> null;
-            };
-            if (simple != null) {
-                com.legend.protocol.spec.KeyExpression ke =
-                        ni.first("type");
-                String db = ke != null && ke.value()
-                        instanceof com.legend.protocol.spec.EnumValue ev
-                        ? ev.value() : "H2";
-                return simple + "(type = \"" + db + "\")";
-            }
-        }
-        java.util.List<com.legend.protocol.spec.ValueSpecification> kids =
-                switch (n) {
-                    case com.legend.protocol.spec.AppliedFunction af ->
-                            af.parameters();
-                    case com.legend.protocol.spec.NewInstance ni2 ->
-                            ni2.properties().stream()
-                                    .map(b -> b.expression().value())
-                                    .toList();
-                    case com.legend.protocol.spec.PureCollection pc ->
-                            pc.values();
-                    case com.legend.protocol.spec.LambdaFunction lf ->
-                            lf.body();
-                    default -> java.util.List.of();
-                };
-        for (com.legend.protocol.spec.ValueSpecification c : kids) {
-            String r = rawConnectionNameIn(c);
-            if (r != null) {
-                return r;
-            }
-        }
-        return null;
+    public List<String> sqlSetups() {
+        return context.sqlSetups();
     }
 
-    /** class FQN -> data: URL payload for every
-     * {@code ^JsonModelConnection(class=..., url='data:application/json,...')}
-     * in a runtime-valued expression — the JSON SOURCE FRAME feed (XStore
-     * leg §1). Non-literal shapes contribute nothing. */
-    public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n) {
-        return jsonSourcesIn(n, java.util.function.UnaryOperator.identity());
+    public List<ExecutionContext.CsvSetup> csvSetups() {
+        return context.csvSetups();
     }
 
-    /** {@code canon} resolves a class name to its FQN (helper bodies are
-     * UNCHECKED source — their refs may be import-simple). */
-    public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n,
-            java.util.function.UnaryOperator<String> canon) {
-        return jsonSourcesIn(n, canon, java.util.function.UnaryOperator.identity());
-    }
-
-    /** {@code bind} chases a let-bound variable met INSIDE the runtime
-     * value to its binding ({@code ^$rt(connectionStores = ...->concatenate(
-     * ^ConnectionStore(connection = $jsonConnection, ...)))}): the same
-     * let-chase the executor applies to the argument itself. */
-    public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n,
-            java.util.function.UnaryOperator<String> canon,
-            java.util.function.UnaryOperator<TypedSpec> bind) {
-        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
-        collectJson(n, out, canon, bind);
-        return java.util.Map.copyOf(out);
-    }
-
-    private static void collectJson(TypedSpec n,
-            java.util.Map<String, String> out,
-            java.util.function.UnaryOperator<String> canon,
-            java.util.function.UnaryOperator<TypedSpec> bind) {
-        if (n instanceof TypedVariable) {
-            TypedSpec b = bind.apply(n);
-            if (b != n) {
-                collectJson(b, out, canon, bind);
-            }
-            return;
-        }
-        // helper-CONSTRUCTED runtimes (from(m, runtime())): the JSON
-        // frames live in the helper's UNCHECKED body — walk it
-        // (TradeLinkage cross-store golden)
-        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
-                && uc.callee().body().isPresent()) {
-            for (com.legend.protocol.spec.ValueSpecification b
-                    : uc.callee().body().get()) {
-                collectJsonRaw(b, out, canon);
-            }
-            return;
-        }
-        if (n instanceof TypedNewInstance ni
-                && "meta::external::store::model::JsonModelConnection"
-                        .equals(ni.classFqn())) {
-            TypedSpec cls = ni.properties().get("class");
-            String url = foldLiteral(ni.properties().get("url"));
-            if (cls instanceof TypedPackageableRef pr && url != null) {
-                out.put(pr.fullPath(), url);
-            }
-            return;
-        }
-        for (TypedSpec c : n.children()) {
-            collectJson(c, out, canon, bind);
-        }
-    }
-
-    /** The UNCHECKED-source mirror of {@link #collectJson} for helper
-     * bodies (class refs canonicalized through {@code canon}). */
-    private static void collectJsonRaw(
-            com.legend.protocol.spec.ValueSpecification v,
-            java.util.Map<String, String> out,
-            java.util.function.UnaryOperator<String> canon) {
-        switch (v) {
-            case com.legend.protocol.spec.NewInstance ni -> {
-                if (ni.className().endsWith("JsonModelConnection")) {
-                    var cls = ni.first("class");
-                    var url = ni.first("url");
-                    if (cls != null && cls.value() instanceof
-                            com.legend.protocol.spec.PackageableElementPtr pr
-                            && url != null && url.value() instanceof
-                                    com.legend.protocol.spec.CString us) {
-                        out.put(canon.apply(pr.fullPath()), us.value());
-                    }
-                    return;
-                }
-                for (var ke : ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList()) {
-                    collectJsonRaw(ke.value(), out, canon);
-                }
-            }
-            case com.legend.protocol.spec.AppliedFunction af -> {
-                for (var p2 : af.parameters()) {
-                    collectJsonRaw(p2, out, canon);
-                }
-            }
-            case com.legend.protocol.spec.LambdaFunction lf -> {
-                for (var b2 : lf.body()) {
-                    collectJsonRaw(b2, out, canon);
-                }
-            }
-            case com.legend.protocol.spec.PureCollection pc -> {
-                for (var e2 : pc.values()) {
-                    collectJsonRaw(e2, out, canon);
-                }
-            }
-            default -> { }
-        }
-    }
-
-    /** A '+'-folded string literal, null when any part is non-literal. */
-    private static @com.legend.Nullable String foldLiteral(@com.legend.Nullable TypedSpec n) {
-        if (n instanceof TypedCString cs) {
-            return cs.value();
-        }
-        if (n instanceof TypedNativeCall c
-                && c.callee().qualifiedName().endsWith("::plus")) {
-            StringBuilder sb = new StringBuilder();
-            for (TypedSpec a : c.args()) {
-                String part = foldLiteral(a);
-                if (part == null) {
-                    return null;
-                }
-                sb.append(part);
-            }
-            return sb.toString();
-        }
-        if (n instanceof TypedCollection tc) {
-            StringBuilder sb = new StringBuilder();
-            for (TypedSpec a : tc.elements()) {
-                String part = foldLiteral(a);
-                if (part == null) {
-                    return null;
-                }
-                sb.append(part);
-            }
-            return sb.toString();
-        }
-        return null;
-    }
-
-    /** Mapping FQNs under any {@code ^ModelChainConnection(mappings=[...])}
-     * in a runtime-valued expression — the ONE literal walk both consumers
-     * share (FromChecker for in-query from(); buildFrame for the execute()
-     * runtime argument). Non-literal shapes contribute nothing; their
-     * reads wall downstream. */
-    public static List<String> chainMappingsIn(TypedSpec n) {
-        return chainMappingsIn(n, java.util.function.UnaryOperator.identity());
-    }
-
-    /** {@code bind} chases let-bound variables met inside the value (see
-     * {@link #jsonSourcesIn(TypedSpec, java.util.function.UnaryOperator,
-     * java.util.function.UnaryOperator)}). */
-    public static List<String> chainMappingsIn(TypedSpec n,
-            java.util.function.UnaryOperator<TypedSpec> bind) {
-        List<String> out = new java.util.ArrayList<>();
-        collectChain(n, out, bind);
-        return List.copyOf(out);
-    }
-
-    private static void collectChain(TypedSpec n, List<String> out,
-            java.util.function.UnaryOperator<TypedSpec> bind) {
-        if (n instanceof TypedVariable) {
-            TypedSpec b = bind.apply(n);
-            if (b != n) {
-                collectChain(b, out, bind);
-            }
-            return;
-        }
-        if (n instanceof TypedNewInstance ni
-                && "meta::external::store::model::ModelChainConnection"
-                        .equals(ni.classFqn())) {
-            TypedSpec ms = ni.properties().get("mappings");
-            List<TypedSpec> els = switch (ms) {
-                case TypedCollection tc -> tc.elements();
-                case null -> List.of();
-                default -> List.of(ms);
-            };
-            for (TypedSpec e : els) {
-                if (e instanceof TypedPackageableRef pr) {
-                    out.add(pr.fullPath());
-                }
-            }
-            return;
-        }
-        for (TypedSpec c : n.children()) {
-            collectChain(c, out, bind);
-        }
-    }
-
-    /** Every literal {@code testDataSetupSqls} blob under a runtime-valued
-     * expression ({@code ^LocalH2DatasourceSpecification(testDataSetupSqls
-     * =[...])}) — the engine executes these when it ESTABLISHES the LocalH2
-     * connection; the executor runs them at query execution on the ambient
-     * session (same semantics). Helper-built runtimes walk the callee's
-     * unchecked body with let-binding resolution ({@code let csvData =
-     * '...' + ...; ... testDataSetupSqls=[$csvData]}). */
-    public static List<String> sqlSetupsIn(TypedSpec n) {
-        return sqlSetupsIn(n, f -> java.util.Optional.empty());
-    }
-
-    /** {@code fnBody}: RAW body lookup for NESTED helper calls inside a
-     * runtime builder ({@code getModelChainRuntime -> ^Runtime(
-     * connectionStores=[getAlloyTestH2Connection(), …])} — the inner
-     * helper's LocalH2 setup SQL is unreachable without expansion). */
-    public static List<String> sqlSetupsIn(TypedSpec n,
-            java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody) {
-        return setupsIn(n, fnBody, cp -> null).sql();
-    }
-
-    /** Both halves of a runtime's test data: the literal
-     * {@code testDataSetupSqls} blobs and the {@code testDataSetupCsv}
-     * FACTS (block text + the connection store's database). */
-    public record Setups(List<String> sql, List<CsvSetup> csv) {
-    }
-
-    /** {@code dbOfCopy}: the database a COPIED connection
-     * ({@code ^$connection(testDataSetupCsv=…)}) seeds — the store the
-     * copy's source navigates from; the checker resolves it structurally. */
-    public static Setups setupsIn(TypedSpec n,
-            java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody,
-            java.util.function.Function<TypedCopyInstance, @com.legend.Nullable String>
-                    dbOfCopy) {
-        List<String> out = new java.util.ArrayList<>();
-        List<CsvSetup> csv = new java.util.ArrayList<>();
-        collectSqlSetups(n, out, fnBody, csv, dbOfCopy, null);
-        return new Setups(List.copyOf(out), List.copyOf(csv));
-    }
-    private static void collectSqlSetups(TypedSpec n, List<String> out,
-            java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody, List<CsvSetup> csv,
-            java.util.function.Function<TypedCopyInstance, @com.legend.Nullable String>
-                    dbOfCopy,
-            @com.legend.Nullable String dbRef) {
-        if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
-            java.util.Map<String, com.legend.protocol.spec.ValueSpecification>
-                    lets = new java.util.HashMap<>();
-            for (com.legend.protocol.spec.ValueSpecification b
-                    : uc.callee().body().get()) {
-                collectSqlSetupsRaw(b, lets, out, fnBody, 0, csv, dbRef);
-            }
-            return;
-        }
-        if (n instanceof TypedNewInstance ni) {
-            String db = ni.properties().get("element")
-                    instanceof TypedPackageableRef el ? el.fullPath() : dbRef;
-            if (("meta::pure::alloy::connections::alloy::specification"
-                    + "::LocalH2DatasourceSpecification").equals(ni.classFqn())) {
-                String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
-                if (s != null) {
-                    out.add(s);
-                }
-            }
-            String csvText = foldLiteral(ni.properties().get("testDataSetupCsv"));
-            if (csvText != null) {
-                csv.add(new CsvSetup(csvText, db));
-            }
-            for (TypedSpec c : n.children()) {
-                collectSqlSetups(c, out, fnBody, csv, dbOfCopy, db);
-            }
-            return;
-        }
-        if (n instanceof TypedCopyInstance cp
-                && foldLiteral(cp.overrides().get("testDataSetupCsv")) instanceof String c2) {
-            csv.add(new CsvSetup(c2, dbOfCopy.apply(cp)));
-        }
-        for (TypedSpec c : n.children()) {
-            collectSqlSetups(c, out, fnBody, csv, dbOfCopy, dbRef);
-        }
-    }
-
-    /** The unchecked-source mirror of {@link #collectSqlSetups}: helper
-     * bodies carry the blobs behind lets (bare + FQN class spellings, the
-     * collectJsonRaw convention). */
-    private static void collectSqlSetupsRaw(
-            com.legend.protocol.spec.ValueSpecification v,
-            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets,
-            List<String> out,
-            java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
-                    fnBody, int depth, List<CsvSetup> csv, @com.legend.Nullable String dbRef) {
-        switch (v) {
-            case com.legend.protocol.spec.AppliedFunction af -> {
-                if ("letFunction".equals(af.function())
-                        && af.parameters().size() == 2
-                        && af.parameters().get(0)
-                                instanceof com.legend.protocol.spec.CString nm) {
-                    lets.put(nm.value(), af.parameters().get(1));
-                }
-                for (var p : af.parameters()) {
-                    collectSqlSetupsRaw(p, lets, out, fnBody, depth, csv, dbRef);
-                }
-                // NESTED helper call (getAlloyTestH2Connection()): expand
-                // its body in a FRESH let scope (depth-capped)
-                if (depth < 3 && !"letFunction".equals(af.function())) {
-                    var body = fnBody.apply(af.function());
-                    if (body.isPresent()) {
-                        java.util.Map<String,
-                                com.legend.protocol.spec.ValueSpecification>
-                                inner = new java.util.HashMap<>();
-                        for (var b : body.get()) {
-                            collectSqlSetupsRaw(b, inner, out, fnBody,
-                                    depth + 1, csv, dbRef);
-                        }
-                    }
-                }
-            }
-            case com.legend.protocol.spec.NewInstance ni -> {
-                var el = ni.first("element");
-                String db = el != null && el.value()
-                        instanceof com.legend.protocol.spec.PackageableElementPtr ptr
-                        ? ptr.fullPath() : dbRef;
-                if (ni.className().endsWith("LocalH2DatasourceSpecification")) {
-                    var ke = ni.first("testDataSetupSqls");
-                    String s = ke == null ? null
-                            : foldRawLiteral(ke.value(), lets);
-                    if (s != null) {
-                        out.add(s);
-                    }
-                }
-                var kc = ni.first("testDataSetupCsv");
-                String c = kc == null ? null : foldRawLiteral(kc.value(), lets);
-                if (c != null) {
-                    csv.add(new CsvSetup(c, db));
-                }
-                for (var ke : ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList()) {
-                    collectSqlSetupsRaw(ke.value(), lets, out, fnBody, depth, csv, db);
-                }
-            }
-            case com.legend.protocol.spec.LambdaFunction lf -> {
-                for (var b : lf.body()) {
-                    collectSqlSetupsRaw(b, lets, out, fnBody, depth, csv, dbRef);
-                }
-            }
-            case com.legend.protocol.spec.PureCollection pc -> {
-                for (var e : pc.values()) {
-                    collectSqlSetupsRaw(e, lets, out, fnBody, depth, csv, dbRef);
-                }
-            }
-            default -> { }
-        }
-    }
-
-    /** A raw-spec string literal folded through '+' chains, collections,
-     * and let-bound variables; null when any part is non-literal. */
-    private static @com.legend.Nullable String foldRawLiteral(
-            com.legend.protocol.spec.ValueSpecification v,
-            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
-        return switch (v) {
-            case com.legend.protocol.spec.CString cs -> cs.value();
-            case com.legend.protocol.spec.Variable vr -> {
-                var bound = lets.get(vr.name());
-                yield bound == null ? null : foldRawLiteral(bound, lets);
-            }
-            case com.legend.protocol.spec.AppliedFunction af
-                    when "plus".equals(af.function()) -> {
-                StringBuilder sb = new StringBuilder();
-                for (var p : af.parameters()) {
-                    String part = foldRawLiteral(p, lets);
-                    if (part == null) {
-                        yield null;
-                    }
-                    sb.append(part);
-                }
-                yield sb.toString();
-            }
-            case com.legend.protocol.spec.PureCollection pc -> {
-                StringBuilder sb = new StringBuilder();
-                for (var e : pc.values()) {
-                    String part = foldRawLiteral(e, lets);
-                    if (part == null) {
-                        yield null;
-                    }
-                    if (sb.length() > 0) {
-                        sb.append('\n');
-                    }
-                    sb.append(part);
-                }
-                yield sb.isEmpty() ? null : sb.toString();
-            }
-            default -> null;
-        };
+    public @com.legend.Nullable String connectionName() {
+        return context.connectionName();
     }
 
     @Override
     public List<TypedSpec> children() {
         List<TypedSpec> out = new java.util.ArrayList<>();
         out.add(source);
-        mapping.ifPresent(out::add);
-        runtime.ifPresent(out::add);
+        context.mapping().ifPresent(out::add);
+        context.runtime().ifPresent(out::add);
         return out;
     }
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        int n = 1 + (mapping.isPresent() ? 1 : 0) + (runtime.isPresent() ? 1 : 0);
+        int n = 1 + (context.mapping().isPresent() ? 1 : 0)
+                + (context.runtime().isPresent() ? 1 : 0);
         TypedSpec.expectChildren(kids, n, "TypedFrom");
         int i = 1;
-        java.util.Optional<TypedPackageableRef> m = mapping.isPresent()
-                ? java.util.Optional.of((TypedPackageableRef) kids.get(i++))
-                : java.util.Optional.empty();
-        java.util.Optional<TypedPackageableRef> r = runtime.isPresent()
-                ? java.util.Optional.of((TypedPackageableRef) kids.get(i))
-                : java.util.Optional.empty();
-        return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources,
-                sqlSetups, csvSetups, connectionName, executedExtent, info);
+        Optional<TypedPackageableRef> m = context.mapping().isPresent()
+                ? Optional.of((TypedPackageableRef) kids.get(i++))
+                : Optional.empty();
+        Optional<TypedPackageableRef> r = context.runtime().isPresent()
+                ? Optional.of((TypedPackageableRef) kids.get(i))
+                : Optional.empty();
+        return new TypedFrom(kids.get(0), context.withMapping(m).withRuntime(r),
+                executedExtent, info);
     }
 }

@@ -136,8 +136,11 @@ final class PlanAllocations {
                 com.legend.plan.PlanSupportFunctions
                         .relationalPlanSupportFunctions(
                                 pep.args().size() > 2
-                                        ? ConnectionFlags.timeZoneOf(
-                                                pep.args().get(2), letPrefix)
+                                        ? com.legend.compiler.spec.typed.ExecutionContext.reader()
+                                                .bind(v -> com.legend.compiler.spec
+                                                        .ExecuteChainAssembly.letBound(v, letPrefix))
+                                                .read(java.util.Optional.empty(), pep.args().get(2))
+                                                .timeZone()
                                         : null));
         if (pep.args().get(0) instanceof com.legend.compiler.spec
                         .typed.TypedLambda plam

@@ -683,7 +683,11 @@ class JavaEvalLedgerTest {
             // in the connection's time zone — the same literal spelling the
             // lowering uses (LiteralSpelling.inZone); a spelling fact, no
             // evaluation.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1061),
+            // 1061 -> 1063 (batch 114): the referee dialect reads the BOUND
+            // execution context (ExecutionContext.reader().read(...).databaseType())
+            // — three lines where the retired ConnectionFlags read was one;
+            // no evaluation added
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1063),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the
@@ -756,10 +760,13 @@ class JavaEvalLedgerTest {
         // planWalk/walkProp/walkFilter/walkResult/constructNode/constructOp/
         // nodeValue/typeRefSimple are gone with MetamodelWalk/MetamodelSteps;
         // what stands is the plan MODEL (planModel, planConnOf,
+        // 5 -> 3 (batch 114, execution context as a VALUE, 2026-09-06):
+        // connectionStoreElementOf is gone — the plan connection reads
+        // the bound ExecutionContext (its store, its connection instance).
         // connectionStoreElementOf) that PlanRows turns into rows.
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
-                        5});
+                        3});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell
@@ -964,7 +971,7 @@ class JavaEvalLedgerTest {
             java.util.Set.of(
                     "AggAwareActivities.java", "AssertErrorNative.java",
                     "AssertVerdicts.java", "Compiler.java",
-                    "ConnectionFlags.java", "ConnectionLets.java",
+                    "ConnectionLets.java",
                     "CrossStoreGuard.java", "LiteralFold.java",
                     "NonNull.java", "Nullable.java",
                     // metamodel-as-relations step 3 (2026-09-02): the

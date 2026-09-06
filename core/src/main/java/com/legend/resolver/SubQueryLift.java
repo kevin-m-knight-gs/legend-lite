@@ -196,8 +196,8 @@ final class SubQueryLift {
                 ? Optional.empty()
                 : Optional.of(new TypedPackageableRef(
                         context.runtimeFqn(), proj.info()));
-        TypedSpec wrapped = new TypedFrom(proj, m, r,
-                context.chainMappings(), context.jsonSources(), proj.info());
+        TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
+                m, r, context.chainMappings(), context.jsonSources()), proj.info());
         TypedSpec resolved = new StoreResolver(ctx, specs)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
@@ -240,8 +240,8 @@ final class SubQueryLift {
                 ? Optional.empty()
                 : Optional.of(new TypedPackageableRef(
                         context.runtimeFqn(), proj.info()));
-        TypedSpec wrapped = new TypedFrom(proj, m, r,
-                context.chainMappings(), context.jsonSources(), proj.info());
+        TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
+                m, r, context.chainMappings(), context.jsonSources()), proj.info());
         TypedSpec resolved = new StoreResolver(ctx, specs)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);
