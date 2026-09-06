@@ -1923,17 +1923,10 @@ final class Substitution {
             return hoisted;
         }
         return switch (n) {
-            // $p->filter(pred).leaf — the if-as-filter idiom over the
-            // INSTANCE itself (engine golden testConcatenateWithFilter:
-            // CASE WHEN pred THEN leaf ELSE NULL). The inner param inlines
-            // with the instance var; both rewrite through the normal arms.
-            case TypedPropertyAccess pa
-                    when pa.source() instanceof TypedFilter f
-                    && f.source() instanceof TypedVariable fv
-                    && fv.name().equals(target.userVar())
-                    && f.predicate().parameters().size() == 1
-                    && f.predicate().body().size() == 1 ->
-                    filteredInstanceRead(pa, f);
+            // ($p->filter(pred).leaf — the instance-filter idiom — is
+            // canonicalized to if(pred, | $p.leaf, | []) in the lift pass,
+            // SyntheticHeads.instanceFilterNavRead: one owner, every hop
+            // count; the if and the read rewrite through the normal arms)
             case TypedPropertyAccess pa when unliftedFilteredRead(pa) ->
                     throw unliftedWall(pa);   // §4AD 5+7 route totality
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
@@ -2327,15 +2320,6 @@ final class Substitution {
 
     /** Leaf read through a filter on the INSTANCE itself (engine golden
      *  testConcatenateWithFilter: CASE WHEN pred THEN leaf ELSE NULL). */
-    private TypedSpec filteredInstanceRead(TypedPropertyAccess pa, TypedFilter f) {
-        TypedSpec pred = inlineParam(f.predicate().body().get(0),
-                f.predicate().parameters().get(0), f.source());
-        return new TypedIf(rewrite(pred),
-                rewrite(new TypedPropertyAccess(f.source(),
-                        pa.property(), pa.info())),
-                java.util.Optional.empty(), pa.info());
-    }
-
     /** Structural rebuild with the instance FOLD-THROUGH: a source that
      *  itself folded to a {@code ^X(k=v)} literal feeds the outer read
      *  ({@code $host.coord.latitude} chains fold hop by hop). */

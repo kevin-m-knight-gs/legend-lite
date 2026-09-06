@@ -475,10 +475,12 @@ final class SyntheticHeads {
             if (fused != null) {
                 return liftFilteredHeads(fused, enabled, fc);
             }
-            TypedSpec guarded = instanceFilterNavRead(n, canon);
-            if (guarded != null) {
-                return liftFilteredHeads(guarded, enabled, fc);
-            }
+        }
+        // the instance-filter idiom is a pure rewrite (no head minted), so
+        // it canonicalizes wherever it stands — inside mapper bodies too
+        TypedSpec guarded = instanceFilterNavRead(n, canon);
+        if (guarded != null) {
+            return liftFilteredHeads(guarded, enabled, fc);
         }
         // ->map(e|$e.leaf) over a (filtered) class navigation IS the
         // property-path spelling — normalize and take the lift arm (the
@@ -843,14 +845,15 @@ final class SyntheticHeads {
         return new TypedPropertyAccess(renamed, pa.property(), pa.info());
     }
 
-    /** A NAVIGATION read through a filter over the [1] instance itself —
-     * {@code filter($r, pred).hop.leaf} (the subtype-cast canon's spelling
-     * of {@code $r->subType(@Bicycle).person.name}: the member witness as
-     * the filter, the cast's slot as the hop) — is the instance-filter
-     * idiom with a navigation leaf: {@code if(pred[$r], | $r.hop.leaf, | [])}
-     * (the CASE WHEN the 1-hop instance read already lowers to), spelled
-     * so every scan demands the hop on the instance. Two or more hops
-     * only; the 1-hop column read keeps Substitution.filteredInstanceRead. */
+    /** THE instance-filter idiom — a read through a filter over the [1]
+     * instance itself, {@code filter($r, pred).leaf} (engine golden
+     * testConcatenateWithFilter: CASE WHEN pred THEN leaf ELSE NULL) and
+     * its navigation form {@code filter($r, pred).hop.leaf} (the
+     * subtype-cast canon's spelling of {@code $r->subType(@Bicycle)
+     * .person.name}: the member witness as the filter, the cast's slot as
+     * the hop) — is {@code if(pred[$r], | $r.hops.leaf, | [])}, spelled so
+     * every scan demands the hops on the instance and the substitution's
+     * plain arms serve the reads. One owner for every hop count. */
     private static @com.legend.Nullable TypedSpec instanceFilterNavRead(TypedSpec n,
             java.util.function.UnaryOperator<TypedSpec> canon) {
         List<TypedPropertyAccess> hops = new java.util.ArrayList<>();
@@ -870,7 +873,7 @@ final class SyntheticHeads {
                 cur = cp.source();
             }
         }
-        if (hops.size() < 2
+        if (hops.isEmpty()
                 || !(cur instanceof TypedFilter f)
                 || !(f.source() instanceof TypedVariable iv)
                 || !(iv.info().type() instanceof Type.ClassType)

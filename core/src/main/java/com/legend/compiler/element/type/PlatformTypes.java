@@ -96,6 +96,25 @@ public final class PlatformTypes {
 
     public static final String TDS_ROW = "meta::pure::tds::TDSRow";
 
+    /** The {@code TDS<T>} relation class (tds.pure:17) — a relation
+     * literal's own type; {@code csv: String[1]} (tds.pure:19) is its text. */
+    public static final String TDS_RELATION_CLASS = "meta::pure::metamodel::relation::TDS";
+
+    /** The TDS class's csv property name (tds.pure:19); a read of it over a
+     * TDS-shaped value is the csv TEXT the engine prints for the relation. */
+    public static final String TDS_CSV_PROPERTY = "csv";
+
+    /** Whether {@code t} is TDS-SHAPED: a schema-bearing {@code Relation<..>},
+     * the {@code TDS<T>} relation class, or TabularDataSet — the types a
+     * cast between which is a type-level no-op (exact FQNs, never a
+     * suffix match). */
+    public static boolean isTdsShaped(Type t) {
+        return Type.isRelation(t)
+                || isTdsType(t)
+                || t instanceof Type.GenericType g
+                        && TDS_RELATION_CLASS.equals(g.rawFqn());
+    }
+
     /** Whether {@code t} is the TDS carrier type (exact FQN, never a
      * suffix match). */
     public static boolean isTdsType(Type t) {

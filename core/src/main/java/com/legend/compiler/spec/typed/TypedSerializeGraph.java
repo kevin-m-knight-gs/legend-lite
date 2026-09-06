@@ -57,6 +57,15 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   @com.legend.Nullable String objectRefPrefix)
         implements TypedSpec {
 
+    /** The same graph over another row source (a resolver fusing two
+     * terminals of one layout over the union of their sources). */
+    public TypedSerializeGraph withSource(TypedSpec newSource) {
+        return new TypedSerializeGraph(newSource, rowVar, leaves, nested, arrayWrap,
+                bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys,
+                typeKeyName, fqTypePath, checkedConstraints, removeNullKeys,
+                removeEmptySets, objectRefPrefix);
+    }
+
     /** Config compat (no objectReference channel). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,

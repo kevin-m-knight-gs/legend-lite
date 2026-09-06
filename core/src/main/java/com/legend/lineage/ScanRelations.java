@@ -397,7 +397,7 @@ public final class ScanRelations {
                         + " tableToTDS join without a 2-param condition"
                         + " lambda");
             }
-            attachTdsJoin(cl, right, aliases, byTable);
+            attachTdsJoin(cl, right, aliases, byTable, roots);
             return;
         }
         TdsSrc base = parseTdsSource(ctx, v, aliases, byTable, mappingFqn);
@@ -448,17 +448,19 @@ public final class ScanRelations {
      * gains the child. The RIGHT side rides as {@code {target}} so the
      * renderer aliases it even on self-joins. */
     private static void attachTdsJoin(LambdaFunction cl, TdsSrc rightSrc,
-            Map<String, String[]> aliases, Map<String, Node> byTable) {
+            Map<String, String[]> aliases, Map<String, Node> byTable,
+            List<Node> roots) {
         Node right = rightSrc.node();
         ValueSpecification body = cl.body().get(cl.body().size() - 1);
         String leftVar = cl.parameters().get(0).name();
         // CROSS JOIN ({a, b | true}): no key columns, no synthetic edge
-        // condition — the right table hangs under the spine's ROOT with
-        // the bare tdsJoin label (scanRelations golden
-        // testTableToTdsWithCrossJoin: `firmTable(tdsJoin) [CEOID, ID]`,
-        // the projected columns only)
+        // condition — the right table hangs under the LEFT TDS's root (the
+        // root this chain's left arm parsed, the last one added) with the
+        // bare tdsJoin label; siblings key as the named form does
+        // (scanRelations golden testTableToTdsWithCrossJoin:
+        // `firmTable(tdsJoin) [CEOID, ID]`, the projected columns only)
         if (body instanceof com.legend.protocol.spec.CBoolean cb && cb.value()) {
-            Node parent = byTable.values().iterator().next();
+            Node parent = roots.get(roots.size() - 1);
             right.labelOverride = "tdsJoin";
             parent.children.put(String.format("%03d", 999 - parent.children.size())
                     + right.table + "(tds_join)", right);

@@ -4195,6 +4195,50 @@ key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the f
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
 
+**Batch 100 / CLEANUP — audit of batches 87–99 (2026-09-06, chain GREEN ~5m55s; GATES
+batch 100).** 135/2438 unchanged; IMPL 23; REVISIT 5 (the batch 93/96 receipts + the
+union relation pair). end, just mark them as potentially revisit instead of resolved."
+
+Audit findings acted on (all structural; behavior-equivalent on both lanes,
+zero lost flips by set difference):
+- VerdictQueries: assertEqWithinTolerance identified by EXACT FQN (was an
+  endsWith suffix match).
+- PlatformTypes owns the TDS shapes: TDS_RELATION_CLASS, TDS_CSV_PROPERTY,
+  isTdsShaped (Anchors.tdsLike deleted; the lowerer's csv arm dispatches
+  on the same property constant).
+- The instance-filter idiom has ONE owner: SyntheticHeads
+  .instanceFilterNavRead serves every hop count and runs wherever it
+  stands (Substitution.filteredInstanceRead deleted).
+- ClassSource.subTypeReadKey: the subtype-cast slot rule (own suffixed slot,
+  else the plain slot a union's NAV LIFT keyed) documented once on the
+  source; UNION_SET_ID constant replaces three "union" literals. The
+  compiled ClassBinding carries no operation-union kind — a model fact
+  worth adding later (the set-id probe was tried and regressed
+  testForcedSubTypeProjectDirect: the normalizer's union keeps the
+  operation set's own id).
+- SortChecker consumes the Typer's static column-name fold (a key argument
+  that folds to a string list) instead of re-matching `.columns.name`
+  at protocol level.
+- UnionHeads.retarget = Pipelines.prefixColumns (one re-pointing walker).
+- TypedSerializeGraph.withSource replaces the 17-argument rebuild in
+  ClassConcatenates.
+- ScanRelations: the cross join hangs under the LEFT chain's root passed
+  explicitly (roots), not "the first table in the map"; the sibling key
+  scheme is the pre-existing named-join rule.
+- SqlUnion.ofBranches: a value-typed concatenate's outputs are its
+  branches' (the SQL IR owns the invariant; Lowerer back to 3497 lines
+  without comment trimming).
+- AssertLedger: the batch 93/96 receipts are `revisit:<name>` buckets —
+  traced, NOT resolved; the breakdown rows say REVISIT. The union
+  relation pair's engine-side CSV round trip is recorded as a revisit
+  finding (prototype reverted).
+
+NOT done (own legs): splitting StoreResolver / Lowerer / Scalars / Typer
+(all within ~40 lines of the 3500 guardrail; the candidate blocks —
+conformJsonEgress, cast, pureToString — each depend on a dozen private
+helpers); the slot-prefix `x + "_"` convention has many owners across the
+resolver (pre-existing).
+
 **Batch 99 / L1 chained filters in filter position (2026-09-06, chain GREEN 6m26s; GATES
 batch 99).** 136/2437 → 135/2438; IMPL 23. Substitution.collectToManyCrossings: the
 null-guard's crossing read = the outermost read on the crossing. SIZED (not started):

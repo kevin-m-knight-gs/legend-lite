@@ -23,4 +23,15 @@ public record SqlUnion(List<SqlQuery> branches, boolean all, List<OutputCol> out
         // nullability — see SqlTyping.reconcileUnionLabels
         outputs = SqlTyping.reconcileUnionLabels(branches, outputs);
     }
+
+    /** A union whose outputs are its BRANCHES' own — a value-typed
+     * concatenate (a scalar map distributed over a class concatenate)
+     * carries no relation schema to derive them from: the first branch's
+     * outputs, reconciled against every branch like any other union. */
+    public static SqlUnion ofBranches(List<SqlQuery> branches, boolean all) {
+        if (branches.isEmpty()) {
+            throw new IllegalArgumentException("a union needs at least two branches");
+        }
+        return new SqlUnion(branches, all, branches.get(0).outputs());
+    }
 }

@@ -700,12 +700,10 @@ public final class Lowerer {
         List<SqlQuery> branches = new ArrayList<>();
         collectBranches(c, branches);
         List<OutputCol> outs = outputsOf(c.info());
-        // a VALUE-typed concatenate (a scalar map distributed over a class
-        // concatenate) has no relation schema: the branches' one value column
-        if (outs.isEmpty() && !branches.isEmpty()) {
-            outs = branches.get(0).outputs();
-        }
-        return new SqlUnion(branches, true, outs);
+        // a VALUE-typed concatenate carries no relation schema: the
+        // union's outputs are its branches' own (SqlUnion.ofBranches)
+        return outs.isEmpty() ? SqlUnion.ofBranches(branches, true)
+                : new SqlUnion(branches, true, outs);
     }
 
     private void collectBranches(TypedSpec spec, List<SqlQuery> out) {
@@ -2971,7 +2969,7 @@ public final class Lowerer {
             // header names joined ', ', ','-joined cells with TDSNull, no
             // trailing newline (enumeration golden testEnumInRelation)
             case TypedPropertyAccess csvRead
-                    when csvRead.property().equals("csv")
+                    when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Type.relationSchema(csvRead.source().info().type()) != null ->
                 Render.lowerTdsCsvProperty(csvRead, this::relation, nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form

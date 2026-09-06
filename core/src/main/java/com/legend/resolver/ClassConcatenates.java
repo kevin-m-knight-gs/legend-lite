@@ -52,13 +52,8 @@ final class ClassConcatenates {
                 && gl.nested().size() == gr.nested().size()
                 && Type.requireRelationSchema(gl.source().info().type())
                         .equals(Type.requireRelationSchema(gr.source().info().type()))) {
-            return new TypedSerializeGraph(
-                    new TypedConcatenate(gl.source(), gr.source(), gl.source().info()),
-                    gl.rowVar(), gl.leaves(), gl.nested(), gl.arrayWrap(),
-                    gl.bareValue(), gl.classFqn(), gl.info(), gl.inlineChild(),
-                    gl.subTypePatches(), gl.orderKeys(), gl.typeKeyName(),
-                    gl.fqTypePath(), gl.checkedConstraints(), gl.removeNullKeys(),
-                    gl.removeEmptySets(), gl.objectRefPrefix());
+            return gl.withSource(
+                    new TypedConcatenate(gl.source(), gr.source(), gl.source().info()));
         }
         return new TypedConcatenate(lhs, rhs, c.info());
     }

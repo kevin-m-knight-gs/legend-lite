@@ -401,7 +401,8 @@ public final class VerdictQueries {
             // the MESSAGE arguments drop; the value arity is the assert's
             // own (assertEqWithinTolerance carries its delta as a third
             // VALUE — assertEqWithinTolerance.pure:22)
-            int keep = an.callee().qualifiedName().endsWith("::assertEqWithinTolerance") ? 3 : 2;
+            int keep = "meta::pure::functions::asserts::assertEqWithinTolerance"
+                    .equals(an.callee().qualifiedName()) ? 3 : 2;
             if (an.args().size() > keep) {
                 bare = new TypedNativeCall(an.callee(), an.args().subList(0, keep), an.info(), an.pos());
             }

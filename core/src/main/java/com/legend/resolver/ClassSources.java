@@ -332,7 +332,7 @@ public final class ClassSources {
                     new TypedVariable(rowVar, rowInfo), c.name(),
                     new ExprType(c.type(), c.multiplicity())));
         }
-        return new ClassSource(mappingFqn, classFqn, "union",
+        return new ClassSource(mappingFqn, classFqn, ClassSource.UNION_SET_ID,
                 java.util.Objects.requireNonNull(union,
                         "union with zero members"),
                 rowVar, bindings, rowType);
@@ -678,7 +678,7 @@ public final class ClassSources {
                     new ExprType(c.type(), c.multiplicity())));
         }
         return new MixedChild(new ClassSource(mappingFqn, childClassFqn,
-                "union", java.util.Objects.requireNonNull(union,
+                ClassSource.UNION_SET_ID, java.util.Objects.requireNonNull(union,
                         "mixed child with zero arms"),
                 rowVar, bindings, rowType), keysPerPair);
     }

@@ -123,7 +123,7 @@ final class UnionHeads {
             }
         }
         ClassSource target = new ClassSource(cs.mappingFqn(), spec.classFqn(),
-                "union", java.util.Objects.requireNonNull(union), UNION_VAR,
+                ClassSource.UNION_SET_ID, java.util.Objects.requireNonNull(union), UNION_VAR,
                 bindings, urow);
         return new AssociationJoins.AssocJoin(
                 AssociationJoins.prefixFor(head, cs), target, union, urow,
@@ -390,18 +390,13 @@ final class UnionHeads {
                         new Type.Param(Type.Primitive.BOOLEAN, one)), one));
     }
 
+    /** Re-point the condition's reads of its own two row variables onto
+     * {@code s} / {@code t} (Pipelines.prefixColumns with an empty column
+     * prefix — the one re-pointing walker). */
     private static TypedSpec retarget(TypedSpec n, String sv, TypedVariable s,
             String tv, TypedVariable t) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v) {
-            if (v.name().equals(sv)) {
-                return new TypedPropertyAccess(s, pa.property(), pa.info());
-            }
-            if (v.name().equals(tv)) {
-                return new TypedPropertyAccess(t, pa.property(), pa.info());
-            }
-        }
-        return n.mapChildren(k -> retarget(k, sv, s, tv, t));
+        TypedSpec onS = Pipelines.prefixColumns(n, sv, "", v -> s);
+        return Pipelines.prefixColumns(onS, tv, "", v -> t);
     }
 
     private com.legend.compiler.element.TypedFunction orFn() {

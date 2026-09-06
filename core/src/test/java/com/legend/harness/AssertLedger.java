@@ -77,6 +77,10 @@ public final class AssertLedger {
      *       {@code date_trunc('week')} H2 starts the week on Sunday; Pure's
      *       own dateExtension tests say Monday, as ours (and DuckDB) do —
      *       the engine's H2 dialect fails to normalize.</li>
+     *   <li>{@code revisit:<name>} — traced like a defect but NOT resolved:
+     *       the engine's relational lane and Pure disagree and the lane
+     *       choice is the user's (revisited at the end of the burn). The
+     *       two below are such receipts (user 2026-09-06).</li>
      *   <li>{@code relation-mapping-filter-alias-root} — a filter inside a
      *       project column over a Relation-function mapping: the engine's
      *       alias reconciliation (relationalModelJoins.pure:342-349)
@@ -156,8 +160,11 @@ public final class AssertLedger {
             // gates it. Ours: CASE WHEN pred THEN id ELSE NULL (the sibling's
             // form); the referee replays the golden on H2 — rows [1, 2] vs
             // ours [TDSNull, 2] — the difference is exactly the ungated cell.
+            // USER 2026-09-06: NOT resolved — a "revisit:" receipt (the
+            // engine's relational lane disagrees with Pure here; the choice
+            // of lane is the user's, revisited at the end of the burn)
             Map.entry("meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction",
-                    "instance-filter-ungated"),
+                    "revisit:instance-filter-ungated"),
             // batch 96 (2026-09-06): `Person.all()->project(~[name1: x | $x
             // .firstName, name2: x | $x.firm.employees->filter(e | $e.age < 35)
             // .firstName])` over the Relation-function mapping SimpleMapping
@@ -169,10 +176,11 @@ public final class AssertLedger {
             // relationalModelJoins.pure:342-349 reconciles the condition's
             // target alias onto processGetAll's 'root' alias, so the inner
             // `$e.age` reads the outer person's column. Ours follows Pure.
+            // USER 2026-09-06: NOT resolved — "revisit:" receipts, as above
             Map.entry("meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject",
-                    "relation-mapping-filter-alias-root"),
+                    "revisit:relation-mapping-filter-alias-root"),
             Map.entry("meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject",
-                    "relation-mapping-filter-alias-root"));
+                    "revisit:relation-mapping-filter-alias-root"));
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect
@@ -188,8 +196,10 @@ public final class AssertLedger {
             return bucket;
         }
         // a registered "decision:<name>" is the bucket verbatim (the golden
-        // is one engine convention for a case pure leaves undefined)
-        return defect.startsWith("decision:") ? defect : "engine-golden-defect:" + defect;
+        // is one engine convention for a case pure leaves undefined); a
+        // "revisit:<name>" likewise — traced, NOT resolved (user 2026-09-06)
+        return defect.startsWith("decision:") || defect.startsWith("revisit:")
+                ? defect : "engine-golden-defect:" + defect;
     }
 
     /** The bucket of a whole-test fallback reason (the flip's reason text). */

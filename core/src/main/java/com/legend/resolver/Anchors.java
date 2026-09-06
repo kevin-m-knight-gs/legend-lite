@@ -1,5 +1,7 @@
 package com.legend.resolver;
 
+import com.legend.compiler.element.type.PlatformTypes;
+
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedFilter;
@@ -342,42 +344,35 @@ final class Anchors {
                 ? cur : null;
     }
 
-    /** A TDS-shaped type: a schema-bearing {@code Relation<..>}, the
-     * {@code TDS<T>} relation class (tds.pure:17), or TabularDataSet. */
-    static boolean tdsLike(Type t) {
-        return Type.isRelation(t)
-                || (t instanceof Type.GenericType g
-                        && (g.rawFqn().equals("meta::pure::metamodel::relation::TDS")
-                            || g.rawFqn().equals(com.legend.compiler.element.type
-                                    .PlatformTypes.TABULAR_DATA_SET)))
-                || (t instanceof Type.ClassType c
-                        && c.fqn().equals(com.legend.compiler.element.type
-                                .PlatformTypes.TABULAR_DATA_SET));
-    }
-
     /** A cast to a TDS-shaped type over a TDS-shaped chain is a type-level
-     * no-op ({@code $result.values->cast(@TDS<Any>)}): the chain beneath. */
+     * no-op ({@code $result.values->cast(@TDS<Any>)}): the chain beneath
+     * (PlatformTypes.isTdsShaped owns the shape). */
     static TypedSpec peelTdsCasts(TypedSpec n) {
         while (n instanceof com.legend.compiler.spec.typed.TypedCast tc
-                && tdsLike(tc.target()) && tdsLike(tc.source().info().type())) {
+                && PlatformTypes.isTdsShaped(tc.target())
+                && PlatformTypes.isTdsShaped(tc.source().info().type())) {
             n = tc.source();
         }
         return n;
     }
 
-    /** The TDS class's {@code csv} property (tds.pure:19) over a RELATION-
-     * shaped chain (an executed result cast to {@code TDS<Any>}): the read
-     * over the chain beneath the type-level casts — the chain resolves
-     * structurally, the read rides along as the lowerer's CSV render
-     * (Render.lowerTdsCsvProperty). Null = not that shape. */
+    /** The TDS class's csv property (PlatformTypes.TDS_CSV_PROPERTY,
+     * tds.pure:19) over a TDS-shaped chain (an executed result cast to
+     * {@code TDS<Any>}): the read over the chain beneath the type-level
+     * casts — the chain resolves structurally, the read rides along as the
+     * lowerer's CSV render (Render.lowerTdsCsvProperty, which dispatches on
+     * the same property constant over a schema-typed source). Null = not
+     * that shape. */
     static @com.legend.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,
             java.util.function.Predicate<TypedSpec> anchored) {
-        if (!pa.property().equals("csv") || !tdsLike(pa.source().info().type())) {
+        if (!pa.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
+                || !PlatformTypes.isTdsShaped(pa.source().info().type())) {
             return null;
         }
         TypedSpec chain = peelTdsCasts(pa.source());
         return anchored.test(chain)
-                ? new TypedPropertyAccess(chain, "csv", pa.info()) : null;
+                ? new TypedPropertyAccess(chain, PlatformTypes.TDS_CSV_PROPERTY, pa.info())
+                : null;
     }
 
     /** The LL_TMP_DEBUG node dump suffix of a resolver wall message. */

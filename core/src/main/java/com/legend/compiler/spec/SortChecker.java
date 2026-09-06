@@ -4,8 +4,8 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSortInfo;
+import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;
@@ -49,34 +49,30 @@ final class SortChecker {
     }
 
     /**
-     * {@code sort(tds, $tds.columns.name)} — the legacy TDS
-     * {@code sort(TabularDataSet[1], String[*])} keyed by the relation's OWN
-     * column names (engine testConcatenateInQualifierWithComplexReturnType:
-     * {@code $result.values->sort($result.values.columns.name)}). Column
-     * names are a STATIC FACT of the typed relation (Typer.tdsColumnsMetaRead
-     * folds the same read to a string collection); here the fold lands as
-     * the legacy string-keyed shape: {@code sort(tds, ['A','B',...])}. Null
-     * when the second argument is not that read or the receiver has no
-     * compile-time schema.
+     * A legacy TDS {@code sort(TabularDataSet[1], String[*])} whose key
+     * argument is a PROPERTY READ the typer folds to a static string list
+     * ({@code $tds.columns.name} — Typer.tdsColumnsMetaRead owns that fold:
+     * column names are a static fact of the typed relation; engine
+     * testConcatenateInQualifierWithComplexReturnType sorts by
+     * {@code $result.values.columns.name}). The folded names land as the
+     * legacy string-keyed shape {@code sort(tds, ['A','B',...])} for the
+     * normalizer below. Null when the key is not such a read or does not
+     * fold to a non-empty string list.
      */
     private static @com.legend.Nullable AppliedFunction columnsMetaSortToModern(
             Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
-        if (ps.size() != 2
-                || !(ps.get(1) instanceof AppliedProperty nameRead)
-                || !nameRead.property().equals("name")
-                || !(nameRead.receiver() instanceof AppliedProperty colsRead)
-                || !colsRead.property().equals("columns")) {
+        if (ps.size() != 2 || !(ps.get(1) instanceof AppliedProperty)) {
             return null;
         }
-        TypedSpec rel = t.synth(colsRead.receiver(), env);
-        if (!(Type.schemaView(rel.info().type()) instanceof Type.RelationType rt)
-                || rt.columns().isEmpty()) {
+        TypedSpec keys = t.synth(ps.get(1), env);
+        if (!(keys instanceof TypedCollection tc) || tc.elements().isEmpty()
+                || !tc.elements().stream().allMatch(e -> e instanceof TypedCString)) {
             return null;
         }
-        List<ValueSpecification> names = new ArrayList<>(rt.columns().size());
-        for (Type.RelationType.Column c : rt.columns()) {
-            names.add(new CString(c.name()));
+        List<ValueSpecification> names = new ArrayList<>(tc.elements().size());
+        for (TypedSpec e : tc.elements()) {
+            names.add(new CString(((TypedCString) e).value()));
         }
         return af.withParameters(List.of(ps.get(0), new PureCollection(names)));
     }

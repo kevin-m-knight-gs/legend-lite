@@ -49,6 +49,25 @@ public record ClassSource(
         @com.legend.Nullable String castGate,
         @com.legend.Nullable String scope) {
 
+    /** The setId of a resolver-built UNION source (an operation-set union
+     * synthesized here over its members, or a concatenated-navigation
+     * union head). */
+    public static final String UNION_SET_ID = "union";
+
+    /** The slot a subtype-cast read of {@code prop} resolves to on THIS
+     * source: the cast's own member-suffixed slot ({@code stc}) when the
+     * source keys it; else — a source whose class-typed member Join PMs
+     * lifted as PLAIN navigate slots (the normalizer's UnionSynthesis NAV
+     * LIFT keys `person`, not stc_<Bicycle>___person, with the per-member
+     * routes as its slots) — the plain slot. The slot table is the fact:
+     * the compiled ClassBinding carries no operation-union kind, so the
+     * source's own keys decide (one rule, one owner; multiJoins golden
+     * testForcedSubTypeProjectDirect). */
+    public String subTypeReadKey(String stc, String prop, boolean classTyped) {
+        return !bindings.containsKey(stc) && classTyped && bindings.containsKey(prop)
+                ? prop : stc;
+    }
+
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
         deferredWalls = Collections.unmodifiableMap(

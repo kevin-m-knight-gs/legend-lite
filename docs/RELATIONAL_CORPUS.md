@@ -558,14 +558,14 @@ tests in the ledger: 135
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
-| engine-golden-defect:instance-filter-ungated | 1 |
+| revisit:instance-filter-ungated | 1 |
 | zero-assert | 1 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
 | engine-golden-defect:alloy-adjust-widening | 1 |
 | engine-golden-defect:joinStrings-rendering | 4 |
 | decision:empty-toOne-forced-isolation | 2 |
-| engine-golden-defect:relation-mapping-filter-alias-root | 1 |
+| revisit:relation-mapping-filter-alias-root | 1 |
 | engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
@@ -634,7 +634,7 @@ tests in the ledger: 135
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testNonDataTypeProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [met
-- testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 meta::relational::functions::asserts::assertSameSQL -> engine-golden-defect:instance-filter-ungated: platform-fail: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gol :: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 2 row(s), our pipeline
+- testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 meta::relational::functions::asserts::assertSameSQL -> revisit:instance-filter-ungated: platform-fail: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gol :: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 2 row(s), our pipeline
 - testPersonToFirmUsingFromProject #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext :: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::e
 - testPersonToFirmUsingProject #0 - -> zero-assert: assert-free-inert :: meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
 - testProp3 #1 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Relational :: assertEqualsH2Compatible (sql-text, rows underivable): expected Relational (   type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]   resultColumns = [("name", VARCHAR(200)), ("prop3", "
@@ -718,7 +718,7 @@ tests in the ledger: 135
 - testMixedMappingWithFilterInProject #1 assertEquals -> wall:resolver: wall-exec: a navigation join over this union demands key column '_', which NO union member carries :: a navigation join over this union demands key column 'firm_ID', which NO union member carries
 - testRelationStoreAccessorOnView #1 assert -> divergence: platform-fail: Catalog Error: Table with name personView does not exist! :: Catalog Error: Table with name personView does not exist! Did you mean "personWithAddressTable"?  LINE 3: FROM personView AS t2              ^
 - testRelationStoreAccessorOnView #2 - -> not-reached: 1 assert(s) after the failure
-- testSimpleMappingQueryWithFilterInProject #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:relation-mapping-filter-alias-root: platform-fail: expected: '_' ::  expected: '#TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#' actual:   '#TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#'
+- testSimpleMappingQueryWithFilterInProject #1 meta::pure::functions::asserts::assertEquals -> revisit:relation-mapping-filter-alias-root: platform-fail: expected: '_' ::  expected: '#TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#' actual:   '#TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#'
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #2 - -> not-reached: 4 assert(s) after the failure
 - testBiTemporalUnionJoin_milestoningColumnInOnClause #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
