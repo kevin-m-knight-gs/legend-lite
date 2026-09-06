@@ -2171,10 +2171,16 @@ public class RelationalCorpusRunner {
             // right table under the spine's root with the bare tdsJoin label
             // and no key columns (ScanRelations.attachTdsJoin); the lineage
             // rows verdict replays the tree. testTableToTdsWithCrossJoin.
-            org.junit.jupiter.api.Assertions.assertEquals(136L,
+            // batch 99 / L1 (2026-09-06): 136 -> 135 — a negated comparison in
+            // filter position over a to-many crossing whose leaf sits past a
+            // filtered SUB-navigation ($f.employees#f0.locations#f1.place):
+            // the null-guard's crossing read is the OUTERMOST read on the
+            // crossing (the leaf), never the class-typed mid node
+            // (Substitution.collectToManyCrossings). testChainedFiltersQuery.
+            org.junit.jupiter.api.Assertions.assertEquals(135L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2437L,
+            org.junit.jupiter.api.Assertions.assertEquals(2438L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

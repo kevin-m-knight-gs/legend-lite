@@ -2794,7 +2794,10 @@ final class Substitution {
 
     private void collectToManyCrossings(TypedSpec n, List<TypedSpec> out) {
         List<String> path = pathOf(n, target.userVar());
-        if (path != null && path.size() == 2
+        // the OUTERMOST read on the crossing (top-down: a deeper leaf past
+        // a sub-navigation — $f.employees#f0.locations#f1.place — is the
+        // read the null-guard tests, never the class-typed mid node)
+        if (path != null && path.size() >= 2
                 && target.existsSubs().containsKey(path.get(0))
                 && target.existsSubs().get(path.get(0)).toMany()) {
             out.add(n);

@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
+| functions/tests/projection | 155 | 150 | 1 | 4 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 137 | 2 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2451** | 36 | 62 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2452** | 36 | 61 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2451 PASS = 2416 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2452 PASS = 2417 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -525,7 +525,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2451 PASS = 2416 clean + 35 carrying softness (
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRESSID, employees_FIRMID, employees_MANAGERID, employees_locations_ID, employees_locations_PERSONID, employees_locations_PLACE, employees_locations_date]
 - 1x project expects ~[…] column specifications
 - 1x nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
-- 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
@@ -539,19 +538,20 @@ SOFT-PASS RECONCILIATION (F2.1): 2451 PASS = 2416 clean + 35 carrying softness (
 - 1x unknown function 'newMultiValueMap' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V [inlined via meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias/3]
 - 1x store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
+- 1x 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 136
+tests in the ledger: 135
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 36 |
-| wall:resolver | 22 |
+| wall:resolver | 21 |
 | wall:exec | 8 |
 | divergence | 21 |
-| not-reached | 26 |
+| not-reached | 25 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
 | pass | 29 |
@@ -610,8 +610,6 @@ tests in the ledger: 136
 - testSubAggregationWithDeepAndOverlap_WithColVar #2 - -> not-reached: 2 assert(s) after the failure
 - testExistsAsNullWithSubType #1 assertSize -> wall:resolver: wall-exec: nested navigation '_' inside an exists/isEmpty predic :: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - testExistsAsNullWithSubType #2 - -> not-reached: 2 assert(s) after the failure
-- testChainedFiltersQuery #1 assertSize -> wall:resolver: wall-exec: MappingResolutionException: property '_' of class '_' is not mapped in mapping 'meta::relationa :: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- testChainedFiltersQuery #2 - -> not-reached: 2 assert(s) after the failure
 - testFilterAfterJoinInRelationWithExtendedPrimitives #1 meta::relational::functions::asserts::assertSameSQL -> referee-cannot-replay: platform-fail: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""n :: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""name"",""persontable_0"".FIRSTNAMEas""empl
 - testUnionOnViewsMapping #1 meta::pure::functions::asserts::assertSameElements -> pass
 - testUnionOnViewsMapping #2 meta::pure::functions::asserts::assertEquals -> pass
@@ -798,7 +796,6 @@ tests in the ledger: 136
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRE
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
-- ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testGraphFetch [graphFetch/domain]: plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::valuespecification::FunctionExpression has no property 'func' [inlined via meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction/1 -> meta::pure::graphFetch::domain:

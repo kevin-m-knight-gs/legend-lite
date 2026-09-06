@@ -4194,3 +4194,13 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 99 / L1 chained filters in filter position (2026-09-06, chain GREEN 6m26s; GATES
+batch 99).** 136/2437 → 135/2438; IMPL 23. Substitution.collectToManyCrossings: the
+null-guard's crossing read = the outermost read on the crossing. SIZED (not started):
+testPksWithImportDataFlow = three seams (fold `RelationalExecutionContext(importDataFlow
+AddFks=true)` from the let-bound instance at the execute call; widen the project's TDS
+type with the union member pk columns ID_<i>; project them from the union row — the
+engine's importDataFlowCols, pureToSQLQuery.pure:7244 / :4821). NEXT probe: the relation-
+union 12-column distinct pair (testUnionTwoRelationMappings_ManyColumnProject / …
+GeneratesSingleUnion).
