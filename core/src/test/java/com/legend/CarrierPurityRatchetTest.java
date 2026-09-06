@@ -102,7 +102,8 @@ class   CarrierPurityRatchetTest {
             // written spellings (fidelity rewrite of an emission that
             // already existed — the mixedNumericArray class above);
             // absorbs with the collection semantic node.
-            "new SqlExpr\\.ArrayLit\\(", 42,
+            // 42 -> 40 (batch 88, 2026-09-06): tightened to the measured count
+            "new SqlExpr\\.ArrayLit\\(", 40,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

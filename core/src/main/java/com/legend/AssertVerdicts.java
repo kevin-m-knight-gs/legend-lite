@@ -125,6 +125,20 @@ final class AssertVerdicts {
             }
             return quantified(qm, letPrefix, specs, env, hook);
         }
+        // forAll(coll, x | <assert>) — the engine's per-element assert
+        // idiom (stringToFloat testProject: `[123.456, 100.001]->zip(
+        // $tds.rows.values)->forAll(pair | assertEqWithinTolerance(...))`)
+        // IS the quantified assert: every element's assert holds (an
+        // assert never yields false — it raises), so the forAll unrolls
+        // exactly as the map form does
+        com.legend.compiler.spec.typed.TypedMap forAllForm =
+                com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(bare);
+        if (forAllForm != null) {
+            ExecutionResult u = unrolled(forAllForm, letPrefix, specs, env, rawHook);
+            if (u != null) {
+                return u;
+            }
+        }
         // an if whose BRANCHES are asserts (assertEqualsH2Compatible's body
         // once the H2 version probe answers): the condition is a value
         // query the database evaluates; the taken branch IS the verdict
@@ -250,6 +264,24 @@ final class AssertVerdicts {
                 if (ra != null) {
                     return ra;
                 }
+                // a bare no-key sort() over a FLAT-CELLS side
+                // (`$result.values.rows.values->sort()` — the strictdate
+                // testProject idiom, a mixed Integer/StrictDate pool):
+                // the assert compares the pools under ONE total order,
+                // i.e. cell-multiset equality — the flat-cells multiset
+                // verdict (both channels judge order-insensitively);
+                // sorting a mixed-type cell pool is never a SQL column
+                TypedSpec cellsE = bareSortOverCells(args.get(0));
+                TypedSpec cellsA = bareSortOverCells(args.get(1));
+                if (wantEqual && (cellsE != null || cellsA != null)) {
+                    SideFetch ef0 = sideCanon(cellsE != null ? cellsE : args.get(0),
+                            letPrefix, specs, env, false, hook);
+                    SideFetch af0 = sideCanon(cellsA != null ? cellsA : args.get(1),
+                            letPrefix, specs, env, false, hook);
+                    if (ef0.grid() != null || af0.grid() != null) {
+                        return tdsRowValuesSameElements(name, ef0, af0);
+                    }
+                }
                 // D3 — the GRID-PAIR arm: both sides statically
                 // relation-stamped execute as grids; the grid owner
                 // (TdsCompare.grids: columns ordered, rows under the
@@ -367,7 +399,7 @@ final class AssertVerdicts {
                 // column-grouped — loose multiset IS this assert's
                 // reference semantics, audit 9), cell-level byte canon
                 if (ef.grid() != null || af.grid() != null) {
-                    return tdsRowValuesSameElements(ef, af);
+                    return tdsRowValuesSameElements("assertSameElements", ef, af);
                 }
                 // a CLASS-kind side that rode a JSON carrier (a polymorphic
                 // Node[1] program value) arrives as object text: decode it
@@ -778,9 +810,7 @@ final class AssertVerdicts {
         // the collection through the caller's lets (let expected = [...])
         TypedSpec source = com.legend.compiler.spec.ExecuteChainAssembly
                 .letBound(qm.source(), letPrefix);
-        if (!(source instanceof com.legend.compiler.spec.typed.TypedCollection coll)
-                || lam.parameters().size() != 1
-                || lam.body().isEmpty()) {
+        if (lam.parameters().size() != 1 || lam.body().isEmpty()) {
             return null;
         }
         TypedSpec root = lam.body().get(lam.body().size() - 1);
@@ -793,8 +823,17 @@ final class AssertVerdicts {
         if (simplePredicate) {
             return null;
         }
+        // the elements are compiler-owned SYNTHESIS (VerdictQueries,
+        // Invariant 7); a zip arm's values come from the database
+        SpliceHook fetchHook = rawHook == null ? null : rawHook::apply;
+        List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries
+                .unrollElements(source, letPrefix, env.ctx(),
+                        arm -> sideCells(arm, letPrefix, specs, env, fetchHook));
+        if (elements == null) {
+            return null;
+        }
         ExecutionResult last = null;
-        for (TypedSpec element : coll.elements()) {
+        for (TypedSpec element : elements) {
             List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
                     .unrolledElement(specs, letPrefix, lam, element, rawHook);
             List<TypedSpec> lets = new java.util.ArrayList<>(
@@ -809,6 +848,17 @@ final class AssertVerdicts {
             last = v;
         }
         return last == null ? ok() : last;
+    }
+
+    /** A zip arm's values: a flat-cells arm ({@code $tds.rows.values})
+     * contributes its row-major cells — the same cell view the grid
+     * verdicts read; any other side decodes as a value list. */
+    private static List<Object> sideCells(TypedSpec arm, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        ExecutionResult r = StatementExecutor.evalValue(arm, letPrefix,
+                specs, env, null, false, hook);
+        return r instanceof ExecutionResult.Tabular t ? cells(t) : decodeSide(r);
     }
 
     private static @com.legend.Nullable ExecutionResult quantified(
@@ -999,8 +1049,8 @@ final class AssertVerdicts {
      * (direction-aware sentinel — pool matching, never a sorted zip:
      * sorting separates an expected 'TDSNull' from its NULL cell),
      * cell-level canon multiset as the byte channel. */
-    private static ExecutionResult tdsRowValuesSameElements(SideFetch ef,
-            SideFetch af) {
+    private static ExecutionResult tdsRowValuesSameElements(String family,
+            SideFetch ef, SideFetch af) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
@@ -1019,18 +1069,31 @@ final class AssertVerdicts {
                     + (byteHeld ? "" : com.legend.exec.TdsCompare
                             .firstCanonDiff(es, as2));
         }
-        return finish("assertSameElements", true, hostHeld, byteHeld,
+        return finish(family, true, hostHeld, byteHeld,
                 detail,
                 () -> {
                     String d = PureAsserts.assertSameElements(e, a);
                     return d != null
-                            ? tdsHostMessage("assertSameElements", d)
-                            : "assertSameElements (TDSRow.values): cell"
+                            ? tdsHostMessage(family, d)
+                            : family + " (TDSRow.values): cell"
                                     + " multiset differs";
                 },
                 "byte-verdict: grid canonical renders differ (host"
                         + " lattice agreed — dual-verdict divergence,"
                         + " see [canon] census)");
+    }
+
+    /** {@code sort(<flat cells>)} — a one-argument collection sort over
+     * a statically table-shaped side; the cells, or null. */
+    private static @com.legend.Nullable TypedSpec bareSortOverCells(TypedSpec s) {
+        if (s instanceof TypedNativeCall c
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::sort")
+                && c.args().size() == 1
+                && tabularShaped(c.args().get(0))) {
+            return c.args().get(0);
+        }
+        return null;
     }
 
     /** A side's per-ROW canon texts via the grid policy owner: a

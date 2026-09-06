@@ -1061,6 +1061,13 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 88 / L8 assert arms (2026-09-06):**
+exec-passing 7, text-only 12, unable-to-exec 9 unchanged; ratchet 147/2426 →
+145/2428 (stringToFloat::testProject — forAll-quantified tolerance verdicts
+per zipped pair, then its SQL-text golden replayed; strictdate::testProject —
+the sorted flat-cells assert judged as the cell multiset, both channels);
+disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 87 / L1-L2 union heads (2026-09-06):**
 exec-passing 7, text-only 12, unable-to-exec 9 unchanged; ratchet 150/2423 →
 147/2426 (testQualifierConcatenateTwoSimilarJoins, …Embedded,

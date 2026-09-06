@@ -429,7 +429,14 @@ class JavaEvalLedgerTest {
             // the GOLDEN side when the strict parse refuses it ("golden JSON
             // does not parse") — a message wrapper for the engine-golden-
             // defect register (the `]"` graphFetch goldens); no evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1605),
+            // 1605 -> 1646 (batch 88 / L8, 2026-09-06): two JUDGMENT arms —
+            // forAll(coll, x | <assert>) rides the quantified unroll (its
+            // element SYNTHESIS lives in VerdictQueries; the verdict file
+            // only fetches a zip arm's cells and judges), and a bare
+            // no-key sort() over flat TDS cells judges as the cell-pool
+            // multiset (both channels order-insensitive) — a mixed
+            // Integer/StrictDate pool is never a SQL column to sort.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1646),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

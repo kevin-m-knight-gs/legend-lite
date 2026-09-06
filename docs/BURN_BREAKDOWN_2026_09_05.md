@@ -132,7 +132,7 @@ Status: **batch 81 / L7a LANDED (2026-09-06)** — testNonExecutableSQLString fl
 
 ### L8 Natives and small typer legs (12)
 
-Status: **batch 74 / L8a LANDED** — testToSQLStringWithCodeBlock (the engine's
+Status: **batch 88 / L8 LANDED (2026-09-06)** — stringToFloat::testProject and strictdate::testProject flipped (145/2428): both were assert-side shapes (a forAll over an assert body; a bare sort() over flat cells). **batch 74 / L8a LANDED** — testToSQLStringWithCodeBlock (the engine's
 `add(Date, Duration)` programs admitted verbatim) and testFirstNotNull (generic
 instantiation at the inlining seam; bare TDSNull as a list element = the null-cell
 value; element-reference / null-carrier equality folds) flipped: 164/2409.
@@ -175,9 +175,9 @@ row JSON envelope — a golden-to-rows referee arm).
 
 | test | detail |
 |---|---|
-| sqlFunction::stringToFloat::testProject | no scalar lowering for the string→float cast function |
+| sqlFunction::stringToFloat::testProject | **FLIPPED batch 88** — the mapping's `parseFloat(col)` already lowered (`CAST(.. AS DOUBLE)`); the wall was the assert: `zip(literals, rows.values)->forAll(pair \| assertEqWithinTolerance(...))` now unrolls like the quantified map form (VerdictQueries.forAllAsQuantified / unrollElements) |
 | dataType::testSimpleTypeMappingProjectNulls | no scalar lowering for tinyInt/smallInt column functions |
-| mapping::dates::strictdate::testProject | TypedNativeCall in relation position (strict date column) |
+| mapping::dates::strictdate::testProject | **FLIPPED batch 88** — the assert's `rows.values->sort()` over a mixed Integer/StrictDate cell pool is the cell-multiset judgment (AssertVerdicts.bareSortOverCells → tdsRowValuesSameElements), never a SQL column sort |
 | tds::extensions::testFirstNotNull | unresolved type variable T at the lowering boundary |
 | tds::extensions::iqrClassifyTest | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
 | tds::extensions::zScoreTest | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
@@ -403,7 +403,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 → **39**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 → **37**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

@@ -6,6 +6,7 @@ package com.legend.compiler.spec;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -274,6 +275,112 @@ public final class VerdictQueries {
                 frameVar, "activities", frameVar.info());
     }
 
+    /** {@code forAll(coll, x | <assert>)} — the engine's per-element
+     * assert idiom (stringToFloat testProject: {@code [123.456, 100.001]
+     * ->zip($tds.rows.values)->forAll(pair | assertEqWithinTolerance(
+     * ...))}) IS the quantified assert: every element's assert holds (an
+     * assert never yields false — it raises), so it unrolls exactly as
+     * the map form does. Null = not that shape. */
+    public static @com.legend.Nullable TypedMap forAllAsQuantified(TypedSpec bare) {
+        if (bare instanceof TypedNativeCall fa
+                && fa.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::forAll")
+                && fa.args().size() == 2
+                && fa.args().get(1) instanceof TypedLambda flam
+                && flam.parameters().size() == 1
+                && !flam.body().isEmpty()) {
+            return new TypedMap(fa.args().get(0), flam, fa.info());
+        }
+        return null;
+    }
+
+    /** The elements a quantified assert unrolls over: a LITERAL
+     * collection's elements, or — {@code zip(A, B)} — pairs of the two
+     * arms' elements, each arm a literal collection or a side the
+     * database evaluates ({@code fetch}); its values become literal
+     * specs (the unroll COMPARES, never computes — the pairing is
+     * orchestration, every arithmetic stays in the assert's own side
+     * evaluation). Null = not an unrollable shape (a runtime
+     * collection, a value with no literal spelling). */
+    public static @com.legend.Nullable List<TypedSpec> unrollElements(
+            TypedSpec source, List<TypedSpec> letPrefix,
+            com.legend.compiler.element.ModelContext ctx,
+            java.util.function.Function<TypedSpec, List<Object>> fetch) {
+        if (source instanceof TypedCollection coll) {
+            return coll.elements();
+        }
+        if (source instanceof TypedNativeCall z
+                && z.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::zip")
+                && z.args().size() == 2) {
+            List<TypedSpec> left = armElements(z.args().get(0), letPrefix, fetch);
+            List<TypedSpec> right = armElements(z.args().get(1), letPrefix, fetch);
+            if (left == null || right == null) {
+                return null;
+            }
+            var pairFns = ctx.findFunction("meta::pure::functions::collection::pair")
+                    .stream().filter(f -> f.parameters().size() == 2).toList();
+            if (pairFns.size() != 1) {
+                throw new IllegalStateException(
+                        "verdict synthesis bug: expected one 2-arg collection::pair");
+            }
+            // zip pairs by position and stops at the shorter arm (zip.pure)
+            int n = Math.min(left.size(), right.size());
+            List<TypedSpec> out = new java.util.ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                TypedSpec l = left.get(i);
+                TypedSpec r = right.get(i);
+                out.add(new TypedNativeCall(pairFns.get(0), List.of(l, r),
+                        new ExprType(new Type.GenericType(
+                                "meta::pure::functions::collection::Pair",
+                                List.of(l.info().type(), r.info().type()), List.of()),
+                                Multiplicity.Bounded.ONE)));
+            }
+            return out;
+        }
+        return null;
+    }
+
+    private static @com.legend.Nullable List<TypedSpec> armElements(TypedSpec arm0,
+            List<TypedSpec> letPrefix,
+            java.util.function.Function<TypedSpec, List<Object>> fetch) {
+        TypedSpec arm = ExecuteChainAssembly.letBound(arm0, letPrefix);
+        if (arm instanceof TypedCollection c) {
+            return c.elements();
+        }
+        List<TypedSpec> out = new java.util.ArrayList<>();
+        for (Object v : fetch.apply(arm)) {
+            TypedSpec lit = literalSpec(v);
+            if (lit == null) {
+                return null;
+            }
+            out.add(lit);
+        }
+        return out;
+    }
+
+    /** A database value as the literal spec that spells it; null when
+     * the value has no literal spelling (dates, structures). */
+    public static @com.legend.Nullable TypedSpec literalSpec(@com.legend.Nullable Object v) {
+        return switch (v) {
+            case Long l -> new com.legend.compiler.spec.typed.TypedCInteger(l,
+                    ExprType.one(Type.Primitive.INTEGER));
+            case Integer i -> new com.legend.compiler.spec.typed.TypedCInteger((long) i,
+                    ExprType.one(Type.Primitive.INTEGER));
+            case Double d -> new com.legend.compiler.spec.typed.TypedCFloat(d, null,
+                    ExprType.one(Type.Primitive.FLOAT));
+            case Float f -> new com.legend.compiler.spec.typed.TypedCFloat(f, null,
+                    ExprType.one(Type.Primitive.FLOAT));
+            case java.math.BigDecimal bd -> new com.legend.compiler.spec.typed.TypedCDecimal(bd,
+                    ExprType.one(Type.Primitive.DECIMAL));
+            case String str -> new com.legend.compiler.spec.typed.TypedCString(str,
+                    ExprType.one(Type.Primitive.STRING));
+            case Boolean b -> new com.legend.compiler.spec.typed.TypedCBoolean(b,
+                    ExprType.one(Type.Primitive.BOOLEAN));
+            case null, default -> null;
+        };
+    }
+
     public static List<TypedSpec> unrolledElement(SpecCompiler specs,
             List<TypedSpec> letPrefix, TypedLambda lam, TypedSpec element,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
@@ -289,9 +396,15 @@ public final class VerdictQueries {
         TypedSpec stmt = reduced.get(last);
         TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet tl
                 ? tl.value() : stmt;
-        if (bare instanceof TypedNativeCall an && an.args().size() > 2
+        if (bare instanceof TypedNativeCall an
                 && an.callee().qualifiedName().startsWith("meta::pure::functions::asserts::")) {
-            bare = new TypedNativeCall(an.callee(), an.args().subList(0, 2), an.info(), an.pos());
+            // the MESSAGE arguments drop; the value arity is the assert's
+            // own (assertEqWithinTolerance carries its delta as a third
+            // VALUE — assertEqWithinTolerance.pure:22)
+            int keep = an.callee().qualifiedName().endsWith("::assertEqWithinTolerance") ? 3 : 2;
+            if (an.args().size() > keep) {
+                bare = new TypedNativeCall(an.callee(), an.args().subList(0, keep), an.info(), an.pos());
+            }
         }
         reduced.set(last, bare);
         return reduced;

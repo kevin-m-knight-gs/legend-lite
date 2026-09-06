@@ -4014,3 +4014,20 @@ collection in the assert; tds::extensions::testFirstNotNull = generic T at the
 inlining seam over `[TDSNull, 1, 2]`; testSimpleTypeMappingProjectNulls =
 TINYINT/SMALLINT columns + toJSON(TDS)), then L1 multi-hop-through-embedded-head
 (3 tests) and the filtered-navigation lift pair.
+
+**Batch 88 / L8 assert arms (2026-09-06, chain GREEN 6m28s; GATES batch 88).** 147/2426 →
+145/2428; IMPL 37. forAll(coll, x | <assert>) = the quantified map unroll
+(VerdictQueries.forAllAsQuantified / unrollElements: zip(A, B) pairs a literal
+arm with a database-evaluated arm spelled as literal specs); a bare `sort()`
+over flat TDS cells = the cell-multiset verdict (AssertVerdicts.bareSortOverCells).
+GUARD LESSONS: typed-node minting belongs to compiler layers (Invariant 7) — put
+verdict SYNTHESIS in VerdictQueries and pass the fetch as a callback; the
+verdict file bans `Math.` (judge only). NEXT: toJSON(TDS) render for
+testSimpleTypeMappingProjectNulls (CoreFn TO_JSON → TypedJsonResult.Kind
+TDS_JSON: `{"columns":[{name,type,metaType}],"rows":[{"values":[..]}]}` —
+JsonEmission.result already renders the columns/rows shape for
+executeLegendQuery; add metaType and drop the builder envelope), then
+rowValueDifferenceTest (TDSColumn instances: `.columns` as ^TDSColumn(name,
+type) literal instances so `$c.name`/`$c.type->elementToPath()` fold),
+testToSQLStringWithCodeBlock (`#/Trade/date#` path argument typed Any), then
+the L1 multi-hop-through-embedded-head trio.

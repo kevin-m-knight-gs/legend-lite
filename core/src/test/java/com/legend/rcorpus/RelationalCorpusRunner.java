@@ -2094,10 +2094,17 @@ public class RelationalCorpusRunner {
             // folds to the legacy string-keyed sort (SortChecker).
             // testQualifierConcatenateTwoSimilarJoins (+Embedded),
             // testConcatenateInQualifierWithComplexReturnType.
-            org.junit.jupiter.api.Assertions.assertEquals(147L,
+            // batch 88 / L8 (2026-09-06): 147 -> 145 — two assert-side arms:
+            // forAll(coll, x | <assert>) unrolls like the map form (a zip of
+            // a literal list with fetched cells pairs by position;
+            // assertEqWithinTolerance keeps its delta) —
+            // stringToFloat::testProject; a bare no-key sort() over the flat
+            // TDS cells is the cell-pool multiset judgment —
+            // strictdate::testProject (a mixed Integer/StrictDate pool).
+            org.junit.jupiter.api.Assertions.assertEquals(145L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2426L,
+            org.junit.jupiter.api.Assertions.assertEquals(2428L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
