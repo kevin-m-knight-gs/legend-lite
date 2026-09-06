@@ -2247,10 +2247,21 @@ public class RelationalCorpusRunner {
             // keys, the row pseudo-binding serves the read, the assoc tail
             // machinery materializes the SubNav. testDataGeneration::
             // testInheritanceMultipleLevel (TDG rows + 4 sql-text verdicts).
-            org.junit.jupiter.api.Assertions.assertEquals(127L,
+            // batch 109 / L1 (2026-09-06): 127 -> 126 — an EMBEDDED ctor on
+            // the way to a navigate slot inside a materialized sub-target
+            // (`account.incomeFunctionSplits#f0.incomeFunction.Classification
+            // .name`: incomeFunction is ^IncomeFunction(code, Classification:
+            // @ifClass)): NavMaterializer drills the ctor to the slot it
+            // reaches (the same drill registerNavigations applies to an
+            // embedded HEAD), demands it under the ctor's expression, and
+            // the SubNav tree gains an EMBEDDED NODE sharing the parent's
+            // row (bindings = the ctor's properties, children = its slots)
+            // so the hop-agnostic walk descends without dotted keys.
+            // multigrain::testToManyWithQualifierWithFilterOnJoin.
+            org.junit.jupiter.api.Assertions.assertEquals(126L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2446L,
+            org.junit.jupiter.api.Assertions.assertEquals(2447L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

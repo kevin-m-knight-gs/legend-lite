@@ -35,8 +35,9 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
 2. **Embedded-head trio** (L1): testToManyWithQualifierWithFilterOnJoin,
    testRoutingWithSubtypePropagation (LANDED batch 107 — a demand-scan gap, not a
    materializer one), testInheritanceMultipleLevel (LANDED batch 108 — the union lift of
-   subtype-only class-typed Join PMs under their stc keys) — breakdown §8.2. REMAINING:
-   testToManyWithQualifierWithFilterOnJoin only (PROBED 2026-09-06: `account.
+   subtype-only class-typed Join PMs under their stc keys), testToManyWithQualifierWithFilterOnJoin
+   (LANDED batch 109 — the embedded ctor as a SubNav node) — breakdown §8.2. TRIO CLOSED.
+   (Batch 109's design note, for the record: `account.
    incomeFunctionSplits#f0.incomeFunction.Classification.name` — the head's SubNav for the
    lifted sub-slot exists; inside it `incomeFunction` is an EMBEDDED ctor whose `Classification`
    is a navigate slot; design = an embedded ctor is a SubNav NODE sharing the parent's row
@@ -4294,6 +4295,13 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 109 / L1 an embedded ctor between a lifted sub-slot and a navigate slot (2026-09-06,
+chain GREEN; GATES batch 109).** 127/2446 → 126/2447; IMPL 13; the embedded-head trio CLOSED.
+NavMaterializer.drillEmbedded (the registerNavigations embedded-head drill, one level down) +
+putUnderEmbedded (an embedded ctor is a SubNav NODE sharing the parent's row). NEXT: Phase 1
+item 3 — L5 cross-store model joins (size first: modelJoins.pure + the engine's
+relationalModelJoins.pure), then the plan-printer bugs (item 4).
 
 **Batch 108 / L1 subtype-only class-typed joins lift under their stc key (2026-09-06, chain
 GREEN; GATES batch 108).** 128/2445 → 127/2446; IMPL 14. testInheritanceMultipleLevel flipped.

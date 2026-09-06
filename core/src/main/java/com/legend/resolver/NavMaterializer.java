@@ -143,6 +143,7 @@ final class NavMaterializer {
         Map<String, List<List<String>>> elementReroutes = new LinkedHashMap<>();
         Set<List<String>> diverted = elementDivertedTails(t, tails, headId,
                 tNavSteps, elementReroutes);
+        Map<String, List<String>> embPathByAlias = new LinkedHashMap<>();
         for (List<String> tail : tails) {
             if (tail.isEmpty() || diverted.contains(tail)) {
                 continue;
@@ -154,8 +155,20 @@ final class NavMaterializer {
                         chainPrefix, hopCtx, tDemand, memberKeyDemand, assocSubLeaves);
                 continue;
             }
+            // EMBEDDED ctor on the way to a navigate slot (batch 109): the
+            // slot is demanded under the ctor's own expression; the tree
+            // gains an embedded node (embPathByAlias) for the walk
+            EmbeddedDrill ed = drillEmbedded(t, tail);
+            List<String> slotTail = ed != null ? ed.tail() : tail;
+            if (ed != null) {
+                b = ed.binding();
+                String edAlias = InnerDemand.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
+                if (edAlias != null) {
+                    embPathByAlias.putIfAbsent(edAlias, ed.embPath());
+                }
+            }
             CorrelatedSubselects.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
-            demandSlotSubTail(temporal, t, tail, b, tSlots,
+            demandSlotSubTail(temporal, t, slotTail, b, tSlots,
                     tNavSteps, tDemand, tNavs, subTails, chainPrefix, hopCtx);
         }
         for (TypedLambda sp : parkedPreds) {
@@ -181,14 +194,16 @@ final class NavMaterializer {
         // from the same nav step, with its own parked pred.
         Map<String, String> extraSubHeads = new LinkedHashMap<>();
         Map<String, List<List<String>>> extraSubTails = new LinkedHashMap<>();
-        for (List<String> tail : tails) {
-            if (diverted.contains(tail)) {
+        for (List<String> tail0 : tails) {
+            if (diverted.contains(tail0)) {
                 continue;
             }
+            EmbeddedDrill ed2 = drillEmbedded(t, tail0);
+            List<String> tail = ed2 != null ? ed2.tail() : tail0;
             if (tail.size() >= 2
                     || (!tail.isEmpty()
                             && assocs.toOneClassProp(t.classFqn(), tail.get(0)))) {
-                TypedSpec b2 = t.bindings().get(
+                TypedSpec b2 = ed2 != null ? ed2.binding() : t.bindings().get(
                         SyntheticHeads.realHead(tail.get(0)));
                 String a2 = b2 == null ? null
                         : InnerDemand.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
@@ -301,9 +316,15 @@ final class NavMaterializer {
             ClassSource subCs = sources.get(mappingFqn,
                     java.util.Objects.requireNonNull(
                             subClsByAlias.get(sm.getKey())), t.scope());
-            subTree.put(prop, new Substitution.SubNav(p, subCs.rowVar(),
+            Substitution.SubNav sn = new Substitution.SubNav(p, subCs.rowVar(),
                     subCs.bindings(),
-                    composeSubNavPrefixes(p, sm.getValue().subNavs())));
+                    composeSubNavPrefixes(p, sm.getValue().subNavs()));
+            List<String> embPath = embPathByAlias.get(sm.getKey());
+            if (embPath == null) {
+                subTree.put(prop, sn);
+            } else {
+                putUnderEmbedded(subTree, t.bindings(), t.rowVar(), embPath, prop, sn);
+            }
         }
         TypedSpec pipe = stampSlotTargets(temporal, t, matM, slotCtx,
                 chainPrefix);
@@ -1078,6 +1099,84 @@ final class NavMaterializer {
             }
         }
         return null;
+    }
+
+    /** A tail drilled through the EMBEDDED ctor(s) its head binds to
+     * ({@code $s.incomeFunction.Classification.name} where
+     * {@code incomeFunction} is {@code ^IncomeFunction(code: …,
+     * Classification: $row.<slot>)}): {@code embPath} = the ctor
+     * components walked, {@code tail} = the rest from the navigate-slot
+     * property on, {@code binding} = that property's expression (the
+     * slot read the demand machinery resolves). The same drill
+     * StoreResolver.registerNavigations applies to an embedded HEAD —
+     * here one level down, so the ctor's class-typed Join sub-PM
+     * materializes inside the sub-target (batch 109,
+     * testToManyWithQualifierWithFilterOnJoin). */
+    private record EmbeddedDrill(List<String> embPath, List<String> tail,
+            TypedSpec binding) {}
+
+    private static @com.legend.Nullable EmbeddedDrill drillEmbedded(ClassSource t,
+            List<String> tail) {
+        if (tail.size() < 2) {
+            return null;
+        }
+        TypedSpec drill = t.bindings().get(SyntheticHeads.realHead(tail.get(0)));
+        if (drill == null) {
+            return null;
+        }
+        int mid = 1;
+        while (true) {
+            TypedSpec inner = Pipelines.unwrapToOne(drill);
+            if (!(inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
+                    || mid + 1 >= tail.size()) {
+                break;
+            }
+            TypedSpec next = ni.properties().get(
+                    SyntheticHeads.realHead(tail.get(mid)));
+            if (next == null) {
+                break;
+            }
+            drill = next;
+            mid++;
+        }
+        if (mid == 1) {
+            return null;   // the head is not an embedded ctor on this path
+        }
+        return new EmbeddedDrill(tail.subList(0, mid - 1),
+                tail.subList(mid - 1, tail.size()), drill);
+    }
+
+    /** Register {@code sn} under the EMBEDDED node(s) of {@code embPath}
+     * in the tree: an embedded ctor shares the parent's row (prefix "",
+     * the parent's row var), its bindings are the ctor's own properties,
+     * its children the navigate slots reached through it — the walk
+     * descends hop by hop, no dotted keys. Nodes are rebuilt (records);
+     * deeper ctor nesting recurses on the ctor's own property map. */
+    private static void putUnderEmbedded(Map<String, Substitution.SubNav> tree,
+            Map<String, TypedSpec> bindings, String rowVar,
+            List<String> embPath, String prop, Substitution.SubNav sn) {
+        String key = embPath.get(0);
+        Substitution.SubNav node = tree.get(key);
+        Map<String, TypedSpec> props = node != null ? node.bindings()
+                : ctorProps(bindings.get(SyntheticHeads.realHead(key)));
+        if (node == null) {
+            node = new Substitution.SubNav("", rowVar, props, Map.of());
+        }
+        Map<String, Substitution.SubNav> kids = new LinkedHashMap<>(node.children());
+        if (embPath.size() == 1) {
+            kids.put(prop, sn);
+        } else {
+            putUnderEmbedded(kids, props, rowVar,
+                    embPath.subList(1, embPath.size()), prop, sn);
+        }
+        tree.put(key, new Substitution.SubNav(node.prefix(), node.rowVar(),
+                node.bindings(), kids));
+    }
+
+    private static Map<String, TypedSpec> ctorProps(@com.legend.Nullable TypedSpec expr) {
+        return expr != null && Pipelines.unwrapToOne(expr)
+                instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                ? ni.properties() : Map.of();
     }
 
     /** Re-root a child's SUB-navigation tree onto the parent row: every

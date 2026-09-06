@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 109 / L1 embedded ctor as a SubNav node LANDED (2026-09-06)** — testToManyWithQualifierWithFilterOnJoin flipped (126/2447); the embedded-head trio is CLOSED. IMPL 13, REVISIT 7.
+
 Status: **batch 108 / L1 subtype-only class-typed joins lift under their stc key LANDED (2026-09-06)** — testInheritanceMultipleLevel flipped (127/2446); UnionSynthesis lifts a subtype-only Join PM as a navigate slot keyed stc_<Sub>___<prop>. IMPL 14, REVISIT 7.
 
 Status: **batch 107 / L1 subtype cast in auto-map source position LANDED (2026-09-06)** — testRoutingWithSubtypePropagation flipped (128/2445); the demand scan composes a cast-sourced auto-map through the one funnel. IMPL 15, REVISIT 7.
@@ -68,7 +70,7 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 | projection::exists::testExistsAsNullWithSubType | nested navigation inside exists/isEmpty | rows + assertSameSQL (text behind) |
 | modelJoin::advanced::testQualifiedPropertyInQuery | **FLIPPED batch 73** (row marked at the batch 89 census) | rows |
 | modelJoin::advanced::testSubFilter | **FLIPPED batch 73** (row marked at the batch 89 census) | rows |
-| multigrain::testToManyWithQualifierWithFilterOnJoin | multi-hop through an embedded/slot head | rows [500] + text behind |
+| multigrain::testToManyWithQualifierWithFilterOnJoin | FLIPPED batch 109 — the nested materializer drills the embedded ctor to its navigate slot and registers an embedded SubNav node (NavMaterializer.drillEmbedded / putUnderEmbedded) | rows [500] + sql-text row verdict |
 | projection::simple::testRoutingWithSubtypePropagation | FLIPPED batch 107 — the cast-sourced auto-map composes its leaf demand (composeAutoMapPaths inlines the element; pathOf's cast arm qualifies the leaf); the same-source stc navigate transplant materializes as a SubNav | sql-text row verdict |
 | testDataGeneration::testInheritanceMultipleLevel | FLIPPED batch 108 — the Vehicle union lifts Bicycle's subtype-only `person` join as the navigate slot `stc_Bicycle___person` (UnionSynthesis.scanJoinPms) | TDG rows |
 | businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction | **REVISIT (batch 93 receipt `revisit:instance-filter-ungated` — traced, NOT resolved; user 2026-09-06: the relational lane and Pure disagree, the lane choice is revisited at the end)** — the instance-filter idiom canonicalizes in the lift pass (the wall is gone; the assert reaches its sql-text ROW verdict); the golden projects `"root".id` unconditionally (testBusinessDateMilestoning.pure:591 — its filter subselect never gates the value) while Pure's filter->map and the engine's own sibling golden testConcatenateWithFilter ('Firm A,', testConcatenate.pure:88) yield the empty cell; rows [1, 2] vs ours [TDSNull, 2] | assertSameSQL → referee rows |
@@ -558,7 +560,8 @@ reuse it. Estimate: one focused session.
 
 Probe diagnostics (LEGEND_LITE_STACKS=1, `[multi-hop wall] path=… targetBindingKeys=…`):
 
-- testToManyWithQualifierWithFilterOnJoin: path
+- testToManyWithQualifierWithFilterOnJoin: LANDED batch 109 (an embedded ctor is a SubNav NODE
+  sharing the parent's row — see the GATES record). Original note: path
   `[account, incomeFunctionSplits#f0, incomeFunction, Classification, name]`,
   head `account` registered (targetBindingKeys=[number, incomeFunctionSplits]).
   Query: `Position.all()->filter(p | $p.account.incomeFunctionSplits->filter(i |
