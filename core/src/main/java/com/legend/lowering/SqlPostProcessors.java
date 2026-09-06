@@ -63,6 +63,55 @@ public final class SqlPostProcessors {
         return new Hooks(out, cte[0], cte[1]);
     }
 
+    /** The tableReplace renames of every {@code execute()} call a
+     * statement REACHES — inline calls and calls behind ORDINARY lets
+     * ({@code let result = execute(...).values} over a class-rooted
+     * execute is a plain let, not a let-bound exec frame; the assert
+     * side's re-plan of its spliced chain must still rename — batch 80,
+     * testGraphFetchWithTableMapperPostProcessor). Conflicting renames
+     * are loud, never a silent pick. {@code inline} β-expands a runtime
+     * helper call; {@code letPrefix} are the statement's preceding lets. */
+    public static Map<String, String> reachableRenames(TypedSpec stmt,
+            java.util.function.UnaryOperator<TypedSpec> letBound,
+            java.util.function.UnaryOperator<TypedSpec> inline) {
+        Map<String, String> out = new LinkedHashMap<>();
+        walkExecutes(stmt, letBound, new java.util.HashSet<>(), inline, out);
+        return out;
+    }
+
+    /** {@code letBound}: the caller's let chase (invariant 6h — the
+     * lowering never reaches into the compiler's assembly). */
+    private static void walkExecutes(TypedSpec n,
+            java.util.function.UnaryOperator<TypedSpec> letBound,
+            java.util.Set<String> seen,
+            java.util.function.UnaryOperator<TypedSpec> inline,
+            Map<String, String> out) {
+        if (n instanceof TypedNativeCall ec
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isExecuteFqn(ec.callee().qualifiedName())
+                && ec.args().size() >= 3) {
+            TypedSpec rt = inline.apply(letBound.apply(ec.args().get(2)));
+            for (var e : hooks(rt, letBound).tableReplace().entrySet()) {
+                String prev = out.putIfAbsent(e.getKey(), e.getValue());
+                if (prev != null && !prev.equals(e.getValue())) {
+                    throw new IllegalStateException("conflicting table renames"
+                            + " for '" + e.getKey() + "': '" + prev + "' vs '"
+                            + e.getValue() + "'");
+                }
+            }
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable tv
+                && seen.add(tv.name())) {
+            TypedSpec bound = letBound.apply(n);
+            if (bound != n) {
+                walkExecutes(bound, letBound, seen, inline, out);
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            walkExecutes(c, letBound, seen, inline, out);
+        }
+    }
+
     private static void collectConnections(TypedSpec n,
             Map<String, String> out, boolean[] cte,
             java.util.function.UnaryOperator<TypedSpec> bind) {
@@ -93,6 +142,21 @@ public final class SqlPostProcessors {
                 }
             }
         }
+        if (n instanceof TypedNewInstance ni
+                && ni.properties().get("postProcessors") instanceof TypedSpec pps) {
+            // the CONNECTION-LEVEL mapper post-processor (batch 80):
+            // postProcessors = ^MapperPostProcessor(mappers = ^TableNameMapper(
+            // schema = ^SchemaNameMapper(from, to), from, to)) — the engine
+            // renames tables/schemas in the generated SQL
+            // (runtime/connection/postprocessor.pure:35-48); a table
+            // rename is the same IR pass as replaceTables (tableReplace).
+            // Exact-FQN dispatch; any other post-processor kind is loud —
+            // no IR pass exists for it, and the query must not run
+            // un-post-processed.
+            for (TypedSpec pp : elements(pps)) {
+                readMapperPostProcessor(pp, out);
+            }
+        }
         if (n instanceof com.legend.compiler.spec.typed
                 .TypedCopyInstance cp) {
             for (String key : new String[] {
@@ -113,6 +177,61 @@ public final class SqlPostProcessors {
 
     private static List<TypedSpec> elements(TypedSpec v) {
         return v instanceof TypedCollection tc ? tc.elements() : List.of(v);
+    }
+
+    private static final String MAPPER_PP_FQN =
+            "meta::pure::alloy::connections::MapperPostProcessor";
+    private static final String TABLE_MAPPER_FQN =
+            "meta::pure::alloy::connections::TableNameMapper";
+    private static final String SCHEMA_MAPPER_FQN =
+            "meta::pure::alloy::connections::SchemaNameMapper";
+
+    /** One {@code postProcessors} element: a MapperPostProcessor's table
+     * mappers become tableReplace renames; a schema mapper that moves a
+     * table to ANOTHER schema has no IR pass yet (loud), an identity
+     * schema mapper is a no-op. */
+    private static void readMapperPostProcessor(TypedSpec pp,
+            Map<String, String> out) {
+        if (!(pp instanceof TypedNewInstance mp)
+                || !MAPPER_PP_FQN.equals(mp.classFqn())) {
+            throw new NotImplementedException("connection post-processor "
+                    + (pp instanceof TypedNewInstance x ? "'" + x.classFqn() + "'"
+                            : pp.getClass().getSimpleName())
+                    + " has no IR pass (only MapperPostProcessor is compiled)");
+        }
+        TypedSpec mappers = mp.properties().get("mappers");
+        for (TypedSpec m : mappers == null ? List.<TypedSpec>of() : elements(mappers)) {
+            if (!(m instanceof TypedNewInstance mi)) {
+                throw new NotImplementedException(
+                        "MapperPostProcessor mapper is not an instance literal");
+            }
+            String from = mapperLiteral(mi, "from");
+            String to = mapperLiteral(mi, "to");
+            if (TABLE_MAPPER_FQN.equals(mi.classFqn())) {
+                if (mi.properties().get("schema") instanceof TypedNewInstance sch
+                        && !mapperLiteral(sch, "from").equals(mapperLiteral(sch, "to"))) {
+                    throw new NotImplementedException("TableNameMapper moving '"
+                            + from + "' to another schema has no IR pass yet");
+                }
+                out.putIfAbsent(from, to);
+            } else if (SCHEMA_MAPPER_FQN.equals(mi.classFqn())) {
+                if (!from.equals(to)) {
+                    throw new NotImplementedException("SchemaNameMapper '" + from
+                            + "' -> '" + to + "' has no IR pass yet");
+                }
+            } else {
+                throw new NotImplementedException("MapperPostProcessor mapper '"
+                        + mi.classFqn() + "' is not a table/schema mapper");
+            }
+        }
+    }
+
+    private static String mapperLiteral(TypedNewInstance mi, String prop) {
+        if (mi.properties().get(prop) instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+            return cs.value();
+        }
+        throw new NotImplementedException("mapper '" + prop
+                + "' is not a string literal on " + mi.classFqn());
     }
 
     /** One hook lambda: the ONLY recognized body is a terminal
@@ -480,6 +599,16 @@ public final class SqlPostProcessors {
                     apply(ex.subquery(), m));
             case SqlExpr.ScalarSubquery sq -> new SqlExpr.ScalarSubquery(
                     apply(sq.subquery(), m));
+            // an AGGREGATE's arguments (the graph envelope's list(json_object(
+            // …, (SELECT … FROM personTable …))) — its correlated child
+            // subquery renames like any other; batch 80): a Reducer has no
+            // expression children of its own, so the default arm skipped it
+            case com.legend.sql.SqlAgg.Reducer r -> new com.legend.sql.SqlAgg.Reducer(
+                    r.fn(), r.args().stream().map(a -> expr(a, m)).toList(),
+                    r.distinct(),
+                    r.orderBy().stream().map(k -> new SqlSelect.SortKey(
+                            expr(k.expr(), m), k.ascending(), k.nullOrder(),
+                            k.outputName())).toList());
             default -> e.mapChildren(x -> expr(x, m));
         };
     }

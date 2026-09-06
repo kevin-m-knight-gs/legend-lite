@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 444 classes. */
+    /** 448 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -192,8 +192,12 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::legend::service::metamodel::SingleExecutionTest extends meta::legend::service::metamodel::Test { data: meta::pure::metamodel::type::String[1]; asserts: meta::legend::service::metamodel::TestContainer[1..*]; }"),
             Pure.nativeClass("native Class meta::legend::service::metamodel::Test { }"),
             Pure.nativeClass("native Class meta::legend::service::metamodel::TestContainer { parametersValues: meta::pure::metamodel::type::Any[*]; assert: meta::pure::metamodel::function::FunctionDefinition<{meta::pure::mapping::Result<meta::pure::metamodel::type::Any|*>[1]->meta::pure::metamodel::type::Boolean[1]}>[1]; }"),
+            Pure.nativeClass("native Class meta::pure::alloy::connections::Mapper extends meta::relational::runtime::PostProcessorParameter { from: meta::pure::metamodel::type::String[1]; to: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::alloy::connections::MapperPostProcessor extends meta::pure::alloy::connections::PostProcessor { mappers: meta::pure::alloy::connections::Mapper[*]; }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::PostProcessor { }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::RelationalMapperPostProcessor extends meta::pure::alloy::connections::PostProcessor { relationalMappers: meta::relational::metamodel::RelationalMapper[*]; }"),
+            Pure.nativeClass("native Class meta::pure::alloy::connections::SchemaNameMapper extends meta::pure::alloy::connections::Mapper { }"),
+            Pure.nativeClass("native Class meta::pure::alloy::connections::TableNameMapper extends meta::pure::alloy::connections::Mapper { schema: meta::pure::alloy::connections::SchemaNameMapper[1]; }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy { }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::authentication::MiddleTierUserNamePasswordAuthenticationStrategy extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy { <<equality.Key>> vaultReference: meta::pure::metamodel::type::String[1]; }"),
             Pure.nativeClass("native Class meta::pure::alloy::connections::alloy::specification::DatasourceSpecification { }"),

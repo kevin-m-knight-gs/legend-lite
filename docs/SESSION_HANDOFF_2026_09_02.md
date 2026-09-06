@@ -3881,3 +3881,19 @@ empty differentPersonTable, declared in `db` so the seed creates it). The
 L7 relationalMapper pair asserts a PLAN NODE's sqlQuery text over foreign
 schema names (snDBDefault.default.*) — text, unless a referee creates the
 schema (L15's quoted-schema idea).
+
+**Batch 80 / L6a (2026-09-06, chain GREEN 6m25s; GATES batch 80).** 157/2416 →
+156/2417; IMPL 56. MapperPostProcessor → tableReplace (SqlPostProcessors.hooks,
+exact FQNs, other kinds loud); renames descend into Reducer args; every
+execute() a statement reaches through ordinary lets carries its renames
+(reachableRenames, let chase passed as a callback — invariant 6h). Guard:
+naming a spec class by FQN in Java is Prelude DEMAND — regenerate the Prelude
+before the chain (stale-Prelude guard cost a chain). NEXT = batch 81:
+toNonExecutableSQLString (engine toSQLString.pure:83-86 = toSQLString with the
+nonExecutable post-processor): a fourth toSQLString-family native (platform-
+owned, JAVA_ROUTINE, SQL_PRODUCER_FQNS, findProducer), the K-routine applies
+SqlPostProcessors.nonExecutable before rendering, and the sql-text arm's rows
+leg runs under PostProcessBoundary.recordNonExecutable(true) (restored after)
+so both sides read zero rows. RECLASSIFY testRelationStoreAccessorOnView → TEXT
+(its first assert is `contains` over the engine's `personview_0` alias
+spelling; the view-expansion wall is real but cannot flip the test).

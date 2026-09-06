@@ -2042,10 +2042,18 @@ public class RelationalCorpusRunner {
             // the first identity's filtered slot row — the engine's
             // per-qualifier subselects (testJoinIsolationDeeperTwoIsolations:
             // 'OrgName2' for the BUSINESS UNIT qualifier).
-            org.junit.jupiter.api.Assertions.assertEquals(157L,
+            // batch 80 / L6a (2026-09-06): 157 -> 156 — the connection-level
+            // MapperPostProcessor (postProcessors = ^MapperPostProcessor(
+            // mappers = ^TableNameMapper(schema, from, to))) is a compiler
+            // pass: its table renames ride the tableReplace channel
+            // (SqlPostProcessors.hooks), rename inside aggregate arguments
+            // (the graph envelope's correlated child subquery), and every
+            // execute() a statement reaches through ordinary lets carries
+            // them (reachableRenames). testGraphFetchWithTableMapperPostProcessor.
+            org.junit.jupiter.api.Assertions.assertEquals(156L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2416L,
+            org.junit.jupiter.api.Assertions.assertEquals(2417L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

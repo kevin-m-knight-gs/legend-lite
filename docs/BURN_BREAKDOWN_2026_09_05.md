@@ -108,10 +108,12 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 
 ### L6 Graph fetch (4)
 
+Status: **batch 80 / L6a LANDED (2026-09-06)** — testGraphFetchWithTableMapperPostProcessor flipped (156/2417).
+
 | test | detail |
 |---|---|
 | graphFetch::simple::testCheckedWithCircularConstraints | DIVERGENCE: `graphFetchChecked` defects — constraint evaluation in the checked envelope (expected 1 defect, ours 0) |
-| graphFetch::simple::testGraphFetchWithTableMapperPostProcessor | DIVERGENCE: the connection's MapperPostProcessor (table rename) is not applied (4 employees vs 0) — post-processors are compiler passes ([[post-processors-are-compiler-passes]]) |
+| graphFetch::simple::testGraphFetchWithTableMapperPostProcessor | **FLIPPED batch 80** — the connection's MapperPostProcessor rides the tableReplace channel (SqlPostProcessors.hooks: exact-FQN TableNameMapper/SchemaNameMapper; other kinds loud); renames now reach aggregate arguments (the graph envelope's child subquery) and every execute a statement reaches through ordinary lets |
 | graphFetch::union::propertyLevel::test6 | DIVERGENCE: `Firm B` vs `Firm X` — property-level union in graph fetch |
 | query::function::concatenate::testAll | lowering not implemented for TypedSerializeGraph — `Product.all()->concatenate(Product.all())` as instances |
 
@@ -391,7 +393,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 → **57**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 → **56**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a

@@ -42,7 +42,7 @@ shared source registered by several families cannot double-count. Run with
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| graphFetch/tests | 144 | 136 | 3 | 4 | 1 | 0 | 0 | 0 | 0 |
+| graphFetch/tests | 144 | 137 | 2 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2430** | 39 | 76 | 30 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2431** | 38 | 76 | 30 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2430 PASS = 2395 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2431 PASS = 2396 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2430 PASS = 2395 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 157
+tests in the ledger: 156
 
 | bucket | asserts |
 |---|---|
@@ -550,7 +550,7 @@ tests in the ledger: 157
 | wall:typer | 40 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
-| divergence | 25 |
+| divergence | 24 |
 | not-reached | 35 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 15 |
@@ -642,7 +642,6 @@ tests in the ledger: 157
 - testMilestonedProperty #2 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id,  ::  expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classif
 - testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> engine-golden-defect:malformed-json-golden: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
 - testCheckedWithCircularConstraints #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0
-- testGraphFetchWithTableMapperPostProcessor #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].employees expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4
 - test6 #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].legalName expected Firm B, got Firm X :: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X
 - dropAndCreateTempTable #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, :: meta::relational::tests::ddl::dropAndCreateTempTable :: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
@@ -847,7 +846,6 @@ tests in the ledger: 157
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - FAIL testMilestonedProperty [graphFetch/tests]: assertEquals: expected PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classificationTypeStr()}}}#)\n  (\n    StoreMappingGlobalGraphFetch\n    (\n      type = PartialClass[impls=[(meta::relational::tests::milestoning::Order | milestoningmap.meta_relational_tests_milestoning_Order)], propertiesWithParameters = [id, product(2015-10-16)]]\n      resultSizeRange = *\n      store = meta::relational::tests::milestoning::db\n      localGraphFetchExecutionNode = \n         RelationalGraphFetch\n         (\n           type = PartialClass[impls=[(meta::relational::tests::milestoning::Order | milestoningmap.meta_relational_tests_milestoning_Order)], propertiesWithParameters = [id, product(2015-10-16)]]\n           nodeIndex = 0\n           relationalNode = \n              SQL\n              (\n                type = meta::pure::metamodel::type::Any\n                resultColumns = [("pk_0", INT), ("id", INT)]\n                sql = select "root".id as "pk_0", "root".id as "id" from OrderTable as "root"\n                connection = TestDatabaseConnection(type = "H2")\n              )\n           children = [\n              RelationalGraphFetch\n              (\n                type = PartialClass[impls=[(meta::relational::tests::milestoning::Product | milestoningmap.meta_relational_tests_milestoning_Product)], propertiesWithParameters = [classificationTypeStr(), name, type]]\n                nodeIndex = 2\n                relationalNode = \n                   SQL\n                   (\n                     type = meta::pure::metamodel::type::Any\n                     resultColumns = [("parent_key_gen_0", INT), ("pk_0", INT), ("pk_1", VARCHAR(200)), ("name", VARCHAR(200)), ("type", VARCHAR(200)), ("k_businessDate", VARCHAR(10))]\n                     sql = select distinct "temp_table_node_0_0".pk_0 as "parent_key_gen_0", "producttable_0".id as "pk_0", "producttable_0".name as "pk_1", "producttable_0".name as "name", "producttable_0".type as "type", '2015-10-16' as "k_businessDate" from (select * from (${temp_table_node_0}) as "root") as "temp_table_node_0_0" inner join OrderTable as "root" on ("temp_table_node_0_0".pk_0 = "root".id) left outer join ProductTable as "producttable_0" on ("root".prodFk = "producttable_0".id and "producttable_0".from_z <= DATE'2015-10-16' and "producttable_0".thru_z > DATE'2015-10-16') where "producttable_0".name is not null and "producttable_0".id is not null and "producttable_0".from_z <= DATE'2015-10-16' and "producttable_0".thru_z > DATE'2015-10-16'\n                     connection = TestDatabaseConnection(type = "H2")\n                   )\n                children = [\n                   RelationalGraphFetch\n                   (\n                     type = String\n                     nodeIndex = 5\n                     relationalNode = \n                        SQL\n                        (\n                          type = meta::pure::metamodel::type::Any\n                          resultColumns = [("parent_key_gen_0", INT), ("parent_key_gen_1", VARCHAR(200)), ("node_5_result", VARCHAR(200))]\n                          sql = select distinct "temp_table_node_2_0".pk_0 as "parent_key_gen_0", "temp_table_node_2_0".pk_1 as "parent_key_gen_1", "productclassificationtable_0".type as "node_5_result" from (select * from (${temp_table_node_2}) as "root") as "temp_table_node_2_0" inner join ProductTable as "root" on ("temp_table_node_2_0".pk_1 = "root".name and "temp_table_node_2_0".pk_0 = "root".id) left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type) where "productclassificationtable_0".type is not null and "productclassificationtable_0".from_z <= DATE'2015-10-16' and "productclassificationtable_0".thru_z > DATE'2015-10-16'\n                          connection = TestDatabaseConnection(type = "H2")\n                        )\n          
 - FAIL testCheckedWithCircularConstraints [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0 | expected [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[{path=[{propertyNam..., got [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[], value={firstName...
-- FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm A, employees=[{firstName=Fabrice...
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}...
 - ERROR dropAndCreateTempTable [helperFunctions/tests]: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testCreateTempTableStatement [helperFunctions/tests]: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)

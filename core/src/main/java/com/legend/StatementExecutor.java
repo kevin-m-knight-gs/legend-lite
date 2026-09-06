@@ -328,7 +328,7 @@ final class StatementExecutor {
             // (its table renames): the rows leg re-executes the frame's
             // values exactly as the frame ran
             ExecutionResult verdict = AssertVerdicts.tryAdjudicate(
-                    bare, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env),
+                    bare, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
                     spliceHook(execFrames, letPrefix, specs, env));
             if (verdict != null) {
                 result = verdict;
@@ -389,7 +389,7 @@ final class StatementExecutor {
                     && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
                             || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot))) {
                 ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
-                        preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env),
+                        preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
                         spliceHook(execFrames, letPrefix, specs, env));
                 if (inlinedVerdict != null) {
                     result = inlinedVerdict;
@@ -443,7 +443,7 @@ final class StatementExecutor {
                         body, env.ctx());
             }
             result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
-                    env));
+                    env, letPrefix, specs));
         }
         return result;
     }
@@ -454,8 +454,22 @@ final class StatementExecutor {
      * the architecture; the renames must ride with it (ledger cluster
      * 59). */
     private static ExecEnv frameReplaceEnv(TypedSpec stmt,
-            java.util.Map<String, ExecFrame> execFrames, ExecEnv env) {
+            java.util.Map<String, ExecFrame> execFrames, ExecEnv env,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs) {
         java.util.Map<String, String> union = null;
+        // execute() calls the statement REACHES inline or through ordinary
+        // lets (batch 80: `let result = execute(...).values` is no frame)
+        java.util.Map<String, String> reached = com.legend.lowering.SqlPostProcessors
+                .reachableRenames(stmt, v -> com.legend.compiler.spec
+                        .ExecuteChainAssembly.letBound(v, letPrefix), v -> v instanceof
+                        com.legend.compiler.spec.typed.TypedUserCall
+                        ? new com.legend.compiler.spec.UserCallInliner(specs)
+                                .inlineBody(java.util.List.of(v)).get(0) : v);
+        if (!reached.isEmpty()) {
+            union = new java.util.LinkedHashMap<>(env.tableReplace());
+            union.putAll(reached);
+        }
         for (var e : execFrames.entrySet()) {
             if (e.getValue().tableReplace().isEmpty()
                     || !com.legend.compiler.spec.UserCallInliner
