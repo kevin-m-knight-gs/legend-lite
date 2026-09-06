@@ -317,7 +317,16 @@ final class Fold {
      */
     static boolean distinctNarrowFolds(SqlSelect s, List<String> keptColumns) {
         for (SqlSelect.SortKey k : s.orderBy()) {
-            if (!(k.expr() instanceof SqlExpr.Column c) || !keptColumns.contains(c.name())) {
+            if (k.expr() instanceof SqlExpr.Column c && keptColumns.contains(c.name())) {
+                continue;
+            }
+            // a key the sort resolved to a kept projection's OWN expression
+            // (sort('Firm') over `LEGALNAME as Firm` orders by t.LEGALNAME):
+            // the expression survives in the narrowed list (batch 111)
+            boolean keptExpr = s.projections().stream().anyMatch(p ->
+                    p.outputName() != null && keptColumns.contains(p.outputName())
+                    && p.expr().equals(k.expr()));
+            if (!keptExpr) {
                 return false;
             }
         }
@@ -1170,6 +1179,31 @@ final class Fold {
         return t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                 ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
                 : new SqlExpr.Cast(v, com.legend.sql.SqlType.Scalar.VARCHAR);
+    }
+
+    /** The whole-row {@code distinct()} directly under a restrict (not the
+     * TDS-union desugar, which keeps its own UNION form), else null. */
+    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedDistinct restrictOverWholeRowDistinct(
+            com.legend.compiler.spec.typed.TypedSelect sel) {
+        if (!(sel.source() instanceof com.legend.compiler.spec.typed.TypedDistinct d)
+                || d.source() instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
+            return null;
+        }
+        boolean wholeRow = d.columns().isEmpty()
+                || d.columns().equals(com.legend.compiler.element.type.Type.requireRelationSchema(
+                        d.source().info().type()).columns().stream()
+                        .map(com.legend.compiler.element.type.Type.Column::name).toList());
+        // AGGREGATION only: the engine drops a groupBy's unused aggregates
+        // under the distinct (tdsRestrict …EleminatesUnnecessaryAggsWith
+        // Distinct) but keeps a plain project's columns inside it
+        // (…LowerProjectColsNotEliminatedWithDistinct: the const 'Hello'
+        // survives in the distinct select) — sorts in between are order only
+        com.legend.compiler.spec.typed.TypedSpec below = d.source();
+        while (below instanceof com.legend.compiler.spec.typed.TypedSortBy || below instanceof com.legend.compiler.spec.typed.TypedSort) {
+            below = below instanceof com.legend.compiler.spec.typed.TypedSortBy sb ? sb.source()
+                    : ((com.legend.compiler.spec.typed.TypedSort) below).source();
+        }
+        return wholeRow && below instanceof com.legend.compiler.spec.typed.TypedGroupBy ? d : null;
     }
 
     /** All columns resolved against {@code base}, or null if any misses

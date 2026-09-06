@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 111 / T1 restrict over a distinct groupBy LANDED (2026-09-06)** — testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct flipped (123/2450): the engine's unused-aggregate drop under a whole-row distinct. TEXT 43 → 42.
+
 Status: **batch 110 / L5 XStore over lossy table-backed ends LANDED (2026-09-06)** — testPersonToFirmUsingFromProject + testCrossMappingWithRelOpWithJoinKeys flipped (124/2449); route A (property space) for lossy column views, authored operand order, binding-aware condition demand. IMPL 11, REVISIT 7. Open on route A: typed local reads (ordering comparisons over +props), the exists-context target substitution.
 
 Status: **batch 109 / L1 embedded ctor as a SubNav node LANDED (2026-09-06)** — testToManyWithQualifierWithFilterOnJoin flipped (126/2447); the embedded-head trio is CLOSED. IMPL 13, REVISIT 7.
@@ -128,7 +130,7 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 | graphFetch::crossDatabase::testCrossMappingWithRelOpWithJoinKeys | FLIPPED batch 110 — join-chain +prop demands its slot through the binding-aware condition scan | graph-fetch rows |
 | modelJoins::testPersonToFirmUsingFromProject | FLIPPED batch 110 — lossy column view → property-space route, authored operand order (the two plans are byte-equal) | text over two of our plans |
 | modelJoins::testPersonToFirmUsingProject | assert-free (zero-assert bucket by design — the runner counts it, it cannot flip; runs the batch-110 shape) | none |
-| modelJoin::advanced::testNestedModelJoinCompoundInnerCondition | a nested ModelJoin hop whose OWN condition nests again (`$person.profile.rank` inside Person_Address inside Person_Firm) — ModelJoinNesting.compose composes one level; leg = recursive compose | rows |
+| modelJoin::advanced::testNestedModelJoinCompoundInnerCondition | PARKED 2026-09-06 (three walls; handoff §0 item 3): recursive ModelJoinNesting.compose (probed, correct) + the sibling-slot demand for a JoinSlot condition inside a composed pipe (the `profile` join stripped while `profile_RANK` is still read) | rows |
 
 ### L6 Graph fetch (4)
 
@@ -306,7 +308,7 @@ same tests PASS.
 | legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals | plan text `"root".AGE = "persontable_1".AGE` under a feature flag |
 | legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector | FreeMarker selector text under the flag |
 | executionPlan::testExecutionPlanGenerationForLambdaFromWithEnumMapping | the exact CASE WHEN spelling of enum push-down |
-| tdsRestrict::testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct | `!contains('max')` — the engine prunes an unused aggregate; rows PASS. An OPTIMIZATION we could add, visible only in text |
+| tdsRestrict::testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct | FLIPPED batch 111 — restrict over a whole-row distinct of a groupBy lowers as the distinct over the restricted columns (Fold.restrictOverWholeRowDistinct); the max is dropped like the engine | rows + 3 sql-text row verdicts |
 
 ### T2 Plan-text goldens (executionPlan printed as a string) (13)
 

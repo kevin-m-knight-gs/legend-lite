@@ -50,9 +50,19 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
 3. **Cross-store model joins** (L5, 4 tests): testPersonToFirmUsingFromProject (LANDED
    batch 110), testPersonToFirmUsingProject (assert-free twin — zero-assert bucket, cannot
    flip), testCrossMappingWithRelOpWithJoinKeys (LANDED batch 110),
-   testNestedModelJoinCompoundInnerCondition (REMAINING: recursive ModelJoinNesting.compose —
-   the nested hop's own condition nests again; wall `$person.profile has no column binding`
-   at ModelJoinNesting:120). Route-A gaps recorded (GATES batch 110): typed +prop reads
+   testNestedModelJoinCompoundInnerCondition (PARKED 2026-09-06 after batch 110 — three walls:
+   (1) `$person.profile has no column binding` at ModelJoinNesting:120 — FIXED in a probe by
+   composing the nested join RECURSIVELY (compose(nmj, nad, endCls, nestedCls, nPair, {rf0,
+   nRf}, base pipe, nEnd.pipeline()) before rewriting its condition with the returned
+   nestedCols; the composite then joins nested.pipeA() to nested.pipeB()) — that diff is
+   correct and small, re-apply it; (2)+(3) with it in place the SQL binds wrong: the person
+   subselect is `personTable t3 LEFT JOIN address t5 ON t3.profile_RANK = t5.COUNTRY …` — the
+   `profile` JOIN was STRIPPED at materialization (only the address join's ON reads it — the
+   #70 "a join slot's predicate reading a sibling join slot is not demanded" class) while the
+   read was still re-pointed to the prefixed column `profile_RANK` (the stripped-slot backstop
+   did not fire — a silent re-point, worth a loud wall of its own). Leg = sibling-slot demand
+   closure for JoinSlot conditions inside a composed ModelJoin pipe (Pipelines.materialize /
+   closeOverConditions over the nested JOIN's condition). Probe reverted; tree = landed state.) Route-A gaps recorded (GATES batch 110): typed +prop reads
    (the marker is Any-typed — a cast to the declared type regressed six Pure-end tests),
    and the target-side substitution inside an exists context. Original note — the wall was
    `association 'X' is not mapped`: an XStore association (mapped in a ModelChain /
@@ -72,8 +82,9 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
 5. **Referee gaps** (only if cheap; they do not flip tests, their asserts are plan text):
    testProp3 (m2m2r fixture never seeded in the referee), testQuoteIdentifiersFlagWithGraphFetch
    (`productSchema` not created in the referee session).
-6. **Optional optimization**: testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct
-   (prune an unused aggregate; rows already pass).
+6. **Optional optimization**: testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct —
+   LANDED batch 111 (the engine's rule is aggregation-only; a plain project under a distinct
+   keeps its columns — testLowerProjectColsNotEliminatedWithDistinct pins that).
 
 ### Phase 2 — parked and revisit, decided with the user
 
@@ -4300,6 +4311,13 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 111 / T1 restrict over a distinct groupBy (2026-09-06, chain GREEN; GATES batch 111).**
+124/2449 → 123/2450. Lowerer's TypedSelect arm + Fold.restrictOverWholeRowDistinct (groupBy
+below the sorts only) + Fold.distinctNarrowFolds accepting expression-resolved sort keys.
+Three lane pins moved with the flip. Lowerer.java is AT the 3500 guardrail — the next touch
+there must extract a seam first. NEXT: Phase 1 item 4 (the plan-printer bugs, TEXT) and item 5
+(referee gaps), then the NavPath cleanup, then Phase 2.
 
 **Batch 110 / L5 XStore over lossy table-backed ends (2026-09-06, chain GREEN; GATES batch
 110).** 126/2447 → 124/2449; IMPL 11. A table-backed end whose column view is lossy takes the

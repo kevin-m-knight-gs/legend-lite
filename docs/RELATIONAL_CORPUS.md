@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 260 | 3 | 2 | 1 | 1 | 1 | 2 | 1 |
+| tds/tests | 266 | 260 | 3 | 2 | 1 | 0 | 0 | 2 | 0 |
 | testDataGeneration/tests | 68 | 67 | 0 | 0 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 65 | 2 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2463** | 36 | 51 | 25 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2463** | 36 | 51 | 25 | 5 | 5 | 29 | 2 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2463 PASS = 2428 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2463 PASS = 2429 clean + 34 carrying softness (sqldiff 5, advisory 5, 0-asserts 29, text-rescued 2; flags overlap — the union is 34).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2463 PASS = 2428 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 124
+tests in the ledger: 123
 
 | bucket | asserts |
 |---|---|
@@ -551,11 +551,11 @@ tests in the ledger: 124
 | wall:typer | 33 |
 | wall:exec | 8 |
 | divergence | 19 |
-| not-reached | 21 |
+| not-reached | 20 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
-| pass | 23 |
-| sql-text-assert | 6 |
+| pass | 20 |
+| sql-text-assert | 5 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
 | revisit:engine-isDistinct-checked-defect | 1 |
@@ -668,11 +668,6 @@ tests in the ledger: 124
 - testSortQuotes #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s) :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
 - testJoinWithExtendWithDigestOnColumnsOnBothQueries #1 meta::pure::functions::asserts::assertSize -> pass
 - testJoinWithExtendWithDigestOnColumnsOnBothQueries #2 meta::pure::functions::asserts::assertSameElements -> engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', 'N,John,Johnson ::  expected: ['1,Peter,Smith,1,ee0af362d8c1e4fa8c805dfeadd1aa37,Firm X,1,d41d8cd98f00b204e9800998ecf8427e', '2,John,Johnson,1,f8758ee5b78e87c2c62f4bed81ce3537,Firm X,1,d41d8cd98f00b204e9800998ecf8427e', '3,John,Hill,1,5a60b85c13b6c8273a6d2d55ff6a7815,F
-- testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #1 meta::pure::functions::asserts::assertSize -> pass
-- testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #2 meta::pure::functions::asserts::assertEquals -> pass
-- testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #3 meta::pure::functions::asserts::assert -> pass
-- testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #4 meta::pure::functions::asserts::assertFalse -> sql-text-assert: platform-fail: Assert failed :: Assert failed
-- testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #5 - -> not-reached: 1 assert(s) after the failure
 - testExecutionPlanGeneration #0 - -> wall:typer: wall-type: no overload of '_' structurally matches the argument types (ExprType[type=GenericTyp :: meta::relational::tests::tds::window::routing::testExecutionPlanGeneration :: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[r
 - testAlloyTestDatGenWithQuotedColumnsForViews #1 assertEquals -> wall:exec: wall-exec: testDataGen: view-backed relation '_' — view slice pending :: testDataGen: view-backed relation 'AltID_View' — view slice pending
 - testRelationalMapperTwoDBs #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'select "root".NAME as "name", "synonymtable_N".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNe ::  expected: 'select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.prod

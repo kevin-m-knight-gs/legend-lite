@@ -1117,7 +1117,11 @@ public class RelationalCorpusRunner {
             // four assertSqlEquals asserts (the TDG sqls, replayed on the
             // oracle) left the walk's lane — the whole test flipped (the
             // union lift of a subtype-only class-typed Join PM)
-            org.junit.jupiter.api.Assertions.assertEquals(3, execPassing,
+            // 3 -> 2 (batch 111, 2026-09-06): testRestrictOnGroupByEleminates
+            // UnnecessaryAggsWithDistinct's `contains('count')` assert left
+            // the walk's lane — the whole test flipped (the restrict folds
+            // into the whole-row distinct over a groupBy)
+            org.junit.jupiter.api.Assertions.assertEquals(2, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -2268,10 +2272,20 @@ public class RelationalCorpusRunner {
             // looks through the target's bindings (a join-chain +prop reads
             // a slot). modelJoins::testPersonToFirmUsingFromProject,
             // graphFetch::crossDatabase::testCrossMappingWithRelOpWithJoinKeys.
-            org.junit.jupiter.api.Assertions.assertEquals(124L,
+            // batch 111 / T1 (2026-09-06): 124 -> 123 — a restrict over a
+            // WHOLE-ROW distinct whose source is a groupBy lowers as the
+            // distinct over the restricted columns (the engine's
+            // processRestrict narrows the enclosing select and leaves its
+            // DISTINCT: an unused aggregate is dropped — `select distinct
+            // Firm, count(…) … group by Firm`); a plain project under a
+            // distinct keeps its columns (…LowerProjectColsNotEliminated
+            // WithDistinct). Fold.distinctNarrowFolds accepts a sort key
+            // spelled as a kept projection's own expression.
+            // tdsRestrict::testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct.
+            org.junit.jupiter.api.Assertions.assertEquals(123L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2449L,
+            org.junit.jupiter.api.Assertions.assertEquals(2450L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2423,7 +2437,10 @@ public class RelationalCorpusRunner {
             // testConcatenateWithFilter, 'Firm A,') yields the empty cell.
             // Registered engine-golden-defect:instance-filter-ungated
             // (AssertLedger); the advisory divergence counts in this lane.
-            org.junit.jupiter.api.Assertions.assertEquals(10,
+            // 10 -> 8 (batch 111, 2026-09-06): the same test's
+            // `assertFalse(contains('max'))` and its assertSameSQL-shaped
+            // assertEquals left the walk's lane — the whole test flipped
+            org.junit.jupiter.api.Assertions.assertEquals(8,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -2612,8 +2629,11 @@ public class RelationalCorpusRunner {
                     // exec-passing 7 -> 3 — testInheritanceMultipleLevel's
                     // four rescued TDG sql-asserts now row-verify as
                     // platform-arm verdicts (the whole test flipped).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 3,
-                    "M1 h2-exec rescued fell below the 3 floor: "
+                    // 3 -> 2 (batch 111): the same lane move as exec-passing
+                    // 3 -> 2 — the restrict/distinct test's rescued sql-assert
+                    // now row-verifies as a platform-arm verdict.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 2,
+                    "M1 h2-exec rescued fell below the 2 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

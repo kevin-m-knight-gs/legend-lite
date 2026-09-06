@@ -517,7 +517,11 @@ public final class Lowerer {
 
             case TypedFilter f -> filter(f);
 
-            case TypedSelect sel -> narrowTo(relation(sel.source()), sel.columns(), sel.info());
+            case TypedSelect sel -> Fold.restrictOverWholeRowDistinct(sel) != null
+                    ? distinctNarrowTo(relation(Objects.requireNonNull(
+                            Fold.restrictOverWholeRowDistinct(sel)).source()),
+                            sel.columns(), sel.info())
+                    : narrowTo(relation(sel.source()), sel.columns(), sel.info());
 
             case TypedDistinct d -> distinct(d);
             // lateral(rel, {row | relationOf(row)}): the lambda's relation
@@ -1678,7 +1682,6 @@ public final class Lowerer {
         }
     }
 
-    /** select(~cols) / distinct(~cols): narrow the projection list. */
     /** select(~cols): narrow the projection list. */
     private SqlSelect narrowTo(SqlSelect src, List<String> columns,
                                ExprType info) {
