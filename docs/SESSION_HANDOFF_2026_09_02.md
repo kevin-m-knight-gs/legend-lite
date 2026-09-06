@@ -94,6 +94,15 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
    LANDED batch 111 (the engine's rule is aggregation-only; a plain project under a distinct
    keeps its columns — testLowerProjectColsNotEliminatedWithDistinct pins that).
 
+### Phase 1b — HARNESS REBUILD (user ask 2026-09-06, after batch 112)
+
+Audit: docs/HARNESS_FROM_SCRATCH_AUDIT_2026_09_06.md. 13 tests pass only through the walk;
+the minimum harness is ~2,500 lines (find / assemble / seed / run+judge / referee / score)
+against 16,650; recommendation = write the minimum NEW beside the old, accept it by roster
+equality with the platform-flipped 2451, then delete the walk, the flip machinery, the
+forms, the censuses (test and main side), the harness-named Compiler overloads, and fold
+H2Verify's comparison policy into the platform's. Runs BEFORE the NavPath cleanup.
+
 ### Phase 2 — parked and revisit, decided with the user
 
 Parked (each has a note): testExistsAsNullWithSubType (§8.1 — normalizer routed
