@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 151 | 1 | 3 | 0 | 1 | 1 | 0 | 1 |
+| functions/tests/projection | 155 | 153 | 1 | 1 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 137 | 2 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2454** | 36 | 59 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2456** | 36 | 57 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2454 PASS = 2419 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2456 PASS = 2421 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -522,8 +522,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2454 PASS = 2419 clean + 35 carrying softness (
 - 1x unknown function 'isExecutionOptionPresent' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x deferred let binding '$targetGraph' has no type outside a consuming call position (tree/colspec bindings resolve at their call sites)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
-- 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRESSID, employees_FIRMID, employees_MANAGERID, employees_locations_ID, employees_locations_PERSONID, employees_locations_PLACE, employees_locations_date]
-- 1x project expects ~[…] column specifications
 - 1x nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
@@ -539,19 +537,21 @@ SOFT-PASS RECONCILIATION (F2.1): 2454 PASS = 2419 clean + 35 carrying softness (
 - 1x store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - 1x 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
 - 1x multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
+- 1x in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::tests::query::routing::routeInternal/1]
+- 1x no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 133
+tests in the ledger: 131
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 34 |
-| wall:resolver | 21 |
+| wall:resolver | 19 |
 | wall:exec | 8 |
 | divergence | 21 |
-| not-reached | 25 |
+| not-reached | 23 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
 | pass | 29 |
@@ -604,10 +604,6 @@ tests in the ledger: 133
 - testIsEmptyOnCollection #2 - -> not-reached: 1 assert(s) after the failure
 - testFilterLimitInSequenceForTableAccessor #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOP1" not found; SQL statement: select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNA
 - testLimitFilterInSequenceForTableAccessor #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOP1" not found; SQL statement: select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNA
-- testSubAggregationWithDeepAndOverlap #1 assertSize -> wall:resolver: wall-exec: store resolution left getAll(meta::relational::tests::model::simple::Firm) unresolved — the query shape around it is not :: store resolution left getAll(meta::relational::tests::model::simple::Firm) unresolved — the query shape around it is not supported by the resolver yet [at root > Typ
-- testSubAggregationWithDeepAndOverlap #2 - -> not-reached: 2 assert(s) after the failure
-- testSubAggregationWithDeepAndOverlap_WithColVar #1 assertSize -> wall:resolver: wall-exec: IllegalStateException: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='_' ref='_'meta::pure:: :: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' i
-- testSubAggregationWithDeepAndOverlap_WithColVar #2 - -> not-reached: 2 assert(s) after the failure
 - testExistsAsNullWithSubType #1 assertSize -> wall:resolver: wall-exec: nested navigation '_' inside an exists/isEmpty predic :: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - testExistsAsNullWithSubType #2 - -> not-reached: 2 assert(s) after the failure
 - testFilterAfterJoinInRelationWithExtendedPrimitives #1 meta::relational::functions::asserts::assertSameSQL -> referee-cannot-replay: platform-fail: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""n :: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""name"",""persontable_0"".FIRSTNAMEas""empl
@@ -791,8 +787,6 @@ tests in the ledger: 133
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - FAIL testFilterLimitInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1"where"persontable_1".AGEisnotnulland"persontable_1".AGE>25)as"subselect"connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root"where("root".AGEisnotnulland"root".AGE>25))as"persontable_0"connection=TestDatabaseConnection(type="H2"))
 - FAIL testLimitFilterInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1")as"subselect"where"subselect"."AGE"isnotnulland"subselect"."AGE">25connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root")as"persontable_0"where("persontable_0".AGEisnotnulland"persontable_0".AGE>25)connection=TestDatabaseConnection(type="H2"))
-- ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRE
-- ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
 - SHAPE testGraphFetch [graphFetch/domain]: plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::valuespecification::FunctionExpression has no property 'func' [inlined via meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction/1 -> meta::pure::graphFetch::domain:

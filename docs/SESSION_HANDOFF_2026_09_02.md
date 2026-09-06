@@ -4195,6 +4195,19 @@ key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the f
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
 
+**Batch 104 / L2 sub-aggregation in a fan-out mapper (2026-09-06, chain GREEN ~6m; GATES
+batch 104).** 133/2440 → 131/2442; IMPL 19; L2 closed. Three mechanisms, all the engine's:
+mapper-scoped aggregate = chain aggregate keyed on the element (mapperAggs); the chain-mid
+fold reuses a mid row already on the pipe; registered aggregate nodes take their reads
+before the fan-out inlining rebuilds the body (withAggReads — identity contract). Also:
+println/print statements are inert for the resolver. User checkpoint: asked "are we
+hacking?" — the identity-keyed aggregate registry was examined and KEPT (a content key
+collides across scopes and still misses a rebuilt node). PARKED with a note:
+testNonDataTypeProperty (lineage over a CLASS-typed project column — needs the whole-value
+class column design (Phase H4); the engine's scanColumns is metamodel-level, ours scans
+the lowered SQL, and there is no engine SQL golden for such a column). NEXT:
+testPksWithImportDataFlow.
+
 **Batch 103 / L8 rowValueDifference (2026-09-06, chain GREEN ~6m14s; GATES batch 103).**
 134/2439 → 133/2440; IMPL 21; L8 closed. StaticFold.inlineUserCall: a bodied Pure function
 called with a static argument inside a normalize-required body inlines and folds (engine

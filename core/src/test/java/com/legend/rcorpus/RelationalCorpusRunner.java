@@ -2192,10 +2192,21 @@ public class RelationalCorpusRunner {
             // the callee and folds its body (static args as scope facts).
             // tds::extensions::rowValueDifferenceTest — the whole
             // tdsExtension program lowers to one SQL statement.
-            org.junit.jupiter.api.Assertions.assertEquals(133L,
+            // batch 104 / L2 (2026-09-06): 133 -> 131 — a MAPPER-SCOPED
+            // aggregate (`$f.employees->map(e | 2 + $e.locations.place
+            // ->count())`) is a chain aggregate keyed on the element: a
+            // grouped subselect by the person id joined back onto the
+            // employee fan-out row already on the pipe (never a second copy
+            // of the hop) — CorrelatedSubselects.mapperAggs + foldChainMid;
+            // the registered node takes its read BEFORE the fan-out inlining
+            // rebuilds the body (Substitution.withAggReads, the identity
+            // contract). A println/print statement is INERT for the resolver
+            // too (its lambda-value argument is data). aggregation::
+            // testSubAggregationWithDeepAndOverlap (+ _WithColVar).
+            org.junit.jupiter.api.Assertions.assertEquals(131L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2440L,
+            org.junit.jupiter.api.Assertions.assertEquals(2442L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

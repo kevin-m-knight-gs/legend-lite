@@ -152,30 +152,49 @@ final class CorrelatedSubselects {
                     + "' whose filter predicate reads the outer row is not"
                     + " supported yet");
         }
-        String midBase = head.substring(0, head.indexOf('.')) + "_"
-                + SyntheticHeads.realHead(chainFinal) + "_mid";
-        String midPrefix = AssociationJoins.prefixFor(midBase, cs);
-        int mOrd = 2;
-        while (!usedChainPrefixes.add(midPrefix)) {
-            midPrefix = AssociationJoins.prefixFor(midBase + "_" + mOrd++, cs);
-        }
         Type.RelationType leftRowM =
                 Type.requireRelationSchema(withJoins.info().type());
-        List<Type.Column> colsM = new ArrayList<>(leftRowM.columns());
-        for (Type.Column c : midAj.targetRow().columns()) {
-            colsM.add(new Type.Column(midPrefix + c.name(),
-                    c.type(), c.multiplicity()));
+        // the MID hop's row ALREADY on the pipe (a bare fan-out / nav join
+        // materialized in step 2b — `$f.employees->map(e | 2 + $e
+        // .locations.place->count())`, whose `$e.lastName` read demanded
+        // the employees join): the aggregate keys on THAT row — the
+        // engine's grouped subselect joins back onto persontable_0, never a
+        // second copy of the hop (testSubAggregationWithDeepAndOverlap)
+        String bare = midAj.prefix();
+        boolean midOnPipe = bare != null && midAj.targetRow().columns().stream()
+                .allMatch(c -> leftRowM.columns().stream()
+                        .anyMatch(x -> x.name().equals(bare + c.name())));
+        String midPrefix;
+        Type.RelationType midJoinedRow;
+        TypedSpec widened;
+        if (midOnPipe) {
+            midPrefix = bare;
+            midJoinedRow = leftRowM;
+            widened = withJoins;
+        } else {
+            String midBase = head.substring(0, head.indexOf('.')) + "_"
+                    + SyntheticHeads.realHead(chainFinal) + "_mid";
+            midPrefix = AssociationJoins.prefixFor(midBase, cs);
+            int mOrd = 2;
+            while (!usedChainPrefixes.add(midPrefix)) {
+                midPrefix = AssociationJoins.prefixFor(midBase + "_" + mOrd++, cs);
+            }
+            List<Type.Column> colsM = new ArrayList<>(leftRowM.columns());
+            for (Type.Column c : midAj.targetRow().columns()) {
+                colsM.add(new Type.Column(midPrefix + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+            midJoinedRow = new Type.RelationType(colsM);
+            widened = new TypedJoin(withJoins, midAj.targetPipeline(),
+                    AssociationJoins.leftKind(),
+                    java.util.Objects.requireNonNull(midAj.condition(),
+                            "mid-hop association condition"),
+                    Optional.of(midPrefix), frameName,
+                    new ExprType(Type.relation(midJoinedRow),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE),
+                    false /* resolver-synth */);
         }
-        Type.RelationType midJoinedRow = new Type.RelationType(colsM);
-        TypedSpec widened = new TypedJoin(withJoins, midAj.targetPipeline(),
-                AssociationJoins.leftKind(),
-                java.util.Objects.requireNonNull(midAj.condition(),
-                        "mid-hop association condition"),
-                Optional.of(midPrefix), frameName,
-                new ExprType(Type.relation(midJoinedRow),
-                        com.legend.compiler.element.type.Multiplicity
-                                .Bounded.ONE),
-                false /* resolver-synth */);
         TypedLambda finCond = java.util.Objects.requireNonNull(
                 aj.condition(), "chain-final association condition");
         String lpChain = finCond.parameters().get(0);
@@ -2251,7 +2270,12 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 c -> renameSubTypeReads(c, p0, subFqn, target));
     }
 
-    /** ORDERING CONTRACT (audit 15 B3): aggReads is IDENTITY-keyed on the
+    /** ORDERING CONTRACT (audit 15 B3): aggReads is IDENTITY-keyed on
+     * the scanned nodes — every path that REBUILDS a registered node must
+     * replace it first (Substitution.withAggReads guards the fan-out
+     * inlining, batch 104); a content key would collide across scopes
+     * (`count($e.locations)` under two different heads) and still miss a
+     * rebuilt node, so identity + this rule IS the design. Also: the
      * scanned nodes — this scan must run AFTER every identity-changing
      * rewrite (splitDatedHeads etc.) and its keys are consumed in the SAME
      * resolveObject pass. A rewrite inserted between scan and substitution
@@ -2502,28 +2526,9 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         + " containing a to-many navigation is not supported yet");
             }
         }
-        // VALUE-POSITION fan-out (task #78 step 2): a BARE ->map over a
-        // to-many head (no reducer — the exploded values ARE the result;
-        // engine golden testAdvancedDerivedPropertyThroughAssociation)
-        // demands [head, leaf] for every leaf the mapper reads off its
-        // param, so the flat LEFT JOIN materializes with those columns and
-        // the substitution's inline arm resolves them.
+        // VALUE-POSITION fan-out and its mapper-scoped aggregates (own seam)
         if (n instanceof TypedMap tm && tm.mapper().parameters().size() == 1) {
-            List<String> sp = Substitution.pathOf(tm.source(), userVar);
-            if (sp != null && sp.size() == 1 && toManyHead.test(cs, sp.get(0))) {
-                String mv = tm.mapper().parameters().get(0);
-                Set<List<String>> mp = new LinkedHashSet<>();
-                for (TypedSpec b : tm.mapper().body()) {
-                    FlattenOps.consumedPaths(b, mv, mp);
-                }
-                for (List<String> lp : mp) {
-                    List<String> full = new ArrayList<>();
-                    full.add(sp.get(0));
-                    full.addAll(lp);
-                    bareOut.add(full);
-                }
-                bareOut.add(sp);
-            }
+            fanOutMapDemands(tm, userVar, cs, aggOut, bareOut, toManyHead);
         }
         List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
@@ -2581,6 +2586,83 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                     toManyHead, bareHead);
         }
         return true;
+    }
+
+    /** VALUE-POSITION fan-out (task #78 step 2): a BARE ->map over a
+     * to-many head (no reducer — the exploded values ARE the result;
+     * engine golden testAdvancedDerivedPropertyThroughAssociation)
+     * demands [head, leaf] for every leaf the mapper reads off its
+     * param, so the flat LEFT JOIN materializes with those columns and
+     * the substitution's inline arm resolves them; a mapper-scoped
+     * aggregate over the element's own navigation registers as a chain
+     * aggregate instead ({@link #mapperAggs}). */
+    private static void fanOutMapDemands(TypedMap tm, String userVar, ClassSource cs,
+            Map<String, List<StoreResolver.AggDemand>> aggOut,
+            Set<List<String>> bareOut,
+            java.util.function.BiPredicate<ClassSource, String> toManyHead) {
+        List<String> sp = Substitution.pathOf(tm.source(), userVar);
+        if (sp != null && sp.size() == 1 && toManyHead.test(cs, sp.get(0))) {
+            String mv = tm.mapper().parameters().get(0);
+            // a MAPPER-SCOPED aggregate over the element's own
+            // navigation (`2 + $e.locations.place->count()`) is a
+            // chain-aggregate keyed on the element: registered under
+            // the dotted key head.hop with the tail as its mapper
+            // (the grouped subselect keyed by the person id, joined
+            // back onto the fan-out row — engine golden
+            // testSubAggregationWithDeepAndOverlap); its navigation is
+            // never a fan-out demand
+            Set<String> aggHops = new LinkedHashSet<>();
+            for (TypedSpec b : tm.mapper().body()) {
+                mapperAggs(b, mv, sp.get(0), aggOut, aggHops);
+            }
+            Set<List<String>> mp = new LinkedHashSet<>();
+            for (TypedSpec b : tm.mapper().body()) {
+                FlattenOps.consumedPaths(b, mv, mp);
+            }
+            for (List<String> lp : mp) {
+                if (!lp.isEmpty() && aggHops.contains(lp.get(0))) {
+                    continue;
+                }
+                List<String> full = new ArrayList<>();
+                full.add(sp.get(0));
+                full.addAll(lp);
+                bareOut.add(full);
+            }
+            bareOut.add(sp);
+        }
+    }
+
+    /** Aggregates inside a to-many MAPPER body over the element's own
+     * navigation ({@code $e.locations.place->count()} under
+     * {@code $f.employees->map(e | …)}): each registers under the dotted
+     * key {@code head.hop} with the tail past the hop as its mapper (the
+     * chain-aggregate form, keyed on the element); {@code aggHops}
+     * collects the hops so the fan-out demand skips them. Shadowing
+     * binders stop the walk. */
+    private static void mapperAggs(TypedSpec n, String mv, String head,
+            Map<String, List<StoreResolver.AggDemand>> aggOut, Set<String> aggHops) {
+        if (n instanceof TypedNativeCall nc && !nc.args().isEmpty() && isAggregate(nc)) {
+            List<String> path = Substitution.pathOf(nc.args().get(0), mv);
+            if (path != null && path.size() >= 2) {
+                TypedLambda tail = tailMapperOf(nc.args().get(0), mv, 1);
+                if (tail != null) {
+                    com.legend.lowering.NavArmCensus.fire("agg-mapper-scoped-arm");
+                    aggOut.computeIfAbsent(head + "." + path.get(0), k -> new ArrayList<>())
+                            .add(new StoreResolver.AggDemand(nc, null, tail));
+                    aggHops.add(path.get(0));
+                    for (int i = 1; i < nc.args().size(); i++) {
+                        mapperAggs(nc.args().get(i), mv, head, aggOut, aggHops);
+                    }
+                    return;
+                }
+            }
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(mv)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            mapperAggs(c, mv, head, aggOut, aggHops);
+        }
     }
 
     /** The per-element TAIL of a deep aggregated navigation, rebuilt as

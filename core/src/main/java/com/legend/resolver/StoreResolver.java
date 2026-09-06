@@ -5,6 +5,7 @@ import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedAggCol;
@@ -191,6 +192,14 @@ public final class StoreResolver {
             // execute() route too (batch 69c — the from() route lifted at
             // its TypedFrom, the driver-runtime route never did: the
             // datePeriods agg's `$reportEndDate.day` reached substitution)
+            // an INERT diagnostic statement (println/print: the executor's
+            // arm never evaluates the argument) passes through unresolved
+            // — its argument may be a lambda VALUE, not a query
+            if (stmt instanceof TypedNativeCall dg
+                    && PlatformTypes.isInertDiagnostic(dg.callee().qualifiedName())) {
+                out.add(stmt);
+                continue;
+            }
             stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings);
             out.add(ObjectReferenceDecode.rewrite(resolveNode(stmt, context), ctx, sources));
         }
@@ -198,6 +207,10 @@ public final class StoreResolver {
             out.set(i, onFormPass(out.get(i), callees.and()));
         }
         for (TypedSpec stmt : out) {
+            if (stmt instanceof TypedNativeCall dg
+                    && PlatformTypes.isInertDiagnostic(dg.callee().qualifiedName())) {
+                continue;
+            }
             assertNoStoreOnlyEscapees(stmt);
         }
         return out;

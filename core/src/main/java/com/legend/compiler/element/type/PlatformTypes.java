@@ -503,6 +503,15 @@ public final class PlatformTypes {
                 || "queryPostProcessorsWithParameter".equals(name);
     }
 
+    /** INERT diagnostics: print/println — the executor's registered arm
+     * never evaluates the argument (engine parity is the statement's
+     * inertness), so the resolver leaves such a statement untouched too:
+     * a printed LAMBDA VALUE ({@code println($l->evaluateAndDeactivate())})
+     * is data, never a query to resolve. */
+    public static boolean isInertDiagnostic(String fqn) {
+        return PRINT.equals(fqn) || PRINTLN.equals(fqn);
+    }
+
     /** All K-natives: calls that EXECUTE at the K boundary and never lower. */
     public static boolean isKNative(String fqn) {
         return EXECUTE_IN_DB.equals(fqn)

@@ -1842,28 +1842,47 @@ final class Substitution {
                 "registries built without an equal callee");
     }
 
+    /** The grouped-subselect read a registered aggregate node becomes —
+     * same ExprType as the node it replaces (discipline, plan risk #1);
+     * a count-family read is 0 when the group is absent. */
+    private TypedSpec aggReadExpr(TypedSpec n, AggRead aggRead) {
+        TypedSpec read = new TypedPropertyAccess(
+                new TypedVariable(target.freshRowVar(),
+                        new ExprType(target.rowType(), Multiplicity.Bounded.ONE)),
+                aggRead.column(), n.info());
+        if (!aggRead.zeroWhenEmpty()) {
+            return read;
+        }
+        return new TypedIf(
+                new TypedNativeCall(neCallee(), List.of(read),
+                        new ExprType(Type.Primitive.BOOLEAN,
+                                Multiplicity.Bounded.ONE)),
+                read,
+                Optional.of(new com.legend.compiler.spec.typed
+                        .TypedCInteger(0L, new ExprType(Type.Primitive.INTEGER,
+                                Multiplicity.Bounded.ONE))),
+                n.info());
+    }
+
+    /** Registered aggregate nodes INSIDE a fan-out mapper body (the
+     * mapper-scoped chain aggregates, CorrelatedSubselects.mapperAggs)
+     * become their reads BEFORE the param inlining rebuilds the body —
+     * the demand scan keyed them by IDENTITY on the original nodes. */
+    private TypedSpec withAggReads(TypedSpec n) {
+        AggRead ar = target.aggReads().get(n);
+        if (ar != null) {
+            return aggReadExpr(n, ar);
+        }
+        return n.mapChildren(this::withAggReads);
+    }
+
     private TypedSpec rewrite(TypedSpec n) {
         // AGGREGATE over a to-many navigation (identity-registered by the
         // demand scan): the whole call reads its grouped-subselect column —
         // same ExprType as the node it replaces (discipline, plan risk #1).
         AggRead aggRead = target.aggReads().get(n);
         if (aggRead != null) {
-            TypedSpec read = new TypedPropertyAccess(
-                    new TypedVariable(target.freshRowVar(),
-                            new ExprType(target.rowType(), Multiplicity.Bounded.ONE)),
-                    aggRead.column(), n.info());
-            if (!aggRead.zeroWhenEmpty()) {
-                return read;
-            }
-            return new TypedIf(
-                    new TypedNativeCall(neCallee(), List.of(read),
-                            new ExprType(Type.Primitive.BOOLEAN,
-                                    Multiplicity.Bounded.ONE)),
-                    read,
-                    Optional.of(new com.legend.compiler.spec.typed
-                            .TypedCInteger(0L, new ExprType(Type.Primitive.INTEGER,
-                                    Multiplicity.Bounded.ONE))),
-                    n.info());
+            return aggReadExpr(n, aggRead);
         }
         // TO-MANY navigation under an emptiness call: correlated EXISTS —
         // the target pipeline filtered by the association condition (parent
@@ -1996,7 +2015,7 @@ final class Substitution {
                     new TypedMap(rewrite(m.source()),
                             (TypedLambda) rewrite(m.mapper()), m.info());
             case TypedMap m when objectSpaceFanOut(m) ->
-                    rewrite(inlineParam(m.mapper().body().get(0),
+                    rewrite(inlineParam(withAggReads(m.mapper().body().get(0)),
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
