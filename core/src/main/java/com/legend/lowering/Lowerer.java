@@ -699,7 +699,13 @@ public final class Lowerer {
     private SqlUnion union(TypedConcatenate c) {
         List<SqlQuery> branches = new ArrayList<>();
         collectBranches(c, branches);
-        return new SqlUnion(branches, true, outputsOf(c.info()));
+        List<OutputCol> outs = outputsOf(c.info());
+        // a VALUE-typed concatenate (a scalar map distributed over a class
+        // concatenate) has no relation schema: the branches' one value column
+        if (outs.isEmpty() && !branches.isEmpty()) {
+            outs = branches.get(0).outputs();
+        }
+        return new SqlUnion(branches, true, outs);
     }
 
     private void collectBranches(TypedSpec spec, List<SqlQuery> out) {

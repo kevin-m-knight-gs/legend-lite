@@ -426,13 +426,12 @@ public final class StoreResolver {
                         resolveNode(new TypedMap(c.args().get(1), m.mapper(), m.info()), context),
                         m.info());
             }
-            // a class-collection CONCATENATE as the whole-instance terminal
-            // (a row-arm match's branches): each side resolves as its own
-            // object-space chain; UNION ALL of the same class layout
-            case TypedNativeCall c when classConcatOf(c) != null
-                    && c.info().type() instanceof Type.ClassType ->
-                    new TypedConcatenate(resolveNode(c.args().get(0), context),
-                            resolveNode(c.args().get(1), context), c.info());
+            // executed-concatenate map distribution / whole-instance terminal (ClassConcatenates)
+            case TypedMap m when m.source() instanceof TypedFrom fr0 && classConcatOf(fr0.source()) != null ->
+                    ClassConcatenates.mapOverExecuted(m, fr0,
+                            java.util.Objects.requireNonNull(classConcatOf(fr0.source())), x -> resolveNode(x, context));
+            case TypedNativeCall c when classConcatOf(c) != null && c.info().type() instanceof Type.ClassType ->
+                    ClassConcatenates.terminal(c, resolveNode(c.args().get(0), context), resolveNode(c.args().get(1), context));
             // ->map(o|$o.nav->match([...])) — a SCALAR map whose body is a
             // match over a navigation off the parameter: the flatten IS
             // the body with the source spliced for the parameter (the

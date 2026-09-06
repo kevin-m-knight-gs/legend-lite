@@ -2157,10 +2157,19 @@ public class RelationalCorpusRunner {
             // milestoning context per cursor, an explicit property-function
             // date building a new context for its hop.
             // testDateFunctionInMilestonedPropertyWithMilestonedEntity.
-            org.junit.jupiter.api.Assertions.assertEquals(138L,
+            // batch 97 / L6 (2026-09-06): 138 -> 137 — a class concatenate
+            // executed as instances (Product.all()->concatenate(Product.all()))
+            // fuses its two implicit-serialize graph terminals into ONE graph
+            // over the UNION of their row sources (ClassConcatenates.terminal —
+            // the engine's one unionalias instance stream), a value read over
+            // the executed concatenate distributes per side
+            // (ClassConcatenates.mapOverExecuted), and a value-typed union's
+            // plan outputs are its branches' column (Lowerer.union).
+            // query::function::concatenate::testAll.
+            org.junit.jupiter.api.Assertions.assertEquals(137L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2435L,
+            org.junit.jupiter.api.Assertions.assertEquals(2436L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

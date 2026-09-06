@@ -4176,3 +4176,12 @@ source2) (StoreResolver's class-concatenate terminal arm); then
 testGroupByWithWindowSubset (admit tds.pure:867 verbatim + StaticFold sort/compare/
 indexOf/contains vocabulary), testTableToTdsWithCrossJoin (TableAlias at the
 lowering boundary), L5 XStore (Relation-function ModelJoins), L6/L13.
+
+**Batch 97 / L6b class concatenate as instances (2026-09-06, chain GREEN 6m12s; GATES
+batch 97).** 138/2435 → 137/2436; IMPL 25. resolver/ClassConcatenates (graph-terminal
+fusion over the union; map distribution over the executed frame) + Lowerer.union
+outputs fallback. NEXT probes: testTableToTdsWithCrossJoin (lineage; TableAlias at the
+lowering boundary — tableToTDS(tableReference) join with a constant predicate),
+testGroupByWithWindowSubset (program admission), L5 XStore Relation-function
+ModelJoins, testCheckedWithCircularConstraints, m2m2r, isolationTest, the embedded-
+head trio, rowValueDifference.

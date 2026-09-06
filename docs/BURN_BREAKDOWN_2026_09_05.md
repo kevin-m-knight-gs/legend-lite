@@ -110,14 +110,14 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 
 ### L6 Graph fetch (4)
 
-Status: **batch 80 / L6a LANDED (2026-09-06)** — testGraphFetchWithTableMapperPostProcessor flipped (156/2417).
+Status: **batch 97 / L6b LANDED (2026-09-06)** — concatenate::testAll flipped (137/2436): a class concatenate executed as instances is ONE graph over the UNION of the two row sources (the engine's unionalias instance stream). **batch 80 / L6a LANDED (2026-09-06)** — testGraphFetchWithTableMapperPostProcessor flipped (156/2417).
 
 | test | detail |
 |---|---|
 | graphFetch::simple::testCheckedWithCircularConstraints | DIVERGENCE: `graphFetchChecked` defects — constraint evaluation in the checked envelope (expected 1 defect, ours 0) |
 | graphFetch::simple::testGraphFetchWithTableMapperPostProcessor | **FLIPPED batch 80** — the connection's MapperPostProcessor rides the tableReplace channel (SqlPostProcessors.hooks: exact-FQN TableNameMapper/SchemaNameMapper; other kinds loud); renames now reach aggregate arguments (the graph envelope's child subquery) and every execute a statement reaches through ordinary lets |
 | graphFetch::union::propertyLevel::test6 | DIVERGENCE: `Firm B` vs `Firm X` — property-level union in graph fetch |
-| query::function::concatenate::testAll | lowering not implemented for TypedSerializeGraph — `Product.all()->concatenate(Product.all())` as instances |
+| query::function::concatenate::testAll | **FLIPPED batch 97** — two implicit-serialize graph terminals of one class layout fuse into ONE graph over the union of their sources (ClassConcatenates.terminal); `$result.values.name` distributes per side over the executed frame (ClassConcatenates.mapOverExecuted); a value-typed union takes its branches' outputs |
 
 ### L7 Post-processors as compiler passes (4)
 
@@ -407,7 +407,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 → **26**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 → **25**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

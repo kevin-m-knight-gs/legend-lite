@@ -1061,6 +1061,12 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 97 / L6b class concatenate as instances
+(2026-09-06):** exec-passing 7, text-only 11, unable-to-exec 10 unchanged;
+ratchet 138/2435 → 137/2436 (concatenate::testAll — instance count, the name
+multiset, and the assertSameSQL golden replayed on H2 against our union rows);
+disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 96 / L12 dated embedded head + two receipts
 (2026-09-06):** exec-passing 7, unable-to-exec 10 unchanged; text-only 12 → 11
 (the milestoned test's assertEqualsH2Compatible golden was a plan-literal text
