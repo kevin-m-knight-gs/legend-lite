@@ -53,7 +53,8 @@ public final class Render {
             com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
-            String alias) {
+            String alias,
+            java.util.Map<Integer, Type.RelationType> deferredTds) {
         boolean renderTdsNull = switch (tc.args().size()) {
             case 1 -> false;
             case 2, 4 -> {
@@ -78,6 +79,18 @@ public final class Render {
                     "toCSV: unexpected arity " + tc.args().size());
         };
         SqlSelect inner = relation.apply(tc.args().get(0));
+        // a LATE-BOUND inner (a raw grid: executeInDbToTDS — batch 82) or
+        // a pivot inner: the column list exists only at the execution
+        // boundary — DEFER the CSV composition exactly like the '#TDS'
+        // toString (resolveDeferredTds composes by form)
+        if ((inner.outputs().isEmpty() || hasDynamicPivot(inner))
+                && Type.relationSchema(tc.args().get(0).info().type())
+                        instanceof Type.RelationType drt) {
+            int id = deferredTds.size();
+            deferredTds.put(id, drt);
+            return new SqlExpr.DeferredTdsString(inner, alias, id,
+                    SqlExpr.DeferredTdsString.Form.CSV, renderTdsNull);
+        }
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         if (Type.relationSchema(tc.args().get(0).info().type())
                 instanceof Type.RelationType rt) {
@@ -461,7 +474,9 @@ public final class Render {
             concrete = concrete.withOrderBy(keys);
         }
         return new SqlExpr.ScalarSubquery(
-                tdsString(concrete, relCols, d.alias() + "_r"));
+                d.form() == SqlExpr.DeferredTdsString.Form.CSV
+                        ? csv(concrete, relCols, d.renderTdsNull(), d.alias() + "_r")
+                        : tdsString(concrete, relCols, d.alias() + "_r"));
     }
 
     /** The '#TDS' text (engine toString.pure:24-35): {@code #TDS\n} +

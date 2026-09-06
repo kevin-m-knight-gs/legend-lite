@@ -63,7 +63,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 259 | 3 | 3 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
-| tests | 39 | 28 | 2 | 8 | 1 | 0 | 0 | 0 | 0 |
+| tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2432** | 38 | 76 | 29 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2433** | 38 | 76 | 28 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2432 PASS = 2397 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2433 PASS = 2398 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,12 +542,12 @@ SOFT-PASS RECONCILIATION (F2.1): 2432 PASS = 2397 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 155
+tests in the ledger: 154
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 39 |
+| wall:typer | 38 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
 | divergence | 24 |
@@ -714,7 +714,6 @@ tests in the ledger: 155
 - testConnectionEqualityTypeDiff #1 assert -> wall:lowering: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
 - testConnectionEqualityTypeSameSpecDiff #1 assert -> wall:lowering: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
 - testConnectionEqualityTypeSpecSameAuthDiff #1 assert -> wall:lowering: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
-- testExecuteInDbToTDS #0 - -> wall:typer: wall-type: NormalizeRequired function '_' has non-let intermediate statements —  :: meta::relational::metamodel::execute::tests::testExecuteInDbToTDS :: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - testResultToJsonStream #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a :: meta::relational::tests::json::testResultToJsonStream :: 'GeographicEntityType' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully 
 - testExtractDBsWithSubstituition #1 assertSize -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function '_' — no function of this name in the n :: in function 'meta::relational::runtime::extractDBs': unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - testExtractDBsWithSubstituition #2 - -> not-reached: 1 assert(s) after the failure
@@ -897,7 +896,6 @@ tests in the ledger: 155
 - ERROR testConnectionEqualityTypeDiff [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
 - ERROR testConnectionEqualityTypeSameSpecDiff [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
 - ERROR testConnectionEqualityTypeSpecSameAuthDiff [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
-- SHAPE testExecuteInDbToTDS [tests]: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - ERROR testResultToJsonStream [tests]: 'GeographicEntityType' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExtractDBsWithSubstituition [tests]: in function 'meta::relational::runtime::extractDBs': unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::runtime::extractDBs/1 -> meta::relational::runtime::extractDBs/2]
 - ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCoreTypeToDbSpecificType/2]

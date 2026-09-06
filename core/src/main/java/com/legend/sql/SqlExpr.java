@@ -790,13 +790,24 @@ public sealed interface SqlExpr
      * never carries compiler types. A node reaching a renderer is a
      * routing bug and walls loudly there. */
     record DeferredTdsString(SqlSelect inner, String alias, int id,
+            Form form, boolean renderTdsNull,
             TypeFact type) implements SqlExpr {
+        /** The relation TEXT form the boundary composes (batch 82: a
+         * LATE-BOUND raw grid — executeInDbToTDS — defers its toCSV the
+         * same way a pivot inner defers its '#TDS' toString). */
+        public enum Form { TDS_STRING, CSV }
+
         public DeferredTdsString {
-            type = SqlTyping.T_VARCHAR;   // a relation-toString cell
+            type = SqlTyping.T_VARCHAR;   // a relation-text cell
         }
 
         public DeferredTdsString(SqlSelect inner, String alias, int id) {
-            this(inner, alias, id, SqlTyping.UNKNOWN);
+            this(inner, alias, id, Form.TDS_STRING, false, SqlTyping.UNKNOWN);
+        }
+
+        public DeferredTdsString(SqlSelect inner, String alias, int id,
+                Form form, boolean renderTdsNull) {
+            this(inner, alias, id, form, renderTdsNull, SqlTyping.UNKNOWN);
         }
     }
 

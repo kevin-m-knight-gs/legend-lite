@@ -113,6 +113,15 @@ public final class PlatformTypes {
      */
     public static final String EXECUTE_IN_DB = "meta::relational::metamodel::execute::executeInDb";
 
+    /** executeInDbToTDS(sql, connectionFunction) — the engine's program is
+     * executeInDb(sql, fn)->resultSetToTDS() (execute.pure:73-90): a VALUE
+     * MAPPING of the result set into a TDS, which our raw-grid relation
+     * already is. Platform-owned (the program never inlines); the Typer's
+     * raw-grid arm binds the call ONCE to the late-bound relation exactly
+     * as executeInDb over a single-query literal. Batch 82. */
+    public static final String EXECUTE_IN_DB_TO_TDS =
+            "meta::relational::metamodel::execute::executeInDbToTDS";
+
     /** JDBC DatabaseMetaData reads — HOST-evaluated against the H2
      * second target (engine-parity metadata casing), never lowered. */
     public static final String FETCH_DB_TABLES_META_DATA =
@@ -419,6 +428,7 @@ public final class PlatformTypes {
                 || TO_CSV.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)
+                || EXECUTE_IN_DB_TO_TDS.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
                 || TO_SQL.equals(fqn)
@@ -605,6 +615,9 @@ public final class PlatformTypes {
                     java.util.Map.entry(TO_SQL_STRING, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(TO_NON_EXECUTABLE_SQL_STRING, NativeImpl.JAVA_ROUTINE),
+                    // batch 82: bound ONCE at type-check to the late-bound
+                    // raw-grid relation (Typer.rawGridOrSelf)
+                    java.util.Map.entry(EXECUTE_IN_DB_TO_TDS, NativeImpl.CARRIER),
                     // batch 75: the SQLResult handle — consumed by the
                     // 5-argument toSQLString row above (the plan handle's
                     // twin: no rows of its own, the consumer forces it)

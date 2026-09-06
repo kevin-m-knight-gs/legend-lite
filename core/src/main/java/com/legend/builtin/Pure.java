@@ -1400,6 +1400,11 @@ public final class Pure {
     // engine pure is the spec, the platform's definition is Java): same FQN,
     // user definitions suppress; the K dispatch and the Phase 1c retype key
     // on the FQN and the sql literal, indifferent to arity
+    // executeInDbToTDS (execute.pure:87-90): executeInDb(sql, fn)->resultSetToTDS()
+    // — the result set as a TDS. Platform-owned: the raw grid the Typer
+    // binds for executeInDb over a single-query literal IS that TDS; the
+    // connection function names the ambient session (batch 82).
+    public static final NativeFunctionDefinition EXECUTE_IN_DB_TO_TDS__STRING_1__FN_1 = signature("native function meta::relational::metamodel::execute::executeInDbToTDS(sql:meta::pure::metamodel::type::String[1], databaseConnectionFunction:meta::pure::metamodel::function::Function<{->meta::external::store::relational::runtime::DatabaseConnection[1]}>[1]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::relational::metamodel::execute::ResultSet[1];");
     // JDBC DatabaseMetaData reads (REAL platform_store_relational/
     // functions.pure:34-41) — evaluated HOST-SIDE against the H2 second

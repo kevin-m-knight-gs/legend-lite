@@ -3915,3 +3915,16 @@ the engine prefixes the EXECUTED SQL with `-- "executionTraceID" : "<uuid>"`
 and records it as the activity's comment (PlanAllocations.registerActivityRows
 deliberately records none today) — plumbing: stamp the executed text and
 record the same comment.
+
+**Batch 82 / L14a (2026-09-06, chain GREEN 6m43s; GATES batch 82).** 155/2418 →
+154/2419; IMPL 53. executeInDbToTDS = the raw grid typed TDS (Typer.rawGridOrSelf,
+NativeImpl.CARRIER); a late-bound inner's toCSV defers to the boundary
+(DeferredTdsString.Form.CSV). Typer is AT 3,500 lines again — the next Typer
+line needs a seam split. NEXT = batch 83 (L16 testSQLComments): the engine
+prefixes the EXECUTED SQL with `-- "executionTraceID" : "<uuid>"` and records
+it as the RelationalActivity comment; ours: Executor.execute stamps each
+executed statement and publishes the comment (thread-local), and
+PlanAllocations.registerActivityRows (called AFTER the eager run at
+StatementExecutor ~1609) records it in the activities row's comment column
+(index 5; SystemMetamodel ACTIVITY_KINDS maps sql/comment); a frame that did
+not run records none.

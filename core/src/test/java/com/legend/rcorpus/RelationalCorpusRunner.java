@@ -2056,10 +2056,16 @@ public class RelationalCorpusRunner {
             // native on the one K-routine; the nonExecutable IR pass renders,
             // and the sql-text arm's rows leg runs under it (both sides read
             // zero rows by construction). testNonExecutableSQLString.
-            org.junit.jupiter.api.Assertions.assertEquals(155L,
+            // batch 82 / L14a (2026-09-06): 155 -> 154 — executeInDbToTDS is the
+            // raw grid typed TDS (the engine's resultSetToTDS is a value
+            // mapping of the result set our late-bound relation already is;
+            // Typer.rawGridOrSelf binds it once), and a late-bound inner's
+            // toCSV defers to the execution boundary like the pivot '#TDS'
+            // toString (DeferredTdsString.Form.CSV). testExecuteInDbToTDS.
+            org.junit.jupiter.api.Assertions.assertEquals(154L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2418L,
+            org.junit.jupiter.api.Assertions.assertEquals(2419L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

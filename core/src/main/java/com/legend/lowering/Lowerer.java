@@ -2950,7 +2950,7 @@ public final class Lowerer {
             // F4.2 (RENDER): toCSV is a plan PROJECTION the DB executes
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                Render.lowerToCsv(tc, this::relation, nextAlias());
+                Render.lowerToCsv(tc, this::relation, nextAlias(), deferredTds);
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"

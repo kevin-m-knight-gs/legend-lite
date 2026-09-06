@@ -232,7 +232,7 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(d.inner());
                 yield sub == d.inner() ? d
                         : new SqlExpr.DeferredTdsString((SqlSelect) sub,
-                                d.alias(), d.id());
+                                d.alias(), d.id(), d.form(), d.renderTdsNull());
             }
             case SqlExpr.JsonObject j -> {
                 List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);

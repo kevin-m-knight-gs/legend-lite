@@ -1475,8 +1475,8 @@ final class Typer {
         }
         String fqn = nc.callee().qualifiedName();
         String sql = null;
-        if (com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
-                        .equals(fqn)
+        if ((com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB.equals(fqn)
+                    || com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB_TO_TDS.equals(fqn))
                 && !nc.args().isEmpty()
                 && nc.args().get(0) instanceof
                         com.legend.compiler.spec.typed.TypedCString lit

@@ -1061,6 +1061,11 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 82 / L14a (2026-09-06):** exec-passing 7,
+text-only 12, unable-to-exec 9 unchanged; ratchet 155/2418 → 154/2419
+(testExecuteInDbToTDS — value verdicts over the raw grid: the cell read and the
+CSV text); disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 81 / L7a (2026-09-06):** text-only 13 → 12
 (testNonExecutableSQLString's assertSameSQL left the walk's lane — the
 toNonExecutableSQLString producer is recognized, its text diverges from the
