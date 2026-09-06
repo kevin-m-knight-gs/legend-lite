@@ -19,7 +19,8 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
 ### Phase 1 — burn everything that needs NEITHER code-as-data NOR metamodel-as-data
 
 1. **isolationTest** (L1) — LANDED batch 106 (2026-09-06, 129/2444; GATES batch 106).
-   1b. **PATH-MODEL LEG (user ruling 2026-09-06, sized BEFORE the embedded-head trio):**
+   1b. **PATH-MODEL LEG (user ruling 2026-09-06; ORDER re-ruled the same day: burn everything
+   Phase 1 can burn FIRST, then this cleanup, THEN Phase 2 parked/revisit):**
    the resolver's navigation registry models paths as `List<String>`, chain keys as dotted
    strings, synthetic identity as a `#fN` suffix INSIDE the property name (`realHead`), and
    column landings as prefix strings with `startsWith` collision checks (census in memory

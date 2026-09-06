@@ -34,7 +34,7 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
-Status: **batch 106 / L1 isolation (element-scoped tail predicate) LANDED (2026-09-06)** — isolationTest flipped (129/2444), both asserts; IMPL 16, REVISIT 7. USER RULING (same day): the resolver's string-keyed path model is a debt — a NavPath/Hop leg is sized BEFORE the embedded-head trio (memory string-hacking-audit-navigation-paths).
+Status: **batch 106 / L1 isolation (element-scoped tail predicate) LANDED (2026-09-06)** — isolationTest flipped (129/2444), both asserts; IMPL 16, REVISIT 7. USER RULING (same day): the resolver's string-keyed path model is a debt — a NavPath/Hop leg runs AFTER Phase 1 is burned out and BEFORE Phase 2 (user re-ruling, same day; memory string-hacking-audit-navigation-paths).
 
 Status: **batch 105 / L13 tdsToJSONKeyValueObjectString LANDED (2026-09-06)** — executeProjectWithNestedDerivedProperty flipped (130/2443); planGraphFetchWithDerivedProperty reclassified TEXT; two REVISIT receipts (test6, testCheckedWithCircularConstraints); testPksWithImportDataFlow PARKED. IMPL 17, REVISIT 7.
 
