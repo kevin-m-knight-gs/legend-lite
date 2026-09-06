@@ -430,6 +430,18 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.List<com.legend.model.FunctionDefinition>
+            findFunctionDefinitions(String fqn) {
+        java.util.List<com.legend.model.FunctionDefinition> out = new java.util.ArrayList<>(1);
+        for (com.legend.model.Function f : model.findFunction(fqn)) {
+            if (f instanceof com.legend.model.FunctionDefinition fd) {
+                out.add(fd);
+            }
+        }
+        return out;
+    }
+
+    @Override
     public Optional<com.legend.model.FunctionDefinition>
             findFunctionDefinition(String fqn) {
         for (com.legend.model.Function f : model.findFunction(fqn)) {

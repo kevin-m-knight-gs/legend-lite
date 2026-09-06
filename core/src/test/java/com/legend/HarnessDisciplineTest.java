@@ -107,6 +107,11 @@ class HarnessDisciplineTest {
             // census's count-descending text-verdict print — same
             // display-only class.
             Map.entry("RelationalCorpusRunner.java", 17),
+            // MinimalCorpus (harness rebuild, 2026-09-06): DISCOVERY order
+            // only — source files by name, tests by the engine suite
+            // order, setup packages by nesting depth; no result flows
+            // through a sort (the platform judges every verdict).
+            Map.entry("MinimalCorpus.java", 4),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             Map.entry("DuckWorkspaces.java", 1),

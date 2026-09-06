@@ -54,6 +54,9 @@ class ParserBoundaryArchTest {
             "com/legend/testing/Engine.java",
             "com/legend/testing/Platform.java",
             "com/legend/rcorpus/Runner.java",
+            // the minimal harness parses the engine's corpus sources in the
+            // PLATFORM dialect (their provenance), as Runner does
+            "com/legend/rcorpus/MinimalCorpus.java",
             "com/legend/harness/EngineTestExecutorTest.java",
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)

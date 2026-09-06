@@ -247,6 +247,13 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** EVERY parsed definition under the FQN (the arity overloads), in
+     * declaration order; callers select by arity. */
+    default java.util.List<com.legend.model.FunctionDefinition>
+            findFunctionDefinitions(String fqn) {
+        return findFunctionDefinition(fqn).map(java.util.List::of).orElse(java.util.List.of());
+    }
+
     /** The table's temporal columns, when it declares a milestoning block. */
     default Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {

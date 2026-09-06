@@ -125,7 +125,7 @@ if want 4; then
     rec 4 1
   else
   g "GATE4 DuckDB corpus"
-  mvn -pl core test -Dtest=RelationalCorpusRunner "$R1" "$R2" > "$OUT/g4.out" 2>&1
+  mvn -pl core test -Dtest=RelationalCorpusRunner,MinimalCorpusTest -Dsurefire.excludedGroups= "$R1" "$R2" > "$OUT/g4.out" 2>&1
   G4=$?; if skipped "$OUT/g4.out"; then
     echo "G4 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G4=1
   fi

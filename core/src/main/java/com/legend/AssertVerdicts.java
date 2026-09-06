@@ -43,7 +43,7 @@ final class AssertVerdicts {
     private AssertVerdicts() {
     }
 
-    private static final String PKG = "meta::pure::functions::asserts::";
+    private static final String PKG = com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE;
 
     /** V7 batch 2: the statement loop's result-envelope splice hook,
      * threaded into every side evaluation so an assert argument reading
@@ -165,8 +165,7 @@ final class AssertVerdicts {
         // the whole golden-vs-executed-frame shape (rows judge, text
         // is the emission census). Null = not the simple shape — the
         // generic path (inline + fold) keeps it exactly as today.
-        if (fqn.equals(
-                "meta::relational::functions::asserts::assertSameSQL")
+        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
                 && bare instanceof TypedUserCall sroot) {
             ExecutionResult sv = SqlTextVerdicts.tryArmSameSql(sroot,
                     letPrefix, specs, env, hook);
@@ -175,8 +174,7 @@ final class AssertVerdicts {
             }
         }
         // TDG scoring flip — the assertSqlEquals root (same discipline)
-        if (fqn.equals("meta::relational::testDataGeneration::tests"
-                + "::assertSqlEquals")
+        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
                 && bare instanceof TypedUserCall troot) {
             ExecutionResult tv = SqlTextVerdicts.tryArmTdgRoot(troot,
                     letPrefix, specs, env, hook);
@@ -185,8 +183,7 @@ final class AssertVerdicts {
             }
         }
         // §8.3d — the dual-golden sibling (same root-arm discipline)
-        if (fqn.equals("meta::relational::functions::sqlQueryToString"
-                + "::h2::assertEqualsH2Compatible")
+        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_H2_COMPATIBLE.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {
             ExecutionResult hv = SqlTextVerdicts.tryArmH2Compat(hroot,
                     letPrefix, specs, env, hook);
@@ -199,8 +196,7 @@ final class AssertVerdicts {
         // both relations execute IN THE DATABASE, the cell-zip
         // adjudicates host-side (tdsEquivalent.pure's numeric delta +
         // temporal seconds policies, already the one owner).
-        if (fqn.equals(
-                "meta::pure::functions::relation::assertTdsEquivalent")) {
+        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_TDS_EQUIVALENT.equals(fqn)) {
             List<TypedSpec> targs = ((bare instanceof TypedUserCall u2)
                     ? u2.args() : ((TypedNativeCall) bare).args());
             if (targs.size() < 3 || targs.size() > 4) {

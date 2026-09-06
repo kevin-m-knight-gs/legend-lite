@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 82 | 8 | 3 | 15 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
+| functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 1 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 153 | 1 | 1 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2464** | 36 | 51 | 24 | 5 | 5 | 29 | 2 |
+| **total** | 2575 | **2464** | 36 | 51 | 24 | 5 | 5 | 30 | 2 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2464 PASS = 2430 clean + 34 carrying softness (sqldiff 5, advisory 5, 0-asserts 29, text-rescued 2; flags overlap — the union is 34).
+SOFT-PASS RECONCILIATION (F2.1): 2464 PASS = 2429 clean + 35 carrying softness (sqldiff 5, advisory 5, 0-asserts 30, text-rescued 2; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,15 +542,15 @@ SOFT-PASS RECONCILIATION (F2.1): 2464 PASS = 2430 clean + 34 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 122
+tests in the ledger: 124
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:resolver | 13 |
+| wall:resolver | 14 |
 | wall:typer | 33 |
 | wall:exec | 7 |
-| divergence | 19 |
+| divergence | 20 |
 | not-reached | 20 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
@@ -571,6 +571,7 @@ tests in the ledger: 122
 | engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
+- executeProjectWithNestedDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: class '_' is not mapped in mapping 'meta::pure::executionPlan::mNmNr::tes :: class 'meta::pure::executionPlan::m2m2r::tests::_Person' is not mapped in mapping 'meta::pure::executionPlan::m2m2r::tests::ModelToModelMapping'
 - planGraphFetchWithDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - planGraphFetchWithNestedDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - testPlanWithLocalH2ConnectionWithSQL #0 - -> decision:protocol-transform: wall-type: unknown function '_' — no funct :: meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL :: unknown function 'meta::protocols::pure::vX_X_X::transformation::fromPureGraph::executionPlan::transformPlan' — no function of this name in the native or user catalog (un
@@ -602,6 +603,7 @@ tests in the ledger: 122
 - testGroupByWithJoinDB2 #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#N_d :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", s
 - testIsEmptyOnCollection #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statem :: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statement): expected Sequence(type=TDS[(name,St
 - testIsEmptyOnCollection #2 - -> not-reached: 1 assert(s) after the failure
+- testPaginated #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: N ::  expected: 3 actual:   4
 - testFilterLimitInSequenceForTableAccessor #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOP1" not found; SQL statement: select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNA
 - testLimitFilterInSequenceForTableAccessor #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOP1" not found; SQL statement: select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNA
 - testExistsAsNullWithSubType #1 assertSize -> wall:resolver: wall-exec: nested navigation '_' inside an exists/isEmpty predic :: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet

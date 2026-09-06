@@ -51,6 +51,9 @@ class SkipCensusTest {
             // harness scoping (rcorpus.only et al) — the runner's own
             // scoping mechanism, not a suite claim going quiet
             "RelationalCorpusRunner.java",
+            // the minimal harness (2026-09-06): skips only when the engine
+            // checkout is absent — gate 4 runs it explicitly
+            "MinimalCorpusTest.java",
             // skips when the generated expected/ dir is absent — the
             // differential needs its oracle materialized first
             "CorpusDifferentialTest.java",

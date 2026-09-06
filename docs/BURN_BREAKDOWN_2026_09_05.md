@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 113 / harness rebuild step 1 LANDED (2026-09-06)** — helper PROGRAMS are the platform's (StatementInline at the query front door; verdict functions never opened; natives win over Pure overloads); the MINIMAL harness runs beside the old runner in gate 4 with roster 2452 = the old runner's 2449 + the three walk-only trivial passes. Ratchet 122/2451 → 124/2449 (−2, attributed): m2m2r::executeProjectWithNestedDerivedProperty (batch 105's flip rode the executor's call-frame route; spliced, the chained execute resolves against ModelToModelMapping alone) and paginate::testPaginated (graphFetch paginated(2,4) counts 4 vs 3 — route difference or real paging divergence, not yet attributed). Both open for the deletion leg (frame route + splice → one mechanism). IMPL rows 17 → 19 (the two above).
+
 Status: **batch 112 / T2 the three-database TDS join plan LANDED (2026-09-06)** — tdsTwoJoinThreeDB flipped (122/2451): store-list column typing in the printer, engine allocation naming, spliced resultColumns, and the referee materializing a multi-column allocation as an oracle table (values never leave the database). Phase-1 referee gaps closed by inspection (testProp3 = T4 plan literal; testQuoteIdentifiersFlagWithGraphFetch = unexecutable golden by identifier case). TEXT 42 → 41.
 
 Status: **batch 111 / T1 restrict over a distinct groupBy LANDED (2026-09-06)** — testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct flipped (123/2450): the engine's unused-aggregate drop under a whole-row distinct. TEXT 43 → 42.
@@ -252,7 +254,7 @@ Status: **batch 96 / L12 LANDED (2026-09-06)** — testDateFunctionInMilestonedP
 |---|---|
 | m2m2r::planGraphFetchWithDerivedProperty | **RECLASSIFIED batch 105 → TEXT/T2** — its only assert is `planToString` TEXT (the breakdown's own rule: a plan-text-only test can never leave IMPL by flipping) |
 | m2m2r::planGraphFetchWithNestedDerivedProperty | same |
-| m2m2r::executeProjectWithNestedDerivedProperty | **LANDED batch 105** — the TDS-as-row-objects JSON document emitted by the database (TDS_JSON_KV); the envelope collapse sees through the TDS cast over plan-execute values |
+| m2m2r::executeProjectWithNestedDerivedProperty | **REOPENED batch 113** — the batch-105 flip rode the executor's call-frame route; under the statement splice the chained execute resolves `_Person` against ModelToModelMapping alone (open for the deletion leg). Was: **LANDED batch 105** — the TDS-as-row-objects JSON document emitted by the database (TDS_JSON_KV); the envelope collapse sees through the TDS cast over plan-execute values |
 | executionPlan::testModelConnectionJoin | **RECLASSIFIED → TEXT (T2) 2026-09-06**: `assertEquals($expected, $res->planToString(…))` over a ModelChainConnection plan (executionPlan/tests/executionPlanTest.pure) — Class/M2M nodes, not a statement the oracle replays; the chain wall is real but cannot flip it |
 | executionPlan::testModelConnectionDeepFunction | **RECLASSIFIED → TEXT (T2) 2026-09-06**: same assert form, deep chain |
 

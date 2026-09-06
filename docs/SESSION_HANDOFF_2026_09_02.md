@@ -103,6 +103,31 @@ equality with the platform-flipped 2451, then delete the walk, the flip machiner
 forms, the censuses (test and main side), the harness-named Compiler overloads, and fold
 H2Verify's comparison policy into the platform's. Runs BEFORE the NavPath cleanup.
 
+STEP 1 LANDED (batch 113, 2026-09-06): StatementInline (core/src/main/java/com/legend/compiler) —
+helper programs splice at the query front door, so the old runner's expandHelperCalls is
+redundant; MinimalCorpus + MinimalCorpusTest + corpus-library.pure run in gate 4 beside the old
+runner; roster 2452 = old 2449 + 3 walk-only trivial passes (set difference empty). Ratchet
+122/2451 → 124/2449: m2m2r::executeProjectWithNestedDerivedProperty and paginate::testPaginated
+passed only through the executor's call-frame route (StatementExecutor.executeCallStatement,
+hasNonLetIntermediate, helperValueLet) — the splice is a THIRD mechanism beside that route and
+the expression inliner; STEP 2 = delete the old harness (EngineTestExecutor, WholeTestFlip,
+FlipProbe, WholeTestCensus, the forms, RelationalCorpusRunner + Runner, the main-side censuses)
+AND converge the frame route into the splice (one mechanism), burning the two reopened tests as
+part of it; probe first: LL_TMP_DEBUG stack of the m2m2r test under the splice (the frame binds
+args as lets in a FRESH letPrefix; the splice substitutes into the caller's prefix — the plan
+route reads the prefix). THEN the single-shot design (user 2026-09-06): a test = WITH seeds
+(relation values for the table refs, bound in the IR) + one verdict SELECT (asserts as boolean
+columns); retires the splice, the frame route and per-assert verdict queries; real DDL goldens,
+executeInDb result reads and mid-body reseeds are the exceptions (extra shots).
+
+Lessons (batch 113): route selection by exception fallthrough (inliner throws → call stands →
+host/frame route) means moving WHERE a failure surfaces changes WHICH route runs — three of four
+splice rules looked right before the roster diff; a transitive "reaches an execution" predicate
+opens library bodies (toPostgresModel) that must never run as statements — the predicate is the
+callee's OWN statements; a bare native name in a module body resolves through the catalog's
+bare-name index (Pure.nativeFunctionsAt), never by string match; a test that sets a system
+property must restore it (the G1 pollution).
+
 ### Phase 2 — parked and revisit, decided with the user
 
 Parked (each has a note): testExistsAsNullWithSubType (§8.1 — normalizer routed
@@ -4489,3 +4514,11 @@ type with the union member pk columns ID_<i>; project them from the union row �
 engine's importDataFlowCols, pureToSQLQuery.pure:7244 / :4821). NEXT probe: the relation-
 union 12-column distinct pair (testUnionTwoRelationMappings_ManyColumnProject / …
 GeneratesSingleUnion).
+
+**Batch 113 / harness rebuild step 1 (2026-09-06, chain GREEN 6m41s; GATES batch 113).**
+122/2451 → 124/2449 (−2 attributed: m2m2r::executeProjectWithNestedDerivedProperty,
+paginate::testPaginated — call-frame-route passes reopened under the splice); MinimalCorpus
+roster 2452 = 2449 + 3. StatementInline + PlatformTypes.isStatementOnly/isVerdictFunction +
+ModelContext.findFunctionDefinitions; pom `surefire.excludedGroups` wired; gate 4 runs
+MinimalCorpusTest. NEXT = step 2 (delete the old harness + converge the frame route), then the
+single-shot design. See §0 Phase 1b.

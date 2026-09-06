@@ -425,6 +425,50 @@ public final class PlatformTypes {
     public static final String GENERATE_SEED_DATA_STRING =
             "meta::relational::testDataGeneration::generateSeedDataString";
 
+    /** The asserts package: every function in it is a VERDICT the
+     * statement channel adjudicates (AssertVerdicts). */
+    public static final String ASSERTS_PACKAGE = "meta::pure::functions::asserts::";
+    /** VERDICT functions declared OUTSIDE the asserts package — user
+     * functions in the model whose calls the statement channel
+     * adjudicates by exact FQN instead of running their Pure bodies
+     * (AssertVerdicts' root arms). */
+    public static final String ASSERT_SAME_SQL =
+            "meta::relational::functions::asserts::assertSameSQL";
+    public static final String ASSERT_SQL_EQUALS_TDG =
+            "meta::relational::testDataGeneration::tests::assertSqlEquals";
+    public static final String ASSERT_EQUALS_H2_COMPATIBLE =
+            "meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible";
+    public static final String ASSERT_TDS_EQUIVALENT =
+            "meta::pure::functions::relation::assertTdsEquivalent";
+
+    /** A call the statement channel ADJUDICATES as a verdict (never runs
+     * as Pure): the asserts package (package membership, exact spelling)
+     * and the named verdict functions. */
+    public static boolean isVerdictFunction(String fqn) {
+        return fqn.startsWith(ASSERTS_PACKAGE)
+                || ASSERT_SAME_SQL.equals(fqn)
+                || ASSERT_SQL_EQUALS_TDG.equals(fqn)
+                || ASSERT_EQUALS_H2_COMPATIBLE.equals(fqn)
+                || ASSERT_TDS_EQUIVALENT.equals(fqn);
+    }
+
+    /** A call only the STATEMENT channel can run — an execution, a store
+     * effect or a test-data generator: it never lowers inside an
+     * expression, so a user function whose own statements reach one is
+     * a PROGRAM, and a call to a program splices at statement level
+     * ({@link com.legend.compiler.StatementInline}). A verdict is NOT on
+     * this list: a helper that only asserts β-reduces to an assert root
+     * and is adjudicated as that verdict (the statement channel's
+     * inlined-assert routes), never run as statements. */
+    public static boolean isStatementOnly(String fqn) {
+        return isEffectfulNative(fqn)
+                || EXECUTE.equals(fqn)
+                || EXECUTION_PLAN_EXECUTE.equals(fqn)
+                || EXECUTE_LEGEND_QUERY.equals(fqn)
+                || GENERATE_TEST_DATA.equals(fqn)
+                || GENERATE_SEED_DATA_STRING.equals(fqn);
+    }
+
     /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
      * correction 2026-08-28: asserts are verdicts ALWAYS —
      * AssertVerdicts/the K-arm IS the implementation; the real pure

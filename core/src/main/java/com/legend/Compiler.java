@@ -672,6 +672,10 @@ public final class Compiler {
     public static com.legend.protocol.spec.ValueSpecification resolveQuery(
             java.util.List<com.legend.protocol.spec.ValueSpecification> statements,
             com.legend.model.ImportScope imports, ModelContext ctx) {
+        // a statement-root (or let-bound) call to a user function whose
+        // body is a statement sequence splices that body in (Pure's call
+        // semantics spelled out; the expression inliner owns the rest)
+        statements = com.legend.compiler.StatementInline.rewrite(statements, imports, ctx);
         java.util.List<com.legend.protocol.spec.ValueSpecification> desugared =
                 new java.util.ArrayList<>(statements.size());
         boolean fired = false;

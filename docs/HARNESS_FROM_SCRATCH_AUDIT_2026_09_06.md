@@ -137,6 +137,12 @@ The user's second question: "no functions in Compiler.java specialized for the h
 
 ## 5. Recommendation: rebuild, literally, beside the old one
 
+STATUS 2026-09-06 (batch 113): step 1 LANDED — the minimum harness exists beside the old one
+(MinimalCorpus, ~600 lines), its roster equals the old runner's platform-scored roster plus the
+three walk-only trivial passes, and the helper expansion the old runner did by heuristics is now
+the platform's StatementInline. Step 2 (the deletions) is next; it must also converge the
+executor's call-frame route into the splice (two reopened tests ride on that).
+
 Because the minimum is ~2,500 lines and the surviving pieces are already separable
 (`Corpus`, `DuckWorkspaces`, `ReplayOracle`+`PlanReplay`+`H2ExtensionFunctions`, the
 platform SPIs), the cheapest honest path is to WRITE THE MINIMUM NEW rather than carve it out:

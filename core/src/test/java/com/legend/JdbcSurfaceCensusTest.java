@@ -371,6 +371,12 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/normalizer/AssocSimpleNameProbeTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
             "core/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",
+            // the minimal harness (2026-09-06): opens the DuckDB session and
+            // the referee's H2 mirror and HANDS them to the platform; it
+            // executes no SQL of its own (tenet #1 — the database executes
+            // what the platform compiles; the harness only finds and runs
+            // tests)
+            "core/src/test/java/com/legend/rcorpus/MinimalCorpus.java",
             "core/src/test/java/com/legend/rcorpus/Runner.java",
             "core/src/test/java/com/legend/resolver/ResolveDeepEmptinessProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveDerivedLeafProbeTest.java",

@@ -13,6 +13,12 @@
     <artifactId>legend-lite-core</artifactId>
     <packaging>jar</packaging>
     <name>Legend Lite - Core</name>
+
+    <properties>
+        <!-- heavy (corpus) tests stay out of the unit gate; gate 4 runs them
+             explicitly with -Dsurefire.excludedGroups= -->
+        <surefire.excludedGroups>heavy</surefire.excludedGroups>
+    </properties>
     <description>
         Clean reimplementation of the Legend Lite compiler pipeline
         (text → SQL). Strangler Fig sibling to legend-lite-engine.
@@ -89,7 +95,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <excludedGroups>heavy</excludedGroups>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
                 </configuration>
             </plugin>
             <!-- The server entrypoint (moved from the deleted engine module):
