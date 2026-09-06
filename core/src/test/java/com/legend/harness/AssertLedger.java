@@ -77,25 +77,31 @@ public final class AssertLedger {
      *       {@code date_trunc('week')} H2 starts the week on Sunday; Pure's
      *       own dateExtension tests say Monday, as ours (and DuckDB) do —
      *       the engine's H2 dialect fails to normalize.</li>
+     *   <li>{@code instance-filter-ungated} — a filter over the [1]
+     *       instance itself inside a project column compiles to a
+     *       join-back subselect whose match never gates the projected
+     *       value (the golden reads {@code "root".id}); Pure's filter->map
+     *       drops the failing instance, as the engine's own sibling golden
+     *       (testConcatenateWithFilter) does.</li>
      * </ul>
      */
-    private static final Map<String, String> ENGINE_GOLDEN_DEFECTS = Map.of(
-            "meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin",
-            "joinStrings-rendering",
-            "meta::pure::tds::tests::extensions::testExtendDigest_Relational",
-            "joinStrings-rendering",
-            "meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries",
-            "joinStrings-rendering",
+    private static final Map<String, String> ENGINE_GOLDEN_DEFECTS = Map.ofEntries(
+            Map.entry("meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin",
+                    "joinStrings-rendering"),
+            Map.entry("meta::pure::tds::tests::extensions::testExtendDigest_Relational",
+                    "joinStrings-rendering"),
+            Map.entry("meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries",
+                    "joinStrings-rendering"),
             // traced 2026-09-05: its golden's `tds_digest` column is
             // rawtohex(hash('MD5', concat(FIRSTNAME, LASTNAME, '|'))) —
             // the golden-only row is Anthony Allen with
             // aceae941… = md5('AnthonyAllen|'), ours 0a8c4f1f… =
             // md5('Anthony|Allen'); the five other columns agree cell for
             // cell (lowercase hex on both sides)
-            "meta::relational::tests::functions::sqlstring::testHashFunctions",
-            "joinStrings-rendering",
-            "meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek",
-            "h2-week-start",
+            Map.entry("meta::relational::tests::functions::sqlstring::testHashFunctions",
+                    "joinStrings-rendering"),
+            Map.entry("meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek",
+                    "h2-week-start"),
             // traced 2026-09-05: <<test.AlloyOnly>> — the executor's
             // relational adjust(date, 0, DAYS) comes back a TIMESTAMP and
             // prints '2014-12-01T00:00:00.000000000+0000'; the interpreter
@@ -103,8 +109,8 @@ public final class AssertLedger {
             // testTdsExtension.pure) asserts the SAME relational rows as
             // '2014-12-01'. Every other cell agrees. Pure's adjust keeps
             // the input's precision (PCT); ours prints the date.
-            "meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest",
-            "alloy-adjust-widening",
+            Map.entry("meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest",
+                    "alloy-adjust-widening"),
             // batch 70 (2026-09-05, corrected): the qualifier
             // employeesByCityOrManagerAndLastName ends in ->toOne() (Person[1]),
             // so for a firm with no matching Smith pure's `[]->toOne()` is a
@@ -115,10 +121,10 @@ public final class AssertLedger {
             // BuildCorrelatedSubQuery) keeps it with a NULL (4 rows, these
             // goldens). Two conventions for an undefined case: a DECISION row,
             // not a defect and not a divergence of ours.
-            "meta::relational::tests::advanced::forced::structure::testQualifierWithOperation",
-            "decision:empty-toOne-forced-isolation",
-            "meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation",
-            "decision:empty-toOne-forced-isolation",
+            Map.entry("meta::relational::tests::advanced::forced::structure::testQualifierWithOperation",
+                    "decision:empty-toOne-forced-isolation"),
+            Map.entry("meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation",
+                    "decision:empty-toOne-forced-isolation"),
             // batch 72a (2026-09-05): both goldens end in `]"` — a stray
             // quote after the JSON array. The engine's assertJsonStringsEqual
             // → equalJsonStrings → json-simple JSONParser returns after the
@@ -126,10 +132,26 @@ public final class AssertLedger {
             // parses, `[…] junk` throws). Our rows are byte-identical to
             // the golden up to that tail (probe 2026-09-05); the strict
             // parse names the GOLDEN ("golden JSON does not parse").
-            "meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty",
-            "malformed-json-golden",
-            "meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty",
-            "malformed-json-golden");
+            Map.entry("meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty",
+                    "malformed-json-golden"),
+            Map.entry("meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty",
+                    "malformed-json-golden"),
+            // batch 93 (2026-09-06): `Order.all()->project([o | filterOrders($o)])`
+            // with filterOrders = `$order->filter(o | $o.product($o.orderDate
+            // ->toOne()).type == 'STOCK')->map(x | $x.id)`. The golden
+            // (testBusinessDateMilestoning.pure:591) projects `"root".id`
+            // UNCONDITIONALLY — its filter is a LEFT-joined subselect on
+            // `"root".id = "ordertable_1".id` whose match never gates the
+            // projected value — so the engine returns every order's id.
+            // Pure's filter->map over the instance yields the empty cell for
+            // the order whose product is not STOCK at its orderDate, and the
+            // engine's own sibling golden for the same idiom
+            // (testConcatenateWithFilter, testConcatenate.pure:88: 'Firm A,')
+            // gates it. Ours: CASE WHEN pred THEN id ELSE NULL (the sibling's
+            // form); the referee replays the golden on H2 — rows [1, 2] vs
+            // ours [TDSNull, 2] — the difference is exactly the ungated cell.
+            Map.entry("meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction",
+                    "instance-filter-ungated"));
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect

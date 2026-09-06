@@ -1061,6 +1061,17 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 93 / L1 instance-filter canon +
+engine-golden-defect:instance-filter-ungated (2026-09-06):** exec-passing 7,
+text-only 12 unchanged; unable-to-exec 9 → 10 (testBusinessDateInjectionFromVar
+ReferenceInProjectUsingExternalFunction reaches its sql-text ROW verdict: the
+golden replays on H2 with rows [1, 2], ours [TDSNull, 2] — the golden projects
+`"root".id` unconditionally, its filter subselect never gating the value,
+while Pure's filter->map and the engine's sibling golden testConcatenateWithFilter
+('Firm A,') yield the empty cell; registered in AssertLedger.ENGINE_GOLDEN_DEFECTS
+with the receipt; the advisory divergence counts in this lane); ratchet
+141/2432 unchanged; disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 92 / L1 map fusion (2026-09-06):**
 exec-passing 7, text-only 12, unable-to-exec 9 unchanged; ratchet 142/2431 →
 141/2432 (testProjectThroughAssociationAutoMap — row count and the row-string

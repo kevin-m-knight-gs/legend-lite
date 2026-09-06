@@ -2268,7 +2268,18 @@ public class RelationalCorpusRunner {
             // referee could not replay is ADVISORY now, never verified —
             // one such assert moves from the walk's "verified" count into
             // this lane's decline census (the truth: text agreement only)
-            org.junit.jupiter.api.Assertions.assertEquals(9,
+            // 9 -> 10 (batch 93, 2026-09-06): testBusinessDateInjectionFromVar
+            // ReferenceInProjectUsingExternalFunction reaches its sql-text ROW
+            // verdict (the instance-filter idiom `$order->filter(o | ...)`
+            // canonicalizes in the lift pass, so its milestoned qualifier's
+            // temporal spec and slot demand register) and the golden REPLAYS
+            // with rows that differ: the golden projects `"root".id`
+            // unconditionally — its filter subselect never gates the value —
+            // while Pure's filter->map (and the engine's own sibling golden
+            // testConcatenateWithFilter, 'Firm A,') yields the empty cell.
+            // Registered engine-golden-defect:instance-filter-ungated
+            // (AssertLedger); the advisory divergence counts in this lane.
+            org.junit.jupiter.api.Assertions.assertEquals(10,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),

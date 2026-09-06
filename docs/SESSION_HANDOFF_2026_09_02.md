@@ -4087,3 +4087,19 @@ aggregate derived property behind a to-one hop), testBusinessDateInjectionFromVa
 ReferenceInProjectUsingExternalFunction (filterOrders: an instance filter over a
 milestoned qualified property), then testForcedSubTypeProjectDirect (the Bicycle
 member's `person` navigate slot through the subtype cast of a member-union root).
+
+**Batch 93 / L1 instance-filter canon + defect registration (2026-09-06, chain GREEN 6m31s;
+GATES batch 93).** ratchet 141/2432 unchanged; lane unable-to-exec 9 → 10; IMPL 32
+(NAMED 17). The instance-filter idiom canonicalizes in the lift (SyntheticHeads
+.descend/TypedFilter: param := the [1] instance); the milestoned business-date
+test reaches its row verdict and the golden's ungated `"root".id` projection is
+registered engine-golden-defect:instance-filter-ungated (AssertLedger, receipt
+against the engine's own sibling golden testConcatenateWithFilter). NEXT:
+testFilterTimesWithManyOperands — `sum($p.firm.employees.age)` (an eliding
+reducer behind a to-one head, STUDY #12): the aggScan chain-count arm already
+registers `count($p.firm.employees)` under the dotted key `firm.employees`
+(buildAggMaterials anchors the final material at the mid hop's target; foldChainMid
+emits the mid LEFT join + re-pointed join-back) — generalize it: path.size() ≥ 3,
+to-one head, any reducer, mapper = the tail from the 2-hop element (a depth-2
+tailMapperOf). Then testForcedSubTypeProjectDirect / isolationTest / the
+embedded-head chain.

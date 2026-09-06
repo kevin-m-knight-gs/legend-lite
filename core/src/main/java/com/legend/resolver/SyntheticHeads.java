@@ -619,6 +619,23 @@ final class SyntheticHeads {
                 // attaches any conjunct the walk left pending
                 FilterCtx pfc = new FilterCtx();
                 TypedLambda p0 = f.predicate();
+                // the INSTANCE-filter idiom over a [1] class instance
+                // (`$order->filter(o | $o.product($o.orderDate).type ==
+                // 'STOCK')` — the external-function spelling
+                // filterOrders($o)): the predicate's parameter ALIASES the
+                // instance — spell its reads on the instance itself so
+                // every scan (temporal specs, slot demand, the CASE-WHEN
+                // instance read) sees the instance's own paths
+                if (enabled && f.source() instanceof TypedVariable iv
+                        && iv.info().type() instanceof Type.ClassType
+                        && iv.info().multiplicity() instanceof Multiplicity.Bounded ib
+                        && Integer.valueOf(1).equals(ib.upper())
+                        && p0.parameters().size() == 1) {
+                    String ip = p0.parameters().get(0);
+                    p0 = new TypedLambda(p0.parameters(), p0.body().stream()
+                            .map(b -> Substitution.inlineParam(b, ip, iv)).toList(),
+                            p0.info());
+                }
                 TypedLambda p2 = new TypedLambda(p0.parameters(),
                         p0.body().stream()
                                 .map(b -> liftFilteredHeads(b, enabled, pfc))
