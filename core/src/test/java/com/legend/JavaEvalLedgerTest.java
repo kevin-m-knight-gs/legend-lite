@@ -852,6 +852,10 @@ class JavaEvalLedgerTest {
                     // An identifier stamped at the JDBC boundary; no value
                     // a verdict reads is computed here.
                     "ExecutionTrace.java",
+                    // batch 85: the test-input resource resolver the harness
+                    // registers per run (path -> text; loud when absent) —
+                    // the reference checkout stays spec, never runtime
+                    "TestResources.java",
                     "QueryPlan.java",
                     // Phase 1c: the LIMIT-0 schema probe — the
                     // DynamicPivot.staticize model (a FIRST query pins a
@@ -978,6 +982,13 @@ class JavaEvalLedgerTest {
                     // computed, the render and the verdict stay where they
                     // were (the K-routine, SqlTextVerdicts)
                     "SqlTextInputs.java",
+                    // batch 85 (2026-09-06): the loadCsvToDbTable EFFECT arm —
+                    // the engine's native reads a classpath CSV, drops its
+                    // header and inserts positionally; here the harness
+                    // resolves the CSV (test input) and Java orchestrates the
+                    // INSERT statements the database executes. No verdict
+                    // value is computed.
+                    "CsvLoad.java",
                     // batch 59: the lineage-tree sibling of SqlTextVerdicts —
                     // golden and ours become rows through ONE database query
                     // and compare; typed-tree navigation + judgment only

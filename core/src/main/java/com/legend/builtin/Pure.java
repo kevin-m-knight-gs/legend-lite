@@ -1404,6 +1404,10 @@ public final class Pure {
     // — the result set as a TDS. Platform-owned: the raw grid the Typer
     // binds for executeInDb over a single-query literal IS that TDS; the
     // connection function names the ambient session (batch 82).
+    // loadCsvToDbTable (execute.pure:57-66 → the legend-pure native): a
+    // classpath CSV's rows into a table — an EFFECT here, the CSV resolved
+    // as test input (batch 85).
+    public static final NativeFunctionDefinition LOAD_CSV_TO_DB_TABLE__STRING_1__TABLE_1__CONN_1 = signature("native function meta::relational::metamodel::execute::loadCsvToDbTable(filePath:meta::pure::metamodel::type::String[1], table:meta::relational::metamodel::relation::Table[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Nil[0];");
     public static final NativeFunctionDefinition EXECUTE_IN_DB_TO_TDS__STRING_1__FN_1 = signature("native function meta::relational::metamodel::execute::executeInDbToTDS(sql:meta::pure::metamodel::type::String[1], databaseConnectionFunction:meta::pure::metamodel::function::Function<{->meta::external::store::relational::runtime::DatabaseConnection[1]}>[1]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::relational::metamodel::execute::ResultSet[1];");
     // JDBC DatabaseMetaData reads (REAL platform_store_relational/

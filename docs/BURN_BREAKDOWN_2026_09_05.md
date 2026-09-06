@@ -227,13 +227,13 @@ are the derived-property and chain shapes it does not take yet.
 
 ### L14 Raw SQL to TDS and CSV load (3)
 
-Status: **batch 82 / L14a LANDED (2026-09-06)** — testExecuteInDbToTDS flipped (154/2419).
+Status: **batch 85 / L14b LANDED (2026-09-06)** — testLoadCsv flipped (151/2422); **batch 82 / L14a LANDED (2026-09-06)** — testExecuteInDbToTDS flipped (154/2419). relationalResultSourcingOfListExecutionPlan: its assert is plan TEXT behind the executeInDb-binding wall.
 
 | test | detail |
 |---|---|
 | metamodel::execute::testExecuteInDbToTDS | **FLIPPED batch 82** — the raw grid typed TDS (Typer.rawGridOrSelf); a late-bound inner's toCSV defers to the boundary (DeferredTdsString.Form.CSV) |
 | advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan | reading an executeInDb result binding — then a plan TEXT assert (TEXT behind) |
-| loadCsv::testLoadCsv | `loadCsvToDbTable(file, table, conn)` 4-arg overload then `Person.all()` rows — a data-loading native we already have the pieces for (CSV seeds) |
+| loadCsv::testLoadCsv | **FLIPPED batch 85** — an EFFECT native: the CSV is test input the harness resolves (exec.TestResources), header dropped, positional INSERTs (CsvLoad) |
 
 ### L15 Referee legs (goldens a referee CAN bring to rows) (1)
 
@@ -399,7 +399,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 → **52**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 → **50**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a

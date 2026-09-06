@@ -94,12 +94,26 @@ public final class CsvSeed {
         // F7.5: ONE multi-row INSERT per block — the statement count is
         // the seed cost (task #14: per-statement parse+plan+JNI), and
         // both H2 (mirror replay) and DuckDB accept multi-row VALUES
-        StringBuilder sql = null;
+        List<String[]> rows = new ArrayList<>();
         for (int i = 3; i < lines.length; i++) {
-            if (lines[i].isBlank()) {
-                continue;
+            if (!lines[i].isBlank()) {
+                rows.add(lines[i].split(",", -1));
             }
-            String[] vals = lines[i].split(",", -1);
+        }
+        String sql = insertStatement(qualified, cols, rows);
+        if (sql != null) {
+            out.add(sql);
+        }
+    }
+
+    /** ONE multi-row INSERT of CSV cells — the seed spelling, shared with
+     * the loadCsvToDbTable arm (batch 85): every value rides as a QUOTED
+     * literal and the DATABASE casts it to the column's type (F7.2); an
+     * empty or {@code ---null---} cell is NULL. Null when no rows. */
+    public static @com.legend.Nullable String insertStatement(String qualified,
+            String[] cols, List<String[]> rows) {
+        StringBuilder sql = null;
+        for (String[] vals : rows) {
             if (sql == null) {
                 sql = new StringBuilder("INSERT INTO ")
                         .append(qualified).append(" (")
@@ -115,23 +129,15 @@ public final class CsvSeed {
                     sql.append(", ");
                 }
                 if (tok.isEmpty() || tok.equals("---null---")) {
-                    // ---null--- is the testDataGeneration CSV null token
                     sql.append("NULL");
                 } else {
-                    // F7.2: uniform policy (same as TestDataGenerator
-                    // .loadSide) — every value rides as a QUOTED literal
-                    // and the DATABASE casts it to the model's column
-                    // type; the old numeric-looking-token regex was
-                    // host-side type dispatch from the token's TEXT
                     sql.append("'").append(tok.replace("'", "''"))
                             .append("'");
                 }
             }
             sql.append(')');
         }
-        if (sql != null) {
-            out.add(sql.toString());
-        }
+        return sql == null ? null : sql.toString();
     }
 
     private static String ddlType(Type t) {

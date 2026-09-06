@@ -934,6 +934,18 @@ public final class Runner {
         // after the run the ledger becomes the recording.
         List<String> recording = new ArrayList<>();
         com.legend.sql.dialect.RawSqlBoundary.record(recording);
+        // test-input resources a program names by classpath path (the
+        // engine's loadCsvToDbTable reads its own classpath): resolved
+        // under the corpus module's resource root — spec as INPUT, never
+        // as runtime (batch 85)
+        com.legend.exec.TestResources.register(path -> {
+            try {
+                return java.nio.file.Files.readString(Corpus.RELATIONAL.getParent()
+                        .getParent().resolve(path.startsWith("/") ? path.substring(1) : path));
+            } catch (java.io.IOException e) {
+                throw new com.legend.error.DataError("test resource '" + path + "'", e);
+            }
+        });
         lastRunShared = false;
         try {
             return run0(t, recording);

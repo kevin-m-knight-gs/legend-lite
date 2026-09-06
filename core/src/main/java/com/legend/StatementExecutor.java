@@ -1850,6 +1850,9 @@ final class StatementExecutor {
                             .DROP_AND_CREATE_SCHEMA_IN_DB,
                     StatementExecutor::dropAndCreateSchemaInDb,
                     com.legend.compiler.element.type.PlatformTypes
+                            .LOAD_CSV_TO_DB_TABLE,
+                    CsvLoad::loadCsvToDbTable,
+                    com.legend.compiler.element.type.PlatformTypes
                             .SET_UP_DATA_SQLS,
                     SeedSqlForms::assertForm,
                     com.legend.compiler.element.type.PlatformTypes

@@ -3959,3 +3959,22 @@ registers engine-root/src/main/resources + path → text, like the replay
 oracle), the table from the store navigation (StoreNav.nav → TableDefinition;
 schema/db from the chain), INSERT rows quoted per CsvSeed's spelling; then
 `Person.all()` over csvMapping reads Joe/Jill.
+
+**Batch 85 / L14b (2026-09-06, chain GREEN 6m28s; GATES batch 85).** 152/2421 →
+151/2422; IMPL 50. loadCsvToDbTable = EFFECT native (CsvLoad; exec.TestResources
+resolver registered by Runner; CsvSeed.insertStatement is THE insert spelling —
+SqlTextRatchetTest counts INSERT/SELECT text sites per file outside the dialect
+layer). GUARD LESSON (twice now): a python edit script that asserts and aborts
+leaves LATER edits unapplied while the shell continues — one script per file,
+and read `git diff --stat` before launching. NEXT: (1) docs-only
+reclassification receipts for the seven IMPL tests whose only reachable
+verdict is engine plan text (testModelConnectionJoin/DeepFunction,
+testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfList-
+ExecutionPlan, testAlloyTestDatGenWithQuotedColumnsForViews — "Purposefully
+asserting on plan string") or catalog-qualified names no session executes
+(testRelationalMapperWithJoin/TwoDBs — `snDBDefault.default.*`, a 3-part name;
+H2 has no user catalogs); (2) probes for L10 tz, L12 milestoning, L2 ×3, L9
+testNonDataTypeProperty, L8 (toJSON(TDS), rowValueDifference, strictdate sort,
+stringToFloat forAll-tolerance, groupByWithWindowSubset); (3) the relation-
+mapping golden pair → engine-golden-defect registration (AssertLedger) with
+the relationalModelJoins.pure:342-349 receipt.

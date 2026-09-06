@@ -2074,10 +2074,14 @@ public class RelationalCorpusRunner {
             // wrapper ops on the spine, the engine's decorated-alias child
             // order); the referee's alias grammar strips `_d0`-style suffixes.
             // testTdsJoinConcatenateAndJoin.
-            org.junit.jupiter.api.Assertions.assertEquals(152L,
+            // batch 85 / L14b (2026-09-06): 152 -> 151 — loadCsvToDbTable as
+            // an EFFECT native (the engine's classpath CSV is test input the
+            // harness resolves; the header row is dropped, rows insert
+            // positionally into the store-navigated table). testLoadCsv.
+            org.junit.jupiter.api.Assertions.assertEquals(151L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2421L,
+            org.junit.jupiter.api.Assertions.assertEquals(2422L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

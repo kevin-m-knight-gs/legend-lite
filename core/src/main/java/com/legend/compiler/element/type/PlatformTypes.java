@@ -162,6 +162,15 @@ public final class PlatformTypes {
     public static final String DROP_AND_CREATE_TABLE_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateTableInDb";
 
+    /** loadCsvToDbTable(filePath, table, connection) — the engine's native
+     * (legend-pure LoadCsvToDbTable) reads a classpath CSV, drops its
+     * header row and inserts the rows positionally into the table
+     * (execute.pure:57-66 delegate to it). An EFFECT at the execution
+     * boundary; the CSV is TEST INPUT the harness resolves
+     * (exec.TestResources). Batch 85. */
+    public static final String LOAD_CSV_TO_DB_TABLE =
+            "meta::relational::metamodel::execute::loadCsvToDbTable";
+
     /** Schema (re)creation K-native (toDDL.pure:108). */
     public static final String DROP_AND_CREATE_SCHEMA_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateSchemaInDb";
@@ -429,6 +438,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)
                 || EXECUTE_IN_DB_TO_TDS.equals(fqn)
+                || LOAD_CSV_TO_DB_TABLE.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
                 || TO_SQL.equals(fqn)
@@ -460,7 +470,8 @@ public final class PlatformTypes {
     public static boolean isEffectfulNative(String fqn) {
         return EXECUTE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
-                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn);
+                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
+                || LOAD_CSV_TO_DB_TABLE.equals(fqn);
     }
 
     /** Post-processor CONFIG property names (runtime/connection hook
@@ -478,6 +489,7 @@ public final class PlatformTypes {
         return EXECUTE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
+                || LOAD_CSV_TO_DB_TABLE.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
                 || TO_SQL.equals(fqn)
@@ -634,6 +646,7 @@ public final class PlatformTypes {
                     java.util.Map.entry(EXECUTE_IN_DB, NativeImpl.EFFECT),
                     java.util.Map.entry(DROP_AND_CREATE_TABLE_IN_DB, NativeImpl.EFFECT),
                     java.util.Map.entry(DROP_AND_CREATE_SCHEMA_IN_DB, NativeImpl.EFFECT),
+                    java.util.Map.entry(LOAD_CSV_TO_DB_TABLE, NativeImpl.EFFECT),
                     java.util.Map.entry(SET_UP_DATA_SQLS, NativeImpl.EFFECT),
                     java.util.Map.entry(SET_UP_DATA_SQLS_V2, NativeImpl.EFFECT),
                     java.util.Map.entry(PRINT, NativeImpl.EFFECT),
