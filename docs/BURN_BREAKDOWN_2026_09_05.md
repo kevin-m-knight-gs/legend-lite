@@ -94,7 +94,7 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 | tree::testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner | **FLIPPED batch 79** — the second filtered identity (`orgs#f1`) joined the first identity's FILTERED tree slot row; it now gets its own composite chain (org ⋈ tree on the oriented condition), the engine's per-qualifier subselect |
 | join::testMultipleJoinsInPropertyMappingWithDatesInClass | **FLIPPED batch 78** — the six instances WERE there (assertSize passed); `$result.values.tableProperty` re-resolved the chain with the read's demand only (root table, 3 rows). A read over an executed instance frame now ranges over the extent's rows (TypedFrom.executedExtent → the implicit scalar tree's paths join the demand) |
 | projection::filter::testChainedFiltersQuery | property 'locations' of the filter chain is not mapped (chained filters employees→locations) |
-| union::testEnumFilterWithUnionMappingPlanGeneration | plan: alias not resolvable to a table (Subselect) — then the assert is plan TEXT (TEXT behind) |
+| union::testEnumFilterWithUnionMappingPlanGeneration | **RECLASSIFIED → TEXT (T2) 2026-09-06**: its one assert is `assertEquals($expected, $plan->planToStringWithoutFormatting(…))` (tests/mapping/union/testUnion.pure) — unformatted plan text, unreplayable by construction (the T2 precedent); the Subselect-alias plan wall is real but cannot flip it |
 | union::testPksWithImportDataFlow | typer: multiplicity [*] vs [1] — `RelationalExecutionContext(importDataFlow=true, importDataFlowAddFks=true)` adds the union's pk/fk columns (`ID_0`, `ID_1`) to the projection; rows assert |
 
 ### L5 Cross-store model joins as relational joins (4)
@@ -123,8 +123,8 @@ Status: **batch 81 / L7a LANDED (2026-09-06)** — testNonExecutableSQLString fl
 
 | test | detail |
 |---|---|
-| alloy::connections::relationalMapper::testRelationalMapperWithJoin | DIVERGENCE: schema/table mapper on the connection (`snDBDefault.default.firmTableNew`) not applied |
-| alloy::connections::relationalMapper::testRelationalMapperTwoDBs | same, two databases |
+| alloy::connections::relationalMapper::testRelationalMapperWithJoin | **RECLASSIFIED → TEXT (T3) 2026-09-06**: `assertEquals('select … from snDBDefault.default.firmTableNew as "root" …', $resultSQL)` where `$resultSQL` is a plan node's sqlQuery (testRelationalMapper.pure:66-78 relationalMapperSqlQuery) — CATALOG-qualified 3-part names; H2 has no user catalogs, no session can execute the golden, text is the contract |
+| alloy::connections::relationalMapper::testRelationalMapperTwoDBs | **RECLASSIFIED → TEXT (T3) 2026-09-06**: same helper, `snDB.productSchemaNewDBINC.productTableNewINC` (catalog.schema.table) |
 | sqlstring::testNonExecutableSQLString | **FLIPPED batch 81** — a fourth toSQLString-family native on the one K-routine; the nonExecutable IR pass renders and the rows leg runs under it |
 | postProcessor::testPostProcessTransformJoinOp | a connection `sqlQueryPostProcessors` lambda over the SQL AST — the ONE post-processor test that is a user-supplied pass; text assert behind it (TEXT) |
 
@@ -204,7 +204,7 @@ row JSON envelope — a golden-to-rows referee arm).
 | test | detail |
 |---|---|
 | relation::testRelationStoreAccessorOnView | **RECLASSIFIED → TEXT (T1) 2026-09-06**: its first assert is `assert($result->contains('"sql":"select \\"personview_0\\".ID as \\"ID\\", … from (select \\"root\\".ID as ID … from personTable as \\"root\\") as \\"personview_0\\""'))` (tests/mapping/relation/tests.pure — `contains` over the engine's `personview_0` alias spelling of OUR SQL); the view-expansion wall on the typed accessor path is real work that cannot flip the test — the second assert (rows) would then pass. Counted with T1 |
-| testDataGeneration::alloy::testAlloyTestDatGenWithQuotedColumnsForViews | TDG over a view-backed relation (view slice) — then a plan-string assert (TEXT behind) |
+| testDataGeneration::alloy::testAlloyTestDatGenWithQuotedColumnsForViews | **RECLASSIFIED → TEXT (T2) 2026-09-06**: the test says so itself — `// Purposefully asserting on plan string to assert we add quotes in join columns` then `assertEquals('MultiResultSequence\n(\n  type = …', …)` (testDataGeneration/tests/testDataGeneration.pure); the view-slice TDG wall is real but cannot flip it |
 
 ### L12 Milestoning divergence (1)
 
@@ -219,8 +219,8 @@ row JSON envelope — a golden-to-rows referee arm).
 | m2m2r::planGraphFetchWithDerivedProperty | class query under TypedGraphFetch — M2M mapping chained over the relational mapping (`getM2M2RRuntime`) |
 | m2m2r::planGraphFetchWithNestedDerivedProperty | same |
 | m2m2r::executeProjectWithNestedDerivedProperty | unknown `meta::json::tdsToJSONKeyValueObjectString` (a JSON native) after the chain |
-| executionPlan::testModelConnectionJoin | plan: no class mapping under the model mapping — `ModelChainConnection` (chain) — plan TEXT behind |
-| executionPlan::testModelConnectionDeepFunction | same, deep chain — plan TEXT behind |
+| executionPlan::testModelConnectionJoin | **RECLASSIFIED → TEXT (T2) 2026-09-06**: `assertEquals($expected, $res->planToString(…))` over a ModelChainConnection plan (executionPlan/tests/executionPlanTest.pure) — Class/M2M nodes, not a statement the oracle replays; the chain wall is real but cannot flip it |
+| executionPlan::testModelConnectionDeepFunction | **RECLASSIFIED → TEXT (T2) 2026-09-06**: same assert form, deep chain |
 
 The m2m2r family already runs in the corpus (core/store/m2m/tests); these five
 are the derived-property and chain shapes it does not take yet.
@@ -232,7 +232,7 @@ Status: **batch 85 / L14b LANDED (2026-09-06)** — testLoadCsv flipped (151/242
 | test | detail |
 |---|---|
 | metamodel::execute::testExecuteInDbToTDS | **FLIPPED batch 82** — the raw grid typed TDS (Typer.rawGridOrSelf); a late-bound inner's toCSV defers to the boundary (DeferredTdsString.Form.CSV) |
-| advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan | reading an executeInDb result binding — then a plan TEXT assert (TEXT behind) |
+| advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan | **RECLASSIFIED → TEXT (T2) 2026-09-06**: `assertEquals($expectedPlan, $result->planToStringWithoutFormatting(…))` (tests/advanced/testRelationalResultSourcing.pure) — unformatted plan text; the executeInDb-binding read is real work that cannot flip it |
 | loadCsv::testLoadCsv | **FLIPPED batch 85** — an EFFECT native: the CSV is test input the harness resolves (exec.TestResources), header dropped, positional INSERTs (CsvLoad) |
 
 ### L15 Referee legs (goldens a referee CAN bring to rows) (1)
@@ -399,7 +399,9 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 → **50**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 → **43**.
+
+Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a
