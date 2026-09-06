@@ -111,35 +111,53 @@ final class JsonEmission {
             List<SqlExpr> colMeta = new ArrayList<>();
             List<SqlExpr> colNames = new ArrayList<>();
             List<SqlExpr> cells = new ArrayList<>();
+            boolean bareTdsJson = jr.kind() == TypedJsonResult.Kind.TDS_JSON;
             for (String name : names) {
                 String typeName = "";
-                if (schema != null) {
-                    typeName = schema.columns().stream()
-                            .filter(c -> c.name().equals(name)).findFirst()
-                            .map(c -> {
-                                String tn = c.type().typeName();
-                                int cut = tn.lastIndexOf("::");
-                                return cut < 0 ? tn : tn.substring(cut + 2);
-                            }).orElse("");
+                String metaType = "";
+                Type.Column col = schema == null ? null
+                        : schema.columns().stream()
+                                .filter(c -> c.name().equals(name)).findFirst()
+                                .orElse(null);
+                if (col != null) {
+                    String tn = col.type().typeName();
+                    int cut = tn.lastIndexOf("::");
+                    typeName = cut < 0 ? tn : tn.substring(cut + 2);
+                    // toJSON.pure: PrimitiveType / Enumeration / InvalidType
+                    metaType = col.type() instanceof Type.Primitive ? "PrimitiveType"
+                            : col.type() instanceof Type.EnumType ? "Enumeration"
+                            : "InvalidType";
                 }
-                colMeta.add(new SqlExpr.JsonObject(List.of(
+                List<SqlExpr> meta = new ArrayList<>(List.of(
                         new SqlExpr.StringLit("name"), new SqlExpr.StringLit(name),
-                        new SqlExpr.StringLit("type"), new SqlExpr.StringLit(typeName))));
+                        new SqlExpr.StringLit("type"), new SqlExpr.StringLit(typeName)));
+                if (bareTdsJson) {
+                    meta.add(new SqlExpr.StringLit("metaType"));
+                    meta.add(new SqlExpr.StringLit(metaType));
+                }
+                colMeta.add(new SqlExpr.JsonObject(meta));
                 colNames.add(new SqlExpr.StringLit(name));
                 cells.add(SqlExpr.Column.derived(alias, name));
             }
             SqlExpr rows = new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(List.of(
                     new SqlExpr.StringLit("values"), new SqlExpr.JsonArray(cells))));
-            SqlExpr result = new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colNames),
-                    new SqlExpr.StringLit("rows"), rows));
-            SqlExpr builder = new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("tdsBuilder"),
-                    new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta)));
-            envelope = new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("builder"), builder,
-                    new SqlExpr.StringLit("activities"), activities,
-                    new SqlExpr.StringLit("result"), result));
+            if (bareTdsJson) {
+                // the bare toJSON(tds) document: column metadata + rows
+                envelope = new SqlExpr.JsonObject(List.of(
+                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta),
+                        new SqlExpr.StringLit("rows"), rows));
+            } else {
+                SqlExpr result = new SqlExpr.JsonObject(List.of(
+                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colNames),
+                        new SqlExpr.StringLit("rows"), rows));
+                SqlExpr builder = new SqlExpr.JsonObject(List.of(
+                        new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("tdsBuilder"),
+                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta)));
+                envelope = new SqlExpr.JsonObject(List.of(
+                        new SqlExpr.StringLit("builder"), builder,
+                        new SqlExpr.StringLit("activities"), activities,
+                        new SqlExpr.StringLit("result"), result));
+            }
         }
         SqlSelect agg = new SqlSelect(
                 List.of(new SqlSelect.Projection(

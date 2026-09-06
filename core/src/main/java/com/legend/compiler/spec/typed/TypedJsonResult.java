@@ -22,7 +22,12 @@ import java.util.List;
 public record TypedJsonResult(TypedSpec chain, Kind kind,
         @com.legend.Nullable String sql, ExprType info) implements TypedSpec {
 
-    public enum Kind { TDS, CLASS }
+    /** TDS / CLASS: the executeLegendQuery result envelope; TDS_JSON: the
+     * bare {@code toJSON(tds)} document — {@code {"columns":[{name,type,
+     * metaType}],"rows":[{"values":[..]}]}} (toJSON.pure's TabularDataSet
+     * arm: type = the column type's path, metaType = PrimitiveType /
+     * Enumeration / InvalidType, empty when the type is unknown). */
+    public enum Kind { TDS, CLASS, TDS_JSON }
 
     @Override
     public List<TypedSpec> children() {

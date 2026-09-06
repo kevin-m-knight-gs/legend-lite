@@ -2101,10 +2101,16 @@ public class RelationalCorpusRunner {
             // stringToFloat::testProject; a bare no-key sort() over the flat
             // TDS cells is the cell-pool multiset judgment —
             // strictdate::testProject (a mixed Integer/StrictDate pool).
-            org.junit.jupiter.api.Assertions.assertEquals(145L,
+            // batch 89 / L8 (2026-09-06): 145 -> 144 — toJSON(tds) over a
+            // tabular argument is the engine's TDS JSON document
+            // (toJSON.pure's TabularDataSet arm: columns with name/type/
+            // metaType, rows as values arrays), emitted by the database over
+            // the chain (TdsJsonChecker -> TypedJsonResult TDS_JSON ->
+            // JsonEmission). testSimpleTypeMappingProjectNulls.
+            org.junit.jupiter.api.Assertions.assertEquals(144L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2428L,
+            org.junit.jupiter.api.Assertions.assertEquals(2429L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

@@ -1061,6 +1061,12 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 89 / L8 toJSON(tds) (2026-09-06):**
+exec-passing 7, text-only 12, unable-to-exec 9 unchanged; ratchet 145/2428 →
+144/2429 (testSimpleTypeMappingProjectNulls — the TDSNull row cells and the
+database-emitted TDS JSON document against its golden text); disagree 0 both
+channels.
+
 **§8.0 scope-table receipt, batch 88 / L8 assert arms (2026-09-06):**
 exec-passing 7, text-only 12, unable-to-exec 9 unchanged; ratchet 147/2426 →
 145/2428 (stringToFloat::testProject — forAll-quantified tolerance verdicts

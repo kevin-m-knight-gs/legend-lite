@@ -1364,6 +1364,7 @@ final class Typer {
             case FLATTEN -> FlattenChecker.check(this, af, env);
             case PIVOT -> PivotChecker.check(this, af, env);
             case COLUMNS -> ColumnsChecker.check(this, af, env);
+            case TO_JSON -> TdsJsonChecker.check(this, af, env);
             case TABLE_REFERENCE -> TableReferenceChecker.check(this, af);
             case TABLE_TO_TDS -> TableReferenceChecker.checkTableToTds(this, af, env);
             case PROJECT -> ProjectChecker.check(this, af, env);
@@ -3267,7 +3268,6 @@ final class Typer {
      * pure's auto-map result. A literal-only body has no $this read and
      * fails the sawThis requirement (the manufactured-constant case,
      * audit 22a H2). Unknown node kinds are conservatively non-strict. */
-
 
     /** bit 0 = saw a $this read; bit 1 = saw a non-strict construct. */
 

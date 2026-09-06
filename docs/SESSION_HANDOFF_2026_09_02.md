@@ -4031,3 +4031,20 @@ rowValueDifferenceTest (TDSColumn instances: `.columns` as ^TDSColumn(name,
 type) literal instances so `$c.name`/`$c.type->elementToPath()` fold),
 testToSQLStringWithCodeBlock (`#/Trade/date#` path argument typed Any), then
 the L1 multi-hop-through-embedded-head trio.
+
+**Batch 89 / L8 toJSON(tds) (2026-09-06, chain GREEN 6m40s; GATES batch 89).** 145/2428 →
+144/2429; IMPL 36. CoreFn TO_JSON → TdsJsonChecker (tabular arg → TypedJsonResult
+Kind.TDS_JSON; others generic) → JsonEmission bare columns/rows document with
+metaType. GUARD: a `cat >` onto compiler/spec/JsonChecker.java OVERWROTE an existing
+class (restored from git; the new checker is TdsJsonChecker) — check `ls` before
+creating a file. CENSUS NOTE: the harness's target/wholetest-flipped.txt is written
+PROGRESSIVELY by whichever lane runs — snapshot it right after the DuckDB lane
+exits and before the H2 lane starts, or the diff lies (a mid-run H2 capture
+showed two engine-golden-defect names as "lost"). NEXT: the filtered-navigation
+pair (testProjectThroughAssociation: `$b.trades->map(t | $t.products->filter(p |
+$p.date == $t.d)->toOne().name)` — a correlated filtered navigation at a CHAINED
+hop; the wall at StoreResolver ~2351 refuses every correlated mid-hop pred, but
+associationJoin's andCorrelatedIntoCondition + the hop>0 left re-pointing
+should serve plain-property outer reads; testForcedSubTypeProjectDirect:
+`$r->subType(@Bicycle).person.name` in project), then rowValueDifferenceTest
+(TDSColumn instances), then the embedded-head trio.

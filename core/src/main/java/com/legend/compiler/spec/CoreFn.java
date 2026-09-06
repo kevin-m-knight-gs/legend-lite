@@ -121,6 +121,11 @@ public enum CoreFn {
     PIVOT("pivot"),
     /** Relation {@code columns()} &mdash; static column METADATA folded at compile time. */
     COLUMNS("columns"),
+    /** {@code toJSON(tds)} &mdash; a TDS serialized as the engine's TDS JSON
+     * ({@code {"columns":[{name,type,metaType}],"rows":[{"values":[..]}]}}),
+     * emitted by the database over the chain; any other argument rides the
+     * generic native. */
+    TO_JSON("toJSON"),
     /** Collection {@code sortBy(key)} &mdash; ascending sort by a key lambda. */
     SORT_BY("sortBy"),
     /** Collection {@code sortByReversed(key)} &mdash; descending sort by a key lambda. */
