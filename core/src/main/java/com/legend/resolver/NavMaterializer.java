@@ -668,6 +668,25 @@ final class NavMaterializer {
                     (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
                             pp, xCs, xm2.slotPrefixes(), xm2.subNavs(),
                             pred, mappingFqn));
+            // the #70 COMPOSITE for the extra identity too (batch 79): a
+            // step whose predicate reads a sibling joinslot (the tree
+            // optimization-table chain `orgs: @a > (INNER) @b`) joins
+            // target ⋈ slotTable on the ORIENTED condition — its own copy
+            // of the whole chain, exactly as the first identity's. Joining
+            // the bare filtered target on the step's sibling-reading
+            // predicate read the FIRST identity's slot row instead, whose
+            // tree rows are the first identity's FILTERED ancestors (TEAM)
+            // — the second qualifier (BUSINESS UNIT) could never match
+            // (testJoinIsolationDeeperTwoIsolations: 'OrgName2' came back
+            // empty). The engine copies the chain per qualifier
+            // (orgtreeoptimizationtable_0 / _2).
+            com.legend.compiler.spec.typed.TypedLambda xCond = step.predicate();
+            CorrelatedSubselects.CompositeChain xcc =
+                    corrSubs.compositeChainTarget(t, step.predicate(), xPipe);
+            if (xcc != null) {
+                xPipe = xcc.pipeline();
+                xCond = xcc.orientedCond();
+            }
             // the synthetic identity's own suffix keys the join prefix
             // (synonyms#f1 -> alias_f1_) — deterministic, collision-free
             // per identity by construction
@@ -690,7 +709,7 @@ final class NavMaterializer {
             }
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
                     xPipe, AssociationJoins.leftKind(),
-                    step.predicate(), java.util.Optional.of(xPrefix), null,
+                    xCond, java.util.Optional.of(xPrefix), null,
                     new com.legend.compiler.element.type.ExprType(
                             com.legend.compiler.element.type.Type.relation(
                                     new com.legend.compiler.element.type.Type

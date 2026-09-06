@@ -2035,10 +2035,17 @@ public class RelationalCorpusRunner {
             // the resolver widens the demand with the implicit scalar
             // tree's paths). testMultipleJoinsInPropertyMappingWithDatesInClass:
             // six instances read back six values, not three.
-            org.junit.jupiter.api.Assertions.assertEquals(158L,
+            // batch 79 / L4c (2026-09-06): 158 -> 157 — a SECOND filtered
+            // identity on one physical sub-slot gets its own COMPOSITE
+            // chain (target ⋈ slotTable on the oriented condition,
+            // NavMaterializer.foldExtraSubIdentities) instead of joining
+            // the first identity's filtered slot row — the engine's
+            // per-qualifier subselects (testJoinIsolationDeeperTwoIsolations:
+            // 'OrgName2' for the BUSINESS UNIT qualifier).
+            org.junit.jupiter.api.Assertions.assertEquals(157L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2415L,
+            org.junit.jupiter.api.Assertions.assertEquals(2416L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

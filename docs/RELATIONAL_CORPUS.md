@@ -91,7 +91,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/tree | 12 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 1 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2429** | 40 | 76 | 30 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2430** | 39 | 76 | 30 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2429 PASS = 2394 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2430 PASS = 2395 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2429 PASS = 2394 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 158
+tests in the ledger: 157
 
 | bucket | asserts |
 |---|---|
@@ -550,11 +550,11 @@ tests in the ledger: 158
 | wall:typer | 40 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
-| divergence | 26 |
-| not-reached | 36 |
+| divergence | 25 |
+| not-reached | 35 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 15 |
-| pass | 34 |
+| pass | 32 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
@@ -749,10 +749,6 @@ tests in the ledger: 158
 - testRelationStoreAccessorOnView #2 - -> not-reached: 1 assert(s) after the failure
 - testSimpleMappingQueryWithFilterInProject #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '_' ::  expected: '#TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#' actual:   '#TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#'
 - testProject #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N par :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)
-- testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner #1 meta::pure::functions::asserts::assertEquals -> pass
-- testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner #2 meta::pure::functions::asserts::assertEquals -> pass
-- testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner #3 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (TDSRow.values) expected: [N, '_', '_', '_'] :: assertEquals (TDSRow.values) expected: [11, 'Alex', 'OrgName3', 'OrgName2'] actual:   [11, 'Alex', 'OrgName3', []]
-- testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner #4 - -> not-reached: 4 assert(s) after the failure
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #2 - -> not-reached: 4 assert(s) after the failure
 - testBiTemporalUnionJoin_milestoningColumnInOnClause #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
@@ -926,7 +922,6 @@ tests in the ledger: 158
 - ERROR testRelationStoreAccessorOnView [tests/mapping/relation]: Catalog Error: Table with name personView does not exist! | Did you mean "personWithAddressTable"? |  | LINE 5: ... END) AS _tds_line FROM ( SELECT t1.ID, t1.age, t1.name FROM personView AS t1 ) AS t0 ) AS t0_a), '"sql":"select \"perso... |                                                            
 - FAIL testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: assertEquals: expected #TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#, got #TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#
 - ERROR testProject [tests/mapping/sqlFunction]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)
-- FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
 - FAIL testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: assert did not hold (false)
 - FAIL testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: assert did not hold (false)
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']

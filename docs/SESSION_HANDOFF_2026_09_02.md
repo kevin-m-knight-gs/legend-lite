@@ -3861,3 +3861,23 @@ mid was demanded LEFT). testChainedFiltersQuery: `locations` walls in
 Substitution.assocLeaf on the SECOND filtered to-many hop (employees#f →
 locations#f) — the nested scope's target bindings lack the association slot
 (the L1 nested-navigation design, not L4).
+
+**Batch 79 / L4c (2026-09-06, chain GREEN 6m26s; GATES batch 79).** 158/2415 →
+157/2416; IMPL 57. NavMaterializer.foldExtraSubIdentities: the extra identity
+takes the #70 composite (its own target ⋈ slotTable, oriented condition) —
+never a join off the first identity's filtered slot row. L4/L3 state after
+79: testChainedFiltersQuery = L1 nested scope; testEnumFilterWithUnionMapping…
+= plan TEXT behind a plan wall; testPksWithImportDataFlow = the execution
+context's importDataFlowAddFks (engine pureToSQLQuery.pure:4821-4832 appends
+`fk_`-prefixed / member-indexed pk columns; ours types the getInteger read
+first — a leg of its own); testMixedMapping… = `firm_ID` key wall then the
+outer-row-filter golden; the two testSimpleMapping/union-relation goldens stay
+in §8.5 with their analyses. NEXT (batch 80): the connection-level
+MapperPostProcessor (postProcessors = ^MapperPostProcessor(mappers =
+^TableNameMapper(schema = ^SchemaNameMapper(from,to), from, to))) as the
+tableReplace channel SqlPostProcessors.hooks already carries — L6
+testGraphFetchWithTableMapperPostProcessor (rows: employees [] over the
+empty differentPersonTable, declared in `db` so the seed creates it). The
+L7 relationalMapper pair asserts a PLAN NODE's sqlQuery text over foreign
+schema names (snDBDefault.default.*) — text, unless a referee creates the
+schema (L15's quoted-schema idea).
