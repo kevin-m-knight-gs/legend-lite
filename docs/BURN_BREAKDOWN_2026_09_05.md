@@ -134,6 +134,20 @@ runtime off the handle; the dialect = the connection's `type`, read through the
 lets and inlined user calls). The Prelude generator admitted SQLResult and
 Format on platform demand. The assert is a rows verdict (text diverged,
 golden replayed on H2, rows agreed).
+**batch 76 / L8c LANDED (2026-09-06)** — iqrClassifyTest, zScoreTest,
+testExtendDigest_InMemory flipped (160/2413): the in-memory TDS from collection
+natives. (1) A CLASS-typed collection VALUE in relation position
+(`range(n)->map(i|…)->zip($scores)` — a Pair list the DATABASE computes:
+list_zip over list_transform over range; `range(n)` is NOT a compile-time fold,
+the unroll compares and never computes) is the relation of its elements'
+LAYOUT fields, UNNEST in list order (CollectionRelations.explode; the flatten
+arm moved there at the Lowerer's file guardrail), so `project([col(p|$p.first,
+'name'), …])` reads the columns like a store row. (2) StaticFold's schema
+vocabulary gains `zip` — the engine's iqrClassify/zScore programs spell
+`$cols->zip($outputCols)->map(colPair|…col(…, $colPair.second))`, and the
+computed column names must fold before typing. The digest golden is pure's own
+md5('student_0|1') (the in-memory engine's joinStrings is correct; only its
+relational renderer is the registered defect).
 Re-sized after reading the walls: iqrClassify / zScore / extendDigest_InMemory
 are NOT small — a VALUES relation from `range()->map()->zip()` (collection
 natives in relation position), one leg for the three; rowValueDifference needs
@@ -153,10 +167,10 @@ row JSON envelope — a golden-to-rows referee arm).
 | dataType::testSimpleTypeMappingProjectNulls | no scalar lowering for tinyInt/smallInt column functions |
 | mapping::dates::strictdate::testProject | TypedNativeCall in relation position (strict date column) |
 | tds::extensions::testFirstNotNull | unresolved type variable T at the lowering boundary |
-| tds::extensions::iqrClassifyTest | `col(p\|$p.first,'name')` over a zipped pair list: an in-memory TDS from pairs + `iqrClassify` (engine tdsExtension program) |
-| tds::extensions::zScoreTest | same shape, `zScore` |
+| tds::extensions::iqrClassifyTest | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
+| tds::extensions::zScoreTest | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
 | tds::extensions::rowValueDifferenceTest | typer: cannot access 'name' on String (a column-name read on a TDSColumn collection) |
-| tds::extensions::testExtendDigest_InMemory | TypedNativeCall in relation position — a literal TDS (`project` over pairs) then extendWithDigest |
+| tds::extensions::testExtendDigest_InMemory | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
 | projection::testGroupByWithWindowSubset | `groupByWithWindowSubset` unknown — the engine's TDS extension program (admit/inline) |
 | sqlstring::testToSQLStringWithCodeBlock | typer: a `#/Trade/date#` path argument typed Any where Date is expected |
 | businessdate::testViewChainsWithBusinessDate | **FLIPPED batch 75** — toSQL handle + SQLResult.toSQLString function form; rows verdict |
@@ -371,7 +385,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 → **63**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 → **60**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a

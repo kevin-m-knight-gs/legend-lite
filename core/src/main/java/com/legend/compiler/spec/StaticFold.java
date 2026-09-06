@@ -315,6 +315,25 @@ final class StaticFold {
                 return args != null && args.size() == 2
                         ? new Pair(args.get(0), args.get(1)) : null;
             }
+            // zip over two static lists: the pairs by position, to the
+            // shorter length (the tdsExtension programs pair their column
+            // lists with their output-column lists — iqrClassify/zScore:
+            // `$cols->zip($outputCols)->map(colPair|…)`; batch 76)
+            case "zip" -> {
+                if (ps.size() != 2) {
+                    return null;
+                }
+                List<Object> a = evalList(ps.get(0), scope);
+                List<Object> b = evalList(ps.get(1), scope);
+                if (a == null || b == null) {
+                    return null;
+                }
+                List<Object> out = new ArrayList<>();
+                for (int i = 0; i < Math.min(a.size(), b.size()); i++) {
+                    out.add(new Pair(a.get(i), b.get(i)));
+                }
+                return out;
+            }
             case "equal" -> {
                 List<Object> args = evalAll(ps, scope);
                 return args != null && args.size() == 2

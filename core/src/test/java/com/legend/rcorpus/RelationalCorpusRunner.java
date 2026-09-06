@@ -2010,10 +2010,19 @@ public class RelationalCorpusRunner {
             // toSQLString K-routine (SqlTextInputs reads the lambda /
             // mapping / runtime off the handle); testViewChainsWithBusinessDate's
             // assertSameSQL became a platform-arm ROW verdict.
-            org.junit.jupiter.api.Assertions.assertEquals(163L,
+            // batch 76 / L8c (2026-09-06): 163 -> 160 — the in-memory TDS
+            // from collection natives (iqrClassifyTest, zScoreTest,
+            // testExtendDigest_InMemory): a CLASS-typed collection VALUE in
+            // relation position (`range(n)->map(i|…)->zip($scores)`, a Pair
+            // list the database computes) is the relation of its elements'
+            // layout fields — UNNEST in list order (CollectionRelations.explode);
+            // StaticFold's schema vocabulary gains `zip` so the engine's
+            // iqrClassify/zScore programs (`$cols->zip($outputCols)->map(…)`)
+            // fold their computed column names before typing.
+            org.junit.jupiter.api.Assertions.assertEquals(160L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2410L,
+            org.junit.jupiter.api.Assertions.assertEquals(2413L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

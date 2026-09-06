@@ -133,6 +133,11 @@ public final class Lowerer {
     /** Whether a class FQN exists in the driving model (layoutless-LUB detection). */
     private final Predicate<String> classExists;
 
+    /** The canonical layout of a class-typed value (CollectionRelations). */
+    Optional<List<Type.Column>> classLayout(Type t) {
+        return classLayout.apply(t);
+    }
+
     /** Layout-typing arm ({@link LayoutTypes}) — carries the
      * recursive-layout cycle guard. */
     private final LayoutTypes layoutTypes;
@@ -150,7 +155,7 @@ public final class Lowerer {
     }
 
     /** SQL type of a value, seeing through class layouts (structs) before {@link PureSql}. */
-    private SqlType sqlTypeOf(Type t) {
+    SqlType sqlTypeOf(Type t) {
         return layoutTypes.sqlTypeOf(t);
     }
 
@@ -547,42 +552,14 @@ public final class Lowerer {
             }
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
-            case TypedCollectionRelation cr -> {
-                // Inside lateral(...) the collection may read the OUTER row
-                // (the enclosing-resolver channel); otherwise it must be
-                // self-contained.
-                var outerScopes = List.copyOf(enclosing);
-                SqlExpr value = scalar(cr.value(), (v, name) -> {
-                    for (var outer : outerScopes) {
-                        if (attempt(() -> outer.resolve(v, name))
-                                instanceof Resolution.Resolved o) {
-                            return o.expr();
-                        }
-                    }
-                    throw new IllegalStateException("collection-relation value must"
-                            + " be self-contained, referenced column: " + name);
-                });
-                Type elem = (Type.requireRelationSchema(cr.info().type()))
-                        .columns().get(0).type();
-                SqlExpr list = elem instanceof Type.ClassType
-                        ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
-                        : value;
-                // A VARIANT ELEMENT column keeps JSON elements; the list may
-                // itself be a variant (fromJson(...)->toMany(@Variant)).
-                if (cr.value().info().type() instanceof Type.ClassType vc
-                        && PlatformTypes.isVariant(vc)
-                        && !(elem instanceof Type.ClassType)) {
-                    list = SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value);
-                }
-                var unnestP = new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.UNNEST, list), cr.column(),
-                        Fold.named(outputsOf(cr.info()), cr.column()));
-                yield SqlSelect.starOf(new SqlSource.Subselect(
-                        new SqlSelect(List.of(unnestP), false,
-                                new SqlSource.Dual(), null, List.of(), null,
-                                null, List.of(), null, null, List.of()),
-                        nextAlias(), null));
-            }
+            // (the body moved to CollectionRelations at the file guardrail)
+            case TypedCollectionRelation cr ->
+                    CollectionRelations.flatten(this, cr, List.copyOf(enclosing));
+            // a CLASS-typed collection VALUE in relation position (batch 76:
+            // range->map->zip feeding project): the relation of its
+            // elements' layout fields, in list order
+            case TypedSpec cv when CollectionRelations.classValued(this, cv) ->
+                    CollectionRelations.explode(this, cv);
 
             case TypedRename r -> rename(r);
 
@@ -3170,7 +3147,7 @@ public final class Lowerer {
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */
-    private ColumnResolver noScope() {
+    ColumnResolver noScope() {
         return (var, name) -> {
             throw new IllegalStateException(
                     "an instance literal has no row scope for $" + var

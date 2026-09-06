@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 256 | 3 | 6 | 1 | 1 | 1 | 2 | 1 |
+| tds/tests | 266 | 259 | 3 | 3 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 28 | 2 | 8 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2424** | 41 | 80 | 30 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2427** | 41 | 77 | 30 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2427 PASS = 2392 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -516,7 +516,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (
 - 2x in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToSqlQuery::toSQLQuery/6 -> meta::relational::functions::pureToSqlQuery::defaultState/4]
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- 2x no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - 2x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 1x unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
 - 1x in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan/4]
@@ -539,21 +538,22 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (
 - 1x no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
 - 1x in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOperationElement ret=meta::relational::metamodel::RelationalOperationElement[Bounded[lower=1, upper=1]]; meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::join::RelationalTreeNode ret=meta::relational::metamodel::join::RelationalTreeNode[Bounded[lower=1, upper=1]]] [inlined via meta::relational::milestoning::applyMilestoningFilters/5]
 - 1x milestoned property access 'product' on a NESTED navigation is not supported yet
+- 1x in function 'meta::relational::postProcessor::reAliasColumnName::lengthConfig': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::postProcessor::reAliasColumnName::trimColumnName/2 -> meta::relational::postProcessor::reAliasColumnName::search/2 -> meta::relational::postProcessor::reAliasColumnName::lengthConfig/1]
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 163
+tests in the ledger: 160
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 42 |
+| wall:typer | 40 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
 | divergence | 28 |
 | not-reached | 38 |
 | referee-cannot-replay | 9 |
-| wall:lowering | 16 |
+| wall:lowering | 15 |
 | pass | 35 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
@@ -688,11 +688,8 @@ tests in the ledger: 163
 - columnValueDifferenceWithoutPrevalTest #2 meta::pure::functions::asserts::assertNotEmpty -> pass
 - columnValueDifferenceWithoutPrevalTest #3 meta::pure::functions::asserts::assertEquals -> pass
 - columnValueDifferenceWithoutPrevalTest #4 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:alloy-adjust-widening: platform-fail: assertEquals (rendered CSVJOIN:;): line N: expected <N-N-NTN:N:N.N+N|true|N.N|TDSNull|N.N|N|TDSNu :: assertEquals (rendered CSVJOIN:;): line 0: expected <2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2
-- iqrClassifyTest #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::pure::tds::tests::extensions::iqrClassifyTest :: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - rowValueDifferenceTest #0 - -> wall:typer: wall-type: cannot access '_' on String :: meta::pure::tds::tests::extensions::rowValueDifferenceTest :: cannot access 'name' on String
-- testExtendDigest_InMemory #1 assertEquals -> wall:lowering: wall-exec: lowering not yet implemented for TypedNativeCall ('_' in relation position) :: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::zip' in relation position)
 - testExtendDigest_Relational #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', '_'] ::  expected: ['9e103ea06a6999b4c5a86cf25d68b083', 'b7bbee4d9b6a2736c25b00dded9344c7'] actual:   ['5e922469e9dee06b7d638775371ac834', '6923b8e81fa52e1863d80db5f31759ce']
-- zScoreTest #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::pure::tds::tests::extensions::zScoreTest :: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - resolveSchemaTest #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualif :: meta::relational::tds::schema::tests::resolveSchemaTest :: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a full
 - testSortQuotes #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s) :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
 - testJoinWithExtendWithDigestOnColumnsOnBothQueries #1 meta::pure::functions::asserts::assertSize -> pass
@@ -897,11 +894,8 @@ tests in the ledger: 163
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testJoinUsing [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - FAIL columnValueDifferenceWithoutPrevalTest [tds/tests]: assertEquals: expected 2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2|3|-1;2014-12-03T00:00:00.000000000+0000|true|71.0|55.0|16.0|2|2|0;2014-12-04T00:00:00.000000000+0000|true|105.0|71.0|34.0|3|2|1;2014-12-05T00:00:00.000000000+0000|true|5.0|105.0|-100.0|1|3|-2;2014-12-06T00:00:00.000000000+0000|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1, got 2014-12-01|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02|true|55.0|356.0|-301.0|2|3|-1;2014-12-03|true|71.0|55.0|16.0|2|2|0;2014-12-04|true|105.0|71.0|34.0|3|2|1;2014-12-05|true|5.0|105.0|-100.0|1|3|-2;2014-12-06|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1
-- ERROR iqrClassifyTest [tds/tests]: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - ERROR rowValueDifferenceTest [tds/tests]: cannot access 'name' on String
-- ERROR testExtendDigest_InMemory [tds/tests]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::zip' in relation position)
 - FAIL testExtendDigest_Relational [tds/tests]: assertEquals: expected [b7bbee4d9b6a2736c25b00dded9344c7, 9e103ea06a6999b4c5a86cf25d68b083], got [6923b8e81fa52e1863d80db5f31759ce, 5e922469e9dee06b7d638775371ac834]
-- ERROR zScoreTest [tds/tests]: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - ERROR resolveSchemaTest [tds/tests]: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSortQuotes [tds/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
 - FAIL testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: assertSameElements: expected [1,Peter,Smith,1,ee0af362d8c1e4fa8c805dfeadd1aa37,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 2,John,Johnson,1,f8758ee5b78e87c2c62f4bed81ce3537,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 3,John,Hill,1,5a60b85c13b6c8273a6d2d55ff6a7815,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 4,Anthony,Allen,1,aceae9411805b964e79dd85254a18a64,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 5,Fabrice,Roberts,2,78e0713429c21373986cd56e497ece2f,Firm A,2,d41d8cd98f00b204e9800998ecf8427e, 6,Oliver,Hill,3,ab43019b868088e113c5d313a7f5ca40,Firm B,3,d41d8cd98f00b204e9800998ecf8427e, 7,David,Harris,4,988f1ea1ec2cdacc3bb1dff202d4160a,Firm C,4,d41d8cd98f00b204e9800998ecf8427e], got [1,Peter,Smith,1,acb3d9c79f4a025d8ff258eda164fffa,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 2,John,Johnson,1,36175107e230cb75c14506db96498987,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 3,John,Hill,1,f43354dfab4ebfa732a1bb5f9fc0705a,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 4,Anthony,Allen,1,0a8c4f1f5bd45a216a56550528f27f0d,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 5,Fabrice,Roberts,2,04630edbca592585af48998db91fa5e1,Firm A,2,d41d8cd98f00b204e9800998ecf8427e, 6,Oliver,Hill,3,934a39c37d4466bf766907346972345d,Firm B,3,d41d8cd98f00b204e9800998ecf8427e, 7,David,Harris,4,e6e275ba04b97e92528f911eee5d23f2,Firm C,4,d41d8cd98f00b204e9800998ecf8427e] [expected types=[String, String, String, String, String, String, String]; got types=[String, String, String, String, String, String, String]]

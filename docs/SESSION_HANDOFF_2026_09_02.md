@@ -3791,3 +3791,23 @@ probe with LEGEND_LITE_STACKS=1 to see whether it is the test's own
 `col(p|$p.first,'name')` or the program's `col(…, $col + '_iqrLow')` under
 StaticFold (NormalizeRequiredFunction bodies fold there: map/pair/plus/toString
 are in its vocabulary; range/zip/size are not).
+
+**Batch 76 / L8c (2026-09-06, chain GREEN 6m08s; GATES batch 76).** 163/2410 →
+160/2413; lanes unchanged; IMPL 60. iqrClassifyTest / zScoreTest /
+testExtendDigest_InMemory: (1) a class-typed collection VALUE in relation
+position (`range->map->zip`, a Pair list the database computes) is the relation
+of its elements' layout fields — UNNEST in list order (CollectionRelations.explode;
+the flatten arm moved there; ONE UNNEST emission site shared — the carrier-purity
+ratchet counts `SqlFn.UNNEST` textually, comments included); (2) StaticFold gains
+`zip`. Lowerer now 3,476 lines; classLayout/noScope/sqlTypeOf package-visible.
+NEXT (§7 order): the L4/L3 wrong-row divergences, one probe each. Homework done
+(read, not probed): testSimpleMappingQueryWithFilterInProject's golden is only
+explicable if the nested filter `$e.age < 35` reads the OUTER row's age (persons
+age>25 limit 5 = John 30/f1, Fabrice 45/f4, Oliver 26/f4, David 52/f5; golden
+Fabrice→null, Oliver→Fabrice+Oliver; ours Fabrice→Oliver, Oliver→Oliver is the
+model's answer) — an engine-golden-defect candidate (alias collapse in
+relation-function set navigation; find the engine line before registering);
+testMixedMappingWithFilterInProject walls first (`firm_ID` key over the mixed
+union) then meets the same golden. testUnionTwoRelationMappings_ManyColumnProject:
+the fixture's firstName cells are '' (empty string, not NULL) — read our actual
+rows (scoped probe) before judging.
