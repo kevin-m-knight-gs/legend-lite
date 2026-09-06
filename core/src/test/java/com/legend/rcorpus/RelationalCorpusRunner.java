@@ -2003,10 +2003,17 @@ public class RelationalCorpusRunner {
             // type), the bare TDSNull as a LIST ELEMENT is the null-cell
             // value ^TDSNull(), and the literal unroll compares element
             // references / TDS null carriers (tds.pure firstNotNull).
-            org.junit.jupiter.api.Assertions.assertEquals(164L,
+            // batch 75 / L8b (2026-09-06): 164 -> 163 — the toSQL(...)
+            // SQLResult HANDLE and its qualified property toSQLString(
+            // dbType, tz, quote, format) (engine toSQLString.pure:46/:151)
+            // typed as the 5-argument function form, routed onto the one
+            // toSQLString K-routine (SqlTextInputs reads the lambda /
+            // mapping / runtime off the handle); testViewChainsWithBusinessDate's
+            // assertSameSQL became a platform-arm ROW verdict.
+            org.junit.jupiter.api.Assertions.assertEquals(163L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2409L,
+            org.junit.jupiter.api.Assertions.assertEquals(2410L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2059,7 +2066,11 @@ public class RelationalCorpusRunner {
             // assertSameSQL left the walk's text-only lane — its `add(Date,
             // Duration)` program is admitted, the test flipped, and the
             // assert is a platform-arm row verdict (lane move, disagree 0)
-            org.junit.jupiter.api.Assertions.assertEquals(14,
+            // 14 -> 13 (batch 75 / L8b, 2026-09-06): testViewChainsWithBusinessDate's
+            // assertSameSQL left the walk's text-only lane — the toSQL handle
+            // and SQLResult.toSQLString typed, the test flipped, and the
+            // assert is a platform-arm row verdict (lane move, disagree 0)
+            org.junit.jupiter.api.Assertions.assertEquals(13,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

@@ -1061,6 +1061,15 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 75 / L8b (2026-09-06):** text-only 14 → 13
+(testViewChainsWithBusinessDate's assertSameSQL left the walk's lane — the
+`toSQL(f, mapping, runtime, ext)` SQLResult HANDLE and its qualified property
+`toSQLString(dbType, tz, quote, format)` (engine toSQLString.pure:46/:151) are
+typed as the 5-argument function form and routed onto the one toSQLString
+K-routine, so the assert is a platform-arm ROW verdict: text diverged, the
+golden replayed on H2 and the rows agreed); exec-passing 7, unable-to-exec 9
+unchanged; ratchet 164/2409 → 163/2410; disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 74 / L8a (2026-09-05):** text-only 15 → 14
 (testToSQLStringWithCodeBlock's assertSameSQL left the walk's lane — the
 engine's `add(Date, Duration)` programs are admitted verbatim and the test

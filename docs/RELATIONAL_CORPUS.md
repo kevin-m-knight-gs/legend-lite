@@ -47,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 224 | 1 | 2 | 1 | 0 | 0 | 0 | 0 |
+| milestoning/tests | 228 | 225 | 1 | 2 | 0 | 0 | 0 | 0 | 0 |
 | modelJoins | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2423** | 41 | 80 | 31 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2424** | 41 | 80 | 30 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2388 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -510,11 +510,10 @@ SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2388 clean + 35 carrying softness (
 ### top error buckets
 
 - 5x scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
-- 3x in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} cannot also bind {meta::relational::metamodel::relation::SelectSQLQuery[1] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} [inlined via meta::relational::functions::sqlstring::toSQL/4]
 - 2x unbound variable '$collection'
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
+- 2x in function 'meta::relational::functions::sqlDialectTranslation::relOpToString': unknown function 'planSqlStatement' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::sqlQueryToString::sqlQueryToString/5 -> meta::relational::functions::sqlDialectTranslation::relOpToString/5 -> meta::relational::functions::sqlDialectTranslation::relOpToString/7 -> meta::relational::functions::sqlDialectTranslation::relOpToString/7]
 - 2x in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToSqlQuery::toSQLQuery/6 -> meta::relational::functions::pureToSqlQuery::defaultState/4]
-- 2x 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
@@ -539,21 +538,22 @@ SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2388 clean + 35 carrying softness (
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lowers their sources)
 - 1x in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOperationElement ret=meta::relational::metamodel::RelationalOperationElement[Bounded[lower=1, upper=1]]; meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::join::RelationalTreeNode ret=meta::relational::metamodel::join::RelationalTreeNode[Bounded[lower=1, upper=1]]] [inlined via meta::relational::milestoning::applyMilestoningFilters/5]
+- 1x milestoned property access 'product' on a NESTED navigation is not supported yet
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 164
+tests in the ledger: 163
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 45 |
+| wall:typer | 42 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
 | divergence | 28 |
-| not-reached | 37 |
+| not-reached | 38 |
 | referee-cannot-replay | 9 |
-| wall:lowering | 14 |
+| wall:lowering | 16 |
 | pass | 35 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
@@ -653,16 +653,15 @@ tests in the ledger: 164
 - testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 assertSameSQL -> wall:resolver: wall-exec: milestoned property access '_' on a NESTED navigation is not supported yet :: milestoned property access 'product' on a NESTED navigation is not supported yet
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #1 meta::pure::functions::asserts::assertEquals -> pass
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #2 TypedIf -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 0 row(s), our pipeline 
-- testViewChainsWithBusinessDate #0 - -> wall:typer: wall-type: no overload of '_' accepts N argument(s) :: meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate :: no overload of 'meta::relational::functions::sqlstring::toSQLString' accepts 5 argument(s)
 - testPersonToFirmUsingFromProject #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext :: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::e
 - testPersonToFirmUsingProject #0 - -> zero-assert: assert-free-inert :: meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
 - testProp3 #1 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Relational :: assertEqualsH2Compatible (sql-text, rows underivable): expected Relational (   type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]   resultColumns = [("name", VARCHAR(200)), ("prop3", "
 - testProp3 #2 - -> not-reached: 1 assert(s) after the failure
 - testFlatten_ViaNoArgMapping #0 - -> wall:typer: wall-type: from() argument N must be a mapping or runtime reference, got TypedVariable :: meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaNoArgMapping :: from() argument 1 must be a mapping or runtime reference, got TypedVariable
 - testFlatten_ViaNoArgMapping_ViaAssociation #0 - -> wall:typer: wall-type: from() argument N must be a mapping or runtime reference, got TypedVariable :: meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaNoArgMapping_ViaAssociation :: from() argument 1 must be a mapping or runtime reference, got Type
-- testPushFiltersDownToJoinsPostProcessorToSQL #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': in call to '_' :: in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<met
-- testDb2ColumnRename #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': in call to '_' :: in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<met
-- testPostProcessTransformJoinOp #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': in call to '_' :: in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<met
+- testPushFiltersDownToJoinsPostProcessorToSQL #1 assertEquals -> wall:lowering: wall-exec: TypeInferenceException: in function '_': unknown function '_' — n :: in function 'meta::relational::functions::sqlDialectTranslation::relOpToString': unknown function 'planSqlStatement' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- testDb2ColumnRename #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h :: in function 'meta::relational::postProcessor::reAliasColumnName::lengthConfig': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::postProcessor::reAliasCo
+- testPostProcessTransformJoinOp #1 assertEquals -> wall:lowering: wall-exec: TypeInferenceException: in function '_': unknown function '_' — n :: in function 'meta::relational::functions::sqlDialectTranslation::relOpToString': unknown function 'planSqlStatement' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - addDriverTablePkForProject #0 - -> decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o :: meta::relational::tests::functions::pureToSqlQuery::addDriverTablePkForProject :: unknown function 'routeFunction' — no function of this name in the native or user catalog (unpo
 - simpleFunctionExpressionTranslationAdjust #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::pure::executionPlan::fe :: in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user c
 - simpleFunctionExpressionTranslationNow #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::pure::executionPlan::fe :: in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user c
@@ -680,7 +679,8 @@ tests in the ledger: 164
 - testRoutingOfSimpleQualifiedProperty #0 - -> decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o :: meta::relational::tests::query::routing::testRoutingOfSimpleQualifiedProperty :: unknown function 'routeFunction' — no function of this name in the native or user catalog (unpor
 - testConvertJoinTreeNode #1 - -> decision:recursion: wall-exec: TypeInferenceException: in function '_': expected meta::external:: :: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inline
 - testConvertSelectSQLQuery #1 - -> decision:recursion: wall-exec: TypeInferenceException: in function '_': expected meta::external:: :: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inline
-- testProcessIdentifierWithQuoteChar #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully quali :: meta::relational::functions::sqlQueryToString::default::testProcessIdentifierWithQuoteChar :: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — u
+- testProcessIdentifierWithQuoteChar #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': in call to 'meta::rel :: in function 'meta::relational::functions::sqlQueryToString::default::getDefaultLiteralProcessors': in call to 'meta::relational::functions::sqlQueryToString::literalTransform', argument 1: expected {K[1] -> String[1]}, got 
+- testProcessIdentifierWithQuoteChar #2 - -> not-reached: 5 assert(s) after the failure
 - testTempTableSqlStatementsForH2 #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': in call to 'meta::relatio :: in function 'meta::relational::functions::sqlQueryToString::tests::getTempTableSqlStatements': in call to 'meta::relational::functions::sqlQueryToString::ddlSqlQueryToString', argument 2: expected meta::relational::func
 - testJoinFunc #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qual :: meta::pure::tds::toRelation::testJoinFunc :: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified na
 - testJoinUsing #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qual :: meta::pure::tds::toRelation::testJoinUsing :: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified n
@@ -869,14 +869,13 @@ tests in the ledger: 164
 - ERROR testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOpe
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
 - FAIL testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-text: expected select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "ProductClassificationSystemTable_d#5_d#2_m1" on ("root".classificationSystemId = "ProductClassificationSystemTable_d#5_d#2_m1".id and "ProductClassificationSystemTable_d#5_d#2_m1".from_z <= DATE'2015-01-01' and "ProductClassificationSystemTable_d#5_d#2_m1".thru_z > DATE'2015-01-01') left outer join SystemTable as "SystemTable_d#5_l_d#2_m1_r" on ("ProductClassificationSystemTable_d#5_d#2_m1".name = "SystemTable_d#5_l_d#2_m1_r".name) where "SystemTable_d#5_l_d#2_m1_r".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16', got select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "productclassificationsystemtable_0" on ("root".classificationSystemId = "productclassificationsystemtable_0".id and "productclassificationsystemtable_0".from_z <= DATE'2015-10-16' and "productclassificationsystemtable_0".thru_z > DATE'2015-10-16') left outer join SystemTable as "systemtable_0" on ("productclassificationsystemtable_0".name = "systemtable_0".name) where "systemtable_0".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16'
-- SHAPE testViewChainsWithBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: plan wall: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity': $this.entityIdFk 
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - ERROR testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} cannot also bi
-- ERROR testDb2ColumnRename [postprocessor/tests]: in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} cannot also bi
-- ERROR testPostProcessTransformJoinOp [postprocessor/tests]: in function 'meta::relational::functions::sqlstring::toSQL': in call to 'meta::pure::functions::collection::concatenate', argument 2: type variable T bound to {meta::relational::metamodel::relation::SelectSQLQuery[*] -> Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]} cannot also bi
+- ERROR testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: in function 'meta::relational::functions::sqlDialectTranslation::relOpToString': unknown function 'planSqlStatement' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::sqlQueryToString::sqlQueryToString/5 
+- ERROR testDb2ColumnRename [postprocessor/tests]: in function 'meta::relational::postProcessor::reAliasColumnName::lengthConfig': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::postProcessor::reAliasColumnName::trimColumnName/2 -> meta::relational::postProcessor::reAliasColumnName::search/2 -> me
+- ERROR testPostProcessTransformJoinOp [postprocessor/tests]: in function 'meta::relational::functions::sqlDialectTranslation::relOpToString': unknown function 'planSqlStatement' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::sqlQueryToString::sqlQueryToString/5 
 - ERROR addDriverTablePkForProject [pureToSQLQuery/tests]: unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR simpleFunctionExpressionTranslationAdjust [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToS
 - ERROR simpleFunctionExpressionTranslationNow [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::defaultState': unknown function 'meta::pure::executionPlan::featureFlag::contextHasFlag' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::functions::pureToS
@@ -893,7 +892,7 @@ tests in the ledger: 164
 - ERROR testRoutingOfSimpleQualifiedProperty [router/tests]: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
 - ERROR testConvertJoinTreeNode [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
 - ERROR testConvertSelectSQLQuery [sqlDialectTranslation]: in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> 
-- ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testProcessIdentifierWithQuoteChar [sqlQueryToString]: in function 'meta::relational::functions::sqlQueryToString::default::getDefaultLiteralProcessors': in call to 'meta::relational::functions::sqlQueryToString::literalTransform', argument 1: expected {K[1] -> String[1]}, got Function<meta::pure::metamodel::type::Any> [inlined via meta::relational::fun
 - ERROR testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: in function 'meta::relational::functions::sqlQueryToString::tests::getTempTableSqlStatements': in call to 'meta::relational::functions::sqlQueryToString::ddlSqlQueryToString', argument 2: expected meta::relational::functions::sqlQueryToString::DbConfig, got meta::pure::metamodel::type::Any [inlined 
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testJoinUsing [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

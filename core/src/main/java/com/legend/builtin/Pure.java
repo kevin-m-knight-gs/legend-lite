@@ -1608,6 +1608,21 @@ public final class Pure {
     // strips formatting (sqlRemoveFormatting), so the flat rendering is
     // compare-equal. The 3rd argument is DatabaseType OR Runtime (:40).
     public static final NativeFunctionDefinition TO_SQL_STRING_PRETTY__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toSQLStringPretty(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], databaseTypeOrRuntime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
+    // toSQL (engine toSQLString.pure:46): the SQLResult-producing half of
+    // the same doctrine — toSQLStringPretty(f, mapping, runtime, ext) IS
+    // toSQL(f, mapping, runtime, ext).toSQLString(connection.type,
+    // connection.timeZone, connection.quoteIdentifiers, Format) (:40-44).
+    // An opaque HANDLE (the plan handle's twin): the query lambda and
+    // mapping ride on it; the qualified property below forces it (batch
+    // 75, testViewChainsWithBusinessDate).
+    public static final NativeFunctionDefinition TO_SQL__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toSQL(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::relational::functions::sqlstring::SQLResult[1];");
+    // SQLResult.toSQLString(databaseType, dbTimeZone, quoteIdentifiers,
+    // format) — the engine's QUALIFIED PROPERTY (toSQLString.pure:151),
+    // spelled in its function form (real pure desugars `$r.toSQLString(
+    // a, b, c, d)` to toSQLString($r, a, b, c, d)); the same K-routine
+    // renders it — the dialect from the DatabaseType argument, the format
+    // flat (every golden compare strips formatting).
+    public static final NativeFunctionDefinition TO_SQL_STRING__SQLRESULT_1__DBTYPE_1__STRING_01__BOOLEAN_01__FORMAT_1 = signature("native function meta::relational::functions::sqlstring::toSQLString(sqlResult:meta::relational::functions::sqlstring::SQLResult[1], databaseType:meta::relational::runtime::DatabaseType[1], dbTimeZone:meta::pure::metamodel::type::String[0..1], quoteIdentifiers:meta::pure::metamodel::type::Boolean[0..1], format:meta::relational::functions::sqlQueryToString::Format[1]):meta::pure::metamodel::type::String[1];");
     // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
     // walks the Database metamodel to spell DDL) — a K-native here, DDL
     // rendered from the compiled store model (com.legend.exec.Ddl). The

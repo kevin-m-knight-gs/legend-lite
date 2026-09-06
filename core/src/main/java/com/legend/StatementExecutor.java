@@ -490,14 +490,41 @@ final class StatementExecutor {
      */
     private static @com.legend.Nullable ExecutionResult toSqlString(
             com.legend.compiler.spec.typed.TypedNativeCall call,
+            java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        // toSQLStringPretty's RUNTIME overload carries the connection in
-        // arg 2 — resolve its DatabaseType; the enum overloads keep the
-        // direct tail read
-        TypedSpec dbArg = call.args().get(2);
-        String db = dbArg instanceof com.legend.compiler.spec.typed.TypedEnumValue
-                ? typedEnumTail(dbArg)
-                : String.valueOf(ConnectionFlags.databaseTypeOf(dbArg));
+        // the inputs across the overloads (SqlTextInputs): the receiver
+        // form toSQL(...).toSQLString(dbType, …) reads its lambda and
+        // mapping off the toSQL handle (batch 75)
+        SqlTextInputs in = SqlTextInputs.of(call, letPrefix);
+        if (in == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "toSQLString over an SQLResult that is not a toSQL(...) handle");
+        }
+        // the dialect: an enum literal names it; toSQLStringPretty's
+        // RUNTIME overload carries the connection in arg 2 — resolve its
+        // DatabaseType structurally; the receiver form reads the
+        // connection the engine reads ($connection.type off the handle's
+        // runtime), through the lets and the inlined user calls
+        TypedSpec dbArg = in.dialect();
+        String db;
+        if (dbArg instanceof com.legend.compiler.spec.typed.TypedEnumValue) {
+            db = typedEnumTail(dbArg);
+        } else if (in.receiverForm()) {
+            TypedSpec rt = new com.legend.compiler.spec.UserCallInliner(specs)
+                    .inlineBody(java.util.List.of(
+                            com.legend.compiler.spec.ExecuteChainAssembly
+                                    .letBound(in.runtime(), letPrefix)))
+                    .get(0);
+            var ni = ConnectionFlags.connectionInstanceOf(rt);
+            if (ni == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "toSQLString over a toSQL handle whose runtime carries"
+                                + " no statically readable connection");
+            }
+            db = String.valueOf(ConnectionFlags.dbTypeOf(ni));
+        } else {
+            db = String.valueOf(ConnectionFlags.databaseTypeOf(dbArg));
+        }
         com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
             case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
             case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
@@ -508,12 +535,12 @@ final class StatementExecutor {
                     "toSQLString for DatabaseType." + db
                     + " — only the H2/DB2 engine-style renderers are built");
         };
-        if (!(call.args().get(0)
+        if (!(in.query()
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
                     "toSQLString whose query argument is not a lambda literal");
         }
-        if (!(call.args().get(1)
+        if (!(in.mapping()
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
             throw new com.legend.error.NotImplementedException(
                     "toSQLString mapping argument must be a mapping reference");
@@ -704,7 +731,7 @@ final class StatementExecutor {
                 };
         com.legend.compiler.spec.NativeDispatch.Routine sqlText =
                 (call, letPrefix) -> {
-                    ExecutionResult r = toSqlString(call, specs, env);
+                    ExecutionResult r = toSqlString(call, letPrefix, specs, env);
                     return String.valueOf(((ExecutionResult.Scalar)
                             java.util.Objects.requireNonNull(r,
                                     "sql text")).value());

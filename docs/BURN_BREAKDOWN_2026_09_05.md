@@ -124,6 +124,16 @@ Status: **batch 74 / L8a LANDED** — testToSQLStringWithCodeBlock (the engine's
 `add(Date, Duration)` programs admitted verbatim) and testFirstNotNull (generic
 instantiation at the inlining seam; bare TDSNull as a list element = the null-cell
 value; element-reference / null-carrier equality folds) flipped: 164/2409.
+**batch 75 / L8b LANDED (2026-09-06)** — testViewChainsWithBusinessDate flipped
+(163/2410; text-only lane 14 → 13): `toSQL(f, mapping, runtime, ext)` is the
+SQLResult HANDLE of the toSQLString doctrine (the plan handle's twin) and the
+qualified property `SQLResult.toSQLString(dbType, tz, quote, format)` is the
+5-argument function form of toSQLString (real pure desugars `$r.toSQLString(…)`
+so); one K-routine renders both (SqlTextInputs reads the lambda / mapping /
+runtime off the handle; the dialect = the connection's `type`, read through the
+lets and inlined user calls). The Prelude generator admitted SQLResult and
+Format on platform demand. The assert is a rows verdict (text diverged,
+golden replayed on H2, rows agreed).
 Re-sized after reading the walls: iqrClassify / zScore / extendDigest_InMemory
 are NOT small — a VALUES relation from `range()->map()->zip()` (collection
 natives in relation position), one leg for the three; rowValueDifference needs
@@ -149,7 +159,7 @@ row JSON envelope — a golden-to-rows referee arm).
 | tds::extensions::testExtendDigest_InMemory | TypedNativeCall in relation position — a literal TDS (`project` over pairs) then extendWithDigest |
 | projection::testGroupByWithWindowSubset | `groupByWithWindowSubset` unknown — the engine's TDS extension program (admit/inline) |
 | sqlstring::testToSQLStringWithCodeBlock | typer: a `#/Trade/date#` path argument typed Any where Date is expected |
-| businessdate::testViewChainsWithBusinessDate | typer: `toSQL` 5-arg overload (with connection) missing; then assertSameSQL → referee rows |
+| businessdate::testViewChainsWithBusinessDate | **FLIPPED batch 75** — toSQL handle + SQLResult.toSQLString function form; rows verdict |
 | lineage::scanRelations::testTdsJoinConcatenateAndJoin | typer: TDS concatenate of 7 vs N columns (the engine accepts the shape) — lineage rows verdict behind |
 
 ### L9 Lineage row verdicts (2)
@@ -359,6 +369,9 @@ pruning) is the one optimization that would be worth doing for its own sake.
 | **total** | **168** | |
 
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
+
+**Running IMPL count** (flips and reclassification receipts, from the Status
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 → **63**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a

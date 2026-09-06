@@ -204,6 +204,14 @@ public final class PlatformTypes {
     public static final String TO_SQL_STRING_PRETTY =
             "meta::relational::functions::sqlstring::toSQLStringPretty";
 
+    /** toSQL(f, mapping, runtime, ext) — the SQLResult HANDLE of the
+     * same doctrine (engine toSQLString.pure:46): the query lambda and
+     * mapping ride on it and {@code SQLResult.toSQLString(dbType, tz,
+     * quote, format)} (:151, the 5-argument toSQLString overload)
+     * forces it through the one renderer. Batch 75. */
+    public static final String TO_SQL =
+            "meta::relational::functions::sqlstring::toSQL";
+
     /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
     public static final String SET_UP_DATA_SQLS_V2 =
             "meta::alloy::service::execution::setUpDataSQLsV2";
@@ -406,6 +414,7 @@ public final class PlatformTypes {
                 || isDdlStatementFn(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
+                || TO_SQL.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
                 || PLAN_TO_STRING.equals(fqn)
@@ -453,6 +462,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
+                || TO_SQL.equals(fqn)
                 || SET_UP_DATA_SQLS_V2.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
@@ -585,6 +595,10 @@ public final class PlatformTypes {
                     // envelope-splice fold)
                     java.util.Map.entry(TO_SQL_STRING, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
+                    // batch 75: the SQLResult handle — consumed by the
+                    // 5-argument toSQLString row above (the plan handle's
+                    // twin: no rows of its own, the consumer forces it)
+                    java.util.Map.entry(TO_SQL, NativeImpl.HANDLE),
                     java.util.Map.entry(EXECUTION_PLAN, NativeImpl.HANDLE),
                     java.util.Map.entry(SCAN_RELATIONS, NativeImpl.HANDLE),
                     java.util.Map.entry(SCAN_PROPERTIES, NativeImpl.HANDLE),

@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 442 classes. */
+    /** 444 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -371,6 +371,8 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::pure::tds::toRelation::TdsToRelationExtension { }"),
             Pure.nativeClass("native Class meta::pure::testCoverage::featureMatrix::FeatureSet { name: meta::pure::metamodel::type::String[0..1]; features: meta::pure::metamodel::type::Any[*]; }"),
             Pure.nativeClass("native Class meta::pure::tools::DebugContext { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::relational::functions::sqlQueryToString::Format { newLine: meta::pure::metamodel::type::String[1]; indent: meta::pure::metamodel::type::String[1]; indentStack: meta::pure::metamodel::type::String[*]; }"),
+            Pure.nativeClass("native Class meta::relational::functions::sqlstring::SQLResult { shouldWarn: meta::pure::metamodel::type::Boolean[1]; sqlQueries: meta::relational::metamodel::SQLQuery[*]; extensions: meta::pure::extension::Extension[*]; }"),
             Pure.nativeClass("native Class meta::relational::mapping::ColumnMapping { columnName: meta::pure::metamodel::type::String[1]; relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }"),
             Pure.nativeClass("native Class meta::relational::mapping::EmbeddedRelationalInstanceSetImplementation extends meta::pure::mapping::EmbeddedSetImplementation, meta::relational::mapping::RelationalInstanceSetImplementation { setMappingOwner: meta::relational::mapping::RootRelationalInstanceSetImplementation[1]; }"),
             Pure.nativeClass("native Class meta::relational::mapping::FilterMapping { setMappingOwner: meta::relational::mapping::RelationalInstanceSetImplementation[0..1]; joinTreeNode: meta::relational::metamodel::join::JoinTreeNode[0..1]; database: meta::relational::metamodel::Database[1]; filterName: meta::pure::metamodel::type::String[1]; filter: meta::relational::metamodel::Filter[1]; }"),

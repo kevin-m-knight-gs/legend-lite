@@ -3763,3 +3763,31 @@ L8 re-sized in docs/BURN_BREAKDOWN_2026_09_05.md (L8 status). NEXT
 candidates: the `toSQL(...)->SQLResult.toSQLString(...)` typing surface onto
 the toSQLString doctrine (StatementExecutor.toSqlString), the VALUES relation
 from `range()->map()->zip()` (three tests), then the L4/L3 divergences.
+
+**Batch 75 / L8b (2026-09-06, chain GREEN 6m05s; GATES batch 75).** 164/2409 →
+163/2410; text-only lane 14 → 13. testViewChainsWithBusinessDate: `toSQL(f,
+mapping, runtime, ext)` is the SQLResult HANDLE of the toSQLString doctrine
+(PlatformTypes.TO_SQL, NativeImpl.HANDLE, platform-owned — the corpus's own
+planner-body definition is suppressed like toSQLString's) and the qualified
+property `SQLResult.toSQLString(dbType, tz, quote, format)` is the 5-argument
+toSQLString overload (the function form real pure desugars to), routed onto the
+one K-routine; SqlTextInputs (new, funnel-ledger registered) reads the query /
+mapping / dialect / runtime across the overloads for both the routine and
+SqlTextVerdicts. Prelude regenerated (SQLResult, Format = platform demand);
+native-catalog golden +2 rows. Guard lessons (again): the native-catalog golden
+and the text-only lane pin each cost a chain — check BOTH before launching.
+NEXT: the VALUES relation from `range()->map()->zip()` (iqrClassifyTest,
+zScoreTest, testExtendDigest_InMemory). Homework done this session (read, not
+probed): `range(n)` is NOT a LiteralUnroll fold (the fold set is compare-only,
+LiteralUnrollLedgerTest — producing 0..n-1 is a value); the honest shape is a
+collection in RELATION position: TypedCollectionRelation already lowers a
+collection value as a one-column UNNEST relation (flatten), the inliner already
+unrolls TypedMap over a spelled list, LiteralUnroll already folds `zip` of two
+spelled lists to `pair()` calls that count as instance literals (first/second
+reads fold), and InstanceProjection lowers `<instances>->project(~[...])` but
+its isInstanceLiteral accepts only TypedNewInstance (a pair() call would need
+admitting). The iqr/zScore walls are "no overload of 'col' (no candidates)" —
+probe with LEGEND_LITE_STACKS=1 to see whether it is the test's own
+`col(p|$p.first,'name')` or the program's `col(…, $col + '_iqrLow')` under
+StaticFold (NormalizeRequiredFunction bodies fold there: map/pair/plus/toString
+are in its vocabulary; range/zip/size are not).

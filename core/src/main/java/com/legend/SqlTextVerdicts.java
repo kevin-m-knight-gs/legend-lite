@@ -71,32 +71,33 @@ final class SqlTextVerdicts {
         TypedSpec producerSide = p0 != null ? args.get(0) : args.get(1);
         TypedSpec goldenSide = p0 != null ? args.get(1) : args.get(0);
         TypedNativeCall producer = p0 != null ? p0 : p1;
-        // the producer's CHILDREN are the structured inputs (§3.4):
-        // query lambda, mapping ref, dialect. Anything else is a shape
-        // this arm does not own yet.
+        // the producer's structured inputs (§3.4, SqlTextInputs across
+        // the overloads): query lambda, mapping ref, dialect, runtime.
+        // Anything else is a shape this arm does not own yet.
         // the query lambda may be LET-BOUND (`let func = {|...};
         // toSQLString($func, mapping, DatabaseType.H2, ...)`) — chased
         // like the plan-text arm chases its lambda
-        TypedSpec lamArg = producer.args().isEmpty() ? null
+        SqlTextInputs in = SqlTextInputs.of(producer, letPrefix);
+        TypedSpec lamArg = in == null ? null
                 : com.legend.compiler.spec.ExecuteChainAssembly.letBound(
-                        producer.args().get(0), letPrefix);
-        if (producer.args().size() < 3
+                        in.query(), letPrefix);
+        if (in == null
                 || !(lamArg instanceof TypedLambda lam)
                 || lam.body().isEmpty()
-                || !(producer.args().get(1)
-                        instanceof TypedPackageableRef mapping)) {
+                || !(in.mapping() instanceof TypedPackageableRef mapping)) {
             return null;
         }
         // the dialect: the DatabaseType overload names it; the RUNTIME
         // overload (toSQLStringPretty(lambda, mapping, runtime, ext) —
-        // the post-processor tests' spelling) carries it on the
-        // connection, read through the let chase and a helper inline
+        // the post-processor tests' spelling) and the toSQL-handle form
+        // carry it on the connection, read through the let chase and a
+        // helper inline
         String dbType;
-        if (producer.args().get(2) instanceof TypedEnumValue db) {
+        if (in.dialect() instanceof TypedEnumValue db) {
             dbType = db.value();
         } else {
             TypedSpec rt = com.legend.compiler.spec.ExecuteChainAssembly
-                    .letBound(producer.args().get(2), letPrefix);
+                    .letBound(in.runtime(), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
             if (ConnectionFlags.connectionInstanceOf(rt) == null) {

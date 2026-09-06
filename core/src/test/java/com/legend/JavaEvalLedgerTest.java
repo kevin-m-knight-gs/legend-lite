@@ -955,6 +955,14 @@ class JavaEvalLedgerTest {
                     // SqlReplayOracle SPI. Line-pinned below like its
                     // sibling AssertVerdicts.
                     "SqlTextVerdicts.java", "StatementExecutor.java",
+                    // batch 75 (2026-09-06): the toSQLString surface's
+                    // STRUCTURED INPUTS across its overloads (query lambda,
+                    // mapping ref, dialect, runtime) — the qualified-property
+                    // form toSQL(...).toSQLString(...) reads them off the
+                    // toSQL handle. Typed-tree navigation only: no value is
+                    // computed, the render and the verdict stay where they
+                    // were (the K-routine, SqlTextVerdicts)
+                    "SqlTextInputs.java",
                     // batch 59: the lineage-tree sibling of SqlTextVerdicts —
                     // golden and ours become rows through ONE database query
                     // and compare; typed-tree navigation + judgment only
