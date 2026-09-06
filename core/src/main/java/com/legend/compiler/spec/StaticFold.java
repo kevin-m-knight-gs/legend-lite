@@ -188,7 +188,67 @@ final class StaticFold {
                 && ps.get(2) instanceof LambdaFunction elseL) {
             return fold(single(cond ? thenL : elseL), scope);
         }
+        // a USER (Pure-bodied) function called with at least one STATIC
+        // argument: engine preval EVALUATES the normalize-required body, so
+        // every Pure call inside it runs too (rowValueDifference's private
+        // extendMatchColumns($tds, $diffCols) over the filtered TDSColumn
+        // facts). β-inline the callee and fold its body under this scope —
+        // static arguments as scope facts, runtime ones by source
+        // substitution. Null = not a unique bodied callee of this arity.
+        ValueSpecification inlined = inlineUserCall(af, scope);
+        if (inlined != null) {
+            return inlined;
+        }
         return af.withParameters(ps.stream().map(p -> fold(p, scope)).toList());
+    }
+
+    /** Callees being inlined on this fold's stack (a recursive program
+     * never terminates statically — leave it to the ordinary path). */
+    private final java.util.ArrayDeque<String> inlining = new java.util.ArrayDeque<>();
+
+    private @com.legend.Nullable ValueSpecification inlineUserCall(AppliedFunction af,
+            Map<String, Object> scope) {
+        List<ValueSpecification> ps = af.parameters();
+        List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
+        for (var f : typer.functionCandidates(af.function())) {
+            if (f.body().isPresent() && f.parameters().size() == ps.size()) {
+                bodied.add(f);
+            }
+        }
+        if (bodied.size() != 1 || inlining.contains(bodied.get(0).signatureKey())) {
+            return null;
+        }
+        var callee = bodied.get(0);
+        Map<String, Object> inner = new LinkedHashMap<>(scope);
+        Map<String, ValueSpecification> subst = new LinkedHashMap<>();
+        boolean anyStatic = false;
+        for (int i = 0; i < ps.size(); i++) {
+            String name = callee.parameters().get(i).name();
+            Object v = eval(ps.get(i), inner);
+            if (v != null) {
+                inner.put(name, v);
+                anyStatic = true;
+            } else {
+                inner.remove(name);
+                subst.put(name, fold(ps.get(i), scope));
+            }
+        }
+        if (!anyStatic) {
+            return null;
+        }
+        LambdaFunction lets = SourceSubst.inlineLets(new LambdaFunction(List.of(),
+                callee.body().orElseThrow()));
+        if (lets == null) {
+            return null;
+        }
+        ValueSpecification body = SourceSubst.substitute(
+                typer.alphaRename(lets.body().get(0)), subst);
+        inlining.push(callee.signatureKey());
+        try {
+            return fold(body, inner);
+        } finally {
+            inlining.pop();
+        }
     }
 
     // =====================================================================

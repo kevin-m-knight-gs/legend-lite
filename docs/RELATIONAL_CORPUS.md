@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 259 | 3 | 3 | 1 | 1 | 1 | 2 | 1 |
+| tds/tests | 266 | 260 | 3 | 2 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2453** | 36 | 60 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2454** | 36 | 59 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2453 PASS = 2418 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2454 PASS = 2419 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,12 +542,12 @@ SOFT-PASS RECONCILIATION (F2.1): 2453 PASS = 2418 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 134
+tests in the ledger: 133
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 35 |
+| wall:typer | 34 |
 | wall:resolver | 21 |
 | wall:exec | 8 |
 | divergence | 21 |
@@ -669,7 +669,6 @@ tests in the ledger: 134
 - columnValueDifferenceWithoutPrevalTest #2 meta::pure::functions::asserts::assertNotEmpty -> pass
 - columnValueDifferenceWithoutPrevalTest #3 meta::pure::functions::asserts::assertEquals -> pass
 - columnValueDifferenceWithoutPrevalTest #4 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:alloy-adjust-widening: platform-fail: assertEquals (rendered CSVJOIN:;): line N: expected <N-N-NTN:N:N.N+N|true|N.N|TDSNull|N.N|N|TDSNu :: assertEquals (rendered CSVJOIN:;): line 0: expected <2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2
-- rowValueDifferenceTest #0 - -> wall:typer: wall-type: cannot access '_' on String :: meta::pure::tds::tests::extensions::rowValueDifferenceTest :: cannot access 'name' on String
 - testExtendDigest_Relational #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', '_'] ::  expected: ['9e103ea06a6999b4c5a86cf25d68b083', 'b7bbee4d9b6a2736c25b00dded9344c7'] actual:   ['5e922469e9dee06b7d638775371ac834', '6923b8e81fa52e1863d80db5f31759ce']
 - resolveSchemaTest #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualif :: meta::relational::tds::schema::tests::resolveSchemaTest :: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a full
 - testSortQuotes #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s) :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
@@ -838,7 +837,6 @@ tests in the ledger: 134
 - ERROR testJoinFunc [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testJoinUsing [tds/relation]: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - FAIL columnValueDifferenceWithoutPrevalTest [tds/tests]: assertEquals: expected 2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2|3|-1;2014-12-03T00:00:00.000000000+0000|true|71.0|55.0|16.0|2|2|0;2014-12-04T00:00:00.000000000+0000|true|105.0|71.0|34.0|3|2|1;2014-12-05T00:00:00.000000000+0000|true|5.0|105.0|-100.0|1|3|-2;2014-12-06T00:00:00.000000000+0000|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1, got 2014-12-01|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02|true|55.0|356.0|-301.0|2|3|-1;2014-12-03|true|71.0|55.0|16.0|2|2|0;2014-12-04|true|105.0|71.0|34.0|3|2|1;2014-12-05|true|5.0|105.0|-100.0|1|3|-2;2014-12-06|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1
-- ERROR rowValueDifferenceTest [tds/tests]: cannot access 'name' on String
 - FAIL testExtendDigest_Relational [tds/tests]: assertEquals: expected [b7bbee4d9b6a2736c25b00dded9344c7, 9e103ea06a6999b4c5a86cf25d68b083], got [6923b8e81fa52e1863d80db5f31759ce, 5e922469e9dee06b7d638775371ac834]
 - ERROR resolveSchemaTest [tds/tests]: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSortQuotes [tds/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)

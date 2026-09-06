@@ -1061,6 +1061,12 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 103 / L8 rowValueDifference (2026-09-06):**
+exec-passing 7, text-only 11, unable-to-exec 10 unchanged; ratchet 134/2439 → 133/2440
+(rowValueDifferenceTest — assertNotEmpty over rows, toCSV equality of the relational and
+the in-memory sides, and the pipe-joined row text); disagree 0 both channels. No
+verdict-side change.
+
 **§8.0 scope-table receipt, batch 102 / L8 groupByWithWindowSubset (2026-09-06):**
 exec-passing 7, text-only 11, unable-to-exec 10 unchanged; ratchet 135/2438 → 134/2439
 (testGroupByWithWindowSubset — count and cell asserts over the grouped rows); disagree 0

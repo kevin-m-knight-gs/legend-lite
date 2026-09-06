@@ -4195,6 +4195,14 @@ key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the f
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
 
+**Batch 103 / L8 rowValueDifference (2026-09-06, chain GREEN ~6m14s; GATES batch 103).**
+134/2439 → 133/2440; IMPL 21; L8 closed. StaticFold.inlineUserCall: a bodied Pure function
+called with a static argument inside a normalize-required body inlines and folds (engine
+preval evaluates the body, every call inside runs). NEXT: L2 sub-aggregation pair
+(`$f.employees->map(e | 2 + $e.locations.place->count())` — golden: a grouped subselect
+keyed by the person id joined back onto the employee fan-out join persontable_0; the
+WithColVar twin adds a let-bound, cast column list).
+
 **Batch 102 / L8 groupByWithWindowSubset (2026-09-06, chain GREEN ~6m08s; GATES batch
 102).** 135/2438 → 134/2439; IMPL 22. The engine's relational store handles the function
 itself (pureToSQLQuery.pure:879 processObjectGroupByWithWindowSubSet); the checker desugars

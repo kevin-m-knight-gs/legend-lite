@@ -1689,6 +1689,13 @@ final class Typer {
     /** Fresh binder names for inlined bodies (one counter per typer). */
     private final AlphaRename alpha = new AlphaRename();
 
+    /** α-hygiene for a body about to be spliced under caller scope (the
+     * UserCallInliner rule at source level) — shared with StaticFold's
+     * user-call inlining. */
+    ValueSpecification alphaRename(ValueSpecification v) {
+        return alpha.apply(v);
+    }
+
     /** The generic application rule without emitting a node — the CHECK
      * half of the check/emit split ({@link Application}); calls with
      * deferred arguments take {@link #checkWithDeferred}. */
@@ -2424,7 +2431,7 @@ final class Typer {
      * plain name; the call's ACTUAL arguments pick the overload. A plain
      * name that resolves directly never demangles.
      */
-    private List<TypedFunction> functionCandidates(String name) {
+    List<TypedFunction> functionCandidates(String name) {
         List<TypedFunction> found = ctx.findFunction(name);
         if (!found.isEmpty()) {
             return found;

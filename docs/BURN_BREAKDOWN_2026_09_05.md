@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 103 / L8 rowValueDifference LANDED (2026-09-06)** — rowValueDifferenceTest flipped (133/2440); L8 closed (12/12). IMPL 21, REVISIT 5.
+
 Status: **batch 102 / L8 groupByWithWindowSubset LANDED (2026-09-06)** — testGroupByWithWindowSubset flipped (134/2439): a store-handled function desugared by the store's rule. IMPL 22, REVISIT 5.
 
 Status: **batch 101 / subtype-cast slot = property ownership LANDED (2026-09-06)** — no ratchet move (135/2438); the batch-100 slot probe replaced by the model fact (a property declared on the navigated class reads the plain slot; subtype-only reads the suffixed one). IMPL 23, REVISIT 5.
@@ -187,7 +189,7 @@ row JSON envelope — a golden-to-rows referee arm).
 | tds::extensions::testFirstNotNull | **FLIPPED batch 74** (row marked at the batch 89 census — generic instantiation at the inlining seam) |
 | tds::extensions::iqrClassifyTest | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
 | tds::extensions::zScoreTest | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
-| tds::extensions::rowValueDifferenceTest | typer: cannot access 'name' on String (a column-name read on a TDSColumn collection) |
+| tds::extensions::rowValueDifferenceTest | **LANDED batch 103** — the normalize-required program's call to a plain Pure function with static arguments inlines and folds (StaticFold.inlineUserCall); the whole extension lowers to one statement |
 | tds::extensions::testExtendDigest_InMemory | **FLIPPED batch 76** — collection value in relation position + StaticFold zip |
 | projection::testGroupByWithWindowSubset | **LANDED batch 102** — a STORE-handled function (pureToSQLQuery processObjectGroupByWithWindowSubSet), desugared by the store's rule to the legacy groupBy (GroupByChecker.checkWindowSubset) |
 | sqlstring::testToSQLStringWithCodeBlock | **FLIPPED batch 74** (row marked at the batch 89 census — the add(Date, Duration) programs admitted verbatim) |
@@ -415,7 +417,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 (25) → batch 98 −1 (24) → batch 99 −1 → **23** → batch 102 −1 → **22**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 (25) → batch 98 −1 (24) → batch 99 −1 → **23** → batch 102 −1 → **22** → batch 103 −1 → **21**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

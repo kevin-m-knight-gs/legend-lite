@@ -2184,10 +2184,18 @@ public class RelationalCorpusRunner {
             // aggregates are subset by id and the 4-arg legacy groupBy runs
             // over them (GroupByChecker.checkWindowSubset; the declaration
             // in the native catalog). projection::testGroupByWithWindowSubset.
-            org.junit.jupiter.api.Assertions.assertEquals(134L,
+            // batch 103 / L8 (2026-09-06): 134 -> 133 — a normalize-required
+            // program's body calling a plain Pure function with STATIC
+            // arguments (rowValueDifference -> extendMatchColumns($tds,
+            // <filtered TDSColumn facts>)): engine preval EVALUATES the body,
+            // every call inside runs — StaticFold.inlineUserCall β-inlines
+            // the callee and folds its body (static args as scope facts).
+            // tds::extensions::rowValueDifferenceTest — the whole
+            // tdsExtension program lowers to one SQL statement.
+            org.junit.jupiter.api.Assertions.assertEquals(133L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2439L,
+            org.junit.jupiter.api.Assertions.assertEquals(2440L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
