@@ -86,7 +86,8 @@ public final class PlanText {
                             sql.indexOf(" from ")) : sql;
             cols = "(" + item + ", \"\")";
         } else {
-            cols = resultColumns(ctx, impl[2], colsPlan, rrt);
+            cols = resultColumns(ctx, storeDbs(ctx, mappingFqn, body,
+                    chainMappings, impl[2]), colsPlan, rrt);
         }
         return "Relational\n(\n"
                 + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
@@ -140,7 +141,7 @@ public final class PlanText {
             throw new NotImplementedException(
                     "plan: relation-rooted node with a non-relation terminal pending");
         }
-        String tuples = tdsTuples(ctx, dbFqn, plan, rt,
+        String tuples = tdsTuples(ctx, java.util.List.of(dbFqn), plan, rt,
                 docsOf(body.get(body.size() - 1)), null, false);
         if (accessor) {
             StringBuilder sb = new StringBuilder();
@@ -150,7 +151,7 @@ public final class PlanText {
                 u = u.endsWith(")") ? u.substring(0, u.length() - 1) : u;
                 String[] parts = u.split(", ", 4);
                 String pure = PreciseTypes.pureType(
-                        physicalType(ctx, dbFqn, plan, parts[0]));
+                        physicalType(ctx, java.util.List.of(dbFqn), plan, parts[0]));
                 sb.append(sb.length() > 0 ? ", " : "").append('(')
                         .append(parts[0]).append(", ").append(pure).append(", ")
                         .append(PreciseTypes.defaultSpelling(pure)).append(", ")
@@ -160,15 +161,61 @@ public final class PlanText {
         }
         return "Relational\n(\n"
                 + "  type = TDS[" + tuples + "]\n"
-                + "  resultColumns = [" + resultColumns(ctx, dbFqn, plan, rt) + "]\n"
+                + "  resultColumns = [" + resultColumns(ctx, java.util.List.of(dbFqn), plan, rt) + "]\n"
                 + "  sql = " + sql + "\n"
                 + "  connection = " + connectionName + "\n"
                 + ")\n";
     }
 
+    /** The STORE databases a plan body reads — the root's first, then
+     * every other root class's (a cross-store TDS join's from-tree names
+     * the tables of two stores; the engine types each physical column by
+     * ITS table's store — tdsTwoJoinThreeDB, batch 112). */
+    static java.util.List<String> storeDbs(ModelContext ctx, @com.legend.Nullable String mappingFqn,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+            java.util.List<String> chainMappings, String primary) {
+        java.util.LinkedHashSet<String> dbs = new java.util.LinkedHashSet<>();
+        dbs.add(primary);
+        if (mappingFqn == null) {
+            return java.util.List.copyOf(dbs);
+        }
+        java.util.ArrayDeque<com.legend.compiler.spec.typed.TypedSpec> work =
+                new java.util.ArrayDeque<>(body);
+        while (!work.isEmpty()) {
+            var t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
+                try {
+                    String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
+                            ga.classFqn(), chainMappings);
+                    if (impl.length > 2 && impl[2] != null) {
+                        dbs.add(impl[2]);
+                    }
+                } catch (NotImplementedException notMapped) {
+                    // rootImpl's "no class mapping": a class without a
+                    // relational impl under this mapping contributes no
+                    // store — its reads type elsewhere
+                }
+            }
+            work.addAll(t.children());
+        }
+        return java.util.List.copyOf(dbs);
+    }
+
+    /** The table's definition in the first of {@code dbs} that declares it. */
+    private static java.util.Optional<DatabaseDefinition.TableDefinition> tableIn(
+            ModelContext ctx, java.util.List<String> dbs, String table) {
+        for (String db : dbs) {
+            var td = ctx.findTableDefinition(db, table);
+            if (td.isPresent()) {
+                return td;
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     /** The physical DDL type of the top select's column {@code name}. */
     private static RelationalDataType physicalType(ModelContext ctx,
-            String dbFqn, SqlQuery plan, String name) {
+            java.util.List<String> dbs, SqlQuery plan, String name) {
         SqlSelect s = (SqlSelect) plan;
         String[] pc = null;
         for (SqlSelect.Projection p : s.projections()) {
@@ -178,10 +225,10 @@ public final class PlanText {
             }
         }
         if (pc == null) {
-            pc = resolveStarColumn(ctx, dbFqn, s.from(), strip(name));
+            pc = resolveStarColumn(ctx, dbs, s.from(), strip(name));
         }
         final String[] found = pc;
-        var td = ctx.findTableDefinition(dbFqn, found[0]).orElseThrow();
+        var td = tableIn(ctx, dbs, found[0]).orElseThrow();
         return td.columns().stream()
                 .filter(x -> x.name().equalsIgnoreCase(found[1]))
                 .findFirst().orElseThrow().dataType();
@@ -207,8 +254,9 @@ public final class PlanText {
             // TDS plans: per-column (name, PureType, DBTYPE, "doc")
             // tuples and NO resultSizeRange line; the engine quotes the
             // column name exactly when a documentation string rides it
-            return "  type = TDS[" + tdsTuples(ctx, impl[2], plan, rt,
-                    docsOf(last), mappingFqn, impl.length > 4) + "]\n";
+            return "  type = TDS[" + tdsTuples(ctx,
+                    storeDbs(ctx, mappingFqn, body, java.util.List.of(), impl[2]),
+                    plan, rt, docsOf(last), mappingFqn, impl.length > 4) + "]\n";
         }
         String size = "*";
         if (last.info().multiplicity()
@@ -434,17 +482,17 @@ public final class PlanText {
         return docs;
     }
 
-    private static String tdsTuples(ModelContext ctx, String dbFqn,
+    private static String tdsTuples(ModelContext ctx, java.util.List<String> dbs,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
             java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn) {
-        return tdsTuples(ctx, dbFqn, plan, rt, docs, mappingFqn, false);
+        return tdsTuples(ctx, dbs, plan, rt, docs, mappingFqn, false);
     }
 
     /** {@code m2m}: the root followed an M2M (~src) chase — tuple DB
      * types spell PURE defaults, never the physical columns (the M2M
      * layer erases them; m2m2rShowcase golden name VARCHAR(8192)). */
-    private static String tdsTuples(ModelContext ctx, String dbFqn,
+    private static String tdsTuples(ModelContext ctx, java.util.List<String> dbs,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
             java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn,
@@ -471,9 +519,9 @@ public final class PlanText {
             String db;
             String[] phys = null;
             if (p == null && !m2m) {
-                String[] pc = resolveStarColumn(ctx, dbFqn, s.from(), name);
+                String[] pc = resolveStarColumn(ctx, dbs, s.from(), name);
                 phys = pc;
-                var td = ctx.findTableDefinition(dbFqn, pc[0]).orElseThrow();
+                var td = tableIn(ctx, dbs, pc[0]).orElseThrow();
                 db = spell(td.columns().stream()
                         .filter(x -> x.name().equalsIgnoreCase(pc[1]))
                         .findFirst().orElseThrow().dataType());
@@ -488,7 +536,7 @@ public final class PlanText {
                 String[] pc = resolvePhysical(s.from(), c.table(),
                         strip(c.name()));
                 phys = pc;
-                var td = ctx.findTableDefinition(dbFqn, pc[0]).orElseThrow();
+                var td = tableIn(ctx, dbs, pc[0]).orElseThrow();
                 db = spell(td.columns().stream()
                         .filter(x -> x.name().equalsIgnoreCase(pc[1]))
                         .findFirst().orElseThrow().dataType());
@@ -503,8 +551,7 @@ public final class PlanText {
                     String[] pc = resolvePhysical(s.from(), uni.table(),
                             strip(uni.name()));
                     phys = pc;
-                    var td = ctx.findTableDefinition(dbFqn, pc[0])
-                            .orElseThrow();
+                    var td = tableIn(ctx, dbs, pc[0]).orElseThrow();
                     db = spell(td.columns().stream()
                             .filter(x -> x.name().equalsIgnoreCase(pc[1]))
                             .findFirst().orElseThrow().dataType());
@@ -741,7 +788,7 @@ public final class PlanText {
                 ? name.substring(1, name.length() - 1) : name;
     }
 
-    private static String resultColumns(ModelContext ctx, String dbFqn,
+    private static String resultColumns(ModelContext ctx, java.util.List<String> dbs,
             SqlQuery plan,
             com.legend.compiler.element.type.Type
                     .@com.legend.Nullable RelationType rt) {
@@ -769,7 +816,7 @@ public final class PlanText {
                 String name = strip(col.name());
                 String[] pc;
                 try {
-                    pc = resolveStarColumn(ctx, dbFqn, s.from(), name);
+                    pc = resolveStarColumn(ctx, dbs, s.from(), name);
                 } catch (NotImplementedException e) {
                     // a column resolvable through NO physical branch of a
                     // placeholder-bearing tree is VAR-SOURCED — the
@@ -783,7 +830,7 @@ public final class PlanText {
                 }
                 final String[] pcf = pc;
                 String spelled = VAR_SET_SENTINEL.equals(pcf[0]) ? "INT"
-                        : spell(ctx.findTableDefinition(dbFqn, pcf[0])
+                        : spell(tableIn(ctx, dbs, pcf[0])
                                 .orElseThrow().columns().stream()
                                 .filter(x -> x.name().equalsIgnoreCase(pcf[1]))
                                 .findFirst().orElseThrow().dataType());
@@ -810,9 +857,9 @@ public final class PlanText {
             String[] phys = resolvePhysical(s.from(), c.table(),
                     strip(c.name()));
             String table = phys[0];
-            var td = ctx.findTableDefinition(dbFqn, table).orElseThrow(
+            var td = tableIn(ctx, dbs, table).orElseThrow(
                     () -> new NotImplementedException("plan: table '"
-                            + table + "' not in '" + dbFqn + "'"));
+                            + table + "' not in " + dbs));
             DatabaseDefinition.ColumnDefinition cd = td.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(phys[1]))
                     .findFirst().orElseThrow(
@@ -903,11 +950,11 @@ public final class PlanText {
      * whose store definition carries {@code col} wins (from-tree order —
      * the join emission projects left-to-right). Loud when no table
      * claims it. */
-    private static String[] resolveStarColumn(ModelContext ctx, String dbFqn,
+    private static String[] resolveStarColumn(ModelContext ctx, java.util.List<String> dbs,
             SqlSource src, String col) {
         switch (src) {
             case SqlSource.Table t -> {
-                var td = ctx.findTableDefinition(dbFqn, t.name());
+                var td = tableIn(ctx, dbs, t.name());
                 if (td.isPresent() && td.get().columns().stream()
                         .anyMatch(c -> c.name().equalsIgnoreCase(col))) {
                     return new String[]{t.name(), col};
@@ -915,9 +962,9 @@ public final class PlanText {
             }
             case SqlSource.Join j -> {
                 try {
-                    return resolveStarColumn(ctx, dbFqn, j.left(), col);
+                    return resolveStarColumn(ctx, dbs, j.left(), col);
                 } catch (NotImplementedException e) {
-                    return resolveStarColumn(ctx, dbFqn, j.right(), col);
+                    return resolveStarColumn(ctx, dbs, j.right(), col);
                 }
             }
             case SqlSource.VarSetPlaceholder vp -> {
@@ -949,14 +996,13 @@ public final class PlanText {
                             // continues by name (cluster 20 follow-up:
                             // tdsTwoJoinThreeDB's 3-db chain)
                             if (VAR_SET_SENTINEL.equals(phys[0])
-                                    || ctx.findTableDefinition(dbFqn,
-                                            phys[0]).isPresent()) {
+                                    || tableIn(ctx, dbs, phys[0]).isPresent()) {
                                 return phys;
                             }
                             break;
                         }
                     }
-                    return resolveStarColumn(ctx, dbFqn, is.from(), col);
+                    return resolveStarColumn(ctx, dbs, is.from(), col);
                 }
             }
             default -> {

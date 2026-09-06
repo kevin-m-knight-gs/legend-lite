@@ -71,7 +71,13 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
    corpus databases live in the one DuckDB session). Size it first: read
    modelJoins.pure's mapping + the engine's relationalModelJoins.pure.
 4. **Plan-printer bugs behind TEXT labels** (rows are not at stake; the plan text is
-   the assert): tdsTwoJoinThreeDB — our cross-db plan splitter joins the second
+   the assert): tdsTwoJoinThreeDB — LANDED batch 112 (store-list typing + engine
+   allocation naming + the referee materializing a multi-column allocation as an oracle
+   table). REMAINING: withPlatform (below). FOLLOW-UP (user checkpoint, batch 112): the
+   replay must never re-spell values — PlanReplay's pre-existing scalar-list binding for the
+   engine's IN-list template holes still spells fetched cells as text (`String.valueOf`);
+   move it onto the same oracle-table form.
+   Original note: tdsTwoJoinThreeDB — our cross-db plan splitter joins the second
    database's projection subselect DIRECTLY into the first allocation (dump 2026-09-06:
    `Join[left=Subselect(person, db dbInc), right=Subselect(firmTable)]` under db dbInc)
    instead of routing it through a second tdsVar allocation as the engine does
@@ -79,9 +85,11 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
    (`.lastName->makeString(', ')`) must print as a `PureExp` node wrapping the
    `Relational` node (engine plan shape) instead of lowering STRING_AGG into the plan
    dialect (AnsiSqlRenderer.reduceCollection walls). Both are PlanText work.
-5. **Referee gaps** (only if cheap; they do not flip tests, their asserts are plan text):
-   testProp3 (m2m2r fixture never seeded in the referee), testQuoteIdentifiersFlagWithGraphFetch
-   (`productSchema` not created in the referee session).
+5. **Referee gaps** — CLOSED by inspection 2026-09-06 (batch 112): testProp3 asserts a plan
+   LITERAL (T4, rows underivable); testQuoteIdentifiersFlagWithGraphFetch's golden reads
+   `"productSchema"."productTable"` (mixed-case, quoted) while the engine's own DDL creates the
+   schema unquoted (H2 folds to PRODUCTSCHEMA) — the text is unexecutable on any H2 with the
+   engine's settings and the engine never executes it; the referee decline is honest.
 6. **Optional optimization**: testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct —
    LANDED batch 111 (the engine's rule is aggregation-only; a plain project under a distinct
    keeps its columns — testLowerProjectColsNotEliminatedWithDistinct pins that).
@@ -4311,6 +4319,14 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 112 / T2 the three-database TDS join plan (2026-09-06, chain GREEN; GATES batch 112).**
+123/2450 → 122/2451. PlanText.storeDbs/tableIn (per-store physical typing), crossDbTdsPlan
+naming (tdsVar outermost) + spliced resultColumns, ReplayOracle.verifyPlan's Materializer (a multi-column
+allocation kept ON THE ORACLE as a table with bare column names — a VALUES re-spelling by
+JDBC type code was reverted at the user's checkpoint: the replay must not interpret values). Referee-gap items
+closed by inspection. NEXT: withPlatform (the PureExp value tail — the last Phase 1 item),
+then the NavPath cleanup, then Phase 2.
 
 **Batch 111 / T1 restrict over a distinct groupBy (2026-09-06, chain GREEN; GATES batch 111).**
 124/2449 → 123/2450. Lowerer's TypedSelect arm + Fold.restrictOverWholeRowDistinct (groupBy

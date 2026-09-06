@@ -683,6 +683,9 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             boolean extentSubset,
             com.legend.compiler.element.ModelContext ctx) {
         H2Verify.EXTENT_SUBSET.set(extentSubset);
+        // allocation tables materialized on the oracle for THIS replay —
+        // dropped after the verdict (the family mirror is shared state)
+        List<String> allocTables = new java.util.ArrayList<>();
         try {
             String sql = PlanReplay.finalSql(goldenPlan, bindings, s -> {
                 try {
@@ -691,6 +694,29 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     throw new H2Verify.Unverifiable("plan-text: allocation"
                             + " node replay: " + e.getMessage(), e);
                 }
+            }, (name, allocSql, labels) -> {
+                // the placeholder's columns read BARE downstream
+                // (`"tdsvar_0_1".eID`): the table is created with bare
+                // names so the oracle folds them exactly as the engine's
+                // realized relation does; a non-identifier label keeps
+                // its quotes. Column METADATA only — the rows stay in the
+                // database.
+                StringBuilder cols = new StringBuilder();
+                for (String l : labels) {
+                    cols.append(cols.length() > 0 ? ", " : "")
+                            .append(l.matches("[A-Za-z_][A-Za-z0-9_]*")
+                                    ? l : '"' + l + '"');
+                }
+                try {
+                    execute("drop table if exists " + name);
+                    execute("create table " + name + "(" + cols + ") as "
+                            + allocSql);
+                } catch (SQLException e) {
+                    throw new H2Verify.Unverifiable("plan-text: allocation"
+                            + " table '" + name + "': " + e.getMessage(), e);
+                }
+                allocTables.add(name);
+                return "select * from " + name;
             });
             return verifyArmed(session, sql, ours, mappingFqn, rootClassFqn,
                     ctx, null);
@@ -702,6 +728,13 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     .declined(String.valueOf(u.getMessage()));
         } finally {
             H2Verify.EXTENT_SUBSET.remove();
+            for (String name : allocTables) {
+                try {
+                    execute("drop table if exists " + name);
+                } catch (SQLException ignored) {
+                    // cleanup best-effort; the next replay drops-if-exists
+                }
+            }
         }
     }
 
@@ -841,6 +874,16 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * {@code getObject} cells — comparison policy normalizes, never
      * the oracle. Consumed by the platform's verdict arms (charter §8
      * slice 3); any failure surfaces as the oracle declining. */
+    /** One statement on the seeded oracle (DDL for a replay's allocation
+     * tables — same session and ledger discipline as {@link #rows}). */
+    private void execute(String sql) throws SQLException {
+        onOracle(com.legend.sql.dialect.RawSqlBoundary.recording(),
+                VERIFY_SESSION, st -> {
+                    st.execute(sql);
+                    return Boolean.TRUE;
+                });
+    }
+
     @Override
     public com.legend.exec.SqlReplayOracle.OracleRows rows(String sql)
             throws SQLException {

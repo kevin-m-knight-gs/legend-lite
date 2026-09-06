@@ -107,7 +107,12 @@ class JavaEvalLedgerTest {
             // types via PreciseTypes) and the plan-root finders MOVED here
             // from StatementExecutor (its count fell 2724 -> ~2700 under
             // its unchanged pin). Printing engine plan text, no evaluation.
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 845),
+            // 845 -> 881 (batch 112, 2026-09-06): PlanText.storeDbs +
+            // tableIn — the plan printer types each physical column by
+            // ITS table's store (the root's database first, then every
+            // other root class's); a lookup over model facts for the
+            // cross-store TDS join plans, no evaluation
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 881),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)

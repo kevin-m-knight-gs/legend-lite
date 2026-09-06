@@ -2282,10 +2282,20 @@ public class RelationalCorpusRunner {
             // WithDistinct). Fold.distinctNarrowFolds accepts a sort key
             // spelled as a kept projection's own expression.
             // tdsRestrict::testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct.
-            org.junit.jupiter.api.Assertions.assertEquals(123L,
+            // batch 112 / T2 (2026-09-06): 123 -> 122 — the three-database
+            // TDS join plan: the printer types each physical column by ITS
+            // table's store (PlanText.storeDbs: the root's database first,
+            // then every other root class's), names the spine allocations
+            // as the engine does (tdsVar outermost, tdsVar_0 … inner) and
+            // types a spliced allocation's resultColumns through the
+            // placeholder; the referee binds a multi-column allocation as a
+            // VALUES relation with bare simple column names (PlanReplay
+            // .valuesRelation) so `from (${tdsVar_0})` replays.
+            // executionPlan::tdsTwoJoinThreeDB (plan-text row verdict).
+            org.junit.jupiter.api.Assertions.assertEquals(122L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2450L,
+            org.junit.jupiter.api.Assertions.assertEquals(2451L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

@@ -991,8 +991,11 @@ final class StatementExecutor {
         for (int k = spine.size() - 1; k >= 0; k--) {
             TypedSpec at = k == spine.size() - 1
                     ? spine.get(k).left() : spine.get(k + 1);
-            String var = prevVar == null ? "tdsVar"
-                    : "tdsVar_" + (allocs.size() - 1);
+            // engine naming: the OUTERMOST spine allocation is tdsVar, the
+            // inner ones tdsVar_0, tdsVar_1 … innermost-first in the
+            // Sequence (tdsTwoJoinThreeDB: tdsVar_0 = person, tdsVar = the
+            // person⋈firm join splicing ${tdsVar_0}; batch 112)
+            String var = k == 0 ? "tdsVar" : "tdsVar_" + (k - 1);
             String aRoot = com.legend.plan.PlanText.rootGetAllClass(java.util.List.of(at));
             if (aRoot == null) {
                 return null;
@@ -1014,7 +1017,13 @@ final class StatementExecutor {
                             mappingFqn),
                     com.legend.plan.PlanText.single(env.ctx(), aRoot,
                             mappingFqn, aEs.plan(), aSql,
-                            java.util.List.of(at), connName, chainMaps)));
+                            java.util.List.of(at), connName, chainMaps,
+                            // a SPLICED allocation's resultColumns type
+                            // through the placeholder (every var-sourced
+                            // column INT), like the terminal's
+                            prevVar == null ? aEs.plan()
+                                    : com.legend.plan.PlanText.colsPlanFor(
+                                            aEs.plan(), prevVar))));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,

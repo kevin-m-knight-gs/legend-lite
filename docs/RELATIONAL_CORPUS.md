@@ -37,7 +37,7 @@ shared source registered by several families cannot double-count. Run with
 | aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 108 | 81 | 8 | 3 | 16 | 0 | 0 | 1 | 0 |
+| executionPlan/tests | 108 | 82 | 8 | 3 | 15 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 153 | 1 | 1 | 0 | 1 | 1 | 0 | 1 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2463** | 36 | 51 | 25 | 5 | 5 | 29 | 2 |
+| **total** | 2575 | **2464** | 36 | 51 | 24 | 5 | 5 | 29 | 2 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2463 PASS = 2429 clean + 34 carrying softness (sqldiff 5, advisory 5, 0-asserts 29, text-rescued 2; flags overlap — the union is 34).
+SOFT-PASS RECONCILIATION (F2.1): 2464 PASS = 2430 clean + 34 carrying softness (sqldiff 5, advisory 5, 0-asserts 29, text-rescued 2; flags overlap — the union is 34).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,14 +542,14 @@ SOFT-PASS RECONCILIATION (F2.1): 2463 PASS = 2429 clean + 34 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 123
+tests in the ledger: 122
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:resolver | 13 |
 | wall:typer | 33 |
-| wall:exec | 8 |
+| wall:exec | 7 |
 | divergence | 19 |
 | not-reached | 20 |
 | referee-cannot-replay | 9 |
@@ -577,7 +577,6 @@ tests in the ledger: 123
 - testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m :: meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode :: unknown function 'evaluate' — no function of this name i
 - testPureExecutionStrategyForRelationalInstantiationExecutionNode #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m :: meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForRelationalInstantiationExecutionNode :: unknown function 'evaluate' — no function of this name in t
 - inheritance #1 assertEquals -> wall:exec: wall-exec: plan: no class mapping for '_' under 'meta::relational::tests::ma :: plan: no class mapping for 'meta::relational::tests::model::inheritance::RoadVehicle' under 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- tdsTwoJoinThreeDB #1 assertEquals -> wall:exec: wall-exec: plan: star-top TDS column '_' resolves through no FROM-tree table :: plan: star-top TDS column 'firstName' resolves through no FROM-tree table
 - testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes #1 assertEquals -> wall:exec: wall-exec: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall :: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall
 - testEnumPushDownWithExternalFormat #0 - -> wall:typer: wall-type: unknown function '_' — no function o :: meta::pure::executionPlan::tests::testEnumPushDownWithExternalFormat :: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in the native or user catalog (unported platf
 - testExecutionPlanGenerationForLambdaFromWithEnumMapping #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
@@ -743,7 +742,6 @@ tests in the ledger: 123
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: plan wall: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: plan wall: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
 - SHAPE inheritance [executionPlan/tests]: plan wall: plan: no class mapping for 'meta::relational::tests::model::inheritance::RoadVehicle' under 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB' [surfaced via assert form 'assertEquals/2']
-- SHAPE tdsTwoJoinThreeDB [executionPlan/tests]: plan wall: plan: star-top TDS column 'firstName' resolves through no FROM-tree table [surfaced via assert form 'assertEquals/2']
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: plan wall: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall [surfaced via assert form 'assertEquals/2']
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: plan wall: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [surfaced via assert form 'assertEquals/2']
 - FAIL testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert did not hold (false)

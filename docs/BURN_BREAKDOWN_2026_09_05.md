@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 112 / T2 the three-database TDS join plan LANDED (2026-09-06)** — tdsTwoJoinThreeDB flipped (122/2451): store-list column typing in the printer, engine allocation naming, spliced resultColumns, and the referee materializing a multi-column allocation as an oracle table (values never leave the database). Phase-1 referee gaps closed by inspection (testProp3 = T4 plan literal; testQuoteIdentifiersFlagWithGraphFetch = unexecutable golden by identifier case). TEXT 42 → 41.
+
 Status: **batch 111 / T1 restrict over a distinct groupBy LANDED (2026-09-06)** — testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct flipped (123/2450): the engine's unused-aggregate drop under a whole-row distinct. TEXT 43 → 42.
 
 Status: **batch 110 / L5 XStore over lossy table-backed ends LANDED (2026-09-06)** — testPersonToFirmUsingFromProject + testCrossMappingWithRelOpWithJoinKeys flipped (124/2449); route A (property space) for lossy column views, authored operand order, binding-aware condition demand. IMPL 11, REVISIT 7. Open on route A: typed local reads (ordering comparisons over +props), the exists-context target substitution.
@@ -320,7 +322,7 @@ same tests PASS.
 | projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives | `planToStringWithoutFormatting` — the golden has no spaces (`select""root""`); unreplayable by construction |
 | graphFetch::milestoning::testMilestonedProperty | assert #2 = PureExp plan text (assert #1 rows passes) |
 | executionPlan::inheritance | Class plan text (+ our "no class mapping" plan wall first) |
-| executionPlan::tdsTwoJoinThreeDB | plan text (+ star-top column wall first) |
+| executionPlan::tdsTwoJoinThreeDB | FLIPPED batch 112 — printer types columns per store (PlanText.storeDbs), engine allocation naming, referee materializes a multi-column allocation as an oracle table (ReplayOracle.verifyPlan Materializer) | plan-text row verdict |
 | executionPlan::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes | plan text (+ mapping-argument wall first) |
 | executionPlan::testViewToTDS | plan text (+ unknown dataTypeToCompatiblePureType) |
 | tds::window::routing::testExecutionPlanGeneration | Sequence plan text (+ `over` overload wall) |

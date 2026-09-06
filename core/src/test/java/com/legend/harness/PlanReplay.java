@@ -47,8 +47,12 @@ final class PlanReplay {
 
     /** The final SQL of {@code plan} with every hole filled; {@code run}
      * fetches an Allocation's Relational value on the oracle. */
+    /** {@code materialize(name, sql, labels)}: the oracle keeps the
+     * allocation's rows as a table and returns the relation read that
+     * stands in for the placeholder. */
     static String finalSql(String plan, Map<String, List<String>> params,
-            Function<String, SqlReplayOracle.OracleRows> run) {
+            Function<String, SqlReplayOracle.OracleRows> run,
+            Materializer materialize) {
         if (plan.contains("sql=select") || plan.contains("Sequence(type=")) {
             // planToStringWithoutFormatting strips the SQL's own spaces
             // (select"root".LEGALNAMEas"name"...) — text, never a statement
@@ -58,6 +62,13 @@ final class PlanReplay {
         }
         Map<String, List<String>> bindings = new LinkedHashMap<>(params);
         Map<String, Map<String, String>> rowBindings = new LinkedHashMap<>();
+        // a MULTI-column allocation used as a relation (the cross-store
+        // TDS join's `from (${tdsVar_0}) as …`): the ORACLE keeps its rows
+        // as a table named by the allocation — the values never leave the
+        // database (batch 112; the engine realizes the rows in Java and its
+        // template re-spells them, with the placeholder's column names
+        // BARE — the table is created with those bare names)
+        Map<String, String> relations = new LinkedHashMap<>();
         String pending = null;
         boolean inAllocation = false;
         String lastSql = null;
@@ -82,7 +93,8 @@ final class PlanReplay {
                     pending = null;
                 }
             } else if (m.group(6) != null) {
-                String sql = fill(m.group(7).strip(), bindings, rowBindings);
+                String sql = fill(m.group(7).strip(),
+                        new Scope(bindings, rowBindings, relations));
                 if (pending != null) {
                     SqlReplayOracle.OracleRows rows = run.apply(sql);
                     Map<String, String> row = new LinkedHashMap<>();
@@ -98,6 +110,10 @@ final class PlanReplay {
                     }
                     rowBindings.put(pending, row);
                     bindings.put(pending, scalars);
+                    if (rows.labels().size() > 1) {
+                        relations.put(pending,
+                                materialize.table(pending, sql, rows.labels()));
+                    }
                     pending = null;
                 } else {
                     lastSql = sql;
@@ -121,8 +137,18 @@ final class PlanReplay {
 
     /** Every {@code ${...}} hole filled — the hole ends at ITS closing
      * brace (a map argument's braces nest inside it). */
-    private static String fill(String sql, Map<String, List<String>> bindings,
-            Map<String, Map<String, String>> rows) {
+    /** The oracle-side materialization of an allocation's rows. */
+    @FunctionalInterface
+    interface Materializer {
+        String table(String name, String sql, List<String> labels);
+    }
+
+    /** The three binding kinds one replay carries. */
+    private record Scope(Map<String, List<String>> bindings,
+            Map<String, Map<String, String>> rows,
+            Map<String, String> relations) {}
+
+    private static String fill(String sql, Scope sc) {
         StringBuilder out = new StringBuilder();
         int i = 0;
         while (i < sql.length()) {
@@ -151,7 +177,7 @@ final class PlanReplay {
             if (j >= sql.length()) {
                 throw new H2Verify.Unverifiable("plan-text: unterminated hole", null);
             }
-            out.append(evaluate(sql.substring(start + 2, j).strip(), bindings, rows));
+            out.append(evaluate(sql.substring(start + 2, j).strip(), sc));
             i = j + 1;
         }
         return out.toString();
@@ -159,16 +185,15 @@ final class PlanReplay {
 
     /** One hole: {@code name}, {@code name.column}, {@code name![]},
      * {@code name?replace("a", "b")} (chained), or {@code fn(args)}. */
-    private static String evaluate(String expr, Map<String, List<String>> bindings,
-            Map<String, Map<String, String>> rows) {
+    private static String evaluate(String expr, Scope sc) {
         int paren = expr.indexOf('(');
         int q = expr.indexOf("?replace(");
         if (q > 0 && (paren < 0 || q < paren)) {
-            String base = evaluate(expr.substring(0, q), bindings, rows);
+            String base = evaluate(expr.substring(0, q), sc);
             String rest = expr.substring(q);
             while (rest.startsWith("?replace(")) {
                 int close = matching(rest, 8);
-                List<Object> a = args(rest.substring(9, close), bindings, rows);
+                List<Object> a = args(rest.substring(9, close), sc);
                 base = base.replace((String) a.get(0), (String) a.get(1));
                 rest = rest.substring(close + 1);
             }
@@ -181,13 +206,13 @@ final class PlanReplay {
         if (paren > 0 && expr.endsWith(")")) {
             String fn = expr.substring(0, paren).strip();
             return call(fn, args(expr.substring(paren + 1, expr.length() - 1),
-                    bindings, rows));
+                    sc));
         }
         String name = expr.endsWith("![]") ? expr.substring(0, expr.length() - 3)
                 : expr;
         int dot = name.indexOf('.');
         if (dot > 0) {
-            Map<String, String> row = rows.get(name.substring(0, dot));
+            Map<String, String> row = sc.rows().get(name.substring(0, dot));
             String col = name.substring(dot + 1);
             if (row == null || !row.containsKey(col)) {
                 throw new H2Verify.Unverifiable("plan-text: hole ${" + expr
@@ -195,7 +220,11 @@ final class PlanReplay {
             }
             return row.get(col);
         }
-        List<String> v = bindings.get(name);
+        String rel = sc.relations().get(name);
+        if (rel != null) {
+            return rel;
+        }
+        List<String> v = sc.bindings().get(name);
         if (v == null) {
             throw new H2Verify.Unverifiable("plan-text: unbound hole ${"
                     + expr + "}", null);
@@ -228,8 +257,7 @@ final class PlanReplay {
      * ![]} default) — whitespace-separated, as the engine spells them.
      * A binding or a nested call's value is a list; a literal is a
      * String or a Map. */
-    private static List<Object> args(String text, Map<String, List<String>> bindings,
-            Map<String, Map<String, String>> rows) {
+    private static List<Object> args(String text, Scope sc) {
         List<Object> out = new ArrayList<>();
         int i = 0;
         while (i < text.length()) {
@@ -264,8 +292,7 @@ final class PlanReplay {
                 if (j < text.length() && text.charAt(j) == '(') {
                     // a nested call: its value is one scalar
                     int close = matching(text, j);
-                    out.add(List.of(evaluate(text.substring(i, close + 1),
-                            bindings, rows)));
+                    out.add(List.of(evaluate(text.substring(i, close + 1), sc)));
                     i = close + 1;
                     continue;
                 }
@@ -273,7 +300,7 @@ final class PlanReplay {
                 if (id.endsWith("![]")) {
                     id = id.substring(0, id.length() - 3);
                 }
-                List<String> v = bindings.get(id);
+                List<String> v = sc.bindings().get(id);
                 if (v == null) {
                     throw new H2Verify.Unverifiable("plan-text: unbound"
                             + " template argument " + id, null);
