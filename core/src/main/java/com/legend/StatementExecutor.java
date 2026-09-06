@@ -1544,7 +1544,8 @@ final class StatementExecutor {
             }
             PlanAllocations.registerActivityRows(ec,
                     PlanAllocations.activitySql(ec, envelope, letPrefix, specs, env),
-                    AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs), env);
+                    AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs),
+                    lqRun == null ? null : com.legend.exec.ExecutionTrace.lastComment(), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
@@ -1608,7 +1609,8 @@ final class StatementExecutor {
         }
         PlanAllocations.registerActivityRows(ec,
                 PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
-                AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs), env);
+                AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs),
+                run == null ? null : com.legend.exec.ExecutionTrace.lastComment(), env);
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
     }

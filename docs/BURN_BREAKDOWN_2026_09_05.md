@@ -243,9 +243,11 @@ Status: **batch 82 / L14a LANDED (2026-09-06)** — testExecuteInDbToTDS flipped
 
 ### L16 Plumbing (1)
 
+Status: **batch 83 / L16 LANDED (2026-09-06)** — testSQLComments flipped (153/2420).
+
 | test | detail |
 |---|---|
-| query::simple::testSQLComments | `$result.activities->at(0).comment` matches an executionTraceID comment — activity metadata on our Result |
+| query::simple::testSQLComments | **FLIPPED batch 83** — the executed statement carries the engine's `-- "executionTraceID" : "<uuid>"` comment (exec.ExecutionTrace at the JDBC boundary) and the activity records the comment of its own run |
 
 **IMPL total: 68 tests** (L1 15, L2 3, L3 4, L4 6, L5 4, L6 4, L7 4, L8 12,
 L9 2, L10 1, L11 2, L12 1, L13 5, L14 3, L15 1, L16 1). Of these, 9 carry a
@@ -397,7 +399,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 → **53**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 → **52**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a

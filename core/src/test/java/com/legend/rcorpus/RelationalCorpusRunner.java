@@ -2062,10 +2062,15 @@ public class RelationalCorpusRunner {
             // Typer.rawGridOrSelf binds it once), and a late-bound inner's
             // toCSV defers to the execution boundary like the pivot '#TDS'
             // toString (DeferredTdsString.Form.CSV). testExecuteInDbToTDS.
-            org.junit.jupiter.api.Assertions.assertEquals(154L,
+            // batch 83 / L16 (2026-09-06): 154 -> 153 — the engine's
+            // execution-trace comment: every executed statement carries
+            // `-- "executionTraceID" : "<uuid>"` (exec.ExecutionTrace at the
+            // one JDBC boundary) and the frame's RelationalActivity records
+            // the comment of its own run. testSQLComments.
+            org.junit.jupiter.api.Assertions.assertEquals(153L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2419L,
+            org.junit.jupiter.api.Assertions.assertEquals(2420L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

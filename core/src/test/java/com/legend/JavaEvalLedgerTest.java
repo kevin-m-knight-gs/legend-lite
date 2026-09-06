@@ -844,6 +844,14 @@ class JavaEvalLedgerTest {
                     "H2Settings.java",
                     "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
+                    // batch 83 (2026-09-06): the engine's execution-trace
+                    // comment — the statement the database receives carries
+                    // `-- "executionTraceID" : "<uuid>"` (the engine's
+                    // RelationalExecutor mints one per execution) and the
+                    // frame's activity records the comment of its own run.
+                    // An identifier stamped at the JDBC boundary; no value
+                    // a verdict reads is computed here.
+                    "ExecutionTrace.java",
                     "QueryPlan.java",
                     // Phase 1c: the LIMIT-0 schema probe — the
                     // DynamicPivot.staticize model (a FIRST query pins a

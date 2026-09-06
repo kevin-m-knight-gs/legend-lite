@@ -269,12 +269,14 @@ final class PlanAllocations {
 
     /** An execute() call's Result and activity rows under the call's
      * scope: ONE RelationalActivity carrying the SQL the platform ran
-     * (its own render — the same pipeline as toSQLString); no comment is
-     * invented (the engine stamps a trace id; this platform records
-     * none), and no rewritten query is printed from Java (the routed
-     * query as rows is its own leg). */
+     * (its own render — the same pipeline as toSQLString) and the
+     * execution-trace COMMENT the statement really carried (batch 83:
+     * ExecutionTrace's stamp of the frame's own run; a frame that did not
+     * run records none), and no rewritten query is printed from Java
+     * (the routed query as rows is its own leg). */
     static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
             @com.legend.Nullable String sql, @com.legend.Nullable String rewrittenQuery,
+            @com.legend.Nullable String comment,
             StatementExecutor.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(ec);
         if (sql == null || env.planRows().containsKey(scope)) {
@@ -293,7 +295,7 @@ final class PlanAllocations {
         }
         int k = acts.size();
         acts.add(java.util.List.of(scope + "/" + k, scope, Integer.toString(k),
-                "RelationalActivity", sql, "", ""));
+                "RelationalActivity", sql, comment == null ? "" : comment, ""));
         rows.put("activities", acts);
         env.planRows().put(scope, rows);
     }

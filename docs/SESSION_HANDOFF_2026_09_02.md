@@ -3928,3 +3928,19 @@ PlanAllocations.registerActivityRows (called AFTER the eager run at
 StatementExecutor ~1609) records it in the activities row's comment column
 (index 5; SystemMetamodel ACTIVITY_KINDS maps sql/comment); a frame that did
 not run records none.
+
+**Batch 83 / L16 (2026-09-06, chain GREEN 6m42s; GATES batch 83).** 154/2419 →
+153/2420; IMPL 52. exec.ExecutionTrace stamps every executed statement with
+the engine's trace comment; the frame's activity records its own run's
+comment. NEXT = batch 84: testTdsJoinConcatenateAndJoin (lineage) — the
+engine's TDS concatenate is schema-erased (TabularDataSet), so a width
+mismatch compiles and would only fail at the database; our ConcatenateChecker
+walls at typing (7 vs 6 columns) on a test that never executes. Rule: align
+the common prefix positionally, keep the LEFT schema, let the database judge
+the arity (loud there) — then probe the lineage tree verdict (batch 59 rows).
+After that: loadCsvToDbTable(file, table, conn) as an EFFECT native (the
+engine's is a Java native reading a classpath CSV — TEST INPUT under the
+engine checkout: functions/tests/loadCsvToDbTable/employees.csv — and
+inserting rows; CsvSeed already spells inserts); toJSON(TDS) as a DB render
+(the engine's {"columns":[{name,type,metaType}],"rows":[{"values":[…]}]}
+envelope — Render family, F4.2); the tz temp-table divergence (probe first).

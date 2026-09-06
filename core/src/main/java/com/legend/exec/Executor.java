@@ -300,7 +300,10 @@ public final class Executor {
             com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
             boolean variantRoot, @com.legend.Nullable CanonRider rider)
             throws SQLException {
-        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
+        // the engine's execution-trace comment rides the statement the
+        // database receives (ExecutionTrace, batch 83)
+        try (java.sql.PreparedStatement st = connection.prepareStatement(
+                ExecutionTrace.stamp(sql));
              ResultSet rs = st.executeQuery()) {
             // CONTRACT PROGRAM: the wire census — label vs the result's
             // own metadata (rides with the data; no extra round trip).

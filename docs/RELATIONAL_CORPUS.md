@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 249 | 6 | 4 | 0 | 0 | 0 | 0 | 0 |
+| functions/tests | 259 | 250 | 5 | 4 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2433** | 38 | 76 | 28 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2434** | 37 | 76 | 28 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2433 PASS = 2398 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2434 PASS = 2399 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,14 +542,14 @@ SOFT-PASS RECONCILIATION (F2.1): 2433 PASS = 2398 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 154
+tests in the ledger: 153
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 38 |
 | wall:resolver | 29 |
-| wall:exec | 11 |
+| wall:exec | 10 |
 | divergence | 24 |
 | not-reached | 35 |
 | referee-cannot-replay | 9 |
@@ -610,7 +610,6 @@ tests in the ledger: 154
 - testIsEmptyOnCollection #2 - -> not-reached: 1 assert(s) after the failure
 - testAll #1 assertSize -> wall:lowering: wall-exec: lowering not yet implemented for TypedSerializeGraph :: lowering not yet implemented for TypedSerializeGraph
 - testAll #2 - -> not-reached: 2 assert(s) after the failure
-- testSQLComments #1 assert -> wall:exec: wall-exec: IllegalStateException: assert condition must be one value, got N :: assert condition must be one value, got 0
 - testFilterLimitInSequenceForTableAccessor #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOP1" not found; SQL statement: select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNA
 - testLimitFilterInSequenceForTableAccessor #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOP1" not found; SQL statement: select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNA
 - testLoadCsv #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': no overload of 'meta::relational::metamodel::execu :: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s) [inlined via meta::relational:
@@ -743,7 +742,7 @@ tests in the ledger: 154
 - testToManyWithQualifierWithFilterOnJoin #2 - -> not-reached: 1 assert(s) after the failure
 - testDateTimeInclusiveRangeQuery #1 meta::pure::functions::relation::assertTdsEquivalent -> divergence: platform-fail: [settlementDateTime] (N rows) ::  [settlementDateTime] (2 rows)  is not equivalent to: [settlementDateTime] (1 rows)
 - testMixedMappingWithFilterInProject #1 assertEquals -> wall:resolver: wall-exec: a navigation join over this union demands key column '_', which NO union member carries :: a navigation join over this union demands key column 'firm_ID', which NO union member carries
-- testRelationStoreAccessorOnView #1 assert -> divergence: platform-fail: Catalog Error: Table with name personView does not exist! :: Catalog Error: Table with name personView does not exist! Did you mean "personWithAddressTable"?  LINE 2: FROM personView AS t2              ^
+- testRelationStoreAccessorOnView #1 assert -> divergence: platform-fail: Catalog Error: Table with name personView does not exist! :: Catalog Error: Table with name personView does not exist! Did you mean "personWithAddressTable"?  LINE 3: FROM personView AS t2              ^
 - testRelationStoreAccessorOnView #2 - -> not-reached: 1 assert(s) after the failure
 - testSimpleMappingQueryWithFilterInProject #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '_' ::  expected: '#TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#' actual:   '#TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#'
 - testProject #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N par :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)
@@ -826,7 +825,6 @@ tests in the ledger: 154
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
-- FAIL testSQLComments [functions/tests]: assert did not hold ([])
 - FAIL testFilterLimitInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1"where"persontable_1".AGEisnotnulland"persontable_1".AGE>25)as"subselect"connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root"where("root".AGEisnotnulland"root".AGE>25))as"persontable_0"connection=TestDatabaseConnection(type="H2"))
 - FAIL testLimitFilterInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1")as"subselect"where"subselect"."AGE"isnotnulland"subselect"."AGE">25connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root")as"persontable_0"where("persontable_0".AGEisnotnulland"persontable_0".AGE>25)connection=TestDatabaseConnection(type="H2"))
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s) [inlined via meta::relational::metamodel::execute::loadCsvToDbTable/3]
@@ -914,7 +912,7 @@ tests in the ledger: 154
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
 - ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: a navigation join over this union demands key column 'firm_ID', which NO union member carries
-- ERROR testRelationStoreAccessorOnView [tests/mapping/relation]: Catalog Error: Table with name personView does not exist! | Did you mean "personWithAddressTable"? |  | LINE 5: ... END) AS _tds_line FROM ( SELECT t1.ID, t1.age, t1.name FROM personView AS t1 ) AS t0 ) AS t0_a), '"sql":"select \"perso... |                                                            
+- ERROR testRelationStoreAccessorOnView [tests/mapping/relation]: Catalog Error: Table with name personView does not exist! | Did you mean "personWithAddressTable"? |  | LINE 6: ... END) AS _tds_line FROM ( SELECT t1.ID, t1.age, t1.name FROM personView AS t1 ) AS t0 ) AS t0_a), '"sql":"select \"perso... |                                                            
 - FAIL testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: assertEquals: expected #TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#, got #TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#
 - ERROR testProject [tests/mapping/sqlFunction]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)
 - FAIL testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: assert did not hold (false)
