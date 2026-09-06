@@ -760,4 +760,63 @@ final class InnerDemand {
         return out;
     }
 
+
+    /**
+     * The FILTER-position scan: a bare to-many crossing consumed AS A
+     * COLLECTION by contains/in is set MEMBERSHIP (EXISTS route — engine
+     * testContainsOnToManyProperty golden) and demands only its HEAD's
+     * exists material, never the explosion join; everything else records
+     * bare demand exactly as FlattenOps.consumedPaths. (Moved from
+     * StoreResolver at its file guardrail, batch 78.)
+     */
+    static void memberScan(TypedSpec n, String userVar, ClassSource cs,
+            Set<List<String>> out,
+            java.util.function.BiPredicate<ClassSource, String> isToManyAssocHead) {
+        if (n instanceof TypedNativeCall mc
+                && mc.args().size() == 2) {
+            String key = mc.callee().signatureKey();
+            boolean isContains = com.legend.builtin.Pure.nativeNamed("contains", key);
+            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", key);
+            if (isContains || isIn) {
+                TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
+                TypedSpec other = isContains ? mc.args().get(1) : mc.args().get(0);
+                List<String> cp = coll
+                        instanceof TypedPropertyAccess
+                        ? Substitution.pathOf(coll, userVar) : null;
+                if (cp != null && cp.size() == 2 && isToManyAssocHead.test(cs, cp.get(0))) {
+                    out.add(List.of(cp.get(0)));
+                    memberScan(other, userVar, cs, out, isToManyAssocHead);
+                    return;
+                }
+            }
+        }
+        scanTdsContainsFns(n, userVar,
+                (b, pv) -> memberScan(b, pv, cs, out, isToManyAssocHead));
+        // FILTER-POSITION to-many aggregate (audit 9's join-explosion
+        // hazard): the node routes through the AGG DEMAND SCAN (the same
+        // parent-copy grouped-subselect machinery as projection position —
+        // aggregates are single-row, so the joined column compares safely
+        // in WHERE). memberScan SKIPS it (its nav path must not become an
+        // implicit EXISTS); a shape the agg scan fails to register still
+        // dies loud at the Substitution backstop ("the aggregate demand
+        // scan did not recognize this shape").
+        if (n instanceof TypedNativeCall ac
+                && !ac.args().isEmpty()
+                && CorrelatedSubselects.isAggregate(ac)
+                && CorrelatedSubselects.containsToManyCrossing(
+                        ac.args().get(0), userVar, cs,
+                        isToManyAssocHead)) {
+            return;
+        }
+        List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null) {
+            out.add(path);
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            memberScan(c, userVar, cs, out, isToManyAssocHead);
+        }
+    }
 }

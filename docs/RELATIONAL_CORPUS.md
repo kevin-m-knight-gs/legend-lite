@@ -82,7 +82,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/join | 28 | 27 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/join | 28 | 28 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 48 | 47 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2428** | 41 | 76 | 30 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2429** | 40 | 76 | 30 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2428 PASS = 2393 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2429 PASS = 2394 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2428 PASS = 2393 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 159
+tests in the ledger: 158
 
 | bucket | asserts |
 |---|---|
@@ -550,11 +550,11 @@ tests in the ledger: 159
 | wall:typer | 40 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
-| divergence | 27 |
-| not-reached | 37 |
+| divergence | 26 |
+| not-reached | 36 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 15 |
-| pass | 35 |
+| pass | 34 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
@@ -740,9 +740,6 @@ tests in the ledger: 159
 - testEnumInRelation #1 assertEquals -> wall:resolver: wall-exec: class query under TypedPropertyAccess is not resolvable yet (HN vocabulary) :: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - testStoreSubstitution #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or :: meta::relational::tests::mapping::include::testStoreSubstitution :: unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform 
 - testForcedSubTypeProjectDirect #1 assertSameElements -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-p :: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
-- testMultipleJoinsInPropertyMappingWithDatesInClass #1 meta::pure::functions::asserts::assertSize -> pass
-- testMultipleJoinsInPropertyMappingWithDatesInClass #2 meta::pure::functions::asserts::assertSameElements -> divergence: platform-fail: expected: ['_', '_', '_', '_', '_', '_'] ::  expected: ['Row1', 'Row1', 'Row2', 'Row2', 'Row3', 'Row3'] actual:   ['Row1', 'Row2', 'Row3']
-- testMultipleJoinsInPropertyMappingWithDatesInClass #3 - -> not-reached: 5 assert(s) after the failure
 - testNestedModelJoinCompoundInnerCondition #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::relationa :: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (asso
 - testToManyWithQualifierWithFilterOnJoin #1 assertSameElements -> wall:resolver: wall-exec: multi-hop navigation account.incomeFunctionSplits#fN.incomeFunction.Classification.name through an embedded/slot head is :: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head su
 - testToManyWithQualifierWithFilterOnJoin #2 - -> not-reached: 1 assert(s) after the failure
@@ -922,7 +919,6 @@ tests in the ledger: 159
 - ERROR testEnumInRelation [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - SHAPE testStoreSubstitution [tests/mapping/include]: assert form 'assertIs/2' is not supported yet
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
-- FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3] [expected types=[String, String, String, String, String, String]; got types=[String, String, String]]
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1

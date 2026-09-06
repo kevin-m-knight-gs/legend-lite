@@ -82,7 +82,7 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 
 ### L4 Union / isolation / join fan-out (6)
 
-Status: **batch 77 / L4a LANDED (2026-09-06)** — the Binder-error test flipped
+Status: **batch 78 / L4b LANDED (2026-09-06)** — testMultipleJoinsInPropertyMappingWithDatesInClass flipped (158/2415): reads over an executed instance frame range over the extent's rows. **batch 77 / L4a LANDED (2026-09-06)** — the Binder-error test flipped
 (159/2414) by DEMAND: a navigation hop through a union projects its join keys
 only (SubselectPrune star narrowing + the positional union prune). Probed the
 same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
@@ -92,7 +92,7 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 |---|---|
 | classMappingFilterWithInnerJoin::testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter | **FLIPPED batch 77** — not alias scoping: the intermediate Firm hop projected `legalName` off a `FirmSet1` the session had seeded from ANOTHER package's DDL (merge/testMerge.pure: `FirmSet1(ID, LegalName)` vs union/testUnion.pure: `FirmSet1(id, name, NICKNAME)`); DuckDB spells the missing column as "Referenced table t5 not found". The engine projects a hop's join keys only; SubselectPrune now narrows a qualified star to the outer's reads, and the positional union prune follows |
 | tree::testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner | DIVERGENCE: `orgByName('BUSINESS UNIT').name` yields [] where the golden has 'OrgName2' (qualifier with a filter through a self-join tree) |
-| join::testMultipleJoinsInPropertyMappingWithDatesInClass | DIVERGENCE: 3 rows vs 6 (a property mapping through multiple joins with date columns in the class — the join must not collapse the two versions) |
+| join::testMultipleJoinsInPropertyMappingWithDatesInClass | **FLIPPED batch 78** — the six instances WERE there (assertSize passed); `$result.values.tableProperty` re-resolved the chain with the read's demand only (root table, 3 rows). A read over an executed instance frame now ranges over the extent's rows (TypedFrom.executedExtent → the implicit scalar tree's paths join the demand) |
 | projection::filter::testChainedFiltersQuery | property 'locations' of the filter chain is not mapped (chained filters employees→locations) |
 | union::testEnumFilterWithUnionMappingPlanGeneration | plan: alias not resolvable to a table (Subselect) — then the assert is plan TEXT (TEXT behind) |
 | union::testPksWithImportDataFlow | typer: multiplicity [*] vs [1] — `RelationalExecutionContext(importDataFlow=true, importDataFlowAddFks=true)` adds the union's pk/fk columns (`ID_0`, `ID_1`) to the projection; rows assert |
@@ -391,7 +391,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 → **59**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 → **58**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a

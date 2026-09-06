@@ -546,7 +546,7 @@ public final class ResultEnvelopeSplice {
                 && pa.property().equals("values")) {
             if (pa.source() instanceof TypedVariable v
                     && frames.frame(v.name()) instanceof View f) {
-                return f.chain();
+                return executedExtent(f);
             }
             TypedSpec src = pa.source();
             while (src instanceof TypedFrom sf) {
@@ -556,9 +556,20 @@ public final class ResultEnvelopeSplice {
                     && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())) {
                 // inline read: the value is observed where it stands —
                 // no separate eager run (it would execute twice)
-                return frames.inlineExecute(ec, false).chain();
+                return executedExtent(frames.inlineExecute(ec, false));
             }
         }
         return null;
+    }
+
+    /** The frame's chain as an EXECUTED EXTENT (TypedFrom.executedExtent,
+     * batch 78): a read over the values of a CLASS-rooted frame ranges
+     * over the instances the execute materialized. A relation-rooted
+     * frame (a TDS query inside the execute) IS its relation — no extent
+     * notion applies, its chain stands; so does a chain without a from()
+     * envelope. */
+    private static TypedSpec executedExtent(View f) {
+        return !f.relationRooted() && f.chain() instanceof TypedFrom fr
+                ? fr.withExecutedExtent() : f.chain();
     }
 }

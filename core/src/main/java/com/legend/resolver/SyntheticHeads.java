@@ -622,6 +622,7 @@ final class SyntheticHeads {
                     liftFilteredHeads(fr.source(), enabled),
                     fr.mapping(), fr.runtime(), fr.chainMappings(),
                     fr.jsonSources(), fr.sqlSetups(), fr.csvSetups(), fr.connectionName(),
+                    fr.executedExtent(),
                     fr.info());
             case TypedLambda l -> new TypedLambda(l.parameters(),
                     l.body().stream().map(b -> liftFilteredHeads(b, enabled))
@@ -1393,6 +1394,7 @@ final class SyntheticHeads {
             case TypedFrom fr -> new TypedFrom(f.apply(fr.source()),
                     fr.mapping(), fr.runtime(), fr.chainMappings(),
                     fr.jsonSources(), fr.sqlSetups(), fr.csvSetups(), fr.connectionName(),
+                    fr.executedExtent(),
                     fr.info());
             case TypedLambda l -> new TypedLambda(l.parameters(),
                     l.body().stream().map(f).toList(), l.info());

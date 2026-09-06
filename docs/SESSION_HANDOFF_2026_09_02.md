@@ -3841,3 +3841,23 @@ relation+relational union, then meets testSimpleMapping…'s golden (which only
 holds if the nested filter reads the OUTER row's age — see §8.5; the union
 relation pair: the golden's empty cells are null by pure's CSV specs while the
 fixture holds '' and H2 LEGACY keeps '' — unresolved without the engine).
+
+**Batch 78 / L4b (2026-09-06, chain GREEN 6m12s; GATES batch 78).** 159/2414 →
+158/2415; IMPL 58. TypedFrom.executedExtent (class-rooted frames only; the
+first cut flagged relation-rooted frames and changed three sql-text tests'
+SQL shapes — restrict, never widen); StoreResolver.memberScan moved to
+InnerDemand at the 3,500-line pin. NEXT L4 item designed (not coded):
+testJoinIsolationDeeperTwoIsolations — NavMaterializer's "second identity on
+one physical sub-slot" rule (extraSubHeads, ~:170-215) emits the second
+filtered head (`orgs#f1`, BUSINESS UNIT) as a prefixed join OFF THE FIRST
+identity's materialized mid slot (t6 = orgTable WHERE type='TEAM' ⟕ tree), so
+its tree rows are the TEAM-filtered ones and BU can never match; the engine
+copies the whole two-join chain per qualifier (orgtreeoptimizationtable_0 /
+_2). Rule to land: a second identity whose first identity's pipe is FILTERED
+materializes its own copy of the chain (its own mid slot), not a join off the
+first's row; NavMaterializer also notes the INNER join-type threading for
+`@a > (INNER) @b` chains is still parked (expected 4 rows, got 11 when the
+mid was demanded LEFT). testChainedFiltersQuery: `locations` walls in
+Substitution.assocLeaf on the SECOND filtered to-many hop (employees#f →
+locations#f) — the nested scope's target bindings lack the association slot
+(the L1 nested-navigation design, not L4).

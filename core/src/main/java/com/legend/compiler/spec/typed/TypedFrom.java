@@ -27,7 +27,16 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                         List<String> sqlSetups,
                         List<CsvSetup> csvSetups,
                         @com.legend.Nullable String connectionName,
+                        boolean executedExtent,
                         ExprType info) implements TypedSpec {
+    /** EXECUTED EXTENT (batch 78): this envelope stands for the VALUES of
+     * an executed {@code execute()} frame — the instances the engine
+     * materialized — so a read over it ranges over the extent's rows:
+     * the set's own join-mapped primitive properties join whether or not
+     * the read demands them (six instances of a class whose properties
+     * join a versioned table read back six values, never three). Set by
+     * the result-envelope splice only; a query's own from() never
+     * carries it. */
 
     /** A {@code testDataSetupCsv} block under a runtime-valued expression
      * with the DATABASE it seeds (the enclosing connection store's
@@ -45,7 +54,13 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      @com.legend.Nullable String connectionName,
                      ExprType info) {
         this(source, mapping, runtime, chainMappings, jsonSources, sqlSetups,
-                List.of(), connectionName, info);
+                List.of(), connectionName, false, info);
+    }
+
+    /** The same envelope flagged as an executed frame's extent. */
+    public TypedFrom withExecutedExtent() {
+        return new TypedFrom(source, mapping, runtime, chainMappings,
+                jsonSources, sqlSetups, csvSetups, connectionName, true, info);
     }
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
@@ -583,6 +598,6 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                 ? java.util.Optional.of((TypedPackageableRef) kids.get(i))
                 : java.util.Optional.empty();
         return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources,
-                sqlSetups, csvSetups, connectionName, info);
+                sqlSetups, csvSetups, connectionName, executedExtent, info);
     }
 }

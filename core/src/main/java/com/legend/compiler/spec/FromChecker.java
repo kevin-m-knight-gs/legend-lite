@@ -173,7 +173,7 @@ final class FromChecker {
         return new TypedFrom(src, mapping, runtime,
                 List.copyOf(chainMappings),
                 java.util.Map.copyOf(jsonSources), List.copyOf(sqlSetups),
-                List.copyOf(csvSetups), connectionName, a.out());
+                List.copyOf(csvSetups), connectionName, false, a.out());
     }
 
     /** Strip a {@code withMapping(M)} marker off the from-source spine,

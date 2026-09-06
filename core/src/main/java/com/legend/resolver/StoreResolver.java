@@ -240,13 +240,25 @@ public final class StoreResolver {
      */
     record Context(@com.legend.Nullable String explicitMapping,
             @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
-            Map<String, String> jsonSources, @com.legend.Nullable String constructedScope) {
+            Map<String, String> jsonSources, @com.legend.Nullable String constructedScope,
+            boolean executedExtent) {
+        Context(@com.legend.Nullable String explicitMapping,
+                @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
+                Map<String, String> jsonSources, @com.legend.Nullable String constructedScope) {
+            this(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, false);
+        }
         Context(@com.legend.Nullable String explicitMapping,
                 @com.legend.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of(), null); }
         Context(@com.legend.Nullable String explicitMapping, @com.legend.Nullable String runtimeFqn,
                 List<String> chainMappings) { this(explicitMapping, runtimeFqn, chainMappings, Map.of(), null); }
         Context withConstructedScope(String scope) {
-            return new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, scope);
+            return new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, scope, executedExtent);
+        }
+        /** The executed-extent fact of the from() envelope in scope
+         * (TypedFrom.executedExtent — batch 78). */
+        Context withExecutedExtent(boolean extent) {
+            return extent == executedExtent ? this
+                    : new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, extent);
         }
         static final Context NONE = new Context(null, null);
         static Context ofMapping(String fqn) { return new Context(fqn, null); }
@@ -301,7 +313,8 @@ public final class StoreResolver {
             return new TypedFrom(resolveNode(liftedSrc, inner),
                     from.mapping(), from.runtime(),
                     from.chainMappings(), from.jsonSources(),
-                    from.sqlSetups(), from.csvSetups(), from.connectionName(), from.info());
+                    from.sqlSetups(), from.csvSetups(), from.connectionName(),
+                    from.executedExtent(), from.info());
         }
         // zip over two projections of ONE source -> two-column project
         if (n instanceof TypedMap zm
@@ -1488,7 +1501,8 @@ public final class StoreResolver {
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
-                    memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
+                    InnerDemand.memberScan(b, f.predicate().parameters().get(0), cs,
+                            filterPaths, this::isToManyAssocHead);
                     InnerDemand.existsKindScan(b,
                             f.predicate().parameters().get(0), cs,
                             this::isToManyAssocHead, false);
@@ -2862,6 +2876,20 @@ public final class StoreResolver {
                 synthetics.corrPredOuterDemand(fn, projectionPaths);
             }
         }
+        if (tree == null && context.executedExtent()) {
+            // EXECUTED EXTENT (batch 78): a read over an executed frame's
+            // values ranges over the instances the engine materialized —
+            // the extent's rows, i.e. the set's own property mappings
+            // joined exactly as the whole-instance envelope joins them
+            // (six rows of a class whose primitive properties join a
+            // versioned table; the read alone would join nothing and
+            // give three). The implicit scalar tree's leaf paths are that
+            // demand.
+            InnerDemand.treeDemandPaths(new GraphEmission(ctx, sources,
+                    assocMaterial, temporal, this::dispatch,
+                    () -> freshVarCounter++).synthesizeScalarTree(cs0),
+                    cs0, ctx, projectionPaths);
+        }
         Map<TypedSpec, Substitution.InQueryRead> inQueryReads =
                 inQueryReadsFor(ops, top, tree, context);
         Set<List<String>> paths = new LinkedHashSet<>(filterPaths);
@@ -3424,64 +3452,5 @@ public final class StoreResolver {
         return sources.dispatch(context.explicitMapping(),
                 context.runtimeFqn(), context.chainMappings(), classFqn);
     }
-
-
-    /**
-     * The FILTER-position scan: a bare to-many crossing consumed AS A
-     * COLLECTION by contains/in is set MEMBERSHIP (EXISTS route — engine
-     * testContainsOnToManyProperty golden) and demands only its HEAD's
-     * exists material, never the explosion join; everything else records
-     * bare demand exactly as {@link #consumedPaths}.
-     */
-    private void memberScan(TypedSpec n, String userVar, ClassSource cs,
-                            Set<List<String>> out) {
-        if (n instanceof TypedNativeCall mc
-                && mc.args().size() == 2) {
-            String key = mc.callee().signatureKey();
-            boolean isContains = Pure.nativeNamed("contains", key);
-            boolean isIn = Pure.nativeNamed("in", key);
-            if (isContains || isIn) {
-                TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
-                TypedSpec other = isContains ? mc.args().get(1) : mc.args().get(0);
-                List<String> cp = coll
-                        instanceof TypedPropertyAccess
-                        ? Substitution.pathOf(coll, userVar) : null;
-                if (cp != null && cp.size() == 2 && isToManyAssocHead(cs, cp.get(0))) {
-                    out.add(List.of(cp.get(0)));
-                    memberScan(other, userVar, cs, out);
-                    return;
-                }
-            }
-        }
-        InnerDemand.scanTdsContainsFns(n, userVar,
-                (b, pv) -> memberScan(b, pv, cs, out));
-        // FILTER-POSITION to-many aggregate (audit 9's join-explosion
-        // hazard): the node routes through the AGG DEMAND SCAN (the same
-        // parent-copy grouped-subselect machinery as projection position —
-        // aggregates are single-row, so the joined column compares safely
-        // in WHERE). memberScan SKIPS it (its nav path must not become an
-        // implicit EXISTS); a shape the agg scan fails to register still
-        // dies loud at the Substitution backstop ("the aggregate demand
-        // scan did not recognize this shape").
-        if (n instanceof TypedNativeCall ac
-                && !ac.args().isEmpty()
-                && CorrelatedSubselects.isAggregate(ac)
-                && CorrelatedSubselects.containsToManyCrossing(
-                        ac.args().get(0), userVar, cs,
-                        this::isToManyAssocHead)) {
-            return;
-        }
-        List<String> path = Substitution.pathOf(n, userVar);
-        if (path != null) {
-            out.add(path);
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
-            return;
-        }
-        for (TypedSpec c : n.children()) {
-            memberScan(c, userVar, cs, out);
-        }
-    }
-
 
 }

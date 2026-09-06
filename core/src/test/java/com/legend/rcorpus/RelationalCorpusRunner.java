@@ -2027,10 +2027,18 @@ public class RelationalCorpusRunner {
             // chained-unions-and-isolation test's intermediate Firm hop no
             // longer projects a property the session's FirmSet1 (another
             // package's DDL, same table name) does not carry.
-            org.junit.jupiter.api.Assertions.assertEquals(159L,
+            // batch 78 / L4b (2026-09-06): 159 -> 158 — a read over an
+            // EXECUTED instance frame's values ranges over the extent's
+            // rows: the set's own join-mapped primitive properties join
+            // whether or not the read demands them (TypedFrom.executedExtent,
+            // set by the result-envelope splice for class-rooted frames;
+            // the resolver widens the demand with the implicit scalar
+            // tree's paths). testMultipleJoinsInPropertyMappingWithDatesInClass:
+            // six instances read back six values, not three.
+            org.junit.jupiter.api.Assertions.assertEquals(158L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2414L,
+            org.junit.jupiter.api.Assertions.assertEquals(2415L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

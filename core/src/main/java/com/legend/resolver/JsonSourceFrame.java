@@ -247,6 +247,12 @@ final class JsonSourceFrame {
             sources.setJsonSources(substituteUrlParams(
                     fr.jsonSources(), letBindings));
         }
+        return scoped(fr, outer).withExecutedExtent(fr.executedExtent());
+    }
+
+    private static StoreResolver.Context scoped(
+            com.legend.compiler.spec.typed.TypedFrom fr,
+            StoreResolver.Context outer) {
         if (fr.mapping().isPresent()) {
             return new StoreResolver.Context(fr.mapping().get().fullPath(),
                     fr.runtime().map(r -> r.fullPath())
