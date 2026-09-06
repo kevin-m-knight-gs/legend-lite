@@ -1580,6 +1580,9 @@ final class UnionSynthesis {
                     new AppliedProperty(row, prop), false, false));
         }
         for (NavLift lf : lifts) {
+            if (ClassMapping.isSubTypeColumn(lf.property())) {
+                continue;   // a subtype-only lift: not a property of the root
+            }
             ctor.put(lf.property(), new KeyExpression(
                     new AppliedProperty(row, lf.property()), false, false));
         }
@@ -2362,6 +2365,20 @@ final class UnionSynthesis {
             Map<String, List<int[]>> found,
             Map<String, List<PropertyMapping.Join>> joins,
             Map<String, String> targetByProp, ModelBuilder model) {
+        scanJoinPms(pms, owner, declaredOwner, ordinal, found, joins,
+                targetByProp, model, null);
+    }
+
+    /** {@code unionRoot}: the union class at the TOP level of the scan
+     * (null inside an embedded descent) — a subtype-only class-typed Join
+     * PM lifts under its stc key there (batch 108). */
+    private static void scanJoinPms(List<PropertyMapping> pms,
+            @com.legend.Nullable ClassDefinition owner,
+            @com.legend.Nullable ClassDefinition declaredOwner, int ordinal,
+            Map<String, List<int[]>> found,
+            Map<String, List<PropertyMapping.Join>> joins,
+            Map<String, String> targetByProp, ModelBuilder model,
+            @com.legend.Nullable String unionRoot) {
         for (PropertyMapping pm : pms) {
             if (pm instanceof PropertyMapping.Embedded e) {
                 // EMBEDDED descent: a class-typed Join inside an embedded
@@ -2398,7 +2415,43 @@ final class UnionSynthesis {
                     : MappingNormalizer.findPropertyTypeDeep(declaredOwner,
                             pm.propertyName(), model);
             if (!(dt instanceof TypeExpression.NameRef dnr)) {
-                continue;   // subtype-only: stc dispatch owns it
+                // SUBTYPE-ONLY class-typed Join PM (Bicycle[map2].person
+                // under a Vehicle union — `person` is declared on
+                // RoadVehicle, not on the union class): the scalar stc
+                // dispatch has no column form for a navigation, so the
+                // join LIFTS like any other — under the stc key of every
+                // cast target that declares it (member class and its
+                // ancestors below the root: subType(@Bicycle).person and
+                // subType(@RoadVehicle).person both read it), the routes
+                // being the conforming members' own; a non-member row
+                // carries NULL keys and joins nothing (batch 108,
+                // testInheritanceMultipleLevel). The recomposed ctor skips
+                // stc keys — the resolver's row pseudo-bindings serve them.
+                if (unionRoot != null && owner != null) {
+                    for (String target : selfAndAncestorsBelow(
+                            owner.qualifiedName(), unionRoot, model)) {
+                        ClassDefinition tcd = MappingNormalizer.classDef(model, target)
+                                .orElse(null);
+                        if (tcd == null || MappingNormalizer.findPropertyTypeDeep(
+                                tcd, pm.propertyName(), model) == null) {
+                            continue;
+                        }
+                        String key = ClassMapping.subTypeColumn(target,
+                                pm.propertyName());
+                        String prior0 = targetByProp.putIfAbsent(key, pnr.name());
+                        if (prior0 != null && !prior0.equals(pnr.name())) {
+                            throw new IllegalStateException(
+                                    "union nav lift name collision: subtype"
+                                    + " navigation '" + key + "' navigates to '"
+                                    + prior0 + "' and '" + pnr.name()
+                                    + "' across members");
+                        }
+                        found.computeIfAbsent(key, k -> new ArrayList<>())
+                                .add(new int[]{ordinal});
+                        joins.computeIfAbsent(key, k -> new ArrayList<>()).add(j);
+                    }
+                }
+                continue;
             }
             // one alias, one target: a name colliding across DIFFERENT
             // declared scopes (top-level vs embedded) would OR unrelated
@@ -2432,7 +2485,7 @@ final class UnionSynthesis {
             }
             ClassDefinition memberOwner = MappingNormalizer.classDef(model, mr.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#13 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + mr.className()));
             scanJoinPms(mr.propertyMappings(), memberOwner, declared, i,
-                    found, joins, targetByProp, model);
+                    found, joins, targetByProp, model, className);
         }
         List<NavLift> lifts = new ArrayList<>();
         for (String prop : found.keySet()) {

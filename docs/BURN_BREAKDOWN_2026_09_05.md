@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 108 / L1 subtype-only class-typed joins lift under their stc key LANDED (2026-09-06)** — testInheritanceMultipleLevel flipped (127/2446); UnionSynthesis lifts a subtype-only Join PM as a navigate slot keyed stc_<Sub>___<prop>. IMPL 14, REVISIT 7.
+
 Status: **batch 107 / L1 subtype cast in auto-map source position LANDED (2026-09-06)** — testRoutingWithSubtypePropagation flipped (128/2445); the demand scan composes a cast-sourced auto-map through the one funnel. IMPL 15, REVISIT 7.
 
 Status: **batch 106 / L1 isolation (element-scoped tail predicate) LANDED (2026-09-06)** — isolationTest flipped (129/2444), both asserts; IMPL 16, REVISIT 7. USER RULING (same day): the resolver's string-keyed path model is a debt — a NavPath/Hop leg runs AFTER Phase 1 is burned out and BEFORE Phase 2 (user re-ruling, same day; memory string-hacking-audit-navigation-paths).
@@ -68,7 +70,7 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 | modelJoin::advanced::testSubFilter | **FLIPPED batch 73** (row marked at the batch 89 census) | rows |
 | multigrain::testToManyWithQualifierWithFilterOnJoin | multi-hop through an embedded/slot head | rows [500] + text behind |
 | projection::simple::testRoutingWithSubtypePropagation | FLIPPED batch 107 — the cast-sourced auto-map composes its leaf demand (composeAutoMapPaths inlines the element; pathOf's cast arm qualifies the leaf); the same-source stc navigate transplant materializes as a SubNav | sql-text row verdict |
-| testDataGeneration::testInheritanceMultipleLevel | multi-hop vehicles#f.subType.person.name | TDG rows |
+| testDataGeneration::testInheritanceMultipleLevel | FLIPPED batch 108 — the Vehicle union lifts Bicycle's subtype-only `person` join as the navigate slot `stc_Bicycle___person` (UnionSynthesis.scanJoinPms) | TDG rows |
 | businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction | **REVISIT (batch 93 receipt `revisit:instance-filter-ungated` — traced, NOT resolved; user 2026-09-06: the relational lane and Pure disagree, the lane choice is revisited at the end)** — the instance-filter idiom canonicalizes in the lift pass (the wall is gone; the assert reaches its sql-text ROW verdict); the golden projects `"root".id` unconditionally (testBusinessDateMilestoning.pure:591 — its filter subselect never gates the value) while Pure's filter->map and the engine's own sibling golden testConcatenateWithFilter ('Firm A,', testConcatenate.pure:88) yield the empty cell; rows [1, 2] vs ours [TDSNull, 2] | assertSameSQL → referee rows |
 | advanced::forcedselfjoin::isolationTest | FLIPPED batch 106 — the predicate re-bases onto the fan-out element at the lift (ElementScope); the head's target materialization joins the chain as the exploding parent-copy subselect with the target as parent (§8.0) | rows |
 | injection::testProjectThroughAssociation | **FLIPPED batch 90** — the lift runs inside a class-collection mapper; the parent-scoped correlated predicate composes into the sub-hop join's ON clause (NavMaterializer.conditionFor) | rows |
@@ -591,7 +593,8 @@ Probe diagnostics (LEGEND_LITE_STACKS=1, `[multi-hop wall] path=… targetBindin
   @Person_Location, manager: @Person_Manager }` (relationalSetUp.pure:1139). Shape: a
   subtype-cast leaf that is a JOIN slot (`manager`), then a further cast + leaf. The
   assert is SQL-text only (TEXT behind).
-- testInheritanceMultipleLevel (TDG): path `[vehicles#f1, stc_…Bicycle___person, name]`;
+- testInheritanceMultipleLevel (TDG): LANDED batch 108 — the union lift, not the resolver (see the
+  GATES record). Original note: path `[vehicles#f1, stc_…Bicycle___person, name]`;
   targetBindingKeys hold the union's flat columns (`stc_…Bicycle___id`, `…___owner__name`
   — an INLINE embedded owner(name:'Unknown') distributes as a flat column) but no
   `person` slot: mapping `inheritanceMain` (REL/tests/mapping/inheritance/

@@ -62,7 +62,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 260 | 3 | 2 | 1 | 1 | 1 | 2 | 1 |
-| testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
+| testDataGeneration/tests | 68 | 67 | 0 | 0 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 65 | 2 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2459** | 36 | 54 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2460** | 36 | 53 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2459 PASS = 2424 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2460 PASS = 2425 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,19 +542,19 @@ SOFT-PASS RECONCILIATION (F2.1): 2459 PASS = 2424 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 128
+tests in the ledger: 127
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:resolver | 17 |
+| wall:resolver | 16 |
 | wall:typer | 33 |
 | wall:exec | 8 |
 | divergence | 19 |
 | not-reached | 22 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
-| pass | 29 |
+| pass | 23 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
@@ -677,13 +677,6 @@ tests in the ledger: 128
 - testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #5 - -> not-reached: 1 assert(s) after the failure
 - testExecutionPlanGeneration #0 - -> wall:typer: wall-type: no overload of '_' structurally matches the argument types (ExprType[type=GenericTyp :: meta::relational::tests::tds::window::routing::testExecutionPlanGeneration :: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[r
 - testAlloyTestDatGenWithQuotedColumnsForViews #1 assertEquals -> wall:exec: wall-exec: testDataGen: view-backed relation '_' — view slice pending :: testDataGen: view-backed relation 'AltID_View' — view slice pending
-- testInheritanceMultipleLevel #1 meta::pure::functions::asserts::assertSize -> pass
-- testInheritanceMultipleLevel #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testInheritanceMultipleLevel #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testInheritanceMultipleLevel #4 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testInheritanceMultipleLevel #5 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
-- testInheritanceMultipleLevel #6 meta::pure::functions::asserts::assertSameElements -> pass
-- testInheritanceMultipleLevel #7 - -> wall:resolver: wall-exec: multi-hop navigation vehicles#fN.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embed :: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[v
 - testRelationalMapperTwoDBs #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'select "root".NAME as "name", "synonymtable_N".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNe ::  expected: 'select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.prod
 - testRelationalMapperWithJoin #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'select "addresstable_N".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snD ::  expected: 'select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persont
 - testConnectionEqualityAllButOnePropertySame #1 assert -> wall:lowering: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list
@@ -833,7 +826,6 @@ tests in the ledger: 128
 - FAIL testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: assertSameElements: expected [1,Peter,Smith,1,ee0af362d8c1e4fa8c805dfeadd1aa37,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 2,John,Johnson,1,f8758ee5b78e87c2c62f4bed81ce3537,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 3,John,Hill,1,5a60b85c13b6c8273a6d2d55ff6a7815,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 4,Anthony,Allen,1,aceae9411805b964e79dd85254a18a64,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 5,Fabrice,Roberts,2,78e0713429c21373986cd56e497ece2f,Firm A,2,d41d8cd98f00b204e9800998ecf8427e, 6,Oliver,Hill,3,ab43019b868088e113c5d313a7f5ca40,Firm B,3,d41d8cd98f00b204e9800998ecf8427e, 7,David,Harris,4,988f1ea1ec2cdacc3bb1dff202d4160a,Firm C,4,d41d8cd98f00b204e9800998ecf8427e], got [1,Peter,Smith,1,acb3d9c79f4a025d8ff258eda164fffa,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 2,John,Johnson,1,36175107e230cb75c14506db96498987,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 3,John,Hill,1,f43354dfab4ebfa732a1bb5f9fc0705a,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 4,Anthony,Allen,1,0a8c4f1f5bd45a216a56550528f27f0d,Firm X,1,d41d8cd98f00b204e9800998ecf8427e, 5,Fabrice,Roberts,2,04630edbca592585af48998db91fa5e1,Firm A,2,d41d8cd98f00b204e9800998ecf8427e, 6,Oliver,Hill,3,934a39c37d4466bf766907346972345d,Firm B,3,d41d8cd98f00b204e9800998ecf8427e, 7,David,Harris,4,e6e275ba04b97e92528f911eee5d23f2,Firm C,4,d41d8cd98f00b204e9800998ecf8427e] [expected types=[String, String, String, String, String, String, String]; got types=[String, String, String, String, String, String, String]]
 - SHAPE testExecutionPlanGeneration [tds/tests]: plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeVar[name=?], multiplicity=Bounded[lower=1, upper=1]],
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: testDataGen: view-backed relation 'AltID_View' — view slice pending [surfaced via assert form 'assertEquals/2']
-- ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
 - FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) where "synonymtablenew_0".TYPE = 'CUSIP' and "synonymtablenew_0".NAME = 'CUSIP1'
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select "persontable_0"."address_NAME" as "address" from snDBDefault.default.firmTableNew as "root" left outer join (select "root".FIRMID as "FIRMID", "addresstable_0".NAME as "address_NAME" from snDBDefault.default.personTable as "root" left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "root".ADDRESSID) where "root".LASTNAME = 'Smith') as "persontable_0" on ("root".ID = "persontable_0"."FIRMID")
 - ERROR testConnectionEqualityAllButOnePropertySame [tests]: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the lowering has no runtime arm list

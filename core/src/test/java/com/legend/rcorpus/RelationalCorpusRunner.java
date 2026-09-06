@@ -1113,7 +1113,11 @@ public class RelationalCorpusRunner {
             // FromVarReference's two assertSameSQL asserts left the walk's
             // lane — its statement-root map over the two execute bindings
             // unrolls (LiteralMapUnroll) and the whole test flipped
-            org.junit.jupiter.api.Assertions.assertEquals(7, execPassing,
+            // 7 -> 3 (batch 108, 2026-09-06): testInheritanceMultipleLevel's
+            // four assertSqlEquals asserts (the TDG sqls, replayed on the
+            // oracle) left the walk's lane — the whole test flipped (the
+            // union lift of a subtype-only class-typed Join PM)
+            org.junit.jupiter.api.Assertions.assertEquals(3, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -2233,10 +2237,20 @@ public class RelationalCorpusRunner {
             // walked; the same-source stc navigate transplant then
             // materializes as a SubNav. projection::simple::
             // testRoutingWithSubtypePropagation (sql-text row verdict).
-            org.junit.jupiter.api.Assertions.assertEquals(128L,
+            // batch 108 / L1 (2026-09-06): 128 -> 127 — a SUBTYPE-ONLY
+            // class-typed Join PM under an inheritance union
+            // (Bicycle[map2].person: @PersonBicycle under the Vehicle union;
+            // `person` declared on RoadVehicle) lifts as a navigate slot
+            // under the stc key of every cast target that declares it
+            // (UnionSynthesis.scanJoinPms — the scalar stc dispatch has no
+            // column form for a navigation); the recomposed ctor skips stc
+            // keys, the row pseudo-binding serves the read, the assoc tail
+            // machinery materializes the SubNav. testDataGeneration::
+            // testInheritanceMultipleLevel (TDG rows + 4 sql-text verdicts).
+            org.junit.jupiter.api.Assertions.assertEquals(127L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2445L,
+            org.junit.jupiter.api.Assertions.assertEquals(2446L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2573,8 +2587,12 @@ public class RelationalCorpusRunner {
                     // exec-passing 9 -> 7 — testBusinessDateInjectionFrom-
                     // VarReference's two assertSameSQL rescues cleared when
                     // its statement-root map unrolled and the test flipped.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 7,
-                    "M1 h2-exec rescued fell below the 7 floor: "
+                    // 7 -> 3 (batch 108, 2026-09-06): the same lane move as
+                    // exec-passing 7 -> 3 — testInheritanceMultipleLevel's
+                    // four rescued TDG sql-asserts now row-verify as
+                    // platform-arm verdicts (the whole test flipped).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 3,
+                    "M1 h2-exec rescued fell below the 3 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

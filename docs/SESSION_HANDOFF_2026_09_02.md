@@ -34,11 +34,15 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
    Never land new string arithmetic on identities meanwhile.
 2. **Embedded-head trio** (L1): testToManyWithQualifierWithFilterOnJoin,
    testRoutingWithSubtypePropagation (LANDED batch 107 — a demand-scan gap, not a
-   materializer one), testInheritanceMultipleLevel (PROBED 2026-09-06: the Vehicle union's
-   nav lift SKIPS subtype-only class-typed Join PMs — UnionSynthesis.scanJoinPms "subtype-only:
-   stc dispatch owns it" — but subTypeDispatchProps emits scalar and embedded-flat stc columns
-   only, so `Bicycle[map2].person: @PersonBicycle` vanishes; leg = lift a subtype-only Join PM
-   as a navigate slot under its stc key with the owning members' routes) — breakdown §8.2
+   materializer one), testInheritanceMultipleLevel (LANDED batch 108 — the union lift of
+   subtype-only class-typed Join PMs under their stc keys) — breakdown §8.2. REMAINING:
+   testToManyWithQualifierWithFilterOnJoin only (PROBED 2026-09-06: `account.
+   incomeFunctionSplits#f0.incomeFunction.Classification.name` — the head's SubNav for the
+   lifted sub-slot exists; inside it `incomeFunction` is an EMBEDDED ctor whose `Classification`
+   is a navigate slot; design = an embedded ctor is a SubNav NODE sharing the parent's row
+   (bindings = the ctor's properties, children = its navigate slots) so the hop-agnostic walk
+   descends without dotted keys — NavMaterializer.demandSlotSubTail drills the ctor exactly as
+   registerNavigations' EMBEDDED-head drill does, and the subTree registers the node).
    (SubNav children through embedded bodies inside lifted sub-slots; the subtype-chain
    variant reads `employees.stc_<Sub>___manager.stc_…`). testInheritanceMultipleLevel's
    first 6 asserts already pass; only the 7th walls.
@@ -4290,6 +4294,14 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 108 / L1 subtype-only class-typed joins lift under their stc key (2026-09-06, chain
+GREEN; GATES batch 108).** 128/2445 → 127/2446; IMPL 14. testInheritanceMultipleLevel flipped.
+UnionSynthesis.scanJoinPms lifts a subtype-only Join PM as a navigate slot under
+stc_<CastTarget>___<prop> for every cast target that declares it, routes = the conforming
+members'; recomposeUnionRoot skips stc keys. Lane moves exec-passing 7 → 3 and M1 rescued
+floor 7 → 3 (the flipped test's four TDG sql-asserts). NEXT: multigrain (embedded ctor as a
+SubNav node), then L5 XStore.
 
 **Batch 107 / L1 subtype cast in auto-map source position (2026-09-06, chain GREEN; GATES
 batch 107).** 129/2444 → 128/2445; IMPL 15. testRoutingWithSubtypePropagation flipped. The
