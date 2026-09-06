@@ -383,3 +383,135 @@ buckets already say so test by test.
 
 Each leg lands as its own batch (ratchet moves, chain green, pins with
 justification), per [[burn-fallbacks-every-batch]].
+
+## 8. Homework notes per open item (2026-09-05/06 — what the probes and source reads established; never re-derive)
+
+Conventions: "wall @" names the throw site; "owner" names the code that must
+change; engine paths are under core_relational/relational (REL) unless said.
+
+### 8.1 L1 — nested exists scope, class-typed slot mapped to TWO subtype sets (testExistsAsNullWithSubType)
+
+- Test: `MyClass.all()->project([p|$p.hasPrivateFunction, p|$p.hasPublicFunction])`;
+  `hasPrivateFunction(){$this.functions->exists(f|$f.fnScope->subType(@Public).id->isNotEmpty())}`
+  (REL/functions/tests/projection/testExists.pure:23-31). Mapping
+  `mappingForMultipleSubTypes` (:257): `MyClass.functions[map1]: @classFnJoin`;
+  `ClassFunction[map1].fnScope[map2]: @privateFnJoin`, `fnScope[map3]: @publicFnJoin`;
+  `Private[map2].id: privateFn.id`, `Public[map3].id: publicFn.id`. Tables
+  main/fn/privateFn/publicFn; joins classFnJoin(main.id=fn.classId),
+  privateFnJoin(privateFn.fnId=fn.id), publicFnJoin(publicFn.fnId=fn.id).
+- Engine expected SQL (:122): `select "fn_0".classId is not null as "hasPrivateFn",
+  "fn_2".classId is not null as "hasPublicFn" from main as "root" left outer join
+  (select distinct "fn_1".classId from fn as "fn_1" left outer join publicFn as
+  "publicfn_0" on ("publicfn_0".fnId = "fn_1".id) where "publicfn_0".id is not null)
+  as "fn_0" on ("root".id = "fn_0".classId) left outer join (…privateFn…) as "fn_2"
+  on (…)` — exists = a DISTINCT semi-join subselect per derived property; the
+  subtype pick = the member set's join with an `is not null` witness.
+- Wall @ Substitution.assocLeaf (the SECOND nested throw: `leafBinding == null`),
+  reached from rewritePath's navigate-slot arm (`target.assocs().containsKey(head)`
+  is TRUE → the head `fnScope` IS registered in the nested scope, but the leaf
+  `stc_meta__relational__tests__projection__exists__Public___id` is not in its
+  `targetBindings()`): the nested registration served ONE set's bindings for the
+  class-typed slot, not the union of the subtype member sets with their
+  `stc_<Sub>___<prop>` witnesses. Stack: rewriteExists → predSub.rewriteLambda →
+  rewritePath:~2390 → assocLeaf.
+- Owner: StoreResolver.nestedScope/scopeMaterials → registerExistsSubs /
+  CorrelatedSubselects.nestedAssocMaterials for the exists TARGET (ClassFunction[map1]);
+  the root scope's multi-set slot machinery (SyntheticHeads `#cN` CONCAT heads: a
+  property mapped to several sets branches and UNION-ALLs — SyntheticHeads.applyToPipe)
+  is what the nested scope lacks for `fnScope[map2]/[map3]`. Design: inside a nested
+  scope a class-typed slot with N set mappings registers the UNION of the member
+  sets' bindings under `stc_<Sub>___` keys (as the root does), joined per member.
+
+### 8.2 L1 — the three multi-hop-through-embedded tests (two designs)
+
+Probe diagnostics (LEGEND_LITE_STACKS=1, `[multi-hop wall] path=… targetBindingKeys=…`):
+
+- testToManyWithQualifierWithFilterOnJoin: path
+  `[account, incomeFunctionSplits#f0, incomeFunction, Classification, name]`,
+  head `account` registered (targetBindingKeys=[number, incomeFunctionSplits]).
+  Query: `Position.all()->filter(p | $p.account.incomeFunctionSplits->filter(i |
+  $i.type == 'P')->toOne().incomeFunction.Classification.name == 'IfName1')->project(quantity)`
+  (REL/tests/mapping/multigrain/testMultiGrainTableMappings.pure:78). Mapping
+  `testMappingFirmAccount` (:347): `Position.account: @posAccount`;
+  `FirmAccount ~filter accountGrain, incomeFunctionSplits: @account_accountIFSplit`;
+  `AccountIncomeFunctionSplit ~filter accountIFGrain, type: IF_TYPE, incomeFunction (
+  code: IF_NUM, Classification: @ifClass )` — an EMBEDDED property mapping carrying a
+  JOIN-mapped property; `Classification.name: IF_OTHER_INFO.IF_NAME`. Store
+  myDBAccount: POSITION, FIRM_ACCT_IF_MULTIGRAIN (multi-grain rows filtered per set),
+  IF_OTHER_INFO; joins posAccount, account_accountIFSplit, ifSplit_if, ifClass.
+  Shape: a FILTERED to-many hop (`#f0`, `->toOne()`) in the middle of a 4-hop chain,
+  then an embedded ctor whose tail property is a join. `rewriteMultiHop` (Substitution
+  ~1219-1350) has arms for: navigate-slot SubNav trees (`a3.subNavs()`), embedded-ctor
+  tails under a SubNav (`ctorTailLeaf`), chain keys (`target.assocs().containsKey(chainKey)`),
+  nested embedded ctors walked from bindings, "HEAD-JOIN + EMBEDDED TAIL", and the
+  "SUBTYPE-EMBEDDED tail" flat column — none composes a filtered hop's SubNav with an
+  embedded+join tail. Owner: AssociationJoins.associationJoin's `navTails`/`tailSubNavs`
+  (NavMaterializer.navTargetMaterialized composes deeper prefixes) + the synthetic
+  `#f` head's SubNav registration.
+- testRoutingWithSubtypePropagation: path `[employees, stc_…PersonExtension___manager,
+  stc_…PersonExtension___firstName]`; targetBindingKeys already carry every
+  `stc_…PersonExtension___<prop>` INCLUDING manager. Query: `Firm.all()->project(col(x|
+  $x.employees->subType(@PersonExtension).manager->subType(@PersonExtension).firstName…))`
+  (REL/router/tests/testRouting.pure). Model: `PersonExtension extends Person`
+  (simpleTestModel.pure:230); mapping `PersonExtension: Relational { scope([dbInc])
+  (firstName, age), lastName, firm: @Firm_Person, address: @Address_Person, locations:
+  @Person_Location, manager: @Person_Manager }` (relationalSetUp.pure:1139). Shape: a
+  subtype-cast leaf that is a JOIN slot (`manager`), then a further cast + leaf. The
+  assert is SQL-text only (TEXT behind).
+- testInheritanceMultipleLevel (TDG): path `[vehicles#f1, stc_…Bicycle___person, name]`;
+  targetBindingKeys hold the union's flat columns (`stc_…Bicycle___id`, `…___owner__name`
+  — an INLINE embedded owner(name:'Unknown') distributes as a flat column) but no
+  `person` slot: mapping `inheritanceMain` (REL/tests/mapping/inheritance/
+  testInheritanceRelational.pure): `Person.vehicles[map1]: @PersonCar, vehicles[map2]:
+  @PersonBicycle`; `Bicycle[map2].person: @PersonBicycle`, `Car[map1].person: @PersonCar`.
+  Shape: a join slot on a UNION MEMBER behind the subtype witness.
+- Design (shared by the last two): "join slots behind subtype witnesses" — a member
+  set's navigate step materializes and its columns distribute through the union under
+  the `stc_<Sub>___<joinProp>_` prefix, with a SubNav registered under the `stc_` key so
+  rewriteMultiHop's SubNav walk continues; the cast chain re-enters the same rule.
+
+### 8.3 L1 — the rest, walls and owners
+
+- isolationTest: `correlated filter predicate on hop '_' at depth 2 of employees.group.children.name has no application site` — StoreResolver.unappliedCorrelatedWall (batch 69b); leg = apply the parked predicate at depth ≥ 2 and reroute an already-claimed alias (memory harness-burndown-program).
+- testProjectThroughAssociation / testForcedSubTypeProjectDirect: `filtered-navigation read reached substitution unlifted — the router owns this shape (batches 69+)`; SubQueryLift/SyntheticHeads.liftValueRead pre-pass misses the injection mapping's `trades->map(t|$t.productAtTimeOfTrade.name)` and the `->subType(@Bicycle).person.name` project column.
+- testProjectThroughAssociationAutoMap: `object-space expression node TypedFilter is not substitutable yet` — `$b.trades.productAtTimeOfTrade.name` auto-map with a filter in object space (Substitution).
+- testFilterTimesWithManyOperands: `aggregate over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one` — `$p.firm->toOne().sumEmployeesAge()` (qualifier aggregating a to-many under a to-one hop); owner CorrelatedSubselects aggregated subselect through a to-one hop.
+- testQualifierConcatenateTwoSimilarJoinsEmbedded / testConcatenateInQualifierWithComplexReturnType: `class-typed property … used as a whole value is graph output (Phase H)` — `$t.accountOrganizationalEntity.name` where the qualifier concatenates two class-typed navigations (`->concatenate` of instances) then reads `.name`; owner: the concatenate-of-instances union (engine `unionalias_0`) + leaf read (Substitution rewritePath/assocLeaf).
+- testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction: `milestoned property access on a NESTED navigation is not supported yet` — `filterOrders($o)` external function over `Order` with milestoned nested navigation; owner TemporalFrame nested navigation dates.
+- testEnumInRelation: `class query under TypedPropertyAccess is not resolvable yet` — `~[name: x|$x.name, …, firm: x|$x.firm, role: x|$x.role]` relation project whose columns read enum-mapped properties (`employeeTestMapping` EnumerationMappings) — the wall is the TypedPropertyAccess over the class row inside the `~[...]` project (StoreResolver.resolveObject vocabulary).
+
+### 8.4 L8 — sizes, with the reads behind them
+
+- iqrClassifyTest / zScoreTest / testExtendDigest_InMemory: `let data = range($scores->size())->map(i|'student_'+toString($i))->zip($scores); let tds = $data->project([col(p|$p.first,'name'), col(p|$p.second,'score')]);` (REL/tds/tests/testTdsExtension.pure). Typer wall "no overload of 'col' matches 2 argument(s) (no candidates at all)": `meta::pure::tds` IS in NameResolver.CORE_IMPORTS; `col` has no checker arm for a project whose SOURCE is a collection of Pairs (not a class/TDS). `zip`/`range` in relation position: `lowering not yet implemented for TypedNativeCall ('zip' in relation position)`. Leg = a VALUES relation from collection natives (range/map/zip over literals is computation, so it must be SQL: `range(n)` + list ops or UNNEST), then `project(col…)` over it, then the engine's tdsExtension programs iqrClassify/zScore (define in REL/tds — admit as programs; extendWithDigestOnColumns is an engine program too).
+- rowValueDifferenceTest: wall `cannot access 'name' on String` at `$rawTradeDate.columns->map(c|$c.name + ':' + $c.type->toOne()->elementToPath())` — Typer.tdsColumnsMetaRead folds ONLY the direct forms `.columns.name` / `.columns.type` / `.columns.documentation` (Typer ~2782); a bare `.columns` types as names (String[*]). Leg = `.columns` as a spelled collection of `^TDSColumn(name=…, type=…)` literals so `map` unrolls and `$c.name`/`$c.type` fold; `elementToPath` over a type reference then needs a fold. The assert itself calls the engine's `rowValueDifference` tdsExtension program — unverified whether it lowers.
+- testViewChainsWithBusinessDate: `toSQL(|query, ViewChainMapping, testRuntime(), extensions).toSQLString($connection.type, $connection.timeZone, $connection.quoteIdentifiers, ^Format(newLine='', indent=''))` then assertSameSQL (REL/milestoning/tests/testBusinessDateMilestoning.pure:243-246). Engine: `toSQL(f, mapping, runtime, ext): SQLResult` (sqlstring.pure:46); `SQLResult.toSQLString(dbType, tz, quote, format)` qualified property (:151) maps each SQLQuery through sqlQueryToString. Ours: no `toSQL` native; toSQLString natives are `TO_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY` (Pure.java:1605); the harness routes sql-text asserts by `SQL_PRODUCER_FQNS` (EngineTestExecutor:3145: sql, sqlRemoveFormatting, toSQLString, toSQLStringPretty, TDG sqls) and renders ours in StatementExecutor.toSqlString (:491 — arg0 lambda literal, arg1 mapping reference, arg2 DatabaseType enum or a connection → EngineStyleH2/DB2/Composite renderer). Leg = a typing surface `toSQL(...)` → an SQLResult carrier + `toSQLString` over it, routed onto the same doctrine (dbType from the connection's `type`; tz/quote/format honored or defaulted), and `toSQL` added to SQL_PRODUCER_FQNS.
+- stringToFloat::testProject: wall `no scalar lowering registered for resolved overload 'assertEqWithinTolerance' with 3 parameter(s)` — the assert sits INSIDE `[123.456, 100.001]->zip($result…rows.values)->forAll(pair | assertEqWithinTolerance($pair.first->cast(@Float), $pair.second->cast(@Float), 0.001))`; the harness has the direct form (EngineTestExecutor:2671) but not forAll-over-zip. Leg = a verdict form: unroll the zip against the literal expected list into per-row tolerance asserts (AssertVerdicts).
+- testSimpleTypeMappingProjectNulls #2: `meta::json::toJSON` over the TDS — the engine's envelope `{"columns":[{"name":"ti","type":"Integer","metaType":"PrimitiveType"},…],"rows":[{"values":[…]}]}`; assert #1 (TDSNull row values) passes. Leg = a referee arm: parse the golden envelope to rows, compare rows (golden-to-rows rule), never byte-compare JSON text.
+- testSortQuotes: Postgres `toSQLString` text → TEXT (T3), not L8.
+- testTdsJoinConcatenateAndJoin (lineage): typer `concatenate: 7 column(s) [First_1, Age_1, First_2, Age_2, First_3, Age_3, Restated] cannot unite with N column(s)` — the lineage query joins three projections then concatenates a differently-shaped TDS; batch 72a made concatenate POSITIONAL on names of the left — the counts differ here; read the test (REL/lineage/scanRelations/scanRelationsTests.pure) before deciding whether the engine accepts mismatched widths (it is a scanRelations lineage test, rows verdict = the lineage tree, batch 59).
+- testGroupByWithWindowSubset: `groupByWithWindowSubset` unknown — an engine PROGRAM (core/pure/tds/tds.pure:867: filters/sorts the agg and function lists by ids, then calls `meta::pure::tds::groupBy`) — admit verbatim like the others; its body uses `indexOf`, `contains`, `sort` with compare lambdas over spelled lists (folds needed: indexOf/contains over spelled lists exist? check LiteralUnroll before promising).
+- testSimpleTypeMappingProjectNulls / strictdate::testProject `TypedNativeCall ('sort' in relation position)`: `assertEquals([...], $result.values.rows.values->sort())`? — read the exact assert before sizing.
+
+### 8.5 L4/L3 — the wrong-row divergences (read, not yet probed)
+
+- testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter: our SQL fails to BIND (`Referenced table "t5" not found! Candidate tables: "t4" LINE 16: SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 …`) — an alias scoping bug when a union member's isolated subselect references an outer alias; mapping `chainedJoinsWithUnionsAndIsolation`, query `Person.all()->project([p|$p.firm.employees->filter(p|$p.lastName->startsWith('Sc')).lastName])`; expected rows ['Scott','Scott','null'].
+- testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner: rows [11,'Alex','OrgName3',[]] vs golden [11,'Alex','OrgName3','OrgName2'] — the 4th column `$a.trades.trader.orgByName('BUSINESS UNIT').name` (a qualifier with a filter through the org self-join tree, mapping `orgTestMapping`, REL/tests/mapping/tree) comes back empty; the first three columns agree.
+- testMultipleJoinsInPropertyMappingWithDatesInClass: 3 rows vs 6 — `TypeBuiltOutOfMultipleJoinsWithDates.all()` over `advancedRelationalMapping3` (a property mapped through MULTIPLE joins with date columns in the class: both "old" and current versions must survive); ours collapses to one version per row.
+- testSimpleMappingQueryWithFilterInProject: `#TDS name1,name2 / Fabrice,Oliver` vs golden `Fabrice,null` — `~[name1:x|$x.firstName, name2:x|$x.firm.employees->filter(e|$e.age < 35).firstName]` over the RELATION mapping `SimpleMapping` (`~func` relation functions, REL/tests/mapping/relation): the filtered to-many navigation inside a relation project pairs rows wrongly (Fabrice gets Oliver) — compare with the L1a fix (the same shape over a class mapping passes since batch 73).
+- testMixedMappingWithFilterInProject: `a navigation join over this union demands key column '_' which NO union member carries` — same query over `MixedMapping` (relation + relational sets).
+- testUnionTwoRelationMappings_ManyColumnProject(+GeneratesSingleUnion): 12-column `distinct` project over `unionOfTwoRelationMappingsFirstAndLast` — rows `Anand,null,Anand,null,…` vs ours (read the ledger row for the exact actual); the golden repeats lastName/firstName alternately.
+- testChainedFiltersQuery: `property 'locations' of class … is not mapped` — `Firm.all()->filter(f|$f.employees->filter(e|$e.lastName=='Smith').locations->filter(o|$o.place=='Hoboken').place != 'New York')` — a filter chain through two to-many hops with filters on each (the chained-filter navigation), simpleRelationalMapping.
+- testPksWithImportDataFlow: typer `multiplicity [*] is not compatible with [1]` — `^RelationalExecutionContext(importDataFlow=true, importDataFlowAddFks=true)` passed to execute (5-arg execute overload with a context); the engine adds `ID_0`/`ID_1` pk columns to the union projection; ours types the context argument wrong before anything else.
+
+### 8.6 L5/L6/L7/L13 — what was read
+
+- Model joins (L5): mappings spell `Person_Address: ModelJoin { {person, address | …} }` inside the mapping (REL/tests/mapping/modelJoin/modelJoinAdvancedSetup.pure:39-75, 529-565) over `~func` relation-function sets; the three failing tests are XStore/cross-database shapes (`association not mapped` in AssociationJoins.associationJoin's `findAssociationOf`/binding closure) — the ModelJoin's association mapping lives in a mapping the closure does not see (cross mapping / two databases).
+- Graph fetch (L6): testCheckedWithCircularConstraints expects `defects` on the Checked envelope for a constraint over `meta::pure::executionPlan::constraints::tests::Person` (`graphFetchChecked`); testGraphFetchWithTableMapperPostProcessor's runtime carries `postProcessors = ^MapperPostProcessor(mappers = ^TableNameMapper(schema = ^SchemaNameMapper(from='default', to='default'), from='personTable', to=…))` — a connection-level table rename the compiler must apply as an IR pass (memory: post-processors are compiler passes); test6 = property-level union mapping `Mapping6` (REL/graphFetch/tests/union).
+- Post-processors (L7): relationalMapper tests use `snDBDefault.default.firmTableNew`-style renames on the connection; testNonExecutableSQLString = `toNonExecutableSQLString` (typer: toSQLString 8-arg overload with `sqlQueryPostProcessors` — sqlstring.pure:88-93); testPostProcessTransformJoinOp sets `sqlQueryPostProcessors` on a TestDatabaseConnection (a user lambda over the SQL AST — the ONE that is kind-A-shaped; its assert is text).
+- m2m2r (L13): `getM2M2RRuntime()` chains `ModelToModelMapping` over the relational mapping; the plan tests print `StoreMappingGlobalGraphFetch` plan text (TEXT behind the wall); executeProjectWithNestedDerivedProperty needs `meta::json::tdsToJSONKeyValueObjectString` (a JSON native) after the chain.
+
+### 8.7 Cross-cutting lessons (for whoever burns next)
+
+- Probe with `LL_TMP_DEBUG=1` (walls with stacks as `[flip-wall-debug]`/`[flip-fail-debug]`), `LEGEND_LITE_STACKS=1` (the multi-hop diagnostics), `LL_DUMP_RESOLVED=1` (the resolved typed body per statement — how the TDSNull carrier was found to be `sqlNull()`); the corpus runner's `-Drcorpus.test=<name>` scopes to one test (~1 min), the full corpus is ~65 s.
+- Size pins: CodeShapeGuardrail 250 lines/method and 3500 lines/file (Typer, StoreResolver, Substitution, Scalars at the limit; AssociationJoins.associationJoin and LiteralUnroll.nativeFold now split); LiteralUnrollLedgerTest pins the fold NAME set (`is(c, "<name>")` occurrences); the runner pins fallbacks/flipped and the lanes (`assert-sql-text-only` etc.) — every move with a comment.
+- Verify a patch applied (assert in the script, then `git diff --stat`) BEFORE launching a chain; a chain is 6–9 minutes.
