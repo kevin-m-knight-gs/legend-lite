@@ -1261,9 +1261,15 @@ public final class MappingNormalizer {
         }
         XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, setA, model);
         XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, setB, model);
-        if (endA.pure() || endB.pure()) {
+        if (endA.pure() || endB.pure() || endA.lossyView() || endB.lossyView()) {
             // route A (docs/XSTORE_LEG.md): a Pure-set end has no relation
-            // at normalize time — property-space emission, sets pinned by id
+            // at normalize time — property-space emission, sets pinned by id.
+            // A table-backed end whose column view is LOSSY takes the same
+            // route (batch 110): the view drops expression-bound and
+            // join-chain +props, while the resolver's substitution through
+            // the set's bindings carries them (the engine compiles the
+            // property mapping's own relational operation into the
+            // condition). An exact view keeps the column-space emission.
             return XStorePureEnds.synthesize(md, xs, ad, classA, classB,
                     endA, endB);
         }

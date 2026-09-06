@@ -1991,6 +1991,8 @@ final class AssociationJoins {
                         : !parentIsAE;
                 String tgtVarE = condE.parameters().get(reverseE ? 0 : 1);
                 result = tgtVarE;
+                boolean propSpaceE = callE.args().get(2)
+                        instanceof com.legend.compiler.spec.typed.TypedCString;
                 for (TypedSpec b : condE.body()) {
                     // JOINSLOT reads (the ColSpec-join emission) and
                     // navigate-step reads both count
@@ -1998,6 +2000,20 @@ final class AssociationJoins {
                             targetSlots, targetDemand);
                     CorrelatedSubselects.collectAliasReads(b, tgtVarE,
                             navStepKeys, tNavDemand3);
+                    // PROPERTY-SPACE cond (route A): a `$tgt.prop` read
+                    // demands whatever the target's BINDING for prop reads
+                    // — a +prop mapped through a join chain reads a slot
+                    // (batch 110, testCrossMappingWithRelOpWithJoinKeys:
+                    // `+ceoId: @employee_ceo | ceo.identifier`)
+                    if (propSpaceE) {
+                        for (TypedSpec bnd : propertyBindingsRead(b, tgtVarE,
+                                target)) {
+                            CorrelatedSubselects.collectAliasReads(bnd,
+                                    target.rowVar(), targetSlots, targetDemand);
+                            CorrelatedSubselects.collectAliasReads(bnd,
+                                    target.rowVar(), navStepKeys, tNavDemand3);
+                        }
+                    }
                     // NESTED-ASSOCIATION reads ($tgt.address.city where
                     // address is an association of the target class):
                     // the navigate() rule — the nested association joins
@@ -2008,6 +2024,48 @@ final class AssociationJoins {
             }
         }
         return result;
+    }
+
+    /** The target's BINDINGS behind every {@code $var.prop} read in
+     * {@code n} (property-space conditions): the demand a property read
+     * implies is whatever its mapping reads. */
+    private static List<TypedSpec> propertyBindingsRead(TypedSpec n, String var,
+            ClassSource target) {
+        List<TypedSpec> out = new ArrayList<>();
+        collectPropertyBindings(n, var, target, out);
+        return out;
+    }
+
+    private static void collectPropertyBindings(TypedSpec n, String var,
+            ClassSource target, List<TypedSpec> out) {
+        String prop = null;
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(var)) {
+            prop = pa.property();
+        } else if (n instanceof TypedNativeCall lpc
+                && lpc.callee().qualifiedName().equals(
+                        com.legend.builtin.Pure.LEGACY_LOCAL_PROPERTY_FQN)
+                && lpc.args().size() == 2
+                && lpc.args().get(0) instanceof com.legend.compiler.spec.typed.TypedVariable lv
+                && lv.name().equals(var)
+                && lpc.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCString ls) {
+            // the route-A spelling of a set-LOCAL (+prop) read
+            prop = ls.value();
+        }
+        if (prop != null) {
+            TypedSpec bnd = target.bindings().get(prop);
+            if (bnd != null) {
+                out.add(bnd);
+            }
+            return;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectPropertyBindings(c, var, target, out);
+        }
     }
 
     /** SOURCE-SIDE nested reads (the navigate() rule, parent side): the

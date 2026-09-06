@@ -29,6 +29,7 @@ import com.legend.protocol.spec.Variable;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,7 +59,13 @@ final class XStorePureEnds {
      * {@code localProps} names its {@code +prop} lines). */
     record XEnd(@com.legend.Nullable ValueSpecification pipeline, 
             ClassMapping.@com.legend.Nullable RelationFunction colsView, 
-            String setId, boolean pure, Set<String> localProps) {
+            String setId, boolean pure, Set<String> localProps,
+            boolean lossyView, Map<String, TypeExpression> localTypes) {
+        XEnd(@com.legend.Nullable ValueSpecification pipeline,
+                ClassMapping.@com.legend.Nullable RelationFunction colsView,
+                String setId, boolean pure, Set<String> localProps) {
+            this(pipeline, colsView, setId, pure, localProps, false, Map.of());
+        }
     }
 
     static XEnd xstoreEndOf(LegacyMappingDefinition md,
@@ -96,6 +103,16 @@ final class XStorePureEnds {
                             || setId.equals(MappingNormalizer.setIdOf(rcm)))) {
                 List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
                 Set<String> locals = new LinkedHashSet<>();
+                Map<String, TypeExpression> localTypes = new LinkedHashMap<>();
+                // LOSSY: a property the column view cannot carry — an
+                // expression-bound or join-chain +prop, a join-mapped
+                // scalar, an embedded ctor. Such an end takes the
+                // property-space route, where the resolver substitutes the
+                // set's REAL bindings (the engine compiles each end's
+                // property mapping into the condition —
+                // relationalModelJoins.pure; batch 110). An EXACT view
+                // keeps the column-space emission verbatim.
+                boolean lossy = false;
                 for (PropertyMapping pm : rcm.propertyMappings()) {
                     if (pm instanceof PropertyMapping.Column c) {
                         cols.add(new ClassMapping.RelationFunction.Col(
@@ -104,19 +121,28 @@ final class XStorePureEnds {
                         if (lp.body() instanceof PropertyMapping.Column lc) {
                             cols.add(new ClassMapping.RelationFunction.Col(
                                     lp.propertyName(), lc.column(), true));
+                        } else {
+                            lossy = true;
                         }
-                        // ALL locals mark (expression-bodied +props too:
-                        // toString([db]col) — the property-space route
-                        // reads them through the set's composed bindings)
                         locals.add(lp.propertyName());
+                        localTypes.put(lp.propertyName(), lp.type());
+                    } else {
+                        lossy = true;
                     }
                 }
+                // TABLE-BACKED: the column view is LOSSY (a +prop bound to
+                // an expression or a join chain has no column here) — an
+                // XStore over such an end takes the property-space route,
+                // where the resolver substitutes the set's REAL bindings
+                // (the engine compiles each end's property mapping into the
+                // condition — relationalModelJoins.pure; batch 110)
                 return new XEnd(
                         ViewRelation.mainSourceRef(md, classFqn, model),
                         new ClassMapping.RelationFunction(classFqn,
                                 MappingNormalizer.setIdOf(rcm), null, rcm.root(),
                                 "<relational>", cols),
-                        MappingNormalizer.setIdOf(rcm), false, locals);
+                        MappingNormalizer.setIdOf(rcm), false, locals, lossy,
+                        localTypes);
             }
         }
         for (ClassMapping cm : cms) {
@@ -176,11 +202,15 @@ final class XStorePureEnds {
             Variable thisRow = thatRow == srcRow ? tgtRow : srcRow;
             XEnd thatEnd = isProp1 ? endA : endB;
             XEnd thisEnd = isProp1 ? endB : endA;
-            conds.add(MappingNormalizer.canonicalizeEqualOperands(
-                    renameReads(cand.expression(),
-                            Map.of("this", thisRow, "that", thatRow),
-                            Map.of("this", thisEnd, "that", thatEnd)),
-                    srcRow.name()));
+            // AUTHORED operand order is emitted (the engine spells
+            // `$this.entityIdFk == $that.entityId` verbatim — the modelJoins
+            // goldens, and testPersonToFirmUsingFromProject's XStore plan
+            // equals its single-store plan); canonicalization serves ONLY
+            // the direction-agreement comparison below (batch 110 — the
+            // same rule synthesizeXStoreMapping applies)
+            conds.add(renameReads(cand.expression(),
+                    Map.of("this", thisRow, "that", thatRow),
+                    Map.of("this", thisEnd, "that", thatEnd)));
         }
         if (conds.isEmpty()) {
             throw new ModelException(
@@ -189,8 +219,11 @@ final class XStorePureEnds {
                     + "' has no property lines; mapping=" + md.qualifiedName());
         }
         ValueSpecification cond = conds.get(0);
+        ValueSpecification canon0 = MappingNormalizer.canonicalizeEqualOperands(
+                cond, srcRow.name());
         for (ValueSpecification c : conds) {
-            if (!c.equals(cond)) {
+            if (!MappingNormalizer.canonicalizeEqualOperands(c, srcRow.name())
+                    .equals(canon0)) {
                 throw new NotImplementedException(
                         "XStore association '" + xs.associationName()
                         + "' has direction-specific conditions; a single"
@@ -238,7 +271,13 @@ final class XStorePureEnds {
                 && ap.receiver() instanceof Variable var
                 && rowByVar.containsKey(var.name())) {
             Variable row = rowByVar.get(var.name());
-            if (java.util.Objects.requireNonNull(endByVar.get(var.name())).localProps().contains(ap.property())) {
+            XEnd end = java.util.Objects.requireNonNull(endByVar.get(var.name()));
+            if (end.localProps().contains(ap.property())) {
+                // NOTE (batch 110 probe): the marker is Any-typed, so an
+                // ORDERING comparison over a +prop on this route does not
+                // type (lessThan(Any, Integer)); a cast to the declared
+                // local type was tried and regressed six XStore Pure-end
+                // tests — the typed-local read is an open leg of route A
                 return new AppliedFunction(Pure.Lite.LEGACY_LOCAL_PROPERTY,
                         List.of(row, new CString(ap.property())));
             }

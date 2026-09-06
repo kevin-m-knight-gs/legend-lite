@@ -2258,10 +2258,20 @@ public class RelationalCorpusRunner {
             // row (bindings = the ctor's properties, children = its slots)
             // so the hop-agnostic walk descends without dotted keys.
             // multigrain::testToManyWithQualifierWithFilterOnJoin.
-            org.junit.jupiter.api.Assertions.assertEquals(126L,
+            // batch 110 / L5 (2026-09-06): 126 -> 124 — an XStore end whose
+            // column view is LOSSY (a +prop bound to an expression or a
+            // join chain) takes the property-space route (the resolver
+            // substitutes the set's real bindings — the engine compiles the
+            // property mapping's relational operation into the condition);
+            // that route now emits the AUTHORED operand order (canonical
+            // form serves the direction check only) and its demand scan
+            // looks through the target's bindings (a join-chain +prop reads
+            // a slot). modelJoins::testPersonToFirmUsingFromProject,
+            // graphFetch::crossDatabase::testCrossMappingWithRelOpWithJoinKeys.
+            org.junit.jupiter.api.Assertions.assertEquals(124L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2447L,
+            org.junit.jupiter.api.Assertions.assertEquals(2449L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

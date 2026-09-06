@@ -47,9 +47,14 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
    (SubNav children through embedded bodies inside lifted sub-slots; the subtype-chain
    variant reads `employees.stc_<Sub>___manager.stc_…`). testInheritanceMultipleLevel's
    first 6 asserts already pass; only the 7th walls.
-3. **Cross-store model joins** (L5, 4 tests): testPersonToFirmUsingFromProject,
-   testPersonToFirmUsingProject (assert-free twin), testCrossMappingWithRelOpWithJoinKeys,
-   testNestedModelJoinCompoundInnerCondition. NO design note yet — the wall is
+3. **Cross-store model joins** (L5, 4 tests): testPersonToFirmUsingFromProject (LANDED
+   batch 110), testPersonToFirmUsingProject (assert-free twin — zero-assert bucket, cannot
+   flip), testCrossMappingWithRelOpWithJoinKeys (LANDED batch 110),
+   testNestedModelJoinCompoundInnerCondition (REMAINING: recursive ModelJoinNesting.compose —
+   the nested hop's own condition nests again; wall `$person.profile has no column binding`
+   at ModelJoinNesting:120). Route-A gaps recorded (GATES batch 110): typed +prop reads
+   (the marker is Any-typed — a cast to the declared type regressed six Pure-end tests),
+   and the target-side substitution inside an exists context. Original note — the wall was
    `association 'X' is not mapped`: an XStore association (mapped in a ModelChain /
    cross-store mapping with join keys, `meta::external::store::relational::modelJoins`)
    must resolve as a relational join between the two stores' tables in ONE session (all
@@ -4295,6 +4300,14 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 110 / L5 XStore over lossy table-backed ends (2026-09-06, chain GREEN; GATES batch
+110).** 126/2447 → 124/2449; IMPL 11. A table-backed end whose column view is lossy takes the
+property-space route (XStorePureEnds.XEnd.lossyView); that route emits the authored operand
+order; the condition demand scan looks through bindings (legacyLocalProperty included). Two
+probes reverted: route A for EVERY table-backed end (mixed temporal trio: Any-typed local
+marker under lessThan) and a declared-type cast on local reads (six Pure-end tests). NEXT:
+testNestedModelJoinCompoundInnerCondition (recursive nesting), then the plan-printer bugs.
 
 **Batch 109 / L1 an embedded ctor between a lifted sub-slot and a navigate slot (2026-09-06,
 chain GREEN; GATES batch 109).** 127/2446 → 126/2447; IMPL 13; the embedded-head trio CLOSED.

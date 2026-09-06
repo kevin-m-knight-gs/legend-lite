@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 110 / L5 XStore over lossy table-backed ends LANDED (2026-09-06)** — testPersonToFirmUsingFromProject + testCrossMappingWithRelOpWithJoinKeys flipped (124/2449); route A (property space) for lossy column views, authored operand order, binding-aware condition demand. IMPL 11, REVISIT 7. Open on route A: typed local reads (ordering comparisons over +props), the exists-context target substitution.
+
 Status: **batch 109 / L1 embedded ctor as a SubNav node LANDED (2026-09-06)** — testToManyWithQualifierWithFilterOnJoin flipped (126/2447); the embedded-head trio is CLOSED. IMPL 13, REVISIT 7.
 
 Status: **batch 108 / L1 subtype-only class-typed joins lift under their stc key LANDED (2026-09-06)** — testInheritanceMultipleLevel flipped (127/2446); UnionSynthesis lifts a subtype-only Join PM as a navigate slot keyed stc_<Sub>___<prop>. IMPL 14, REVISIT 7.
@@ -123,10 +125,10 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 
 | test | detail |
 |---|---|
-| graphFetch::crossDatabase::testCrossMappingWithRelOpWithJoinKeys | association not mapped — XStore association with join keys across two databases |
-| modelJoins::testPersonToFirmUsingFromProject | association not mapped — asserts the XStore plan's SQL EQUALS the single-store plan's SQL (a semantic equality, not a spelling) |
-| modelJoins::testPersonToFirmUsingProject | assert-free (zero-assert) — runs the same XStore shape |
-| modelJoin::advanced::testNestedModelJoinCompoundInnerCondition | association not mapped — compound inner condition in a model join |
+| graphFetch::crossDatabase::testCrossMappingWithRelOpWithJoinKeys | FLIPPED batch 110 — join-chain +prop demands its slot through the binding-aware condition scan | graph-fetch rows |
+| modelJoins::testPersonToFirmUsingFromProject | FLIPPED batch 110 — lossy column view → property-space route, authored operand order (the two plans are byte-equal) | text over two of our plans |
+| modelJoins::testPersonToFirmUsingProject | assert-free (zero-assert bucket by design — the runner counts it, it cannot flip; runs the batch-110 shape) | none |
+| modelJoin::advanced::testNestedModelJoinCompoundInnerCondition | a nested ModelJoin hop whose OWN condition nests again (`$person.profile.rank` inside Person_Address inside Person_Firm) — ModelJoinNesting.compose composes one level; leg = recursive compose | rows |
 
 ### L6 Graph fetch (4)
 
