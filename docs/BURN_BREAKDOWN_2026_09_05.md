@@ -186,7 +186,7 @@ row JSON envelope — a golden-to-rows referee arm).
 | projection::testGroupByWithWindowSubset | `groupByWithWindowSubset` unknown — the engine's TDS extension program (admit/inline) |
 | sqlstring::testToSQLStringWithCodeBlock | **FLIPPED batch 74** (row marked at the batch 89 census — the add(Date, Duration) programs admitted verbatim) |
 | businessdate::testViewChainsWithBusinessDate | **FLIPPED batch 75** — toSQL handle + SQLResult.toSQLString function form; rows verdict |
-| lineage::scanRelations::testTdsJoinConcatenateAndJoin | typer: TDS concatenate of 7 vs N columns (the engine accepts the shape) — lineage rows verdict behind |
+| lineage::scanRelations::testTdsJoinConcatenateAndJoin | **FLIPPED batch 84** (row marked at the batch 96 census — the ConcatenateChecker's positional alignment; in the flipped set since) |
 
 ### L9 Lineage row verdicts (2)
 
@@ -469,6 +469,19 @@ change; engine paths are under core_relational/relational (REL) unless said.
   is what the nested scope lacks for `fnScope[map2]/[map3]`. Design: inside a nested
   scope a class-typed slot with N set mappings registers the UNION of the member
   sets' bindings under `stc_<Sub>___` keys (as the root does), joined per member.
+- PARKED 2026-09-06 (batch 96 probes, third new wall): the root cause is UPSTREAM of the
+  nested scope. Dumped at NavExistsMaterial.register: the exists target ClassFunction[map1]
+  carries ONE navigate step `fnScope -> Private` (its bindings [name, fnScope]) — the
+  normalizer emits the routed pair `fnScope[map2]/[map3]` as a single navigate to the
+  FIRST route's set. UnionSynthesis classifies routed Join PMs against "the target
+  class's union" (unionRoutes: ONE navigate, OR over the entries); Private[map2] and
+  Public[map3] are sets of SUBCLASSES of the abstract FunctionScope (a rootless
+  subclass multi-set), which that classification does not cover. Design: the routed
+  navigate must target the FunctionScope subclass union (the same rootless multi-set
+  source the cast canon resolves — `sources.get(m, FunctionScope)` with the member
+  witnesses) with the OR of the per-route conditions; then the nested scope's SubNav
+  carries the `stc_<Public>___id` leaf and the exists predicate resolves. Owner:
+  normalizer/UnionSynthesis.collectNavLifts + the routed classification (:180-200).
 
 ### 8.2 L1 — the three multi-hop-through-embedded tests (two designs)
 
@@ -518,6 +531,24 @@ Probe diagnostics (LEGEND_LITE_STACKS=1, `[multi-hop wall] path=… targetBindin
   the `stc_<Sub>___<joinProp>_` prefix, with a SubNav registered under the `stc_` key so
   rewriteMultiHop's SubNav walk continues; the cast chain re-enters the same rule.
 
+
+- 2026-09-06 (batch 96 probes, current walls — all three end in Substitution
+  .rewritePath's last-resort "multi-hop navigation … through an embedded/slot head"):
+  testToManyWithQualifierWithFilterOnJoin = `account.incomeFunctionSplits#f0
+  .incomeFunction.Classification.name` (assocs=[account]; the head's subNavs carry the
+  lifted filtered sub-slot `incomeFunctionSplits#f0`; inside it `incomeFunction` is an
+  EMBEDDED ctor whose `Classification` is a navigate slot — a SubNav CHILD two levels
+  down, through an embedded body); testInheritanceMultipleLevel = `vehicles#f1
+  .stc_<Bicycle>___person.name` (head binding ABSENT — the lifted filtered union head;
+  the Vehicle union of inheritanceMappingDB does NOT lift Bicycle's `person` slot as a
+  plain slot, unlike multiJoins' RoadVehicle union in batch 95 — dump the union's
+  bindings to see whether the LiftChain dropped it (poison ledger) and why);
+  testRoutingWithSubtypePropagation = `employees.stc_<PersonExtension>___manager
+  .stc_<PersonExtension>___firstName` (a subtype's class-typed slot then a subtype
+  leaf of ITS target — two stc-qualified hops; TEXT-only assert, rows via the
+  sql-text referee). One design for the first: SubNav children through embedded
+  bodies inside lifted sub-slots (NavMaterializer.composeSubNavPrefixes depth);
+  the other two are union-lift coverage (UnionSynthesis) + stc-qualified slot reads.
 ### 8.3 L1 — the rest, walls and owners
 
 - isolationTest: `correlated filter predicate on hop '_' at depth 2 of employees.group.children.name has no application site` — StoreResolver.unappliedCorrelatedWall (batch 69b); leg = apply the parked predicate at depth ≥ 2 and reroute an already-claimed alias (memory harness-burndown-program).
