@@ -2129,10 +2129,21 @@ public class RelationalCorpusRunner {
             // so `$b.trades.productAtTimeOfTrade.name` is the mapper-scoped
             // filtered navigation batch 90 serves (SyntheticHeads
             // .fuseLeafOverClassMap). injection::testProjectThroughAssociationAutoMap.
-            org.junit.jupiter.api.Assertions.assertEquals(141L,
+            // batch 94 / L1 (2026-09-06): 141 -> 140 — an IDENTITY-ELIDING
+            // reducer (sum/average/mean) over a navigation whose to-many hop
+            // sits behind a TO-ONE head (`$p.firm->toOne().sumEmployeesAge()`
+            // = sum($p.firm.employees.age), STUDY #12's class) registers under
+            // the dotted chain key firm.employees with the tail past the
+            // 2-hop element as its mapper — a grouped subselect keyed on the
+            // firm, LEFT-joined back through the firm hop (the engine's
+            // shape; CorrelatedSubselects.chainTailAggArm). A literal list of
+            // [1] operands under plus/times renders as the engine's binary
+            // chain (NULL-propagating; Numerics.scalarChain) instead of the
+            // NULL-skipping list aggregate. testFilterTimesWithManyOperands.
+            org.junit.jupiter.api.Assertions.assertEquals(140L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2432L,
+            org.junit.jupiter.api.Assertions.assertEquals(2433L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

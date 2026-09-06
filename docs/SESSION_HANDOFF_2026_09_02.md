@@ -4103,3 +4103,20 @@ emits the mid LEFT join + re-pointed join-back) — generalize it: path.size() �
 to-one head, any reducer, mapper = the tail from the 2-hop element (a depth-2
 tailMapperOf). Then testForcedSubTypeProjectDirect / isolationTest / the
 embedded-head chain.
+
+**Batch 94 / L1 chained aggregate behind a to-one head (2026-09-06, chain GREEN 6m54s;
+GATES batch 94).** 141/2432 → 140/2433; IMPL 31. CorrelatedSubselects.chainTailAggArm
+(eliding reducers only; dotted key mid.final + depth-2 tailMapperOf) and
+Numerics.scalarChain (literal [1]-operand lists of ONE primitive kind under
+plus/times → the engine's binary chain). TWO LESSONS: (1) an aggregate arm that
+admits list reducers (joinStrings) over embedded to-one heads regresses the
+aggregationAware goldens — the set-difference check caught it (never trust the
+count alone); (2) the grammar Channel B lane (G9) guards the NUMBER-LUB variant
+carrier — mixed literal lists must keep numList/LIST_SUM. NEXT: testForcedSubType
+ProjectDirect — UnionSynthesis lifts member class-typed Join PMs (single-hop and
+chains, NavLift/LiftChain) onto the union as legacyNavigate slots; the read
+`$r->subType(@Bicycle).person.name` needs the cast over the ROOT var to resolve
+the lifted `person` slot (subTypeLeafRead serves leaf columns only) — canonicalize
+the cast-then-slot read to the union's slot read (row-neutral: other threads
+carry NULL keys), then `.name` rides the slot's SubNav; testExistsAsNullWithSubType
+(a subtype cast inside an exists predicate over `functions.fnScope`); isolationTest.

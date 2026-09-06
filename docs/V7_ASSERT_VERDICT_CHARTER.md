@@ -1061,6 +1061,12 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 94 / L1 chained aggregate behind a to-one
+head (2026-09-06):** exec-passing 7, text-only 12, unable-to-exec 10 unchanged;
+ratchet 141/2432 → 140/2433 (testFilterTimesWithManyOperands — both assertSameSQL
+goldens replayed on H2 against our grouped-subselect rows, the 'no Firm' row NULL
+on both sides); disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 93 / L1 instance-filter canon +
 engine-golden-defect:instance-filter-ungated (2026-09-06):** exec-passing 7,
 text-only 12 unchanged; unable-to-exec 9 → 10 (testBusinessDateInjectionFromVar

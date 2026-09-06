@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 1 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 84 | 2 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/query | 87 | 85 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2446** | 37 | 65 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2447** | 37 | 64 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2446 PASS = 2411 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2447 PASS = 2412 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,16 +542,16 @@ SOFT-PASS RECONCILIATION (F2.1): 2446 PASS = 2411 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 141
+tests in the ledger: 140
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 36 |
-| wall:resolver | 24 |
+| wall:resolver | 23 |
 | wall:exec | 8 |
 | divergence | 23 |
-| not-reached | 28 |
+| not-reached | 27 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 12 |
 | pass | 30 |
@@ -748,8 +748,6 @@ tests in the ledger: 141
 - testUnionWithSinglePropertyMapping #3 - -> not-reached: 1 assert(s) after the failure
 - testUnionTwoRelationMappings_ManyColumnProject #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana ::  expected: '#TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Robe
 - testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana ::  expected: '#TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Robe
-- testFilterTimesWithManyOperands #1 assertSameSQL -> wall:resolver: wall-exec: aggregate '_' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-o :: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
-- testFilterTimesWithManyOperands #2 - -> not-reached: 1 assert(s) after the failure
 - testLegacyFlagProjectionEmitsPlainEquals #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testLegacyFlagRestoresOptionalParamFreeMarkerSelector #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testEqualityInFilterOnOptionalPropertiesLegacy #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "person
@@ -889,7 +887,6 @@ tests in the ledger: 141
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: multiplicity [*] is not compatible with [1]
 - FAIL testUnionTwoRelationMappings_ManyColumnProject [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
 - FAIL testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
-- ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - FAIL testLegacyFlagProjectionEmitsPlainEquals [tests/query]: assert did not hold (false)
 - FAIL testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert did not hold (false)
 - FAIL testEqualityInFilterOnOptionalPropertiesLegacy [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "personTable_d#6_d#3_m1_d#2_m1" on ("root".MANAGERID = "personTable_d#6_d#3_m1_d#2_m1".ID) where ("root".AGE = "personTable_d#6_d#3_m1_d#2_m1".AGE or ("root".AGE is null and "personTable_d#6_d#3_m1_d#2_m1".AGE is null)), got select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID) where ("root".AGE = "persontable_1".AGE or ("root".AGE is null and "persontable_1".AGE is null))

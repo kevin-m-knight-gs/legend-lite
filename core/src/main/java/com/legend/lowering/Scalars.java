@@ -275,6 +275,11 @@ final class Scalars {
                 // numList unwraps it for the aggregate (sum(JSON) is a
                 // Binder error; grammar witness testPlusNumber).
                 if (args.size() == 1) {
+                    SqlExpr chain = Numerics.scalarChain(n.args().get(0),
+                            args.get(0), SqlFn.PLUS);
+                    if (chain != null) {
+                        return chain;
+                    }
                     return new SqlExpr.Call(SqlFn.LIST_SUM,
                             List.of(Numerics.numList(args.get(0))));
                 }
@@ -291,6 +296,11 @@ final class Scalars {
                 // pure); numList unwraps the mixed carrier (same defect
                 // class as plus — the aggregate needs raw numerics).
                 if (args.size() == 1) {
+                    SqlExpr chain = Numerics.scalarChain(n.args().get(0),
+                            args.get(0), SqlFn.TIMES);
+                    if (chain != null) {
+                        return chain;
+                    }
                     return new SqlExpr.Call(SqlFn.LIST_PRODUCT,
                             List.of(Numerics.numList(args.get(0))));
                 }

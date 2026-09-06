@@ -48,6 +48,52 @@ final class Numerics {
         return null;
     }
 
+    /** A LITERAL list of {@code [1]}-scalar OPERANDS under plus/times —
+     * the parser's infix desugar and the explicit {@code times([$a, 2,
+     * $b, 100])} spelling alike — renders as the engine's binary chain
+     * ({@code a * b * c}: pureToSQLQuery's plus/times dyna-function over N
+     * arguments; NULL-propagating — a NULL operand nulls the product,
+     * witness testFilterTimesWithManyOperands' 'no Firm' row), never the
+     * list aggregate (which SKIPS NULL elements). Real collections (a
+     * to-many read, a non-literal list) keep the aggregate. Null = not
+     * that shape. */
+    static @com.legend.Nullable SqlExpr scalarChain(
+            com.legend.compiler.spec.typed.TypedSpec typedArg, SqlExpr list,
+            SqlFn op) {
+        if (!(typedArg instanceof com.legend.compiler.spec.typed.TypedCollection tc)
+                || tc.elements().size() < 2
+                || !(list instanceof SqlExpr.ArrayLit la)
+                || la.elements().size() != tc.elements().size()) {
+            return null;
+        }
+        // ONE primitive numeric kind across the operands: a NUMBER-LUB
+        // mixed literal ([1, 2.5]) rides the variant carrier (JSON cells —
+        // '+(JSON, JSON)' is a Binder error; grammar witnesses
+        // testPlusNumber / testDecimalPlus) and keeps the aggregate path
+        // (numList unwraps it)
+        com.legend.compiler.element.type.Type kind = null;
+        for (com.legend.compiler.spec.typed.TypedSpec e : tc.elements()) {
+            if (!(e.info().multiplicity()
+                    instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                    && Integer.valueOf(1).equals(b.upper()))) {
+                return null;
+            }
+            com.legend.compiler.element.type.Type t = e.info().type();
+            if (!(t == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                    || t == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                    || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL)
+                    || (kind != null && kind != t)) {
+                return null;
+            }
+            kind = t;
+        }
+        SqlExpr acc = la.elements().get(0);
+        for (int i = 1; i < la.elements().size(); i++) {
+            acc = SqlExpr.Call.of(op, acc, la.elements().get(i));
+        }
+        return acc;
+    }
+
     /** Real Compare.java's KIND ordering: Numbers < Dates < Booleans <
      * Strings; -1 = not a primitive kind (moved from Scalars at the
      * shape limit — the cross-kind comparison vocabulary). */

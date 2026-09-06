@@ -2459,6 +2459,12 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         + " to-many navigation " + String.join(".", path)
                         + " is not supported yet");
             }
+            // CHAIN aggregate behind a TO-ONE head (STUDY #12's class) —
+            // the eliding reducers register under the dotted chain key
+            if (chainTailAggArm(nc, path, userVar, cs, aggOut, bareOut,
+                    toManyHead, bareHead)) {
+                return;
+            }
             // STUDY #12: a to-many hop at index > 0 behind a to-one HEAD
             // escaped both audit-9 guards. For the IDENTITY-ELIDING
             // reducer family (sum/average/mean — Scalars' to-one elision)
@@ -2520,6 +2526,52 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
     }
 
+
+    /** STUDY #12's class, the chain-demand registration: an IDENTITY-
+     * ELIDING reducer (sum/average/mean) over a navigation whose to-many
+     * hop sits behind a TO-ONE association/navigate head —
+     * {@code sum($p.firm.employees.age)}, the qualifier-inlined
+     * {@code $p.firm->toOne().sumEmployeesAge()} (testFilterTimesWith
+     * ManyOperands; engine golden: a grouped subselect keyed on the firm,
+     * LEFT-joined back through the firm hop). Registers under the DOTTED
+     * chain key exactly like the bare-count chain arm, with the tail past
+     * the 2-hop element as the mapper (λ_agm.$_agm.age): buildAggMaterials
+     * anchors the final material at the mid hop's target and the fold
+     * joins it back through the mid LEFT join; the reducer aggregates the
+     * exploded tail values in the grouped subselect — never the flat
+     * join's to-one elision. List-space reducers (joinStrings, count)
+     * keep their routes (an embedded to-one head's joinStrings, the
+     * aggregationAware goldens). True = registered. */
+    private static boolean chainTailAggArm(TypedNativeCall nc,
+            @com.legend.Nullable List<String> path, String userVar, ClassSource cs,
+            Map<String, List<StoreResolver.AggDemand>> aggOut,
+            Set<List<String>> bareOut,
+            java.util.function.BiPredicate<ClassSource, String> toManyHead,
+            java.util.function.BiPredicate<ClassSource, String> bareHead) {
+        if (path == null || path.size() < 3 || !isElidingReducer(nc)
+                || toManyHead.test(cs, path.get(0))
+                || !bareHead.test(cs, path.get(0))
+                || (nc.args().get(0).info().multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded cm
+                        && Integer.valueOf(1).equals(cm.upper()))) {
+            return false;
+        }
+        TypedLambda chainTail = tailMapperOf(nc.args().get(0), userVar, 2);
+        if (chainTail == null) {
+            return false;
+        }
+        com.legend.lowering.NavArmCensus.fire("agg-chain-tail-arm");
+        aggOut.computeIfAbsent(path.get(0) + "." + path.get(1),
+                        k -> new ArrayList<>())
+                .add(new StoreResolver.AggDemand(nc, null, chainTail));
+        for (int i = 1; i < nc.args().size(); i++) {
+            aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut,
+                    toManyHead, bareHead);
+        }
+        return true;
+    }
+
     /** The per-element TAIL of a deep aggregated navigation, rebuilt as
      * a mapper lambda over the head's element ($f.employees.address.name
      * -> λ_agm.$_agm.address.name): peels pa/toOne wrappers down to the
@@ -2527,11 +2579,19 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * Null when a wrapper is not peelable (auto-map / milestoned
      * spellings) — the caller's loud wall stands. */
     private static @com.legend.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar) {
+        return tailMapperOf(arg, userVar, 1);
+    }
+
+    /** As above over the element {@code depth} hops down the chain
+     * ({@code depth} 2: the tail past {@code $p.firm.employees} — the
+     * chain-aggregate arm's mapper over the final hop's element). */
+    private static @com.legend.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar,
+            int depth) {
         ArrayDeque<Function<TypedSpec, TypedSpec>> shell = new ArrayDeque<>();
         TypedSpec cur = arg;
         while (true) {
             List<String> p = Substitution.pathOf(cur, userVar);
-            if (p != null && p.size() == 1) {
+            if (p != null && p.size() == depth) {
                 break;
             }
             if (cur instanceof TypedNativeCall c && c.args().size() == 1
