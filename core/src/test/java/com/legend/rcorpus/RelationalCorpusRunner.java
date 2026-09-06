@@ -2177,10 +2177,17 @@ public class RelationalCorpusRunner {
             // the null-guard's crossing read is the OUTERMOST read on the
             // crossing (the leaf), never the class-typed mid node
             // (Substitution.collectToManyCrossings). testChainedFiltersQuery.
-            org.junit.jupiter.api.Assertions.assertEquals(135L,
+            // batch 102 / L8 (2026-09-06): 135 -> 134 — the legacy TDS
+            // groupByWithWindowSubset (tds.pure:867) is a STORE-handled
+            // function (pureToSQLQuery processObjectGroupByWithWindowSubSet
+            // — the engine never evaluates its Pure body): the functions and
+            // aggregates are subset by id and the 4-arg legacy groupBy runs
+            // over them (GroupByChecker.checkWindowSubset; the declaration
+            // in the native catalog). projection::testGroupByWithWindowSubset.
+            org.junit.jupiter.api.Assertions.assertEquals(134L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2438L,
+            org.junit.jupiter.api.Assertions.assertEquals(2439L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

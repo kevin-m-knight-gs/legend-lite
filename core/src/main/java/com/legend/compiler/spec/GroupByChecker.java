@@ -62,6 +62,76 @@ final class GroupByChecker {
     }
 
     /**
+     * {@code groupByWithWindowSubset(set, functions, aggValues, ids,
+     * subSelectIds, subAggIds)} (tds.pure:867): the store's rule — engine
+     * pureToSQLQuery processObjectGroupByWithWindowSubSet — asserts the id
+     * lists (subAggIds disjoint from subSelectIds, subAggIds among the
+     * aggregate ids, subSelectIds among ids), picks {@code functions[ids
+     * .indexOf(i)]} for each subSelectId and {@code aggValues[ids.indexOf(i)
+     * - functions.size()]} for each subAggId, and groups by
+     * {@code subSelectIds ++ subAggIds}: the 4-arg legacy groupBy over
+     * those subsets. The literal id lists are the store's InstanceValues;
+     * a non-literal list walls loud.
+     */
+    static TypedSpec checkWindowSubset(Typer t, AppliedFunction af, Env env) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() != 6) {
+            throw new TypeInferenceException("groupByWithWindowSubset expects 6 arguments, got " + ps.size());
+        }
+        PureCollection functions = asCollection(letBound(ps.get(1), env));
+        ValueSpecification aggsRaw = letBound(ps.get(2), env);
+        ValueSpecification aggsEx = t.rawSchemaErasedExpansion(aggsRaw);
+        PureCollection aggs = asCollection(aggsEx != null ? aggsEx : aggsRaw);
+        List<String> allIds = stringList(letBound(ps.get(3), env), "ids");
+        List<String> subSelectIds = stringList(letBound(ps.get(4), env), "subSelectIds");
+        List<String> subAggIds = stringList(letBound(ps.get(5), env), "subAggIds");
+        int nf = functions.values().size();
+        for (String i : subAggIds) {
+            if (subSelectIds.contains(i)) {
+                throw new TypeInferenceException("SubAggIds and Ids should not have an intersection");
+            }
+            if (!allIds.subList(Math.min(nf, allIds.size()), allIds.size()).contains(i)) {
+                throw new TypeInferenceException("SubAggIds must be a subset of ids");
+            }
+        }
+        for (String i : subSelectIds) {
+            if (!allIds.contains(i)) {
+                throw new TypeInferenceException("Ids and Ids should not have an intersection");
+            }
+        }
+        List<ValueSpecification> newFunctions = new ArrayList<>();
+        for (String i : subSelectIds) {
+            newFunctions.add(functions.values().get(allIds.indexOf(i)));
+        }
+        List<ValueSpecification> newAggs = new ArrayList<>();
+        for (String i : subAggIds) {
+            newAggs.add(aggs.values().get(allIds.indexOf(i) - nf));
+        }
+        List<ValueSpecification> newIds = new ArrayList<>();
+        for (String i : subSelectIds) {
+            newIds.add(new CString(i));
+        }
+        for (String i : subAggIds) {
+            newIds.add(new CString(i));
+        }
+        return check(t, new AppliedFunction("groupBy", List.of(ps.get(0),
+                new PureCollection(newFunctions), new PureCollection(newAggs),
+                new PureCollection(newIds))), env);
+    }
+
+    private static List<String> stringList(ValueSpecification v, String what) {
+        List<String> out = new ArrayList<>();
+        for (ValueSpecification e : asCollection(v).values()) {
+            if (!(e instanceof CString cs)) {
+                throw new TypeInferenceException("groupByWithWindowSubset: " + what
+                        + " must be a literal string list");
+            }
+            out.add(cs.value());
+        }
+        return out;
+    }
+
+    /**
      * Desugar the legacy TDS {@code groupBy(src, [keyFns], [agg(map,agg)…], ['aliases'])}
      * into the modern {@code groupBy(src, ~[keys], ~[alias:map:agg])} (engine
      * {@code rewriteLegacyGroupBy}). Keys become extraction {@code FuncColSpec}s for a

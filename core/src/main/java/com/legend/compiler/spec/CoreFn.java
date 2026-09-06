@@ -92,6 +92,12 @@ public enum CoreFn {
     EXTEND("extend"),
     /** {@code groupBy(~keys, ~agg:map:reduce)} &mdash; grouped aggregation ({@code Z+R}); relation + class source. */
     GROUP_BY("groupBy"),
+    /** Legacy TDS {@code groupByWithWindowSubset(set, functions, aggValues,
+     * ids, subSelectIds, subAggIds)} (tds.pure:867) &mdash; the store's rule
+     * (pureToSQLQuery processObjectGroupByWithWindowSubSet) subsets the
+     * functions and aggregates by id, then groups: a desugar to the 4-arg
+     * legacy groupBy. */
+    GROUP_BY_WITH_WINDOW_SUBSET("groupByWithWindowSubset"),
     /** Relation {@code aggregate(~agg:map:reduce)} &mdash; whole-relation aggregation ({@code Relation<R>}). */
     AGGREGATE("aggregate"),
     /** Relation {@code join(other, JoinKind.INNER, {t,v|cond})} &mdash; schema union {@code T+V}. */

@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 150 | 1 | 4 | 0 | 1 | 1 | 0 | 1 |
+| functions/tests/projection | 155 | 151 | 1 | 3 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 137 | 2 | 4 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2452** | 36 | 61 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2453** | 36 | 60 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2452 PASS = 2417 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2453 PASS = 2418 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -525,7 +525,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2452 PASS = 2417 clean + 35 carrying softness (
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRESSID, employees_FIRMID, employees_MANAGERID, employees_locations_ID, employees_locations_PERSONID, employees_locations_PLACE, employees_locations_date]
 - 1x project expects ~[…] column specifications
 - 1x nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
-- 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 - 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 - 1x unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -539,15 +538,16 @@ SOFT-PASS RECONCILIATION (F2.1): 2452 PASS = 2417 clean + 35 carrying softness (
 - 1x in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V [inlined via meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias/3]
 - 1x store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - 1x 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
+- 1x multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 135
+tests in the ledger: 134
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 36 |
+| wall:typer | 35 |
 | wall:resolver | 21 |
 | wall:exec | 8 |
 | divergence | 21 |
@@ -615,7 +615,6 @@ tests in the ledger: 135
 - testUnionOnViewsMapping #2 meta::pure::functions::asserts::assertEquals -> pass
 - testUnionOnViewsMapping #3 meta::pure::functions::asserts::assert -> sql-text-assert: platform-fail: Assert failed :: Assert failed
 - testUnionOnViewsMapping #4 - -> not-reached: 1 assert(s) after the failure
-- testGroupByWithWindowSubset #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::relational::tests::projection::testGroupByWithWindowSubset :: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - testGraphFetch #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::valuespec :: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::valuespecification::FunctionExpression has no property 'func' [inlined via meta::pure::graphFet
 - testGraphFetch #2 - -> not-reached: 1 assert(s) after the failure
 - testCrossMappingJsonToDBWithExplosion #1 assertJsonStringsEqual -> wall:resolver: wall-exec: MappingResolutionException: class '_' is not mapped in mapping 'meta::pure::grap :: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*
@@ -797,7 +796,6 @@ tests in the ledger: 135
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: nested navigation 'fnScope.stc_meta__relational__tests__projection__exists__Public___id' inside an exists/isEmpty predicate is not supported yet
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
-- ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testGraphFetch [graphFetch/domain]: plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::valuespecification::FunctionExpression has no property 'func' [inlined via meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction/1 -> meta::pure::graphFetch::domain:
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: plan wall: class query under TypedMap is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']

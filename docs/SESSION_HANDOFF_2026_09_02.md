@@ -4195,6 +4195,14 @@ key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the f
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
 
+**Batch 102 / L8 groupByWithWindowSubset (2026-09-06, chain GREEN ~6m08s; GATES batch
+102).** 135/2438 → 134/2439; IMPL 22. The engine's relational store handles the function
+itself (pureToSQLQuery.pure:879 processObjectGroupByWithWindowSubSet); the checker desugars
+by that rule to the 4-arg legacy groupBy. Lesson: before admitting an engine library file as
+a program, check whether the STORE has its own rule for the function (router shouldStop list
++ pureToSQLQuery's PureFunctionToRelationalFunctionPair registry) — the body is not the spec
+then. Typer split: ColumnsMetaFold.
+
 **Batch 101 / subtype-cast slot = property ownership (2026-09-06, chain GREEN ~6m; GATES
 batch 101).** 135/2438 unchanged; IMPL 23; REVISIT 5. The audit's 'union kind' question is
 answered by the model, not a flag: `person` is declared on RoadVehicle (Driver association),

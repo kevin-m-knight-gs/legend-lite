@@ -1370,6 +1370,7 @@ final class Typer {
             case PROJECT -> ProjectChecker.check(this, af, env);
             case EXTEND -> ExtendChecker.check(this, af, env);
             case GROUP_BY -> GroupByChecker.check(this, af, env);
+            case GROUP_BY_WITH_WINDOW_SUBSET -> GroupByChecker.checkWindowSubset(this, af, env);
             case AGGREGATE -> AggregateChecker.check(this, af, env);
             case JOIN -> JoinChecker.check(this, af, env);
             case AS_OF_JOIN -> AsOfJoinChecker.check(this, af, env);
@@ -2741,88 +2742,11 @@ final class Typer {
         return null;
     }
 
-    private static TypedSpec columnsMeta(Type.RelationType rt, boolean typeNames) {
-        ExprType one = ExprType.one(Type.Primitive.STRING);
-        List<TypedSpec> items = new java.util.ArrayList<>(rt.columns().size());
-        for (Type.RelationType.Column c : rt.columns()) {
-            String v = typeNames ? simpleTypeName(c.type()) : c.name();
-            items.add(new com.legend.compiler.spec.typed.TypedCString(v, one));
-        }
-        return new com.legend.compiler.spec.typed.TypedCollection(items,
-                new ExprType(Type.Primitive.STRING,
-                        new com.legend.compiler.element.type.Multiplicity.Bounded(
-                                items.size(), items.size())));
-    }
-
-    /** Pure's simple type name for a column type (String, Integer, Date...). */
-    private static String simpleTypeName(Type t) {
-        String qn = t.typeName();
-        int cut = qn.lastIndexOf("::");
-        return cut < 0 ? qn : qn.substring(cut + 2);
-    }
-
     /** Surrounding double quotes are SPELLING, not identity, for the
      * quote-fallback column match (both sides normalize). */
     private static String stripColQuotes(String n) {
         return n.length() >= 2 && n.startsWith("\"") && n.endsWith("\"")
                 ? n.substring(1, n.length() - 1) : n;
-    }
-
-    /** TDS COLUMN-METADATA folds ({@code .columns.name/.type/
-     * .documentation} — static facts of the typed relation); null when
-     * the access is not one of these. */
-    private @com.legend.Nullable TypedSpec tdsColumnsMetaRead(AppliedProperty ap, Env env) {
-        // TDS COLUMN METADATA — engine TabularDataSet.columns.name/.type.
-        // Column names and pure type names are STATIC FACTS of the typed
-        // relation (no execution): they fold to string collections here.
-        if (ap.receiver() instanceof AppliedProperty inner
-                && inner.property().equals("columns")
-                && (ap.property().equals("name") || ap.property().equals("type"))) {
-            TypedSpec rel = synth(inner.receiver(), env);
-            if (Type.schemaView(rel.info().type()) instanceof Type.RelationType rt) {
-                return columnsMeta(rt, ap.property().equals("type"));
-            }
-        }
-        // .columns.documentation — col()'s optional metadata (TDSColumn
-        // .documentation is String[0..1]: undocumented columns FLATTEN
-        // away). A static fact of the PROJECT node, like name/type above.
-        if (ap.receiver() instanceof AppliedProperty inner2
-                && inner2.property().equals("columns")
-                && ap.property().equals("documentation")) {
-            TypedSpec rel = synth(inner2.receiver(), env);
-            TypedSpec un = rel;
-            // column metadata is invariant under ROW ops — walk through
-            // from() rescopes and relation-in/relation-out wrappers
-            // (at/toOne/first — the Result-envelope peel) to the project
-            boolean walked = true;
-            while (walked) {
-                walked = false;
-                if (un instanceof com.legend.compiler.spec.typed.TypedFrom f) {
-                    un = f.source();
-                    walked = true;
-                } else if (un instanceof TypedNativeCall w
-                        && !w.args().isEmpty()
-                        && Type.isRelation(w.args().get(0).info().type())) {
-                    un = w.args().get(0);
-                    walked = true;
-                }
-            }
-            if (Type.isRelation(rel.info().type())) {
-                if (un instanceof com.legend.compiler.spec.typed.TypedProject tp) {
-                    return tp.docsFold();
-                }
-                // an ENVELOPE read ($result.values->at(0)...): the project
-                // is only visible after the K-side splice (G-half) — emit
-                // the identity-typed MARKER the splice hook resolves (the
-                // .rows-marker discipline, audit 19d B2)
-                return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                        rel, "columns.documentation",
-                        new ExprType(Type.Primitive.STRING,
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ZERO_MANY));
-            }
-        }
-        return null;
     }
 
     /** The {@code .values} read over a schema-viewed source — split
@@ -2876,7 +2800,7 @@ final class Typer {
     }
 
     private TypedSpec accessProperty(AppliedProperty ap, Env env) {
-        TypedSpec colsMeta = tdsColumnsMetaRead(ap, env);
+        TypedSpec colsMeta = ColumnsMetaFold.read(this, ap, env);
         if (colsMeta != null) {
             return colsMeta;
         }
@@ -2954,7 +2878,7 @@ final class Typer {
                 return tdsValuesRead(source, rt2);
             }
             if (ap.property().equals("columns")) {
-                return columnsMeta(rt2, false);
+                return ColumnsMetaFold.columnsMeta(rt2, false);
             }
             // the ResultSet surface's name collection over a DECLARED
             // schema (§4bZ-U leg 4): a fetchDb/executeInDb grid with
@@ -2962,7 +2886,7 @@ final class Typer {
             // the same literal collection the late-bound marker path
             // resolves at the boundary for probe-stamped grids
             if (ap.property().equals("columnNames")) {
-                return columnsMeta(rt2, false);
+                return ColumnsMetaFold.columnsMeta(rt2, false);
             }
         }
         // a zero-arg DERIVED read IS a call of its externalized body —
