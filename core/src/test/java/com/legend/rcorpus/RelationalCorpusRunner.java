@@ -2019,10 +2019,18 @@ public class RelationalCorpusRunner {
             // StaticFold's schema vocabulary gains `zip` so the engine's
             // iqrClassify/zScore programs (`$cols->zip($outputCols)->map(…)`)
             // fold their computed column names before typing.
-            org.junit.jupiter.api.Assertions.assertEquals(160L,
+            // batch 77 / L4a (2026-09-06): 160 -> 159 — STAR NARROWING in the
+            // demand-driven subselect prune (SubselectPrune): a qualified
+            // star inside an aliased subselect expands to the outputs the
+            // outer reads, so a navigation hop's union projects its join
+            // keys only (the engine's unionalias_1 = ID_0, ID_1) — the
+            // chained-unions-and-isolation test's intermediate Firm hop no
+            // longer projects a property the session's FirmSet1 (another
+            // package's DDL, same table name) does not carry.
+            org.junit.jupiter.api.Assertions.assertEquals(159L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2413L,
+            org.junit.jupiter.api.Assertions.assertEquals(2414L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

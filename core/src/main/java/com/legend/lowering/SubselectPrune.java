@@ -433,7 +433,36 @@ final class SubselectPrune {
         }
         Set<String> used = r.cols().getOrDefault(alias, Set.of());
         List<SqlSelect.Projection> kept = new ArrayList<>();
+        boolean narrowed = false;
         for (SqlSelect.Projection p : sel.projections()) {
+            // STAR NARROWING (batch 77): a QUALIFIED star `X.*` inside this
+            // aliased subselect expands to the starred source's outputs
+            // the outer reads under the alias. The join-emission frame
+            // `SELECT t7.*, t13.c AS …` over a navigation hop otherwise
+            // stars every mapped property of the hop's union; the engine
+            // projects a hop's join keys only (unionalias_1 = ID_0, ID_1),
+            // and a starred alias blocks the positional union prune. The
+            // expanded columns carry the source's own slots; the next
+            // fixpoint round prunes the union.
+            // (a source alias is visible ONLY inside its own select, so
+            // this projection is the alias's one star reader — the census
+            // entry it made in `starred` is its own)
+            if (p.expr() instanceof SqlExpr.Star st && st.table() != null) {
+                String tbl = st.table();
+                SqlSource src = findSource(sel.from(), tbl);
+                if (src != null && !(src instanceof SqlSource.Pivot)
+                        && !src.outputs().isEmpty()) {
+                    for (OutputCol oc : src.outputs()) {
+                        if (used.contains(oc.name())
+                                || r.unqualified().contains(oc.name())) {
+                            kept.add(new SqlSelect.Projection(
+                                    SqlExpr.Column.of(tbl, oc), oc.name(), oc));
+                        }
+                    }
+                    narrowed = true;
+                    continue;
+                }
+            }
             String out = p.alias() != null ? p.alias()
                     : p.expr() instanceof SqlExpr.Column c ? c.name() : null;
             if (!(p.expr() instanceof SqlExpr.Column) || out == null
@@ -441,7 +470,7 @@ final class SubselectPrune {
                 kept.add(p);
             }
         }
-        if (kept.size() == sel.projections().size()) {
+        if (!narrowed && kept.size() == sel.projections().size()) {
             return sel;
         }
         if (kept.isEmpty()) {
@@ -450,5 +479,18 @@ final class SubselectPrune {
         }
         // outputs-from-projections: kept projections carry their slots
         return sel.withProjections(kept);
+    }
+
+    /** The FROM-tree source bound to {@code alias}, or null. */
+    private static @com.legend.Nullable SqlSource findSource(
+            SqlSource src, String alias) {
+        return switch (src) {
+            case SqlSource.Join j -> {
+                SqlSource l = findSource(j.left(), alias);
+                yield l != null ? l : findSource(j.right(), alias);
+            }
+            case SqlSource.Dual d -> null;
+            default -> alias.equals(src.alias()) ? src : null;
+        };
     }
 }

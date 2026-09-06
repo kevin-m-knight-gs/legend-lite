@@ -3811,3 +3811,33 @@ testMixedMappingWithFilterInProject walls first (`firm_ID` key over the mixed
 union) then meets the same golden. testUnionTwoRelationMappings_ManyColumnProject:
 the fixture's firstName cells are '' (empty string, not NULL) — read our actual
 rows (scoped probe) before judging.
+
+**Batch 77 / L4a (2026-09-06, chain GREEN 6m03s; GATES batch 77).** 160/2413 →
+159/2414; IMPL 59. The Binder-error test: NOT alias scoping — the intermediate
+union hop projected a column the session's FirmSet1 (seeded by another
+package's DDL, same table name) lacks; DuckDB spells that as "table t5 not
+found". SubselectPrune STAR NARROWING (a qualified star in an aliased subselect
+expands to the outer's reads) lets the positional union prune fire — the hop
+projects ID_0/ID_1 like the engine's unionalias_1. NEXT (designed, not coded):
+testMultipleJoinsInPropertyMappingWithDatesInClass — `$result.values.prop`
+over an EXECUTED instance frame re-resolves the chain with the read's demand
+only (root table → 3 rows) where the engine's instances are the extent with
+every join-mapped primitive property joined (6 rows). Design: TypedFrom gains
+`executedExtent` (set by ResultEnvelopeSplice.valuesRead on the frame's chain;
+convenience ctors default false; five full-arity sites pass it through),
+Context carries it (JsonSourceFrame.fromContext), and resolveObject widens
+projectionPaths with GraphEmission.synthesizeScalarTree(cs0)'s leaf paths
+(InnerDemand.treeDemandPaths) when set. Other probes: testJoinIsolationDeeper…
+= the second qualifier (`orgByName('BUSINESS UNIT')`) chains its tree join
+off the FIRST qualifier's tree row (shared `orgs` slot) instead of its own
+copy — the engine isolates each filtered navigation in its own subselect;
+testChainedFiltersQuery = `locations` on the filter chain resolved against the
+wrong Person set (simpleRelationalMapping maps it via [dbInc]@Person_Location at
+relationalSetUp.pure:436/452…); testPksWithImportDataFlow = the execution
+context's importDataFlowAddFks adds ID_0/ID_1 columns (typer: getInteger over a
+missing column); testEnumFilterWithUnionMappingPlanGeneration = plan text over a
+Subselect alias; testMixedMappingWithFilterInProject = `firm_ID` key over a
+relation+relational union, then meets testSimpleMapping…'s golden (which only
+holds if the nested filter reads the OUTER row's age — see §8.5; the union
+relation pair: the golden's empty cells are null by pure's CSV specs while the
+fixture holds '' and H2 LEGACY keeps '' — unresolved without the engine).
