@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 105 / L13 tdsToJSONKeyValueObjectString LANDED (2026-09-06)** — executeProjectWithNestedDerivedProperty flipped (130/2443); planGraphFetchWithDerivedProperty reclassified TEXT; two REVISIT receipts (test6, testCheckedWithCircularConstraints); testPksWithImportDataFlow PARKED. IMPL 17, REVISIT 7.
+
 Status: **batch 104 / L2 sub-aggregation in a fan-out mapper LANDED (2026-09-06)** — both testSubAggregationWithDeepAndOverlap tests flipped (131/2442); L2 closed (3/3). testNonDataTypeProperty PARKED (H4 whole-value class column). IMPL 19, REVISIT 5.
 
 Status: **batch 103 / L8 rowValueDifference LANDED (2026-09-06)** — rowValueDifferenceTest flipped (133/2440); L8 closed (12/12). IMPL 21, REVISIT 5.
@@ -107,7 +109,7 @@ same day (LL_TMP_DEBUG stacks, all nine L3/L4 items): the remaining walls are in
 | join::testMultipleJoinsInPropertyMappingWithDatesInClass | **FLIPPED batch 78** — the six instances WERE there (assertSize passed); `$result.values.tableProperty` re-resolved the chain with the read's demand only (root table, 3 rows). A read over an executed instance frame now ranges over the extent's rows (TypedFrom.executedExtent → the implicit scalar tree's paths join the demand) |
 | projection::filter::testChainedFiltersQuery | **FLIPPED batch 99** — the negation null-guard tested the class-typed mid node (`$f.employees#f0.locations#f1`) instead of the leaf past the sub-navigation; the crossing read is now the outermost read (Substitution.collectToManyCrossings) |
 | union::testEnumFilterWithUnionMappingPlanGeneration | **RECLASSIFIED → TEXT (T2) 2026-09-06**: its one assert is `assertEquals($expected, $plan->planToStringWithoutFormatting(…))` (tests/mapping/union/testUnion.pure) — unformatted plan text, unreplayable by construction (the T2 precedent); the Subselect-alias plan wall is real but cannot flip it |
-| union::testPksWithImportDataFlow | typer: multiplicity [*] vs [1] — `RelationalExecutionContext(importDataFlow=true, importDataFlowAddFks=true)` adds the union's pk/fk columns (`ID_0`, `ID_1`) to the projection; rows assert |
+| union::testPksWithImportDataFlow | PARKED 2026-09-06 (batch 105 note, handoff): seams 1-2 mechanical (the 5-arg execute overload with exeCtx; flags on ExecEnv), seam 3 is option-driven union key projection — the union body is synthesized once per mapping on demand. Earlier note: typer: multiplicity [*] vs [1] — `RelationalExecutionContext(importDataFlow=true, importDataFlowAddFks=true)` adds the union's pk/fk columns (`ID_0`, `ID_1`) to the projection; rows assert |
 
 ### L5 Cross-store model joins as relational joins (4)
 
@@ -124,9 +126,9 @@ Status: **batch 97 / L6b LANDED (2026-09-06)** — concatenate::testAll flipped 
 
 | test | detail |
 |---|---|
-| graphFetch::simple::testCheckedWithCircularConstraints | DIVERGENCE: `graphFetchChecked` defects — constraint evaluation in the checked envelope (expected 1 defect, ours 0) |
+| graphFetch::simple::testCheckedWithCircularConstraints | **REVISIT (batch 105 receipt `revisit:engine-isDistinct-checked-defect` — traced, NOT resolved)** — the engine's own test source says `toFix: after fixing isDistinct related bug this test should expect:` the all-empty-defects document, which is exactly our output |
 | graphFetch::simple::testGraphFetchWithTableMapperPostProcessor | **FLIPPED batch 80** — the connection's MapperPostProcessor rides the tableReplace channel (SqlPostProcessors.hooks: exact-FQN TableNameMapper/SchemaNameMapper; other kinds loud); renames now reach aggregate arguments (the graph envelope's child subquery) and every execute a statement reaches through ordinary lets |
-| graphFetch::union::propertyLevel::test6 | DIVERGENCE: `Firm B` vs `Firm X` — property-level union in graph fetch |
+| graphFetch::union::propertyLevel::test6 | **REVISIT (batch 105 receipt `revisit:h2-distinct-root-order` — traced, NOT resolved)** — same row set; the engine's graph-fetch root query is `select distinct` (relationalGraphFetch.pure:791) with no ORDER BY, the golden's order is H2's hash-distinct order |
 | query::function::concatenate::testAll | **FLIPPED batch 97** — two implicit-serialize graph terminals of one class layout fuse into ONE graph over the union of their sources (ClassConcatenates.terminal); `$result.values.name` distributes per side over the executed frame (ClassConcatenates.mapOverExecuted); a value-typed union takes its branches' outputs |
 
 ### L7 Post-processors as compiler passes (4)
@@ -234,9 +236,9 @@ Status: **batch 96 / L12 LANDED (2026-09-06)** — testDateFunctionInMilestonedP
 
 | test | detail |
 |---|---|
-| m2m2r::planGraphFetchWithDerivedProperty | class query under TypedGraphFetch — M2M mapping chained over the relational mapping (`getM2M2RRuntime`) |
+| m2m2r::planGraphFetchWithDerivedProperty | **RECLASSIFIED batch 105 → TEXT/T2** — its only assert is `planToString` TEXT (the breakdown's own rule: a plan-text-only test can never leave IMPL by flipping) |
 | m2m2r::planGraphFetchWithNestedDerivedProperty | same |
-| m2m2r::executeProjectWithNestedDerivedProperty | unknown `meta::json::tdsToJSONKeyValueObjectString` (a JSON native) after the chain |
+| m2m2r::executeProjectWithNestedDerivedProperty | **LANDED batch 105** — the TDS-as-row-objects JSON document emitted by the database (TDS_JSON_KV); the envelope collapse sees through the TDS cast over plan-execute values |
 | executionPlan::testModelConnectionJoin | **RECLASSIFIED → TEXT (T2) 2026-09-06**: `assertEquals($expected, $res->planToString(…))` over a ModelChainConnection plan (executionPlan/tests/executionPlanTest.pure) — Class/M2M nodes, not a statement the oracle replays; the chain wall is real but cannot flip it |
 | executionPlan::testModelConnectionDeepFunction | **RECLASSIFIED → TEXT (T2) 2026-09-06**: same assert form, deep chain |
 
@@ -419,7 +421,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 (25) → batch 98 −1 (24) → batch 99 −1 → **23** → batch 102 −1 → **22** → batch 103 −1 → **21** → batch 104 −2 → **19**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 (26) → batch 97 −1 (25) → batch 98 −1 (24) → batch 99 −1 → **23** → batch 102 −1 → **22** → batch 103 −1 → **21** → batch 104 −2 → **19** → batch 105 −1 flip −1 TEXT reclass → **17**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

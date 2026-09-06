@@ -4195,6 +4195,17 @@ key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the f
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
 
+**Batch 105 / L13 tdsToJSONKeyValueObjectString (2026-09-06, chain GREEN ~6m10s; GATES batch
+105).** 131/2442 → 130/2443; IMPL 17 (−1 flip, −1 TEXT reclassification of the plan-text
+twin); REVISIT 7. The TDS-as-row-objects JSON document is database-emitted (TDS_JSON_KV); the
+envelope collapse sees through a TDS cast over plan-execute values. Two revisit receipts
+(test6 H2 hash-distinct root order; testCheckedWithCircularConstraints — the engine's own toFix
+note). Park notes:
+- testPksWithImportDataFlow (2026-09-06, after batch 104): the engine's `execute(f, m, runtime, exeCtx:ExecutionContext[1], extensions[*])` overload (router_entry.pure:25) is not registered (seam 1, mechanical); the context's importDataFlow/importDataFlowAddFks flags would ride ExecEnv like addDriverTablePk (seam 2, mechanical — 6 ctor sites); seam 3 is NOT mechanical: the engine projects every union member's pk as `<col>_<memberOffset>` (rebuildSelectWithCursor, pureToSQLQuery.pure:4719/4796) only under the option, while our union body is synthesized ONCE per mapping (compile-once) and projects keys on DEMAND — an execution option cannot reshape it, and projecting member pks always would change every union query's SQL text. Also the golden prints 0 for the absent member's pk (`getInteger` over a NULL cell — the engine's legacy JDBC getInt path), a second question. Needs: option-driven union key demand (a per-execute overlay) — own leg.
+- testNonDataTypeProperty: Phase H4 whole-value class column (see batch 104).
+NEXT: L1 embedded-head trio / isolationTest, L5 XStore (4), L7 post-processor lambda (needs
+the parked code-as-data leg: a user Pure lambda over the SQL tree).
+
 **Batch 104 / L2 sub-aggregation in a fan-out mapper (2026-09-06, chain GREEN ~6m; GATES
 batch 104).** 133/2440 → 131/2442; IMPL 19; L2 closed. Three mechanisms, all the engine's:
 mapper-scoped aggregate = chain aggregate keyed on the element (mapperAggs); the chain-mid

@@ -1061,6 +1061,12 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 105 / L13 tdsToJSONKeyValueObjectString (2026-09-06):**
+exec-passing 7, text-only 11, unable-to-exec 10 unchanged; ratchet 131/2442 → 130/2443
+(executeProjectWithNestedDerivedProperty — assertEquals of the JSON document text, both sides
+database-rendered); disagree 0 both channels. AssertLedger: two `revisit:` receipts added
+(h2-distinct-root-order, engine-isDistinct-checked-defect) — traced, NOT resolved.
+
 **§8.0 scope-table receipt, batch 104 / L2 sub-aggregation in a fan-out mapper
 (2026-09-06):** exec-passing 7, text-only 11, unable-to-exec 10 unchanged; ratchet
 133/2440 → 131/2442 (both tests: assertSize 7, assertSameElements over the row strings,

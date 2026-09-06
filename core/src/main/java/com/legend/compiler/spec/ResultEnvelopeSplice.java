@@ -294,7 +294,11 @@ public final class ResultEnvelopeSplice {
                         || TO_ONE_FQN.equals(w.callee().qualifiedName())
                         || FIRST_FQN.equals(w.callee().qualifiedName()))
                 && !w.args().isEmpty()) {
-            TypedSpec spliced = valuesRead(w.args().get(0), frames);
+            // a type-level TDS cast between the values read and the
+            // collapse (`.values->cast(@TabularDataSet)->toOne()`, the
+            // m2m2r plan helper) is transparent — the same no-op the cast
+            // arm below applies once the source has spliced
+            TypedSpec spliced = valuesRead(peelEnvelopeCasts(w.args().get(0)), frames);
             if (spliced != null) {
                 // relation-rootedness IS the spliced chain's root type
                 boolean relation = Type.relationValued(spliced.info());
@@ -535,6 +539,31 @@ public final class ResultEnvelopeSplice {
                 && io.args().get(1) instanceof com.legend.compiler.spec.typed
                         .TypedPackageableRef cr
                 && classFqn.equals(cr.fullPath());
+    }
+
+    /** A TDS-shaped cast over an ENVELOPE read is an assertion over the
+     * value the splice is about to reveal (`Result<Any>.values` types Any
+     * before the splice — the plan-execute route): the TARGET alone
+     * decides, exactly as the cast arm in {@link #rewrite} does once the
+     * source has spliced. */
+    private static TypedSpec peelEnvelopeCasts(TypedSpec n) {
+        while (n instanceof TypedCast tc && PlatformTypes.isTdsShaped(tc.target())) {
+            n = tc.source();
+        }
+        return n;
+    }
+
+    /** A cast to a TDS-shaped type over a TDS-shaped value is a type-level
+     * no-op ({@code $result.values->cast(@TDS<Any>)}): the value beneath
+     * (PlatformTypes.isTdsShaped owns the shape). ONE owner — the resolver's
+     * Anchors delegates here. */
+    public static TypedSpec peelTdsCasts(TypedSpec n) {
+        while (n instanceof TypedCast tc
+                && PlatformTypes.isTdsShaped(tc.target())
+                && PlatformTypes.isTdsShaped(tc.source().info().type())) {
+            n = tc.source();
+        }
+        return n;
     }
 
     /** Splice a {@code .values} read (over a frame variable or an INLINE

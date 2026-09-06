@@ -348,12 +348,7 @@ final class Anchors {
      * no-op ({@code $result.values->cast(@TDS<Any>)}): the chain beneath
      * (PlatformTypes.isTdsShaped owns the shape). */
     static TypedSpec peelTdsCasts(TypedSpec n) {
-        while (n instanceof com.legend.compiler.spec.typed.TypedCast tc
-                && PlatformTypes.isTdsShaped(tc.target())
-                && PlatformTypes.isTdsShaped(tc.source().info().type())) {
-            n = tc.source();
-        }
-        return n;
+        return com.legend.compiler.spec.ResultEnvelopeSplice.peelTdsCasts(n);
     }
 
     /** The TDS class's csv property (PlatformTypes.TDS_CSV_PROPERTY,

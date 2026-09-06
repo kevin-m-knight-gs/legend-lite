@@ -180,7 +180,26 @@ public final class AssertLedger {
             Map.entry("meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject",
                     "revisit:relation-mapping-filter-alias-root"),
             Map.entry("meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject",
-                    "revisit:relation-mapping-filter-alias-root"));
+                    "revisit:relation-mapping-filter-alias-root"),
+            // traced 2026-09-06 (after batch 104): the graph-fetch ROOT query
+            // is `select distinct` in the engine (relationalGraphFetch.pure:791
+            // /855/891, distinct = true) over the three-member union with no
+            // ORDER BY; the golden's root order (Firm B, Firm X, Firm A) is
+            // neither the union member order (X, A, B) nor a key order — it
+            // is H2's hash-distinct output order. Our rows are the same set
+            // (FIRST DIFF is $[0].legalName; the members match by name) in
+            // member order. assertJsonStringsEqual is array-order-sensitive
+            // in the engine too, so the golden pins a non-deterministic order.
+            Map.entry("meta::relational::graphFetch::tests::union::propertyLevel::test6",
+                    "revisit:h2-distinct-root-order"),
+            // traced 2026-09-06 (after batch 104): the engine's OWN test source
+            // says the golden is wrong — testSimpleRelationalGraphFetch.pure,
+            // `// toFix: after fixing isDistinct related bug this test should
+            // expect:` followed by the all-empty-defects document, which is
+            // exactly our output (FIRST DIFF $[2].defects: expected 1 element,
+            // got 0). A revisit receipt by the user's rule, not a resolution.
+            Map.entry("meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints",
+                    "revisit:engine-isDistinct-checked-defect"));
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect

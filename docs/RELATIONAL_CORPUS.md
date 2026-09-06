@@ -37,7 +37,7 @@ shared source registered by several families cannot double-count. Run with
 | aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
+| executionPlan/tests | 108 | 81 | 8 | 3 | 16 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 255 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 153 | 1 | 1 | 0 | 1 | 1 | 0 | 1 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2456** | 36 | 57 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2457** | 36 | 56 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2456 PASS = 2421 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2457 PASS = 2422 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -518,7 +518,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2456 PASS = 2421 clean + 35 carrying softness (
 - 2x 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 2x class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - 1x unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
-- 1x in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan/4]
 - 1x unknown function 'isExecutionOptionPresent' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x deferred let binding '$targetGraph' has no type outside a consuming call position (tree/colspec bindings resolve at their call sites)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
@@ -539,18 +538,19 @@ SOFT-PASS RECONCILIATION (F2.1): 2456 PASS = 2421 clean + 35 carrying softness (
 - 1x multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - 1x in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::tests::query::routing::routeInternal/1]
 - 1x no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
+- 1x in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertJoinTreeNode/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertAlias/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten/2]
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 131
+tests in the ledger: 130
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 34 |
 | wall:resolver | 19 |
+| wall:typer | 33 |
 | wall:exec | 8 |
-| divergence | 21 |
+| divergence | 19 |
 | not-reached | 23 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
@@ -558,6 +558,8 @@ tests in the ledger: 131
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
+| revisit:engine-isDistinct-checked-defect | 1 |
+| revisit:h2-distinct-root-order | 1 |
 | revisit:instance-filter-ungated | 1 |
 | zero-assert | 1 |
 | decision:routeFunction | 5 |
@@ -569,7 +571,6 @@ tests in the ledger: 131
 | engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
-- executeProjectWithNestedDerivedProperty #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::json::tdsToJSONKe :: in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unpor
 - planGraphFetchWithDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - planGraphFetchWithNestedDerivedProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - testPlanWithLocalH2ConnectionWithSQL #0 - -> decision:protocol-transform: wall-type: unknown function '_' — no funct :: meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL :: unknown function 'meta::protocols::pure::vX_X_X::transformation::fromPureGraph::executionPlan::transformPlan' — no function of this name in the native or user catalog (un
@@ -623,8 +624,8 @@ tests in the ledger: 131
 - testMilestonedProperty #1 meta::pure::functions::asserts::assertJsonStringsEqual -> pass
 - testMilestonedProperty #2 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id,  ::  expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classif
 - testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> engine-golden-defect:malformed-json-golden: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
-- testCheckedWithCircularConstraints #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0
-- test6 #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].legalName expected Firm B, got Firm X :: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X
+- testCheckedWithCircularConstraints #1 meta::pure::functions::asserts::assertJsonStringsEqual -> revisit:engine-isDistinct-checked-defect: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0
+- test6 #1 meta::pure::functions::asserts::assertJsonStringsEqual -> revisit:h2-distinct-root-order: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].legalName expected Firm B, got Firm X :: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X
 - dropAndCreateTempTable #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, :: meta::relational::tests::ddl::dropAndCreateTempTable :: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testNonDataTypeProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -755,7 +756,6 @@ tests in the ledger: 131
 ### per-test outcomes (non-passing)
 
 - ERROR testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
-- ERROR executeProjectWithNestedDerivedProperty [executionPlan/tests]: in function 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan': unknown function 'meta::json::tdsToJSONKeyValueObjectString' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::executionPlan::m2m2r::tests::ge
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
 - FAIL testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: assertEquals: expected [a, b], got []

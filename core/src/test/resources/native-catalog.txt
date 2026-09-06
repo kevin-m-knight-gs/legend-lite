@@ -644,6 +644,7 @@ meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::met
 meta::pure::functions::asserts::assertJsonStringsEqual(expected:meta::pure::metamodel::type::String[1], actual:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1]
 meta::json::parseJSON(string:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[1]
 meta::json::toJSON(obj:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1]
+meta::json::tdsToJSONKeyValueObjectString(t:meta::pure::tds::TabularDataSet[1]):meta::pure::metamodel::type::String[*]
 meta::json::toPrettyJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1]
 meta::json::getValue(json:meta::json::JSONObject[1], key:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[0..1]
 meta::json::toCompactJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1]

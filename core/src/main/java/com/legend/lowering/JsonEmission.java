@@ -112,6 +112,8 @@ final class JsonEmission {
             List<SqlExpr> colNames = new ArrayList<>();
             List<SqlExpr> cells = new ArrayList<>();
             boolean bareTdsJson = jr.kind() == TypedJsonResult.Kind.TDS_JSON;
+            boolean keyValue = jr.kind() == TypedJsonResult.Kind.TDS_JSON_KV;
+            List<SqlExpr> rowObject = new ArrayList<>();
             for (String name : names) {
                 String typeName = "";
                 String metaType = "";
@@ -138,10 +140,21 @@ final class JsonEmission {
                 colMeta.add(new SqlExpr.JsonObject(meta));
                 colNames.add(new SqlExpr.StringLit(name));
                 cells.add(SqlExpr.Column.derived(alias, name));
+                rowObject.add(new SqlExpr.StringLit(name));
+                rowObject.add(SqlExpr.Column.derived(alias, name));
             }
+
             SqlExpr rows = new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(List.of(
                     new SqlExpr.StringLit("values"), new SqlExpr.JsonArray(cells))));
-            if (bareTdsJson) {
+            if (keyValue) {
+                // tdsRowToJSONKeyValueObject: one object per row keyed by
+                // column name — numbers/booleans bare, strings/dates quoted,
+                // a NULL cell null (the JSON carrier's own rendering); an
+                // empty relation is '[]'
+                envelope = new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                        new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(rowObject)),
+                        new SqlExpr.Cast(new SqlExpr.StringLit("[]"), SqlType.Scalar.JSON)));
+            } else if (bareTdsJson) {
                 // the bare toJSON(tds) document: column metadata + rows
                 envelope = new SqlExpr.JsonObject(List.of(
                         new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta),

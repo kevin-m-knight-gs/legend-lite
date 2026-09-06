@@ -2059,6 +2059,8 @@ public final class Pure {
     // Real core/external/format/json/toJSON.pure:54 (the Any[*]
     // overload — TDS/instance serialization the datatype tests assert).
     public static final NativeFunctionDefinition TO_JSON__ANY_M = signature("native function meta::json::toJSON(obj:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
+    // REAL toJSON.pure:231 — the TDS as a JSON array of row objects (String[*]: the engine streams fragments); emitted by the database (TdsJsonChecker.checkKeyValue / JsonEmission TDS_JSON_KV)
+    public static final NativeFunctionDefinition TDS_TO_JSON_KEY_VALUE_OBJECT_STRING__TDS_1 = signature("native function meta::json::tdsToJSONKeyValueObjectString(t:meta::pure::tds::TabularDataSet[1]):meta::pure::metamodel::type::String[*];");
     // Real core/external/format/json/toJSON.pure — the JSONElement
     // pretty-printer the graphFetch subType tests compare with.
     public static final NativeFunctionDefinition TO_PRETTY_JSON_STRING = signature("native function meta::json::toPrettyJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1];");

@@ -27,7 +27,11 @@ public record TypedJsonResult(TypedSpec chain, Kind kind,
      * metaType}],"rows":[{"values":[..]}]}} (toJSON.pure's TabularDataSet
      * arm: type = the column type's path, metaType = PrimitiveType /
      * Enumeration / InvalidType, empty when the type is unknown). */
-    public enum Kind { TDS, CLASS, TDS_JSON }
+    /** TDS_JSON_KV: the bare {@code tdsToJSONKeyValueObjectString(tds)}
+     * document — {@code [{"col":value,...},...]} (toJSON.pure:231
+     * tdsRowToJSONKeyValueObject: one object per row keyed by column
+     * name; {@code []} when empty). */
+    public enum Kind { TDS, CLASS, TDS_JSON, TDS_JSON_KV }
 
     @Override
     public List<TypedSpec> children() {

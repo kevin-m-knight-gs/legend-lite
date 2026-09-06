@@ -26,18 +26,41 @@ final class TdsJsonChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        return check(t, af, env, TO_JSON_FQN, TypedJsonResult.Kind.TDS_JSON,
+                ExprType.one(Type.Primitive.STRING));
+    }
+
+    private static final String TDS_KV_FQN = "meta::json::tdsToJSONKeyValueObjectString";
+
+    /** {@code tdsToJSONKeyValueObjectString(tds):String[*]} (toJSON.pure:231
+     * — the engine streams the document as string FRAGMENTS; ours is the
+     * whole document as ONE string, the value the fragments concatenate
+     * to — the consumer's {@code makeString()} over it is the identity).
+     * The one-element narrowing of the declared [*] is sound; the
+     * registered signature still validates the argument. */
+    static TypedSpec checkKeyValue(Typer t, AppliedFunction af, Env env) {
+        return check(t, af, env, TDS_KV_FQN, TypedJsonResult.Kind.TDS_JSON_KV,
+                ExprType.one(Type.Primitive.STRING));
+    }
+
+    private static TypedSpec check(Typer t, AppliedFunction af, Env env,
+            String fqn, TypedJsonResult.Kind kind, ExprType out) {
         if (af.parameters().size() != 1) {
             return t.applyGeneric(af, env);
         }
         TypedSpec arg = t.synth(af.parameters().get(0), env);
         Type.RelationType rt = Type.relationSchema(arg.info().type());
-        if (rt == null || rt.isLateBound()) {
+        // the key-value document needs no column types: a TDS-typed value
+        // whose schema is only visible after the envelope splice (an
+        // executed plan's values cast to TabularDataSet) qualifies too
+        boolean tdsValue = kind == TypedJsonResult.Kind.TDS_JSON_KV
+                && com.legend.compiler.element.type.PlatformTypes.isTdsShaped(arg.info().type());
+        if ((rt == null && !tdsValue) || (rt != null && rt.isLateBound())) {
             return t.applyGeneric(af, env);
         }
         // validate against the REGISTERED native signature — never bypassed
-        t.kernel().resolveOverload(t.model().findFunction(TO_JSON_FQN),
+        t.kernel().resolveOverload(t.model().findFunction(fqn),
                 List.of(arg.info()));
-        return new TypedJsonResult(arg, TypedJsonResult.Kind.TDS_JSON, null,
-                ExprType.one(Type.Primitive.STRING));
+        return new TypedJsonResult(arg, kind, null, out);
     }
 }

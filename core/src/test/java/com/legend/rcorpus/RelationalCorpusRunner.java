@@ -2203,10 +2203,19 @@ public class RelationalCorpusRunner {
             // contract). A println/print statement is INERT for the resolver
             // too (its lambda-value argument is data). aggregation::
             // testSubAggregationWithDeepAndOverlap (+ _WithColVar).
-            org.junit.jupiter.api.Assertions.assertEquals(131L,
+            // batch 105 / L13 (2026-09-06): 131 -> 130 — the m2m2r plan
+            // helper's `.values->cast(@TabularDataSet)->toOne()->
+            // tdsToJSONKeyValueObjectString()->makeString()`: the TDS-as-
+            // row-objects JSON document (toJSON.pure:231) is emitted by the
+            // database (TdsJsonChecker.checkKeyValue / JsonEmission
+            // TDS_JSON_KV; the declaration in the native catalog), and the
+            // envelope collapse sees through a TDS-shaped cast over the
+            // plan-execute values (typed Any before the splice).
+            // m2m2r::executeProjectWithNestedDerivedProperty.
+            org.junit.jupiter.api.Assertions.assertEquals(130L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2442L,
+            org.junit.jupiter.api.Assertions.assertEquals(2443L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

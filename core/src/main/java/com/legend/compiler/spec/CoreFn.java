@@ -132,6 +132,10 @@ public enum CoreFn {
      * emitted by the database over the chain; any other argument rides the
      * generic native. */
     TO_JSON("toJSON"),
+    /** {@code tdsToJSONKeyValueObjectString(tds)} (toJSON.pure:231) &mdash; the
+     * TDS as a JSON array of row objects keyed by column name, emitted by
+     * the database. */
+    TDS_TO_JSON_KV("tdsToJSONKeyValueObjectString"),
     /** Collection {@code sortBy(key)} &mdash; ascending sort by a key lambda. */
     SORT_BY("sortBy"),
     /** Collection {@code sortByReversed(key)} &mdash; descending sort by a key lambda. */
