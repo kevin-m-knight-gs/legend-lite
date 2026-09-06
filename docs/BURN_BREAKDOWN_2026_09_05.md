@@ -430,6 +430,17 @@ sixteen legs. The other 100 are named for what they are; none of them is a
 platform gap that a compiler for Pure-to-SQL should close, and the ledger
 buckets already say so test by test.
 
+## 6b. Foreign-dialect referee backends (note, user ask 2026-09-06)
+
+The T3 "text is the contract" tests (DB2, Postgres, SQL Server `select top N`,
+Oracle-style quoting, the per-DB expected-SQL table) become ROW verdicts on the
+dialect itself once a real backend replays the golden: Postgres, Trino/Presto,
+SQL Server Developer, Db2 Community and Oracle XE run in Docker; Snowflake,
+BigQuery, Redshift and Sybase IQ have no local edition. Leg: a referee session
+per available dialect (the H2 second-target machinery generalized), the store
+DDL seeded per dialect, goldens replayed there. Twelve tests today; the same
+harness validates every dialect rewrite rule we emit.
+
 ## 7. Burn order (tests per design, biggest first)
 
 1. **L1 navigation shapes (15)** — one resolver family: nested navigation
@@ -453,6 +464,41 @@ justification), per [[burn-fallbacks-every-batch]].
 
 Conventions: "wall @" names the throw site; "owner" names the code that must
 change; engine paths are under core_relational/relational (REL) unless said.
+
+### 8.0 L1 — isolationTest: the tail-hop correlated predicate (sized 2026-09-06, after batch 105; not started)
+
+Query: `Firm.all()->project([... col(x | $x.employees.group.children->filter(c |
+$c.coveredProduct.name == $x.employees.product.name).name->toOne(), 'testCol')])`.
+The predicate sits on hop 3 (`children#f0`) of `employees.group.children#f0.name`
+and reads the OUTER var through the SAME fan-out head (`$x.employees.product.name`);
+engine isolation semantics: that read is the fan-out ELEMENT's own navigation.
+Golden SQL (testForcedSelfJoin.pure): `... left join personTable persontable_0 on
+root.ID = persontable_0.FIRMID left join (select persontable_2.ID as ID,
+organizationtable_1.name as name from personTable persontable_2 left join
+organizationTable organizationtable_0 on … left join organizationTable
+organizationtable_1 on organizationtable_0.orgId = organizationtable_1.parentId
+left join productTable producttable_0 on producttable_0.orgId =
+organizationtable_1.orgId left join productTable producttable_1 on persontable_2.ID
+= producttable_1.ownerId where producttable_0.name is not distinct from
+producttable_1.name) as persontable_1 on persontable_0.ID = persontable_1.ID` —
+i.e. the exploding parent-copy subselect with the EMPLOYEE as the parent: a copy of
+Person carrying its `product` nav and the `group.children#f0` chain, the predicate in
+its WHERE, keyed by Person's PK, LEFT-joined back onto the employees fan-out row.
+Where we wall: StoreResolver registerNavigations, the `explodingReroutePred(path,
+mid)` branch → `synthetics.unappliedCorrelatedWall(path, mid + 1)` (batch 69b) —
+the head-level reroute (corrNavHeads → parentCopyFor(cs=Firm, …)) serves mid==1
+only. Mechanism to build: (1) RE-BASE: a tail pred whose outer reads ALL pass
+through path[0] (`$x.employees.…`) rewrites to reads on the head's target element
+(`$e.product.name`); (2) NESTED REROUTE: resolve the tail chain
+`[group, children#f0, name]` against the head's TARGET ClassSource (Person) with
+the re-based pred — it is then a hop-0 exploding reroute FROM Person's point of view
+(corrPredDemandsParentNav over `product`), parent copy = Person; (3) attach the
+resulting AssocJoin INSIDE the employees target pipeline and register its composed
+prefix as a SubNav under the employees AssocSub so Substitution's chain-key read
+(`chainKeySubNavRead`) serves `employees.group.children#f0.name`. Risk: the sub-target
+materialization path (NavMaterializer.navTargetMaterialized) does not run the
+head-level reroute today; it needs the corrNavHeads build factored so a target can
+reuse it. Estimate: one focused session.
 
 ### 8.1 L1 — nested exists scope, class-typed slot mapped to TWO subtype sets (testExistsAsNullWithSubType)
 

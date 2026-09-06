@@ -1,0 +1,561 @@
+# Granular fallback ledger — 2026-09-06 (after batch 105)
+
+130 fallbacks of 2575 runnable tests (2443 flipped). One entry per test: the run's bucket (the first failing assert's reason; the runner normalizes names to `_` and numbers to `N`), the breakdown's classification and row, and every assert row from the assert ledger. Built from `core/target/wholetest-flip-buckets.txt` (DuckDB lane), `docs/RELATIONAL_CORPUS.md` (assert ledger) and `docs/BURN_BREAKDOWN_2026_09_05.md`.
+
+
+## 1. IMPL (14)
+
+- **inheritance** — `pure::executionPlan::tests` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `wall-exec: plan: no class mapping for '_' under 'meta::relational::tests::ma`
+    - breakdown: | inheritance::multiJoins::testForcedSubTypeProjectDirect | FLIPPED batch 95 — the cast canon reads the union's plain lifted `person` slot; the read through the witness f
+    - assert #1 assertEquals → `wall:exec`: wall-exec: plan: no class mapping for '_' under 'meta::relational::tests::ma :: plan: no class mapping for 'meta::relational::tests::model::
+- **testInheritanceMultipleLevel** — `relational::testDataGeneration::tests` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `wall-exec: multi-hop navigation vehicles#fN.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embed`
+    - breakdown: | testDataGeneration::testInheritanceMultipleLevel | multi-hop vehicles#f.subType.person.name | TDG rows |
+    - assert #7 - → `wall:resolver`: wall-exec: multi-hop navigation vehicles#fN.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embed :: multi
+    - asserts passing: #1, #2, #3, #4, #5, #6
+- **isolationTest** — `tests::advanced::forcedselfjoin` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat`
+    - breakdown: | advanced::forcedselfjoin::isolationTest | correlated filter predicate at depth ≥ 2 (batch 69b wall) | rows |
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat :: correlated f
+- **testToManyWithQualifierWithFilterOnJoin** — `tests::mapping::multigrain` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `wall-exec: multi-hop navigation account.incomeFunctionSplits#fN.incomeFunction.Classification.name through an embedded/slot head is`
+    - breakdown: | multigrain::testToManyWithQualifierWithFilterOnJoin | multi-hop through an embedded/slot head | rows [500] + text behind |
+    - assert #1 assertSameElements → `wall:resolver`: wall-exec: multi-hop navigation account.incomeFunctionSplits#fN.incomeFunction.Classification.name through an embedded/slot head is :: multi
+- **testExistsAsNullWithSubType** — `tests::projection::exists` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `wall-exec: nested navigation '_' inside an exists/isEmpty predic`
+    - breakdown: | projection::exists::testExistsAsNullWithSubType | nested navigation inside exists/isEmpty | rows + assertSameSQL (text behind) |
+    - assert #1 assertSize → `wall:resolver`: wall-exec: nested navigation '_' inside an exists/isEmpty predic :: nested navigation 'fnScope.stc_meta__relational__tests__projection__exis
+- **testRoutingWithSubtypePropagation** — `tests::projection::simple` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `wall-exec: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relationa`
+    - breakdown: | projection::simple::testRoutingWithSubtypePropagation | multi-hop (subType chain) through an embedded head | assertEquals on SQL text ONLY → TEXT behind the wall |
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relationa :: multi
+- **planGraphFetchWithNestedDerivedProperty** — `executionPlan::m2m2r::tests` [L13 Model chain over relational (m2m2r) and derived properties (5)]
+    - run bucket: `wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary)`
+    - breakdown: | m2m2r::planGraphFetchWithNestedDerivedProperty | same |
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable ye
+- **testUnionTwoRelationMappings_ManyColumnProject** — `mapping::union::relation` [L3 Relation-mapping family (4)]
+    - run bucket: `platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana`
+    - breakdown: | union::relation::testUnionTwoRelationMappings_ManyColumnProject | DIVERGENCE: 12-column distinct over a union of two relation mappings — TRACED 2026-09-06 (revisit): ou
+    - assert #1 assertEquals → `divergence`: platform-fail: expected: '#TDS\n cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana :: expecte
+- **testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion** — `mapping::union::relation` [L3 Relation-mapping family (4)]
+    - run bucket: `platform-fail: expected: '#TDS\n   cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana`
+    - breakdown: | union::relation::testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion | same |
+    - assert #1 assertEquals → `divergence`: platform-fail: expected: '#TDS\n cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN,cN\n Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Ana :: expecte
+- **testPersonToFirmUsingFromProject** — `relational::modelJoins::test` [L5 Cross-store model joins as relational joins (4)]
+    - run bucket: `wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext`
+    - breakdown: | modelJoins::testPersonToFirmUsingFromProject | association not mapped — asserts the XStore plan's SQL EQUALS the single-store plan's SQL (a semantic equality, not a spe
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext :: association 'meta::external::store::relational
+- **testPersonToFirmUsingProject** — `relational::modelJoins::test` [L5 Cross-store model joins as relational joins (4)]
+    - run bucket: `assert-free-inert`
+    - breakdown: | modelJoins::testPersonToFirmUsingProject | assert-free (zero-assert) — runs the same XStore shape |
+    - assert #0 - → `zero-assert`: assert-free-inert :: meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
+- **testCrossMappingWithRelOpWithJoinKeys** — `graphFetch::tests::crossDatabase` [L5 Cross-store model joins as relational joins (4)]
+    - run bucket: `wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::`
+    - breakdown: | graphFetch::crossDatabase::testCrossMappingWithRelOpWithJoinKeys | association not mapped — XStore association with join keys across two databases |
+    - assert #1 assertJsonStringsEqual → `wall:resolver`: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta:: :: association 'meta::relational::graphFetch::tests:
+- **testNestedModelJoinCompoundInnerCondition** — `mapping::modelJoin::advanced` [L5 Cross-store model joins as relational joins (4)]
+    - run bucket: `wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::relationa`
+    - breakdown: | modelJoin::advanced::testNestedModelJoinCompoundInnerCondition | association not mapped — compound inner condition in a model join |
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::relationa :: association 'meta::relational::tests::ma
+- **testPostProcessTransformJoinOp** — `relational::tests::postProcessor` [L7 Post-processors as compiler passes (4)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function '_' — n`
+    - breakdown: | postProcessor::testPostProcessTransformJoinOp | a connection `sqlQueryPostProcessors` lambda over the SQL AST — the ONE post-processor test that is a user-supplied pass
+    - assert #1 assertEquals → `wall:lowering`: wall-exec: TypeInferenceException: in function '_': unknown function '_' — n :: in function 'meta::relational::functions::sqlDialectTranslat
+
+## IMPL (parked) (2)
+
+- **testPksWithImportDataFlow** — `tests::mapping::union` [L4 Union / isolation / join fan-out (6)]
+    - run bucket: `wall-type: multiplicity [*] is not compatible with [N]`
+    - breakdown: | union::testPksWithImportDataFlow | PARKED 2026-09-06 (batch 105 note, handoff): seams 1-2 mechanical (the 5-arg execute overload with exeCtx; flags on ExecEnv), seam 3 
+    - assert #0 - → `wall:typer`: wall-type: multiplicity [*] is not compatible with [N] :: meta::relational::tests::mapping::union::testPksWithImportDataFlow :: multiplicity
+- **testNonDataTypeProperty** — `lineage::scanColumns::test` [L9 Lineage row verdicts (2)]
+    - run bucket: `wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary)`
+    - breakdown: | lineage::scanColumns::testNonDataTypeProperty | PARKED 2026-09-06 (batch 104 note): a CLASS-typed project column (`p|$p.address`) has no SQL value form yet — the whole-
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabula
+
+## REVISIT (5)
+
+- **testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction** — `tests::milestoning::businessdate` [L1 Resolver: navigation shapes (15 tests)]
+    - run bucket: `platform-fail: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gol`
+    - breakdown: | businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction | REVISIT (batch 93 receipt `revisit:instance-filter-ungated` — traced, NOT resolv
+    - assert #1 assertSameSQL → `revisit:instance-filter-ungated`: platform-fail: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gol :: a
+- **testMixedMappingWithFilterInProject** — `tests::mapping::relation` [L3 Relation-mapping family (4)]
+    - run bucket: `wall-exec: a navigation join over this union demands key column '_', which NO union member carries`
+    - breakdown: | relation::testMixedMappingWithFilterInProject | REVISIT (batch 96 receipt `revisit:relation-mapping-filter-alias-root` — traced, NOT resolved; user 2026-09-06) — the sa
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: a navigation join over this union demands key column '_', which NO union member carries :: a navigation join over this union dema
+- **testSimpleMappingQueryWithFilterInProject** — `tests::mapping::relation` [L3 Relation-mapping family (4)]
+    - run bucket: `platform-fail: expected: '_'`
+    - breakdown: | relation::testSimpleMappingQueryWithFilterInProject | REVISIT (batch 96 receipt `revisit:relation-mapping-filter-alias-root` — traced, NOT resolved; user 2026-09-06) — 
+    - assert #1 assertEquals → `revisit:relation-mapping-filter-alias-root`: platform-fail: expected: '_' :: expected: '#TDS\n name1,name2\n David,null\n Fabrice,null\n John,John\n Oliver,Fabrice\n Oliver,Oliver\n#' a
+- **testCheckedWithCircularConstraints** — `graphFetch::tests::simple` [L6 Graph fetch (4)]
+    - run bucket: `platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N`
+    - breakdown: | graphFetch::simple::testCheckedWithCircularConstraints | REVISIT (batch 105 receipt `revisit:engine-isDistinct-checked-defect` — traced, NOT resolved) — the engine's ow
+    - assert #1 assertJsonStringsEqual → `revisit`: revisit:engine-isDistinct-checked-defect: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N :: 
+- **test6** — `tests::union::propertyLevel` [L6 Graph fetch (4)]
+    - run bucket: `platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].legalName expected Firm B, got Firm X`
+    - breakdown: | graphFetch::union::propertyLevel::test6 | REVISIT (batch 105 receipt `revisit:h2-distinct-root-order` — traced, NOT resolved) — same row set; the engine's graph-fetch r
+    - assert #1 assertJsonStringsEqual → `revisit`: revisit:h2-distinct-root-order: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].legalName expected Firm B, got Firm X :: assertJso
+
+## 2. TEXT (43)
+
+- **testExecutionPlanGenerationForLambdaFromWithEnumMapping** — `pure::executionPlan::tests` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | executionPlan::testExecutionPlanGenerationForLambdaFromWithEnumMapping | the exact CASE WHEN spelling of enum push-down |
+    - assert #1 assert → `divergence`: platform-fail: Assert failed :: Assert failed
+- **testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting** — `mapping::union::biTemporal` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | biTemporal::testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting | `unionalias_1`/`unionalias_0` quoting |
+    - assert #1 assert → `divergence`: platform-fail: Assert failed :: Assert failed
+- **testBiTemporalUnionJoin_milestoningColumnInOnClause** — `mapping::union::biTemporal` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | biTemporal::testBiTemporalUnionJoin_milestoningColumnInOnClause | same family |
+    - assert #1 assert → `divergence`: platform-fail: Assert failed :: Assert failed
+- **testChainedUnions** — `tests::mapping::union` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | union::testChainedUnions | `union_gen_source_pk_0` (removeUnionOrJoins spelling) |
+    - assert #3 assert → `sql-text-assert`: platform-fail: Assert failed :: Assert failed
+    - asserts passing: #1, #2
+- **testProjectThroughAsso** — `tests::mapping::union` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | union::extend::testProjectThroughAsso | same |
+    - assert #3 assert → `sql-text-assert`: platform-fail: Assert failed :: Assert failed
+    - asserts passing: #1, #2
+- **testProjectThroughAssoWithJoinInMapping** — `tests::mapping::union` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | union::extend::testProjectThroughAssoWithJoinInMapping | same |
+    - assert #3 assert → `sql-text-assert`: platform-fail: Assert failed :: Assert failed
+    - asserts passing: #1, #2
+- **testUnionWithSinglePropertyMapping** — `tests::mapping::union` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | union::testUnionWithSinglePropertyMapping | same (+ assertSameSQL) |
+    - assert #2 assert → `sql-text-assert`: platform-fail: Assert failed :: Assert failed
+    - asserts passing: #1
+- **testUnionOnViewsMapping** — `tests::projection::view` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | projection::view::testUnionOnViewsMapping | same |
+    - assert #3 assert → `sql-text-assert`: platform-fail: Assert failed :: Assert failed
+    - asserts passing: #1, #2
+- **testLegacyFlagProjectionEmitsPlainEquals** — `tests::query::legacyNullUnsafeEquals` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals | plan text `"root".AGE = "persontable_1".AGE` under a feature flag |
+    - assert #1 assert → `divergence`: platform-fail: Assert failed :: Assert failed
+- **testLegacyFlagRestoresOptionalParamFreeMarkerSelector** — `tests::query::legacyNullUnsafeEquals` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector | FreeMarker selector text under the flag |
+    - assert #1 assert → `divergence`: platform-fail: Assert failed :: Assert failed
+- **testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct** — `tests::tds::tdsRestrict` [T1 `assert($sql->contains('<engine alias>'))` over OUR text (11)]
+    - run bucket: `platform-fail: Assert failed`
+    - breakdown: | tdsRestrict::testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct | `!contains('max')` — the engine prunes an unused aggregate; rows PASS. An OPTIMIZATION we coul
+    - assert #4 assertFalse → `sql-text-assert`: platform-fail: Assert failed :: Assert failed
+    - asserts passing: #1, #2, #3
+- **tdsTwoJoinThreeDB** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `wall-exec: plan: star-top TDS column '_' resolves through no FROM-tree table`
+    - breakdown: | executionPlan::tdsTwoJoinThreeDB | plan text (+ star-top column wall first) |
+    - assert #1 assertEquals → `wall:exec`: wall-exec: plan: star-top TDS column '_' resolves through no FROM-tree table :: plan: star-top TDS column 'firstName' resolves through no FR
+- **testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `wall-exec: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall`
+    - breakdown: | executionPlan::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes | plan text (+ mapping-argument wall first) |
+    - assert #1 assertEquals → `wall:exec`: wall-exec: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall :: executionPlan mapping
+- **testGroupByWithOpenVariableInAgg** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Sequence`
+    - breakdown: | executionPlan::testGroupByWithOpenVariableInAgg | Sequence plan with OPEN variables — rows underivable |
+    - assert #1 assertEqualsH2Compatible → `referee-cannot-replay`: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Sequence :: assertEqualsH2Compatible (sql-text, rows underiva
+- **testGroupByWithTwoOpenVariablesInAggAndFilter** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Sequence`
+    - breakdown: | executionPlan::testGroupByWithTwoOpenVariablesInAggAndFilter | same |
+    - assert #1 assertEqualsH2Compatible → `referee-cannot-replay`: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Sequence :: assertEqualsH2Compatible (sql-text, rows underiva
+- **testTwoMappingsOneRuntime** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), ""`
+    - breakdown: | executionPlan::testTwoMappingsOneRuntime | Relational plan text |
+    - assert #1 assertEquals → `divergence`: platform-fail: expected: 'Relational\n(\n type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), "" :: expect
+- **testTwoMappingsOneRuntimeWithoutExternalMapping** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), ""`
+    - breakdown: | executionPlan::testTwoMappingsOneRuntimeWithoutExternalMapping | same |
+    - assert #1 assertEquals → `divergence`: platform-fail: expected: 'Relational\n(\n type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), "" :: expect
+- **testViewToTDS** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatibleP`
+    - breakdown: | executionPlan::testViewToTDS | plan text (+ unknown dataTypeToCompatiblePureType) |
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatibleP :: in fun
+- **withPlatform** — `pure::executionPlan::tests` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `wall-exec: DialectCapability: collection reduction '_' reached a dialect without a list encoding`
+    - breakdown: | executionPlan::withPlatform | PureExp/makeString platform node (+ our DialectCapability wall first) |
+    - assert #1 assertEquals → `wall:lowering`: wall-exec: DialectCapability: collection reduction '_' reached a dialect without a list encoding :: collection reduction 'STRING_AGG' reache
+- **testMilestonedProperty** — `graphFetch::tests::milestoning` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id,`
+    - breakdown: | graphFetch::milestoning::testMilestonedProperty | assert #2 = PureExp plan text (assert #1 rows passes) |
+    - assert #2 assertEquals → `divergence`: platform-fail: expected: 'PureExp\n(\n type = String\n expression = -> serialize(#{meta::relational::tests::milestoning::Order {id, :: expec
+    - asserts passing: #1
+- **testFilterAfterJoinInRelationWithExtendedPrimitives** — `tests::projection::filter` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""n`
+    - breakdown: | projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives | `planToStringWithoutFormatting` — the golden has no spaces (`select""root""`); unreplayable by
+    - assert #1 assertSameSQL → `referee-cannot-replay`: platform-fail: assertSameSQL (sql-text, oracle declined: golden execution: Syntax error in SQL statement "select""root"".LEGALNAMEas""n :: a
+- **testIsEmptyOnCollection** — `query::filter::isempty` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `platform-fail: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statem`
+    - breakdown: | query::filter::isempty::testIsEmptyOnCollection | plan-text unformatted — not a statement |
+    - assert #1 assertEquals → `referee-cannot-replay`: platform-fail: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statem :: a
+- **testExecutionPlanGeneration** — `tds::window::routing` [T2 Plan-text goldens (executionPlan printed as a string) (13)]
+    - run bucket: `wall-type: no overload of '_' structurally matches the argument types (ExprType[type=GenericTyp`
+    - breakdown: | tds::window::routing::testExecutionPlanGeneration | Sequence plan text (+ `over` overload wall) |
+    - assert #0 - → `wall:typer`: wall-type: no overload of '_' structurally matches the argument types (ExprType[type=GenericTyp :: meta::relational::tests::tds::window::rou
+- **testEqualityInFilterOnOptionalPropertiesLegacy** — `tests::functions::sqlstring` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo`
+    - breakdown: | sqlstring::testEqualityInFilterOnOptionalPropertiesLegacy | DBN legacy |
+    - assert #1 assertEquals → `divergence`: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo :: a
+- **testIsDistinctSQLGeneration** — `tests::functions::sqlstring` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "LegalName", case when (count(`
+    - breakdown: | sqlstring::testIsDistinctSQLGeneration | per-DB text (assertSameSQL, DBN) |
+    - assert #2 assertSameSQL → `divergence`: platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "LegalName", case when (count( :: a
+    - asserts passing: #1
+- **testNotEqualityInFilterOnOptionalPropertiesLegacy** — `tests::functions::sqlstring` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo`
+    - breakdown: | sqlstring::testNotEqualityInFilterOnOptionalPropertiesLegacy | DBN legacy |
+    - assert #1 assertEquals → `divergence`: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo :: a
+- **testSqlGenerationDivide_AllDBs** — `tests::functions::sqlstring` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select ((N.N * "root".quantity) / N) from tradeTabl`
+    - breakdown: | sqlstring::testSqlGenerationDivide_AllDBs | all DBs |
+    - assert #1 assertSameSQL → `divergence`: platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select ((N.N * "root".quantity) / N) from tradeTabl :: assertS
+- **testToSQLStringWithAbs** — `tests::functions::sqlstring` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary)`
+    - breakdown: | sqlstring::testToSQLStringWithAbs | `runTestCaseById` — the engine's per-DB expected-SQL table (+ class query under TypedNewInstance wall) |
+    - assert #2 assert → `wall:resolver`: wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary) :: class query under TypedNewInstance is not resolvable 
+    - asserts passing: #1
+- **testToSQLStringWithAggregation** — `tests::functions::sqlstring` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary)`
+    - breakdown: | sqlstring::testToSQLStringWithAggregation | same registry |
+    - assert #1 assert → `wall:resolver`: wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary) :: class query under TypedNewInstance is not resolvable 
+- **testGroupByWithJoinDB2** — `relational::tests::groupBy` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#N_d`
+    - breakdown: | groupBy::testGroupByWithJoinDB2 | DB2 |
+    - assert #1 assertEquals → `divergence`: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#N_d :: a
+- **testDb2ColumnRename** — `relational::tests::postProcessor` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h`
+    - breakdown: | postProcessor::testDb2ColumnRename | DB2 128-char alias truncation text |
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h :: in function 'meta::relational::postProcessor
+- **testFilterLimitInSequenceForTableAccessor** — `tests::query::take` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement:`
+    - breakdown: | query::take::testFilterLimitInSequenceForTableAccessor | golden `select top N` (SQL Server) — H2 cannot replay |
+    - assert #1 assertEquals → `referee-cannot-replay`: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-
+- **testLimitFilterInSequenceForTableAccessor** — `tests::query::take` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement:`
+    - breakdown: | query::take::testLimitFilterInSequenceForTableAccessor | same |
+    - assert #1 assertEquals → `referee-cannot-replay`: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Table "SELECTTOPN" not found; SQL statement: :: assertEquals (sql-
+- **testSortQuotes** — `tests::tds::sort` [T3 Foreign-dialect SQL text (no engine to execute it) (11)]
+    - run bucket: `wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s)`
+    - breakdown: | tds::postgres::testSortQuotes | Postgres (+ no scalar lowering wall) |
+    - assert #1 assertEquals → `wall:lowering`: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s) :: no scalar lowering register
+- **testTemporalDateVariableInFunctionExpressionWithPropagation** — `pure::executionPlan::tests` [T4 Plan text with parameters / temporal propagation (2)]
+    - run bucket: `platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected select "productexchangetable_N".name as "exchangeName" f`
+    - breakdown: | executionPlan::testTemporalDateVariableInFunctionExpressionWithPropagation | rows underivable (parameterized) |
+    - assert #1 assertEqualsH2Compatible → `referee-cannot-replay`: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected select "productexchangetable_N".name as "exchangeName" f :: a
+- **testProp3** — `relational::tests::m2m2r` [T4 Plan text with parameters / temporal propagation (2)]
+    - run bucket: `platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Relational`
+    - breakdown: | m2m2r::testProp3 | referee-cannot-replay:no-fixture (receipt) — listed here as its assert is text |
+    - assert #1 assertEqualsH2Compatible → `referee-cannot-replay`: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Relational :: assertEqualsH2Compatible (sql-text, rows underi
+- **testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode** — `executionPlan::tests::execution` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m`
+    - breakdown: | executionPlan::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode | executes a plan NODE by hand (`evaluate`) |
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m :: meta::pure::
+- **testPureExecutionStrategyForRelationalInstantiationExecutionNode** — `executionPlan::tests::execution` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m`
+    - breakdown: | executionPlan::execution::testPureExecutionStrategyForRelationalInstantiationExecutionNode | same |
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or a m :: meta::pure::
+- **testGraphFetchH2TempTableStrategy** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: instanceOf(meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode) over a row of meta::pure::e`
+    - breakdown: | executionPlan::testGraphFetchH2TempTableStrategy | `instanceOf(StoreMappingGlobalGraphFetchExecutionNode)` over the plan — the plan as a Pure value |
+    - assert #1 assertEquals → `wall:exec`: wall-exec: instanceOf(meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode) over a row of meta::pure::e :: insta
+- **testGraphFetchH2TempTableStrategyWithQuoteIdentifiers** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: instanceOf(meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode) over a row of meta::pure::e`
+    - breakdown: | executionPlan::testGraphFetchH2TempTableStrategyWithQuoteIdentifiers | same |
+    - assert #1 assertEquals → `wall:exec`: wall-exec: instanceOf(meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode) over a row of meta::pure::e :: insta
+- **testPlanForExecutionOption** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform`
+    - breakdown: | executionPlan::testPlanForExecutionOption | a dummy Extension with `extractVariablesFromExecutionOption` — the extension record again (parked family) |
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform :: meta::pure::executionPlan::te
+- **testPreprocessFunctionOnRuntime** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform functi`
+    - breakdown: | executionPlan::testPreprocessFunctionOnRuntime | `functionReturnType` reflection over a runtime's preprocess function |
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform functi :: meta::pure::executionP
+- **testSupportStreamFlagWithGraphFetchAndFrom** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: deferred let binding '_' has no type outside a consuming call position (tree/colspec bindings resolve at thei`
+    - breakdown: | executionPlan::testSupportStreamFlagWithGraphFetchAndFrom | reads plan nodes' flags (+ deferred let wall); M2M dest classes |
+    - assert #0 - → `wall:typer`: wall-type: deferred let binding '_' has no type outside a consuming call position (tree/colspec bindings resolve at thei :: meta::pure::exec
+
+## TEXT (reclassified) (10)
+
+- **testAlloyTestDatGenWithQuotedColumnsForViews** — `testDataGeneration::tests::alloy` [L11 Views (2)]
+    - run bucket: `wall-exec: testDataGen: view-backed relation '_' — view slice pending`
+    - breakdown: | testDataGeneration::alloy::testAlloyTestDatGenWithQuotedColumnsForViews | RECLASSIFIED → TEXT (T2) 2026-09-06: the test says so itself — `// Purposefully asserting on p
+    - assert #1 assertEquals → `wall:exec`: wall-exec: testDataGen: view-backed relation '_' — view slice pending :: testDataGen: view-backed relation 'AltID_View' — view slice pending
+- **testRelationStoreAccessorOnView** — `tests::mapping::relation` [L11 Views (2)]
+    - run bucket: `platform-fail: Catalog Error: Table with name personView does not exist!`
+    - breakdown: | relation::testRelationStoreAccessorOnView | RECLASSIFIED → TEXT (T1) 2026-09-06: its first assert is `assert($result->contains('"sql":"select \\"personview_0\\".ID as \
+    - assert #1 assert → `divergence`: platform-fail: Catalog Error: Table with name personView does not exist! :: Catalog Error: Table with name personView does not exist! Did yo
+- **planGraphFetchWithDerivedProperty** — `executionPlan::m2m2r::tests` [L13 Model chain over relational (m2m2r) and derived properties (5)]
+    - run bucket: `wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary)`
+    - breakdown: | m2m2r::planGraphFetchWithDerivedProperty | RECLASSIFIED batch 105 → TEXT/T2 — its only assert is `planToString` TEXT (the breakdown's own rule: a plan-text-only test ca
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: class query under TypedGraphFetch is not resolvable yet (HN vocabulary) :: class query under TypedGraphFetch is not resolvable ye
+- **testModelConnectionDeepFunction** — `pure::executionPlan::tests` [L13 Model chain over relational (m2m2r) and derived properties (5)]
+    - run bucket: `wall-exec: plan: no class mapping for '_' under 'meta::pure::mapping::m`
+    - breakdown: | executionPlan::testModelConnectionDeepFunction | RECLASSIFIED → TEXT (T2) 2026-09-06: same assert form, deep chain |
+    - assert #1 assertEquals → `wall:exec`: wall-exec: plan: no class mapping for '_' under 'meta::pure::mapping::m :: plan: no class mapping for 'meta::pure::mapping::modelToModel::te
+- **testModelConnectionJoin** — `pure::executionPlan::tests` [L13 Model chain over relational (m2m2r) and derived properties (5)]
+    - run bucket: `wall-exec: MappingResolutionException: class '_' is not mapped in mapping 'meta::pure::mapping::mod`
+    - breakdown: | executionPlan::testModelConnectionJoin | RECLASSIFIED → TEXT (T2) 2026-09-06: `assertEquals($expected, $res->planToString(…))` over a ModelChainConnection plan (executi
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: MappingResolutionException: class '_' is not mapped in mapping 'meta::pure::mapping::mod :: class 'meta::pure::mapping::modelToMo
+- **relationalResultSourcingOfListExecutionPlan** — `tests::advanced::resultSourcing` [L14 Raw SQL to TDS and CSV load (3)]
+    - run bucket: `wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported`
+    - breakdown: | advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan | RECLASSIFIED → TEXT (T2) 2026-09-06: `assertEquals($expectedPlan, $result->planToStringWithoutFo
+    - assert #1 assertEquals → `wall:exec`: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('re
+- **testQuoteIdentifiersFlagWithGraphFetch** — `pure::executionPlan::tests` [L15 Referee legs (goldens a referee CAN bring to rows) (1)]
+    - run bucket: `platform-fail: assertEquals (sql-text, oracle declined: golden execution: Schema "productSchema" not found; SQL statement:`
+    - breakdown: | executionPlan::testQuoteIdentifiersFlagWithGraphFetch | RECLASSIFIED batch 96 → TEXT (T2) — the assert is `assertEquals('PureExp(type=String expression=->serialize(...)
+    - assert #1 assertEquals → `referee-cannot-replay`: platform-fail: assertEquals (sql-text, oracle declined: golden execution: Schema "productSchema" not found; SQL statement: :: assertEquals (
+- **testEnumFilterWithUnionMappingPlanGeneration** — `tests::mapping::union` [L4 Union / isolation / join fan-out (6)]
+    - run bucket: `wall-exec: plan: alias '_' not resolvable to a table (Subselect)`
+    - breakdown: | union::testEnumFilterWithUnionMappingPlanGeneration | RECLASSIFIED → TEXT (T2) 2026-09-06: its one assert is `assertEquals($expected, $plan->planToStringWithoutFormatti
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: plan: alias '_' not resolvable to a table (Subselect) :: plan: alias 't2' not resolvable to a table (Subselect)
+- **testRelationalMapperTwoDBs** — `connections::tests::relationalMapper` [L7 Post-processors as compiler passes (4)]
+    - run bucket: `platform-fail: expected: 'select "root".NAME as "name", "synonymtable_N".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNe`
+    - breakdown: | alloy::connections::relationalMapper::testRelationalMapperTwoDBs | RECLASSIFIED → TEXT (T3) 2026-09-06: same helper, `snDB.productSchemaNewDBINC.productTableNewINC` (ca
+    - assert #1 assertEquals → `divergence`: platform-fail: expected: 'select "root".NAME as "name", "synonymtable_N".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNe :: e
+- **testRelationalMapperWithJoin** — `connections::tests::relationalMapper` [L7 Post-processors as compiler passes (4)]
+    - run bucket: `platform-fail: expected: 'select "addresstable_N".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snD`
+    - breakdown: | alloy::connections::relationalMapper::testRelationalMapperWithJoin | RECLASSIFIED → TEXT (T3) 2026-09-06: `assertEquals('select … from snDBDefault.default.firmTableNew 
+    - assert #1 assertEquals → `divergence`: platform-fail: expected: 'select "addresstable_N".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snD :: e
+
+## 3. ENGINE (31)
+
+- **testPlanWithLocalH2ConnectionWithSQL** — `executionPlan::tests::datetime` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no funct`
+    - breakdown: | protocol transforms (2) | transform::autogen::testClassesAssociationsAndMappingFromDatabase, executionPlan::datetime::testPlanWithLocalH2ConnectionWithSQL | `PureModelC
+    - assert #0 - → `decision:protocol-transform`: wall-type: unknown function '_' — no funct :: meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL :: unknown fu
+- **testRoutingContextBuilderFunctions** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: class meta::pure::metamodel::valuespecification::FunctionExpression has no property '_'`
+    - breakdown: | router (6) | routing::testCompositionInMultiStatementPureExpressions, multipleexpressions::testPlatformExpressionDependencyOnAFromExpression, …2, testRoutingOfSimpleQua
+    - assert #0 - → `wall:typer`: wall-type: class meta::pure::metamodel::valuespecification::FunctionExpression has no property '_' :: meta::pure::executionPlan::tests::test
+- **testPrerouting42** — `router::preeval::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: '_' is not a known class, mapping, runtime, connection, or database`
+    - breakdown: | router (6) | routing::testCompositionInMultiStatementPureExpressions, multipleexpressions::testPlatformExpressionDependencyOnAFromExpression, …2, testRoutingOfSimpleQua
+    - assert #0 - → `wall:typer`: wall-type: '_' is not a known class, mapping, runtime, connection, or database :: meta::pure::router::preeval::tests::testPrerouting42 :: 'm
+- **testJoinFunc** — `pure::tds::toRelation` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qual`
+    - breakdown: | tdsToRelation transform (2) | tds::toRelation::testJoinFunc, testJoinUsing | the engine's TDS→Relation protocol transform harness (`test(...)`); also its own `TestClass
+    - assert #0 - → `wall:typer`: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qual :: meta::pure::t
+- **testJoinUsing** — `pure::tds::toRelation` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qual`
+    - breakdown: | tdsToRelation transform (2) | tds::toRelation::testJoinFunc, testJoinUsing | the engine's TDS→Relation protocol transform harness (`test(...)`); also its own `TestClass
+    - assert #0 - → `wall:typer`: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qual :: meta::pure::t
+- **testProcessIdentifierWithQuoteChar** — `functions::sqlQueryToString::default` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': in call to 'meta::rel`
+    - breakdown: | SQL renderer / DDL (5) | typeInference::testTranslateDbType, sqlQueryToString::testTempTableSqlStatementsForH2, sqlQueryToString::default::testProcessIdentifierWithQuot
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': in call to 'meta::rel :: in function 'meta::relational::functions::sqlQueryToString::def
+- **testTempTableSqlStatementsForH2** — `functions::sqlQueryToString::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': in call to 'meta::relatio`
+    - breakdown: | SQL renderer / DDL (5) | typeInference::testTranslateDbType, sqlQueryToString::testTempTableSqlStatementsForH2, sqlQueryToString::default::testProcessIdentifierWithQuot
+    - assert #1 - → `wall:typer`: wall-exec: TypeInferenceException: in function '_': in call to 'meta::relatio :: in function 'meta::relational::functions::sqlQueryToString:
+- **testConvertJoinTreeNode** — `functions::toPostgresModel::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': expected meta::external::`
+    - breakdown: | recursion over data (2) | toPostgresModel::testConvertJoinTreeNode, testConvertSelectSQLQuery | decision:recursion (task #4 if ever) |
+    - assert #1 - → `decision:recursion`: wall-exec: TypeInferenceException: in function '_': expected meta::external:: :: in function 'meta::relational::functions::toPostgresModel::
+- **testConvertSelectSQLQuery** — `functions::toPostgresModel::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': expected meta::external::`
+    - breakdown: | recursion over data (2) | toPostgresModel::testConvertJoinTreeNode, testConvertSelectSQLQuery | decision:recursion (task #4 if ever) |
+    - assert #1 - → `decision:recursion`: wall-exec: TypeInferenceException: in function '_': expected meta::external:: :: in function 'meta::relational::functions::toPostgresModel::
+- **testGraphFetch** — `graphFetch::domain::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::valuespec`
+    - breakdown: | graph-fetch domain extraction (1) | graphFetch::domain::testGraphFetch | `extractDomainTypeClassFromFunction` reads `FunctionExpression.func` (code-as-data) |
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::valuespec :: in function 'meta::pure::graphFetch::domain::e
+- **resolveSchemaTest** — `tds::schema::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualif`
+    - breakdown: | schema resolution program (1) | tds::schema::resolveSchemaTest | `resolveSchema` — a Pure program over the QUERY TREE (needs code-as-data) |
+    - assert #0 - → `wall:typer`: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualif :: meta::relat
+- **dropAndCreateTempTable** — `relational::tests::ddl` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function,`
+    - breakdown: | SQL renderer / DDL (5) | typeInference::testTranslateDbType, sqlQueryToString::testTempTableSqlStatementsForH2, sqlQueryToString::default::testProcessIdentifierWithQuot
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, :: meta::relational::t
+- **testCreateTempTableStatement** — `relational::tests::ddl` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S`
+    - breakdown: | SQL renderer / DDL (5) | typeInference::testTranslateDbType, sqlQueryToString::testTempTableSqlStatementsForH2, sqlQueryToString::default::testProcessIdentifierWithQuot
+    - assert #1 assertEquals → `wall:lowering`: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values 
+- **addDriverTablePkForProject** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #0 - → `decision`: decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function
+- **simpleFunctionExpressionTranslationAdjust** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function 'meta::pure::executionPlan::fe`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::pure::executionPlan::fe :: in function 'meta::relational::functi
+- **simpleFunctionExpressionTranslationNow** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function 'meta::pure::executionPlan::fe`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::pure::executionPlan::fe :: in function 'meta::relational::functi
+- **testFindAliasMappingBySchemaName** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: in call to '_', argument N: expected meta::relational::metamodel::TableAlias, got V`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #0 - → `wall:typer`: wall-type: in call to '_', argument N: expected meta::relational::metamodel::TableAlias, got V :: meta::relational::tests::functions::pureTo
+- **testFindFunctionSequenceMultiplicity** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: class meta::pure::metamodel::valuespecification::FunctionExpression has no property '_'`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #0 - → `wall:typer`: wall-type: class meta::pure::metamodel::valuespecification::FunctionExpression has no property '_' :: meta::relational::tests::functions::pu
+- **testImportDataFlow** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function :: meta::relational::te
+- **testMergeOldAliasToNewAlias** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': cannot access '_' on V [inlined v`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': cannot access '_' on V [inlined v :: in function 'meta::relational::functions::pureToSql
+- **testReAliasMergedJoinOperations** — `tests::functions::pureToSqlQuery` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: store resolution left user call '_' uninlined —`
+    - breakdown: | pureToSqlQuery internals (8) | testMergeOldAliasToNewAlias, testReAliasMergedJoinOperations, testFindAliasMappingBySchemaName, testFindFunctionSequenceMultiplicity, tes
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: store resolution left user call '_' uninlined — :: store resolution left user call 'meta::relational::functions::pureToSqlQuery::
+- **testResultToJsonStream** — `relational::tests::json` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a`
+    - breakdown: | JSON result stream (1) | json::testResultToJsonStream | a hand-built `Result<TabularDataSet>` streamed to JSON — the engine's result serializer |
+    - assert #0 - → `wall:typer`: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a :: meta::relational::tests:
+- **testStoreSubstitution** — `tests::mapping::include` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or`
+    - breakdown: | runtime helpers (2) | runtime::extractDBs::testExtractDBsWithSubstituition, include::testStoreSubstitution | `extractDBs`/`resolveStore` — the engine's mapping-include 
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or :: meta::relational
+- **testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements** — `tests::milestoning::applyMilestoningFilters` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni`
+    - breakdown: | post-processors over the engine's SQL AST (2) | filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL, applyMilestoningFilters::testMilestoningFilterApplicationO
+    - assert #1 - → `wall:typer`: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::mil
+- **testPushFiltersDownToJoinsPostProcessorToSQL** — `tests::postProcessor::filterPushDown` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function '_' — n`
+    - breakdown: | post-processors over the engine's SQL AST (2) | filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL, applyMilestoningFilters::testMilestoningFilterApplicationO
+    - assert #1 assertEquals → `wall:lowering`: wall-exec: TypeInferenceException: in function '_': unknown function '_' — n :: in function 'meta::relational::functions::sqlDialectTranslat
+- **testPlatformExpressionDependencyOnAFromExpression** — `query::routing::multipleexpressions` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o`
+    - breakdown: | router (6) | routing::testCompositionInMultiStatementPureExpressions, multipleexpressions::testPlatformExpressionDependencyOnAFromExpression, …2, testRoutingOfSimpleQua
+    - assert #0 - → `decision`: decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function
+- **testCompositionInMultiStatementPureExpressions** — `tests::query::routing` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function '_' — no function of`
+    - breakdown: | router (6) | routing::testCompositionInMultiStatementPureExpressions, multipleexpressions::testPlatformExpressionDependencyOnAFromExpression, …2, testRoutingOfSimpleQua
+    - assert #1 assertEquals → `decision`: decision:routeFunction: wall-exec: TypeInferenceException: in function '_': unknown function '_' — no function of :: in function 'meta::rela
+- **testRoutingOfSimpleQualifiedProperty** — `tests::query::routing` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o`
+    - breakdown: | router (6) | routing::testCompositionInMultiStatementPureExpressions, multipleexpressions::testPlatformExpressionDependencyOnAFromExpression, …2, testRoutingOfSimpleQua
+    - assert #0 - → `decision`: decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function
+- **testExtractDBsWithSubstituition** — `tests::runtime::extractDBs` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': unknown function '_' — no function of this name in the n`
+    - breakdown: | runtime helpers (2) | runtime::extractDBs::testExtractDBsWithSubstituition, include::testStoreSubstitution | `extractDBs`/`resolveStore` — the engine's mapping-include 
+    - assert #1 assertSize → `wall:typer`: wall-exec: TypeInferenceException: in function '_': unknown function '_' — no function of this name in the n :: in function 'meta::relationa
+- **testTranslateDbType** — `relational::tests::typeInference` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h`
+    - breakdown: | SQL renderer / DDL (5) | typeInference::testTranslateDbType, sqlQueryToString::testTempTableSqlStatementsForH2, sqlQueryToString::default::testProcessIdentifierWithQuot
+    - assert #1 assertEquals → `wall:typer`: wall-exec: TypeInferenceException: in function '_': class meta::pure::metamodel::type::Any h :: in function 'meta::relational::translation::
+- **testClassesAssociationsAndMappingFromDatabase** — `transform::autogen::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo`
+    - breakdown: | protocol transforms (2) | transform::autogen::testClassesAssociationsAndMappingFromDatabase, executionPlan::datetime::testPlanWithLocalH2ConnectionWithSQL | `PureModelC
+    - assert #0 - → `decision:protocol-transform`: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociatio
+
+## 4. OTHER STORES (8)
+
+- **testEnumPushDownWithExternalFormat** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function o`
+    - breakdown: | executionPlan::testEnumPushDownWithExternalFormat + testRelationalProjectionWithExternalFormat (2, counted as one row here: 2 tests) | external-format store (`externali
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function o :: meta::pure::executionPlan::tests::testEnumPushDownWithExternalFormat :: unknown function 
+- **testRelationalProjectionWithExternalFormat** — `pure::executionPlan::tests` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function o`
+    - breakdown: | executionPlan::testEnumPushDownWithExternalFormat + testRelationalProjectionWithExternalFormat (2, counted as one row here: 2 tests) | external-format store (`externali
+    - assert #0 - → `wall:typer`: wall-type: unknown function '_' — no function o :: meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat :: unknown f
+- **testCrossMappingJsonToDBWithExplosion** — `tests::XStore::inMemoryAndRelational` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: MappingResolutionException: class '_' is not mapped in mapping 'meta::pure::grap`
+    - breakdown: | XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithExplosion | in-memory JSON store crossed with relational (M2M explosion) |
+    - assert #1 assertJsonStringsEqual → `wall:resolver`: wall-exec: MappingResolutionException: class '_' is not mapped in mapping 'meta::pure::grap :: class 'meta::pure::graphFetch::tests::XStore:
+- **testCrossStoreWithCSVDataSource** — `tests::XStore::inMemoryAndRelational` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary)`
+    - breakdown: | XStore::inMemoryAndRelational::testCrossStoreWithCSVDataSource | CSV data source store crossed with relational |
+    - assert #1 assertEquals → `wall:resolver`: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabula
+- **testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint** — `tests::XStore::milestoning` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported`
+    - breakdown: | XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint | `compileLegendGrammar` at run time (decision:dynamic-compila
+    - assert #0 - → `decision:dynamic-compilation`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported :: meta::pure::graphFetch::tests::XStore:
+- **testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne** — `tests::XStore::milestoning` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported`
+    - breakdown: | XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne | same |
+    - assert #0 - → `decision:dynamic-compilation`: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported :: meta::pure::graphFetch::tests::XStore:
+- **testFlatten_ViaNoArgMapping** — `m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: from() argument N must be a mapping or runtime reference, got TypedVariable`
+    - breakdown: | m2m2r::milestoning::testFlatten_ViaNoArgMapping | `getNoArgFlattenMapping()` builds the mapping at run time (decision:dynamic-compilation) |
+    - assert #0 - → `wall:typer`: wall-type: from() argument N must be a mapping or runtime reference, got TypedVariable :: meta::pure::graphFetch::tests::m2m2r::milestoning:
+- **testFlatten_ViaNoArgMapping_ViaAssociation** — `m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty` [T5 Plan-as-data (7)]
+    - run bucket: `wall-type: from() argument N must be a mapping or runtime reference, got TypedVariable`
+    - breakdown: | m2m2r::milestoning::testFlatten_ViaNoArgMapping_ViaAssociation | same |
+    - assert #0 - → `wall:typer`: wall-type: from() argument N must be a mapping or runtime reference, got TypedVariable :: meta::pure::graphFetch::tests::m2m2r::milestoning:
+
+## 5. NAMED (11)
+
+- **columnValueDifferenceWithoutPrevalTest** — `tds::tests::extensions` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: assertEquals (rendered CSVJOIN:;): line N: expected <N-N-NTN:N:N.N+N|true|N.N|TDSNull|N.N|N|TDSNu`
+    - breakdown: | columnValueDifferenceWithoutPrevalTest | engine-golden-defect:alloy-adjust-widening |
+    - assert #4 assertEquals → `engine-golden-defect:alloy-adjust-widening`: platform-fail: assertEquals (rendered CSVJOIN:;): line N: expected <N-N-NTN:N:N.N+N|true|N.N|TDSNull|N.N|N|TDSNu :: assertEquals (rendered C
+    - asserts passing: #1, #2, #3
+- **testExtendDigest_Relational** — `tds::tests::extensions` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: expected: ['_', '_']`
+    - breakdown: | testHashFunctions, testToSQLStringForTDSStringJoin, testExtendDigest_Relational, tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries | engine-golden-defe
+    - assert #1 assertEquals → `engine-golden-defect`: engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', '_'] :: expected: ['9e103ea06a6999b4c5a86cf25d68b083', 'b7bbee4d9
+- **testMilestonedRootAndMilestonedProperty** — `tests::embedded::otherwise` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N`
+    - breakdown: | embedded::otherwise::testMilestonedRootAndMilestonedProperty, milestoning::testMilestonedRootAndMilestonedProperty | engine-golden-defect:malformed-json-golden |
+    - assert #1 assertJsonStringsEqual → `engine-golden-defect:malformed-json-golden`: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
+    - assert #1 assertJsonStringsEqual → `engine-golden-defect:malformed-json-golden`: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
+- **testMilestonedRootAndMilestonedProperty** — `graphFetch::tests::milestoning` [T5 Plan-as-data (7)]
+    - run bucket: `wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N`
+    - breakdown: | embedded::otherwise::testMilestonedRootAndMilestonedProperty, milestoning::testMilestonedRootAndMilestonedProperty | engine-golden-defect:malformed-json-golden |
+    - assert #1 assertJsonStringsEqual → `engine-golden-defect:malformed-json-golden`: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
+    - assert #1 assertJsonStringsEqual → `engine-golden-defect:malformed-json-golden`: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
+- **testQualifierWithOperation** — `advanced::forced::structure` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold`
+    - breakdown: | forced::structure::testQualifierWithOperation, testTwoQualifiersWithOperation | decision:empty-toOne-forced-isolation |
+    - assert #3 assertEquals → `decision`: decision:empty-toOne-forced-isolation: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text s
+    - asserts passing: #1, #2
+- **testTwoQualifiersWithOperation** — `advanced::forced::structure` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold`
+    - breakdown: | forced::structure::testQualifierWithOperation, testTwoQualifiersWithOperation | decision:empty-toOne-forced-isolation |
+    - assert #3 assertEquals → `decision`: decision:empty-toOne-forced-isolation: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text s
+    - asserts passing: #1, #2
+- **testHashFunctions** — `tests::functions::sqlstring` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold`
+    - breakdown: | testHashFunctions, testToSQLStringForTDSStringJoin, testExtendDigest_Relational, tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries | engine-golden-defe
+    - assert #1 assertEquals → `engine-golden-defect`: engine-golden-defect:joinStrings-rendering: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the t
+- **testToSQLStringForTDSStringJoin** — `tests::functions::sqlstring` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold`
+    - breakdown: | testHashFunctions, testToSQLStringForTDSStringJoin, testExtendDigest_Relational, tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries | engine-golden-defe
+    - assert #1 assertEquals → `engine-golden-defect`: engine-golden-defect:joinStrings-rendering: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the t
+- **testToSqlGenerationFirstDayOfWeek** — `tests::functions::sqlstring` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold`
+    - breakdown: | testToSqlGenerationFirstDayOfWeek | engine-golden-defect:h2-week-start |
+    - assert #1 equal → `engine-golden-defect`: engine-golden-defect:h2-week-start: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said
+- **testDateTimeInclusiveRangeQuery** — `tests::mapping::relation` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: [settlementDateTime] (N rows)`
+    - breakdown: | relation::testDateTimeInclusiveRangeQuery | RECEIPT: 9-digit sub-second literal vs `.123` fixture — golden-vs-H2 skew |
+    - assert #1 assertTdsEquivalent → `divergence`: platform-fail: [settlementDateTime] (N rows) :: [settlementDateTime] (2 rows) is not equivalent to: [settlementDateTime] (1 rows)
+- **testJoinWithExtendWithDigestOnColumnsOnBothQueries** — `tds::tdsJoin::alloy` [T5 Plan-as-data (7)]
+    - run bucket: `platform-fail: expected: ['_', 'N,John,Johnson`
+    - breakdown: | testHashFunctions, testToSQLStringForTDSStringJoin, testExtendDigest_Relational, tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries | engine-golden-defe
+    - assert #2 assertSameElements → `engine-golden-defect`: engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', 'N,John,Johnson :: expected: ['1,Peter,Smith,1,ee0af362d8c1e4fa8c
+    - asserts passing: #1
+
+## (not in the breakdown) (6)
+
+- **testConnectionEqualityAllButOnePropertySame** — `metamodel::execute::tests` [?]
+    - run bucket: `wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low`
+    - assert #1 assert → `wall:lowering`: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scala
+- **testConnectionEqualityAllSameStatic** — `metamodel::execute::tests` [?]
+    - run bucket: `wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low`
+    - assert #1 assert → `wall:lowering`: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scala
+- **testConnectionEqualityTypeDiff** — `metamodel::execute::tests` [?]
+    - run bucket: `wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low`
+    - assert #1 assert → `wall:lowering`: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scala
+- **testConnectionEqualityTypeSameSpecDiff** — `metamodel::execute::tests` [?]
+    - run bucket: `wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low`
+    - assert #1 assert → `wall:lowering`: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scala
+- **testConnectionEqualityTypeSpecSameAuthDiff** — `metamodel::execute::tests` [?]
+    - run bucket: `wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low`
+    - assert #1 assert → `wall:lowering`: wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low :: scala
+- **testPlatformExpressionDependencyOnAFromExpression2** — `query::routing::multipleexpressions` [?]
+    - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o`
+    - assert #0 - → `decision`: decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function
