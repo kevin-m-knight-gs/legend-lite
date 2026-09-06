@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 255 | 3 | 7 | 1 | 1 | 1 | 2 | 1 |
+| tds/tests | 266 | 256 | 3 | 6 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 28 | 2 | 8 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
@@ -96,12 +96,12 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 84 | 2 | 1 | 0 | 0 | 0 | 0 | 0 |
-| transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
+| transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2421** | 41 | 81 | 32 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2423** | 41 | 80 | 31 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2421 PASS = 2386 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2423 PASS = 2388 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,18 +542,18 @@ SOFT-PASS RECONCILIATION (F2.1): 2421 PASS = 2386 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 166
+tests in the ledger: 164
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 46 |
+| wall:typer | 45 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
 | divergence | 28 |
-| not-reached | 38 |
+| not-reached | 37 |
 | referee-cannot-replay | 9 |
-| wall:lowering | 15 |
+| wall:lowering | 14 |
 | pass | 35 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
@@ -692,8 +692,6 @@ tests in the ledger: 166
 - rowValueDifferenceTest #0 - -> wall:typer: wall-type: cannot access '_' on String :: meta::pure::tds::tests::extensions::rowValueDifferenceTest :: cannot access 'name' on String
 - testExtendDigest_InMemory #1 assertEquals -> wall:lowering: wall-exec: lowering not yet implemented for TypedNativeCall ('_' in relation position) :: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::zip' in relation position)
 - testExtendDigest_Relational #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', '_'] ::  expected: ['9e103ea06a6999b4c5a86cf25d68b083', 'b7bbee4d9b6a2736c25b00dded9344c7'] actual:   ['5e922469e9dee06b7d638775371ac834', '6923b8e81fa52e1863d80db5f31759ce']
-- testFirstNotNull #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: unresolved type variable T reached the lowering boundary :: unresolved type variable T reached the lowering boundary
-- testFirstNotNull #2 - -> not-reached: 1 assert(s) after the failure
 - zScoreTest #0 - -> wall:typer: wall-type: no overload of '_' matches N argument(s) of these shapes (no candidates at all) :: meta::pure::tds::tests::extensions::zScoreTest :: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - resolveSchemaTest #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualif :: meta::relational::tds::schema::tests::resolveSchemaTest :: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a full
 - testSortQuotes #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no scalar lowering registered for resolved overload '_' with N parameter(s) :: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
@@ -803,7 +801,6 @@ tests in the ledger: 166
 - testToSQLStringWithAbs #3 - -> not-reached: 1 assert(s) after the failure
 - testToSQLStringWithAggregation #1 assert -> wall:resolver: wall-exec: class query under TypedNewInstance is not resolvable yet (HN vocabulary) :: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - testToSQLStringWithAggregation #2 - -> not-reached: 1 assert(s) after the failure
-- testToSQLStringWithCodeBlock #0 - -> wall:typer: wall-type: in call to '_', argument N: expected Date, got meta::pure :: meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock :: in call to 'meta::relational::tests::functions::sqlstring::filterReportDates', argument 2: expected Date, got meta::pure::metamodel::type::Any
 - testToSqlGenerationFirstDayOfWeek #1 meta::pure::functions::boolean::equal -> engine-golden-defect:h2-week-start: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 11 row(s), our pipeline
 
 ### per-test outcomes (non-passing)
@@ -905,7 +902,6 @@ tests in the ledger: 166
 - ERROR rowValueDifferenceTest [tds/tests]: cannot access 'name' on String
 - ERROR testExtendDigest_InMemory [tds/tests]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::zip' in relation position)
 - FAIL testExtendDigest_Relational [tds/tests]: assertEquals: expected [b7bbee4d9b6a2736c25b00dded9344c7, 9e103ea06a6999b4c5a86cf25d68b083], got [6923b8e81fa52e1863d80db5f31759ce, 5e922469e9dee06b7d638775371ac834]
-- ERROR testFirstNotNull [tds/tests]: unresolved type variable T reached the lowering boundary
 - ERROR zScoreTest [tds/tests]: no overload of 'col' matches 2 argument(s) of these shapes (no candidates at all)
 - ERROR resolveSchemaTest [tds/tests]: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSortQuotes [tds/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEquals' with 2 parameter(s)
@@ -961,4 +957,3 @@ tests in the ledger: 166
 - FAIL testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-text: expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trade_id as trade_id, max("root".eventDate) as maxTradeEventDate from tradeEventTable as "root" group by "root".trade_id) as "tradeEventViewMaxTradeEventDate_d#4_d#4_m5" on ("root".ID = "tradeEventViewMaxTradeEventDate_d#4_d#4_m5".trade_id) where "root".ID = 2, got select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" where "root".ID = 2
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testToSQLStringWithAggregation [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
-- SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

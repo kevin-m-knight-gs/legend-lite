@@ -3748,3 +3748,18 @@ docs/BURN_BREAKDOWN_2026_09_05.md (L1 status). NEXT: L8's cheap items
 (filter-over-spelled-list fold with class-reference equality for
 testFirstNotNull; SQLResult.toSQLString typing surface; `filterReportDates`
 path-argument typing), then L1's sub-legs as designs.
+
+**Batch 74 / L8a (2026-09-05, chain GREEN 9m10s; GATES batch 74).** 166/2407 →
+164/2409; text-only lane 15 → 14. testToSQLStringWithCodeBlock: the engine's
+`add(Date|StrictDate|DateTime, Duration)` programs admitted verbatim in the
+runner's shared sources. testFirstNotNull: generic INSTANTIATION at the
+inlining seam (UserCallInliner.instantiateRoot), the bare TDSNull as a list
+element is the null-cell value (TdsNullForms), and the literal unroll's
+equality fold compares element references and TDS null carriers
+(LiteralUnroll.equalityFold; fold-set ledger + `sqlNull` shape test). Guard
+lessons: nativeFold/Typer size pins split at seams; a patch whose assert failed
+silently sent a chain out anyway — verify the patch applied before launching.
+L8 re-sized in docs/BURN_BREAKDOWN_2026_09_05.md (L8 status). NEXT
+candidates: the `toSQL(...)->SQLResult.toSQLString(...)` typing surface onto
+the toSQLString doctrine (StatementExecutor.toSqlString), the VALUES relation
+from `range()->map()->zip()` (three tests), then the L4/L3 divergences.

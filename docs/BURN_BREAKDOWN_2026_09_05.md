@@ -120,6 +120,23 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 
 ### L8 Natives and small typer legs (12)
 
+Status: **batch 74 / L8a LANDED** — testToSQLStringWithCodeBlock (the engine's
+`add(Date, Duration)` programs admitted verbatim) and testFirstNotNull (generic
+instantiation at the inlining seam; bare TDSNull as a list element = the null-cell
+value; element-reference / null-carrier equality folds) flipped: 164/2409.
+Re-sized after reading the walls: iqrClassify / zScore / extendDigest_InMemory
+are NOT small — a VALUES relation from `range()->map()->zip()` (collection
+natives in relation position), one leg for the three; rowValueDifference needs
+`.columns` typed as TDSColumn instances (today `.columns.name` folds only as a
+direct read); testViewChainsWithBusinessDate needs the `toSQL(...)` →
+`SQLResult.toSQLString(dbType, tz, quote, format)` typing surface routed onto the
+toSQLString doctrine (StatementExecutor.toSqlString reads lambda/mapping/dbType);
+stringToFloat::testProject's wall is `assertEqWithinTolerance` inside a
+`forAll` over a zip of the expected literal list and the result rows (a verdict
+form to add); testSortQuotes is Postgres text (TEXT, moved conceptually to T3);
+testSimpleTypeMappingProjectNulls #2 is `toJSON` of a TDS (the engine's column/
+row JSON envelope — a golden-to-rows referee arm).
+
 | test | detail |
 |---|---|
 | sqlFunction::stringToFloat::testProject | no scalar lowering for the string→float cast function |

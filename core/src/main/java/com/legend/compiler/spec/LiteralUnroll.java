@@ -372,6 +372,52 @@ final class LiteralUnroll {
         return Pure.nativeNamed(name, c.callee().signatureKey());
     }
 
+    /** {@code equal}/{@code eq} over spelled operands — element references,
+     * TDS null carriers, same-kind scalars; anything else stays the
+     * database's compare. */
+    private static TypedSpec equalityFold(TypedNativeCall c, List<TypedSpec> a) {
+        // ELEMENT references (a class or enumeration used as a value —
+        // `$v != TDSNull` over `[TDSNull, 1, 2]`): two references are
+        // equal exactly when they name the same element; a reference
+        // against a scalar literal is never equal (pure: different
+        // kinds — compare-only, no value is computed)
+        if (a.get(0) instanceof TypedPackageableRef lr
+                && a.get(1) instanceof TypedPackageableRef rr) {
+            return bool(lr.fullPath().equals(rr.fullPath()));
+        }
+        // the TDS null cell: the engine's TDSNull is ONE constant, so two
+        // null carriers (^TDSNull() / the bare-ref sqlNull() funnel) are
+        // equal and a scalar literal never equals it (tds.pure
+        // firstNotNull: `[TDSNull, TDSNull]->filter(v | $v != TDSNull)` is [])
+        boolean ln = isTdsNullCarrier(a.get(0));
+        boolean rn = isTdsNullCarrier(a.get(1));
+        if (ln && rn) {
+            return bool(true);
+        }
+        if ((ln && literal(a.get(1)).filter(r -> r instanceof Scalar).isPresent())
+                || (rn && literal(a.get(0)).filter(l -> l instanceof Scalar).isPresent())) {
+            return bool(false);
+        }
+        if ((a.get(0) instanceof TypedPackageableRef
+                        && literal(a.get(1)).filter(r -> r instanceof Scalar).isPresent())
+                || (a.get(1) instanceof TypedPackageableRef
+                        && literal(a.get(0)).filter(l -> l instanceof Scalar).isPresent())) {
+            return bool(false);
+        }
+        return literal(a.get(0)).flatMap(l -> literal(a.get(1))
+                .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls()))
+                .<TypedSpec>map(r -> bool(((Scalar) l).value().equals(((Scalar) r).value()))))
+                .orElse(c);
+    }
+
+    /** The TDS null cell in either spelling: the instance {@code ^TDSNull()}
+     * or the bare reference's {@code sqlNull()} funnel (Typer). */
+    private static boolean isTdsNullCarrier(TypedSpec s) {
+        return (s instanceof TypedNewInstance ni
+                        && ni.classFqn().equals(Pure.TDS_NULL.qualifiedName()))
+                || (s instanceof TypedNativeCall c && c.args().isEmpty() && is(c, "sqlNull"));
+    }
+
     private static TypedSpec nativeFold(TypedNativeCall c, ModelContext ctx) {
         List<TypedSpec> a = c.args();
         // SPELLED-INTEGER compares (WORLD_MAP §4: "size() == 1" and kin) —
@@ -499,10 +545,7 @@ final class LiteralUnroll {
         // (1 == 1.0) is the database's verdict (SQL numeric coercion —
         // EqualityWorldsConformanceTest's declared divergence)
         if ((is(c, "equal") || is(c, "eq")) && a.size() == 2) {
-            return literal(a.get(0)).flatMap(l -> literal(a.get(1))
-                    .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls()))
-                    .<TypedSpec>map(r -> bool(((Scalar) l).value().equals(((Scalar) r).value()))))
-                    .orElse(c);
+            return equalityFold(c, a);
         }
         if (is(c, "not") && a.size() == 1 && a.get(0) instanceof TypedCBoolean b) {
             return bool(!b.value());
@@ -546,6 +589,16 @@ final class LiteralUnroll {
                 && a.get(0).info().multiplicity() instanceof Multiplicity.Bounded ob
                 && ob.lower() == 1 && Integer.valueOf(1).equals(ob.upper())) {
             return a.get(0);
+        }
+        // first/last of the EMPTY spelled list is the empty list (pure:
+        // `[]->first()` is []); toOne over it is an error and stays
+        if ((is(c, "first") || is(c, "last")) && a.size() == 1
+                && spelledList(a.get(0)) && elements(a.get(0)).isEmpty()) {
+            // element type from the ARGUMENT (a generic callee's `T[0..1]`
+            // stamp never reaches the lowering)
+            ExprType ei = c.info().type() instanceof Type.TypeVar
+                    ? new ExprType(a.get(0).info().type(), c.info().multiplicity()) : c.info();
+            return new TypedCollection(List.of(), ei);
         }
         if ((is(c, "toOne") || is(c, "toOneMany") || is(c, "first") || is(c, "last"))
                 && a.size() >= 1 && spelledList(a.get(0)) && !elements(a.get(0)).isEmpty()) {

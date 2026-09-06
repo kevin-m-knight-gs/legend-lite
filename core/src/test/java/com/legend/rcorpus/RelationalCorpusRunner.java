@@ -87,6 +87,26 @@ public class RelationalCorpusRunner {
                   $set->filter(v | $v != TDSNull)->first();
                 }
                 """,
+                // engine-core date arithmetic over a Duration (VERBATIM from
+                // core/pure/corefunctions/dateExtension.pure:507-520 — the
+                // three `add` overloads the sqlstring code-block test names;
+                // adjust() is ours already)
+                """
+                function meta::pure::functions::date::add(date:Date[1], duration:Duration[1]):Date[1]
+                {
+                   $date->adjust($duration.number, $duration.unit)
+                }
+
+                function meta::pure::functions::date::add(date:StrictDate[1], duration:Duration[1]):StrictDate[1]
+                {
+                   $date->adjust($duration.number, $duration.unit)->cast(@StrictDate)
+                }
+
+                function meta::pure::functions::date::add(date:DateTime[1], duration:Duration[1]):DateTime[1]
+                {
+                   $date->adjust($duration.number, $duration.unit)->cast(@DateTime)
+                }
+                """,
                 // engine-core date-format constants (VERBATIM from
                 // core/pure/corefunctions/dateExtension.pure:384-392 —
                 // the corpus's toCSV date rendering)
@@ -1976,10 +1996,17 @@ public class RelationalCorpusRunner {
             // exactly like the association condition already did (the
             // navigate() rule) and reads it through a SubNav on the widened
             // row (AssociationJoins.associationJoin).
-            org.junit.jupiter.api.Assertions.assertEquals(166L,
+            // batch 74 / L8a (2026-09-05): 166 -> 164 — the engine's
+            // add(Date, Duration) programs admitted verbatim (the sqlstring
+            // code-block test); generic INSTANTIATION at the inlining seam
+            // (an inlined `first<T>` root carries the call site's concrete
+            // type), the bare TDSNull as a LIST ELEMENT is the null-cell
+            // value ^TDSNull(), and the literal unroll compares element
+            // references / TDS null carriers (tds.pure firstNotNull).
+            org.junit.jupiter.api.Assertions.assertEquals(164L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2407L,
+            org.junit.jupiter.api.Assertions.assertEquals(2409L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2028,7 +2055,11 @@ public class RelationalCorpusRunner {
             // 16 -> 15 (batch 69c): the datePeriods toSQLString assert over
             // the chained plan (statement 0 + the engine's warning line) is
             // a row verdict on the calendar let's rows
-            org.junit.jupiter.api.Assertions.assertEquals(15,
+            // 15 -> 14 (batch 74 / L8a, 2026-09-05): testToSQLStringWithCodeBlock's
+            // assertSameSQL left the walk's text-only lane — its `add(Date,
+            // Duration)` program is admitted, the test flipped, and the
+            // assert is a platform-arm row verdict (lane move, disagree 0)
+            org.junit.jupiter.api.Assertions.assertEquals(14,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

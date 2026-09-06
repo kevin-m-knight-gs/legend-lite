@@ -2617,7 +2617,7 @@ final class Typer {
     private TypedSpec collection(PureCollection coll, Env env) {
         List<TypedSpec> elements = new ArrayList<>(coll.values().size());
         for (ValueSpecification v : coll.values()) {
-            TypedSpec e = synth(v, env);
+            TypedSpec e = synth(TdsNullForms.listElement(v), env);
             // pure has NO nested collections: [['a','b'],'c'] IS
             // ['a','b','c'] — a collection-valued element SPLICES into
             // the enclosing literal (real pure value semantics)

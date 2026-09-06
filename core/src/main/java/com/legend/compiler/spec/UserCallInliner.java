@@ -259,8 +259,8 @@ public final class UserCallInliner {
                     widened = true;
                 }
             }
-            TypedSpec reduced = deepFoldInlined(
-                    reduceStatements(body, callEnv));
+            TypedSpec reduced = instantiateRoot(deepFoldInlined(
+                    reduceStatements(body, callEnv)), call.info());
             if (widened && com.legend.compiler.element.type.Type
                     .relationSchema(call.info().type())
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
@@ -286,6 +286,28 @@ public final class UserCallInliner {
             names.pop();
             captureRisk.pop();
         }
+    }
+
+    /** GENERIC INSTANTIATION at the inlining seam: a callee typed over a
+     * type variable ({@code firstNotNull<T>}) leaves its body's root
+     * stamped {@code T}; the CALL SITE's info is that variable's
+     * instantiation (the typer bound it from the arguments), so the root
+     * carries the call's concrete type into the lowering. Only a
+     * type-variable-stamped root is re-stamped; a concrete one is the
+     * body's own truth. */
+    private static TypedSpec instantiateRoot(TypedSpec reduced, ExprType callInfo) {
+        if (!(reduced.info().type() instanceof com.legend.compiler.element.type.Type.TypeVar)
+                || callInfo.type() instanceof com.legend.compiler.element.type.Type.TypeVar) {
+            return reduced;
+        }
+        ExprType ni = new ExprType(callInfo.type(), reduced.info().multiplicity());
+        return switch (reduced) {
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos());
+            case com.legend.compiler.spec.typed.TypedCollection tc ->
+                    new com.legend.compiler.spec.typed.TypedCollection(tc.elements(), ni);
+            case TypedUserCall uc -> new TypedUserCall(uc.callee(), uc.args(), ni);
+            default -> reduced;
+        };
     }
 
     /** The declared classes of the NON-literal arguments (store values;
@@ -650,7 +672,12 @@ public final class UserCallInliner {
                                             List.of(), guarded)), guarded));
                         }
                     }
-                    yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, f.info()));
+                    // the filtered list's ELEMENT type is the source's: an
+                    // inlined generic's `T[*]` stamp would otherwise ride an
+                    // empty fold result to the lowering (firstNotNull<T>)
+                    ExprType fi = f.info().type() instanceof com.legend.compiler.element.type.Type.TypeVar
+                            ? new ExprType(src.info().type(), f.info().multiplicity()) : f.info();
+                    yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, fi));
                 }
                 TypedLambda pred = lambda(f.predicate(), env);
                 yield Optional.of(src == f.source() && pred == f.predicate() ? f

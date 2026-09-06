@@ -1061,6 +1061,15 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 74 / L8a (2026-09-05):** text-only 15 → 14
+(testToSQLStringWithCodeBlock's assertSameSQL left the walk's lane — the
+engine's `add(Date, Duration)` programs are admitted verbatim and the test
+flipped, so the assert is a platform-arm row verdict); exec-passing 7,
+unable-to-exec 9 unchanged; ratchet 166/2407 → 164/2409 (testFirstNotNull:
+generic instantiation at the inlining seam, the bare TDSNull list element as
+the null-cell value, element-reference / null-carrier equality folds);
+disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 73 / L1a (2026-09-05):** exec-passing 7,
 text-only 15, unable-to-exec 9 unchanged; ratchet 168/2405 → 166/2407
 (testSubFilter, testQualifiedPropertyInQuery — TDS row verdicts over the

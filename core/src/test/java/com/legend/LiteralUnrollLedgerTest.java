@@ -50,7 +50,10 @@ class LiteralUnrollLedgerTest {
             // spelled-integer compares (same-kind identity, as equal/eq)
             "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual",
             // a spelled pair(a, b) IS an instance literal (first/second)
-            "pair");
+            "pair",
+            // batch 74: sqlNull is a SHAPE test inside the equality fold
+            // (is the operand the TDS null carrier?) — it produces no value
+            "sqlNull");
 
     @Test
     @DisplayName("LiteralUnroll folds compare-only natives (the pinned set)")
