@@ -168,26 +168,52 @@ final class SqlTextVerdicts {
         List<TypedSpec> lamPrefix = new java.util.ArrayList<>(letPrefix);
         lamPrefix.addAll(lam.body().subList(0, lam.body().size() - 1));
         List<com.legend.compiler.spec.typed.TypedLet> stmtLets = statementLets(lam);
+        final String goldenF = golden;
+        final StatementExecutor.ExecEnv envF = env;
         if (!stmtLets.isEmpty() && !isPopulationGolden(golden)) {
             com.legend.compiler.spec.typed.TypedLet let0 = stmtLets.get(0);
             String letCls = let0.value().info().type()
                     instanceof com.legend.compiler.element.type.Type.ClassType ct
                     ? ct.fqn() : null;
-            return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+            return underProducerPasses(producer, () -> rowsLegAndVerdict(
+                    name, goldenF, ours, textEqual, oracle,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             let0.value(), mapping),
                     null, mapping.fullPath(), letCls, false,
-                    lamPrefix, specs, env, hook, lam);
+                    lamPrefix, specs, envF, hook, lam));
         }
         TypedSpec query = lam.body().get(lam.body().size() - 1);
         // OUR ROWS (§3.5c): the referee executes the producer's own
         // query — mapping from the producer, runtime from the env
-        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+        return underProducerPasses(producer, () -> rowsLegAndVerdict(
+                name, goldenF, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         query, mapping),
                 null, mapping.fullPath(), rootClassFqn(lam),
                 com.legend.compiler.spec.VerdictQueries.extentSubset(query), lamPrefix,
-                specs, env, hook, lam);
+                specs, envF, hook, lam));
+    }
+
+    /** The rows leg under the PRODUCER's own post-processing: a
+     * toNonExecutableSQLString producer's query runs with the nonExecutable
+     * pass installed (its golden reads zero rows by construction, and so
+     * must ours) — recorded on the boundary for the leg, restored after
+     * (batch 81). */
+    private static @com.legend.Nullable ExecutionResult underProducerPasses(
+            TypedNativeCall producer,
+            java.util.function.Supplier<@com.legend.Nullable ExecutionResult> leg) {
+        boolean nonExec = com.legend.compiler.element.type.PlatformTypes
+                .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.callee().qualifiedName());
+        if (!nonExec) {
+            return leg.get();
+        }
+        boolean prev = com.legend.exec.PostProcessBoundary.nonExecutable();
+        com.legend.exec.PostProcessBoundary.recordNonExecutable(true);
+        try {
+            return leg.get();
+        } finally {
+            com.legend.exec.PostProcessBoundary.recordNonExecutable(prev);
+        }
     }
 
     /** SQLTEXT charter §8.3b — the ROOT arm for
@@ -1300,7 +1326,9 @@ final class SqlTextVerdicts {
                 if (fqn.equals(com.legend.compiler.element.type
                                 .PlatformTypes.TO_SQL_STRING)
                         || fqn.equals(com.legend.compiler.element.type
-                                .PlatformTypes.TO_SQL_STRING_PRETTY)) {
+                                .PlatformTypes.TO_SQL_STRING_PRETTY)
+                        || fqn.equals(com.legend.compiler.element.type
+                                .PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING)) {
                     return nc;
                 }
             }

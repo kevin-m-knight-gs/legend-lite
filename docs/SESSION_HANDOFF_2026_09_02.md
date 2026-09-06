@@ -3897,3 +3897,21 @@ leg runs under PostProcessBoundary.recordNonExecutable(true) (restored after)
 so both sides read zero rows. RECLASSIFY testRelationStoreAccessorOnView → TEXT
 (its first assert is `contains` over the engine's `personview_0` alias
 spelling; the view-expansion wall is real but cannot flip the test).
+
+**Batch 81 / L7a (2026-09-06, chain GREEN 6m34s; GATES batch 81).** 156/2417 →
+155/2418; text-only 13 → 12; IMPL 54 (55 after the flip, testRelationStoreAccessorOnView
+reclassified TEXT/T1 — `contains` over the engine's alias spelling; the
+view-expansion wall is real but cannot flip it). toNonExecutableSQLString =
+the fourth toSQLString-family native on the one K-routine; the rows leg runs
+under the producer's nonExecutable pass (SqlTextVerdicts.underProducerPasses).
+NEXT = batch 82: executeInDbToTDS(sql, connFn) — the engine program is
+executeInDb(sql, fn)->resultSetToTDS() (execute.pure:73-90, a value mapping
+of the result set our raw grid already IS): a platform-owned native typed
+TabularDataSet whose call the Typer's rawGridOrSelf turns into the same
+late-bound TypedRawSqlRelation as executeInDb over a single-query literal
+(the connection function is the ambient session, as for executeInDb); then
+`.rows->at(0).get('Count')` and `toCSV()` over it. testSQLComments (L16):
+the engine prefixes the EXECUTED SQL with `-- "executionTraceID" : "<uuid>"`
+and records it as the activity's comment (PlanAllocations.registerActivityRows
+deliberately records none today) — plumbing: stamp the executed text and
+record the same comment.

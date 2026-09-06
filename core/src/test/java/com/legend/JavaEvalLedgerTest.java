@@ -659,7 +659,14 @@ class JavaEvalLedgerTest {
             // — golden(0) routes to statement let 0's rows, the lets scope
             // the rows leg. Routing; the replay and compare stay in the
             // oracle.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1035),
+            // 1035 -> 1057 (batches 75 + 81, 2026-09-06): the producer's
+            // structured inputs read through SqlTextInputs (the toSQL
+            // handle form — recognition, the argument positions no longer
+            // read here), the toNonExecutableSQLString producer recognized,
+            // and its rows leg run under the producer's own nonExecutable
+            // pass (a boundary flag around the leg — routing, no
+            // evaluation: both sides still compute in the database).
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1057),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

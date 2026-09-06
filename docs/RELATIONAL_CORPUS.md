@@ -96,12 +96,12 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 84 | 2 | 1 | 0 | 0 | 0 | 0 | 0 |
-| transform/fromPure/tests | 57 | 50 | 4 | 2 | 1 | 0 | 0 | 0 | 0 |
+| transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2431** | 38 | 76 | 30 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2432** | 38 | 76 | 29 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2431 PASS = 2396 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2432 PASS = 2397 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,12 +542,12 @@ SOFT-PASS RECONCILIATION (F2.1): 2431 PASS = 2396 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 156
+tests in the ledger: 155
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 40 |
+| wall:typer | 39 |
 | wall:resolver | 29 |
 | wall:exec | 11 |
 | divergence | 24 |
@@ -778,7 +778,6 @@ tests in the ledger: 156
 - testHashFunctions #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:joinStrings-rendering: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 7 row(s), our pipeline 
 - testIsDistinctSQLGeneration #1 meta::relational::functions::asserts::assertSameSQL -> pass
 - testIsDistinctSQLGeneration #2 meta::relational::functions::asserts::assertSameSQL -> divergence: platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "LegalName", case when (count( :: assertSameSQL (sql-text, DB2 — text is the contract): expected select "root".LEGALNAME as "LegalName", case when (count(distinct("personTable_d#4_d_m1".FIRSTNAME
-- testNonExecutableSQLString #1 assertSameSQL -> wall:typer: wall-exec: TypeInferenceException: in function '_': no overload of 'meta::relational::functi :: in function 'meta::relational::functions::sqlstring::toNonExecutableSQLString': no overload of 'meta::relational::functions::sqlstring::toSQLString' matches 8 argument(s) of these shapes — candidates: [me
 - testNotEqualityInFilterOnOptionalPropertiesLegacy #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "roo :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "person
 - testSqlGenerationDivide_AllDBs #1 meta::relational::functions::asserts::assertSameSQL -> divergence: platform-fail: assertSameSQL (sql-text, DBN — text is the contract): expected select ((N.N * "root".quantity) / N) from tradeTabl :: assertSameSQL (sql-text, DB2 — text is the contract): expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trad
 - testSqlGenerationDivide_AllDBs #2 - -> not-reached: 1 assert(s) after the failure
@@ -931,7 +930,6 @@ tests in the ledger: 156
 - FAIL testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert did not hold (false)
 - FAIL testEqualityInFilterOnOptionalPropertiesLegacy [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "personTable_d#6_d#3_m1_d#2_m1" on ("root".MANAGERID = "personTable_d#6_d#3_m1_d#2_m1".ID) where ("root".AGE = "personTable_d#6_d#3_m1_d#2_m1".AGE or ("root".AGE is null and "personTable_d#6_d#3_m1_d#2_m1".AGE is null)), got select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID) where ("root".AGE = "persontable_1".AGE or ("root".AGE is null and "persontable_1".AGE is null))
 - FAIL testIsDistinctSQLGeneration [transform/fromPure/tests]: sql-text: expected select "root".LEGALNAME as "LegalName", count(distinct("personTable_d#4_d_m1".FIRSTNAME)) = count("personTable_d#4_d_m1".FIRSTNAME) as "IsDistinctFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "LegalName", got select "root".LEGALNAME as "LegalName", count(DISTINCT "persontable_0".FIRSTNAME) = count("persontable_0".FIRSTNAME) as "IsDistinctFirstName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "LegalName"
-- SHAPE testNonExecutableSQLString [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testNotEqualityInFilterOnOptionalPropertiesLegacy [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "personTable_d#7_d#4_m1_d#2_m1" on ("root".MANAGERID = "personTable_d#7_d#4_m1_d#2_m1".ID) where (not ("root".AGE = "personTable_d#7_d#4_m1_d#2_m1".AGE) or ("root".AGE is null and "personTable_d#7_d#4_m1_d#2_m1".AGE is not null) or ("root".AGE is not null and "personTable_d#7_d#4_m1_d#2_m1".AGE is null)), got select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID) where (not ("root".AGE = "persontable_1".AGE) or ("root".AGE is null and "persontable_1".AGE is not null) or ("root".AGE is not null and "persontable_1".AGE is null))
 - FAIL testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-text: expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trade_id as trade_id, max("root".eventDate) as maxTradeEventDate from tradeEventTable as "root" group by "root".trade_id) as "tradeEventViewMaxTradeEventDate_d#4_d#4_m5" on ("root".ID = "tradeEventViewMaxTradeEventDate_d#4_d#4_m5".trade_id) where "root".ID = 2, got select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" where "root".ID = 2
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)

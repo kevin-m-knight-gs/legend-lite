@@ -3151,6 +3151,8 @@ public final class EngineTestExecutor {
                     .TO_SQL_STRING_PRETTY,
             // batch 75: the toSQL handle — toSQL(...).toSQLString(...)
             com.legend.compiler.element.type.PlatformTypes.TO_SQL,
+            com.legend.compiler.element.type.PlatformTypes
+                    .TO_NON_EXECUTABLE_SQL_STRING,
             // TDG 49er: .sqls reads ARE produced SQL — outcome-bucketed
             // classification (a replay RESCUE must not dual-eval into a
             // text-equality disagreement)

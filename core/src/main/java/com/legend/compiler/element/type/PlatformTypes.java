@@ -212,6 +212,13 @@ public final class PlatformTypes {
     public static final String TO_SQL =
             "meta::relational::functions::sqlstring::toSQL";
 
+    /** toNonExecutableSQLString(f, mapping, dbType, ext) — toSQLString with
+     * the engine's nonExecutable post-processor installed (toSQLString.pure:83-86):
+     * the same K-routine, the nonExecutable IR pass applied before the
+     * render. Batch 81. */
+    public static final String TO_NON_EXECUTABLE_SQL_STRING =
+            "meta::relational::functions::sqlstring::toNonExecutableSQLString";
+
     /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
     public static final String SET_UP_DATA_SQLS_V2 =
             "meta::alloy::service::execution::setUpDataSQLsV2";
@@ -415,6 +422,7 @@ public final class PlatformTypes {
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
                 || TO_SQL.equals(fqn)
+                || TO_NON_EXECUTABLE_SQL_STRING.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
                 || PLAN_TO_STRING.equals(fqn)
@@ -463,6 +471,7 @@ public final class PlatformTypes {
                 || TO_SQL_STRING.equals(fqn)
                 || TO_SQL_STRING_PRETTY.equals(fqn)
                 || TO_SQL.equals(fqn)
+                || TO_NON_EXECUTABLE_SQL_STRING.equals(fqn)
                 || SET_UP_DATA_SQLS_V2.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
@@ -595,6 +604,7 @@ public final class PlatformTypes {
                     // envelope-splice fold)
                     java.util.Map.entry(TO_SQL_STRING, NativeImpl.JAVA_ROUTINE),
                     java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
+                    java.util.Map.entry(TO_NON_EXECUTABLE_SQL_STRING, NativeImpl.JAVA_ROUTINE),
                     // batch 75: the SQLResult handle — consumed by the
                     // 5-argument toSQLString row above (the plan handle's
                     // twin: no rows of its own, the consumer forces it)

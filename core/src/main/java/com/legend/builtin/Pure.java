@@ -1608,6 +1608,10 @@ public final class Pure {
     // strips formatting (sqlRemoveFormatting), so the flat rendering is
     // compare-equal. The 3rd argument is DatabaseType OR Runtime (:40).
     public static final NativeFunctionDefinition TO_SQL_STRING_PRETTY__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toSQLStringPretty(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], databaseTypeOrRuntime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
+    // toNonExecutableSQLString (toSQLString.pure:83-86): toSQLString with the
+    // engine's nonExecutable post-processor installed — the same K-routine,
+    // the nonExecutable IR pass applied before the render (batch 81).
+    public static final NativeFunctionDefinition TO_NON_EXECUTABLE_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toNonExecutableSQLString(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], databaseType:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // toSQL (engine toSQLString.pure:46): the SQLResult-producing half of
     // the same doctrine — toSQLStringPretty(f, mapping, runtime, ext) IS
     // toSQL(f, mapping, runtime, ext).toSQLString(connection.type,

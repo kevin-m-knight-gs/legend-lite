@@ -563,6 +563,12 @@ final class StatementExecutor {
         com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors
                 .apply(es.plan(), com.legend.exec.PostProcessBoundary
                         .tableReplace());
+        // toNonExecutableSQLString: the engine's nonExecutable post-processor
+        // (every SELECT takes `and 1 = 2`) — the IR pass, then the render
+        if (com.legend.compiler.element.type.PlatformTypes
+                .TO_NON_EXECUTABLE_SQL_STRING.equals(call.callee().qualifiedName())) {
+            post = com.legend.lowering.SqlPostProcessors.nonExecutable(post);
+        }
         return new ExecutionResult.Scalar(post == es.plan() ? es.sql()
                         : renderer.render(post),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
@@ -760,7 +766,9 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.PlatformTypes
                         .TO_SQL_STRING, sqlText,
                 com.legend.compiler.element.type.PlatformTypes
-                        .TO_SQL_STRING_PRETTY, sqlText);
+                        .TO_SQL_STRING_PRETTY, sqlText,
+                com.legend.compiler.element.type.PlatformTypes
+                        .TO_NON_EXECUTABLE_SQL_STRING, sqlText);
     }
 
     private static @com.legend.Nullable ExecutionResult planToString(
@@ -1878,7 +1886,9 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.PlatformTypes
                         .TO_SQL_STRING,
                 com.legend.compiler.element.type.PlatformTypes
-                        .TO_SQL_STRING_PRETTY);
+                        .TO_SQL_STRING_PRETTY,
+                com.legend.compiler.element.type.PlatformTypes
+                        .TO_NON_EXECUTABLE_SQL_STRING);
     }
 
     /** The member name of a typed enum-shaped read (DatabaseType.H2). */

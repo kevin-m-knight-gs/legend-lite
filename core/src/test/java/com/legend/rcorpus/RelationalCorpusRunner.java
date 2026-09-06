@@ -2050,10 +2050,16 @@ public class RelationalCorpusRunner {
             // (the graph envelope's correlated child subquery), and every
             // execute() a statement reaches through ordinary lets carries
             // them (reachableRenames). testGraphFetchWithTableMapperPostProcessor.
-            org.junit.jupiter.api.Assertions.assertEquals(156L,
+            // batch 81 / L7a (2026-09-06): 156 -> 155 — toNonExecutableSQLString
+            // (engine toSQLString.pure:83-86: toSQLString with the
+            // nonExecutable post-processor) is a fourth toSQLString-family
+            // native on the one K-routine; the nonExecutable IR pass renders,
+            // and the sql-text arm's rows leg runs under it (both sides read
+            // zero rows by construction). testNonExecutableSQLString.
+            org.junit.jupiter.api.Assertions.assertEquals(155L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2417L,
+            org.junit.jupiter.api.Assertions.assertEquals(2418L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2110,7 +2116,11 @@ public class RelationalCorpusRunner {
             // assertSameSQL left the walk's text-only lane — the toSQL handle
             // and SQLResult.toSQLString typed, the test flipped, and the
             // assert is a platform-arm row verdict (lane move, disagree 0)
-            org.junit.jupiter.api.Assertions.assertEquals(13,
+            // 13 -> 12 (batch 81 / L7a, 2026-09-06): testNonExecutableSQLString's
+            // assertSameSQL left the walk's text-only lane — the
+            // toNonExecutableSQLString producer is recognized and the test
+            // flipped (lane move, disagree 0)
+            org.junit.jupiter.api.Assertions.assertEquals(12,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

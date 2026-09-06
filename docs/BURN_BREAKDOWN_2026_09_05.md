@@ -119,11 +119,13 @@ Status: **batch 80 / L6a LANDED (2026-09-06)** — testGraphFetchWithTableMapper
 
 ### L7 Post-processors as compiler passes (4)
 
+Status: **batch 81 / L7a LANDED (2026-09-06)** — testNonExecutableSQLString flipped (155/2418; text-only lane 13 → 12). The relationalMapper pair asserts a PLAN NODE's sqlQuery text over foreign schema names (`snDBDefault.default.*`, no such schema in any session) — text unless a referee creates the schema (L15's idea); testPostProcessTransformJoinOp is TEXT behind its wall.
+
 | test | detail |
 |---|---|
 | alloy::connections::relationalMapper::testRelationalMapperWithJoin | DIVERGENCE: schema/table mapper on the connection (`snDBDefault.default.firmTableNew`) not applied |
 | alloy::connections::relationalMapper::testRelationalMapperTwoDBs | same, two databases |
-| sqlstring::testNonExecutableSQLString | `toNonExecutableSQLString` — the non-executable rewrite pass (typer: toSQLString 8-arg overload) |
+| sqlstring::testNonExecutableSQLString | **FLIPPED batch 81** — a fourth toSQLString-family native on the one K-routine; the nonExecutable IR pass renders and the rows leg runs under it |
 | postProcessor::testPostProcessTransformJoinOp | a connection `sqlQueryPostProcessors` lambda over the SQL AST — the ONE post-processor test that is a user-supplied pass; text assert behind it (TEXT) |
 
 ### L8 Natives and small typer legs (12)
@@ -201,7 +203,7 @@ row JSON envelope — a golden-to-rows referee arm).
 
 | test | detail |
 |---|---|
-| relation::testRelationStoreAccessorOnView | Catalog Error: personView does not exist — a relation store accessor over a VIEW must expand the view |
+| relation::testRelationStoreAccessorOnView | **RECLASSIFIED → TEXT (T1) 2026-09-06**: its first assert is `assert($result->contains('"sql":"select \\"personview_0\\".ID as \\"ID\\", … from (select \\"root\\".ID as ID … from personTable as \\"root\\") as \\"personview_0\\""'))` (tests/mapping/relation/tests.pure — `contains` over the engine's `personview_0` alias spelling of OUR SQL); the view-expansion wall on the typed accessor path is real work that cannot flip the test — the second assert (rows) would then pass. Counted with T1 |
 | testDataGeneration::alloy::testAlloyTestDatGenWithQuotedColumnsForViews | TDG over a view-backed relation (view slice) — then a plan-string assert (TEXT behind) |
 
 ### L12 Milestoning divergence (1)
@@ -393,7 +395,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 → **56**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 → **54**.
 
 So "burn to zero" honestly means: **68 tests can become real verdicts**, in
 sixteen legs. The other 100 are named for what they are; none of them is a
