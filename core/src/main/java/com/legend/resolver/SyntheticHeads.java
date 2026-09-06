@@ -475,6 +475,10 @@ final class SyntheticHeads {
             if (fused != null) {
                 return liftFilteredHeads(fused, enabled, fc);
             }
+            TypedSpec guarded = instanceFilterNavRead(n, canon);
+            if (guarded != null) {
+                return liftFilteredHeads(guarded, enabled, fc);
+            }
         }
         // ->map(e|$e.leaf) over a (filtered) class navigation IS the
         // property-path spelling — normalize and take the lift arm (the
@@ -837,6 +841,54 @@ final class SyntheticHeads {
                 parkPositional(nav.property(), k),
                 new ExprType(headType, Multiplicity.Bounded.ZERO_ONE));
         return new TypedPropertyAccess(renamed, pa.property(), pa.info());
+    }
+
+    /** A NAVIGATION read through a filter over the [1] instance itself —
+     * {@code filter($r, pred).hop.leaf} (the subtype-cast canon's spelling
+     * of {@code $r->subType(@Bicycle).person.name}: the member witness as
+     * the filter, the cast's slot as the hop) — is the instance-filter
+     * idiom with a navigation leaf: {@code if(pred[$r], | $r.hop.leaf, | [])}
+     * (the CASE WHEN the 1-hop instance read already lowers to), spelled
+     * so every scan demands the hop on the instance. Two or more hops
+     * only; the 1-hop column read keeps Substitution.filteredInstanceRead. */
+    private static @com.legend.Nullable TypedSpec instanceFilterNavRead(TypedSpec n,
+            java.util.function.UnaryOperator<TypedSpec> canon) {
+        List<TypedPropertyAccess> hops = new java.util.ArrayList<>();
+        TypedSpec cur = n;
+        while (cur instanceof TypedPropertyAccess pa) {
+            hops.add(0, pa);
+            cur = pa.source();
+        }
+        // the canonicalizer is node-local and top-down: the cast beneath
+        // the innermost hop has not been visited yet — canonicalize that
+        // hop first ($r->subType(@Bicycle).person -> filter($r, witness)
+        // .stc_Bicycle___person) so the filter form is what this arm reads
+        if (hops.size() >= 2 && !(cur instanceof TypedFilter)) {
+            TypedSpec c0 = canon.apply(hops.get(0));
+            if (c0 instanceof TypedPropertyAccess cp && cp.source() instanceof TypedFilter) {
+                hops.set(0, cp);
+                cur = cp.source();
+            }
+        }
+        if (hops.size() < 2
+                || !(cur instanceof TypedFilter f)
+                || !(f.source() instanceof TypedVariable iv)
+                || !(iv.info().type() instanceof Type.ClassType)
+                || !(iv.info().multiplicity() instanceof Multiplicity.Bounded ib
+                        && Integer.valueOf(1).equals(ib.upper()))
+                || f.predicate().parameters().size() != 1
+                || f.predicate().body().size() != 1) {
+            return null;
+        }
+        TypedSpec chain = iv;
+        for (TypedPropertyAccess h : hops) {
+            chain = new TypedPropertyAccess(chain, h.property(), h.info());
+        }
+        TypedSpec cond = Substitution.inlineParam(f.predicate().body().get(0),
+                f.predicate().parameters().get(0), iv);
+        return new com.legend.compiler.spec.typed.TypedIf(cond, chain,
+                java.util.Optional.empty(),
+                new ExprType(n.info().type(), Multiplicity.Bounded.ZERO_ONE));
     }
 
     /** The two spellings of a leaf read over a class-collection map —

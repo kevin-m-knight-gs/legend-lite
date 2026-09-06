@@ -4145,3 +4145,16 @@ register their SubNavs on the exists target's Substitution scope.
 Then: isolationTest (depth-2 pred hopping parent navs), the multigrain embedded
 chain, rowValueDifferenceTest (engine program admission + TDSColumn instances),
 L3/L5/L6/L13/L15 per §7 of the breakdown.
+
+**Batch 95 / L1 subtype cast over a member union (2026-09-06, chain GREEN 6m10s; GATES
+batch 95).** 140/2433 → 139/2434; IMPL 30. The cast canon reads the union's PLAIN
+lifted slot; SyntheticHeads.instanceFilterNavRead = the guarded navigation read.
+NEXT (probed): testExistsAsNullWithSubType — `functions->exists(f | $f.fnScope
+->subType(@Public).id->isNotEmpty())`: the cast canon renames the leaf to the
+stc column of the nested nav `fnScope` (ClassFunction[map1]'s routed Join PM,
+fnScope[map2]/[map3] → the Private/Public union); the exists predicate scope
+(Substitution.rewriteExists → predSub over ex.innerRegs()) has no AssocSub for
+`fnScope` (assocLeaf: `target.nested()` wall). The nested scope comes from
+StoreResolver.nestedScope → scopeMaterials over the target with the exists
+lambda's full paths — find why the routed `fnScope` slot does not register
+there (dump the target's bindings/navSteps and the nested scope's assocs keys).

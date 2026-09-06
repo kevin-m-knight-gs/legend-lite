@@ -2140,10 +2140,19 @@ public class RelationalCorpusRunner {
             // [1] operands under plus/times renders as the engine's binary
             // chain (NULL-propagating; Numerics.scalarChain) instead of the
             // NULL-skipping list aggregate. testFilterTimesWithManyOperands.
-            org.junit.jupiter.api.Assertions.assertEquals(140L,
+            // batch 95 / L1 (2026-09-06): 140 -> 139 — a subtype cast over the
+            // ROOT of a member union followed by a class-typed hop
+            // ($r->subType(@Bicycle).person.name): the cast canon reads the
+            // union's PLAIN lifted navigate slot (UnionSynthesis NAV LIFT keys
+            // it `person`, not stc_<Bicycle>___person), and a navigation read
+            // through the instance's witness filter is the guarded read
+            // if(witness, | $r.person.name, | []) spelled in the lift pass
+            // (SyntheticHeads.instanceFilterNavRead) so the slot is demanded.
+            // multiJoins::testForcedSubTypeProjectDirect.
+            org.junit.jupiter.api.Assertions.assertEquals(139L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2433L,
+            org.junit.jupiter.api.Assertions.assertEquals(2434L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

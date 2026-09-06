@@ -2157,12 +2157,22 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             return n;
         }
         TypedSpec nav = sc.args().get(0);
+        String stc = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
+                pa.property());
+        // a member's CLASS-TYPED Join PM lifts onto the union as ONE plain
+        // navigate slot (UnionSynthesis NAV LIFT: `person` with the
+        // per-member routes as its slots, member-suffixed keys NULL in the
+        // other threads) — the cast reads that slot by its plain name; the
+        // witness filter keeps the row set to the member (multiJoins
+        // golden testForcedSubTypeProjectDirect: TDSNull for the cars)
+        String read = !target.bindings().containsKey(stc)
+                && target.bindings().containsKey(pa.property())
+                && pa.info().type() instanceof Type.ClassType
+                ? pa.property() : stc;
         return new TypedPropertyAccess(
                 new TypedFilter(nav, witnessPred(navCt, wKey, isNotEmpty),
                         nav.info()),
-                com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
-                        pa.property()),
-                pa.info());
+                read, pa.info());
     }
 
     /** The cast head's dispatch-resolved ClassSource — audit 23 A5: only
