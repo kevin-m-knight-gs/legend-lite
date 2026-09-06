@@ -1,5 +1,85 @@
 # Harness-Deletion Burn — Session Handoff (for the session after 2026-09-01)
 
+## 0. NEXT-SESSION PLAN (written 2026-09-06 after batch 105 — READ THIS FIRST)
+
+State: main 8d6cd668e, ratchet 130/2443, corpus 2575. Standing rules: memory
+`harness-burndown-program-2026-09` + the loop in this file's earlier session-close
+entries (probe once with LL_TMP_DEBUG=1 / LEGEND_LITE_STACKS=1 / LL_DUMP_RESOLVED=1 /
+LEGEND_LITE_DUMP_SQL=1 and `-Drcorpus.test=<substring>`; implement engine-faithfully;
+DuckDB lane + set difference of core/target/wholetest-flipped.txt, H2 lane, guardrail
+classes, pins with a written justification, `caffeinate -i tools/allgates.sh` with
+LEGEND_ENGINE_ROOT/LEGEND_PURE_ROOT/GATES_LOG exported and the tree FROZEN, then
+GATES.md / charter §8.0 / this file / breakdown Status + count line / memory, commit
+NAMED files, push). Always `-Dlegend.engine.root=/Users/neemsandv/legend/legend-engine
+-Dlegend.pure.root=/Users/neemsandv/legend/legend-pure`. One leg per batch. No hacks:
+no Java naming an engine program, no text surgery, no static sinks, no test-shaped arms;
+a traced golden disagreement is a `revisit:` receipt (AssertLedger), never a resolution.
+The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
+
+### Phase 1 — burn everything that needs NEITHER code-as-data NOR metamodel-as-data
+
+1. **isolationTest** (L1) — design written: breakdown §8.0 (re-base the tail predicate
+   onto the fan-out element; nested exploding parent-copy reroute with the employee as
+   the parent; register the composed prefix as a SubNav). Golden SQL quoted there.
+2. **Embedded-head trio** (L1): testToManyWithQualifierWithFilterOnJoin,
+   testRoutingWithSubtypePropagation, testInheritanceMultipleLevel — breakdown §8.2
+   (SubNav children through embedded bodies inside lifted sub-slots; the subtype-chain
+   variant reads `employees.stc_<Sub>___manager.stc_…`). testInheritanceMultipleLevel's
+   first 6 asserts already pass; only the 7th walls.
+3. **Cross-store model joins** (L5, 4 tests): testPersonToFirmUsingFromProject,
+   testPersonToFirmUsingProject (assert-free twin), testCrossMappingWithRelOpWithJoinKeys,
+   testNestedModelJoinCompoundInnerCondition. NO design note yet — the wall is
+   `association 'X' is not mapped`: an XStore association (mapped in a ModelChain /
+   cross-store mapping with join keys, `meta::external::store::relational::modelJoins`)
+   must resolve as a relational join between the two stores' tables in ONE session (all
+   corpus databases live in the one DuckDB session). Size it first: read
+   modelJoins.pure's mapping + the engine's relationalModelJoins.pure.
+4. **Plan-printer bugs behind TEXT labels** (rows are not at stake; the plan text is
+   the assert): tdsTwoJoinThreeDB — our cross-db plan splitter joins the second
+   database's projection subselect DIRECTLY into the first allocation (dump 2026-09-06:
+   `Join[left=Subselect(person, db dbInc), right=Subselect(firmTable)]` under db dbInc)
+   instead of routing it through a second tdsVar allocation as the engine does
+   (StatementExecutor.crossDbTdsPlan / PlanAllocations); withPlatform — a value tail
+   (`.lastName->makeString(', ')`) must print as a `PureExp` node wrapping the
+   `Relational` node (engine plan shape) instead of lowering STRING_AGG into the plan
+   dialect (AnsiSqlRenderer.reduceCollection walls). Both are PlanText work.
+5. **Referee gaps** (only if cheap; they do not flip tests, their asserts are plan text):
+   testProp3 (m2m2r fixture never seeded in the referee), testQuoteIdentifiersFlagWithGraphFetch
+   (`productSchema` not created in the referee session).
+6. **Optional optimization**: testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct
+   (prune an unused aggregate; rows already pass).
+
+### Phase 2 — parked and revisit, decided with the user
+
+Parked (each has a note): testExistsAsNullWithSubType (§8.1 — normalizer routed
+navigate), testPksWithImportDataFlow (batch 105 note — option-driven union keys),
+testNonDataTypeProperty (batch 104 note — H4 whole-value class column),
+testPostProcessTransformJoinOp and the 5 testConnectionEquality* (code-as-data →
+Phase 3). Revisit receipts (AssertLedger `revisit:`): instance-filter-ungated,
+relation-mapping-filter-alias-root ×2, h2-distinct-root-order (test6),
+engine-isDistinct-checked-defect (testCheckedWithCircularConstraints), and the union
+relation pair (breakdown row: the engine re-parses Relation-typed execute results
+through CSV, '' → null; the boundary prototype was reverted). Bring each to the user
+with the trace; the user rules "follow the relational lane" or "follow Pure" per item.
+
+### Phase 3 — code-as-data + metamodel-as-data (design first, then implement)
+
+Inputs: docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md, docs/METAMODEL_AS_RELATIONS_HOMEWORK_2026_09_02.md,
+docs/WORLD_MAP.md, branch wip/72c-extension-registry-read (mechanism), memory
+`code-as-data-leg-parked` and `metamodel-as-relations-state`. The MISSING metamodel
+feature named there: match/cast over a discriminated row. What it unlocks (ledger):
+ENGINE 32 (pureToSqlQuery internals 8, router 7, SQL renderer/DDL 5, post-processors
+over the SQL tree 2, protocol transforms 2, tdsToRelation 2, one-offs 4 — programs over
+the engine's trees), the plan-object TEXT tests (7, need our plan exposed as rows in
+the engine's node shape), the 5 connection-equality tests, the post-processor lambda,
+testViewToTDS (`dataTypeToCompatiblePureType` is a `match` over DataType), and the
+recursion pair (decision:recursion → recursive CTE over the rows; user 2026-09-06:
+recursion is NOT never). Dynamic execution stays staged compilation (user 2026-09-06).
+Foreign dialects: breakdown §6b (real backends), a separate leg.
+
+---
+
+
 Supersedes `docs/SESSION_HANDOFF_2026_09_01.md` (kept for its audit trail).
 Read this top to bottom before touching the tree; every number below is
 a measured receipt from the sweeps that landed HEAD.
