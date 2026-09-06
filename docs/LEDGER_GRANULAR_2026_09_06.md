@@ -1,6 +1,6 @@
 # Granular fallback ledger — 2026-09-06 (after batch 105)
 
-130 fallbacks of 2575 runnable tests (2443 flipped). One entry per test: the run's bucket (the first failing assert's reason; the runner normalizes names to `_` and numbers to `N`), the breakdown's classification and row, and every assert row from the assert ledger. Built from `core/target/wholetest-flip-buckets.txt` (DuckDB lane), `docs/RELATIONAL_CORPUS.md` (assert ledger) and `docs/BURN_BREAKDOWN_2026_09_05.md`.
+130 fallbacks of 2575 runnable tests (2443 flipped). [batch 106, same day: isolationTest burned → 129/2444; this snapshot is otherwise unchanged.] One entry per test: the run's bucket (the first failing assert's reason; the runner normalizes names to `_` and numbers to `N`), the breakdown's classification and row, and every assert row from the assert ledger. Built from `core/target/wholetest-flip-buckets.txt` (DuckDB lane), `docs/RELATIONAL_CORPUS.md` (assert ledger) and `docs/BURN_BREAKDOWN_2026_09_05.md`.
 
 
 ## 1. IMPL (14)

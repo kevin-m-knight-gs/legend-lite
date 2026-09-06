@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 106 / L1 isolation (element-scoped tail predicate) LANDED (2026-09-06)** — isolationTest flipped (129/2444), both asserts; IMPL 16, REVISIT 7. USER RULING (same day): the resolver's string-keyed path model is a debt — a NavPath/Hop leg is sized BEFORE the embedded-head trio (memory string-hacking-audit-navigation-paths).
+
 Status: **batch 105 / L13 tdsToJSONKeyValueObjectString LANDED (2026-09-06)** — executeProjectWithNestedDerivedProperty flipped (130/2443); planGraphFetchWithDerivedProperty reclassified TEXT; two REVISIT receipts (test6, testCheckedWithCircularConstraints); testPksWithImportDataFlow PARKED. IMPL 17, REVISIT 7.
 
 Status: **batch 104 / L2 sub-aggregation in a fan-out mapper LANDED (2026-09-06)** — both testSubAggregationWithDeepAndOverlap tests flipped (131/2442); L2 closed (3/3). testNonDataTypeProperty PARKED (H4 whole-value class column). IMPL 19, REVISIT 5.
@@ -66,7 +68,7 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 | projection::simple::testRoutingWithSubtypePropagation | multi-hop (subType chain) through an embedded head | assertEquals on SQL text ONLY → TEXT behind the wall |
 | testDataGeneration::testInheritanceMultipleLevel | multi-hop vehicles#f.subType.person.name | TDG rows |
 | businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction | **REVISIT (batch 93 receipt `revisit:instance-filter-ungated` — traced, NOT resolved; user 2026-09-06: the relational lane and Pure disagree, the lane choice is revisited at the end)** — the instance-filter idiom canonicalizes in the lift pass (the wall is gone; the assert reaches its sql-text ROW verdict); the golden projects `"root".id` unconditionally (testBusinessDateMilestoning.pure:591 — its filter subselect never gates the value) while Pure's filter->map and the engine's own sibling golden testConcatenateWithFilter ('Firm A,', testConcatenate.pure:88) yield the empty cell; rows [1, 2] vs ours [TDSNull, 2] | assertSameSQL → referee rows |
-| advanced::forcedselfjoin::isolationTest | correlated filter predicate at depth ≥ 2 (batch 69b wall) | rows |
+| advanced::forcedselfjoin::isolationTest | FLIPPED batch 106 — the predicate re-bases onto the fan-out element at the lift (ElementScope); the head's target materialization joins the chain as the exploding parent-copy subselect with the target as parent (§8.0) | rows |
 | injection::testProjectThroughAssociation | **FLIPPED batch 90** — the lift runs inside a class-collection mapper; the parent-scoped correlated predicate composes into the sub-hop join's ON clause (NavMaterializer.conditionFor) | rows |
 | inheritance::multiJoins::testForcedSubTypeProjectDirect | **FLIPPED batch 95** — the cast canon reads the union's plain lifted `person` slot; the read through the witness filter is the guarded `if(witness, \| $r.person.name, \| [])` (SyntheticHeads.instanceFilterNavRead) | rows |
 | injection::testProjectThroughAssociationAutoMap | **FLIPPED batch 92** — map fusion in the lift canon: the leaf read over the auto-mapped derived property (`map($b.trades, _am0 \| toOne(filter(...))).name`) fuses into the mapper, then batch 90's parent-scoped route serves it | rows |
@@ -465,7 +467,9 @@ justification), per [[burn-fallbacks-every-batch]].
 Conventions: "wall @" names the throw site; "owner" names the code that must
 change; engine paths are under core_relational/relational (REL) unless said.
 
-### 8.0 L1 — isolationTest: the tail-hop correlated predicate (sized 2026-09-06, after batch 105; not started)
+### 8.0 L1 — isolationTest: the tail-hop correlated predicate (sized 2026-09-06, after batch 105; LANDED batch 106 the same day)
+
+LANDED (batch 106): mechanisms (1)+(2)+(3) below built as designed with one change of placement — the RE-BASE happens at the LIFT (SyntheticHeads.rebaseToElement, so the outer read never registers parent demand at the root — otherwise the employees slot would have joined `product` and duplicated Peter's row), and the nested reroute lives in NavMaterializer (elementDivertedTails + foldElementReroutes) reusing CorrelatedSubselects.explodingSubselect with the target as the parent — the "corrNavHeads factoring" risk named below did not materialize because the fold is the same three calls the root makes. The prefix tails of a rerouted tail are diverted with it (else the plain slot joins beside the reroute). Emitted shape = the golden's (Person copy ⋈ product ⋈ group→children→coveredProduct WHERE pred, keyed by ID, LEFT-joined on the employees row). Original sizing note kept for the record:
 
 Query: `Firm.all()->project([... col(x | $x.employees.group.children->filter(c |
 $c.coveredProduct.name == $x.employees.product.name).name->toOne(), 'testCol')])`.
@@ -614,7 +618,7 @@ Probe diagnostics (LEGEND_LITE_STACKS=1, `[multi-hop wall] path=… targetBindin
   the other two are union-lift coverage (UnionSynthesis) + stc-qualified slot reads.
 ### 8.3 L1 — the rest, walls and owners
 
-- isolationTest: `correlated filter predicate on hop '_' at depth 2 of employees.group.children.name has no application site` — StoreResolver.unappliedCorrelatedWall (batch 69b); leg = apply the parked predicate at depth ≥ 2 and reroute an already-claimed alias (memory harness-burndown-program).
+- isolationTest: LANDED batch 106 (§8.0).
 - testProjectThroughAssociation / testForcedSubTypeProjectDirect: `filtered-navigation read reached substitution unlifted — the router owns this shape (batches 69+)`; SubQueryLift/SyntheticHeads.liftValueRead pre-pass misses the injection mapping's `trades->map(t|$t.productAtTimeOfTrade.name)` and the `->subType(@Bicycle).person.name` project column.
 - testProjectThroughAssociationAutoMap: `object-space expression node TypedFilter is not substitutable yet` — `$b.trades.productAtTimeOfTrade.name` auto-map with a filter in object space (Substitution).
 - testFilterTimesWithManyOperands: `aggregate over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one` — `$p.firm->toOne().sumEmployeesAge()` (qualifier aggregating a to-many under a to-one hop); owner CorrelatedSubselects aggregated subselect through a to-one hop.

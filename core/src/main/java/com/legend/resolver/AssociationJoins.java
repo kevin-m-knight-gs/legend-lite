@@ -69,7 +69,11 @@ final class AssociationJoins {
         }
         TypedLambda cp = synthetics.correlatedPred(path.get(0));
         if (cp == null) {
+            // an ELEMENT-scoped tail pred (re-based onto the head's
+            // element, batch 106) applies inside the head's target — it
+            // never triggers the ROOT's parent-copy reroute
             cp = path.subList(mid, path.size()).stream()
+                    .filter(seg -> !synthetics.isElementScoped(seg))
                     .map(synthetics::correlatedPred)
                     .filter(java.util.Objects::nonNull)
                     .findFirst().orElse(null);
@@ -841,8 +845,15 @@ final class AssociationJoins {
      * (the batch-1 duplicate-{@code employees_ID} wall, fixed
      * structurally, never by registration-order probing). */
     static String prefixFor(String head, ClassSource cs) {
+        return prefixFor(head, cs.rowType());
+    }
+
+    /** {@link #prefixFor(String, ClassSource)} against an explicit row —
+     * a join folded onto an already-materialized pipeline bumps against
+     * THAT row (the nested element reroute, batch 106). */
+    static String prefixFor(String head, Type.RelationType row) {
         Set<String> taken = new LinkedHashSet<>();
-        for (Type.Column c : cs.rowType().columns()) {
+        for (Type.Column c : row.columns()) {
             taken.add(c.name());
         }
         String base = head.replace('#', '_');
@@ -1830,14 +1841,22 @@ final class AssociationJoins {
         Set<String> unconvertedTgt = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
+        // the param's NESTED-navigation reads land DIRECTLY on the joined
+        // row: the sub-nav tree's prefixes compose absolute to the target
+        // row (NavMaterializer.composeSubNavPrefixes), so the landing is
+        // targetPrefix + that prefix — registered on the joined row var,
+        // never re-prefixed by the param landing below (batch 106: routed
+        // through the param var, `$c.coveredProduct.name` under a sub-nav
+        // param composed the sub-nav's prefix twice)
         Map<String, Substitution.AssocSub> tgtAssocs = new java.util.LinkedHashMap<>();
         for (var e : targetSubNavs.entrySet()) {
             var sn = e.getValue();
             tgtAssocs.put(e.getKey(), new Substitution.AssocSub(
-                    sn.prefix(), sn.rowVar(), sn.bindings(),
+                    targetPrefix + sn.prefix(), sn.rowVar(), sn.bindings(),
                     target.classFqn() + "." + e.getKey(),
-                    java.util.Set.of(), Map.of(), ct, rowType,
-                    Map.of(), sn.children()));
+                    java.util.Set.of(), Map.of(), rowVar, rowType,
+                    Map.of(), NavMaterializer.composeSubNavPrefixes(
+                            targetPrefix, sn.children())));
         }
         Substitution tgtSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(pred.parameters().get(0), ct,

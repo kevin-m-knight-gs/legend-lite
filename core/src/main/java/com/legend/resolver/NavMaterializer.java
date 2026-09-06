@@ -100,8 +100,11 @@ final class NavMaterializer {
         // set-discriminated binding (ClassSources.getForNav).
         String prefix = java.util.Objects.requireNonNull(chainPrefix,
                 "nav materialization without a set-id dispatch prefix");
-        ClassSource t = sources.getForNav(mappingFqn, targetClassFqn,
-                prefix.substring(prefix.lastIndexOf('.') + 1), scope);
+        // the HEAD this target hangs off (its identity suffix included) —
+        // the one extraction; set-id dispatch and the element-scope check
+        // (batch 106) both read it
+        String headId = prefix.substring(prefix.lastIndexOf('.') + 1);
+        ClassSource t = sources.getForNav(mappingFqn, targetClassFqn, headId, scope);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
         // (engine: one context object per cursor, explicit dates override
@@ -135,8 +138,13 @@ final class NavMaterializer {
                 new LinkedHashMap<>();
         Map<String, Set<String>> assocSubLeaves = new LinkedHashMap<>();
         Set<String> memberKeyDemand = new LinkedHashSet<>();
+        // ISOLATION (batch 106): tails carrying an element-scoped pred
+        // leave the slot spine — head → its sub-tails (the root's rule)
+        Map<String, List<List<String>>> elementReroutes = new LinkedHashMap<>();
+        Set<List<String>> diverted = elementDivertedTails(t, tails, headId,
+                tNavSteps, elementReroutes);
         for (List<String> tail : tails) {
-            if (tail.isEmpty()) {
+            if (tail.isEmpty() || diverted.contains(tail)) {
                 continue;
             }
             TypedSpec b = t.bindings().get(
@@ -174,6 +182,9 @@ final class NavMaterializer {
         Map<String, String> extraSubHeads = new LinkedHashMap<>();
         Map<String, List<List<String>>> extraSubTails = new LinkedHashMap<>();
         for (List<String> tail : tails) {
+            if (diverted.contains(tail)) {
+                continue;
+            }
             if (tail.size() >= 2
                     || (!tail.isEmpty()
                             && assocs.toOneClassProp(t.classFqn(), tail.get(0)))) {
@@ -303,7 +314,194 @@ final class NavMaterializer {
         pipe = foldProjectionCopies(temporal, mappingFqn, t, pipe, subTree,
                 subMats, midByAlias, matM, subClsByAlias, subTails,
                 tNavSteps, chainPrefix, hopCtx, splitChains);
+        pipe = foldElementReroutes(temporal, mappingFqn, t, pipe, subTree,
+                elementReroutes, tNavSteps, prefix, hopCtx);
         return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
+    }
+
+    /**
+     * ISOLATION (engine forced self-join — isolationTest, batch 106): a
+     * tail whose head or FIRST sub-hop carries a correlated predicate
+     * RE-BASED onto THIS target's element (SyntheticHeads.ElementScope:
+     * the predicate read the outer row only through the head this target
+     * hangs off — {@code $x.employees.group.children->filter(c | … ==
+     * $x.employees.product.name)}) leaves the slot spine: it joins as the
+     * exploding parent-copy subselect with THIS target as the parent (the
+     * root's #69 shape one level down — the engine copies the element's
+     * table keyed by its PK: {@code persontable_2.ID = persontable_0.ID}).
+     * Collected here (head → its sub-tails, the root's navTails rule);
+     * folded by {@link #foldElementReroutes}. A deeper element-scoped
+     * predicate, or one on a non-navigate head, keeps a loud wall.
+     */
+    /** The tails the element reroute takes off the slot spine: every
+     * rerouted tail plus its PREFIX tails (the demand scan records each
+     * prefix of a read; a prefix that serves no other read would demand
+     * the plain slot beside the reroute for nothing). */
+    private Set<List<String>> elementDivertedTails(ClassSource t,
+            List<List<String>> tails, String headId,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            Map<String, List<List<String>>> out) {
+        Set<List<String>> diverted = new LinkedHashSet<>();
+        for (List<String> tail : tails) {
+            if (!tail.isEmpty()
+                    && elementRerouteTail(t, tail, headId, tNavSteps, out)) {
+                diverted.add(tail);
+            }
+        }
+        if (diverted.isEmpty()) {
+            return diverted;
+        }
+        for (List<String> tail : tails) {
+            if (tail.isEmpty() || diverted.contains(tail)) {
+                continue;
+            }
+            boolean prefixOfDiverted = diverted.stream().anyMatch(d ->
+                    d.size() > tail.size() && d.subList(0, tail.size()).equals(tail));
+            boolean prefixOfKept = tails.stream().anyMatch(o ->
+                    !diverted.contains(o) && o.size() > tail.size()
+                    && o.subList(0, tail.size()).equals(tail));
+            if (prefixOfDiverted && !prefixOfKept) {
+                diverted.add(tail);
+            }
+        }
+        return diverted;
+    }
+
+    private boolean elementRerouteTail(ClassSource t, List<String> tail,
+            String headId,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            Map<String, List<List<String>>> out) {
+        if (tail.size() < 2) {
+            return false;
+        }
+        int at = -1;
+        for (int i = 0; i + 1 < tail.size(); i++) {
+            SyntheticHeads.ElementScope sc = synthetics.elementScope(tail.get(i));
+            if (sc != null && sc.classFqn().equals(t.classFqn())
+                    && sc.head().equals(SyntheticHeads.realHead(headId))) {
+                at = i;
+                break;
+            }
+        }
+        if (at < 0) {
+            return false;
+        }
+        String shown = String.join(".", tail.stream()
+                .map(SyntheticHeads::realHead).toList());
+        if (at > 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "element-scoped correlated filter predicate on hop '"
+                    + SyntheticHeads.realHead(tail.get(at)) + "' at depth "
+                    + (at + 1) + " of the navigation " + shown + " under '"
+                    + SyntheticHeads.realHead(headId) + "' has no application"
+                    + " site yet (the nested parent-copy reroute applies head"
+                    + " and first-tail-hop predicates only)");
+        }
+        TypedSpec b = t.bindings().get(SyntheticHeads.realHead(tail.get(0)));
+        if (InnerDemand.navSlotAlias(b, t.rowVar(), tNavSteps.keySet()) == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "element-scoped correlated filter predicate on the"
+                    + " navigation " + shown + " under '"
+                    + SyntheticHeads.realHead(headId) + "' whose head is not a"
+                    + " navigate slot of " + t.classFqn()
+                    + " is not supported yet");
+        }
+        out.computeIfAbsent(tail.get(0), k -> new ArrayList<>())
+                .add(tail.subList(1, tail.size()));
+        return true;
+    }
+
+    /** The element reroutes' emission: per head, the target materialized
+     * over the rerouted sub-tails (its own parked-pred reads are tails
+     * too — the root's predTailsFor rule), the exploding parent-copy
+     * subselect with THIS target as the parent (CorrelatedSubselects
+     * .explodingSubselect: parent copy ⋈ target, WHERE the head's and the
+     * first sub-hop's re-based predicates, keyed by the parent's PK),
+     * LEFT-joined onto the pipeline under the head's prefix. The SubNav
+     * registers under the head: a PLAIN slot demand of the same head
+     * keeps its own SubNav (a different join) and gains the rerouted
+     * children — the plain read and the filtered chain never share a
+     * join copy. */
+    private TypedSpec foldElementReroutes(TemporalFrame temporal,
+            String mappingFqn, ClassSource t, TypedSpec pipe,
+            Map<String, Substitution.SubNav> subTree,
+            Map<String, List<List<String>>> reroutes,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            String chainPrefix, TemporalContext hopCtx) {
+        for (var e : reroutes.entrySet()) {
+            String head = e.getKey();
+            String alias = java.util.Objects.requireNonNull(InnerDemand.navSlotAlias(
+                    t.bindings().get(SyntheticHeads.realHead(head)), t.rowVar(),
+                    tNavSteps.keySet()));
+            var nav = java.util.Objects.requireNonNull(tNavSteps.get(alias));
+            String targetCls = ((TypedGetAll) nav.target()).classFqn();
+            String subChain = chainPrefix + "." + head;
+            List<List<String>> tails = new ArrayList<>(e.getValue());
+            for (TypedLambda sp : synthetics.allPreds(head)) {
+                Set<List<String>> spp = new LinkedHashSet<>();
+                for (TypedSpec sb : sp.body()) {
+                    FlattenOps.consumedPaths(sb, sp.parameters().get(0), spp);
+                }
+                tails.addAll(spp);
+            }
+            ClassSource target = sources.get(mappingFqn, targetCls, t.scope());
+            NavMat mat = navTargetMaterialized(temporal, mappingFqn, targetCls,
+                    t.scope(), tails, subChain, hopCtx);
+            TypedSpec tPipe = temporal.temporalTargetPipe(t, target, subChain,
+                    temporal.applyJoinTemporalFilters(mat.pipeline(), target,
+                            Map.of()));
+            tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
+                    CorrelatedSubselects.predFilteredPipe(p, target,
+                            mat.slotPrefixes(), mat.subNavs(), pred, mappingFqn));
+            var leftRow = com.legend.compiler.element.type.Type
+                    .requireRelationSchema(pipe.info().type());
+            // the prefix bumps against the MATERIALIZED row: a plain slot
+            // demand of the same head already rides it under head_
+            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
+                    AssociationJoins.prefixFor(head, leftRow), target, tPipe,
+                    com.legend.compiler.element.type.Type.requireRelationSchema(
+                            tPipe.info().type()),
+                    AssociationJoins.withOuterDatedWindow(temporal, t, target,
+                            subChain, nav.predicate(), tPipe),
+                    mat.slotPrefixes(), mat.subNavs(),
+                    synthetics.correlatedPred(head), null,
+                    synthetics.isInnerValueHead(head));
+            CorrelatedSubselects.ExplodingSub ex =
+                    corrSubs.explodingSubselect(t, aj, leftRow);
+            List<com.legend.compiler.element.type.Type.Column> cols =
+                    new ArrayList<>(leftRow.columns());
+            for (var c : ex.row().columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.Column(
+                        aj.prefix() + c.name(), c.type(), c.multiplicity()));
+            }
+            pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe, ex.target(),
+                    aj.rowDropping() ? AssociationJoins.innerKind()
+                            : AssociationJoins.leftKind(),
+                    ex.cond(), java.util.Optional.of(aj.prefix()), null,
+                    new com.legend.compiler.element.type.ExprType(
+                            com.legend.compiler.element.type.Type.relation(
+                                    new com.legend.compiler.element.type.Type
+                                            .RelationType(cols)),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
+            Substitution.SubNav rerouted = new Substitution.SubNav(aj.prefix(),
+                    target.rowVar(), target.bindings(),
+                    composeSubNavPrefixes(aj.prefix(), mat.subNavs()));
+            Substitution.SubNav plain = subTree.get(head);
+            if (plain == null) {
+                subTree.put(head, rerouted);
+            } else {
+                Map<String, Substitution.SubNav> kids =
+                        new LinkedHashMap<>(plain.children());
+                for (var k : rerouted.children().entrySet()) {
+                    kids.putIfAbsent(k.getKey(), k.getValue());
+                }
+                subTree.put(head, new Substitution.SubNav(plain.prefix(),
+                        plain.rowVar(), plain.bindings(), kids));
+            }
+        }
+        return pipe;
     }
 
 

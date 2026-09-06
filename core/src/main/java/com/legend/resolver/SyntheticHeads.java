@@ -276,13 +276,23 @@ final class SyntheticHeads {
      * still share one identity. */
     private String parkFiltered(String prop, TypedLambda pred,
             boolean valuePosition) {
+        return parkFiltered(prop, pred, valuePosition, null);
+    }
+
+    /** {@code scope}: the ELEMENT the predicate was re-based onto
+     * ({@link #rebaseToElement}) — part of the identity: two chains off
+     * different heads never share one re-based predicate. */
+    private String parkFiltered(String prop, TypedLambda pred,
+            boolean valuePosition, @com.legend.Nullable ElementScope scope) {
         boolean closed = predClosedOverParam(pred);
         java.util.Map<String, TypedLambda> pool = closed ? preds : corrPreds;
         TypedSpec canon = alphaCanonicalBody(pred);
         for (var e : pool.entrySet()) {
             if (realHead(e.getKey()).equals(prop)
                     && alphaCanonicalBody(e.getValue()).equals(canon)
-                    && innerValueHeads.contains(e.getKey()) == valuePosition) {
+                    && innerValueHeads.contains(e.getKey()) == valuePosition
+                    && java.util.Objects.equals(elementScopes.get(e.getKey()),
+                            scope)) {
                 return e.getKey();
             }
         }
@@ -291,7 +301,123 @@ final class SyntheticHeads {
         if (valuePosition) {
             innerValueHeads.add(synth);
         }
+        if (scope != null) {
+            elementScopes.put(synth, scope);
+        }
         return synth;
+    }
+
+    /** ISOLATION (engine forced self-join — testForcedSelfJoin
+     * isolationTest, batch 106): a filtered hop's correlated predicate
+     * whose OUTER reads ALL pass through the chain's FIRST hop
+     * ({@code $x.employees.group.children->filter(c | … ==
+     * $x.employees.product.name)}) is the fan-out ELEMENT's own predicate
+     * — the engine copies the element's table keyed by its PK
+     * ({@code persontable_2.ID = persontable_0.ID}) and resolves the read
+     * on the copy. The registry records the element the predicate was
+     * re-based onto: its variable, the head property it hangs off, and
+     * the element class. The application site is the HEAD'S TARGET
+     * materialization (NavMaterializer's nested reroute), never the root. */
+    record ElementScope(String var, String head, String classFqn) {}
+
+    private final Map<String, ElementScope> elementScopes =
+            new LinkedHashMap<>();
+
+    @com.legend.Nullable ElementScope elementScope(String head) {
+        return elementScopes.get(head);
+    }
+
+    boolean isElementScoped(String head) {
+        return elementScopes.containsKey(head);
+    }
+
+    /** The predicate parked on {@code synth} was re-based onto the
+     * element of {@code headProp} (real-name match: a synthetic identity
+     * of the head carries the same element). */
+    boolean isElementScopedTo(String synth, String headProp) {
+        ElementScope sc = elementScopes.get(synth);
+        return sc != null && sc.head().equals(realHead(headProp));
+    }
+
+    private record Rebased(TypedLambda pred, ElementScope scope) {}
+
+    /** The re-based predicate for a filtered hop whose chain BELOW the
+     * hop is {@code below} ({@code $x.employees.group} for {@code
+     * …group.children->filter}); null when the shape does not apply: the
+     * hop hangs directly off the variable (the root's own reroute serves
+     * it), the predicate reads another outer variable, or any outer read
+     * does not pass through the first hop (those keep their loud walls —
+     * a wrong row is never a gap). */
+    private @com.legend.Nullable Rebased rebaseToElement(TypedLambda pred,
+            TypedSpec below) {
+        if (pred.parameters().size() != 1 || pred.body().size() != 1) {
+            return null;
+        }
+        TypedSpec cur = below;
+        TypedPropertyAccess first = null;
+        while (first == null) {
+            TypedSpec inner = cur;
+            if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                    && com.legend.builtin.Pure.isToOneCall(
+                            c.callee().qualifiedName())) {
+                inner = c.args().get(0);
+            }
+            if (!(inner instanceof TypedPropertyAccess pa)) {
+                return null;
+            }
+            if (pa.source() instanceof TypedVariable) {
+                first = pa;
+            } else {
+                cur = pa.source();
+            }
+        }
+        String bottom = ((TypedVariable) first.source()).name();
+        TypedSpec body = pred.body().get(0);
+        Set<String> free = new LinkedHashSet<>();
+        readVarNames(body, free);
+        free.removeAll(pred.parameters());
+        if (!free.equals(Set.of(bottom))
+                || !(first.info().type() instanceof Type.ClassType ct)) {
+            return null;
+        }
+        Set<List<String>> outer = new LinkedHashSet<>();
+        FlattenOps.consumedPaths(body, bottom, outer);
+        String firstProp = first.property();
+        // consumedPaths reports every PREFIX of a read: judge the maximal
+        // ones (the reads themselves) — each must pass through the hop
+        List<List<String>> reads = outer.stream()
+                .filter(p -> outer.stream().noneMatch(q -> q.size() > p.size()
+                        && q.subList(0, p.size()).equals(p)))
+                .toList();
+        if (reads.isEmpty() || reads.stream().anyMatch(p -> p.size() < 2
+                || !p.get(0).equals(firstProp))) {
+            return null;
+        }
+        Set<String> taken = new LinkedHashSet<>(pred.parameters());
+        readVarNames(body, taken);
+        String var = "_el";
+        for (int i = 2; taken.contains(var); i++) {
+            var = "_el" + i;
+        }
+        TypedVariable el = new TypedVariable(var,
+                new ExprType(ct, Multiplicity.Bounded.ONE));
+        TypedSpec rebased = replaceFirstHop(body, bottom, first.property(), el);
+        return new Rebased(
+                new TypedLambda(pred.parameters(), List.of(rebased), pred.info()),
+                new ElementScope(var, first.property(), ct.fqn()));
+    }
+
+    private static TypedSpec replaceFirstHop(TypedSpec n, String bottom,
+            String prop, TypedVariable el) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(bottom) && pa.property().equals(prop)) {
+            return el;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(bottom)) {
+            return l;   // shadowed below this point
+        }
+        return rebuildChildren(n, c -> replaceFirstHop(c, bottom, prop, el));
     }
 
     /** Heads whose join is ROW-DROPPING (INNER): value-position lifts.
@@ -322,8 +448,11 @@ final class SyntheticHeads {
     void unappliedCorrelatedWall(List<String> path, int from,
             boolean parentScopedApply) {
         for (int hi = from; hi < path.size(); hi++) {
+            // an ELEMENT-scoped pred (re-based onto path[0]'s element)
+            // applies inside the head's target materialization (batch 106)
             if (correlatedPred(path.get(hi)) != null
-                    && !(parentScopedApply && isParentScoped(path.get(hi)))) {
+                    && !(parentScopedApply && isParentScoped(path.get(hi)))
+                    && !(hi >= 1 && isElementScopedTo(path.get(hi), path.get(0)))) {
                 throw new com.legend.error.NotImplementedException(
                         "correlated filter predicate on hop '"
                         + realHead(path.get(hi))
@@ -970,7 +1099,11 @@ final class SyntheticHeads {
                     ma.dates(), ma.sweep(), ma.info());
         } else {
             var hp = (TypedPropertyAccess) head;
-            synth = parkFiltered(hp.property(), f.predicate());
+            // ISOLATION: an outer read that passes through the chain's
+            // first hop is the fan-out element's own — re-base (batch 106)
+            Rebased rb = rebaseToElement(f.predicate(), hp.source());
+            synth = rb == null ? parkFiltered(hp.property(), f.predicate())
+                    : parkFiltered(hp.property(), rb.pred(), false, rb.scope());
             renamed = new TypedPropertyAccess(hp.source(), synth, hp.info());
         }
         markParentScoped(synth, f);

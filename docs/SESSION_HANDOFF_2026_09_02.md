@@ -18,9 +18,19 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
 
 ### Phase 1 — burn everything that needs NEITHER code-as-data NOR metamodel-as-data
 
-1. **isolationTest** (L1) — design written: breakdown §8.0 (re-base the tail predicate
-   onto the fan-out element; nested exploding parent-copy reroute with the employee as
-   the parent; register the composed prefix as a SubNav). Golden SQL quoted there.
+1. **isolationTest** (L1) — LANDED batch 106 (2026-09-06, 129/2444; GATES batch 106).
+   1b. **PATH-MODEL LEG (user ruling 2026-09-06, sized BEFORE the embedded-head trio):**
+   the resolver's navigation registry models paths as `List<String>`, chain keys as dotted
+   strings, synthetic identity as a `#fN` suffix INSIDE the property name (`realHead`), and
+   column landings as prefix strings with `startsWith` collision checks (census in memory
+   `string-hacking-audit-navigation-paths`: resolver `realHead(` 66, `String.join(".")` 31,
+   `List<List<String>>` 59, `startsWith(` 31; core-wide `startsWith(` 134). Owed: `NavPath`/
+   `Hop` records (resolved property reference + JoinIdentity + parked predicate object +
+   target class), chain keys = the record under structural equality, landings = typed column
+   references; migrate StoreResolver/NavMaterializer/AssociationJoins/Substitution/
+   SyntheticHeads; then a core-wide audit of `startsWith(`/`lastIndexOf('.')`/`String.join(".")`
+   with a shrink-only guardrail ratchet — the user wants the practice BANNED in prod code.
+   Never land new string arithmetic on identities meanwhile.
 2. **Embedded-head trio** (L1): testToManyWithQualifierWithFilterOnJoin,
    testRoutingWithSubtypePropagation, testInheritanceMultipleLevel — breakdown §8.2
    (SubNav children through embedded bodies inside lifted sub-slots; the subtype-chain
@@ -4274,6 +4284,18 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 106 / L1 isolation — the element-scoped tail predicate (2026-09-06, chain GREEN; GATES
+batch 106).** 130/2443 → 129/2444; IMPL 16; REVISIT 7. isolationTest flipped on both asserts.
+Predicate re-based onto the fan-out element at the lift (SyntheticHeads.rebaseToElement /
+ElementScope, identity-forking); the head's target materialization diverts the chain (and its
+prefix tails) off the slot spine into the exploding parent-copy subselect with the target as
+parent (NavMaterializer.foldElementReroutes ← CorrelatedSubselects.explodingSubselect), SubNav
+under the head. Latent double-prefix in corrPredOnJoinedRowCore's nested param reads fixed
+structurally (reads land on the joined row). USER CHECKPOINT: "are we building stuff based on
+strings?" — a `startsWith` prefix-stripping helper was reverted before landing; the ruling and
+the owed NavPath leg are in §0 item 1b and memory. NEXT: size the path-model leg (§0 1b), then
+the embedded-head trio.
 
 **Batch 105 / L13 tdsToJSONKeyValueObjectString (2026-09-06, chain GREEN ~6m10s; GATES batch
 105).** 131/2442 → 130/2443; IMPL 17 (−1 flip, −1 TEXT reclassification of the plan-text

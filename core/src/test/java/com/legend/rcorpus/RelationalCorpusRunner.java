@@ -2212,10 +2212,21 @@ public class RelationalCorpusRunner {
             // envelope collapse sees through a TDS-shaped cast over the
             // plan-execute values (typed Any before the splice).
             // m2m2r::executeProjectWithNestedDerivedProperty.
-            org.junit.jupiter.api.Assertions.assertEquals(130L,
+            // batch 106 / L1 (2026-09-06): 130 -> 129 — isolation (the
+            // engine's forced self-join, testForcedSelfJoin.pure golden):
+            // a filtered hop's correlated predicate whose outer reads all
+            // pass through the chain's first hop re-bases onto that hop's
+            // ELEMENT at the lift (SyntheticHeads.rebaseToElement /
+            // ElementScope); the head's target materialization joins the
+            // chain as the exploding parent-copy subselect with the target
+            // as the parent, keyed by its PK (NavMaterializer
+            // .foldElementReroutes — persontable_2.ID = persontable_0.ID).
+            // advanced::forcedselfjoin::isolationTest (both asserts: the
+            // CSV rows and the sql-text row verdict).
+            org.junit.jupiter.api.Assertions.assertEquals(129L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2443L,
+            org.junit.jupiter.api.Assertions.assertEquals(2444L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

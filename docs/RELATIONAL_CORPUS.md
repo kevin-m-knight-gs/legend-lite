@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 260 | 3 | 2 | 1 | 1 | 1 | 2 | 1 |
 | testDataGeneration/tests | 68 | 66 | 0 | 1 | 1 | 0 | 0 | 25 | 0 |
 | tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
+| tests/advanced | 68 | 65 | 2 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2457** | 36 | 56 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2458** | 36 | 55 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2457 PASS = 2422 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2458 PASS = 2423 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,16 +542,16 @@ SOFT-PASS RECONCILIATION (F2.1): 2457 PASS = 2422 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 130
+tests in the ledger: 129
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:resolver | 19 |
+| wall:resolver | 18 |
 | wall:typer | 33 |
 | wall:exec | 8 |
 | divergence | 19 |
-| not-reached | 23 |
+| not-reached | 22 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 10 |
 | pass | 29 |
@@ -702,8 +702,6 @@ tests in the ledger: 130
 - testTwoQualifiersWithOperation #1 meta::pure::functions::asserts::assertSize -> pass
 - testTwoQualifiersWithOperation #2 meta::pure::functions::asserts::assertEquals -> pass
 - testTwoQualifiersWithOperation #3 meta::pure::functions::asserts::assertEquals -> decision:empty-toOne-forced-isolation: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline 
-- isolationTest #1 assertEquals -> wall:resolver: wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat :: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head a
-- isolationTest #2 - -> not-reached: 1 assert(s) after the failure
 - relationalResultSourcingOfListExecutionPlan #1 assertEquals -> wall:exec: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('result') is not supported
 - testStoreSubstitution #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or :: meta::relational::tests::mapping::include::testStoreSubstitution :: unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform 
 - testNestedModelJoinCompoundInnerCondition #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::relationa :: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (asso
@@ -850,7 +848,6 @@ tests in the ledger: 130
 - ERROR testTranslateDbType [tests]: in function 'meta::relational::translation::translateCoreTypeToDbSpecificType': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::translation::translateCoreTypeToDbSpecificType/2]
 - FAIL testQualifierWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [Test, Test, Test], ours-only []
 - FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [, , ], ours-only []
-- ERROR isolationTest [tests/advanced]: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head and first-tail-hop predicates only)
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
 - SHAPE testStoreSubstitution [tests/mapping/include]: assert form 'assertIs/2' is not supported yet
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
