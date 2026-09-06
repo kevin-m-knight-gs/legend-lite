@@ -2223,10 +2223,20 @@ public class RelationalCorpusRunner {
             // .foldElementReroutes — persontable_2.ID = persontable_0.ID).
             // advanced::forcedselfjoin::isolationTest (both asserts: the
             // CSV rows and the sql-text row verdict).
-            org.junit.jupiter.api.Assertions.assertEquals(129L,
+            // batch 107 / L1 (2026-09-06): 129 -> 128 — an auto-map whose
+            // SOURCE is a bare subType cast (`…manager->subType(@Sub).name`
+            // with the derived leaf inlined over the [0..1] hop) composes
+            // its demand: the projection scanner routes every non-fan-out
+            // map through InnerDemand.composeAutoMapPaths, which inlines
+            // the element into the body so pathOf's cast arm qualifies the
+            // leaf (stc_<Sub>___<leaf>) — the path the substitution already
+            // walked; the same-source stc navigate transplant then
+            // materializes as a SubNav. projection::simple::
+            // testRoutingWithSubtypePropagation (sql-text row verdict).
+            org.junit.jupiter.api.Assertions.assertEquals(128L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2444L,
+            org.junit.jupiter.api.Assertions.assertEquals(2445L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

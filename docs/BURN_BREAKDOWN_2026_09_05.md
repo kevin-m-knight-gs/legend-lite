@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 107 / L1 subtype cast in auto-map source position LANDED (2026-09-06)** — testRoutingWithSubtypePropagation flipped (128/2445); the demand scan composes a cast-sourced auto-map through the one funnel. IMPL 15, REVISIT 7.
+
 Status: **batch 106 / L1 isolation (element-scoped tail predicate) LANDED (2026-09-06)** — isolationTest flipped (129/2444), both asserts; IMPL 16, REVISIT 7. USER RULING (same day): the resolver's string-keyed path model is a debt — a NavPath/Hop leg runs AFTER Phase 1 is burned out and BEFORE Phase 2 (user re-ruling, same day; memory string-hacking-audit-navigation-paths).
 
 Status: **batch 105 / L13 tdsToJSONKeyValueObjectString LANDED (2026-09-06)** — executeProjectWithNestedDerivedProperty flipped (130/2443); planGraphFetchWithDerivedProperty reclassified TEXT; two REVISIT receipts (test6, testCheckedWithCircularConstraints); testPksWithImportDataFlow PARKED. IMPL 17, REVISIT 7.
@@ -65,7 +67,7 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 | modelJoin::advanced::testQualifiedPropertyInQuery | **FLIPPED batch 73** (row marked at the batch 89 census) | rows |
 | modelJoin::advanced::testSubFilter | **FLIPPED batch 73** (row marked at the batch 89 census) | rows |
 | multigrain::testToManyWithQualifierWithFilterOnJoin | multi-hop through an embedded/slot head | rows [500] + text behind |
-| projection::simple::testRoutingWithSubtypePropagation | multi-hop (subType chain) through an embedded head | assertEquals on SQL text ONLY → TEXT behind the wall |
+| projection::simple::testRoutingWithSubtypePropagation | FLIPPED batch 107 — the cast-sourced auto-map composes its leaf demand (composeAutoMapPaths inlines the element; pathOf's cast arm qualifies the leaf); the same-source stc navigate transplant materializes as a SubNav | sql-text row verdict |
 | testDataGeneration::testInheritanceMultipleLevel | multi-hop vehicles#f.subType.person.name | TDG rows |
 | businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction | **REVISIT (batch 93 receipt `revisit:instance-filter-ungated` — traced, NOT resolved; user 2026-09-06: the relational lane and Pure disagree, the lane choice is revisited at the end)** — the instance-filter idiom canonicalizes in the lift pass (the wall is gone; the assert reaches its sql-text ROW verdict); the golden projects `"root".id` unconditionally (testBusinessDateMilestoning.pure:591 — its filter subselect never gates the value) while Pure's filter->map and the engine's own sibling golden testConcatenateWithFilter ('Firm A,', testConcatenate.pure:88) yield the empty cell; rows [1, 2] vs ours [TDSNull, 2] | assertSameSQL → referee rows |
 | advanced::forcedselfjoin::isolationTest | FLIPPED batch 106 — the predicate re-bases onto the fan-out element at the lift (ElementScope); the head's target materialization joins the chain as the exploding parent-copy subselect with the target as parent (§8.0) | rows |
@@ -576,7 +578,10 @@ Probe diagnostics (LEGEND_LITE_STACKS=1, `[multi-hop wall] path=… targetBindin
   embedded+join tail. Owner: AssociationJoins.associationJoin's `navTails`/`tailSubNavs`
   (NavMaterializer.navTargetMaterialized composes deeper prefixes) + the synthetic
   `#f` head's SubNav registration.
-- testRoutingWithSubtypePropagation: path `[employees, stc_…PersonExtension___manager,
+- testRoutingWithSubtypePropagation: LANDED batch 107 — the wall was the DEMAND SCAN, not the
+  materializer: the derived leaf over the [0..1] cast is an auto-map with a bare cast as its
+  source, which pathOf could not spell; composeAutoMapPaths now inlines the element. Original note:
+  path `[employees, stc_…PersonExtension___manager,
   stc_…PersonExtension___firstName]`; targetBindingKeys already carry every
   `stc_…PersonExtension___<prop>` INCLUDING manager. Query: `Firm.all()->project(col(x|
   $x.employees->subType(@PersonExtension).manager->subType(@PersonExtension).firstName…))`

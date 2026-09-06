@@ -33,7 +33,12 @@ The full per-test ledger: docs/LEDGER_GRANULAR_2026_09_06.md.
    with a shrink-only guardrail ratchet — the user wants the practice BANNED in prod code.
    Never land new string arithmetic on identities meanwhile.
 2. **Embedded-head trio** (L1): testToManyWithQualifierWithFilterOnJoin,
-   testRoutingWithSubtypePropagation, testInheritanceMultipleLevel — breakdown §8.2
+   testRoutingWithSubtypePropagation (LANDED batch 107 — a demand-scan gap, not a
+   materializer one), testInheritanceMultipleLevel (PROBED 2026-09-06: the Vehicle union's
+   nav lift SKIPS subtype-only class-typed Join PMs — UnionSynthesis.scanJoinPms "subtype-only:
+   stc dispatch owns it" — but subTypeDispatchProps emits scalar and embedded-flat stc columns
+   only, so `Bicycle[map2].person: @PersonBicycle` vanishes; leg = lift a subtype-only Join PM
+   as a navigate slot under its stc key with the owning members' routes) — breakdown §8.2
    (SubNav children through embedded bodies inside lifted sub-slots; the subtype-chain
    variant reads `employees.stc_<Sub>___manager.stc_…`). testInheritanceMultipleLevel's
    first 6 asserts already pass; only the 7th walls.
@@ -4285,6 +4290,15 @@ target — a lifted filtered sub-slot in FILTER position), testPksWithImportData
 key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the flag
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
+
+**Batch 107 / L1 subtype cast in auto-map source position (2026-09-06, chain GREEN; GATES
+batch 107).** 129/2444 → 128/2445; IMPL 15. testRoutingWithSubtypePropagation flipped. The
+projection scanner (aggScan) now composes every non-fan-out auto-map through
+InnerDemand.composeAutoMapPaths, which inlines the element when the map source is a bare
+subType cast — pathOf's cast arm then spells the stc leaf the substitution already walked.
+Lesson: when a "multi-hop wall" names a head with NO sub-navigations, probe the paths the
+demand scan REGISTERED before touching the materializer (the tail was one hop short).
+NEXT: testInheritanceMultipleLevel (union lift of subtype-only Join PMs), then multigrain.
 
 **Batch 106 / L1 isolation — the element-scoped tail predicate (2026-09-06, chain GREEN; GATES
 batch 106).** 130/2443 → 129/2444; IMPL 16; REVISIT 7. isolationTest flipped on both asserts.

@@ -613,6 +613,24 @@ final class InnerDemand {
         java.util.List<String> prefix =
                 Substitution.pathOf(am.source(), userVar);
         if (prefix == null) {
+            // a CAST in SOURCE position (`chain->subType(@Sub)` auto-mapped
+            // over a [0..1] hop — testRoutingWithSubtypePropagation's
+            // `…manager->subType(@PersonExtension).name` with the derived
+            // leaf inlined): the body's reads are reads OFF THE CAST —
+            // inline the element and let pathOf's cast arm qualify the
+            // leaf (stc_<Sub>___<leaf>), exactly as the substitution's
+            // own inlining reads it (one funnel, batch 107)
+            if (am.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
+                    && sc.callee().qualifiedName()
+                            .equals("meta::pure::functions::lang::subType")
+                    && !sc.args().isEmpty()
+                    && Substitution.pathOf(sc.args().get(0), userVar) != null) {
+                for (com.legend.compiler.spec.typed.TypedSpec mb : am.mapper().body()) {
+                    scanner.scan(Substitution.inlineParam(mb,
+                            am.mapper().parameters().get(0), am.source()),
+                            userVar, out);
+                }
+            }
             return;
         }
         java.util.Set<java.util.List<String>> bodyPaths =

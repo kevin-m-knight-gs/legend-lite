@@ -1416,7 +1416,11 @@ final class Substitution {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
                 System.err.println("[multi-hop wall] path=" + path
                         + " targetBindingKeys=" + (diag == null ? "-"
-                                : diag.targetBindings().keySet()));
+                                : diag.targetBindings().keySet())
+                        + " hop1Binding=" + (diag == null ? "-"
+                                : diag.targetBindings().get(path.get(1)))
+                        + " slotPrefixes=" + (diag == null ? "-" : diag.targetSlotPrefixes())
+                        + " slotAliases=" + (diag == null ? "-" : diag.targetSlotAliases()));
                 Thread.dumpStack();
             }
             throw new NotImplementedException("multi-hop navigation "

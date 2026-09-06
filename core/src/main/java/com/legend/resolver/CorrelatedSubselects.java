@@ -2528,7 +2528,17 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
         // VALUE-POSITION fan-out and its mapper-scoped aggregates (own seam)
         if (n instanceof TypedMap tm && tm.mapper().parameters().size() == 1) {
-            fanOutMapDemands(tm, userVar, cs, aggOut, bareOut, toManyHead);
+            List<String> sp = Substitution.pathOf(tm.source(), userVar);
+            if (sp != null && sp.size() == 1 && toManyHead.test(cs, sp.get(0))) {
+                fanOutMapDemands(tm, userVar, cs, aggOut, bareOut, toManyHead);
+            } else {
+                // any OTHER auto-map (a multi-path derived leaf inlined over
+                // a to-one chain, a cast in source position): the map
+                // source's path composes with each body leaf — the same
+                // composer the filter funnel applies (one funnel, batch 107)
+                InnerDemand.composeAutoMapPaths(n, userVar, bareOut,
+                        FlattenOps::consumedPaths);
+            }
         }
         List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {

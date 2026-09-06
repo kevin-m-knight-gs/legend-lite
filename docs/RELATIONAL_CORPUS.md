@@ -54,7 +54,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 27 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
-| router/tests | 26 | 20 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
+| router/tests | 26 | 21 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
 | sqlDialectTranslation | 21 | 19 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2458** | 36 | 55 | 26 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2459** | 36 | 54 | 26 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2458 PASS = 2423 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2459 PASS = 2424 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -535,19 +535,19 @@ SOFT-PASS RECONCILIATION (F2.1): 2458 PASS = 2423 clean + 35 carrying softness (
 - 1x in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V [inlined via meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias/3]
 - 1x store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - 1x 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
-- 1x multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - 1x in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::tests::query::routing::routeInternal/1]
 - 1x no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertJoinTreeNode/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertAlias/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten/2]
+- 1x in function 'meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten': expected meta::external::query::sql::metamodel::QuerySpecification, got meta::external::query::sql::metamodel::Union [inlined via meta::relational::functions::toPostgresModel::tests::assertConversion/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertSelectSQLQuery/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertJoinTreeNode/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertAlias/2 -> meta::relational::functions::toPostgresModel::convertElement/2 -> meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten/2]
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 129
+tests in the ledger: 128
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:resolver | 18 |
+| wall:resolver | 17 |
 | wall:typer | 33 |
 | wall:exec | 8 |
 | divergence | 19 |
@@ -650,7 +650,6 @@ tests in the ledger: 129
 - testReAliasMergedJoinOperations #1 assertEquals -> wall:resolver: wall-exec: store resolution left user call '_' uninlined — :: store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - testReAliasMergedJoinOperations #2 - -> not-reached: 5 assert(s) after the failure
 - testPrerouting42 #0 - -> wall:typer: wall-type: '_' is not a known class, mapping, runtime, connection, or database :: meta::pure::router::preeval::tests::testPrerouting42 :: 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
-- testRoutingWithSubtypePropagation #1 assertEquals -> wall:resolver: wall-exec: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relationa :: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___fi
 - testPlatformExpressionDependencyOnAFromExpression #0 - -> decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o :: meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression :: unknown function 'routeFunction' — no function of this name in
 - testPlatformExpressionDependencyOnAFromExpression2 #0 - -> decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o :: meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression2 :: unknown function 'routeFunction' — no function of this name i
 - testCompositionInMultiStatementPureExpressions #1 assertEquals -> decision:routeFunction: wall-exec: TypeInferenceException: in function '_': unknown function '_' — no function of  :: in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -817,7 +816,6 @@ tests in the ledger: 129
 - ERROR testMergeOldAliasToNewAlias [pureToSQLQuery/tests]: in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V [inlined via meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias/3]
 - ERROR testReAliasMergedJoinOperations [pureToSQLQuery/tests]: store resolution left user call 'meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData' uninlined — the call shape is not supported by the resolver yet [at root > TypedPropertyAccess]
 - ERROR testPrerouting42 [router/tests]: 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
-- ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testCompositionInMultiStatementPureExpressions [router/tests]: in function 'meta::relational::tests::query::routing::routeInternal': unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::relational::tests::query::routing::routeInternal/1]
