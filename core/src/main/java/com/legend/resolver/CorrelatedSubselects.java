@@ -2159,13 +2159,17 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         TypedSpec nav = sc.args().get(0);
         String stc = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
                 pa.property());
-        // the cast's slot on the target (ClassSource.subTypeReadKey: its own
-        // member-suffixed slot, or the plain slot a union's NAV LIFT keyed
-        // the class-typed property under; the witness filter keeps the row
-        // set to the member — multiJoins golden testForcedSubTypeProjectDirect:
-        // TDSNull for the cars)
-        String read = target.subTypeReadKey(stc, pa.property(),
-                pa.info().type() instanceof Type.ClassType);
+        // WHICH slot the cast reads is a MODEL fact: a property DECLARED on
+        // the navigated class itself (RoadVehicle.person via the Driver
+        // association) is the source's own slot under its plain name — a
+        // union lifts it so (UnionSynthesis.scanJoinPms lifts exactly the
+        // declared-owner properties; the witness filter keeps the row set
+        // to the member: multiJoins golden testForcedSubTypeProjectDirect,
+        // TDSNull for the cars) — while a SUBTYPE-ONLY property lives under
+        // the member-suffixed key (ClassMapping.subTypeColumn), as the
+        // union keys its subtype-only scalars. Never a slot-table probe.
+        String read = sources.ctx().findProperty(navCt.fqn(), pa.property()).isPresent()
+                ? pa.property() : stc;
         return new TypedPropertyAccess(
                 new TypedFilter(nav, witnessPred(navCt, wKey, isNotEmpty),
                         nav.info()),

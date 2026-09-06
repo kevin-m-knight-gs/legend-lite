@@ -4195,6 +4195,14 @@ key columns ID_0/ID_1 to the projection — pureToSQLQuery.pure:4821-4832; the f
 must fold from the let-bound context instance at compile time, the union row
 already carries the suffixed keys), the relation-union 12-column distinct pair.
 
+**Batch 101 / subtype-cast slot = property ownership (2026-09-06, chain GREEN ~6m; GATES
+batch 101).** 135/2438 unchanged; IMPL 23; REVISIT 5. The audit's 'union kind' question is
+answered by the model, not a flag: `person` is declared on RoadVehicle (Driver association),
+so the union's NAV LIFT keys it plain — exactly scanJoinPms's declared-owner rule — and the
+cast reads the plain slot; a subtype-only property reads ClassMapping.subTypeColumn. The
+cast arm asks ModelContext.findProperty(navCt, prop); ClassSource.subTypeReadKey deleted.
+A union-kind component on ClassBinding was considered and NOT added (no consumer).
+
 **Batch 100 / CLEANUP — audit of batches 87–99 (2026-09-06, chain GREEN ~5m55s; GATES
 batch 100).** 135/2438 unchanged; IMPL 23; REVISIT 5 (the batch 93/96 receipts + the
 union relation pair). end, just mark them as potentially revisit instead of resolved."
