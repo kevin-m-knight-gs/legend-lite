@@ -1577,6 +1577,10 @@ final class StatementExecutor {
                             .ExecuteChainAssembly.letBound(v, letPrefix));
             java.util.Map<String, String> tr = hooks.tableReplace();
             com.legend.exec.PostProcessBoundary.record(tr);
+            // the connection's time zone: every DateTime literal of this
+            // frame's SQL spells in it (batch 86)
+            com.legend.exec.PostProcessBoundary.recordTimeZone(
+                    ConnectionFlags.timeZoneOf(rtArg, letPrefix));
             com.legend.exec.PostProcessBoundary.recordExtractCtes(hooks.extractCtes());
             com.legend.exec.PostProcessBoundary.recordNonExecutable(hooks.nonExecutable());
             if (!tr.isEmpty()) {
@@ -2193,7 +2197,8 @@ final class StatementExecutor {
         com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
                         identity),
-                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
+                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm()
+                .withDbTimeZone(com.legend.exec.PostProcessBoundary.timeZone());
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read

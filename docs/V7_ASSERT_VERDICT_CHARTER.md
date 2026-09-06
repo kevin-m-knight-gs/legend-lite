@@ -1061,6 +1061,12 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 86 / L10 (2026-09-06):** exec-passing 7,
+text-only 12, unable-to-exec 9 unchanged; ratchet 151/2422 → 150/2423
+(testInExecutionWithTempTableForDateTimesWithTz — TDS row verdicts plus the
+in-list temp-table golden replayed on H2 in the connection's zone); disagree
+0 both channels.
+
 **§8.0 scope-table receipt, batch 85 / L14b (2026-09-06):** exec-passing 7,
 text-only 12, unable-to-exec 9 unchanged; ratchet 152/2421 → 151/2422
 (testLoadCsv — instance value verdicts over the CSV-loaded rows); disagree 0

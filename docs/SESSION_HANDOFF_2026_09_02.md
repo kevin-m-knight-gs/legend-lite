@@ -3978,3 +3978,21 @@ testNonDataTypeProperty, L8 (toJSON(TDS), rowValueDifference, strictdate sort,
 stringToFloat forAll-tolerance, groupByWithWindowSubset); (3) the relation-
 mapping golden pair → engine-golden-defect registration (AssertLedger) with
 the relationalModelJoins.pure:342-349 receipt.
+
+**Batch 86 / L10 (2026-09-06, chain GREEN 6m37s; GATES batch 86).** 151/2422 →
+150/2423; IMPL 42 (the seven plan-text / catalog-name reclassification receipts
+landed in the breakdown doc this batch too: 50 − 7 − 1). The connection's
+`timeZone` is a PostProcessBoundary fact of the execute frame (recorded beside
+tableReplace/extractCtes/nonExecutable); the Lowerer spells time-bearing date
+literals in that zone (MatchFold.dateLit ← LiteralSpelling.inZone), the in-list
+temp-table replay spells its values the same way. NEXT by tests-per-design:
+the CROSS-HEAD concatenate rung (engine processConcatenate → one
+`unionalias_N` LEFT join over the branch chains with null-padded key columns
+and an OR ON-clause; pureToSQLQuery.pure:2709 + buildConcatenateSubSelect
+:2889): testQualifierConcatenateTwoSimilarJoins (+Embedded),
+testConcatenateInQualifierWithComplexReturnType (`addresses() = $this.address
+->concatenate($this.firm.address)`, simpleTestModel.pure:171). Our
+SyntheticHeads.liftConcatStreams refuses cross-head branches by design
+("their own rung"); a union head needs branches of DIFFERENT real heads whose
+AssocJoin target is the UNION of the branch pipes and whose condition is the
+OR of the branch conditions.

@@ -2078,10 +2078,16 @@ public class RelationalCorpusRunner {
             // an EFFECT native (the engine's classpath CSV is test input the
             // harness resolves; the header row is dropped, rows insert
             // positionally into the store-navigated table). testLoadCsv.
-            org.junit.jupiter.api.Assertions.assertEquals(151L,
+            // batch 86 / L10 (2026-09-06): 151 -> 150 — the connection's time
+            // zone (DatabaseConnection.timeZone) rides the boundary record and
+            // the Lowerer: time-bearing DateTime literals spell at the same
+            // instant in that zone (the engine's convertDateToSqlString
+            // dbTimeZone rule), the referee's in-list temp table too.
+            // testInExecutionWithTempTableForDateTimesWithTz (US/Arizona).
+            org.junit.jupiter.api.Assertions.assertEquals(150L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2422L,
+            org.junit.jupiter.api.Assertions.assertEquals(2423L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

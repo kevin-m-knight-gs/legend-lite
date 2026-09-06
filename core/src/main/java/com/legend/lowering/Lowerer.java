@@ -175,6 +175,15 @@ public final class Lowerer {
     private final ArrayDeque<ColumnResolver>
             enclosing = new ArrayDeque<>();
 
+    /** The connection's time zone DateTime literals spell in (engine
+     * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
+    private @com.legend.Nullable String dbTimeZone;
+
+    public Lowerer withDbTimeZone(@com.legend.Nullable String zone) {
+        this.dbTimeZone = zone;
+        return this;
+    }
+
     /** Query-level let bindings ({@code |let a = ...; ...$a...}), lowered once. */
     private final Map<String, SqlExpr> letBindings = new HashMap<>();
 
@@ -2391,7 +2400,7 @@ public final class Lowerer {
             // Date literals: full dates/timestamps render typed; PARTIAL
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
-            case TypedCDate d -> MatchFold.dateLit(d.value());
+            case TypedCDate d -> MatchFold.dateLit(d.value(), dbTimeZone);
             // %latest VALUE = the engine's STRING sentinel (VERDICT
             // burn §FINAL); the PREDICATE keeps TemporalFrame's arm.
             case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->

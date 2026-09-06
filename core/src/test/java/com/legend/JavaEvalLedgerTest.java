@@ -666,7 +666,12 @@ class JavaEvalLedgerTest {
             // and its rows leg run under the producer's own nonExecutable
             // pass (a boundary flag around the leg — routing, no
             // evaluation: both sides still compute in the database).
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1057),
+            // 1057 -> 1061 (batch 86, 2026-09-06): the in-list temp table the
+            // referee seeds for the golden replay spells DateTime literals
+            // in the connection's time zone — the same literal spelling the
+            // lowering uses (LiteralSpelling.inZone); a spelling fact, no
+            // evaluation.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1061),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

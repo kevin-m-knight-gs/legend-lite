@@ -1092,7 +1092,12 @@ final class SqlTextVerdicts {
             if (e instanceof com.legend.compiler.spec.typed.TypedCDate d) {
                 k = d.value() instanceof com.legend.values.PureDateLiteral
                         .StrictDate ? "date" : "datetime";
-                v = d.value().toEngineString();
+                // the engine seeds the temp in the connection's zone (batch 86)
+                String zone = com.legend.exec.PostProcessBoundary.timeZone();
+                String iso = com.legend.lowering.LiteralSpelling.isoTimestamp(d.value());
+                v = iso != null && zone != null
+                        ? com.legend.lowering.LiteralSpelling.inZone(iso, zone)
+                        : d.value().toEngineString();
             } else if (e instanceof com.legend.compiler.spec.typed.TypedCString s) {
                 k = "string";
                 v = s.value();

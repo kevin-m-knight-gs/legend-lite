@@ -44,6 +44,25 @@ public final class PostProcessBoundary {
         return EXTRACT_CTES.get();
     }
 
+    private static final ThreadLocal<String> TIME_ZONE = new ThreadLocal<>();
+
+    /** The frame's connection TIME ZONE (engine DatabaseConnection.timeZone,
+     * the dbTimeZone every DateTime literal is spelled in —
+     * convertDateToSqlString, extensionDefaults.pure:144; null = the
+     * default GMT connection). Recorded per execute frame like the
+     * post-processor facts (batch 86). */
+    public static void recordTimeZone(@com.legend.Nullable String zone) {
+        if (zone == null) {
+            TIME_ZONE.remove();
+        } else {
+            TIME_ZONE.set(zone);
+        }
+    }
+
+    public static @com.legend.Nullable String timeZone() {
+        return TIME_ZONE.get();
+    }
+
     private static final ThreadLocal<Boolean> NON_EXECUTABLE =
             ThreadLocal.withInitial(() -> false);
 

@@ -195,9 +195,11 @@ row JSON envelope — a golden-to-rows referee arm).
 
 ### L10 Time zone and temp tables (1)
 
+Status: **batch 86 / L10 LANDED (2026-09-06)** — testInExecutionWithTempTableForDateTimesWithTz flipped (150/2423).
+
 | test | detail |
 |---|---|
-| in::tempTable::testInExecutionWithTempTableForDateTimesWithTz | DIVERGENCE 0 rows vs 5 — the connection time-zone overload for DateTime in-lists (leg started in ConnectionFlags.timeZoneOf) |
+| in::tempTable::testInExecutionWithTempTableForDateTimesWithTz | **FLIPPED batch 86** — the connection time zone spells time-bearing DateTime literals at the same instant in that zone (Lowerer.withDbTimeZone / MatchFold.dateLit; the referee's in-list temp table too) |
 
 ### L11 Views (2)
 
@@ -399,7 +401,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 → **43**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 → **42**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

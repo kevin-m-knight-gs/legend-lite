@@ -638,6 +638,32 @@ public final class LiteralSpelling {
     }
 
     /** StrictDate LITERAL from a typed DATE value: % + ISO date. */
+    /** The full ISO timestamp text of a TIME-BEARING pure date literal
+     * (hour/minute precisions pad to the SQL timestamp shape); null for
+     * date-only and partial literals. */
+    public static @com.legend.Nullable String isoTimestamp(
+            com.legend.values.PureDateLiteral d) {
+        return switch (d) {
+            case com.legend.values.PureDateLiteral.DateWithHour h -> h.toEngineString() + ":00:00";
+            case com.legend.values.PureDateLiteral.DateWithMinute mi -> mi.toEngineString() + ":00";
+            case com.legend.values.PureDateLiteral.DateWithSecond se -> se.toEngineString();
+            case com.legend.values.PureDateLiteral.DateWithSubsecond su -> su.toEngineString();
+            default -> null;
+        };
+    }
+
+    /** A UTC ISO timestamp text re-spelled at the same INSTANT in
+     * {@code zone} (the engine's dbTimeZone literal rule — the shape,
+     * with its sub-second digits, is kept; batch 86). */
+    public static String inZone(String utcIso, String zone) {
+        java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(utcIso);
+        java.time.LocalDateTime shifted = ldt.atZone(java.time.ZoneOffset.UTC)
+                .withZoneSameInstant(java.time.ZoneId.of(zone)).toLocalDateTime();
+        String out = shifted.toString();
+        return out.length() < utcIso.length()
+                ? out + utcIso.substring(out.length()) : out;   // keep :00 / .SSS shape
+    }
+
     public static SqlExpr strictDateLiteral(SqlExpr x) {
         return SqlExpr.Call.of(SqlFn.CONCAT,
                 new SqlExpr.StringLit("%"), datePrint(x));

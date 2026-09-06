@@ -79,6 +79,21 @@ final class MatchFold {
      * shape SQL demands. Exhaustive — a new precision variant demands a
      * decision here. */
     static SqlExpr dateLit(PureDateLiteral d) {
+        return dateLit(d, null);
+    }
+
+    /** {@code zone}: the connection's dbTimeZone — a TIME-BEARING literal
+     * (a pure DateTime is an instant, UTC-based) spells in that zone, the
+     * engine's convertDateToSqlString rule (extensionDefaults.pure:144:
+     * {@code format('%t{[zone]yyyy-MM-dd HH:mm:ss}', $date)}); date-only
+     * and partial literals are untouched. Null = GMT, the identity. */
+    static SqlExpr dateLit(PureDateLiteral d, @com.legend.Nullable String zone) {
+        if (zone != null && !zone.equals("GMT") && !zone.equals("UTC")) {
+            String iso = LiteralSpelling.isoTimestamp(d);
+            if (iso != null) {
+                return new SqlExpr.TimestampLit(LiteralSpelling.inZone(iso, zone));
+            }
+        }
         return switch (d) {
             case PureDateLiteral.StrictDate sd ->
                     new SqlExpr.DateLit(sd.toEngineString());

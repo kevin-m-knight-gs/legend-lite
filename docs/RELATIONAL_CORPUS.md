@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 250 | 5 | 4 | 0 | 0 | 0 | 0 | 0 |
+| functions/tests | 259 | 251 | 4 | 4 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2436** | 37 | 75 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2437** | 36 | 75 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2436 PASS = 2401 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2437 PASS = 2402 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2436 PASS = 2401 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 151
+tests in the ledger: 150
 
 | bucket | asserts |
 |---|---|
@@ -550,8 +550,8 @@ tests in the ledger: 151
 | wall:typer | 36 |
 | wall:resolver | 29 |
 | wall:exec | 10 |
-| divergence | 24 |
-| not-reached | 34 |
+| divergence | 23 |
+| not-reached | 33 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 15 |
 | pass | 32 |
@@ -604,8 +604,6 @@ tests in the ledger: 151
 - testQualifierConcatenateTwoSimilarJoins #2 - -> not-reached: 1 assert(s) after the failure
 - testQualifierConcatenateTwoSimilarJoinsEmbedded #1 assertEquals -> wall:exec: wall-exec: class-typed property '_' of association target 'meta::relational::tests::projection::function::concatenate::model::SubA :: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - testQualifierConcatenateTwoSimilarJoinsEmbedded #2 - -> not-reached: 1 assert(s) after the failure
-- testInExecutionWithTempTableForDateTimesWithTz #1 meta::pure::functions::asserts::assertSize -> divergence: platform-fail: assertSize: expected N, got N :: assertSize: expected 5, got 0
-- testInExecutionWithTempTableForDateTimesWithTz #2 - -> not-reached: 2 assert(s) after the failure
 - testIsEmptyOnCollection #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statem :: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statement): expected Sequence(type=TDS[(name,St
 - testIsEmptyOnCollection #2 - -> not-reached: 1 assert(s) after the failure
 - testAll #1 assertSize -> wall:lowering: wall-exec: lowering not yet implemented for TypedSerializeGraph :: lowering not yet implemented for TypedSerializeGraph
@@ -819,7 +817,6 @@ tests in the ledger: 151
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe'] over [null, subAccount_ID, subAccount_NAME, subAccount_OE_ID, subAccount_OE_NAME, subAccount_oe_ID, subAccount_oe_NAME, otherAccount_EA_ID, otherAccount_EA_NAME, otherAccount_EA_OE_
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
-- FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
 - FAIL testFilterLimitInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1"where"persontable_1".AGEisnotnulland"persontable_1".AGE>25)as"subselect"connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root"where("root".AGEisnotnulland"root".AGE>25))as"persontable_0"connection=TestDatabaseConnection(type="H2"))
