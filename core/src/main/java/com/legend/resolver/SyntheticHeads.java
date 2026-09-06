@@ -462,6 +462,20 @@ final class SyntheticHeads {
         if (enabled) {
             n = canon.apply(n);
         }
+        // MAP FUSION over a class collection: map(map(xs, t | f), u | $u.leaf)
+        // ≡ map(xs, t | f.leaf) — pure's auto-map flattens both spellings
+        // (the typer's auto-map of a derived property over a to-many
+        // receiver followed by a leaf auto-map: `$b.trades
+        // .productAtTimeOfTrade.name`, injection ...AutoMap). The fused
+        // body is the mapper-scoped filtered-navigation shape the class-
+        // mapper lift serves; unfused, the substitution's map composition
+        // would splice the whole receiver chain for the element.
+        if (enabled) {
+            TypedSpec fused = fuseLeafOverClassMap(n);
+            if (fused != null) {
+                return liftFilteredHeads(fused, enabled, fc);
+            }
+        }
         // ->map(e|$e.leaf) over a (filtered) class navigation IS the
         // property-path spelling — normalize and take the lift arm (the
         // qualifier-inlined aggregate shape:
@@ -806,6 +820,51 @@ final class SyntheticHeads {
                 parkPositional(nav.property(), k),
                 new ExprType(headType, Multiplicity.Bounded.ZERO_ONE));
         return new TypedPropertyAccess(renamed, pa.property(), pa.info());
+    }
+
+    /** The two spellings of a leaf read over a class-collection map —
+     * {@code map(map(xs, t | f), u | $u.leaf)} and the auto-map sugar
+     * {@code map(xs, t | f).leaf} — fused to {@code map(xs, t | f.leaf)}
+     * when {@code f} is class-typed. Null when not that shape. */
+    private static @com.legend.Nullable TypedSpec fuseLeafOverClassMap(TypedSpec n) {
+        TypedMap inner;
+        String leaf;
+        ExprType leafInfo;
+        ExprType outInfo;
+        if (n instanceof TypedMap outer
+                && outer.source() instanceof TypedMap im
+                && outer.mapper().parameters().size() == 1
+                && outer.mapper().body().size() == 1
+                && outer.mapper().body().get(0) instanceof TypedPropertyAccess ob
+                && ob.source() instanceof TypedVariable ov
+                && ov.name().equals(outer.mapper().parameters().get(0))) {
+            inner = im;
+            leaf = ob.property();
+            leafInfo = ob.info();
+            outInfo = outer.info();
+        } else if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedMap im2) {
+            inner = im2;
+            leaf = pa.property();
+            leafInfo = new ExprType(pa.info().type(), Multiplicity.Bounded.ZERO_ONE);
+            outInfo = pa.info();
+        } else {
+            return null;
+        }
+        if (!(inner.source().info().type() instanceof Type.ClassType)
+                || inner.mapper().parameters().size() != 1
+                || inner.mapper().body().size() != 1
+                || !(inner.mapper().body().get(0).info().type() instanceof Type.ClassType)) {
+            return null;
+        }
+        TypedSpec f = inner.mapper().body().get(0);
+        var ft = inner.mapper().functionType();
+        TypedLambda fused = new TypedLambda(inner.mapper().parameters(),
+                List.of(new TypedPropertyAccess(f, leaf, leafInfo)),
+                new ExprType(new Type.FunctionType(ft.params(),
+                        new Type.Param(leafInfo.type(), leafInfo.multiplicity())),
+                        Multiplicity.Bounded.ONE));
+        return new TypedMap(inner.source(), fused, outInfo);
     }
 
     private TypedSpec liftFilteredReadArm(TypedPropertyAccess pa,

@@ -4075,3 +4075,15 @@ the derived property, then `.name` auto-mapped over it) to batch 90's
 parent-scoped route; then testForcedSubTypeProjectDirect, the embedded-head
 chain (multigrain: incomeFunctionSplits#f.incomeFunction(embedded).Classification
 (slot).name), filterOrders (instance filter over a milestoned qualified property).
+
+**Batch 92 / L1 map fusion (2026-09-06, chain GREEN 6m46s; GATES batch 92).** 142/2431 →
+141/2432; IMPL 33. SyntheticHeads.fuseLeafOverClassMap: `map(xs, t | f).leaf` and
+`map(map(xs, t | f), u | $u.leaf)` → `map(xs, t | f.leaf)` before the lift arms.
+LESSON: when a shape is unclear, DUMP the lift's input (a temporary `[top-dump]`
+print of Anchors.compact(top, 60) at collectOpChain, removed before commit) — my
+first fusion guessed map-of-map and missed the leaf-over-map sugar. NEXT probes:
+testFilterTimesWithManyOperands (`$p.firm->toOne().sumEmployeesAge()` — an
+aggregate derived property behind a to-one hop), testBusinessDateInjectionFromVar
+ReferenceInProjectUsingExternalFunction (filterOrders: an instance filter over a
+milestoned qualified property), then testForcedSubTypeProjectDirect (the Bicycle
+member's `person` navigate slot through the subtype cast of a member-union root).

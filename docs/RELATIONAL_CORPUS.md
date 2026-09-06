@@ -66,7 +66,7 @@ shared source registered by several families cannot double-count. Run with
 | tests | 39 | 29 | 2 | 8 | 0 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 64 | 2 | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/datatype | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/injection | 3 | 2 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/injection | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 32 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2445** | 36 | 67 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2446** | 36 | 66 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2445 PASS = 2410 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2446 PASS = 2411 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,16 +542,16 @@ SOFT-PASS RECONCILIATION (F2.1): 2445 PASS = 2410 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 142
+tests in the ledger: 141
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 36 |
-| wall:resolver | 26 |
+| wall:resolver | 25 |
 | wall:exec | 8 |
 | divergence | 23 |
-| not-reached | 29 |
+| not-reached | 28 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 12 |
 | pass | 30 |
@@ -715,8 +715,6 @@ tests in the ledger: 142
 - isolationTest #1 assertEquals -> wall:resolver: wall-exec: correlated filter predicate on hop '_' at depth N of the navigation employees.group.children.name has no applicat :: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head a
 - isolationTest #2 - -> not-reached: 1 assert(s) after the failure
 - relationalResultSourcingOfListExecutionPlan #1 assertEquals -> wall:exec: wall-exec: IllegalStateException: reading an executeInDb result binding ('_') is not supported :: reading an executeInDb result binding ('result') is not supported
-- testProjectThroughAssociationAutoMap #1 assertEquals -> wall:resolver: wall-exec: object-space expression node TypedFilter is not substitutable yet (HN vocabulary): TypedFilter[source=TypedPropertyAcces :: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVari
-- testProjectThroughAssociationAutoMap #2 - -> not-reached: 1 assert(s) after the failure
 - testStoreSubstitution #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, or :: meta::relational::tests::mapping::include::testStoreSubstitution :: unknown function 'resolveStore' — no function of this name in the native or user catalog (unported platform 
 - testForcedSubTypeProjectDirect #1 assertSameElements -> wall:resolver: wall-exec: filtered-navigation read '_' reached substitution unlifted — the router owns this shape (batches N+N); the lift pre-p :: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
 - testNestedModelJoinCompoundInnerCondition #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::relationa :: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (asso
@@ -876,7 +874,6 @@ tests in the ledger: 142
 - FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 4 row(s), our pipeline gave 1 row(s); golden-only [, , ], ours-only []
 - ERROR isolationTest [tests/advanced]: correlated filter predicate on hop 'children' at depth 3 of the navigation employees.group.children.name has no application site yet (the parent-copy reroute applies head and first-tail-hop predicates only)
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: plan wall: plan: computed scalar projection spelling pending [surfaced via assert form 'assertEquals/2']
-- ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - SHAPE testStoreSubstitution [tests/mapping/include]: assert form 'assertIs/2' is not supported yet
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n

@@ -2122,10 +2122,17 @@ public class RelationalCorpusRunner {
             // the golden's own text); the cast is a type-level no-op
             // (Anchors.tdsCsvRead / Render.lowerTdsCsvProperty).
             // enumeration::testEnumInRelation.
-            org.junit.jupiter.api.Assertions.assertEquals(142L,
+            // batch 92 / L1 (2026-09-06): 142 -> 141 — map FUSION in the lift
+            // canon: a leaf read over a class-collection map (the auto-map
+            // sugar `map(xs, t | f).leaf`, and map(map(xs, t | f), u | $u.leaf))
+            // fuses to map(xs, t | f.leaf) — pure's auto-map flattens both —
+            // so `$b.trades.productAtTimeOfTrade.name` is the mapper-scoped
+            // filtered navigation batch 90 serves (SyntheticHeads
+            // .fuseLeafOverClassMap). injection::testProjectThroughAssociationAutoMap.
+            org.junit.jupiter.api.Assertions.assertEquals(141L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2431L,
+            org.junit.jupiter.api.Assertions.assertEquals(2432L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
