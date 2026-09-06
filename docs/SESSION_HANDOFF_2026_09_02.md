@@ -3996,3 +3996,21 @@ SyntheticHeads.liftConcatStreams refuses cross-head branches by design
 ("their own rung"); a union head needs branches of DIFFERENT real heads whose
 AssocJoin target is the UNION of the branch pipes and whose condition is the
 OR of the branch conditions.
+
+**Batch 87 / L1-L2 union heads (2026-09-06, chain GREEN 6m13s; GATES batch 87).** 150/2423 →
+147/2426; IMPL 39. The cross-head concatenate rung: `SyntheticHeads.liftUnionHead`
+(`#uN`, JoinIdentity.Kind.UNION, prop "") + `resolver/UnionHeads` (member = branch
+chain by the head's own route, keys aligned BY NAME and null-padded, OR condition)
++ `AssociationJoins.associationJoin` dispatch at the top. SortChecker folds
+`sort(tds, $tds.columns.name)` to the legacy string-keyed sort. LESSON: the
+engine aligns union keys by column NAME (alignJoinAndPkColumnsForUnion) — a
+member-ordinal suffix is NOT the engine and loses the golden's cross-match rows.
+OPERATIONAL: `tools/allgates.sh` writes its progress to `$GATES_LOG` only when
+EXPORTED (default `$TMPDIR/gates-<user>.log`); a plain stdout redirect stays
+empty until the end — watch the script's own log. NEXT: L8 small natives probes
+(stringToFloat::testProject = mapping-side `parseFloat(col)` dyna-function;
+strictdate::testProject = `rows.values->sort()` over a mixed Integer/StrictDate
+collection in the assert; tds::extensions::testFirstNotNull = generic T at the
+inlining seam over `[TDSNull, 1, 2]`; testSimpleTypeMappingProjectNulls =
+TINYINT/SMALLINT columns + toJSON(TDS)), then L1 multi-hop-through-embedded-head
+(3 tests) and the filtered-navigation lift pair.

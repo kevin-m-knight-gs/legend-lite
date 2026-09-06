@@ -5,7 +5,9 @@ import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSortInfo;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.EnumValue;
@@ -32,7 +34,9 @@ final class SortChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
-        AppliedFunction normalized = legacyStringSortToModern(af);
+        AppliedFunction byMeta = columnsMetaSortToModern(t, af, env);
+        AppliedFunction normalized = legacyStringSortToModern(
+                byMeta == null ? af : byMeta);
         if (!isRelationSortShape(normalized)) {
             return t.applyGeneric(normalized, env);   // collection sort rides the generic path
         }
@@ -41,7 +45,40 @@ final class SortChecker {
         // legacy TDS drop-in surface (engine-verbatim null placement);
         // colspec shapes are the modern relation API (pure null-largest)
         return new TypedSort(a.args().get(0), sortKeysOf(a.args().get(1)),
-                !legacyStringShape(af), a.out());
+                !(legacyStringShape(af) || byMeta != null), a.out());
+    }
+
+    /**
+     * {@code sort(tds, $tds.columns.name)} — the legacy TDS
+     * {@code sort(TabularDataSet[1], String[*])} keyed by the relation's OWN
+     * column names (engine testConcatenateInQualifierWithComplexReturnType:
+     * {@code $result.values->sort($result.values.columns.name)}). Column
+     * names are a STATIC FACT of the typed relation (Typer.tdsColumnsMetaRead
+     * folds the same read to a string collection); here the fold lands as
+     * the legacy string-keyed shape: {@code sort(tds, ['A','B',...])}. Null
+     * when the second argument is not that read or the receiver has no
+     * compile-time schema.
+     */
+    private static @com.legend.Nullable AppliedFunction columnsMetaSortToModern(
+            Typer t, AppliedFunction af, Env env) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() != 2
+                || !(ps.get(1) instanceof AppliedProperty nameRead)
+                || !nameRead.property().equals("name")
+                || !(nameRead.receiver() instanceof AppliedProperty colsRead)
+                || !colsRead.property().equals("columns")) {
+            return null;
+        }
+        TypedSpec rel = t.synth(colsRead.receiver(), env);
+        if (!(Type.schemaView(rel.info().type()) instanceof Type.RelationType rt)
+                || rt.columns().isEmpty()) {
+            return null;
+        }
+        List<ValueSpecification> names = new ArrayList<>(rt.columns().size());
+        for (Type.RelationType.Column c : rt.columns()) {
+            names.add(new CString(c.name()));
+        }
+        return af.withParameters(List.of(ps.get(0), new PureCollection(names)));
     }
 
     /**

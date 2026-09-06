@@ -2084,10 +2084,20 @@ public class RelationalCorpusRunner {
             // instant in that zone (the engine's convertDateToSqlString
             // dbTimeZone rule), the referee's in-list temp table too.
             // testInExecutionWithTempTableForDateTimesWithTz (US/Arizona).
-            org.junit.jupiter.api.Assertions.assertEquals(150L,
+            // batch 87 / L1-L2 union heads (2026-09-06): 150 -> 147 — a
+            // concatenate of navigation chains through DIFFERENT head
+            // properties ($t.subAccount.oe->concatenate($t.otherAccount.oe)
+            // .name) is the engine's processConcatenate shape: ONE union
+            // subselect of the branch chains, join keys aligned by name and
+            // null-padded, LEFT-joined on the OR of the branch conditions
+            // (SyntheticHeads #uN + UnionHeads). sort(tds, $tds.columns.name)
+            // folds to the legacy string-keyed sort (SortChecker).
+            // testQualifierConcatenateTwoSimilarJoins (+Embedded),
+            // testConcatenateInQualifierWithComplexReturnType.
+            org.junit.jupiter.api.Assertions.assertEquals(147L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2423L,
+            org.junit.jupiter.api.Assertions.assertEquals(2426L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

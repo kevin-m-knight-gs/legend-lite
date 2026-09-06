@@ -898,6 +898,15 @@ final class AssociationJoins {
      * target's navigate slot materializes that slot's target too, at any
      * depth (the depth leg, 2026-09-02). */
     private @com.legend.Nullable NavMaterializer navMaterializer;
+    private @com.legend.Nullable UnionHeads unionHeads;
+
+    private UnionHeads unionHeads() {
+        if (unionHeads == null) {
+            unionHeads = new UnionHeads(ctx, sources, synthetics, this,
+                    navMaterializer);
+        }
+        return unionHeads;
+    }
 
     void setNavMaterializer(NavMaterializer nm) {
         this.navMaterializer = nm;
@@ -1059,6 +1068,12 @@ final class AssociationJoins {
     AssocJoin associationJoin(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
                                       boolean forExists, Set<String> demandedLeaves,
                                       String chainKey, Set<List<String>> navTails) {
+        // a UNION head ({@code #uN}) has no underlying property: its join
+        // target is the UNION ALL of its branch chains (UnionHeads)
+        if (SyntheticHeads.isUnion(head)) {
+            return unionHeads().material(temporal, cs, head, context,
+                    demandedLeaves);
+        }
         // A SYNTHETIC head resolves by its underlying property; its parked
         // predicate joins the leaf demand (the pred's own reads pull the
         // target's slots) and wraps the finished target pipeline below.

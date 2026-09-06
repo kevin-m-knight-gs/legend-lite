@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 80 | 8 | 4 | 16 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 251 | 4 | 4 | 0 | 0 | 0 | 0 | 0 |
+| functions/tests | 259 | 254 | 4 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/loadCsvToDbTable | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 149 | 1 | 5 | 0 | 1 | 1 | 0 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2437** | 36 | 75 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2440** | 36 | 72 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2437 PASS = 2402 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2440 PASS = 2405 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -522,9 +522,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2437 PASS = 2402 clean + 35 carrying softness (
 - 1x unknown function 'isExecutionOptionPresent' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 1x deferred let binding '$targetGraph' has no type outside a consuming call position (tree/colspec bindings resolve at their call sites)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
-- 1x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe'] over [null, subAccount_ID, subAccount_NAME, subAccount_OE_ID, subAccount_OE_NAME, subAccount_oe_ID, subAccount_oe_NAME, otherAccount_EA_ID, otherAccount_EA_NAME, otherAccount_EA_OE_ID, otherAccount_EA_OE_NAME, otherAccount_oe_ID, otherAccount_oe_NAME]
-- 1x class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - 1x lowering not yet implemented for TypedSerializeGraph
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)'] over [null, employees_ID, employees_FIRSTNAME, employees_LASTNAME, employees_AGE, employees_ADDRESSID, employees_FIRMID, employees_MANAGERID, employees_locations_ID, employees_locations_PERSONID, employees_locations_PLACE, employees_locations_date]
 - 1x project expects ~[…] column specifications
@@ -539,19 +536,22 @@ SOFT-PASS RECONCILIATION (F2.1): 2437 PASS = 2402 clean + 35 carrying softness (
 - 1x milestoned property access 'product' on a NESTED navigation is not supported yet
 - 1x in function 'meta::relational::postProcessor::reAliasColumnName::lengthConfig': class meta::pure::metamodel::type::Any has no property 'dbExtension' [inlined via meta::relational::postProcessor::reAliasColumnName::trimColumnName/2 -> meta::relational::postProcessor::reAliasColumnName::search/2 -> meta::relational::postProcessor::reAliasColumnName::lengthConfig/1]
 - 1x unknown function 'routeFunction' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- 1x in call to 'meta::relational::metamodel::relation', argument 1: expected meta::relational::metamodel::TableAlias, got V
+- 1x 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- 1x unknown function 'newMultiValueMap' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 150
+tests in the ledger: 147
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 36 |
-| wall:resolver | 29 |
-| wall:exec | 10 |
+| wall:resolver | 28 |
+| wall:exec | 8 |
 | divergence | 23 |
-| not-reached | 33 |
+| not-reached | 30 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 15 |
 | pass | 32 |
@@ -598,12 +598,6 @@ tests in the ledger: 150
 - testViewToTDS #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatibleP :: in function 'meta::pure::tds::viewToTDS': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatiblePureType' — no function of this name in the nat
 - withPlatform #1 assertEquals -> wall:lowering: wall-exec: DialectCapability: collection reduction '_' reached a dialect without a list encoding :: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - testGroupByWithJoinDB2 #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#N_d :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", s
-- testConcatenateInQualifierWithComplexReturnType #1 assertEquals -> wall:exec: wall-exec: class-typed property '_' used as a whole value is graph output (Phase HN) :: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- testConcatenateInQualifierWithComplexReturnType #2 - -> not-reached: 1 assert(s) after the failure
-- testQualifierConcatenateTwoSimilarJoins #1 assertEquals -> wall:resolver: wall-exec: IllegalStateException: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='_' ref='_'] o :: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe'] over [null, subAccount_ID, subAccoun
-- testQualifierConcatenateTwoSimilarJoins #2 - -> not-reached: 1 assert(s) after the failure
-- testQualifierConcatenateTwoSimilarJoinsEmbedded #1 assertEquals -> wall:exec: wall-exec: class-typed property '_' of association target 'meta::relational::tests::projection::function::concatenate::model::SubA :: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
-- testQualifierConcatenateTwoSimilarJoinsEmbedded #2 - -> not-reached: 1 assert(s) after the failure
 - testIsEmptyOnCollection #1 meta::pure::functions::asserts::assertEquals -> referee-cannot-replay: platform-fail: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statem :: assertEquals (sql-text, oracle declined: plan-text unformatted (planToStringWithoutFormatting) — its SQL is not a statement): expected Sequence(type=TDS[(name,St
 - testIsEmptyOnCollection #2 - -> not-reached: 1 assert(s) after the failure
 - testAll #1 assertSize -> wall:lowering: wall-exec: lowering not yet implemented for TypedSerializeGraph :: lowering not yet implemented for TypedSerializeGraph
@@ -814,9 +808,6 @@ tests in the ledger: 150
 - SHAPE testViewToTDS [executionPlan/tests]: plan wall: in function 'meta::pure::tds::viewToTDS': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatiblePureType' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [inlined via meta::pure::tds::viewToTDS/1] [surfaced via
 - ERROR withPlatform [executionPlan/tests]: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME,"persontable_0".FIRSTNAME
-- ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe'] over [null, subAccount_ID, subAccount_NAME, subAccount_OE_ID, subAccount_OE_NAME, subAccount_oe_ID, subAccount_oe_NAME, otherAccount_EA_ID, otherAccount_EA_NAME, otherAccount_EA_OE_
-- ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: lowering not yet implemented for TypedSerializeGraph
 - FAIL testFilterLimitInSequenceForTableAccessor [functions/tests]: assertEquals: expected Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"subselect"."FIRSTNAME"as"FIRSTNAME","subselect"."LASTNAME"as"LASTNAME"from(selecttop1"persontable_1".IDas"ID","persontable_1".FIRSTNAMEas"FIRSTNAME","persontable_1".LASTNAMEas"LASTNAME","persontable_1".AGEas"AGE","persontable_1".ADDRESSIDas"ADDRESSID","persontable_1".FIRMIDas"FIRMID","persontable_1".MANAGERIDas"MANAGERID"frompersonTableas"persontable_1"where"persontable_1".AGEisnotnulland"persontable_1".AGE>25)as"subselect"connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(FIRSTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),""),(LASTNAME,meta::pure::precisePrimitives::Varchar,VARCHAR(1024),"")]resultColumns=[("FIRSTNAME",VARCHAR(200)),("LASTNAME",VARCHAR(200))]sql=select"persontable_0".FIRSTNAMEas"FIRSTNAME","persontable_0".LASTNAMEas"LASTNAME"from(selecttop1*frompersonTableas"root"where("root".AGEisnotnulland"root".AGE>25))as"persontable_0"connection=TestDatabaseConnection(type="H2"))

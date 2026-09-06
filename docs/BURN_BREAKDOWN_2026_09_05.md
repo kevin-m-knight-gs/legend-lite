@@ -34,7 +34,7 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
-Status: **batch 73 / L1a LANDED** — testQualifiedPropertyInQuery and testSubFilter
+Status: **batch 87 / L1-L2 union heads LANDED (2026-09-06)** — testQualifierConcatenateTwoSimilarJoinsEmbedded and testConcatenateInQualifierWithComplexReturnType flipped (147/2426, with L2's testQualifierConcatenateTwoSimilarJoins): the "class-typed property as a whole value" wall in front of these two was really the engine's processConcatenate shape — a concatenate of navigation chains through different heads joins ONE union subselect (see L2). **batch 73 / L1a LANDED** — testQualifiedPropertyInQuery and testSubFilter
 flipped (166/2407): the synthetic predicate's nested-association reads widen the
 target pipe like the association condition already did. Sub-legs found by the
 probes, still open: (i) testExistsAsNullWithSubType — inside a nested exists scope
@@ -59,15 +59,17 @@ and the union member `vehicles->subType(@Bicycle).person.name`).
 | inheritance::multiJoins::testForcedSubTypeProjectDirect | same lift wall (subType in project) | rows |
 | injection::testProjectThroughAssociationAutoMap | object-space TypedFilter not substitutable | rows |
 | query::function::testFilterTimesWithManyOperands | aggregate over a navigation whose to-many hop sits behind a to-one | assertSameSQL → referee rows |
-| concatenate::testQualifierConcatenateTwoSimilarJoinsEmbedded | class-typed property of an association target as a whole value | rows [1,'OE 1',2,'OE 2'] |
-| concatenate::testConcatenateInQualifierWithComplexReturnType | class-typed property used as a whole value (graph output) | rows |
+| concatenate::testQualifierConcatenateTwoSimilarJoinsEmbedded | **FLIPPED batch 87** — union head (#uN): the branch chains UNION ALL-ed with name-aligned null-padded keys, LEFT-joined on the OR of the branch conditions (engine processConcatenate); the embedded `oe` ctor drills inside the member | rows [1,'OE 1',2,'OE 2'] |
+| concatenate::testConcatenateInQualifierWithComplexReturnType | **FLIPPED batch 87** — union head over `address` (navigate-slot route) and `firm.address` (association hop + slot); keys align BY NAME so both branches share `ID` exactly as the golden joins `unionalias_0.ID = root.FIRMID or … = root.ADDRESSID`; the assert's `sort(tds, $tds.columns.name)` folds to the legacy string-keyed sort | rows |
 | enumeration::testEnumInRelation | class query under TypedPropertyAccess — a `~[...]` relation project whose columns read enum-mapped and class-typed properties | rows (csv) |
 
 ### L2 Resolver: project/extend column resolution and aggregation (3)
 
+Status: **batch 87 / L1-L2 union heads LANDED (2026-09-06)** — testQualifierConcatenateTwoSimilarJoins flipped (147/2426) with the two L1 concatenate tests: a concatenate of navigation chains through DIFFERENT head properties lifts into ONE synthetic union head (`SyntheticHeads.liftUnionHead` → `#uN`; `UnionHeads.material` builds the engine's unionalias join: member = branch chain, keys aligned by name and null-padded, condition = OR of the branch conditions). The two aggregation tests stay open.
+
 | test | wall |
 |---|---|
-| concatenate::testQualifierConcatenateTwoSimilarJoins | extend/project columns [Trade ID, OE] unresolvable after isolation |
+| concatenate::testQualifierConcatenateTwoSimilarJoins | **FLIPPED batch 87** — the same union head; the `oe` navigate slot of each branch target rides the member's SubNav |
 | aggregation::testSubAggregationWithDeepAndOverlap_WithColVar | extend/project columns [a,b,c] unresolvable (cols bound through a let + cast) |
 | aggregation::testSubAggregationWithDeepAndOverlap | store resolution left getAll(Firm) unresolved (nested map + count in a col) |
 
@@ -401,7 +403,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 → **42**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 → **39**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

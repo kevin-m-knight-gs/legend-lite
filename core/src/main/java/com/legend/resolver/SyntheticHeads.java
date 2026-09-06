@@ -66,7 +66,7 @@ final class SyntheticHeads {
      * {@code #cN} convention lives in this record.
      */
     record JoinIdentity(String prop, Kind kind, int seq) {
-        enum Kind { PLAIN, FILTERED, DATED, CONCAT, POSITIONAL }
+        enum Kind { PLAIN, FILTERED, DATED, CONCAT, POSITIONAL, UNION }
 
         JoinIdentity {
             if (prop.indexOf('#') >= 0) {
@@ -93,6 +93,7 @@ final class SyntheticHeads {
                 case 'd' -> Kind.DATED;
                 case 'c' -> Kind.CONCAT;
                 case 'p' -> Kind.POSITIONAL;
+                case 'u' -> Kind.UNION;
                 default -> throw new IllegalStateException(
                         "malformed synthetic head (resolver bug): " + head);
             };
@@ -113,6 +114,9 @@ final class SyntheticHeads {
                 case DATED -> prop + "#d" + seq;
                 case CONCAT -> prop + "#c" + seq;
                 case POSITIONAL -> prop + "#p" + seq;
+                // a UNION head has NO real property: its branches are
+                // whole navigation chains parked in unionSpecs
+                case UNION -> prop + "#u" + seq;
             };
         }
     }
@@ -1126,17 +1130,106 @@ final class SyntheticHeads {
      * unionalias subselect, LEFT-joined, row-exploding). Null = not
      * this shape. */
     private @com.legend.Nullable TypedSpec liftConcatArm(TypedSpec n) {
-        if (n instanceof TypedPropertyAccess pa2
-                && pa2.source() instanceof TypedNativeCall cc
-                && cc.callee().qualifiedName()
-                        .equals("meta::pure::functions::collection::concatenate")
+        if (!(n instanceof TypedPropertyAccess pa2)) {
+            return null;
+        }
+        if (pa2.source() instanceof TypedNativeCall cc
+                && isConcatCall(cc)
                 && cc.info().type() instanceof Type.ClassType
                 && !(pa2.info().multiplicity()
                         instanceof Multiplicity.Bounded b2
                         && Integer.valueOf(1).equals(b2.upper()))) {
-            return liftConcatStreams(cc, pa2);
+            TypedSpec sameHead = liftConcatStreams(cc, pa2);
+            if (sameHead != null) {
+                return sameHead;
+            }
+        }
+        // CROSS-HEAD branches (engine processConcatenate, pureToSQLQuery
+        // .pure:2709 + buildConcatenateSubSelect :2889): every branch a
+        // whole navigation chain off the same variable through DIFFERENT
+        // head properties — `$t.subAccount.oe->concatenate($t.otherAccount
+        // .oe)->toOne().name`. The engine joins ONE `unionalias_N`
+        // subselect (the branch chains UNION ALL-ed with their join keys
+        // null-padded) on the OR of the branch conditions; the leaf reads
+        // the union's shared column. A ->toOne() wrapper is SQL-erased
+        // exactly as the filtered-nav lift erases it.
+        TypedSpec bare = filterBehindToOne(pa2.source());
+        if (bare instanceof TypedNativeCall cc2 && isConcatCall(cc2)
+                && cc2.info().type() instanceof Type.ClassType leafClass) {
+            return liftUnionHead(cc2, leafClass, pa2);
         }
         return null;
+    }
+
+    private static boolean isConcatCall(TypedNativeCall c) {
+        return c.callee().qualifiedName()
+                .equals("meta::pure::functions::collection::concatenate");
+    }
+
+    /** The parked material of a {@code #uN} head: the leaf class and the
+     * ORDERED branch paths (each a navigation chain off the head's
+     * variable, hop names in order). */
+    record UnionSpec(String classFqn, List<List<String>> paths) {}
+
+    static boolean isUnion(String head) {
+        return JoinIdentity.of(head).kind() == JoinIdentity.Kind.UNION;
+    }
+
+    UnionSpec unionSpec(String head) {
+        return java.util.Objects.requireNonNull(unionSpecs.get(head),
+                () -> "resolver bug: no union material parked on " + head);
+    }
+
+    /** The union-head lift body: every branch (through ->toOne()/first/
+     * head wrappers) must be a PLAIN navigation chain of the leaf class
+     * bottoming at ONE variable, and at least two DISTINCT head
+     * properties must occur (a same-head concatenate is the {@code #cN}
+     * stream lift's shape, never this one). Null = not this shape — the
+     * caller falls through to the loud wall. Equal (variable, class,
+     * branches) share ONE identity (engine merge-by-identity: the same
+     * concatenated stream in two columns rides one union join). */
+    private @com.legend.Nullable TypedSpec liftUnionHead(TypedNativeCall cc,
+            Type.ClassType leafClass, TypedPropertyAccess leafRead) {
+        List<TypedSpec> streams = new java.util.ArrayList<>();
+        flattenConcat(cc, streams);
+        List<List<String>> paths = new java.util.ArrayList<>(streams.size());
+        Set<String> heads = new java.util.LinkedHashSet<>();
+        TypedVariable bottom = null;
+        for (TypedSpec s0 : streams) {
+            TypedSpec s = filterBehindToOne(s0);
+            if (!(s.info().type() instanceof Type.ClassType)) {
+                return null;
+            }
+            List<String> path = new java.util.ArrayList<>();
+            TypedSpec cur = s;
+            while (cur instanceof TypedPropertyAccess pa) {
+                path.add(0, pa.property());
+                cur = pa.source();
+            }
+            if (!(cur instanceof TypedVariable v) || path.isEmpty()) {
+                return null;
+            }
+            if (bottom == null) {
+                bottom = v;
+            } else if (!bottom.name().equals(v.name())) {
+                return null;
+            }
+            paths.add(path);
+            heads.add(path.get(0));
+        }
+        if (bottom == null || paths.size() < 2 || heads.size() < 2) {
+            return null;
+        }
+        List<Object> memoKey = List.of(bottom.name(), leafClass.fqn(), paths);
+        String synth = unionMemo.get(memoKey);
+        if (synth == null) {
+            synth = new JoinIdentity("", JoinIdentity.Kind.UNION, count++).encoded();
+            unionMemo.put(memoKey, synth);
+            unionSpecs.put(synth, new UnionSpec(leafClass.fqn(), paths));
+        }
+        return new TypedPropertyAccess(
+                new TypedPropertyAccess(bottom, synth, cc.info()),
+                leafRead.property(), leafRead.info());
     }
 
     private static boolean isLiftableNav(TypedSpec n) {
@@ -1450,6 +1543,12 @@ final class SyntheticHeads {
      * stream expression appearing twice shares ONE join identity. */
     private final Map<List<Object>, String> concatMemo =
             new LinkedHashMap<>();
+
+    /** {@code #uN} heads: synthetic name → the parked branch chains. */
+    private final Map<String, UnionSpec> unionSpecs = new LinkedHashMap<>();
+
+    /** (variable, leaf class, branch paths) → minted {@code #uN} name. */
+    private final Map<List<Object>, String> unionMemo = new LinkedHashMap<>();
 
     /** Alpha-normalized predicate for identity comparison: separate
      * β-inlines of the same derived property differ only in the fresh

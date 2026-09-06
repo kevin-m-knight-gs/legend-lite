@@ -1061,6 +1061,13 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 87 / L1-L2 union heads (2026-09-06):**
+exec-passing 7, text-only 12, unable-to-exec 9 unchanged; ratchet 150/2423 →
+147/2426 (testQualifierConcatenateTwoSimilarJoins, …Embedded,
+testConcatenateInQualifierWithComplexReturnType — TDS row verdicts plus the
+assertSameSQL goldens replayed on H2 against our unionalias-shaped SQL);
+disagree 0 both channels.
+
 **§8.0 scope-table receipt, batch 86 / L10 (2026-09-06):** exec-passing 7,
 text-only 12, unable-to-exec 9 unchanged; ratchet 151/2422 → 150/2423
 (testInExecutionWithTempTableForDateTimesWithTz — TDS row verdicts plus the
