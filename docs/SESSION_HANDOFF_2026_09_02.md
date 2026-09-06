@@ -4120,3 +4120,28 @@ the lifted `person` slot (subTypeLeafRead serves leaf columns only) — canonica
 the cast-then-slot read to the union's slot read (row-neutral: other threads
 carry NULL keys), then `.name` rides the slot's SubNav; testExistsAsNullWithSubType
 (a subtype cast inside an exists predicate over `functions.fnScope`); isolationTest.
+
+**SESSION CLOSE 2026-09-06 (after batch 94; main bc6d02812, tree clean, ratchet 140/2433, IMPL 31).**
+Start the next session from this entry. The two probed-and-sized next items:
+(1) testForcedSubTypeProjectDirect — `$r->subType(@Bicycle).person.name` over the
+RoadVehicle member union: the cast canonicalizer (CorrelatedSubselects
+.subTypeNavCastCanon, third arm) turns the root-var cast into `filter($r,
+witness)` and the 2-hop read then hits Substitution.unliftedWall (the lift's
+filtered-read arm needs a liftable NAV source; a bare variable is not one). The
+lifted member slot: UnionSynthesis NAV LIFT (collectNavLifts, NavLift/LiftChain
+— Bicycle's `person : @PersonBicycle > @PersonPersonMid` is a LiftChain) puts ONE
+legacyNavigate on the union with member-suffixed keys; find how that slot is
+keyed in the union ClassSource's bindings (stc_<Bicycle>___person or plain) and
+route `filter($r, witness).person.name` as `if(witness, | $r.<slot>.name, | [])`
+(the instance-filter CASE-WHEN with a NAVIGATION leaf: the slot must be demanded
+— extend the batch-93 canon to reads THROUGH the instance filter).
+(2) testExistsAsNullWithSubType — `functions->exists(f | $f.fnScope->subType(@Public)
+.id->isNotEmpty())`: the cast canon renames the leaf to the stc column of the
+NESTED nav `fnScope` (a navigate slot of Fn) and Substitution.assocLeaf refuses
+(`target.nested()` — the exists target scope has no SubNav dispatch). Design: the
+exists material (NavExistsMaterial / ExistsSub) must materialize the target's
+demanded navigate slots (NavMaterializer tails, as association joins do) and
+register their SubNavs on the exists target's Substitution scope.
+Then: isolationTest (depth-2 pred hopping parent navs), the multigrain embedded
+chain, rowValueDifferenceTest (engine program admission + TDSColumn instances),
+L3/L5/L6/L13/L15 per §7 of the breakdown.
