@@ -47,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 48 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 225 | 2 | 1 | 0 | 0 | 0 | 0 | 0 |
+| milestoning/tests | 228 | 226 | 1 | 1 | 0 | 0 | 0 | 0 | 0 |
 | modelJoins | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 51 | 4 | 2 | 0 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2448** | 37 | 63 | 27 | 6 | 6 | 29 | 3 |
+| **total** | 2575 | **2449** | 36 | 63 | 27 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2448 PASS = 2413 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
+SOFT-PASS RECONCILIATION (F2.1): 2449 PASS = 2414 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,7 +542,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2448 PASS = 2413 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 139
+tests in the ledger: 138
 
 | bucket | asserts |
 |---|---|
@@ -550,11 +550,11 @@ tests in the ledger: 139
 | wall:typer | 36 |
 | wall:resolver | 22 |
 | wall:exec | 8 |
-| divergence | 23 |
+| divergence | 21 |
 | not-reached | 27 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 12 |
-| pass | 30 |
+| pass | 29 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
@@ -565,6 +565,7 @@ tests in the ledger: 139
 | engine-golden-defect:alloy-adjust-widening | 1 |
 | engine-golden-defect:joinStrings-rendering | 4 |
 | decision:empty-toOne-forced-isolation | 2 |
+| engine-golden-defect:relation-mapping-filter-alias-root | 1 |
 | engine-golden-defect:h2-week-start | 1 |
 
 - testClassesAssociationsAndMappingFromDatabase #0 - -> decision:protocol-transform: wall-type: unknown class '_' in ^meta::protocols::pure::vX_X_X::metamo :: meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase :: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureMod
@@ -639,8 +640,6 @@ tests in the ledger: 139
 - testTableToTdsWithCrossJoin #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [met
 - testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 meta::relational::functions::asserts::assertSameSQL -> engine-golden-defect:instance-filter-ungated: platform-fail: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gol :: assertSameSQL (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 2 row(s), our pipeline
-- testDateFunctionInMilestonedPropertyWithMilestonedEntity #1 meta::pure::functions::asserts::assertEquals -> pass
-- testDateFunctionInMilestonedPropertyWithMilestonedEntity #2 TypedIf -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 0 row(s), our pipeline 
 - testPersonToFirmUsingFromProject #1 assertEquals -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta::ext :: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::e
 - testPersonToFirmUsingProject #0 - -> zero-assert: assert-free-inert :: meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
 - testProp3 #1 meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible -> referee-cannot-replay: platform-fail: assertEqualsHNCompatible (sql-text, rows underivable): expected Relational :: assertEqualsH2Compatible (sql-text, rows underivable): expected Relational (   type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]   resultColumns = [("name", VARCHAR(200)), ("prop3", "
@@ -724,7 +723,7 @@ tests in the ledger: 139
 - testMixedMappingWithFilterInProject #1 assertEquals -> wall:resolver: wall-exec: a navigation join over this union demands key column '_', which NO union member carries :: a navigation join over this union demands key column 'firm_ID', which NO union member carries
 - testRelationStoreAccessorOnView #1 assert -> divergence: platform-fail: Catalog Error: Table with name personView does not exist! :: Catalog Error: Table with name personView does not exist! Did you mean "personWithAddressTable"?  LINE 3: FROM personView AS t2              ^
 - testRelationStoreAccessorOnView #2 - -> not-reached: 1 assert(s) after the failure
-- testSimpleMappingQueryWithFilterInProject #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: '_' ::  expected: '#TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#' actual:   '#TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#'
+- testSimpleMappingQueryWithFilterInProject #1 meta::pure::functions::asserts::assertEquals -> engine-golden-defect:relation-mapping-filter-alias-root: platform-fail: expected: '_' ::  expected: '#TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#' actual:   '#TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#'
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
 - testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting #2 - -> not-reached: 4 assert(s) after the failure
 - testBiTemporalUnionJoin_milestoningColumnInOnClause #1 meta::pure::functions::asserts::assert -> divergence: platform-fail: Assert failed :: Assert failed
@@ -821,7 +820,6 @@ tests in the ledger: 139
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
 - ERROR testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [meta::relational::milestoning::applyMilestoningFilters/5:module p0=meta::relational::metamodel::RelationalOpe
 - FAIL testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s), our pipeline gave 2 row(s); golden-only [1], ours-only [<null>]
-- FAIL testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-text: expected select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "ProductClassificationSystemTable_d#5_d#2_m1" on ("root".classificationSystemId = "ProductClassificationSystemTable_d#5_d#2_m1".id and "ProductClassificationSystemTable_d#5_d#2_m1".from_z <= DATE'2015-01-01' and "ProductClassificationSystemTable_d#5_d#2_m1".thru_z > DATE'2015-01-01') left outer join SystemTable as "SystemTable_d#5_l_d#2_m1_r" on ("ProductClassificationSystemTable_d#5_d#2_m1".name = "SystemTable_d#5_l_d#2_m1_r".name) where "SystemTable_d#5_l_d#2_m1_r".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16', got select "root".name as "name" from ProductTable as "root" left outer join ProductClassificationSystemTable as "productclassificationsystemtable_0" on ("root".classificationSystemId = "productclassificationsystemtable_0".id and "productclassificationsystemtable_0".from_z <= DATE'2015-10-16' and "productclassificationsystemtable_0".thru_z > DATE'2015-10-16') left outer join SystemTable as "systemtable_0" on ("productclassificationsystemtable_0".name = "systemtable_0".name) where "systemtable_0".name = 'SYS1' and "root".from_z <= DATE'2015-10-16' and "root".thru_z > DATE'2015-10-16'
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: plan wall: association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity' is not mapped in mapping 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping' (association 'meta::external::store::relational::modelJoins::test::Trade_LegalEntity': $this.entityIdFk 
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - ERROR testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: from() argument 1 must be a mapping or runtime reference, got TypedUserCall

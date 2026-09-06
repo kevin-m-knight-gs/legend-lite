@@ -1890,6 +1890,9 @@ public final class StoreResolver {
                 }
             }
         }
+        // dated EMBEDDED heads: their joinslots stamp by the head's spec
+        temporal.datedEmbeddedMidSlots(cs, navHeadByAlias, m.slotPrefixes(),
+                slotAliases, midPrefixToChain, midPrefixToDim);
         final TypedSpec basePipe =
                 temporal.applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
                         navPrefixToChain, midPrefixToChain, midPrefixToDim);

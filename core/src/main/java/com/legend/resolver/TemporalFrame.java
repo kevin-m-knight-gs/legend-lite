@@ -2182,6 +2182,56 @@ final class TemporalFrame {
     }
 
     /**
+     * DATED EMBEDDED property ({@code $p.classification(constantDate())}
+     * where classification is an embedded block of the set): the physical
+     * joinslots the block reads — its OWN milestoned tables — and the MID
+     * slots of nav steps chained beneath it (chain classification.system,
+     * no spec of its own) stamp by the head's spec and the head class's
+     * dimension, never the root context: one milestoning context per
+     * cursor, an explicit property-function date building a NEW context
+     * for its hop (engine MIL:846-868; golden
+     * testDateFunctionInMilestonedPropertyWithMilestonedEntity dates
+     * ProductClassificationSystemTable by constantDate()).
+     */
+    void datedEmbeddedMidSlots(ClassSource cs, Map<String, String> navHeadByAlias,
+            Map<String, String> slotPrefixes, Set<String> slotAliases,
+            Map<String, String> midPrefixToChain,
+            Map<String, MilestoningStrategy> midPrefixToDim) {
+        for (var be : cs.bindings().entrySet()) {
+            TypedSpec eb = Pipelines.unwrapToOne(be.getValue());
+            if (!(eb instanceof com.legend.compiler.spec.typed.TypedNewInstance ector)
+                    || spec(be.getKey()) == null) {
+                continue;
+            }
+            Set<String> reads = new java.util.LinkedHashSet<>();
+            CorrelatedSubselects.collectAliasReads(ector, cs.rowVar(), slotAliases, reads);
+            for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
+                String chain = navHeadByAlias.getOrDefault(navE.getKey(), navE.getKey());
+                if (!chain.startsWith(be.getKey() + ".") || spec(chain) != null) {
+                    continue;
+                }
+                for (TypedSpec b : navE.getValue().predicate().body()) {
+                    for (String slot : slotAliases) {
+                        if (Pipelines.referencesAliasOn(b,
+                                navE.getValue().predicate().parameters().get(0),
+                                Set.of(slot))) {
+                            reads.add(slot);
+                        }
+                    }
+                }
+            }
+            MilestoningStrategy dim = temporalStrategy(ector.classFqn());
+            for (String slot : reads) {
+                String pfx = slotPrefixes.getOrDefault(slot, slot + "_");
+                midPrefixToChain.put(pfx, be.getKey());
+                if (dim != null) {
+                    midPrefixToDim.put(pfx, dim);
+                }
+            }
+        }
+    }
+
+    /**
      * A temporal TARGET's pipeline filtered by its milestoning columns —
      * explicit spec (property-function dates) wins; else the ROOT context
      * propagates when the immediate parent is temporal and the strategies

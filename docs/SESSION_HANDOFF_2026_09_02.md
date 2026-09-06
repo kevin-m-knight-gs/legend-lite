@@ -4158,3 +4158,21 @@ fnScope[map2]/[map3] → the Private/Public union); the exists predicate scope
 StoreResolver.nestedScope → scopeMaterials over the target with the exists
 lambda's full paths — find why the routed `fnScope` slot does not register
 there (dump the target's bindings/navSteps and the nested scope's assocs keys).
+
+**Batch 96 / L12 dated embedded head + two receipts (2026-09-06, chain GREEN 6m34s; GATES
+batch 96).** 139/2434 → 138/2435; text-only 12 → 11; IMPL 26 (NAMED 19; TEXT +1).
+TemporalFrame.datedEmbeddedMidSlots (dated embedded head governs its block's joinslots
+and sub-hop mid slots). LESSON: 'referee skew' was a misdiagnosis — ALWAYS diff our
+SQL against the golden literally before blaming the referee (the dates differed).
+Probe receipts this stretch (breakdown §8): testExistsAsNullWithSubType PARKED
+(normalizer emits the routed fnScope pair as ONE navigate to the first set); the
+embedded-head trio sized; testPersonToFirmUsingProject stays IMPL (lets-only body
++ `true;` — the XStore plan must generate for the assert-free pass). NEXT:
+concatenate::testAll — `execute(|Product.all()->concatenate(Product.all()))`
+resolves each side as its own implicit-serialize graph node and the concatenate
+lowering walls on TypedSerializeGraph in relation position: fuse two graph
+terminals of the same class/layout into ONE graph over TypedConcatenate(source1,
+source2) (StoreResolver's class-concatenate terminal arm); then
+testGroupByWithWindowSubset (admit tds.pure:867 verbatim + StaticFold sort/compare/
+indexOf/contains vocabulary), testTableToTdsWithCrossJoin (TableAlias at the
+lowering boundary), L5 XStore (Relation-function ModelJoins), L6/L13.

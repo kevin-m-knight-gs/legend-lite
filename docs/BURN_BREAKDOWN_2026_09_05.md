@@ -77,8 +77,8 @@ Status: **batch 87 / L1-L2 union heads LANDED (2026-09-06)** — testQualifierCo
 
 | test | detail |
 |---|---|
-| relation::testSimpleMappingQueryWithFilterInProject | DIVERGENCE: rows differ (`Fabrice,Oliver` vs `Fabrice,null`) — filter inside project over a relation mapping |
-| relation::testMixedMappingWithFilterInProject | a navigation join over this union demands a key column no member carries |
+| relation::testSimpleMappingQueryWithFilterInProject | **RECLASSIFIED batch 96 → NAMED engine-golden-defect:relation-mapping-filter-alias-root** — fixture ages David 52 / Fabrice 45 / John 30 / Oliver 26, Firm C = {Fabrice, Oliver}; the golden's `Fabrice → TDSNull, Oliver → [Fabrice, Oliver]` is `root.AGE < 35` on the OUTER row (relationalModelJoins.pure:342-349 reconciles the inner condition's alias onto 'root'); Pure's per-employee filter (ours) gives `Fabrice → Oliver, Oliver → Oliver` |
+| relation::testMixedMappingWithFilterInProject | **RECLASSIFIED batch 96 → NAMED engine-golden-defect:relation-mapping-filter-alias-root** — the same golden (tests.pure:179) behind a union-key wall (`firm_ID`): even with the wall gone the rows cannot match Pure |
 | union::relation::testUnionTwoRelationMappings_ManyColumnProject | DIVERGENCE: 12-column distinct over a union of two relation mappings |
 | union::relation::testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion | same |
 
@@ -212,9 +212,11 @@ Status: **batch 86 / L10 LANDED (2026-09-06)** — testInExecutionWithTempTableF
 
 ### L12 Milestoning divergence (1)
 
+Status: **batch 96 / L12 LANDED (2026-09-06)** — testDateFunctionInMilestonedPropertyWithMilestonedEntity flipped (138/2435): our SQL was NOT byte-identical to the golden after all — the golden dates ProductClassificationSystemTable by `constantDate()` (2015-01-01) and ours by the root business date; the temporal stamping's mid-slot rule keyed the slot by the sub-chain `classification.system` (no spec) and fell back to the root. A dated EMBEDDED head now governs its block's joinslots and its sub-hops' mid slots.
+
 | test | detail |
 |---|---|
-| businessdate::testDateFunctionInMilestonedPropertyWithMilestonedEntity | rows differ under the H2 advisory referee — `classification(constantDate())` on a milestoned entity with an embedded set |
+| businessdate::testDateFunctionInMilestonedPropertyWithMilestonedEntity | **FLIPPED batch 96** — a real wrong-row bug of ours, not referee skew: the embedded block's milestoned joinslot took the ROOT date; the dated embedded head's spec (`constantDate()` = 2015-01-01) now stamps it (TemporalFrame.datedEmbeddedMidSlots) |
 
 ### L13 Model chain over relational (m2m2r) and derived properties (5)
 
@@ -243,7 +245,7 @@ Status: **batch 85 / L14b LANDED (2026-09-06)** — testLoadCsv flipped (151/242
 
 | test | detail |
 |---|---|
-| executionPlan::testQuoteIdentifiersFlagWithGraphFetch | oracle declined: Schema "productSchema" not found — the QUOTED schema name; the referee must create the quoted schema (6 goldens in the census hit this) |
+| executionPlan::testQuoteIdentifiersFlagWithGraphFetch | **RECLASSIFIED batch 96 → TEXT (T2)** — the assert is `assertEquals('PureExp(type=String expression=->serialize(...)(StoreMappingGlobalGraphFetch(...)))', $result->planToStringWithoutFormatting(...))` (executionPlanTest.pure:2619): engine PLAN TEXT with the quoted SQL embedded — the same class as the seven batch-86 receipts; the referee's quoted-schema decline was the sql-text arm attempting the embedded SQL |
 
 ### L16 Plumbing (1)
 
@@ -375,7 +377,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 
 ---
 
-## 5. NAMED — receipts, registered defects, user decisions (17)
+## 5. NAMED — receipts, registered defects, user decisions (19)
 
 | tests | bucket |
 |---|---|
@@ -385,6 +387,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 | embedded::otherwise::testMilestonedRootAndMilestonedProperty, milestoning::testMilestonedRootAndMilestonedProperty | engine-golden-defect:malformed-json-golden |
 | forced::structure::testQualifierWithOperation, testTwoQualifiersWithOperation | decision:empty-toOne-forced-isolation |
 | businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction (batch 93) | engine-golden-defect:instance-filter-ungated — the golden's join-back subselect never gates `"root".id`; the engine's sibling golden for the same idiom (testConcatenateWithFilter) gates it, as Pure does |
+| relation::testSimpleMappingQueryWithFilterInProject, relation::testMixedMappingWithFilterInProject (batch 96) | engine-golden-defect:relation-mapping-filter-alias-root — the inner filter's reads reconciled onto the outer 'root' alias (relationalModelJoins.pure:342-349); fixture-proven against the ages |
 | relation::testDateTimeInclusiveRangeQuery | RECEIPT: 9-digit sub-second literal vs `.123` fixture — golden-vs-H2 skew |
 | metamodel::execute::testConnectionEquality ×5 (AllButOnePropertySame, AllSameStatic, TypeDiff, TypeSameSpecDiff, TypeSpecSameAuthDiff) | PARKED 2026-09-05 (code-as-data leg) |
 
@@ -404,7 +407,7 @@ pruning) is the one optimization that would be worth doing for its own sake.
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status
-lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 → **30**.
+lines): 68 → batch 73 −2 (66) → batch 74 −2 (64) → batch 75 −1 (63) → batch 76 −3 (60) → batch 77 −1 (59) → batch 78 −1 (58) → batch 79 −1 (57) → batch 80 −1 (56) → batch 81 −1 (55) → testRelationStoreAccessorOnView reclassified TEXT −1 (54) → batch 82 −1 (53) → batch 83 −1 (52) → batch 84 −1 (51) → batch 85 −1 (50) → seven plan-text / catalog-name reclassifications (T2: testEnumFilterWithUnionMappingPlanGeneration, relationalResultSourcingOfListExecutionPlan, testModelConnectionJoin, testModelConnectionDeepFunction, testAlloyTestDatGenWithQuotedColumnsForViews; T3: testRelationalMapperWithJoin, testRelationalMapperTwoDBs) −7 (43) → batch 86 −1 (42) → batch 87 −3 (39) → batch 88 −2 (37) → batch 89 −1 (36) → batch 90 −1 (35) → batch 91 −1 (34) → batch 92 −1 (33) → testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction reclassified NAMED engine-golden-defect −1 (32) → batch 94 −1 (31) → batch 95 −1 (30) → batch 96 −1 (29) → relation-mapping pair reclassified NAMED engine-golden-defect −2 (27) → testQuoteIdentifiersFlagWithGraphFetch reclassified TEXT (T2) −1 → **26**.
 
 Rule applied for the reclassifications (2026-09-06): a test whose ONLY assert compares engine PLAN TEXT (`planToString` / `planToStringWithoutFormatting`) or SQL text no session can execute (catalog-qualified names) can never leave IMPL by flipping, whatever wall stands in front of it — the wall is real work the flip cannot pay for; each row names the assert and its file. A test whose text assert reads a REPLAYABLE producer (execute()/toSQL/toSQLString) stays IMPL: the sql-text arm brings the golden to rows (batches 75, 81).
 

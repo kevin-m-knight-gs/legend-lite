@@ -1061,6 +1061,17 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 96 / L12 dated embedded head + two receipts
+(2026-09-06):** exec-passing 7, unable-to-exec 10 unchanged; text-only 12 → 11
+(the milestoned test's assertEqualsH2Compatible golden was a plan-literal text
+decline and now replays on H2 as rows); ratchet 139/2434 → 138/2435
+(testDateFunctionInMilestonedPropertyWithMilestonedEntity — 0 rows both sides);
+disagree 0 both channels. Registered engine-golden-defect:relation-
+mapping-filter-alias-root for testSimpleMappingQueryWithFilterInProject and
+testMixedMappingWithFilterInProject (AssertLedger receipt: the inner filter's
+alias reconciled onto 'root', fixture ages prove it); testQuoteIdentifiersFlag
+WithGraphFetch reclassified TEXT (T2: planToStringWithoutFormatting).
+
 **§8.0 scope-table receipt, batch 95 / L1 subtype cast over a member union
 (2026-09-06):** exec-passing 7, text-only 12, unable-to-exec 10 unchanged;
 ratchet 140/2433 → 139/2434 (testForcedSubTypeProjectDirect — the row-string

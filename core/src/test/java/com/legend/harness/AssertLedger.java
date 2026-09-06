@@ -77,6 +77,12 @@ public final class AssertLedger {
      *       {@code date_trunc('week')} H2 starts the week on Sunday; Pure's
      *       own dateExtension tests say Monday, as ours (and DuckDB) do —
      *       the engine's H2 dialect fails to normalize.</li>
+     *   <li>{@code relation-mapping-filter-alias-root} — a filter inside a
+     *       project column over a Relation-function mapping: the engine's
+     *       alias reconciliation (relationalModelJoins.pure:342-349)
+     *       points the inner predicate's reads at the OUTER 'root' alias,
+     *       so `$e.age < 35` compares the outer person's age; Pure (and
+     *       ours) compare each employee's.</li>
      *   <li>{@code instance-filter-ungated} — a filter over the [1]
      *       instance itself inside a project column compiles to a
      *       join-back subselect whose match never gates the projected
@@ -151,7 +157,22 @@ public final class AssertLedger {
             // form); the referee replays the golden on H2 — rows [1, 2] vs
             // ours [TDSNull, 2] — the difference is exactly the ungated cell.
             Map.entry("meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction",
-                    "instance-filter-ungated"));
+                    "instance-filter-ungated"),
+            // batch 96 (2026-09-06): `Person.all()->project(~[name1: x | $x
+            // .firstName, name2: x | $x.firm.employees->filter(e | $e.age < 35)
+            // .firstName])` over the Relation-function mapping SimpleMapping
+            // (tests/mapping/relation/tests.pure:91 and, mixed, :179). Fixture
+            // ages David 52, Fabrice 45, John 30, Oliver 26; Firm C = {Fabrice,
+            // Oliver}. Pure's per-employee filter gives Fabrice -> Oliver and
+            // Oliver -> Oliver; the golden gives Fabrice -> TDSNull and Oliver
+            // -> [Fabrice, Oliver] — exactly `root.AGE < 35` on the OUTER row:
+            // relationalModelJoins.pure:342-349 reconciles the condition's
+            // target alias onto processGetAll's 'root' alias, so the inner
+            // `$e.age` reads the outer person's column. Ours follows Pure.
+            Map.entry("meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject",
+                    "relation-mapping-filter-alias-root"),
+            Map.entry("meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject",
+                    "relation-mapping-filter-alias-root"));
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect

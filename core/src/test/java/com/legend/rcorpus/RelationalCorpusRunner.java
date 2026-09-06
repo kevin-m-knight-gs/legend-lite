@@ -2149,10 +2149,18 @@ public class RelationalCorpusRunner {
             // if(witness, | $r.person.name, | []) spelled in the lift pass
             // (SyntheticHeads.instanceFilterNavRead) so the slot is demanded.
             // multiJoins::testForcedSubTypeProjectDirect.
-            org.junit.jupiter.api.Assertions.assertEquals(139L,
+            // batch 96 / L12 (2026-09-06): 139 -> 138 — a DATED EMBEDDED head
+            // ($p.classification(constantDate()) over an embedded block) dates
+            // the block's own milestoned joinslots and the mid slots of the
+            // nav steps chained beneath it by ITS spec, not the root context
+            // (TemporalFrame.datedEmbeddedMidSlots) — the engine's one
+            // milestoning context per cursor, an explicit property-function
+            // date building a new context for its hop.
+            // testDateFunctionInMilestonedPropertyWithMilestonedEntity.
+            org.junit.jupiter.api.Assertions.assertEquals(138L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2434L,
+            org.junit.jupiter.api.Assertions.assertEquals(2435L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2213,7 +2221,12 @@ public class RelationalCorpusRunner {
             // assertSameSQL left the walk's text-only lane — the
             // toNonExecutableSQLString producer is recognized and the test
             // flipped (lane move, disagree 0)
-            org.junit.jupiter.api.Assertions.assertEquals(12,
+            // 12 -> 11 (batch 96, 2026-09-06): testDateFunctionInMilestonedProperty
+            // WithMilestonedEntity's assertEqualsH2Compatible golden was a
+            // plan-literal text decline; with the dated embedded head stamping
+            // its block's joinslot by its own spec, the golden replays on H2
+            // and verifies as rows (0 = 0) — the assert leaves the text lane.
+            org.junit.jupiter.api.Assertions.assertEquals(11,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"
