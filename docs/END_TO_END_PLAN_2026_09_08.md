@@ -240,9 +240,78 @@ extra shots (handoff §0 Phase 1b step C). Owed before it: the NavPath/Hop path-
 core-wide `startsWith` audit with a shrink-only ratchet (user ruling 2026-09-06, memory
 `string-hacking-audit-navigation-paths`).
 
+## 6b. Step 6b — the verdict residue and the graph leg (added 2026-09-08, "close-out" gaps)
+
+**Measure the host-judge residue NOW, then burn it.** `AssertVerdicts.finish` takes the
+database's byte verdict as the verdict of record (`byteHeld`) and falls back to the HOST lattice
+(`PureAsserts`, `TdsCompare`, `JsonCompare`) when the canon rider DECLINED the side
+(`CanonRider.decline(reason)`). Nobody counts how many verdicts Java judges today. Batch: a
+per-lane count of verdicts by channel (byte / host-fallback / text) printed by the harness like
+the referee outcomes, then the decline reasons become legs (each reason is a shape the canon
+render cannot ride yet). Single-shot's acceptance is "host judged ZERO", not "the rider was
+deleted".
+
+**Graph / JSON verdicts in the database.** Item 4 leaves `H2Verify.goldenGraphCompare` (+
+`bookkeepingAlias`, the pk-collapse) in Java. The leg: our graph result is a JSON document the
+database built; the golden is rows with the engine's bookkeeping columns. Judge in the database
+by flattening our JSON with path extraction to the golden's row shape (or assembling the
+golden's rows into the tree with the same grouping the engine's graph fetch uses) — one query,
+no Java tree walk. Schedule: right after item 4 (iii).
+
+## 6c. Step 6c — order independence as a gate (added 2026-09-08)
+
+At least one test passes in the full run and fails scoped
+(`resultSourcing::relationalResultSourcingOfListExecutionPlan`), and the H2 lane's
+`testFullOuterJoinSimple` swaps with another test between runs: state leaks between tests
+(session temp tables, the read-only system database per graph, package setups). Census: run
+every test SCOPED (`-Drcorpus.test=<fqn>`, one JVM each or one JVM with the session reset) and
+diff against the full-run roster; every difference is a leak to name and close. Then a gate:
+the scoped roster equals the full roster. Without it the 121 is honest in ONE order only.
+
+## 6d. Step 6d — the H2 lane's end (USER DECISION, added 2026-09-08)
+
+709 failures, floor 1866, "advisory" (memory `h2-backend-and-sqlglot-vision`). Either (A) it
+stays advisory with a floor — then say so and stop reading its number as progress; or (B) it
+gets its own dialect-capability burn (the emulation rules in `CarrierStrategies` are its legs:
+list carriers, FULL OUTER over carrier wrappers, …). Not decided; not in the floor arithmetic.
+
+## 6e. Step 6e — the name-check ratchet to zero (added 2026-09-08)
+
+`PlatformNamesGuardrailTest` holds literal `equals("meta::…")` checks outside `PlatformTypes` at
+72, shrink-only; the stated goal is ZERO (every platform identity dispatched through the catalog
+/ `PlatformTypes`, never a bare FQN compare in an arm). Batches by file (the audit of
+2026-09-06 listed 76 checks in 32 files). Also the audit's finding 6: the harness's vacuous-body
+check (`body == true`) becomes a `ProgramFacts.vacuous` fact (trivial; ride any batch).
+
+## 6f. Definition of DONE (added 2026-09-08)
+
+The core_relational harness is closed out when ALL of these hold and are gated:
+1. The driver does four things only: discover tests by stereotype, establish setups through
+   the platform, run ONE statement per test (single-shot), read one boolean row. It interprets
+   no Pure (no body scans, no keyword tests, no vacuous check — facts come from `ProgramFacts`).
+2. The referee TRANSLATES only: it makes the engine's goldens executable (mirror, seeds, temp
+   tables, plan replay) and hands rows to the session; the DATABASE judges every row verdict
+   (item 4), every graph verdict (6b), and every assert (single-shot). No Java compares values:
+   `PureAsserts`, `TdsCompare`, `JsonCompare`, the canon rider/render and `H2Verify`'s compare
+   policy are DELETED, not bypassed.
+3. Zero thread-locals and zero static accumulators in main that a verdict or a test can read
+   (step 1 incl. 1c option C); the PCT pins read a per-run fact ledger.
+4. Every test passes scoped exactly as in the full run (6c gate).
+5. Every failing test is NAMED with a reason in the granular ledger (TEXT decision / engine
+   machinery / other store / revisit decision / code-as-data slice), and the floor number in §7
+   is restated from the ledger, not from memory.
+6. The name-check ratchet is at zero; `JavaEvalLedgerTest`'s verdict-class pins are at the
+   sizes the single-shot verdict leaves (the K-arm dies with it).
+7. One final state document replaces the running handoff (§0 of this plan rewritten as
+   "closed out on <date>: what remains, why").
+
+Adjacent, NOT in scope: the PCT lane's own expected-failure list (docs/PCT_EXPECTED_FAILURES.md
+— pure-function conformance, 1 fail + 22 err expected) and the NavPath path-model cleanup
+(owed before single-shot, memory `string-hacking-audit-navigation-paths`).
+
 ## 7. The honest floor
 
-121 today. Real legs 5 (step 2) + referee leg 4–6 (step 3a/3b) + walls that also carry text
+(Restate from the ledger at each step; 6d's H2 decision is outside this arithmetic.) 121 today. Real legs 5 (step 2) + referee leg 4–6 (step 3a/3b) + walls that also carry text
 goldens 5–6 → ≈ 105. Step 5 families ≈ 45 → ≈ 60. REVISIT 5 + parked 2 decided → ≈ 55. What
 remains is TEXT decisions (~30), OTHER STORES (8), ENGINE machinery outside code-as-data, and
 NAMED receipts — named, with reasons, in the ledger. "Zero" means zero UNNAMED failures.
