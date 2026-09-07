@@ -25,6 +25,19 @@
     - breakdown: | multigrain::testToManyWithQualifierWithFilterOnJoin | multi-hop through an embedded/slot head | rows [500] + text behind |
     - assert #1 assertSameElements → `wall:resolver`: wall-exec: multi-hop navigation account.incomeFunctionSplits#fN.incomeFunction.Classification.name through an embedded/slot head is :: multi
 - **testExistsAsNullWithSubType** — `tests::projection::exists` [L1 Resolver: navigation shapes (15 tests)]
+    - PROBED 2026-09-07 (unattended; stacks): the wall is `Substitution.assocLeaf` (leafBinding == null under a
+      NESTED target) reached from `rewriteExists` → `rewriteLambda` → `rewritePath`: the head `fnScope` IS registered
+      in the exists scope (an AssocSub from `CorrelatedSubselects.nestedAssocMaterials` → `AssociationJoins.aggJoinMaterial`
+      → `sources.get(mapping, FunctionScope)`), but its target bindings have no `stc_<Public>___id`. Why: `ClassSources`
+      synthesizes stc pseudo-bindings only for subclasses mapped over the SAME root table as the parent source
+      (`sameRootTable`); here FunctionScope has no mapping of its own, Private[map2] is on privateFn, Public[map3] on
+      publicFn, and the property is routed PER TARGET SET (`fnScope[map2]: @privateFnJoin`, `fnScope[map3]: @publicFnJoin`).
+      The engine's golden lowers `$f.fnScope->subType(@Public).id->isNotEmpty()` inside the exists subselect as ONE
+      left join of the map3 route (publicFn via publicFnJoin) with `"publicfn_0".id is not null` — the cast selects the
+      route; no union. THE LEG: a class-typed property with per-target-set Join PMs navigated through `subType(@X)`
+      resolves to the PM route whose target set is X's set (join that set's table, read the leaf), at the top level and
+      in nested (exists) scopes — the nested AssocSub must carry per-route targets. Design leg (routing a subtype cast to
+      a PM route), not a fix: NOT attempted unattended (hard-stop rule).
     - run bucket: `wall-exec: nested navigation '_' inside an exists/isEmpty predic`
     - breakdown: | projection::exists::testExistsAsNullWithSubType | nested navigation inside exists/isEmpty | rows + assertSameSQL (text behind) |
     - assert #1 assertSize → `wall:resolver`: wall-exec: nested navigation '_' inside an exists/isEmpty predic :: nested navigation 'fnScope.stc_meta__relational__tests__projection__exis

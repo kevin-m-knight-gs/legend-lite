@@ -398,7 +398,19 @@ public final class MinimalCorpus {
 
     // ---- RUN + JUDGE --------------------------------------------------------
 
+    /** The referee's declines and verdict roster name the test they belong
+     * to (H2Verify.CURRENT_TEST — display attribution only, no verdict
+     * flows through it). */
     public Result run(TestCase t) throws SQLException {
+        com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
+        try {
+            return run0(t);
+        } finally {
+            com.legend.harness.H2Verify.CURRENT_TEST.remove();
+        }
+    }
+
+    private Result run0(TestCase t) throws SQLException {
         if (!t.pkg().equals(sessionPkg)) {
             beginSession(t.pkg());
         }
