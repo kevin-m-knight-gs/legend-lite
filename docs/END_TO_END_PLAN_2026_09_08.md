@@ -149,6 +149,15 @@ Four facts, four owners (ledger §19): union key threads recorded by the synthes
 option read literal-only, the columns derived once (bound context + the call's output type), the append beside
 DriverPkAppend. Deviation: the union binding's `primaryKeyColumns` untouched (eleven physical-key consumers). NEXT (USER 2026-09-08, after batch 146): straight to Phase 5 — code and metamodel as data (docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md, sized first, smallest witnessed slice); the two remaining real code legs (the mixed-mapping union key demand `testMixedMappingWithFilterInProject`, the TDG view slice `testAlloyTestDatGenWithQuotedColumnsForViews`) are DEFERRED, not dropped.
 
+PHASE 5–6 HOMEWORK (USER 2026-09-08, after batch 146): READ `docs/TWO_DESIGN_LEGS_2026_09_07.md` FIRST (from the
+harness-audit branch, now on main): leg 2 code+metamodel as data is FIVE demands (D1 metamodel relations + D2 closures
+LANDED; D3 plan rows partly; D4 the user program as relations NOT STARTED; D5 = re-hosting the engine's own compiler —
+24 of the 45 candidate tests, named OUT of scope); realistic phase 1 = 8 tests; NO recursive CTEs (closure tables are
+the policy; H2 has no cycle protection, DuckDB #13974 under-returns silently) — reconcile with ledger §15's
+CODE-AS-DATA 19 / ENGINE-MACHINERY 38 as the first sizing step. Leg 1 single-shot: 1,998/2,575 already one statement;
+sequence P-25 (resolvedDefinition census) and P-19 (NULL verdict) first, then the SqlUnion set-operator enum, then the
+~700-test mapping/projection pilot. USER ORDER: Phase 5 next (the two remaining code legs deferred).
+
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the
 measured pool (ENGINE-MACHINERY 36 + CODE-AS-DATA 7; the engine's OWN compiler/router under test
