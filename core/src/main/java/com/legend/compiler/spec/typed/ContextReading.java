@@ -63,7 +63,7 @@ final class ContextReading {
                 connectionName(runtimeArg), quoteIdentifiers(runtimeArg),
                 timeZone(runtimeArg),
                 conn == null ? null : databaseType(conn), conn,
-                storeFqn(runtimeArg), false, postProcessors(runtimeArg));
+                storeFqn(runtimeArg), false, List.of(), postProcessors(runtimeArg));
     }
 
     /** The connection's SQL post-processors (sqlQueryPostProcessors /
@@ -344,10 +344,11 @@ final class ContextReading {
     }
 
 
-    /** {@code addDriverTablePkForProject} off an execute call's ExecutionContext
+    /** A Boolean option ({@code addDriverTablePkForProject},
+     * {@code importDataFlow}) off an execute call's ExecutionContext
      * argument — a RelationalExecutionContext instance (let-bound or literal)
      * whose flag is a literal true; anything else is the default (false). */
-    static boolean driverTablePkOf(@com.legend.Nullable TypedSpec contextArg,
+    static boolean contextFlag(String option, @com.legend.Nullable TypedSpec contextArg,
             UnaryOperator<TypedSpec> bind) {
         if (contextArg == null) {
             return false;
@@ -357,7 +358,7 @@ final class ContextReading {
                 || !PlatformTypes.RELATIONAL_EXECUTION_CONTEXT.equals(ni.classFqn())) {
             return false;
         }
-        TypedSpec flag = ni.properties().get("addDriverTablePkForProject");
+        TypedSpec flag = ni.properties().get(option);
         if (flag == null) {
             return false;
         }
@@ -367,8 +368,7 @@ final class ContextReading {
         // the option is a compile-time fact of the call; a computed value
         // is loud, never a silent default (the reader never guesses)
         throw new com.legend.error.NotImplementedException(
-                "addDriverTablePkForProject must be a literal; got "
-                        + flag.getClass().getSimpleName());
+                option + " must be a literal; got " + flag.getClass().getSimpleName());
     }
 
     /** Variable OCCURRENCES bound by an enclosing lambda parameter (by

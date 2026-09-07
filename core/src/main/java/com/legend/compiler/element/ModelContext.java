@@ -140,6 +140,15 @@ public interface ModelContext {
         return null;
     }
 
+    /** The primary-key THREADS of the Operation union mapping {@code classFqn}
+     * under {@code mappingFqn} (member order, {@code <col>_<ordinal>} with
+     * the column's Pure kind) — the engine's importDataFlow columns; null
+     * when the class is not a union there. */
+    default java.util.@com.legend.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
+            String mappingFqn, String classFqn) {
+        return null;
+    }
+
     /**
      * The connection for {@code fqn}, if present &mdash; carries the declared
      * {@code DatabaseType} that selects the SQL dialect a runtime's queries

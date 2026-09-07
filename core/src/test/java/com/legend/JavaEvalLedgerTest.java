@@ -584,7 +584,11 @@ class JavaEvalLedgerTest {
             // 2038 → 2029 (batch 137): the raw-SQL ledger's static installs and the
             // record-only PRIMARY KEY ALTER strings (a write-only meta ledger)
             // are gone; the trace and the recorder ride the environment
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2029),
+            // 2029 → 2033 (batch 146): the importDataFlow option's append hook
+            // beside DriverPkAppend — four routing lines from the frame's bound
+            // context to the resolver pass; no evaluation (the database
+            // computes the coalesced key threads)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2033),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

@@ -1922,7 +1922,28 @@ final class Typer {
         }
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b);
-        return new Application(chosen, List.of(typed), refineDecimalCarrier(chosen, out));
+        return new Application(chosen, List.of(typed),
+                refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out)));
+    }
+
+    /** The execute exeCtx overload under {@code importDataFlow}: the
+     * Result's relation gains the union's key threads the executed
+     * projection carries ({@link ImportDataFlow}) — a refinement of the
+     * signature's output from the call's own facts, like the Decimal
+     * carrier. */
+    private ExprType refineImportDataFlow(TypedFunction chosen, List<ValueSpecification> raw,
+            TypedSpec[] typed, Env env, ExprType out) {
+        if (raw.size() != 5
+                || !Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY.signatureKey()
+                        .equals(chosen.signatureKey())
+                || !ImportDataFlow.requested(env.resolveAlias(raw.get(3)), typed[3])) {
+            return out;
+        }
+        if (!(typed[1] instanceof com.legend.compiler.spec.typed.TypedPackageableRef mref)) {
+            throw new com.legend.error.NotImplementedException("importDataFlow: the execute"
+                    + " call's mapping must be a mapping reference");
+        }
+        return ImportDataFlow.widen(out, ImportDataFlow.columns(mref.fullPath(), typed[0], ctx));
     }
 
     /**

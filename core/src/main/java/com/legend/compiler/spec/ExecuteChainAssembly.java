@@ -486,12 +486,23 @@ public final class ExecuteChainAssembly {
                     ? new UserCallInliner(specs).inlineBody(List.of(
                             letBound(ec.args().get(2), letPrefix))).get(0)
                     : null;
+            TypedSpec ctxArg = executionContextArg(ec);
+            java.util.function.UnaryOperator<TypedSpec> bind = v -> letBound(v, letPrefix);
             com.legend.compiler.spec.typed.ExecutionContext bound =
                     com.legend.compiler.spec.typed.ExecutionContext.reader()
-                            .bind(v -> letBound(v, letPrefix))
+                            .bind(bind)
                             .read(Optional.of(p.mref()), rtValue)
                             .withRuntime(runtime)
-                            .withOptions(executionContextArg(ec), v -> letBound(v, letPrefix));
+                            .withOptions(ctxArg, bind);
+            // the engine's importDataFlow option: the union's key threads
+            // become result columns — derived HERE, where the query's root
+            // class and the mapping are both in view; appended where the
+            // frame executes (ImportDataFlowAppend, beside DriverPkAppend)
+            if (com.legend.compiler.spec.typed.ExecutionContext
+                    .importDataFlowRequested(ctxArg, bind)) {
+                bound = bound.withImportDataFlowColumns(ImportDataFlow.columns(
+                        p.mref().fullPath(), chain, specs.ctx()));
+            }
             chain = new TypedFrom(chain, bound, chain.info());
         }
         // a TDS-typed root (tableToTDS, a TabularDataSet-declared value)

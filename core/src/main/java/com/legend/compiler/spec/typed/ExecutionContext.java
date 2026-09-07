@@ -63,6 +63,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                @com.legend.Nullable TypedNewInstance connectionInstance,
                                @com.legend.Nullable String storeFqn,
                                boolean driverTablePk,
+                               List<com.legend.compiler.element.type.Type.Column> importDataFlowColumns,
                                PostProcessors postProcessors) {
     /** The connection post-processor facts of one frame: {@code tableReplace}
      * renames (TableNameMapper), whether CTE extraction is installed, whether
@@ -92,6 +93,25 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         jsonSources = Map.copyOf(jsonSources);
         sqlSetups = List.copyOf(sqlSetups);
         csvSetups = List.copyOf(csvSetups);
+        importDataFlowColumns = List.copyOf(importDataFlowColumns);
+    }
+
+    /** Whether an execute call's ExecutionContext argument asks for the
+     * engine's {@code importDataFlow} option (a literal flag on a
+     * RelationalExecutionContext instance, let-bound or literal). */
+    public static boolean importDataFlowRequested(@com.legend.Nullable TypedSpec contextArg,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        return ContextReading.contextFlag("importDataFlow", contextArg, bind);
+    }
+
+    /** This context with the importDataFlow RESULT COLUMNS (the union's
+     * primary-key threads the executed projection gains; empty = off). */
+    public ExecutionContext withImportDataFlowColumns(
+            List<com.legend.compiler.element.type.Type.Column> cols) {
+        return cols.equals(importDataFlowColumns) ? this
+                : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
+                        csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
+                        connectionInstance, storeFqn, driverTablePk, cols, postProcessors);
     }
 
     /** No binding at all (a from() the resolver scopes from its outer context). */
@@ -101,7 +121,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     public static ExecutionContext of(Optional<TypedPackageableRef> mapping,
             Optional<TypedPackageableRef> runtime) {
         return new ExecutionContext(mapping, runtime, List.of(), Map.of(), List.of(),
-                List.of(), null, false, null, null, null, null, false, PostProcessors.NONE);
+                List.of(), null, false, null, null, null, null, false, List.of(), PostProcessors.NONE);
     }
 
     /** References plus a chain (a wrapper envelope inheriting a resolver context). */
@@ -109,21 +129,21 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             Optional<TypedPackageableRef> runtime, List<String> chainMappings,
             Map<String, String> jsonSources) {
         return new ExecutionContext(mapping, runtime, chainMappings, jsonSources,
-                List.of(), List.of(), null, false, null, null, null, null, false, PostProcessors.NONE);
+                List.of(), List.of(), null, false, null, null, null, null, false, List.of(), PostProcessors.NONE);
     }
 
     /** This context with the given mapping reference. */
     public ExecutionContext withMapping(Optional<TypedPackageableRef> m) {
         return new ExecutionContext(m, runtime, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn, driverTablePk, postProcessors);
+                connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, postProcessors);
     }
 
     /** This context with the given runtime reference. */
     public ExecutionContext withRuntime(Optional<TypedPackageableRef> r) {
         return new ExecutionContext(mapping, r, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn, driverTablePk, postProcessors);
+                connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, postProcessors);
     }
 
     /** This context with more chain mappings appended (the query-side
@@ -136,18 +156,18 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         more.stream().filter(m -> !merged.contains(m)).forEach(merged::add);
         return new ExecutionContext(mapping, runtime, merged, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn, driverTablePk, postProcessors);
+                connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, postProcessors);
     }
 
     /** This context with the execution OPTIONS read off an execute call's
      * ExecutionContext argument (the engine's exeCtx overload). */
     public ExecutionContext withOptions(@com.legend.Nullable TypedSpec contextArg,
             java.util.function.UnaryOperator<TypedSpec> bind) {
-        boolean pk = ContextReading.driverTablePkOf(contextArg, bind);
+        boolean pk = ContextReading.contextFlag("addDriverTablePkForProject", contextArg, bind);
         return pk == driverTablePk ? this
                 : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
                         csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                        connectionInstance, storeFqn, pk, postProcessors);
+                        connectionInstance, storeFqn, pk, importDataFlowColumns, postProcessors);
     }
 
     /** This context with other post-processor facts (a text surface that
@@ -156,7 +176,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return pp.equals(postProcessors) ? this
                 : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
                         csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                        connectionInstance, storeFqn, driverTablePk, pp);
+                        connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, pp);
     }
 
     /** This context with an INHERITED chain when it declares none of its own
@@ -165,7 +185,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return chainMappings.isEmpty() && !outerChain.isEmpty()
                 ? new ExecutionContext(mapping, runtime, outerChain, jsonSources,
                         sqlSetups, csvSetups, connectionName, quoteIdentifiers,
-                        timeZone, databaseType, connectionInstance, storeFqn, driverTablePk, postProcessors)
+                        timeZone, databaseType, connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, postProcessors)
                 : this;
     }
 

@@ -274,7 +274,8 @@ public final class Compiler {
                 union(user.mappingPoisons(), sys.mappingPoisons()),
                 union(user.legacySurfaces(), sys.legacySurfaces()),
                 union(user.mixedUnions(), sys.mixedUnions()),
-                unionSets(user.requiredNullableRows(), sys.requiredNullableRows()));
+                unionSets(user.requiredNullableRows(), sys.requiredNullableRows()),
+                union(user.unionKeyThreads(), sys.unionKeyThreads()));
     }
 
     /** The [1]-over-nullable census is keyed by BUCKET ("direct", …), so

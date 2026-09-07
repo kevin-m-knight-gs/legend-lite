@@ -101,6 +101,7 @@ public final class PureModelContext implements ModelContext {
         // 0-binder error's "failed to normalize" reasons read them here
         mb.mappingPoisons.putAll(normalized.mappingPoisons());
         mb.mixedUnions.putAll(normalized.mixedUnions());
+        mb.unionKeyThreads.putAll(normalized.unionKeyThreads());
         // the [1]-over-nullable census rides the same route (the
         // Phase-E builder the census wrote to is discarded above)
         normalized.requiredNullableRows().forEach((b, ws) ->
@@ -324,6 +325,12 @@ public final class PureModelContext implements ModelContext {
     public java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
         return model.mixedUnions.get(mappingFqn + "::" + classFqn);
+    }
+
+    @Override
+    public java.util.@com.legend.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
+            String mappingFqn, String classFqn) {
+        return model.unionKeyThreads.get(mappingFqn + "::" + classFqn);
     }
 
     @Override

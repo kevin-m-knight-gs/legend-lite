@@ -335,7 +335,6 @@ meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionJoin_mil
 meta::relational::tests::mapping::union::specialUnion::testGroupBy
 meta::relational::tests::mapping::union::testChainedUnions
 meta::relational::tests::mapping::union::testEnumFilterWithUnionMappingPlanGeneration
-meta::relational::tests::mapping::union::testPksWithImportDataFlow
 meta::relational::tests::mapping::union::testProjectThroughAsso
 meta::relational::tests::mapping::union::testProjectThroughAssoWithJoinInMapping
 meta::relational::tests::mapping::union::testUnionViewJoins

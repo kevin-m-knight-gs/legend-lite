@@ -1231,6 +1231,7 @@ final class UnionSynthesis {
         collectInboundRouteKeys(md, model,
                 members.stream().map(MappingNormalizer::setIdOf).toList(),
                 members, srcKeysByOrdinal, chainsByOrdinal, sharedKeys);
+        recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model);
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
         ValueSpecification union = null;
@@ -2894,6 +2895,76 @@ final class UnionSynthesis {
                     MappingNormalizer.canonicalTable(routedMember.mainTable().table()), key),
                     ord);
         }
+    }
+
+    /**
+     * IMPORT DATA FLOW (engine {@code pureToSQLQuery_union.pure:140–150},
+     * {@code resolvePrimaryKey} functions.pure:190): every member thread
+     * projects its set's PRIMARY KEY — the declared {@code ~primaryKey}
+     * columns of the main table, else the table's PRIMARY KEY — as
+     * {@code <col>_<ordinal>} (NULL in the other members' threads), the
+     * union's row identity across members. The projection rides the same
+     * per-ordinal key map the routed navigations use (a key a route already
+     * demanded is one column, not two; a SHARED table key is projected once
+     * as {@code <col>__pk_<table>} and is not doubled here). The
+     * {@code (name, kind)} facts are recorded on the model for the execute
+     * option that surfaces the threads as result columns
+     * ({@code ModelContext.unionKeyThreads}).
+     */
+    private static void recordKeyThreads(LegacyMappingDefinition md, String className,
+            List<ClassMapping> members, Map<Integer, Map<String, String>> srcKeysByOrdinal,
+            Map<List<String>, Integer> sharedKeys, ModelBuilder model) {
+        List<com.legend.model.KeyThread> threads = new ArrayList<>();
+        for (int o = 0; o < members.size(); o++) {
+            if (!(members.get(o) instanceof ClassMapping.Relational mr)
+                    || mr.mainTable() == null) {
+                continue;   // a Relation(~func) member has no key table
+            }
+            String db = mr.mainTable().database();
+            String table = mr.mainTable().table();
+            for (String col : memberPrimaryKey(mr, model)) {
+                if (sharedKeys.containsKey(List.of(db,
+                        MappingNormalizer.canonicalTable(table), col))) {
+                    continue;
+                }
+                String name = col + "_" + o;
+                srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>())
+                        .putIfAbsent(col, name);
+                threads.add(new com.legend.model.KeyThread(name,
+                        ViewRelation.columnPureKind(db, table, col, model)));
+            }
+        }
+        model.unionKeyThreads.put(md.qualifiedName() + "::" + className, List.copyOf(threads));
+    }
+
+    /** A member set's primary key on its MAIN table: the declared
+     * {@code ~primaryKey} plain column refs of that table, else the table's
+     * PRIMARY KEY columns in declaration order (engine resolvePrimaryKey). */
+    private static List<String> memberPrimaryKey(ClassMapping.Relational mr, ModelBuilder model) {
+        var main = java.util.Objects.requireNonNull(mr.mainTable());
+        List<String> declared = new ArrayList<>();
+        for (RelationalOperation op : mr.primaryKey()) {
+            if (op instanceof RelationalOperation.ColumnRef cr
+                    && MappingNormalizer.canonicalTable(cr.table())
+                            .equals(MappingNormalizer.canonicalTable(main.table()))) {
+                declared.add(cr.column());
+            }
+        }
+        if (!declared.isEmpty()) {
+            return declared;
+        }
+        DatabaseDefinition.TableDefinition td = PhysicalTables.find(
+                main.database(), main.table(), model);
+        if (td == null) {
+            return List.of();   // a view-backed member: no physical key
+        }
+        List<String> pk = new ArrayList<>();
+        for (DatabaseDefinition.ColumnDefinition c : td.columns()) {
+            if (c.primaryKey()) {
+                pk.add(c.name());
+            }
+        }
+        return pk;
     }
 
     /** The projected name of a shared table key: {@code <col>__pk_<table>}

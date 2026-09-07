@@ -406,6 +406,12 @@ public final class ModelBuilder {
      * docs/XSTORE_LEG.md); mirrors {@link #mappingPoisons}' plumbing. */
     public final java.util.Map<String, java.util.List<String>> mixedUnions =
             new java.util.LinkedHashMap<>();
+    /** "mapping::class" &rarr; the primary-key THREADS of an Operation
+     * union's row, member order ({@link com.legend.model.KeyThread}): the
+     * engine's importDataFlow columns, recorded by the synthesis that
+     * projects them; same plumbing as {@link #mixedUnions}. */
+    public final java.util.Map<String, java.util.List<com.legend.model.KeyThread>>
+            unionKeyThreads = new java.util.LinkedHashMap<>();
 
     /** Precise primitives: extension FQN → declared base type name (chains allowed). */
     final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();

@@ -2161,6 +2161,13 @@ final class StatementExecutor {
             if (froms.get(0).context().driverTablePk()) {
                 body = com.legend.resolver.DriverPkAppend.apply(body, ctx);
             }
+            // the engine's importDataFlow option (batch 146): the union-row
+            // projection gains the union's key threads, derived at chain
+            // assembly and carried by the frame's bound context
+            if (!froms.get(0).context().importDataFlowColumns().isEmpty()) {
+                body = com.legend.resolver.ImportDataFlowAppend.apply(body,
+                        froms.get(0).context().importDataFlowColumns(), ctx);
+            }
         }
         TypedSpec root = body.get(body.size() - 1);
         // from() is context-only, but its info is the PRE-RESOLUTION

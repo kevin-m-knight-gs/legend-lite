@@ -143,6 +143,11 @@ resolve their names and reach their true walls — CODE-AS-DATA (2), ENGINE-MACH
 a Pure import is a name shorthand, not a dependency. NEXT: importDataFlow (146), mixed-mapping union key, TDG view slice.
 importDataFlow ATTEMPT REVERTED (2026-09-08, six cycles > the three-cycle rule; USER: clean sheet): the design is
 `docs/IMPORT_DATA_FLOW_DESIGN_2026_09_08.md` — implement §3 in order as batch 146.
+importDataFlow LANDED (batch 146, 2026-09-08): implemented from the design §3 in order, one fix cycle (the typer arm the
+design named). `testPksWithImportDataFlow` PASSES on both lanes: DuckDB 2442 / 108 / 14 / 11, H2 1990 / 565 / 14 / 6.
+Four facts, four owners (ledger §19): union key threads recorded by the synthesis (`ModelContext.unionKeyThreads`), the
+option read literal-only, the columns derived once (bound context + the call's output type), the append beside
+DriverPkAppend. Deviation: the union binding's `primaryKeyColumns` untouched (eleven physical-key consumers). NEXT (USER 2026-09-08, after batch 146): straight to Phase 5 — code and metamodel as data (docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md, sized first, smallest witnessed slice); the two remaining real code legs (the mixed-mapping union key demand `testMixedMappingWithFilterInProject`, the TDG view slice `testAlloyTestDatGenWithQuotedColumnsForViews`) are DEFERRED, not dropped.
 
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the

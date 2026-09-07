@@ -82,7 +82,6 @@ meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionAsJoinTa
 meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionJoin_milestoningColumnInOnClause
 meta::relational::tests::mapping::union::testChainedUnions
 meta::relational::tests::mapping::union::testEnumFilterWithUnionMappingPlanGeneration
-meta::relational::tests::mapping::union::testPksWithImportDataFlow
 meta::relational::tests::mapping::union::testProjectThroughAsso
 meta::relational::tests::mapping::union::testProjectThroughAssoWithJoinInMapping
 meta::relational::tests::mapping::union::testUnionWithSinglePropertyMapping
