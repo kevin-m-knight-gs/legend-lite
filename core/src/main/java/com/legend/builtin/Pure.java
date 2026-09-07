@@ -1471,6 +1471,10 @@ public final class Pure {
     // .EXECUTION_PLAN_EXECUTE).
     public static final NativeFunctionDefinition EXECUTION_PLAN_EXECUTE__ANY_1__ANY_MANY__ANY_MANY = signature("native function meta::pure::executionPlan::execute(plan:meta::pure::metamodel::type::Any[1], parametersValues:meta::pure::metamodel::type::Any[*], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<meta::pure::metamodel::type::Any|*>[1];");
     public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
+    /** execute(f, mapping, runtime, exeCtx, extensions) — the engine's overload carrying an
+     *  ExecutionContext (router.pure): the execution OPTIONS ride the call as a value the one
+     *  context reader binds (RelationalExecutionContext.addDriverTablePkForProject, …). */
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], exeCtx:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
     public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
 
     // The ROUTER'S STRING ENTRY — REAL engine devUtils.pure:30/:35

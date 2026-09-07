@@ -10,7 +10,8 @@ package com.legend.exec;
  * through the Lowerer's PCT-TDS root mode: the PLAN emits the wire
  * text and the result is a Scalar String ({@code markRendered} tells
  * the adapter the string IS the TDS text, not an ordinary scalar).
- * Same option pattern as {@code DriverPkOption}.
+ * (A thread-local option: the same static-sink class DriverPkOption was —
+ * owed the same fix, the option riding its program.)
  */
 public final class PctRenderOption {
 

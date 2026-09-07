@@ -77,7 +77,9 @@ final class RoutingContext {
                     .inlineBody(java.util.List.of(rt)).get(0);
         }
         var bound = com.legend.compiler.spec.typed.ExecutionContext.reader()
-                .read(java.util.Optional.of(mr), rt);
+                .read(java.util.Optional.of(mr), rt)
+                .withOptions(com.legend.compiler.spec.ExecuteChainAssembly
+                        .executionContextArg(nc), bind);
         // a call that declares no chain of its own INHERITS the enclosing one
         return new StoreResolver.Context(mr.fullPath(), outer.runtimeFqn(),
                 bound.inheritingChain(outer.chainMappings()).chainMappings());

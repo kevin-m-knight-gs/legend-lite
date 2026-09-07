@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 118 / the harness reads facts the platform states LANDED (2026-09-06)** — ProgramFacts (effects / inline seeds / verdicts) in one typing pass; the raw-SQL ledger records executed statements with their kind; the validate option rides the program (the engine's exeCtx execute overload, bound by the one reader; DriverPkOption deleted). Items 1–3 of the five done; item 4 (referee golden rows as a typed relation, database equality) next.
+
 Status: **batch 117 / the harness stdlib is the platform's LANDED (2026-09-06)** — corpus-library.pure deleted; the real demand was two natives (firstNotNull, date::add with a Duration), now kind-1 natives with SQL rules; the namespace guard covers every loaded source. Item 2 of the five done; item 3 (the harness body scans become platform facts) next.
 
 Status: **batch 116 / one resolution pass LANDED (2026-09-06)** — the front door resolves once; ResolvedNames is the one reading of the resolver's output; item 1 of the five done, item 2 (corpus-library.pure into the platform) next.

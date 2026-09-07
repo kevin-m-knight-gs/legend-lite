@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 448 classes. */
+    /** 449 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -496,6 +496,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::relational::runtime::PostProcessorParameter { }"),
             Pure.nativeClass("native Class meta::relational::runtime::PostProcessorWithParameter { postProcessor: meta::pure::metamodel::function::ConcreteFunctionDefinition<{->meta::relational::runtime::PostProcessor[1]}>[1]; parameters: meta::relational::runtime::PostProcessorParameter[*]; }"),
             Pure.nativeClass("native Class meta::relational::runtime::PostProcessors { sqlQueryPostProcessor: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; _sqlQueryPostProcessor: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; identifier: meta::pure::metamodel::type::String[0..1]; }"),
+            Pure.nativeClass("native Class meta::relational::runtime::RelationalExecutionContext extends meta::pure::runtime::ExecutionContext { addDriverTablePkForProject: meta::pure::metamodel::type::Boolean[0..1]; insertDriverTablePkInTempTable: meta::pure::metamodel::type::String[0..1]; useTempTableAsDriver: meta::pure::metamodel::type::String[0..1]; preserveJoinOrder: meta::pure::metamodel::type::Boolean[0..1]; importDataFlow: meta::pure::metamodel::type::Boolean[0..1]; importDataFlowAddFks: meta::pure::metamodel::type::Boolean[0..1]; importDataFlowFksByTable: meta::pure::functions::collection::Map<meta::relational::metamodel::relation::Relation, meta::pure::functions::collection::List<meta::relational::metamodel::Column>>[0..1]; importDataFlowImplementationCount: meta::pure::metamodel::type::Integer[0..1]; }"),
             Pure.nativeClass("native Class meta::relational::testDataGeneration::RowIdentifier { columnValuePairs: meta::pure::functions::collection::Pair<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*]; }"),
             Pure.nativeClass("native Class meta::relational::testDataGeneration::TableRowIdentifiers { table: meta::relational::metamodel::relation::Table[1]; rowIdentifiers: meta::relational::testDataGeneration::RowIdentifier[*]; }"),
             Pure.nativeClass("native Class meta::relational::testDataGeneration::TemporalMilestoningDates { businessDate: meta::pure::metamodel::type::Date[0..1]; processingDate: meta::pure::metamodel::type::Date[0..1]; snapshotDate: meta::pure::metamodel::type::Date[0..1]; }"),

@@ -51,8 +51,12 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
         SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
+        // the execution OPTIONS ride the program: an execute call on the
+        // engine's exeCtx overload binds them (addDriverTablePkForProject) —
+        // the environment states what the program asked for
         ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                com.legend.validation.DriverPkOption.get());
+                driverTablePkRequested(typedBody));
         ExecEnv env = assertListener == null && replayOracle == null ? env0
                 : new ExecEnv(env0.ctx(), env0.runtimeFqn(), env0.dialect(),
                         env0.connection(), env0.addDriverTablePk(),
@@ -63,16 +67,52 @@ final class StatementExecutor {
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
         }
-        return executeStatements(specs.typeQueryBody(resolved),
+        return executeStatements(typedBody,
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
+    }
+
+    /** Whether any execute call in the program asks for driver-table PK
+     * columns through its ExecutionContext argument (read by the one
+     * context reader; a let-bound context chases through the lets met so
+     * far in the statement list). */
+    private static boolean driverTablePkRequested(java.util.List<TypedSpec> body) {
+        java.util.Map<String, TypedSpec> lets = new java.util.HashMap<>();
+        for (TypedSpec stmt : body) {
+            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet l) {
+                lets.put(l.name(), l.value());
+            }
+            if (requestsDriverPk(stmt, lets)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean requestsDriverPk(TypedSpec n, java.util.Map<String, TypedSpec> lets) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
+            TypedSpec ctxArg = com.legend.compiler.spec.ExecuteChainAssembly
+                    .executionContextArg(nc);
+            if (ctxArg != null && com.legend.compiler.spec.typed.ExecutionContext.NONE
+                    .withOptions(ctxArg, v -> v instanceof com.legend.compiler.spec.typed
+                            .TypedVariable tv && lets.containsKey(tv.name())
+                            ? lets.get(tv.name()) : v).driverTablePk()) {
+                return true;
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            if (requestsDriverPk(c, lets)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The K-phase execution environment: ONE ambient connection, ONE
      * dialect (audit 17: recomputing it per arm invited a future
      * mixed-dialect bug), the driver runtime, and the
      * addDriverTablePkForProject execution option (#45 — see
-     * {@link com.legend.validation.DriverPkOption}). F7.1: the raw-SQL
+     * the program's own execute call, the exeCtx overload). F7.1: the raw-SQL
      * failure sink is GONE — a failed raw statement THROWS (zero live
      * sink firings on both full sweeps; the corpus runner records
      * failures per SETUP UNIT and keeps its emptiness guard). */
@@ -1919,14 +1959,8 @@ final class StatementExecutor {
         }
         for (String blob : setups) {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
-                try {
-                    Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
-                } catch (com.legend.error.DataError e) {
-                    if (!env.dialect().rawH2IsNative()) {
-                        com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
-                    }
-                    throw e;
-                }
+                boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                com.legend.sql.dialect.RawSqlBoundary.recordExecuted(stmt, query);
             }
         }
     }
@@ -2525,13 +2559,11 @@ final class StatementExecutor {
         // boundary translator — never a dialect renderer (R0 rule).
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
             try {
-                Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                // recorded AFTER it executes, with its kind: the ledger
+                // mirrors executed reality by construction
+                boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                com.legend.sql.dialect.RawSqlBoundary.recordExecuted(stmt, query);
             } catch (com.legend.error.DataError e) {
-                // the recording must mirror EXECUTED reality — a failed
-                // statement leaves the H2-replay ledger (task #112)
-                if (!env.dialect().rawH2IsNative()) {
-                    com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
-                }
                 throw e;
             }
         }
@@ -2560,10 +2592,7 @@ final class StatementExecutor {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
         Executor.executeRaw(env.connection(), schemaDdl);
-        var rec = com.legend.sql.dialect.RawSqlBoundary.recording();
-        if (rec != null) {
-            rec.add(schemaDdl);
-        }
+        com.legend.sql.dialect.RawSqlBoundary.recordExecuted(schemaDdl, false);
         com.legend.sql.dialect.RawSqlBoundary.recordMeta(schemaDdl);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
@@ -2611,11 +2640,11 @@ final class StatementExecutor {
         Executor.executeRaw(connection,
                 Ddl.createTable(def, schema,
                         rawH2 ? Ddl.Flavor.H2_EXEC : Ddl.Flavor.DUCK_EXEC, true));
-        java.util.List<String> mirror =
-                com.legend.sql.dialect.RawSqlBoundary.recording();
-        if (!rawH2 && mirror != null) {
-            mirror.add(drop);
-            mirror.add(Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true));
+        if (!rawH2) {
+            // the replay ledger carries the mirror's (H2) spelling of the DDL
+            com.legend.sql.dialect.RawSqlBoundary.recordExecuted(drop, false);
+            com.legend.sql.dialect.RawSqlBoundary.recordExecuted(
+                    Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true), false);
         }
         // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
         // constraints; our DuckDB DDL deliberately omits them (milestoned

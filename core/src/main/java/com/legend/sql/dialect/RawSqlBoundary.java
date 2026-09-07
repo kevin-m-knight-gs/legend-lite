@@ -37,10 +37,16 @@ public final class RawSqlBoundary {
      * the recorded stream replays verbatim on a real H2 to seed the
      * advisory second target. Installed per test by the harness; null =
      * off. */
-    private static final ThreadLocal<List<String>> RECORDER =
+    /** One EXECUTED raw statement: the corpus's own H2 text and whether
+     * it produced a result set (a query) — the executor's fact, never a
+     * reading of the text. */
+    public record Raw(String sql, boolean query) {
+    }
+
+    private static final ThreadLocal<List<Raw>> RECORDER =
             new ThreadLocal<>();
 
-    public static void record(List<String> sink) {
+    public static void record(List<Raw> sink) {
         if (sink == null) {
             RECORDER.remove();
             META_RECORDER.remove();
@@ -50,38 +56,43 @@ public final class RawSqlBoundary {
         }
     }
 
-    public static @com.legend.Nullable List<String> recording() {
+    public static @com.legend.Nullable List<Raw> recording() {
         return RECORDER.get();
     }
 
-    /** Drop the most recently recorded statement — called by executors
-     * when the statement FAILED on the session: the recording must
-     * mirror executed reality or the H2 advisory replay dies on
-     * statements the session itself rejected (family-session ledger,
-     * task #112). Translation records eagerly; failure unrecords. */
-    public static void unrecordLast() {
-        List<String> sink = RECORDER.get();
-        if (sink != null && !sink.isEmpty()) {
-            sink.remove(sink.size() - 1);
+    /** The recorded statements' text, in order — the referee's replay
+     * stream (null when nothing records). */
+    public static @com.legend.Nullable List<String> recordedSql() {
+        List<Raw> sink = RECORDER.get();
+        return sink == null ? null : sink.stream().map(Raw::sql).toList();
+    }
+
+    /** A raw statement that EXECUTED on the session: recorded after the
+     * fact, with its kind — a statement that failed is never recorded, so
+     * the ledger mirrors executed reality by construction. */
+    public static void recordExecuted(String sql, boolean query) {
+        List<Raw> sink = RECORDER.get();
+        if (sink != null) {
+            sink.add(new Raw(sql, query));
         }
     }
 
-    /** Ledger position for a transactional execution attempt (the
-     * unrecordLast doctrine, RANGE edition): statements recorded during
+    /** Ledger position for a transactional execution attempt: statements
+     * recorded during
      * a rolled-back attempt leave the ledger with the rollback, so the
      * recording keeps matching executed (committed) reality. */
     public record LedgerMark(int sql, int meta) {
     }
 
     public static LedgerMark mark() {
-        List<String> sink = RECORDER.get();
+        List<Raw> sink = RECORDER.get();
         List<String> meta = META_RECORDER.get();
         return new LedgerMark(sink == null ? -1 : sink.size(),
                 meta == null ? -1 : meta.size());
     }
 
     public static void truncateTo(LedgerMark m) {
-        List<String> sink = RECORDER.get();
+        List<Raw> sink = RECORDER.get();
         if (sink != null && m.sql() >= 0) {
             while (sink.size() > m.sql()) {
                 sink.remove(sink.size() - 1);
@@ -189,10 +200,6 @@ public final class RawSqlBoundary {
     }
 
     private static String h2ToDuckDb0(String sql) {
-        List<String> sink = RECORDER.get();
-        if (sink != null) {
-            sink.add(sql);
-        }
         String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
         out = H2_VERSION_FN.matcher(out).replaceAll("'" + H2_DIALECT_VERSION + "'");
         out = COUNT_STAR_ITEM.matcher(out)

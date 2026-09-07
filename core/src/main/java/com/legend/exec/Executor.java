@@ -44,10 +44,12 @@ public final class Executor {
     public static final java.util.concurrent.atomic.AtomicLong RAW_CALLS =
             new java.util.concurrent.atomic.AtomicLong();
 
-    public static void executeRaw(Connection connection, String statement) {
+    /** Runs one raw statement; true when it produced a result set (a
+     * query) — the statement's KIND, from execution. */
+    public static boolean executeRaw(Connection connection, String statement) {
         long t0 = System.nanoTime();
         try (Statement st = connection.createStatement()) {
-            st.execute(statement);
+            return st.execute(statement);
         } catch (SQLException e) {
             // THE SEAM (user directive 2026-09-01): java.sql stops at
             // the executor boundary — platform vocabulary above

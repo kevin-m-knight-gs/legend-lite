@@ -447,6 +447,10 @@ public final class PlatformTypes {
     public static final String TEST_RUNTIME =
             "meta::external::store::relational::tests::testRuntime";
     public static final String IS_EMPTY = "meta::pure::functions::collection::isEmpty";
+    /** The engine's relational execution OPTIONS class (executionContext.pure) — the one
+     *  context reader spells its fields. */
+    public static final String RELATIONAL_EXECUTION_CONTEXT =
+            "meta::relational::runtime::RelationalExecutionContext";
     public static final String DURATION = "meta::pure::functions::date::Duration";
     public static final String MAP = "meta::pure::functions::collection::map";
     public static final String PLUS = "meta::pure::functions::math::plus";

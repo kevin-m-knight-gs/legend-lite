@@ -683,18 +683,14 @@ public final class Compiler {
         statements = com.legend.compiler.StatementInline.rewrite(statements, imports, ctx);
         java.util.List<com.legend.protocol.spec.ValueSpecification> desugared =
                 new java.util.ArrayList<>(statements.size());
-        boolean fired = false;
         for (com.legend.protocol.spec.ValueSpecification st : statements) {
-            com.legend.protocol.spec.ValueSpecification r = com.legend.validation.ValidateDesugar
-                    .rewrite(st, ctx, imports.wildcards());
-            desugared.add(r);
-            fired |= r != st;
+            desugared.add(com.legend.validation.ValidateDesugar
+                    .rewrite(st, ctx, imports.wildcards()));
         }
         // a statement-root map over spelled bound names unrolls to its
         // element statements (batch 72a — the element asserts become
         // statement-root verdicts)
         desugared = com.legend.compiler.LiteralMapUnroll.rewrite(desugared);
-        com.legend.validation.DriverPkOption.set(fired);
         return new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), desugared);
     }
 
@@ -779,12 +775,44 @@ public final class Compiler {
     public static boolean hasStatementEffects(
             com.legend.protocol.spec.ValueSpecification resolved,
             ModelContext ctx) {
+        return programFacts(resolved, ctx).effects();
+    }
+
+    /** The platform's facts about a resolved program ({@link ProgramFacts}),
+     * in one typing pass. */
+    public static ProgramFacts programFacts(
+            com.legend.protocol.spec.ValueSpecification resolved,
+            ModelContext ctx) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         java.util.Map<String, Boolean> memo = new java.util.HashMap<>();
+        boolean effects = false;
+        boolean seeds = false;
+        boolean verdicts = false;
+        var reader = com.legend.compiler.spec.typed.ExecutionContext.reader();
         for (TypedSpec s : body) {
-            if (StatementExecutor.containsEffect(s, specs, memo)
-                    || containsTdgGenerator(s)) {
+            effects |= StatementExecutor.containsEffect(s, specs, memo)
+                    || containsTdgGenerator(s);
+            // the ONE reader of runtime shapes: inline CSV test data anywhere
+            // in the statement (a from(), an execute's runtime argument, a
+            // let-bound connection copy) is a bound-context fact
+            seeds |= !reader.read(java.util.Optional.empty(), s).csvSetups().isEmpty();
+            verdicts |= callsVerdict(s);
+        }
+        return new ProgramFacts(effects, seeds, verdicts);
+    }
+
+    private static boolean callsVerdict(TypedSpec n) {
+        String callee = n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                ? nc.callee().qualifiedName()
+                : n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                        ? uc.callee().qualifiedName() : null;
+        if (callee != null && com.legend.compiler.element.type.PlatformTypes
+                .isVerdictFunction(callee)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (callsVerdict(c)) {
                 return true;
             }
         }

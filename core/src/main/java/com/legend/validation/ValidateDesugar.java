@@ -200,14 +200,20 @@ public final class ValidateDesugar {
                             java.util.Objects.requireNonNull(tds,
                                     "constraint validation without constraints")));
         }
-        // engine parity note: the engine passes ^exeCtx(
-        // addDriverTablePkForProject=true) to execute; that metamodel
-        // class is unloadable in PARTIAL corpus modules (its file drags
-        // the relational metamodel), so the flag travels as a Java-side
-        // execution option instead (EngineTestExecutor -> ExecEnv -> DriverPkAppend)
+        // engine parity: validate executes under
+        // ^RelationalExecutionContext(addDriverTablePkForProject=true) — the
+        // option rides the call as a VALUE the one context reader binds
+        // (the model compiles whole; the class is in it wherever validate is)
         return new AppliedFunction("execute", List.of(
                 new LambdaFunction(List.of(), List.of(tds)),
-                mapping, runtime, extensions));
+                mapping, runtime,
+                new com.legend.protocol.spec.NewInstance(
+                        com.legend.compiler.element.type.PlatformTypes.RELATIONAL_EXECUTION_CONTEXT,
+                        List.of(), List.of(new com.legend.protocol.spec.NewInstance.KeyBinding(
+                                "addDriverTablePkForProject",
+                                new com.legend.protocol.spec.KeyExpression(
+                                        new com.legend.protocol.spec.CBoolean(true), false, false)))),
+                extensions));
     }
 
     /** Own constraints first, then supertypes' (the engine's

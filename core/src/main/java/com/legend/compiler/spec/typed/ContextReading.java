@@ -60,7 +60,22 @@ final class ContextReading {
                 connectionName(runtimeArg), quoteIdentifiers(runtimeArg),
                 timeZone(runtimeArg),
                 conn == null ? null : databaseType(conn), conn,
-                storeFqn(runtimeArg));
+                storeFqn(runtimeArg), false);
+    }
+
+    /** {@code addDriverTablePkForProject} off an execute call's ExecutionContext
+     * argument — a RelationalExecutionContext instance (let-bound or literal)
+     * whose flag is a literal true; anything else is the default (false). */
+    static boolean driverTablePkOf(@com.legend.Nullable TypedSpec contextArg,
+            UnaryOperator<TypedSpec> bind) {
+        if (contextArg == null) {
+            return false;
+        }
+        TypedSpec v = bind.apply(contextArg);
+        return v instanceof TypedNewInstance ni
+                && PlatformTypes.RELATIONAL_EXECUTION_CONTEXT.equals(ni.classFqn())
+                && ni.properties().get("addDriverTablePkForProject") instanceof TypedCBoolean b
+                && b.value();
     }
 
     private TypedSpec chase(TypedSpec v) {

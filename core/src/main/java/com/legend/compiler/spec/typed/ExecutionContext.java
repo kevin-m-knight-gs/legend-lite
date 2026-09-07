@@ -42,6 +42,9 @@ import java.util.function.UnaryOperator;
  *                       the runtime value (the plan surface spells its
  *                       datasource), null when none
  * @param storeFqn       the first ConnectionStore's element store, null when none
+ * @param driverTablePk  the engine's {@code addDriverTablePkForProject} execution option
+ *                       (RelationalExecutionContext): projections gain their driver
+ *                       table's primary-key columns
  */
 public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                Optional<TypedPackageableRef> runtime,
@@ -54,7 +57,8 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                @com.legend.Nullable String timeZone,
                                @com.legend.Nullable String databaseType,
                                @com.legend.Nullable TypedNewInstance connectionInstance,
-                               @com.legend.Nullable String storeFqn) {
+                               @com.legend.Nullable String storeFqn,
+                               boolean driverTablePk) {
 
     /** A {@code testDataSetupCsv} block with the DATABASE it seeds (the
      * enclosing connection store's {@code element}; null when no store is
@@ -76,7 +80,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     public static ExecutionContext of(Optional<TypedPackageableRef> mapping,
             Optional<TypedPackageableRef> runtime) {
         return new ExecutionContext(mapping, runtime, List.of(), Map.of(), List.of(),
-                List.of(), null, false, null, null, null, null);
+                List.of(), null, false, null, null, null, null, false);
     }
 
     /** References plus a chain (a wrapper envelope inheriting a resolver context). */
@@ -84,21 +88,21 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             Optional<TypedPackageableRef> runtime, List<String> chainMappings,
             Map<String, String> jsonSources) {
         return new ExecutionContext(mapping, runtime, chainMappings, jsonSources,
-                List.of(), List.of(), null, false, null, null, null, null);
+                List.of(), List.of(), null, false, null, null, null, null, false);
     }
 
     /** This context with the given mapping reference. */
     public ExecutionContext withMapping(Optional<TypedPackageableRef> m) {
         return new ExecutionContext(m, runtime, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn);
+                connectionInstance, storeFqn, driverTablePk);
     }
 
     /** This context with the given runtime reference. */
     public ExecutionContext withRuntime(Optional<TypedPackageableRef> r) {
         return new ExecutionContext(mapping, r, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn);
+                connectionInstance, storeFqn, driverTablePk);
     }
 
     /** This context with more chain mappings appended (the query-side
@@ -111,7 +115,18 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         more.stream().filter(m -> !merged.contains(m)).forEach(merged::add);
         return new ExecutionContext(mapping, runtime, merged, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn);
+                connectionInstance, storeFqn, driverTablePk);
+    }
+
+    /** This context with the execution OPTIONS read off an execute call's
+     * ExecutionContext argument (the engine's exeCtx overload). */
+    public ExecutionContext withOptions(@com.legend.Nullable TypedSpec contextArg,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        boolean pk = ContextReading.driverTablePkOf(contextArg, bind);
+        return pk == driverTablePk ? this
+                : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
+                        csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
+                        connectionInstance, storeFqn, pk);
     }
 
     /** This context with an INHERITED chain when it declares none of its own
@@ -120,7 +135,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return chainMappings.isEmpty() && !outerChain.isEmpty()
                 ? new ExecutionContext(mapping, runtime, outerChain, jsonSources,
                         sqlSetups, csvSetups, connectionName, quoteIdentifiers,
-                        timeZone, databaseType, connectionInstance, storeFqn)
+                        timeZone, databaseType, connectionInstance, storeFqn, driverTablePk)
                 : this;
     }
 

@@ -284,7 +284,7 @@ public final class MinimalCorpus {
     private final Set<String> setupsDone = new LinkedHashSet<>();
     /** The session's non-query statements so far — the referee's seed
      * ledger prefix for every later test of the session. */
-    private final List<String> seedLedger = new ArrayList<>();
+    private final List<com.legend.sql.dialect.RawSqlBoundary.Raw> seedLedger = new ArrayList<>();
     /** Each setup's resolved program (or {@link #INERT_SETUP} when the
      * platform says its body has no effects) — derived once. */
     private final java.util.Map<String, ValueSpecification> setupPrograms = new java.util.HashMap<>();
@@ -319,6 +319,7 @@ public final class MinimalCorpus {
         sessionPkg = pkg;
         setupsDone.clear();
         seedLedger.clear();
+        deriveSetups(pkg);
     }
 
     public void endSession() {
@@ -342,28 +343,44 @@ public final class MinimalCorpus {
      * first — each run at most once per session, and only when the
      * platform says its body has effects. Failures are reported, not
      * fatal (the engine's harness tolerance). */
-    private List<String> runSetups(TestCase t, Connection conn, boolean shared) {
-        List<String> failures = new ArrayList<>();
+    /** The setups a package inherits: the shared fixture units and every
+     * BeforePackage of a package that prefixes it, outermost first. */
+    private List<String> setupCandidates(String pkg) {
         List<String> candidates = new ArrayList<>(sharedSetups);
         List<String> pkgs = new ArrayList<>(setupsByPackage.keySet());
         pkgs.sort(java.util.Comparator.comparingInt(String::length));
         for (String p : pkgs) {
-            if (t.pkg().equals(p) || t.pkg().startsWith(p + "::")) {
+            if (pkg.equals(p) || pkg.startsWith(p + "::")) {
                 candidates.addAll(setupsByPackage.get(p));
             }
         }
-        Set<String> seen = new LinkedHashSet<>();
-        for (String fqn : candidates) {
-            if (!seen.add(fqn) || (shared && setupsDone.contains(fqn))) {
-                continue;
-            }
-            // a setup's resolved program and its effect verdict are facts
-            // about the MODEL: derived once per setup, never per test
-            ValueSpecification call = setupPrograms.computeIfAbsent(fqn, f -> {
+        return new ArrayList<>(new LinkedHashSet<>(candidates));
+    }
+
+    /** A setup's resolved program and its effect verdict are facts about
+     * the MODEL: derived once per setup, at session start — so nothing
+     * resolves between a test's own resolution and its execution (the
+     * front door's per-query execution option is a thread-local today;
+     * owed: the option rides the program through an execute overload with
+     * the engine's own execution-context argument, bound by the reader). */
+    private void deriveSetups(String pkg) {
+        for (String fqn : setupCandidates(pkg)) {
+            setupPrograms.computeIfAbsent(fqn, f -> {
                 ValueSpecification resolved = Compiler.resolveQuery(
                         List.of(new AppliedFunction(f, List.of())), new ImportScope(List.of()), ctx);
                 return Compiler.hasStatementEffects(resolved, ctx) ? resolved : INERT_SETUP;
             });
+        }
+    }
+
+    private List<String> runSetups(TestCase t, Connection conn, boolean shared) {
+        List<String> failures = new ArrayList<>();
+        for (String fqn : setupCandidates(t.pkg())) {
+            if (shared && setupsDone.contains(fqn)) {
+                continue;
+            }
+            ValueSpecification call = java.util.Objects.requireNonNull(
+                    setupPrograms.get(fqn), "setup derived at session start");
             if (call == INERT_SETUP) {
                 continue;
             }
@@ -389,10 +406,24 @@ public final class MinimalCorpus {
         if (body.size() == 1 && body.get(0) instanceof CBoolean cb && cb.value()) {
             return new Result(t.fqn(), true, 0, "vacuous (engine body = true)");
         }
-        boolean shared = !carriesInlineCsv(body);
+        // the platform's facts about the program decide the session: a test
+        // that seeds inline CSV data gets a private workspace
+        ValueSpecification resolved;
+        com.legend.ProgramFacts facts;
+        try {
+            resolved = Compiler.resolveQuery(List.copyOf(body), t.imports(), ctx);
+        } catch (RuntimeException e) {
+            return new Result(t.fqn(), false, 0, "resolve: " + firstLine(e.getMessage()));
+        }
+        try {
+            facts = Compiler.programFacts(resolved, ctx);
+        } catch (RuntimeException e) {
+            return new Result(t.fqn(), false, 0, "type: " + firstLine(e.getMessage()));
+        }
+        boolean shared = !facts.seedsInlineCsv();
         com.legend.harness.ReplayOracle.mirrorSuspend(!shared);
         Connection conn = shared ? sessionConn : openSession();
-        List<String> recording = new ArrayList<>();
+        List<com.legend.sql.dialect.RawSqlBoundary.Raw> recording = new ArrayList<>();
         if (shared) {
             recording.addAll(seedLedger);
         }
@@ -407,7 +438,7 @@ public final class MinimalCorpus {
         });
         try {
             List<String> setupFailures = runSetups(t, conn, shared);
-            Result r = judge(t, body, conn);
+            Result r = judge(t, resolved, facts, conn);
             if (!setupFailures.isEmpty()) {
                 r = new Result(r.fqn(), r.pass(), r.verdicts(),
                         r.reason() + " [setup: " + String.join("; ", setupFailures) + "]");
@@ -417,8 +448,8 @@ public final class MinimalCorpus {
             com.legend.harness.ReplayOracle.mirrorSuspend(false);
             if (shared) {
                 seedLedger.clear();
-                for (String stmt : recording) {
-                    if (!isQuery(stmt)) {
+                for (var stmt : recording) {
+                    if (!stmt.query()) {
                         seedLedger.add(stmt);
                     }
                 }
@@ -432,20 +463,9 @@ public final class MinimalCorpus {
         }
     }
 
-    private Result judge(TestCase t, List<ValueSpecification> body, Connection conn)
-            throws SQLException {
-        ValueSpecification resolved;
-        try {
-            resolved = Compiler.resolveQuery(List.copyOf(body), t.imports(), ctx);
-        } catch (RuntimeException e) {
-            return new Result(t.fqn(), false, 0, "resolve: " + firstLine(e.getMessage()));
-        }
-        boolean effectful;
-        try {
-            effectful = Compiler.hasStatementEffects(resolved, ctx);
-        } catch (RuntimeException e) {
-            return new Result(t.fqn(), false, 0, "type: " + firstLine(e.getMessage()));
-        }
+    private Result judge(TestCase t, ValueSpecification resolved,
+            com.legend.ProgramFacts facts, Connection conn) throws SQLException {
+        boolean effectful = facts.effects();
         List<Boolean> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();
         com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark = null;
@@ -474,7 +494,7 @@ public final class MinimalCorpus {
             if (failure == null && !failedAsserts.isEmpty()) {
                 failure = "assert " + failedAsserts.get(0);
             }
-            if (failure == null && verdicts.isEmpty() && callsAssert(resolved)) {
+            if (failure == null && verdicts.isEmpty() && facts.verdicts()) {
                 failure = "no verdict: the body calls an assert the platform"
                         + " did not adjudicate";
             }
@@ -536,40 +556,8 @@ public final class MinimalCorpus {
         return a.length < b.length ? 1 : -1;
     }
 
-    private static boolean carriesInlineCsv(List<ValueSpecification> body) {
-        java.util.ArrayDeque<ValueSpecification> q = new java.util.ArrayDeque<>(body);
-        while (!q.isEmpty()) {
-            ValueSpecification v = q.poll();
-            if (v instanceof NewInstance ni && ni.first("testDataSetupCsv") != null) {
-                return true;
-            }
-            q.addAll(v.children());
-        }
-        return false;
-    }
 
-    /** Whether the RESOLVED body calls an assert-family function (exact
-     * package of the engine's assert natives). */
-    private static boolean callsAssert(ValueSpecification resolved) {
-        java.util.ArrayDeque<ValueSpecification> q = new java.util.ArrayDeque<>();
-        q.add(resolved);
-        while (!q.isEmpty()) {
-            ValueSpecification v = q.poll();
-            if (v instanceof AppliedFunction af
-                    && af.function().startsWith(ASSERTS_PACKAGE)) {
-                return true;
-            }
-            q.addAll(v.children());
-        }
-        return false;
-    }
 
-    private static boolean isQuery(String stmt) {
-        String head = stmt.stripLeading();
-        head = head.substring(0, Math.min(7, head.length())).toUpperCase(java.util.Locale.ROOT);
-        return head.startsWith("SELECT") || head.startsWith("WITH")
-                || head.startsWith("SHOW") || head.startsWith("EXPLAIN");
-    }
 
     private static String firstLine(@com.legend.Nullable String s) {
         if (s == null) {

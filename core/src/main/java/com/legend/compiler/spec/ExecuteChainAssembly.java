@@ -490,7 +490,8 @@ public final class ExecuteChainAssembly {
                     com.legend.compiler.spec.typed.ExecutionContext.reader()
                             .bind(v -> letBound(v, letPrefix))
                             .read(Optional.of(p.mref()), rtValue)
-                            .withRuntime(runtime);
+                            .withRuntime(runtime)
+                            .withOptions(executionContextArg(ec), v -> letBound(v, letPrefix));
             chain = new TypedFrom(chain, bound, chain.info());
         }
         // a TDS-typed root (tableToTDS, a TabularDataSet-declared value)
@@ -503,6 +504,15 @@ public final class ExecuteChainAssembly {
     }
 
     /** Whether the chain (transitively) carries a {@code ->from()}. */
+    /** The ExecutionContext argument of an execute call on the engine's
+     * exeCtx overload (f, mapping, runtime, exeCtx, extensions); null on
+     * the others. Identified by the overload's SIGNATURE, never by shape. */
+    public static @com.legend.Nullable TypedSpec executionContextArg(TypedNativeCall ec) {
+        return com.legend.builtin.Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY
+                .signatureKey().equals(ec.callee().signatureKey()) && ec.args().size() == 5
+                ? ec.args().get(3) : null;
+    }
+
     public static boolean containsTypedFrom(TypedSpec n) {
         if (n instanceof TypedFrom) {
             return true;

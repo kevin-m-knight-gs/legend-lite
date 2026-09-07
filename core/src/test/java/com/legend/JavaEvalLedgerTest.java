@@ -993,6 +993,11 @@ class JavaEvalLedgerTest {
                     // fact as MetamodelSeeds; nothing a verdict reads is
                     // computed here
                     "OpSeeds.java",
+                    // batch 118: the facts the platform STATES about a
+                    // resolved program (effects / inline CSV seeds / a
+                    // verdict call) — read off the typed tree by the one
+                    // context reader; nothing evaluated, no static sink
+                    "ProgramFacts.java",
                     "PlanAllocations.java", "PlanEnvelope.java",
                     "SeedSqlForms.java",
                     // SQLTEXT charter slice 3a (2026-09-01): the

@@ -181,7 +181,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         null);
             }
             String d = tdgChainedReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
                     ancestors, goldenSql,
                     H2Verify.transcriptRows(f.columns(), f.rows()));
             return d == null
@@ -812,7 +812,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         };
         try {
             String r = verifyAuto(session,
-                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
                     extraSeeds, goldenSql, ours, enumDecode, enumProp);
             return r == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
@@ -847,7 +847,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             java.sql.Connection session, String goldenSql, String ourSql) {
         try {
             String d = tdgSqlReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
                     goldenSql, session, ourSql);
             return d == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
@@ -877,7 +877,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     /** One statement on the seeded oracle (DDL for a replay's allocation
      * tables — same session and ledger discipline as {@link #rows}). */
     private void execute(String sql) throws SQLException {
-        onOracle(com.legend.sql.dialect.RawSqlBoundary.recording(),
+        onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
                 VERIFY_SESSION, st -> {
                     st.execute(sql);
                     return Boolean.TRUE;
@@ -887,7 +887,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     @Override
     public com.legend.exec.SqlReplayOracle.OracleRows rows(String sql)
             throws SQLException {
-        return onOracle(com.legend.sql.dialect.RawSqlBoundary.recording(),
+        return onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
                 VERIFY_SESSION, st -> {
                     try (java.sql.ResultSet rs = st.executeQuery(sql)) {
                         var md = rs.getMetaData();

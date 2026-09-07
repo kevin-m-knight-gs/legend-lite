@@ -4575,3 +4575,15 @@ signatures; CollectionLanes.registerFirstNotNull composes `find`; DateShifts dat
 fields; collection add registers under its own overloads only — it had clobbered the date keys); namespace guard
 over every source; catalog golden regenerated (+4 lines). Rosters exact. NEXT = item 3 (ProgramFacts + the typed
 raw-SQL ledger), then 4 (referee golden rows as a typed relation), 5 (main-side censuses), then single-shot.
+
+**Batch 118 / the harness reads facts the platform states (2026-09-06, chain GREEN 6m30s; GATES batch 118).**
+ProgramFacts + Compiler.programFacts; RawSqlBoundary.Raw(sql, query) recorded at execution (unrecordLast gone);
+the exeCtx execute overload + ExecutionContext.driverTablePk bound by the one reader; DriverPkOption DELETED
+(a first cut that reordered the harness around the static was stopped by the user and reverted). Prelude +1
+class (RelationalExecutionContext, by demand); catalog golden +1. Rosters exact. ITEM 4 HOMEWORK DONE (measured):
+the referee's second interpretation is H2Verify.norm(Object) over both sides' JDBC values + a Java enum-decode map
++ temporal coercion + ordering policy (goldenRowsCompare); the driver ships DuckDBAppender, so the golden's H2 rows
+transfer into the session BY JDBC TYPE (one mapping, no text) and the verdict is one SQL query (two-way EXCEPT ALL
+for multisets; keyed positional compare for ordered results; enum decode = a join to the enumeration-mapping rows
+the system database holds). NEXT = item 4 design + build, then item 5 (main-side censuses), then single-shot.
+Also owed: PctRenderOption is the same thread-local class as DriverPkOption was.
