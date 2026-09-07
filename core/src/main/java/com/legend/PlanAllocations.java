@@ -235,9 +235,9 @@ final class PlanAllocations {
                     java.util.List.of(chain), mappingFqn, specs, env, renderer,
                     java.util.Map.of(), java.util.function.UnaryOperator.identity());
             com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(
-                    es.plan(), com.legend.exec.PostProcessBoundary.tableReplace(),
-                    com.legend.exec.PostProcessBoundary.extractCtes(),
-                    com.legend.exec.PostProcessBoundary.nonExecutable());
+                    es.plan(), env.tableReplace(),
+                    env.postProcessors().extractCtes(),
+                    env.postProcessors().nonExecutable());
             return post == es.plan() ? es.sql() : renderer.render(post);
         } catch (com.legend.error.NotImplementedException
                 | com.legend.compiler.spec.TypeInferenceException

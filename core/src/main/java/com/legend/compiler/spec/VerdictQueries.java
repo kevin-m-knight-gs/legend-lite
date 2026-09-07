@@ -64,9 +64,17 @@ public final class VerdictQueries {
 
     public static TypedSpec fromWrapped(TypedSpec query,
             com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
+        return fromWrapped(query, mapping,
+                com.legend.compiler.spec.typed.ExecutionContext.NONE);
+    }
+
+    /** The verdict's read wrapped in the FRAME's own bound context (the
+     * producer's post-processors, time zone, options) under the mapping. */
+    public static TypedSpec fromWrapped(TypedSpec query,
+            com.legend.compiler.spec.typed.TypedPackageableRef mapping,
+            com.legend.compiler.spec.typed.ExecutionContext base) {
         return new com.legend.compiler.spec.typed.TypedFrom(query,
-                java.util.Optional.of(mapping), java.util.Optional.empty(),
-                query.info());
+                base.withMapping(java.util.Optional.of(mapping)), query.info());
     }
 
     /** assertSameSQL's OUR-TEXT read (charter §8.3b): the

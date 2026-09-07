@@ -45,6 +45,10 @@ import java.util.function.UnaryOperator;
  * @param driverTablePk  the engine's {@code addDriverTablePkForProject} execution option
  *                       (RelationalExecutionContext): projections gain their driver
  *                       table's primary-key columns
+ * @param postProcessors the connection's SQL post-processors (engine
+ *                       sqlQueryPostProcessors / MapperPostProcessor): the table
+ *                       renames, CTE extraction, the nonExecutable pass — IR
+ *                       passes applied over the frame's lowered plan
  */
 public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                Optional<TypedPackageableRef> runtime,
@@ -58,7 +62,24 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                @com.legend.Nullable String databaseType,
                                @com.legend.Nullable TypedNewInstance connectionInstance,
                                @com.legend.Nullable String storeFqn,
-                               boolean driverTablePk) {
+                               boolean driverTablePk,
+                               PostProcessors postProcessors) {
+    /** The connection post-processor facts of one frame: {@code tableReplace}
+     * renames (TableNameMapper), whether CTE extraction is installed, whether
+     * the nonExecutable pass is installed. */
+    public record PostProcessors(Map<String, String> tableReplace, boolean extractCtes,
+                                 boolean nonExecutable) {
+        public static final PostProcessors NONE = new PostProcessors(Map.of(), false, false);
+
+        public PostProcessors {
+            tableReplace = Map.copyOf(tableReplace);
+        }
+
+        public PostProcessors withNonExecutable(boolean on) {
+            return on == nonExecutable ? this
+                    : new PostProcessors(tableReplace, extractCtes, on);
+        }
+    }
 
     /** A {@code testDataSetupCsv} block with the DATABASE it seeds (the
      * enclosing connection store's {@code element}; null when no store is
@@ -80,7 +101,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     public static ExecutionContext of(Optional<TypedPackageableRef> mapping,
             Optional<TypedPackageableRef> runtime) {
         return new ExecutionContext(mapping, runtime, List.of(), Map.of(), List.of(),
-                List.of(), null, false, null, null, null, null, false);
+                List.of(), null, false, null, null, null, null, false, PostProcessors.NONE);
     }
 
     /** References plus a chain (a wrapper envelope inheriting a resolver context). */
@@ -88,21 +109,21 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             Optional<TypedPackageableRef> runtime, List<String> chainMappings,
             Map<String, String> jsonSources) {
         return new ExecutionContext(mapping, runtime, chainMappings, jsonSources,
-                List.of(), List.of(), null, false, null, null, null, null, false);
+                List.of(), List.of(), null, false, null, null, null, null, false, PostProcessors.NONE);
     }
 
     /** This context with the given mapping reference. */
     public ExecutionContext withMapping(Optional<TypedPackageableRef> m) {
         return new ExecutionContext(m, runtime, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn, driverTablePk);
+                connectionInstance, storeFqn, driverTablePk, postProcessors);
     }
 
     /** This context with the given runtime reference. */
     public ExecutionContext withRuntime(Optional<TypedPackageableRef> r) {
         return new ExecutionContext(mapping, r, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn, driverTablePk);
+                connectionInstance, storeFqn, driverTablePk, postProcessors);
     }
 
     /** This context with more chain mappings appended (the query-side
@@ -115,7 +136,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         more.stream().filter(m -> !merged.contains(m)).forEach(merged::add);
         return new ExecutionContext(mapping, runtime, merged, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                connectionInstance, storeFqn, driverTablePk);
+                connectionInstance, storeFqn, driverTablePk, postProcessors);
     }
 
     /** This context with the execution OPTIONS read off an execute call's
@@ -126,7 +147,16 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return pk == driverTablePk ? this
                 : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
                         csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                        connectionInstance, storeFqn, pk);
+                        connectionInstance, storeFqn, pk, postProcessors);
+    }
+
+    /** This context with other post-processor facts (a text surface that
+     * runs its query under the producer's own nonExecutable pass). */
+    public ExecutionContext withPostProcessors(PostProcessors pp) {
+        return pp.equals(postProcessors) ? this
+                : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
+                        csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
+                        connectionInstance, storeFqn, driverTablePk, pp);
     }
 
     /** This context with an INHERITED chain when it declares none of its own
@@ -135,7 +165,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return chainMappings.isEmpty() && !outerChain.isEmpty()
                 ? new ExecutionContext(mapping, runtime, outerChain, jsonSources,
                         sqlSetups, csvSetups, connectionName, quoteIdentifiers,
-                        timeZone, databaseType, connectionInstance, storeFqn, driverTablePk)
+                        timeZone, databaseType, connectionInstance, storeFqn, driverTablePk, postProcessors)
                 : this;
     }
 

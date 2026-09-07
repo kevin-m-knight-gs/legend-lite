@@ -692,7 +692,13 @@ class JavaEvalLedgerTest {
             // execution context (ExecutionContext.reader().read(...).databaseType())
             // — three lines where the retired ConnectionFlags read was one;
             // no evaluation added
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1063),
+            // 1063 → 1071 (batch 120, justified): the PostProcessBoundary thread-local's
+            // set-and-restore around the producer's rows leg became legContext (the
+            // leg's from carries the producer's bound context), the referee's temp
+            // seeding reads the zone off the spliced read's from (frameZone), and
+            // FrameFacts carries the frame's context — context plumbing moved out of a
+            // static sink, no Java evaluation added; shrink-only from here.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1071),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the
@@ -872,7 +878,7 @@ class JavaEvalLedgerTest {
                     "JsonCompare.java",
                     "H2Settings.java",
                     "PctProbe.java",
-                    "PctRenderOption.java", "PostProcessBoundary.java",
+                    "PctRenderOption.java",
                     // batch 83 (2026-09-06): the engine's execution-trace
                     // comment — the statement the database receives carries
                     // `-- "executionTraceID" : "<uuid>"` (the engine's

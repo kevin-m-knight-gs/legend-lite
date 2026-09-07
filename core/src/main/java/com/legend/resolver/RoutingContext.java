@@ -77,6 +77,7 @@ final class RoutingContext {
                     .inlineBody(java.util.List.of(rt)).get(0);
         }
         var bound = com.legend.compiler.spec.typed.ExecutionContext.reader()
+                .bind(bind)
                 .read(java.util.Optional.of(mr), rt)
                 .withOptions(com.legend.compiler.spec.ExecuteChainAssembly
                         .executionContextArg(nc), bind);

@@ -789,14 +789,19 @@ public final class Compiler {
         boolean effects = false;
         boolean seeds = false;
         boolean verdicts = false;
-        var reader = com.legend.compiler.spec.typed.ExecutionContext.reader();
-        for (TypedSpec s : body) {
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec s = body.get(i);
+            java.util.List<TypedSpec> preceding = body.subList(0, i);
             effects |= StatementExecutor.containsEffect(s, specs, memo)
                     || containsTdgGenerator(s);
             // the ONE reader of runtime shapes: inline CSV test data anywhere
             // in the statement (a from(), an execute's runtime argument, a
-            // let-bound connection copy) is a bound-context fact
-            seeds |= !reader.read(java.util.Optional.empty(), s).csvSetups().isEmpty();
+            // let-bound connection copy) is a bound-context fact; values the
+            // statement names chase its preceding lets
+            seeds |= !com.legend.compiler.spec.typed.ExecutionContext.reader()
+                    .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
+                            .letBound(v, preceding))
+                    .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
             verdicts |= callsVerdict(s);
         }
         return new ProgramFacts(effects, seeds, verdicts);

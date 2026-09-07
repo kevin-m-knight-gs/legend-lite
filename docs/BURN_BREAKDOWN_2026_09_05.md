@@ -34,7 +34,7 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
-Status: **batch 119 / audit of 116–118 LANDED (2026-09-07)** — two fixes (loud literal read of the driver-PK option; StatementInline depth cap gone); rosters exact (DuckDB 2454, H2 1866). Order pulled forward by the user: batch 120 = the remaining execution-option statics onto the bound context (PostProcessBoundary's four thread-locals, PctRenderOption, per-call driver-PK), THEN item 4 (referee judges in the database; InDbVerdict parked in the job dir), THEN item 5 (censuses = counters only; canon rider/render/form stay).
+Status: **batch 120 / execution-frame facts ride the from LANDED (2026-09-07)** — PostProcessBoundary deleted; the from is the one carrier of frame facts (rule in docs/BATCH_120_FRAME_FACTS_HANDOFF_2026_09_07.md); rosters exact (DuckDB 2454, H2 1866). NEXT: part B per-call driver-PK, part C PctRenderOption as an execute option, THEN item 4 (referee in the database; InDbVerdict at docs/parked), THEN item 5 (censuses).
 
 Status: **batch 117 / the harness stdlib is the platform's LANDED (2026-09-06)** — corpus-library.pure deleted; the real demand was two natives (firstNotNull, date::add with a Duration), now kind-1 natives with SQL rules; the namespace guard covers every loaded source. Item 2 of the five done; item 3 (the harness body scans become platform facts) next.
 

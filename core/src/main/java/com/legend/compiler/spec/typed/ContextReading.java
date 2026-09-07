@@ -4,6 +4,7 @@
 package com.legend.compiler.spec.typed;
 
 import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.error.NotImplementedException;
 import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayDeque;
@@ -48,6 +49,8 @@ final class ContextReading {
         if (runtimeArg instanceof TypedPackageableRef ref) {
             return ExecutionContext.of(mapping, Optional.of(ref));
         }
+        scope(runtimeArg, java.util.Set.of());
+        scoped.add(runtimeArg);
         List<String> chain = new ArrayList<>();
         collectChain(runtimeArg, chain);
         Map<String, String> json = new LinkedHashMap<>();
@@ -60,8 +63,306 @@ final class ContextReading {
                 connectionName(runtimeArg), quoteIdentifiers(runtimeArg),
                 timeZone(runtimeArg),
                 conn == null ? null : databaseType(conn), conn,
-                storeFqn(runtimeArg), false);
+                storeFqn(runtimeArg), false, postProcessors(runtimeArg));
     }
+
+    /** The connection's SQL post-processors (sqlQueryPostProcessors /
+     * sqlQueryPostProcessorsConnectionAware hooks, MapperPostProcessor
+     * postProcessors) as the frame's post-processor facts. */
+    ExecutionContext.PostProcessors postProcessors(TypedSpec runtimeArg) {
+        Map<String, String> out = new LinkedHashMap<>();
+        // [0] = CTE extraction installed, [1] = nonExecutable installed
+        boolean[] cte = {false, false};
+        collectConnections(runtimeArg, out, cte, this::chase);
+        return new ExecutionContext.PostProcessors(out, cte[0], cte[1]);
+    }
+
+    private static void collectConnections(TypedSpec n,
+            Map<String, String> out, boolean[] cte,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        if (n instanceof TypedNewInstance ni) {
+            TypedSpec aware = ni.properties().get(
+                    "sqlQueryPostProcessorsConnectionAware");
+            if (aware != null) {
+                for (TypedSpec hook : ppElements(aware)) {
+                    readHook(hook, out, cte, bind);
+                }
+            }
+            // the PLAIN slot carries the same replaceTables shape (hook
+            // takes (SQLQuery) instead of (SQLQuery, DatabaseConnection))
+            TypedSpec plain = ni.properties().get("sqlQueryPostProcessors");
+            if (plain != null) {
+                for (TypedSpec hook : ppElements(plain)) {
+                    // LOUD (deep-audit D2-4, slice zero 2026-08-15;
+                    // user ruling): the old catch-and-skip silently
+                    // dropped any hook the recognizer didn't parse — and
+                    // the cteExtraction corpus tests were "passing" with
+                    // the very feature they test skipped (a false
+                    // green). A hook is either recognized-and-applied
+                    // (the replaceTables pattern) or the query REFUSES;
+                    // the 7 cteExtraction tests are adjudicated
+                    // blocked-on-feature until an IR CTE-extraction pass
+                    // exists.
+                    readHook(hook, out, cte, bind);
+                }
+            }
+        }
+        if (n instanceof TypedNewInstance ni
+                && ni.properties().get("postProcessors") instanceof TypedSpec pps) {
+            // the CONNECTION-LEVEL mapper post-processor (batch 80):
+            // postProcessors = ^MapperPostProcessor(mappers = ^TableNameMapper(
+            // schema = ^SchemaNameMapper(from, to), from, to)) — the engine
+            // renames tables/schemas in the generated SQL
+            // (runtime/connection/postprocessor.pure:35-48); a table
+            // rename is the same IR pass as replaceTables (tableReplace).
+            // Exact-FQN dispatch; any other post-processor kind is loud —
+            // no IR pass exists for it, and the query must not run
+            // un-post-processed.
+            for (TypedSpec pp : ppElements(pps)) {
+                readMapperPostProcessor(pp, out);
+            }
+        }
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedCopyInstance cp) {
+            for (String key : new String[] {
+                    "sqlQueryPostProcessorsConnectionAware",
+                    "sqlQueryPostProcessors"}) {
+                TypedSpec hooks = cp.overrides().get(key);
+                if (hooks != null) {
+                    for (TypedSpec hook : ppElements(hooks)) {
+                        readHook(hook, out, cte, bind);
+                    }
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            collectConnections(c, out, cte, bind);
+        }
+    }
+
+    private static List<TypedSpec> ppElements(TypedSpec v) {
+        return v instanceof TypedCollection tc ? tc.elements() : List.of(v);
+    }
+
+    private static final String MAPPER_PP_FQN =
+            "meta::pure::alloy::connections::MapperPostProcessor";
+    private static final String TABLE_MAPPER_FQN =
+            "meta::pure::alloy::connections::TableNameMapper";
+    private static final String SCHEMA_MAPPER_FQN =
+            "meta::pure::alloy::connections::SchemaNameMapper";
+
+    /** One {@code postProcessors} element: a MapperPostProcessor's table
+     * mappers become tableReplace renames; a schema mapper that moves a
+     * table to ANOTHER schema has no IR pass yet (loud), an identity
+     * schema mapper is a no-op. */
+    private static void readMapperPostProcessor(TypedSpec pp,
+            Map<String, String> out) {
+        if (!(pp instanceof TypedNewInstance mp)
+                || !MAPPER_PP_FQN.equals(mp.classFqn())) {
+            throw new NotImplementedException("connection post-processor "
+                    + (pp instanceof TypedNewInstance x ? "'" + x.classFqn() + "'"
+                            : pp.getClass().getSimpleName())
+                    + " has no IR pass (only MapperPostProcessor is compiled)");
+        }
+        TypedSpec mappers = mp.properties().get("mappers");
+        for (TypedSpec m : mappers == null ? List.<TypedSpec>of() : ppElements(mappers)) {
+            if (!(m instanceof TypedNewInstance mi)) {
+                throw new NotImplementedException(
+                        "MapperPostProcessor mapper is not an instance literal");
+            }
+            String from = mapperLiteral(mi, "from");
+            String to = mapperLiteral(mi, "to");
+            if (TABLE_MAPPER_FQN.equals(mi.classFqn())) {
+                if (mi.properties().get("schema") instanceof TypedNewInstance sch
+                        && !mapperLiteral(sch, "from").equals(mapperLiteral(sch, "to"))) {
+                    throw new NotImplementedException("TableNameMapper moving '"
+                            + from + "' to another schema has no IR pass yet");
+                }
+                out.putIfAbsent(from, to);
+            } else if (SCHEMA_MAPPER_FQN.equals(mi.classFqn())) {
+                if (!from.equals(to)) {
+                    throw new NotImplementedException("SchemaNameMapper '" + from
+                            + "' -> '" + to + "' has no IR pass yet");
+                }
+            } else {
+                throw new NotImplementedException("MapperPostProcessor mapper '"
+                        + mi.classFqn() + "' is not a table/schema mapper");
+            }
+        }
+    }
+
+    private static String mapperLiteral(TypedNewInstance mi, String prop) {
+        if (mi.properties().get(prop) instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+            return cs.value();
+        }
+        throw new NotImplementedException("mapper '" + prop
+                + "' is not a string literal on " + mi.classFqn());
+    }
+
+    /** One hook lambda: the ONLY recognized body is a terminal
+     * {@code replaceTables($query, <pairs>)} call. */
+    private static @com.legend.Nullable String calleeOf(TypedSpec n) {
+        return switch (n) {
+            case TypedNativeCall c -> c.callee().qualifiedName();
+            case com.legend.compiler.spec.typed.TypedUserCall u -> u.callee().qualifiedName();
+            default -> null;
+        };
+    }
+
+    private static final String EXTRACT_CTES_FQN =
+            "meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs";
+    private static final String NON_EXECUTABLE_FQN =
+            "meta::relational::postProcessor::nonExecutable";
+
+    private static void readHook(TypedSpec hook, Map<String, String> out,
+            boolean[] cte, java.util.function.UnaryOperator<TypedSpec> bind) {
+        // {s | ^Result<SelectSQLQuery|1>(values = $s->extractSubqueriesAsCTEs())}
+        // — the CTE-extraction processor (cteExtractionPostProcessor.pure:139)
+        if (hook instanceof TypedLambda cl && !cl.body().isEmpty()
+                && cl.body().get(cl.body().size() - 1) instanceof TypedNewInstance rni
+                && rni.properties().get("values") instanceof TypedSpec vals
+                && EXTRACT_CTES_FQN.equals(calleeOf(vals))) {
+            cte[0] = true;
+            return;
+        }
+        // {query | nonExecutable($query, extensions)} — the engine's
+        // nonExecutable processor (nonExecutablePostProcessor.pure:24): a
+        // platform post-processor, applied as the IR pass nonExecutable()
+        if (hook instanceof TypedLambda nl && !nl.body().isEmpty()
+                && NON_EXECUTABLE_FQN.equals(calleeOf(nl.body().get(nl.body().size() - 1)))) {
+            cte[1] = true;
+            return;
+        }
+        // IDENTITY hook (ledger cluster 63): {query|$query->postprocess(
+        // {rel|$rel})} — recognized-and-applied, and the application is
+        // a no-op (the inner transform returns its argument). Any other
+        // postprocess body stays at the loud wall below.
+        if (hook instanceof TypedLambda idl && !idl.body().isEmpty()
+                && idl.body().get(idl.body().size() - 1)
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedUserCall pu
+                && "meta::relational::postProcessor::postprocess"
+                        .equals(pu.callee().qualifiedName())
+                && pu.args().size() == 2
+                && pu.args().get(1) instanceof TypedLambda inner
+                && inner.parameters().size() == 1
+                && inner.body().size() == 1
+                && inner.body().get(0) instanceof com.legend.compiler.spec
+                        .typed.TypedVariable iv
+                && iv.name().equals(inner.parameters().get(0))) {
+            return;
+        }
+        if (!(hook instanceof TypedLambda lam) || lam.body().isEmpty()
+                || !(lam.body().get(lam.body().size() - 1)
+                        instanceof TypedNativeCall call)
+                || !"meta::relational::postProcessor::replaceTables"
+                        .equals(call.callee().qualifiedName())
+                || call.args().size() != 2) {
+            throw new NotImplementedException(
+                    "sqlQueryPostProcessorsConnectionAware hook shape is"
+                    + " not a replaceTables lambda — post-processor"
+                    + " recognizer pending for: " + hook);
+        }
+        for (TypedSpec pair : ppElements(bind.apply(peel(call.args().get(1), bind)), bind)) {
+            TypedSpec p = peel(pair, bind);
+            if (!(p instanceof TypedNativeCall pc)
+                    || !pc.callee().qualifiedName().endsWith("::pair")
+                    || pc.args().size() != 2) {
+                throw new NotImplementedException("replaceTables pair"
+                        + " argument is not a literal pair(): " + pair);
+            }
+            composeRename(out, tableName(pc.args().get(0), bind),
+                    tableName(pc.args().get(1), bind));
+        }
+    }
+
+    /** Hooks apply SEQUENTIALLY (engine semantics): a later
+     *  {@code from -> to} first rewrites the RESULTS of earlier renames
+     *  (so A->B then B->A nets to identity), then registers itself for
+     *  tables the earlier hooks left untouched. */
+    private static void composeRename(Map<String, String> out, String from,
+            String to) {
+        for (var e : out.entrySet()) {
+            if (e.getValue().equals(from)) {
+                e.setValue(to);
+            }
+        }
+        out.putIfAbsent(from, to);
+    }
+
+    /** {@code db->schema('X')->toOne()->table('Y')->toOne()} spelled as
+     * the lowerer spells FROM sources: {@code Y}, or {@code X.Y} for a
+     * non-default schema. */
+    private static String tableName(TypedSpec nav,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        TypedSpec cur = peel(nav, bind);
+        if (cur instanceof TypedNativeCall t
+                && "meta::relational::metamodel::table"
+                        .equals(t.callee().qualifiedName())
+                && t.args().size() == 2) {
+            String table = stringOf(t.args().get(1), "table name");
+            TypedSpec sch = peel(t.args().get(0), bind);
+            if (sch instanceof TypedNativeCall s
+                    && "meta::relational::metamodel::schema"
+                            .equals(s.callee().qualifiedName())
+                    && s.args().size() == 2) {
+                String schema = stringOf(s.args().get(1), "schema name");
+                return "default".equals(schema) ? table
+                        : schema + "." + table;
+            }
+        }
+        throw new NotImplementedException("replaceTables pair side is not"
+                + " a schema()/table() navigation: " + nav);
+    }
+
+    private static String stringOf(TypedSpec v, String what) {
+        if (peel(v) instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+            return cs.value();
+        }
+        throw new NotImplementedException("replaceTables " + what
+                + " is not a string literal: " + v);
+    }
+
+    /** toOne()/cast wrappers peel — identity for navigation. */
+    private static List<TypedSpec> ppElements(TypedSpec v,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        List<TypedSpec> out = new java.util.ArrayList<>();
+        for (TypedSpec e : ppElements(v)) {
+            out.add(bind.apply(e));
+        }
+        return out;
+    }
+
+    private static TypedSpec peel(TypedSpec v) {
+        return peel(v, java.util.function.UnaryOperator.identity());
+    }
+
+    private static TypedSpec peel(TypedSpec v,
+            java.util.function.UnaryOperator<TypedSpec> bind) {
+        TypedSpec cur = v;
+        while (true) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedVariable) {
+                TypedSpec bound = bind.apply(cur);
+                if (bound != cur) {
+                    cur = bound;
+                    continue;
+                }
+            }
+            if (cur instanceof TypedNativeCall c && c.args().size() == 1
+                    && (com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
+                            || c.callee().qualifiedName()
+                                    .endsWith("::toOneMany"))) {
+                cur = c.args().get(0);
+                continue;
+            }
+            if (cur instanceof com.legend.compiler.spec.typed.TypedCast tc) {
+                cur = tc.source();
+                continue;
+            }
+            return cur;
+        }
+    }
+
 
     /** {@code addDriverTablePkForProject} off an execute call's ExecutionContext
      * argument — a RelationalExecutionContext instance (let-bound or literal)
@@ -90,8 +391,47 @@ final class ContextReading {
                         + flag.getClass().getSimpleName());
     }
 
+    /** Variable OCCURRENCES bound by an enclosing lambda parameter (by
+     * identity): the let chase never reaches them — a hook lambda's
+     * {@code query} is its own parameter even when a statement let shares
+     * the name. Every subtree the chase brings in is scoped the same way
+     * when first met. */
+    private final java.util.Set<TypedSpec> lambdaBound =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    private final java.util.Set<TypedSpec> scoped =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    private void scope(TypedSpec n, java.util.Set<String> shadows) {
+        if (n instanceof TypedVariable v) {
+            if (shadows.contains(v.name())) {
+                lambdaBound.add(v);
+            }
+            return;
+        }
+        if (n instanceof TypedLambda l) {
+            java.util.Set<String> inner = new java.util.HashSet<>(shadows);
+            inner.addAll(l.parameters());
+            for (TypedSpec c : l.body()) {
+                scope(c, inner);
+            }
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            scope(c, shadows);
+        }
+    }
+
     private TypedSpec chase(TypedSpec v) {
+        if (v instanceof TypedVariable && lambdaBound.contains(v)) {
+            return v;
+        }
+        if (scoped.add(v)) {
+            scope(v, java.util.Set.of());
+        }
         TypedSpec b = bind.apply(v);
+        if (b != v && scoped.add(b)) {
+            scope(b, java.util.Set.of());
+        }
         return b == null ? v : b;
     }
 

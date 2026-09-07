@@ -100,8 +100,12 @@ final class SqlTextVerdicts {
                     .letBound(in.runtime(), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
-            String boundDb = com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .read(java.util.Optional.empty(), rt).databaseType();
+            com.legend.compiler.spec.typed.ExecutionContext frameCtx =
+                    com.legend.compiler.spec.typed.ExecutionContext.reader()
+                            .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
+                                    .letBound(v, letPrefix))
+                            .read(java.util.Optional.empty(), rt);
+            String boundDb = frameCtx.databaseType();
             if (boundDb == null) {
                 // a DRIVER that is neither an enum literal nor a runtime
                 // (the per-driver pair loop's `$p.first`): its dialect is
@@ -120,14 +124,10 @@ final class SqlTextVerdicts {
             // rows exactly as the frame path applies them — the same
             // recogniser, the env's tableReplace channel (the golden's
             // text already names the replaced tables)
-            java.util.Map<String, String> tr = com.legend.lowering.SqlPostProcessors
-                    .hooks(rt, v -> com.legend.compiler.spec.ExecuteChainAssembly
-                            .letBound(v, letPrefix)).tableReplace();
+            env = env.withFrame(frameCtx);
+            java.util.Map<String, String> tr = env.postProcessors().tableReplace();
             if (!tr.isEmpty()) {
-                env = new StatementExecutor.ExecEnv(env.ctx(), env.runtimeFqn(),
-                        env.dialect(), env.connection(), env.addDriverTablePk(),
-                        env.queryLets(), tr, env.instanceIds(), env.assertListener(),
-                        env.replayOracle(), env.planRows());
+                env = env.withTableReplace(tr);
             }
         }
         // OUR TEXT + GOLDEN TEXT: ordinary evaluation, the one router
@@ -172,50 +172,48 @@ final class SqlTextVerdicts {
         List<com.legend.compiler.spec.typed.TypedLet> stmtLets = statementLets(lam);
         final String goldenF = golden;
         final StatementExecutor.ExecEnv envF = env;
+        // the leg's from carries the producer's bound context (post-processors,
+        // time zone); a toNonExecutableSQLString producer's query runs under
+        // the nonExecutable pass (its golden reads zero rows by construction,
+        // and so must ours — batch 81; on the from since batch 120)
+        com.legend.compiler.spec.typed.ExecutionContext legCtx = legContext(producer, envF);
         if (!stmtLets.isEmpty() && !isPopulationGolden(golden)) {
             com.legend.compiler.spec.typed.TypedLet let0 = stmtLets.get(0);
             String letCls = let0.value().info().type()
                     instanceof com.legend.compiler.element.type.Type.ClassType ct
                     ? ct.fqn() : null;
-            return underProducerPasses(producer, () -> rowsLegAndVerdict(
+            return rowsLegAndVerdict(
                     name, goldenF, ours, textEqual, oracle,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                            let0.value(), mapping),
+                            let0.value(), mapping, legCtx),
                     null, mapping.fullPath(), letCls, false,
-                    lamPrefix, specs, envF, hook, lam));
+                    lamPrefix, specs, envF, hook, lam);
         }
         TypedSpec query = lam.body().get(lam.body().size() - 1);
         // OUR ROWS (§3.5c): the referee executes the producer's own
         // query — mapping from the producer, runtime from the env
-        return underProducerPasses(producer, () -> rowsLegAndVerdict(
+        return rowsLegAndVerdict(
                 name, goldenF, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                        query, mapping),
+                        query, mapping, legCtx),
                 null, mapping.fullPath(), rootClassFqn(lam),
                 com.legend.compiler.spec.VerdictQueries.extentSubset(query), lamPrefix,
-                specs, envF, hook, lam));
+                specs, envF, hook, lam);
     }
 
-    /** The rows leg under the PRODUCER's own post-processing: a
-     * toNonExecutableSQLString producer's query runs with the nonExecutable
-     * pass installed (its golden reads zero rows by construction, and so
-     * must ours) — recorded on the boundary for the leg, restored after
-     * (batch 81). */
-    private static @com.legend.Nullable ExecutionResult underProducerPasses(
-            TypedNativeCall producer,
-            java.util.function.Supplier<@com.legend.Nullable ExecutionResult> leg) {
+    /** The bound context a producer's rows leg runs under: the frame the
+     * arm read off the producer's runtime (none when the producer names a
+     * DatabaseType, which carries no post-processors), with the
+     * nonExecutable pass installed for a toNonExecutableSQLString producer. */
+    private static com.legend.compiler.spec.typed.ExecutionContext legContext(
+            TypedNativeCall producer, StatementExecutor.ExecEnv env) {
+        com.legend.compiler.spec.typed.ExecutionContext base = env.frame() == null
+                ? com.legend.compiler.spec.typed.ExecutionContext.NONE : env.frame();
         boolean nonExec = com.legend.compiler.element.type.PlatformTypes
                 .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.callee().qualifiedName());
-        if (!nonExec) {
-            return leg.get();
-        }
-        boolean prev = com.legend.exec.PostProcessBoundary.nonExecutable();
-        com.legend.exec.PostProcessBoundary.recordNonExecutable(true);
-        try {
-            return leg.get();
-        } finally {
-            com.legend.exec.PostProcessBoundary.recordNonExecutable(prev);
-        }
+        return nonExec
+                ? base.withPostProcessors(base.postProcessors().withNonExecutable(true))
+                : base;
     }
 
     /** SQLTEXT charter §8.3b — the ROOT arm for
@@ -284,7 +282,7 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook, specs);
         return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
@@ -405,7 +403,7 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook, specs);
         // the engine's statement-per-let plan (batch 69a): golden(k) may
         // be a statement LET's own rows — same routing as the exec-read arm
         StatementRoute route = statementRoute(readK, golden, fm);
@@ -419,7 +417,7 @@ final class SqlTextVerdicts {
             return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                     textEqual, oracle,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                            route.let().value(), fm.mappingRef()),
+                            route.let().value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls, false,
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -504,7 +502,7 @@ final class SqlTextVerdicts {
         // statement — ours is our ONE statement, read at index 0. The
         // in-list plan (batch 67) keeps its named route: golden n>0
         // reading tempTableForIn_<let> is the main statement.
-        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook);
+        FrameFacts fm = frameMappingAndClass(resultArg, letPrefix, hook, specs);
         int k = readIndex(read);
         StatementRoute route = statementRoute(k, golden, fm);
         if (route == null) {
@@ -536,7 +534,7 @@ final class SqlTextVerdicts {
                     ? ct.fqn() : null;
             return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                            letStatement.value(), fm.mappingRef()),
+                            letStatement.value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls, false,
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -552,7 +550,7 @@ final class SqlTextVerdicts {
             // in the frame's own mapping like every rows leg
             return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                            pop.rowsRead(), fm.mappingRef()),
+                            pop.rowsRead(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), null, false,
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -804,6 +802,10 @@ final class SqlTextVerdicts {
         }
         List<TypedSpec> bound = new java.util.ArrayList<>(letPrefix);
         bound.addAll(bindings.lets());
+        // the plan producer's bound context rides the verdict's from
+        com.legend.compiler.spec.typed.ExecutionContext planCtx = producer.args().size() >= 3
+                ? StatementExecutor.boundContext(producer.args().get(2), letPrefix, specs)
+                : com.legend.compiler.spec.typed.ExecutionContext.NONE;
         // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
         // scopes its leading lets over the last statement — the rows leg
         // evaluates the last statement under them (batch 66)
@@ -818,7 +820,7 @@ final class SqlTextVerdicts {
         String replay = filled.contains("${") ? null : planReplaySql(filled);
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                        lam.body().get(lam.body().size() - 1), mapping),
+                        lam.body().get(lam.body().size() - 1), mapping, planCtx),
                 replay, mapping.fullPath(), rootClassFqn(lam),
                 com.legend.compiler.spec.VerdictQueries.extentSubset(lam.body().get(lam.body().size() - 1)), bound,
                 specs, env, hook, lam,
@@ -1053,8 +1055,19 @@ final class SqlTextVerdicts {
      * the typed query (exactly one inline in-collection, one temp name).
      * Empty when the golden reads no numbered temp or the shape is not
      * this one (the oracle's decline stays counted). */
+    /** The connection time zone the read's own frame executes under: the
+     * outermost from of the read — the ONE carrier of frame facts. A read
+     * over a let-bound Result is SPLICED first (the frame's envelope chain,
+     * a from, stands where the variable stood); a read without a from
+     * executes under no connection zone. */
+    private static @com.legend.Nullable String frameZone(TypedSpec read) {
+        var froms = com.legend.compiler.spec.typed.ExecutionContext.froms(read);
+        return froms.isEmpty() ? null : froms.get(0).context().timeZone();
+    }
+
     private static List<SqlReplayOracle.TempTable> inListTemps(String golden,
-            TypedSpec query, List<TypedSpec> letPrefix) {
+            TypedSpec query, List<TypedSpec> letPrefix,
+            @com.legend.Nullable String zone) {
         var m = NUMBERED_IN_TEMP.matcher(golden);
         java.util.Set<String> names = new java.util.LinkedHashSet<>();
         while (m.find()) {
@@ -1095,7 +1108,6 @@ final class SqlTextVerdicts {
                 k = d.value() instanceof com.legend.values.PureDateLiteral
                         .StrictDate ? "date" : "datetime";
                 // the engine seeds the temp in the connection's zone (batch 86)
-                String zone = com.legend.exec.PostProcessBoundary.timeZone();
                 String iso = com.legend.lowering.LiteralSpelling.isoTimestamp(d.value());
                 v = iso != null && zone != null
                         ? com.legend.lowering.LiteralSpelling.inZone(iso, zone)
@@ -1287,7 +1299,8 @@ final class SqlTextVerdicts {
                         rows, mappingFqn, classFqn, extentSubset, env.ctx(),
                         temps.isEmpty()
                                 ? inListTemps(golden, query != null ? query : rowsRead,
-                                        letPrefix)
+                                        letPrefix, frameZone(hook == null ? rowsRead
+                                                : hook.apply(rowsRead, java.util.Set.of())))
                                 : temps);
         return switch (rv.outcome()) {
             case MATCH -> {
@@ -1367,12 +1380,13 @@ final class SqlTextVerdicts {
     private record FrameFacts(@com.legend.Nullable String mapping,
             @com.legend.Nullable String cls, boolean extentSubset,
             @com.legend.Nullable TypedSpec query,
-            @com.legend.Nullable TypedPackageableRef mappingRef) {
+            @com.legend.Nullable TypedPackageableRef mappingRef,
+            com.legend.compiler.spec.typed.ExecutionContext context) {
     }
 
     private static FrameFacts frameMappingAndClass(TypedSpec resultArg,
             List<TypedSpec> letPrefix,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook, SpecCompiler specs) {
         TypedSpec src = com.legend.compiler.spec.ExecuteChainAssembly
                 .letBound(resultArg, letPrefix);
         while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
@@ -1410,9 +1424,13 @@ final class SqlTextVerdicts {
                     && com.legend.compiler.spec.VerdictQueries.extentSubset(
                             lam2.body().get(lam2.body().size() - 1));
             return new FrameFacts(mapping, cls, subset, lamArg,
-                    ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null);
+                    ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null,
+                    ec.args().size() >= 3
+                            ? StatementExecutor.boundContext(ec.args().get(2), letPrefix, specs)
+                            : com.legend.compiler.spec.typed.ExecutionContext.NONE);
         }
-        return new FrameFacts(null, null, false, null, null);
+        return new FrameFacts(null, null, false, null, null,
+                com.legend.compiler.spec.typed.ExecutionContext.NONE);
     }
 
     private static @com.legend.Nullable String rootClassFqn(
