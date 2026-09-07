@@ -115,6 +115,11 @@ class CodeShapeGuardrailTest {
             // before lower()): engine-parity join-distinct exists form —
             // the standalone-SQL surface constructs without it
             "Lowerer.engineExistsJoinForm",
+            // Phase 2a (batch 136): the two lowering MODES that were
+            // thread-locals — verbatim equality (save/set/restore around
+            // the two mapping-definition sites) and the engine-text
+            // option (builder-style, set once before lower())
+            "Lowerer.verbatimEquality", "Lowerer.engineText",
             // builder-flag, same lifecycle as engineExistsJoinForm: set
             // once by the driver before lower(), read during the lowering
             "Lowerer.streamingGraphRoot",

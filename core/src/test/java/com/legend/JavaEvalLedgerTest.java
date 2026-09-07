@@ -572,7 +572,9 @@ class JavaEvalLedgerTest {
             // plan carrier routes to TestDataGenerationNatives.planTextResult
             // (the platform's own printer) — three routing lines, no
             // evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2045),
+            // 2045 → 2038 (batch 136): the engine-text funnel's two thread-local
+            // scopes became a Lowerer option
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2038),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

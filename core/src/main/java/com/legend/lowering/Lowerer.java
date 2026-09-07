@@ -190,6 +190,16 @@ public final class Lowerer {
     /** Pre-bind a free variable to an execution-plan TEMPLATE parameter
      * ({@code ${name}} — the plan printer's vocabulary): the variable
      * resolves through the ordinary let-binding channel. */
+    /** The two lowering MODES (batch 136): VERBATIM equality under the mapping's
+     * own definition (NullSemantics.verbatim); ENGINE-TEXT (CastPolicy). */
+    private boolean verbatimEquality;
+    private boolean engineText;
+
+    public Lowerer withEngineText() {
+        this.engineText = true;
+        return this;
+    }
+
     /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
      * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
     private boolean engineExistsJoinForm;
@@ -1126,7 +1136,7 @@ public final class Lowerer {
             for (int i = 1; i < call.args().size(); i++) {
                 wrapped.add(scalar(call.args().get(i), noScope()));
             }
-            return Scalars.lower(call, wrapped);
+            return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, wrapped));
         }
         SqlAgg.Fn fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = aggSelectorBody(a);
@@ -1459,18 +1469,10 @@ public final class Lowerer {
         SqlExpr predicate = null;
         // the PREDICATE lowers in filter position (NullSemantics
         // null-safe equal arm — engine callingFromFilter); the SOURCE
-        // above lowered OUTSIDE the boundary (its join conditions keep
-        // bare equality — a null-safe join key would match null rows).
-        // A CORRELATION-stamped filter is the resolver's mapping-join
-        // condition: its equalities lower VERBATIM '=' (engine @join
-        // semantics — NULL keys never match), via the same scope the
-        // synthesized-join channel uses; the ThreadLocal covers nested
-        // lambdas (the two-join exists construct). Replaces the deleted
-        // toOneJoinEquals fake-[1] wraps (C2, STAMP_DISCIPLINE_PROGRAM).
-        try (var ignored = NullSemantics.enterFilter();
-                var ignoredV = f.stamp() == TypedFilter.Stamp.CORRELATION
-                        ? NullSemantics.enterVerbatimEquality()
-                        : NullSemantics.keep()) {
+        // above lowered OUTSIDE the boundary; a CORRELATION filter = mapping join: VERBATIM '='
+        boolean prevVerbatim = verbatimEquality;
+        verbatimEquality = verbatimEquality || f.stamp() == TypedFilter.Stamp.CORRELATION;
+        try {
         if (tryPredicate(src, f.predicate()) instanceof Resolution.Resolved r) {
             predicate = r.expr();
         } else if (src.groupBy().isEmpty()) {
@@ -1486,6 +1488,8 @@ public final class Lowerer {
             src = isolate(src);
             predicate = predicateOrThrow(src, f.predicate(), "filter");
         }
+        } finally {
+            verbatimEquality = prevVerbatim;
         }
         Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
         if (slot == Fold.FilterSlot.ISOLATE) {
@@ -1916,21 +1920,18 @@ public final class Lowerer {
         SqlSelect rightSel = relation(j.right());
         SqlSource right = asRightSide(rightSel,
                 unionFramed(rightSel) ? "unionAlias" : j.frameName());
-        // a USER join lambda's ON lowers in FILTER POSITION (engine
-        // nullSafeEqualsOperation: [0..1]==[0..1] pure equality is
-        // null-safe; witness testJoinOnNullKey — pure joins null keys).
-        // A RESOLVER-SYNTHESIZED navigation join is the MAPPING's own
-        // definition — verbatim plain '=' (slotDemandJoins' golden).
+        // a USER join lambda's ON keeps pure's null-safe equality (testJoinOnNullKey);
+        // a RESOLVER-SYNTHESIZED join is the mapping's definition — plain '=' (slotDemandJoins)
         SqlExpr on;
         if (j.userCondition()) {
-            try (var ignored = NullSemantics.enterFilter()) {
-                on = sideCondition(j.condition(), left, right, leftCarry);
-            }
+            on = sideCondition(j.condition(), left, right, leftCarry);
         } else {
-            // synthesized navigation join: the mapping's definition —
-            // VERBATIM '=' (suppresses the position-blind null-safe arm)
-            try (var ignored = NullSemantics.enterVerbatimEquality()) {
+            boolean prevVerbatim = verbatimEquality;
+            verbatimEquality = true;
+            try {
                 on = sideCondition(j.condition(), left, right, leftCarry);
+            } finally {
+                verbatimEquality = prevVerbatim;
             }
         }
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
@@ -2325,7 +2326,7 @@ public final class Lowerer {
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
-                return Scalars.lower(call, args);
+                return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, args));
             }
             // Thunk lambdas (if branches) stay on the WINDOW channel — their
             // bodies may hold lag/lead property accesses that plain scalar
@@ -2992,16 +2993,16 @@ public final class Lowerer {
                 SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,
                         this::sqlTypeOf, s -> scalar(s, columns),
                         () -> "_iq" + aliasCounter++);
-                yield ie != null ? ie : Scalars.lower(n,
-                        n.args().stream().map(a -> scalar(a, columns)).toList());
+                yield ie != null ? ie : NullSemantics.verbatim(verbatimEquality, Scalars.lower(n,
+                        n.args().stream().map(a -> scalar(a, columns)).toList()));
             }
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
             // preceding list's element wire, so dispatch inside bodies
             // sees the carrier at construction
-            case TypedNativeCall n -> Scalars.lower(n,
-                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar));
+            case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality, Scalars.lower(n,
+                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar)));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.
@@ -3237,10 +3238,9 @@ public final class Lowerer {
         return cast(c, scalar(c.source(), columns));
     }
 
-    /** The cast policy over an ALREADY-LOWERED source — CastPolicy owns
-     * every arm (one cast owner); only isMany stays here. */
+    /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, isMany(c));
+        return CastPolicy.lower(c, value, isMany(c), engineText);
     }
 
     /** A Pure type with a direct scalar SQL carrier (primitives and sized decimals). */

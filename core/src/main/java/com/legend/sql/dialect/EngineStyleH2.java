@@ -1024,11 +1024,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 ? "'" + dl.iso() + "'"
                 : expr(p.expr(), 0);
         // synthetic scalar-map column: the engine spells a bare map
-        // scalar select UNALIASED — TEXT channel only (h2-backend
-        // EXECUTION composes these columns; references need the alias)
+        // scalar select UNALIASED — this renderer IS the engine-TEXT
+        // channel (execution renders through H2/H2Modern, which keep
+        // the alias references need); batch 136 retired the
+        // TextGoldens thread flag that used to say so
         if (p.alias() != null
-                && p.alias().startsWith(com.legend.sql.SqlSelect.SYNTH_MAP_COL)
-                && TextGoldens.active()) {
+                && p.alias().startsWith(com.legend.sql.SqlSelect.SYNTH_MAP_COL)) {
             return e;
         }
         if (frameDepth > 0 && p.outputName() != null) {

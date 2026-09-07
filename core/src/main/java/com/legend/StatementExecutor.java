@@ -615,11 +615,9 @@ final class StatementExecutor {
             lw = lw.withEngineExistsJoinForm();
         }
         planParams.values().forEach(lw::bindPlanParam);
-        com.legend.sql.SqlQuery plan; // ENGINE-TEXT: wire coercions read bare
-        try (var ignored = com.legend.lowering.EngineTextBoundary.enter();
-                var ignored2 = com.legend.sql.dialect.TextGoldens.enter()) {
-            plan = lw.lower(body);
-        }
+        // ENGINE-TEXT lowering: wire coercions read bare (a Lowerer option
+        // since batch 136; a thread-local scope before)
+        com.legend.sql.SqlQuery plan = lw.withEngineText().lower(body);
         // engine plans keep enum columns RAW (host-side decode) — the
         // plan-text form of enum-mapped columns/parameters
         if (plan instanceof com.legend.sql.SqlSelect sel
@@ -635,11 +633,9 @@ final class StatementExecutor {
             plan = com.legend.lowering.SqlPostProcessors.apply(p2,
                     tableRenames);
         }
-        // TEXT-channel rendering (synthetic scalar-map aliases drop)
-        String text;
-        try (var ignored3 = com.legend.sql.dialect.TextGoldens.enter()) {
-            text = renderer.render(plan);
-        }
+        // TEXT-channel rendering (synthetic scalar-map aliases drop — the
+        // engine-style renderer IS the text channel)
+        String text = renderer.render(plan);
         return new EngineSql(plan, text, body);
     }
 

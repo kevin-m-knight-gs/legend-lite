@@ -40,13 +40,13 @@ class CastNoReWrapTest {
         SqlExpr scalar = new SqlExpr.Cast(new SqlExpr.StringLit("1"),
                 SqlType.Scalar.LITERAL);
         assertSame(scalar, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), scalar, false));
+                anyConformance(Multiplicity.Bounded.ONE), scalar, false, false));
 
         SqlExpr carried = new SqlExpr.Cast(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
                 new SqlType.Array(SqlType.Scalar.LITERAL));
         assertSame(carried, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), carried, true));
+                anyConformance(Multiplicity.Bounded.ONE), carried, true, false));
     }
 
     @Test
@@ -55,8 +55,8 @@ class CastNoReWrapTest {
         // carrier cast emits exactly as before
         SqlExpr plain = new SqlExpr.Column("t", "c");
         assertInstanceOf(SqlExpr.Cast.class, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), plain, false));
+                anyConformance(Multiplicity.Bounded.ONE), plain, false, false));
         assertInstanceOf(SqlExpr.Cast.class, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), plain, true));
+                anyConformance(Multiplicity.Bounded.ONE), plain, true, false));
     }
 }

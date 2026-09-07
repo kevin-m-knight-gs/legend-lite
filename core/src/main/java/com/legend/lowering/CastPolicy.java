@@ -46,8 +46,8 @@ final class CastPolicy {
     // are the correct plumbing for that seam.
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
-    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany) {
-        if (c.wire() && EngineTextBoundary.active()) {
+    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, boolean engineText) {
+        if (c.wire() && engineText) {
             // the mapping's WIRE coercion — the engine runtime converts on
             // the wire and its SQL/plan text never spells it; execution
             // (boundary inactive) keeps the SQL cast (DuckDB does not

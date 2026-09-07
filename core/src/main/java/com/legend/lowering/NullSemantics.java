@@ -91,43 +91,17 @@ final class NullSemantics {
      * operand shape (both plain columns, both optional operands) — the
      * engine's callingFromFilter flag has no analog at this layer; the
      * corpus goldens referee. Anything else stays the bare EQUAL. */
-    /** FILTER-position marker — the engine's {@code callingFromFilter}
-     * config flag (dbExtension.pure:928): the null-safe equal arm fires
-     * ONLY under a filter predicate; join conditions and projections
-     * keep the bare EQUAL (a null-safe JOIN key would MATCH null rows —
-     * the graphFetch regression the gate caught). Static ThreadLocal per
-     * the EngineTextBoundary precedent. */
-    private static final ThreadLocal<Boolean> FILTER_POS =
-            ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    public interface Scope extends AutoCloseable {
-        @Override
-        void close();
-    }
-
-    public static Scope enterFilter() {
-        boolean prev = FILTER_POS.get();
-        FILTER_POS.set(Boolean.TRUE);
-        return () -> FILTER_POS.set(prev);
-    }
-
-    private static final ThreadLocal<Boolean> VERBATIM_EQ =
-            ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    /** Scope for RESOLVER-SYNTHESIZED join conditions: the mapping's own
-     * definition lowers verbatim '=' — the null-safe grant is for USER
-     * pure equality only (TypedJoin.userCondition; slotDemandJoins'
-     * golden pins the distinction). */
-    static Scope enterVerbatimEquality() {
-        boolean prev = VERBATIM_EQ.get();
-        VERBATIM_EQ.set(Boolean.TRUE);
-        return () -> VERBATIM_EQ.set(prev);
-    }
-
-    /** The no-op scope (a conditional try-with-resources' other arm). */
-    static Scope keep() {
-        return () -> {
-        };
+    /** The VERBATIM-EQUALITY rewrite (Phase 2a, batch 136): a resolver-
+     * synthesized join condition or a CORRELATION-stamped filter is the
+     * MAPPING's own definition and lowers plain '=' — the null-safe grant
+     * is for USER pure equality only (TypedJoin.userCondition;
+     * slotDemandJoins' golden pins the distinction). The mode is the
+     * Lowerer's own state, applied to what the equality rule emitted;
+     * until batch 136 it was a thread-local the rule read. */
+    static SqlExpr verbatim(boolean verbatim, SqlExpr e) {
+        return verbatim && e instanceof SqlExpr.Call c && c.fn() == SqlFn.NULL_SAFE_EQUAL
+                ? new SqlExpr.Call(SqlFn.EQUAL, c.args())
+                : e;
     }
 
     static SqlExpr equalNullArms(
@@ -136,10 +110,10 @@ final class NullSemantics {
         // POSITION-BLIND (engine nullSafeEqualsOperation case 5: both
         // lower bounds 0 → nullSafeEqual, no position gate — witness
         // testProjectEqualityOnNullableColumns, where the equality sits
-        // in a PROJECT column). The FILTER_POS scope still gates OTHER
-        // arms; this one keys on the operands' own multiplicities.
-        if (!VERBATIM_EQ.get()
-                && ops.size() == 2
+        // in a PROJECT column); the operands' own multiplicities decide.
+        // A verbatim context (the mapping's own definition) rewrites the
+        // result to plain '=' at the Lowerer ({@link #verbatim}).
+        if (ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
                 && ops.get(1) instanceof SqlExpr.Column
                 && isOptional(n.args().get(0).info().multiplicity())
