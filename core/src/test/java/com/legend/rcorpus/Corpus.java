@@ -61,6 +61,11 @@ public final class Corpus {
             + "legend-engine-pure-code-compiled-core/"
             + "src/main/resources/core/store/m2m/tests");
 
+    /** The engine's core Pure module root (legend-engine-pure-code-compiled-core). */
+    public static final Path CORE_PURE = ENGINE_ROOT.resolve(
+            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/"
+            + "src/main/resources/core");
+
     /** Named LIBRARY files admitted to the global module as elements
      * (never setups): each is a PROGRAM library a corpus family imports
      * (docs/WORLD_MAP.md rule 5 — "a loading rule that did not admit the
@@ -77,7 +82,19 @@ public final class Corpus {
                     + "legend-engine-xt-relationalStore-generation/"
                     + "legend-engine-xt-relationalStore-pure/"
                     + "legend-engine-xt-relationalStore-sqlDialectTranslation-pure/"
-                    + "src/main/resources/core_external_store_relational_sql_dialect_translation/utils.pure"));
+                    + "src/main/resources/core_external_store_relational_sql_dialect_translation/utils.pure"),
+            // ENGINE-CORE TEST FIXTURES (batch 145, USER 2026-09-08): classes and
+            // enums the relational corpus imports by name — meta::pure::tds::
+            // toRelation::TestClass, the PCT model (meta::pure::functions::tests::
+            // model::*), the router preeval fixtures, meta::json::tests::*. A
+            // Pure import shortens names, it is not a dependency: nothing ties a
+            // package to a file, so the files are NAMED here. Their own test
+            // functions are library elements — never discovered as this corpus.
+            CORE_PURE.resolve("pure/tds/relation/testTdsToRelation.pure"),
+            CORE_PURE.resolve("pure/corefunctions/tests/testModel.pure"),
+            CORE_PURE.resolve("pure/router/preeval/tests.pure"),
+            CORE_PURE.resolve("external/format/json/tests/testToJson.pure"));
+
 
     // NOTE (V7 tenet correction 2026-08-28): the corpus lane reads NO
     // legend-pure sources. The assert family is platform-owned registry

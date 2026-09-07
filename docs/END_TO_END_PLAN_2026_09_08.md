@@ -137,6 +137,10 @@ bucket; a changed divergence FAILs, a vanished one is GAINED. Correction: the fi
 (the filter lambda bound to the outer row), not nondeterminism. DuckDB 2441 / 109 / 14 / 11; H2 1989 / 566 / 14 / 6.
 NEXT: SCOPE (batch 145) = the four engine-core fixture files as NAMED library sources (declarations in, tests not
 discovered; the stdlib-namespace guard refuses functions only), then the three owed code legs.
+SCOPE DECIDED (batch 145): the four engine-core fixture files are NAMED library sources (`Corpus.LIBRARY_FILES` +
+`Corpus.CORE_PURE`; the guard refuses stdlib FUNCTIONS only; Prelude regenerated +5 spec classes). The five tests
+resolve their names and reach their true walls — CODE-AS-DATA (2), ENGINE-MACHINERY (3); no pass change. USER lesson:
+a Pure import is a name shorthand, not a dependency. NEXT: importDataFlow (146), mixed-mapping union key, TDG view slice.
 
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the

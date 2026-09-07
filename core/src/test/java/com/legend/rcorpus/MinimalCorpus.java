@@ -729,7 +729,12 @@ public final class MinimalCorpus {
      * they are the thing under test, not the thing judging. */
     static void refusePlatformNamespace(List<? extends PackageableElement> elements) {
         for (PackageableElement el : elements) {
-            if (el.qualifiedName().startsWith(PLATFORM_STDLIB_PACKAGE)) {
+            // the stdlib is FUNCTIONS; a class/enum/association under the
+            // package (meta::pure::functions::tests::model::Person — the PCT
+            // fixture model) is a fixture, the thing under test (batch 145)
+            if (el.qualifiedName().startsWith(PLATFORM_STDLIB_PACKAGE)
+                    && (el instanceof FunctionDefinition
+                            || el instanceof com.legend.model.NativeFunctionDefinition)) {
                 throw new IllegalStateException("platform-namespace library element "
                         + el.qualifiedName() + ": reference checkouts are spec, never runtime");
             }

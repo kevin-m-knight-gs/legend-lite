@@ -703,3 +703,13 @@ USER reviewed the eleven traces one by one and agreed to all. Each is now a row 
 | `engine-golden-defect:filter-lambda-binds-outer-row` | testSimpleMappingQueryWithFilterInProject | `Oliver,Fabrice` + `Fabrice,null`: Fabrice is 45, Oliver 26 — the golden is what `$e.age < 35` bound to the OUTER person `$x` produces | `Fabrice,Oliver` / `Oliver,Oliver`: the filter over the employees. CORRECTION of §15: not nondeterminism — the seed has four people over 25, `limit(5)` is inert, the rows are deterministic on both engines. The mixed-mapping sibling's golden carries the same bug. |
 
 H2: `testHashFunctions` and `testToSqlGenerationFirstDayOfWeek` PASS on H2 (not registered); the two digest tests and the adjust test fail on H2 for H2-lane reasons (`Function "MD5" not found`, `variant navigation` — Phase 7) and stay in the H2 fail roster. DuckDB 109 fail / 14 SKIPPED / 11 ACCEPTED / 2441 pass; H2 566 / 14 / 6 / 1989.
+
+## 17. SCOPE decided — engine-core fixtures as named library sources (batch 145, 2026-09-08)
+
+USER: load them. Four engine-core files are NAMED in `Corpus.LIBRARY_FILES` (declarations in, their functions library elements the discovery never counts; census unchanged). The stdlib-namespace guard now refuses FUNCTIONS under `meta::pure::functions::` only. Why not discover from imports: a Pure `import` is a name shorthand, not a dependency — nothing ties a package to a file or module; the engine's runner loads every module into one graph, ours loads the relational module by decision.
+
+The five tests reach their true walls (all remain in the fail roster under their new owners):
+- `meta::pure::tds::toRelation::testJoinFunc`, `testJoinUsing` → `Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::m3::function::LambdaFunction'` — the toRelation `test(...)` helper reads protocol types as data → CODE-AS-DATA (Phase 5).
+- `meta::relational::tds::schema::tests::resolveSchemaTest` → `no overload of 'meta::pure::tds::schema::tests::assertSchemaRoundTripEquality'` — a helper in another engine-core file whose body is the engine's schema resolver → ENGINE-MACHINERY.
+- `meta::relational::tests::json::testResultToJsonStream` → `unknown function 'toJSONStringStream'` — an unported platform native → ENGINE-MACHINERY / natives.
+- `meta::pure::router::preeval::tests::testPrerouting42` → `a name-less project column must be a property navigation` — the router preeval suite → ENGINE-MACHINERY (the typer rule it trips is real but the suite's verdicts are the engine's router).

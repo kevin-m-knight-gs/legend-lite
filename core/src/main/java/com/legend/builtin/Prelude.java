@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 449 classes. */
+    /** 454 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -147,6 +147,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::external::query::sql::metamodel::extension::VariablePlaceholder extends meta::external::query::sql::metamodel::Expression { <<equality.Key>> name: meta::pure::metamodel::type::String[1]; <<equality.Key>> type: meta::pure::metamodel::type::String[1]; <<equality.Key>> isEnum: meta::pure::metamodel::type::Boolean[1]; <<equality.Key>> multiplicityLowerBound: meta::pure::metamodel::type::Integer[0..1]; <<equality.Key>> multiplicityUpperBound: meta::pure::metamodel::type::Integer[0..1]; }"),
             Pure.nativeClass("native Class meta::external::store::model::JsonModelConnection extends meta::external::store::model::PureModelConnection { class: meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]; url: meta::pure::metamodel::type::String[1]; }"),
             Pure.nativeClass("native Class meta::external::store::model::ModelChainConnection extends meta::core::runtime::Connection { mappings: meta::pure::mapping::Mapping[*]; }"),
+            Pure.nativeClass("native Class meta::external::store::model::ModelConnection extends meta::external::store::model::PureModelConnection { instances: meta::pure::functions::collection::Map<meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>, meta::pure::functions::collection::List<meta::pure::metamodel::type::Any>>[1]; }"),
             Pure.nativeClass("native Class meta::external::store::model::ModelStore extends meta::pure::store::Store { }"),
             Pure.nativeClass("native Class meta::external::store::model::PureInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation { srcClass: meta::pure::metamodel::type::Type[0..1]; filter: meta::pure::metamodel::function::LambdaFunction<meta::pure::metamodel::type::Any>[0..1]; }"),
             Pure.nativeClass("native Class meta::external::store::model::PureModelConnection extends meta::core::runtime::Connection { }"),
@@ -170,6 +171,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::external::store::relational::sqlDialectTranslation::functionRegistry::SqlFunctionVariation { parameterTypes: meta::pure::metamodel::type::Class<meta::external::store::relational::sqlDialectTranslation::sqlTyping::sqlTypes::SqlType>[*]; returnType: meta::pure::metamodel::type::Class<meta::external::store::relational::sqlDialectTranslation::sqlTyping::sqlTypes::SqlType>[1]; documentation: meta::pure::metamodel::type::String[0..1]; }"),
             Pure.nativeClass("native Class meta::external::store::relational::sqlDialectTranslation::sqlTyping::sqlTypes::SqlType { }"),
             Pure.nativeClass("native Class meta::external::store::relational::sqlPlanning::SqlPlanningConfig { dbType: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::json::Config { includeType: meta::pure::metamodel::type::Boolean[1]; includeEnumType: meta::pure::metamodel::type::Boolean[1]; removePropertiesWithNullValues: meta::pure::metamodel::type::Boolean[1]; removePropertiesWithEmptySets: meta::pure::metamodel::type::Boolean[1]; typeString: meta::pure::metamodel::type::String[1]; fullyQualifiedTypePath: meta::pure::metamodel::type::Boolean[1]; cipherSecret: meta::pure::metamodel::type::String[0..1]; cipherStereotypes: meta::pure::metamodel::extension::Stereotype[*]; decipherSecret: meta::pure::metamodel::type::String[0..1]; decipherStereotypes: meta::pure::metamodel::extension::Stereotype[*]; fullyRespectGraphFetchTree: meta::pure::metamodel::type::Boolean[1]; }"),
             Pure.nativeClass("native Class meta::json::ExtendedJSONDeserializationConfig extends meta::json::JSONDeserializationConfig { nullReplacementInArray: meta::pure::metamodel::type::Any[0..1]; replaceInvalidEnumValueCharacters: meta::pure::metamodel::type::Boolean[0..1]; forceEnumValuesToUpperCase: meta::pure::metamodel::type::Boolean[0..1]; }"),
             Pure.nativeClass("native Class meta::json::JSONArray extends meta::json::JSONElement { <<equality.Key>> values: meta::json::JSONElement[*]; }"),
             Pure.nativeClass("native Class meta::json::JSONBoolean extends meta::json::JSONElement { <<equality.Key>> value: meta::pure::metamodel::type::Boolean[1]; }"),
@@ -180,6 +182,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::json::JSONNull extends meta::json::JSONElement { <<equality.Key>> value: meta::pure::metamodel::type::Nil[0]; }"),
             Pure.nativeClass("native Class meta::json::JSONNumber extends meta::json::JSONElement { <<equality.Key>> value: meta::pure::metamodel::type::Number[1]; }"),
             Pure.nativeClass("native Class meta::json::JSONObject extends meta::json::JSONElement { <<equality.Key>> keyValuePairs: meta::json::JSONKeyValue[*]; }"),
+            Pure.nativeClass("native Class meta::json::JSONState { lambdas: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[1], meta::json::JSONState[1]->meta::json::JSONElement[1]}>[1..*]; config: meta::json::Config[1]; currentDepth: meta::pure::metamodel::type::Integer[1]; propertyPathTree: meta::pure::metamodel::treepath::PropertyPathTreeNode[0..1]; graphFetchTrees: meta::pure::graphFetch::GraphFetchTree[*]; parents: meta::pure::metamodel::type::Any[*]; cipher: meta::pure::metamodel::type::Boolean[1]; decipher: meta::pure::metamodel::type::Boolean[1]; }"),
             Pure.nativeClass("native Class meta::json::JSONString extends meta::json::JSONElement { <<equality.Key>> value: meta::pure::metamodel::type::String[1]; }"),
             Pure.nativeClass("native Class meta::legend::service::metamodel::Execution { }"),
             Pure.nativeClass("native Class meta::legend::service::metamodel::Ownership { }"),
@@ -244,6 +247,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::pure::functions::collection::Map<U, V> { }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::Pair<U, V> { <<equality.Key>> first: U[1]; <<equality.Key>> second: V[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::TreeNode { childrenData: meta::pure::functions::collection::TreeNode[*]; }"),
+            Pure.nativeClass("native Class meta::pure::functions::collection::ValueHolder<T> { value: T[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::date::Duration { number: meta::pure::metamodel::type::Integer[1]; unit: meta::pure::functions::date::DurationUnit[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::io::http::URL { scheme: meta::pure::functions::io::http::URLScheme[0..1]; host: meta::pure::metamodel::type::String[1]; port: meta::pure::metamodel::type::Integer[1]; path: meta::pure::metamodel::type::String[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::lang::KeyValue { key: meta::pure::metamodel::type::String[1]; value: meta::pure::metamodel::type::Any[*]; }"),
@@ -314,6 +318,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::pure::metamodel::serialization::grammar::Configuration { fullPath: meta::pure::metamodel::type::Boolean[1]; extensions: meta::pure::metamodel::serialization::grammar::GrammarExtension[*]; }"),
             Pure.nativeClass("native Class meta::pure::metamodel::serialization::grammar::GContext { space: meta::pure::metamodel::type::String[1]; parentFunction: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; }"),
             Pure.nativeClass("native Class meta::pure::metamodel::serialization::grammar::GrammarExtension { extraConnectionHandlers: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[0..1]->meta::pure::metamodel::type::String[1]}>[*]; extraInstanceValueHandlers: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[0..1]->meta::pure::metamodel::type::String[1]}>[*]; extraPackageableElementHandlers: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[1]->meta::pure::metamodel::type::String[1]}>[*]; }"),
+            Pure.nativeClass("native Class meta::pure::metamodel::treepath::PropertyPathTreeNode extends meta::pure::functions::collection::TreeNode { property: meta::pure::metamodel::function::property::AbstractProperty<meta::pure::metamodel::type::Any>[0..1]; }"),
             Pure.nativeClass("native Class meta::pure::milestoning::BiTemporal extends meta::pure::milestoning::TemporalStrategy { }"),
             Pure.nativeClass("native Class meta::pure::milestoning::BusinessDateMilestoning extends meta::pure::milestoning::DateMilestoning { from: meta::pure::metamodel::type::Date[1]; thru: meta::pure::metamodel::type::Date[1]; }"),
             Pure.nativeClass("native Class meta::pure::milestoning::BusinessTemporal extends meta::pure::milestoning::SingleDateTemporalStrategy { }"),
