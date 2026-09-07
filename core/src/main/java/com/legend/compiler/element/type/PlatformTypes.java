@@ -418,6 +418,22 @@ public final class PlatformTypes {
      * literals. */
     public static final String GENERATE_TEST_DATA =
             "meta::relational::testDataGeneration::generateTestData";
+    /** The TDG carrier's ARGUMENT spellings ({@code createTableRowIdentifiers(
+     * getTable(db, schema, table) | db, schema, table, ids)},
+     * {@code createRowIdentifier([cols], [values])},
+     * {@code createTemporalMilestoningDates(b, p, s)}): the platform reads
+     * these CALLS syntactically (TestDataGenerationNatives.classifyArg) —
+     * one owner per FQN, so the engine's Pure bodies (value constructors
+     * carrying guard asserts over the test's own inputs) are suppressed
+     * everywhere, never half-opened by one pass and native to another
+     * (batch 141). The owed leg: the carrier consumes VALUES and these
+     * return to being programs whose guards are verdicts. */
+    public static final String CREATE_TABLE_ROW_IDENTIFIERS =
+            "meta::relational::testDataGeneration::createTableRowIdentifiers";
+    public static final String CREATE_ROW_IDENTIFIER =
+            "meta::relational::testDataGeneration::createRowIdentifier";
+    public static final String CREATE_TEMPORAL_MILESTONING_DATES =
+            "meta::relational::testDataGeneration::createTemporalMilestoningDates";
     /** The TDG plan (testDataGeneration.pure:818/823): a plan HANDLE whose
      * planToString is the engine's MultiResultSequence text. */
     public static final String PLAN_TEST_DATA_GENERATION =
@@ -592,6 +608,9 @@ public final class PlatformTypes {
                 || CREATE_DB_CONFIG.equals(fqn)
                 || GET_RELATIONAL_CSV_DATA.equals(fqn)
                 || GENERATE_TEST_DATA.equals(fqn)
+                || CREATE_TABLE_ROW_IDENTIFIERS.equals(fqn)
+                || CREATE_ROW_IDENTIFIER.equals(fqn)
+                || CREATE_TEMPORAL_MILESTONING_DATES.equals(fqn)
                 || PLAN_TEST_DATA_GENERATION.equals(fqn)
                 || GENERATE_SEED_DATA_STRING.equals(fqn)
                 || EXECUTE.equals(fqn)
