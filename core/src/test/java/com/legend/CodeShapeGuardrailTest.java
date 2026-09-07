@@ -155,9 +155,10 @@ class CodeShapeGuardrailTest {
             // regex artifact, NOT mutable: implicitly public-static-final
             // interface constant (interfaces cannot spell 'final' on fields)
             "TokenStreamCursor.IDENTIFIER_TOKENS",
-            // nested-class cursors: ExecJson JSON reader, PureDateLiteral
-            // date parser (keys are filename-scoped)
-            "EngineTestExecutor.i", "PureDateLiteral.pos");
+            // nested-class cursor: PureDateLiteral's date parser (keys are
+            // filename-scoped; the old runner's ExecJson cursor died with
+            // it in batch 115)
+            "PureDateLiteral.pos");
 
     private static final Pattern SIG = Pattern.compile(
             // 4-space (top-level class members) OR 8-space (nested-class

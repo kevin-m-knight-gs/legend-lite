@@ -426,16 +426,11 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
             throws SQLException {
-        long t0 = System.nanoTime();
-        try {
-            return "H2".equals(session.getMetaData().getDatabaseProductName())
-                    ? verifyOnSession(session, goldenSql, ours, enumDecode,
-                            graphEnumProp)
-                    : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
-                            graphEnumProp);
-        } finally {
-            H2Verify.MIRROR_NANOS.addAndGet(System.nanoTime() - t0);
-        }
+        return "H2".equals(session.getMetaData().getDatabaseProductName())
+                ? verifyOnSession(session, goldenSql, ours, enumDecode,
+                        graphEnumProp)
+                : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
+                        graphEnumProp);
     }
 
     /**
@@ -622,7 +617,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         // the STATIC extent-subset fact of the verified chain (computed on
         // the platform's typed chain — a class extent through subset-
         // preserving ops) arms the graph compare's pk-collapse exactly as
-        // the walk lane arms it (EngineTestExecutor.extentSubset)
+        // the old runner's walk lane armed it (deleted in batch 115)
         return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
                 extentSubset, ctx, List.of());
     }

@@ -379,7 +379,6 @@ public sealed interface SqlExpr
          * when the fact already says so or makes no claim. */
         public Column asNullable() {
             if (type instanceof TypeFact.Typed t && !t.nullable()) {
-                SqlTyping.PAD_READ_FLIPPED.increment();
                 return new Column(table, name, new TypeFact.Typed(
                         t.type(), true, t.tolerated()), origin);
             }

@@ -515,6 +515,7 @@ mvn -q -pl core install -DskipTests && mvn -q -pl pct test-compile
 | `JdbcSurfaceCensusTest` | every file touching `java.sql` in test roots is registered (InDbVerdict will need this) |
 | `ObservabilityGuardrailTest` | main-scope `System.err` print sites, asserted EXACTLY at 34 (unchanged by batch 123's final cut; the stamp census print in `StampCensus.fire` is one of them and goes with step 1c) |
 | `ErrorShapeGuardrailTest` | broad-catch sites per file |
+| `DanglingStateGuardTest` (batch 129) | every static ThreadLocal/Atomic*/LongAdder/volatile across all modules has readers ⟺ writers (register = {H2Verify.ORDERED_QUERY, SORT_KEYS}, shrink-only → 0 in 0.5); guards pin only files in the tree and cite only live mechanisms |
 | `MinimalCorpusTest` | the fail roster as a SET per lane (`rcorpus/*-fail-roster.txt`, 121 / 709) + the denominator 2575; LOST and GAINED both fail; holds on the scoped subset too (batch 126) |
 | gate 7 (`PCT`) | `PctCensusGate` ceilings per suite; Channel-B dual-verdict assertions (see step 1c) |
 

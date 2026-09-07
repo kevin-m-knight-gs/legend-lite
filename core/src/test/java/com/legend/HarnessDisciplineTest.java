@@ -19,10 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * F1.4 — a POSITIVE rule on the harness (Charter C2.3): result
  * reordering is comparison POLICY only — two-sided, declared, and
- * enumerated. {@code EngineTestExecutor.compare} already applies this
- * discipline to itself (every unordered compare gated on
- * {@code ordered && actual.sortedChain()}, a compile-time fact about
- * the QUERY); this test makes the discipline required rather than
+ * enumerated (every unordered compare gated on a compile-time fact
+ * about the QUERY — the old runner's {@code ordered && sortedChain()}
+ * doctrine); this test makes the discipline required rather than
  * voluntary. The allowlist is EXACT-MATCH: a new sort/distinct site in
  * the harness fails until it is either gated-and-listed here (with the
  * reason) or removed; a removed site forces the list to shrink.
@@ -32,9 +31,9 @@ class HarnessDisciplineTest {
     /** The audited sites (F1.11 re-enumeration — the first census
      *  missed the {@code List.sort(cmp)} spelling, and audit A7's own
      *  site was among the escapees):
-     *  EngineTestExecutor 5 — makeString split-multiset order policy
-     *  (2, two-sided), TDS-text unordered compare (2, `ordered`-gated),
-     *  and the graph-triples canonicalization at :1720 (two-sided);
+     *  (the old runner's five sites — makeString split-multiset order
+     *  policy, TDS-text unordered compare, graph-triples canon — died
+     *  with it in batch 115);
      *  H2Verify 2 — the replay oracle's order-insensitive row multiset
      *  (two-sided BY DESIGN, counted by F2.4);
      *  JsonAssertCanon 1 — audit A7 RESOLVED by F6.5 (2026-08-17): the
@@ -86,14 +85,19 @@ class HarnessDisciplineTest {
             // same order-insensitive row-multiset verdict (the frame
             // side is already sorted at the main compare — two-sided
             // by construction), gated on the COMPILE-TIME
-            // extent-subset fact of the typed query chain
-            // (EngineTestExecutor.extentSubset -> EXTENT_SUBSET).
+            // extent-subset fact of the typed query chain (the verify
+            // site's caller sets H2Verify.EXTENT_SUBSET).
             // 8 -> 10 (§7 flip, same charter): orderedVerdict's TIE
             // GROUPS — within each run of equal sort-key rows BOTH
             // sides sort before comparing (two-sided by construction;
             // rows tied on the key have no defined relative order on
             // either backend), gated on the COMPILE-TIME sort-key
-            // derivation (EngineTestExecutor.sortKeyCols -> SORT_KEYS).
+            // derivation (H2Verify.SORT_KEYS). Phase 0.4 (2026-09-08):
+            // the two sort-key sites are DEAD today — ORDERED_QUERY and
+            // SORT_KEYS lost their writer in batch 115 and are registered
+            // dangling in DanglingStateGuardTest; Phase 0.5 rewires them
+            // from AssertVerdicts.orderView. The count stays 10 because
+            // the sites exist; their gate is the fact this comment names.
             Map.entry("H2Verify.java", 10),
             // 15 -> 17 (SQLTEXT slice-3 step 0, 2026-09-01): the shape
             // census dump's two sorts — count-descending histogram +

@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * declared contract), {@code LiteralFold} (the engine's own
  * ConstantExecutionNode, differential-pinned), the harness COMPARISON
  * layer (verification consumes two sides, never produces a result),
- * and {@code JsonAssertCanon.sortByKey} (re-creates the TEST'S OWN
+ * and the deleted {@code JsonAssertCanon.sortByKey} (re-created the TEST'S OWN
  * canonicalization over a metamodel that never executes through SQL).
  */
 class JavaEvalLedgerTest {

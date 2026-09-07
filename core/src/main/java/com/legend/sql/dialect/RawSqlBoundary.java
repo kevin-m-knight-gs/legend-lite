@@ -175,10 +175,6 @@ public final class RawSqlBoundary {
      * Callers split multi-statement blobs first — recognizers anchor at
      * statement start.
      */
-    /** Wall-clock spent translating raw H2 to DuckDB — perf instrument. */
-    public static final java.util.concurrent.atomic.AtomicLong XLATE_NANOS =
-            new java.util.concurrent.atomic.AtomicLong();
-
     /** The H2 dialect LEVEL this boundary translates from: the engine's
      * v2_1_214 extension (its goldens' "upgraded" branch), the same jar the
      * harness referee runs ({@code H2VersionPinTest} ties this literal to
@@ -191,12 +187,7 @@ public final class RawSqlBoundary {
             Pattern.compile("(?i)\\bH2VERSION\\s*\\(\\s*\\)");
 
     public static String h2ToDuckDb(String sql) {
-        long t0 = System.nanoTime();
-        try {
-            return h2ToDuckDb0(sql);
-        } finally {
-            XLATE_NANOS.addAndGet(System.nanoTime() - t0);
-        }
+        return h2ToDuckDb0(sql);
     }
 
     private static String h2ToDuckDb0(String sql) {

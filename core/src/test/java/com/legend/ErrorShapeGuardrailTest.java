@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * multi-catch in any position, and the two §6.5 rules that were missing
  * (catch-that-returns-a-value, {@code endsWith} on FQN strings) are
  * pinned. Known residual OUTSIDE these rules' static reach:
- * {@code engine Runner.unknownTypePull} regexes an exception message
+ * the old runner's {@code unknownTypePull} (deleted) regexed an exception message
  * through a local — retired by the deferred unknown-element
  * rebucketing (typed exception from the resolver), tracked there.
  */
@@ -48,9 +48,6 @@ class ErrorShapeGuardrailTest {
             Map.entry("TdsChecker.java", 1),
             Map.entry("ClassSources.java", 1),
             Map.entry("Compiler.java", 2),
-            // (ExecCallFinder's sideSqlText probe DELETED — slice 3
-            // equality half: sides evaluate for REAL via evalSideText,
-            // whose counted-decline catch moved to EngineTestExecutor)
             Map.entry("FunctionCompiler.java", 1),
             // SQLTEXT slice 3a (reviewed): the OUR-ROWS leg's designed
             // total catch — ANY failure executing the producer's query
@@ -113,13 +110,12 @@ class ErrorShapeGuardrailTest {
             // counted-decline boundary — the F2.3 catch inherited from
             // the deleted ExecCallFinder.sideSqlText, same discipline
             // (every failure lands in the H2Verify decline census)
-            Map.entry("EngineTestExecutor.java", 5),
             Map.entry("QuotedSpecParser.java", 1),
             Map.entry("Typer.java", 1),
             Map.entry("ValidateDesugar.java", 2));
 
     /** Broad type ANYWHERE in the catch parameter — multi-catch included
-     * (the first version anchored it first and missed EngineTestExecutor's
+     * (the first version anchored it first and missed a
      * {@code catch (SQLException | RuntimeException)}). */
     private static final Pattern BROAD_CATCH = Pattern.compile(
             "catch \\(([^)]*)\\)");

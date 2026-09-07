@@ -60,24 +60,6 @@ public final class H2Verify {
         return READY;
     }
 
-    /** MILESTONE-1 counters (H2_BACKEND.md §12 step 5): real H2
-     * execution of OUR byte-matched SQL, held to our DuckDB rows.
-     * Sweep-scoped (fresh JVM per surefire run); the corpus runner
-     * reports them as the h2-exec scoreboard line. */
-    public static final java.util.concurrent.atomic.LongAdder M1_VERIFIED =
-            new java.util.concurrent.atomic.LongAdder();
-    public static final java.util.concurrent.atomic.LongAdder M1_DIVERGED =
-            new java.util.concurrent.atomic.LongAdder();
-    /** F2.2: text-DIVERGENT golden asserts rescued into row-verified
-     * PASS by the H2 replay — before this counter the divergence was
-     * never recorded, so the committed sqldiff count (244 at the F0.1
-     * baseline) counted only the divergences the oracle FAILED to
-     * rescue; the true rate is sqldiff + THIS. */
-    public static final java.util.concurrent.atomic.LongAdder M1_RESCUED =
-            new java.util.concurrent.atomic.LongAdder();
-    public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
-            new java.util.concurrent.atomic.LongAdder();
-
     /** Per-test M1 verdict attribution (the UNVERIFIABLE_CENSUS
      * pattern extended to the PASS side): every text-match/rescue/
      * exec-fail records its test, and the corpus runner dumps the
@@ -105,7 +87,7 @@ public final class H2Verify {
     /** The ONE decline funnel: prints (the frozen System.err site) and
      * counts under the canonical bucket. */
     /** An ARRAY-valued scalar cell's element list, or null when the
-     * value is no collection carrier. Two carrier arrivals (EngineTestExecutor's
+     * value is no collection carrier. Two carrier arrivals (the old runner's
      * Eval.flatten, hoisted here for the file cap): the native
      * {@code java.sql.Array} (DuckDB), and the JSON carrier's byte[]
      * text on a list-less backend (§2b — H2 hands JSON back as bytes;
@@ -143,22 +125,9 @@ public final class H2Verify {
     /** The test currently executing — set by the corpus runner so a
      *  decline names its test (correctness lane C1: 154 anonymous
      *  declines were unactionable). */
-    /** The running test forces an engine ISOLATION STRATEGY via
-     * ^RelationalDebugContext(forcedIsolation=...) — a debug-mechanism
-     * pin, not user semantics (batch-0 ruling: the chooser is
-     * non-binding mechanism). The engine's strategies are ROW-DIVERGENT
-     * in VALUE position (forced::testQualifierWithOperation golden
-     * keeps 4 rows incl. NULL-minted values; the default golden keeps
-     * 1), so a forced VALUE-frame golden pins a strategy our one
-     * default-mode compiler deliberately does not choose — its row
-     * compare DECLINES (counted). Row-preserving positions keep their
-     * referee: strategies agree there, and a divergence would be real. */
-    public static final ThreadLocal<Boolean> FORCED_MECHANISM =
-            ThreadLocal.withInitial(() -> Boolean.FALSE);
-
     /** The verified query chain is a SUB-COLLECTION of a class extent
      * (getAll root through subset-preserving ops — computed STATICALLY
-     * by EngineTestExecutor.extentSubset at the verify site, the §7
+     * at the verify site (the old runner's extentSubset; the referee's caller sets it), the §7
      * order-policy doctrine applied to multiplicity). Pure semantics
      * then guarantees each instance at most once, so the graph
      * compare may collapse golden-side full-row duplicates (pk
@@ -169,10 +138,12 @@ public final class H2Verify {
     public static final ThreadLocal<Boolean> EXTENT_SUBSET =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    /** The verified query chain ENDS IN SORT — the walk's own static
-     * order fact (EngineTestExecutor.endsInSort via the order-policy
-     * view), computed at the verify site exactly like
-     * {@link #EXTENT_SUBSET}. Charter §7: ordered queries compare IN
+    /** The verified query chain ENDS IN SORT — a static order fact
+     * computed at the verify site exactly like {@link #EXTENT_SUBSET}.
+     * DANGLING since batch 115 (its writer, the old runner's endsInSort,
+     * was deleted; the readers stayed — audit §2): registered in
+     * DanglingStateGuardTest, restored from AssertVerdicts.orderView in
+     * Phase 0.5. Charter §7: ordered queries compare IN
      * ORDER, unordered as multisets — this flag is the oracle
      * compare's gate (and, under LL_ORD_COUNT, the blast-radius
      * instrument's classification). */
@@ -180,8 +151,9 @@ public final class H2Verify {
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /** The ordered chain's EFFECTIVE sort-key column/property names
-     * (EngineTestExecutor.sortKeyCols — the sort nearest the tail, the
-     * engine's own last-sort-wins semantics), null when underivable.
+     * (the sort nearest the tail, the engine's own last-sort-wins
+     * semantics), null when underivable. DANGLING since batch 115 like
+     * {@link #ORDERED_QUERY}; restored in Phase 0.5.
      * The §7 in-order compare needs them for TIES: rows equal on the
      * sort keys have no defined relative order on either backend
      * (testSortByLambdaMultiple: two Johns under {@code order by
@@ -198,19 +170,9 @@ public final class H2Verify {
     public static void decline(String reason) {
         System.err.println("[h2-unverifiable] replay declined ["
                 + CURRENT_TEST.get() + "]: " + reason);
-        LAST_DECLINE.set(bucketOf(reason));
         UNVERIFIABLE_CENSUS.computeIfAbsent(bucketOf(reason),
                 k -> new java.util.concurrent.atomic.LongAdder()).increment();
     }
-
-    /** The most recent decline's canonical bucket, per thread — a
-     * *-noreplay outcome names its replay-decline CAUSE with it (the
-     * §4Z transparency rule applied one level down: the residue census
-     * reads what happened, never a guess). Data-flow guarantee: every
-     * advisory return from the replay attempt records exactly one
-     * decline first, so the read at the outcome exit is never stale. */
-    public static final ThreadLocal<@com.legend.Nullable String> LAST_DECLINE =
-            new ThreadLocal<>();
 
     /** Canonical census bucket: the decline CHANNEL plus the failure's
      * leading words — stable across runs (no identifiers/row values),
@@ -278,18 +240,6 @@ public final class H2Verify {
         }
         return out;
     }
-
-    /** Wall-clock spent in mirror verification (the DuckDB sweep's
-     * advisory second target) — perf instrument, printed by the runner. */
-    /** Wall-clock of the WHOLE golden-SQL channel on the DuckDB sweep
-     * (sql-text compare incl. the H2 re-render + M1 h2-exec + advisory)
-     * — perf instrument. */
-    public static final java.util.concurrent.atomic.AtomicLong GOLDEN_NANOS =
-            new java.util.concurrent.atomic.AtomicLong();
-
-    public static final java.util.concurrent.atomic.AtomicLong MIRROR_NANOS =
-            new java.util.concurrent.atomic.AtomicLong();
-
 
     /** ENUM-typed frames compare through the SAME decode the frame
      * ran: some queries select the RAW source code (the engine decodes

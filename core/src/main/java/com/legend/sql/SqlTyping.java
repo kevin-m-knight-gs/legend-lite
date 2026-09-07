@@ -32,15 +32,6 @@ public final class SqlTyping {
     public static final TypeFact RAISES = new TypeFact.Raises();
     public static final TypeFact UNKNOWN = new TypeFact.Unknown();
 
-    /** §E3-S PAD PRICE TAG: construction-side counter for join-pad
-     * READ flips — the WHERE&equiv;INNER refinement's value bracket.
-     * (The FRAME counter died with Fold.padJoinOutputs: frame pad
-     * truth is now a DERIVED fact of SqlSource.Join.outputs(), so
-     * there is no construction event left to count.) Measurement only;
-     * runtime accumulation, the StampCensus/H2Verify precedent. */
-    public static final java.util.concurrent.atomic.LongAdder
-            PAD_READ_FLIPPED = new java.util.concurrent.atomic.LongAdder();
-
     public static TypeFact typed(SqlType t) {
         return new TypeFact.Typed(t);
     }
