@@ -199,7 +199,7 @@ final class UnionSynthesis {
      * unionRoutes blind to bridge(employees[set1], employees[set2])
      * declared inside an embedded block). Owner recorded per property so
      * the route's target class resolves against the EMBEDDED class. */
-    private static void collectRoutedJoins(List<PropertyMapping> pms,
+    static void collectRoutedJoins(List<PropertyMapping> pms,
             String ownerCls, LegacyMappingDefinition md, ModelBuilder model,
             Map<String, List<PropertyMapping.Join>> routedByProp,
             Map<String, String> ownerByProp) {

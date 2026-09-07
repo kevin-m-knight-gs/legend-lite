@@ -426,7 +426,6 @@ meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationO
 meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithFilter
 meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithFilterAndGroupBy
 meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithGroupBy
-meta::relational::tests::projection::exists::testExistsAsNullWithSubType
 meta::relational::tests::projection::filter::dates::testDateWithSeconds
 meta::relational::tests::projection::filter::in::H2Test
 meta::relational::tests::projection::filter::in::testInWithDynaFunction

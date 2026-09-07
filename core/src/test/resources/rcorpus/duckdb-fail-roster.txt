@@ -119,7 +119,6 @@ meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFro
 meta::relational::tests::postProcessor::filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL
 meta::relational::tests::postProcessor::testDb2ColumnRename
 meta::relational::tests::postProcessor::testPostProcessTransformJoinOp
-meta::relational::tests::projection::exists::testExistsAsNullWithSubType
 meta::relational::tests::projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives
 meta::relational::tests::projection::view::testUnionOnViewsMapping
 meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection

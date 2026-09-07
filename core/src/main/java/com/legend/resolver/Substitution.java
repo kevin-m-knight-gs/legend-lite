@@ -2516,7 +2516,8 @@ final class Substitution {
             if (target.nested()) {
                 throw new NotImplementedException("nested navigation '" + head
                         + "." + leaf + "' inside an exists/isEmpty predicate is"
-                        + " not supported yet");
+                        + " not supported yet [target=" + a.targetClassFqn()
+                        + "; bindings=" + a.targetBindings().keySet() + "]");
             }
             throw new MappingResolutionException("property '"
                     + SyntheticHeads.realHead(leaf)

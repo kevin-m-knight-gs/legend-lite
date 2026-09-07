@@ -101,17 +101,25 @@ final class ImplicitInheritance {
         return any ? md.withClassMappings(rewritten) : md;
     }
 
-    /** IMPLICIT inheritance OP for UNMAPPED association-end parents
-     * (engine parity, MilestonedInheritanceMapping golden): a per-pair
-     * AssociationMapping entry names member sets ({@code vehicle[o,c]:
-     * @Owner_Car}) whose classes are strict subclasses of an end class
-     * that itself has NO set anywhere in scope — the engine resolves the
-     * end's extent through its mapped subclasses. Appending an explicit
-     * {@code Inheritance} op makes every downstream mechanism (routed
-     * pair injection, union synthesis, witness casts, milestoned heads)
-     * engage unchanged. Conservative: only association-END classes with
-     * at least one pair-routed subclass set qualify. */
-    static LegacyMappingDefinition implicitOpsForAssociationEnds(
+    /** IMPLICIT inheritance OP for UNMAPPED routed targets (engine
+     * parity — router_operations getMappedLeafTypes: a class with no set
+     * of its own is served by its mapped subclasses). Two spellings name
+     * such a target: (a) a per-pair AssociationMapping entry
+     * ({@code vehicle[o,c]: @Owner_Car}, MilestonedInheritanceMapping
+     * golden) whose member set's class is a strict subclass of an
+     * association END that has NO set anywhere in scope; (b) a routed
+     * class-typed property mapping ({@code fnScope[map2]: @privateFnJoin}
+     * + {@code fnScope[map3]: @publicFnJoin}, projection::exists
+     * testExistsAsNullWithSubType — batch 140) whose set's class is a
+     * strict subclass of the property's DECLARED class that has no set.
+     * Appending an explicit {@code Inheritance} op makes every downstream
+     * mechanism (route classification with member ordinals, the routed
+     * union navigation, union synthesis, witness casts, milestoned heads)
+     * engage unchanged — before (b), the first routed PM silently won the
+     * navigation slot and {@code ->subType(@Other)} found no binding.
+     * Conservative: only END / DECLARED classes with at least one routed
+     * strict-subclass set qualify. */
+    static LegacyMappingDefinition implicitOpsForRoutedTargets(
             LegacyMappingDefinition md, ModelBuilder model) {
         Map<String, ClassMapping> bySetId = new HashMap<>();
         MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
@@ -150,6 +158,39 @@ final class ImplicitInheritance {
                     continue;
                 }
                 implied.add(end);
+            }
+        }
+        // (b) routed class-typed property mappings
+        for (ClassMapping cm : md.classMappings()) {
+            if (!(cm instanceof ClassMapping.Relational rcm)) {
+                continue;
+            }
+            Map<String, List<PropertyMapping.Join>> routedByProp =
+                    new java.util.LinkedHashMap<>();
+            Map<String, String> ownerByProp = new HashMap<>();
+            UnionSynthesis.collectRoutedJoins(rcm.propertyMappings(),
+                    rcm.className(), md, model, routedByProp, ownerByProp);
+            for (var e : routedByProp.entrySet()) {
+                String prop = e.getKey();
+                com.legend.model.ClassDefinition owner = MappingNormalizer
+                        .classDef(model, ownerByProp.getOrDefault(prop,
+                                rcm.className())).orElse(null);
+                com.legend.protocol.TypeExpression pt = owner == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
+                if (!(pt instanceof com.legend.protocol.TypeExpression.NameRef nr)
+                        || MappingNormalizer.classDef(model, nr.name()).isEmpty()
+                        || mappedClasses.contains(nr.name())) {
+                    continue;
+                }
+                for (PropertyMapping.Join j : e.getValue()) {
+                    ClassMapping tgt = bySetId.get(j.targetSetId());
+                    if (tgt != null && !tgt.className().equals(nr.name())
+                            && UnionSynthesis.isSubclassOf(
+                                    tgt.className(), nr.name(), model)) {
+                        implied.add(nr.name());
+                        break;
+                    }
+                }
             }
         }
         if (implied.isEmpty()) {
