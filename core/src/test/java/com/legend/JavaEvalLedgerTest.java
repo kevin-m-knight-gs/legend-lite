@@ -62,6 +62,11 @@ class JavaEvalLedgerTest {
      * stripped, only CODE moves the number. The PCT extension row is
      * the E1 adapter-contract residue (ingress splicing, the scalar
      * bridge, the H4 message remap). */
+    // Phase 0.8 (batch 134, 2026-09-08): every row re-pinned to its MEASURED
+    // stripped count and the check made exact (a shrink re-pins, like
+    // EVICT_NAMES) — 723 lines of banked headroom burned: AggAwareActivities
+    // 227→211, StatementExecutor 2699→2045, DynamicPivot 118→106, JsonCompare
+    // 70→64, StoreNav 199→188, PctExecuteNative 131→107.
     private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
             // 844 -> 850 (documented-debts 2026-08-18): the emptyCell
             // single-owner helper (six scattered null-drops now route
@@ -75,7 +80,7 @@ class JavaEvalLedgerTest {
             // orchestration), packer (transport-contingent inbound),
             // bridge (the permanent bijection). Pins re-seeded at the
             // split's measured stripped counts; shrink-only from here.
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 131),
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 107),
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -116,7 +121,7 @@ class JavaEvalLedgerTest {
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
-            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 227),
+            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 211),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES
@@ -138,8 +143,8 @@ class JavaEvalLedgerTest {
             // 196→199 (audit slice 3): the nav walker recognizes BOTH
             // toOne spellings inline (invariant 6d keeps exec off the
             // frontend) — recognition lines, not evaluation.
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 199),
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 188),
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 106),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -567,7 +572,7 @@ class JavaEvalLedgerTest {
             // plan carrier routes to TestDataGenerationNatives.planTextResult
             // (the platform's own printer) — three routing lines, no
             // evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2699),
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2045),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -726,7 +731,7 @@ class JavaEvalLedgerTest {
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
-            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 70),
+            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 64),
             // 295 -> 431 (V7 §8 leg 1 + user consolidation ruling
             // 2026-08-28): the GRID-CANON byte-channel policies land
             // with the OTHER grid comparison rules — row/cell canon
@@ -1191,6 +1196,15 @@ class JavaEvalLedgerTest {
                                 + " GREW (tenet #1: the database"
                                 + " executes; evict, or bump the pin"
                                 + " with a written justification)");
+            } else if (lines < e.getValue()) {
+                // Phase 0.8 (audit §6): a grow-only pin banks every
+                // deletion as headroom (751 lines of slack found) — a
+                // shrink re-pins to the measured count, like EVICT_NAMES
+                drift.append("\n  ").append(e.getKey()).append(": ")
+                        .append(lines).append(" < ").append(e.getValue())
+                        .append(" stripped code lines — the evaluator SHRANK:"
+                                + " re-pin to the measured count (headroom is"
+                                + " not a pin)");
             }
         }
         for (var e : EVICT_NAMES.entrySet()) {

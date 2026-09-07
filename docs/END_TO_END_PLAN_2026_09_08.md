@@ -59,7 +59,7 @@ is its own small leg, not a prerequisite.
 
 ## THE ORDER (v2)
 
-**Phase 0 — measurement integrity (first; everything after is judged by it). 3–4 batches.**
+**Phase 0 — measurement integrity (first; everything after is judged by it). COMPLETE 2026-09-08, batches 126–134 (docs/GATES.md): 0.1 = 126, 0.2 = 127, 0.3 = 128, 0.4 = 129, 0.5 = 130 (+ 0.5b page-membership verdict = 131), 0.6 = 132, 0.7 = 133, 0.8 = 134. Every criterion is a passing test in `MinimalCorpusTest` / `DanglingStateGuardTest` / `JavaEvalLedgerTest`.**
 0.1 Roster pinned as a SET per lane against committed roster files (docs/parked), with a
     CEILING (a pass-count jump must be explained); the pin runs under `-Drcorpus.test` too
     (scoped subset ⊆ roster). Set-difference by NAME.

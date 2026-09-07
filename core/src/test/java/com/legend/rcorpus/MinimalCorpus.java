@@ -111,9 +111,24 @@ public final class MinimalCorpus {
 
     private static final String RUNTIME = "rcorpus::Rt";
     private static final String CONNECTION = "rcorpus::Conn";
-    private static final String ASSERTS_PACKAGE = "meta::pure::functions::asserts::";
-    private static final Set<String> ENGINE_IMPLEMENTATION_FILES = Set.of(
-            "lineage/scanRelations/scanRelations.pure");
+    /** Corpus files that are the ENGINE'S IMPLEMENTATION of a platform-owned
+     * function family, not test input: loaded, they would redefine the
+     * family as user Pure and every test would resolve to the engine's
+     * implementation instead of the platform's (measured, batch 134: with
+     * this file admitted the 49 {@code lineage::scanRelations} tests inline
+     * the engine's {@code scanRelations} and wall on {@code
+     * openVariableValues}). The reference checkout is spec, never runtime
+     * (user ruling 2026-08-28). Skipped BY NAME and reported — the file
+     * defines no test (0 {@code <<test.Test>>}). */
+    private static final Map<String, String> ENGINE_IMPLEMENTATION_FILES = Map.of(
+            "lineage/scanRelations/scanRelations.pure",
+            "the engine's implementation of the platform-owned meta::pure::lineage::scanRelations family");
+    /** The engine-implementation files skipped, with their reason (reported). */
+    private final List<String> engineImplementationSkips = new ArrayList<>();
+
+    public List<String> engineImplementationSkips() {
+        return List.copyOf(engineImplementationSkips);
+    }
 
     private final ModelContext ctx;
     private final List<TestCase> tests = new ArrayList<>();
@@ -144,6 +159,11 @@ public final class MinimalCorpus {
             seen.add(s.text());
         }
         for (Path f : corpusFiles()) {
+            String rel = Corpus.RELATIONAL.relativize(f).toString();
+            if (ENGINE_IMPLEMENTATION_FILES.containsKey(rel)) {
+                engineImplementationSkips.add(rel + " — " + ENGINE_IMPLEMENTATION_FILES.get(rel));
+                continue;
+            }
             String text = Files.readString(f);
             if (seen.add(text)) {
                 all.add(new Compiler.ModelSource(
@@ -215,11 +235,21 @@ public final class MinimalCorpus {
         Compiler.ParsedModule sharedParsed = Compiler.parseSources(shared,
                 (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
         for (PackageableElement el : sharedParsed.model().elements()) {
-            // a TEST is never a setup, whatever its effects
+            // a TEST is never a setup, whatever its effects; a zero-arg
+            // fixture function is a setup only when the PLATFORM says its
+            // body has statement effects (Phase 0.8 — the arity rule alone
+            // nominated testRuntime(), the type-inference maps, … as
+            // "inert setups"; the fact decides, not the arity)
             if (el instanceof FunctionDefinition f && f.parameters().isEmpty()
                     && f.stereotypes().stream().noneMatch(st ->
                             st.stereotypeName().equals("Test"))) {
-                sharedSetups.add(f.qualifiedName());
+                ValueSpecification resolved = Compiler.resolveQuery(
+                        List.of(new AppliedFunction(f.qualifiedName(), List.of())),
+                        new ImportScope(List.of()), ctx);
+                if (Compiler.hasStatementEffects(resolved, ctx)) {
+                    sharedSetups.add(f.qualifiedName());
+                    setupPrograms.put(f.qualifiedName(), resolved);
+                }
             }
         }
     }
@@ -238,8 +268,6 @@ public final class MinimalCorpus {
     private static List<Path> corpusFiles() throws IOException {
         try (Stream<Path> walk = Files.walk(Corpus.RELATIONAL)) {
             return walk.filter(f -> f.toString().endsWith(".pure") && Files.isRegularFile(f))
-                    .filter(f -> !ENGINE_IMPLEMENTATION_FILES.contains(
-                            Corpus.RELATIONAL.relativize(f).toString()))
                     .sorted().toList();
         }
     }
@@ -284,13 +312,24 @@ public final class MinimalCorpus {
                 }
                 switch (st.stereotypeName()) {
                     case "Test" -> test = true;
-                    case "ToFix", "Ignore", "ExcludeAlloy" -> excluded = true;
+                    // the engine's own exclusions (PureTestHelperFramework
+                    // satisfiesConditions: !ExcludeAlloy; ToFix is the
+                    // corpus's disabled mark); the profile has no "Ignore"
+                    // (legend-pure essential/tests/profile.pure) — batch 134
+                    // deleted that dead arm
+                    case "ToFix", "ExcludeAlloy" -> excluded = true;
                     case "BeforePackage" -> setup = true;
                     default -> { }
                 }
             }
             if (setup && f.parameters().isEmpty()) {
                 setupsByPackage.computeIfAbsent(pkg, k -> new ArrayList<>()).add(fqn);
+            }
+            if (test) {
+                declaredTests++;
+                if (excluded) {
+                    excludedTests++;
+                }
             }
             if (test && !excluded) {
                 List<String> wildcards = new ArrayList<>();
@@ -310,6 +349,23 @@ public final class MinimalCorpus {
 
     public List<TestCase> tests() {
         return List.copyOf(tests);
+    }
+
+    /** The DENOMINATOR, re-derived from the model every run (Phase 0.8):
+     * {@code declared} = every {@code <<test.Test>>} function the corpus
+     * defines, {@code excluded} = those the engine's own stereotypes take
+     * out (ToFix / ExcludeAlloy), {@code discovered} = the runnable rest.
+     * The run prints the triple and pins it against a comment-stripped
+     * text scan of the corpus tree, so a bigger or smaller corpus, or a
+     * discovery rule that drops a test, is loud. */
+    public record Census(int declared, int excluded, int discovered) {
+    }
+
+    private int declaredTests;
+    private int excludedTests;
+
+    public Census census() {
+        return new Census(declaredTests, excludedTests, tests.size());
     }
 
     // ---- SESSION + SEED ---------------------------------------------------

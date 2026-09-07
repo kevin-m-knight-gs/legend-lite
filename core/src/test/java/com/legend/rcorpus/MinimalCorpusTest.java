@@ -64,6 +64,10 @@ class MinimalCorpusTest {
      * stereotypes (audit §9); re-derived against a corpus scan in Phase
      * 0.8. */
     private static final int DISCOVERED = 2575;
+    /** 2721 {@code <<test.Test>>} functions declared, 146 excluded by the
+     * engine's ToFix / ExcludeAlloy (Phase 0.8; the audit's census). */
+    private static final int DECLARED = 2721;
+    private static final int EXCLUDED = 146;
 
     /** Setups the platform derives as INERT on the full run (Phase 0.2;
      * measured 2026-09-08, the names print as {@code [corpus2] inert-setup}):
@@ -72,7 +76,7 @@ class MinimalCorpusTest {
      * createTestDatabaseConnection, the two typeInference maps) — the
      * arity rule in {@code MinimalCorpus.sharedSetups} nominates them; the
      * platform's effect analysis is what keeps them from running. */
-    private static final int INERT_SETUPS = 5;
+    private static final int INERT_SETUPS = 0;   // batch 134: shared setups are nominated by EFFECT, so none is inert
 
     @Test
     void corpus() throws Exception {
@@ -98,6 +102,10 @@ class MinimalCorpusTest {
         for (String w : corpus.libraryWalls()) {
             System.out.println("[corpus2] library skipped: " + w);
         }
+        for (String w : corpus.engineImplementationSkips()) {
+            System.out.println("[corpus2] engine-implementation skipped: " + w);
+        }
+        pinCensus(corpus.census());
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
@@ -333,6 +341,51 @@ class MinimalCorpusTest {
      * — three union/concatenate tests flap; H2 11). */
     private static final long DUCKDB_ORD_UNORDERED = 108;
     private static final long H2_ORD_UNORDERED = 11;
+
+    /** Phase 0.8 — the denominator RE-DERIVED: the model's triple
+     * (declared / excluded / discovered) printed, pinned to the committed
+     * constants, and cross-checked against an independent comment-stripped
+     * text scan of the corpus tree (the audit's own census method). Three
+     * readings of one fact; a discovery rule that drops a test, or a corpus
+     * that grew, disagrees somewhere and is loud. */
+    private static void pinCensus(MinimalCorpus.Census c) throws IOException {
+        System.out.println("[corpus2] census declared=" + c.declared() + " excluded="
+                + c.excluded() + " discovered=" + c.discovered());
+        org.junit.jupiter.api.Assertions.assertEquals(c.declared() - c.excluded(), c.discovered(),
+                "discovery dropped a test the model declares");
+        org.junit.jupiter.api.Assertions.assertEquals(new MinimalCorpus.Census(DECLARED, EXCLUDED, DISCOVERED), c,
+                "the corpus denominator moved (model reading): explain, then re-pin");
+        org.junit.jupiter.api.Assertions.assertEquals(c, scanCensus(),
+                "the model's census disagrees with the text scan of the corpus tree");
+    }
+
+    /** {@code <<test.Test>>} functions in the corpus tree, comments stripped
+     * — the audit's method (roster-and-floor.md §1): each stereotype block
+     * that precedes a function name and its parameter list. */
+    private static MinimalCorpus.Census scanCensus() throws IOException {
+        java.util.regex.Pattern block = java.util.regex.Pattern.compile(
+                "<<([^>]*)>>\\s*(?:\\{[^}]*\\}\\s*)?[\\w:]+\\s*\\(");
+        int declared = 0;
+        int excluded = 0;
+        try (java.util.stream.Stream<Path> walk = Files.walk(Corpus.RELATIONAL)) {
+            for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).toList()) {
+                String src = Files.readString(f)
+                        .replaceAll("(?s)/\\*.*?\\*/", "")
+                        .replaceAll("//.*", "");
+                java.util.regex.Matcher m = block.matcher(src);
+                while (m.find()) {
+                    String st = m.group(1);
+                    if (st.matches("(?s).*\\btest\\.Test\\b.*")) {
+                        declared++;
+                        if (st.matches("(?s).*\\b(ToFix|ExcludeAlloy)\\b.*")) {
+                            excluded++;
+                        }
+                    }
+                }
+            }
+        }
+        return new MinimalCorpus.Census(declared, excluded, declared - excluded);
+    }
 
     /** The pin: the {@code kind} names == the committed roster (restricted
      * to the tests that ran when scoped); the denominator when not scoped. */
