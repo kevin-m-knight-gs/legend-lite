@@ -1,4 +1,5 @@
 # Harness-Deletion Burn — Session Handoff (for the session after 2026-09-01)
+> **2026-09-08: the governing plan is docs/END_TO_END_PLAN_2026_09_08.md — read it before this handoff.**
 
 ## 0. NEXT-SESSION PLAN (written 2026-09-06 after batch 105 — READ THIS FIRST)
 
