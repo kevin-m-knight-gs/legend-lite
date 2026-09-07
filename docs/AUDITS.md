@@ -8,6 +8,12 @@ two executed.
 > corpus figure in this file predates the current ledger — **2,398 pass of 2,798** (2,298 of the
 > 2,575 runnable). Take numbers from `docs/GATES.md` and `docs/RELATIONAL_CORPUS.md`, not from here.
 
+### The 2026-09 round
+
+| Doc | Covers |
+|---|---|
+| [`HARNESS_AUDIT_2026_09_07.md`](HARNESS_AUDIT_2026_09_07.md) | The rebuilt test harness, soup to nuts — driver, referee, main-side oracle residue, ambient state, guard integrity, roster/floor validation (gates run), and end-to-end verification strength. Seven adversarial reviewers; `END_TO_END_PLAN_2026_09_08.md` treated as claims, not evidence. **Headline: batch 115 deleted the writers of `H2Verify.ORDERED_QUERY`/`SORT_KEYS` and left the readers — row order silently stopped being a contract (95 passes affected), in the direction that raises the floor.** Also: only 1,511 of 2,454 passes (61.6%) are differentially verified; the gate has one assertion; the §7 floor arithmetic does not close; 127 H2 failures are one renderer bug. §9 lists six claims investigated and **dropped**. §10 is a 15-point machine-checkable definition of DONE. |
+
 ### The 2026-08 round
 
 | Doc | Covers |
