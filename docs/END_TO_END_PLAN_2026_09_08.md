@@ -1,4 +1,129 @@
-# End-to-end plan: finish the harness, burn the roster to its honest floor (2026-09-08)
+# End-to-end plan: finish the harness, burn the roster to its honest floor (2026-09-08, v2 after the harness audit)
+
+> **v2 (2026-09-08).** The adversarial harness audit — docs/HARNESS_AUDIT_2026_09_07.md and its
+> evidence base docs/harness-audit-2026-09-07/ (referee.md, ambient-state.md, guards.md,
+> roster-and-floor.md, main-residue.md, strength.md, driver.md) — was verified against source
+> and is MERGED into this plan. Where the audit and v1 disagree, the audit wins unless a
+> correction is stated in §V2 below. Read the audit's §1–§4 and §10 before anything else.
+
+## V2. What the audit changed (verified 2026-09-08 against source; corrections to v1)
+
+Verified TRUE, v1 corrected:
+- **Row order stopped being a contract in batch 115** (audit §2): the old runner set
+  `H2Verify.ORDERED_QUERY`/`SORT_KEYS` per test (`EngineTestExecutor:1656`); batch 115 deleted the
+  writer and left the readers. v1 called the positional compare "already dead" — it was KILLED,
+  silently, in the pass-manufacturing direction (95 passes rest on order leniency, 11 with the
+  referee as the only judge). Decision: RESTORE the ordered compare (wire it from the verdict arm's
+  own order derivation, `AssertVerdicts.orderView`), never "declare unordered".
+- `NullSemantics.FILTER_POS` is WRITE-ONLY (declaration, save, set, restore, a comment). v1's
+  Appendix A listed a reader that does not exist. It is deleted, not relocated.
+- The 128 H2 `Column "tN.X" not found` failures are ONE core renderer bug: derived-column aliases
+  emitted quoted, references to them unquoted; DuckDB's case-insensitive resolution hides it, every
+  other target does not. Plus 11 `union needs at least two branches`. Both are core portability
+  defects, fixed BEFORE the compiler legs.
+- The paginate case is not "counted nondeterminism": `H2Verify:419-429` converts a COMPUTED
+  divergence into a decline when the golden is paginated, and `SqlTextVerdicts` turns a decline
+  into a pass on byte-equal text — a rescue path. Fixed in Phase 0 (referee faults/rescues).
+- `H2Verify.norm` timestamp regex `\.?0+$` splits `00:00:10` from `00:00:10.0` (false divergences).
+- 21 of 121 roster entries carry no diagnostic (`MinimalCorpusTest` prints the first message
+  line only). The order-dependence example v1 named (`relationalResultSourcingOfListExecutionPlan`)
+  fails in BOTH modes — not a leak; §6c's census stays, the example is withdrawn.
+- v1's Appendix B set-difference compared name+message (a drifted message reads as a
+  regression): compare NAMES.
+- The 121 re-categorized by the audit (roster-and-floor.md §4) supersede v1's bucket counts:
+  **REAL-DEFECT 37** (6 referee-confirmed divergences, 8 more dug from blank messages, 5
+  simple-name resolution, 12 compiler/resolver walls, 5 typer gaps, 1 STRING_AGG dialect gap, the
+  md5 digest encoding ×2, a Date-vs-DateTime rendering) — not v1's 7; ENGINE-MACHINERY 36;
+  TEXT-ONLY 29 (9 of them unadjudicated, NOT proven equivalent); OTHER-STORE 10; CODE-AS-DATA 7;
+  UNKNOWN 2. v1's "step 5 ≈ 45" exceeded the measured pool (43); §7 is restated below.
+- PCT reads the two censuses as COUNTERS in the same JVM through 11 print-or-assert members: the
+  refactor is two observer interfaces (~25 LOC) on the existing `AssertListener`/`ExecEnv`
+  injection seam (ambient-state.md's `FactLedger`) — cheaper than v1's option C; ~500 lines of
+  the V7 block are provably dead.
+- The gate has ONE assertion (`pass.size() >= floor`): a count, monotone upward, skipped under
+  `-Drcorpus.test`. Everything else prints. Phase 0 replaces it with a SET pin per lane.
+
+USER DECISION 2026-09-08 (closes v1 §6d): **the H2 lane is KEPT, no matter what.** It is a
+second oracle for everything we do; H2's missing functions are added as JAVA FUNCTIONS WRAPPED IN
+H2 SQL (`H2ExtensionFunctions`, the engine's own H2 extension pattern), and 100% parity with DuckDB
+is not required. Consequences: the H2 lane gets its own committed roster pin (a SET, like DuckDB);
+the two renderer bugs (139 tests) are fixed first; the 283 declared `DialectCapability` gaps are
+worked as legs where a Java-in-H2 function closes them, and named where they are genuine engine
+limits; the lane prints `oracle=same-session` (its golden runs on the same connection — it is a
+portability check, not an independent oracle; the DuckDB lane with the H2 mirror is the
+independent one).
+
+Not adopted as-is: the strength-budget NUMBERS become gates only after OUR harness prints the
+census and reproduces them (Phase 0.7); the semantic-parity suite (`equal(1,1.0)` decided once)
+is its own small leg, not a prerequisite.
+
+## THE ORDER (v2)
+
+**Phase 0 — measurement integrity (first; everything after is judged by it). 3–4 batches.**
+0.1 Roster pinned as a SET per lane against committed roster files (docs/parked), with a
+    CEILING (a pass-count jump must be explained); the pin runs under `-Drcorpus.test` too
+    (scoped subset ⊆ roster). Set-difference by NAME.
+0.2 The failure message printed whole (≥3 lines); setup failure fatal; `INERT_SETUP` counted.
+0.3 Zero-assertion passes EXCLUDED from the count (`Compiler.callsVerdict` descends into user
+    function bodies; a test adjudicating zero verdicts is `SKIPPED (no assertion reachable)`) —
+    the floor drops by ~32 (27 `mayExecuteAlloyTest` shells whose lambda never runs, 5 with
+    asserts commented out, 2 vacuous placeholders) and becomes honest.
+0.4 The dangling-state guard: for every static `ThreadLocal`/`Atomic*`/`LongAdder`/`volatile`
+    across both roots, reads > 0 ⟺ writes > 0 (would have caught batch 115); no guard comment
+    names a symbol absent from the tree (`HarnessDisciplineTest:96`).
+0.5 The ordered compare RESTORED (from `AssertVerdicts.orderView`); `[ord]` firings 0 or in a
+    committed register; the timestamp normalizer fixed; the paginate rescue removed (a
+    computed divergence is a divergence).
+0.6 No uncounted declines (`SqlTextVerdicts:1258-1273`, `:151-160` record a named decline
+    before `textEqual ? ok() : fail`); DECLINED split into modeled GAP vs FAULT (an
+    SQLException on our own seeding, a RuntimeException in the compare, a missing extension
+    function) — FAULT never falls back to text; zero `catch (RuntimeException)` in the referee;
+    the mirror's seed cursor keyed to the ledger entry, not a bare index; every leniency (2-ULP,
+    CSV cell tolerance, `MathContext(10)`, µs flooring, fanout collapse, stitch-key drop) has a
+    counter and a committed ceiling.
+0.7 The strength census printed per lane per test (audit §3's ladder: differential / literal /
+    cardinality / spelling / none) and, once reproduced, pinned monotone: `differential >= 1511`,
+    `textOnly <= 39`, `zeroAssert → 0`, `weakOnly <= 25`.
+0.8 The denominator re-derived (`discovered/excluded/declared` asserted against a corpus scan);
+    `EVICT_SIZE` rows tightened to measured and failing on shrink (751 lines of slack today).
+
+**Phase 1 — the two H2 renderer bugs (139 tests): quoted alias vs unquoted reference in the core
+renderer; the single-branch union.** Then the H2 lane's SET pin. Then H2's missing functions as
+Java-in-H2 SQL functions, family by family (80 today), and the 283 declared gaps triaged: leg or
+named limit.
+
+**Phase 2 — the thread-local sweep** (v1 §1, corrected): 1a modes (NullSemantics.VERBATIM_EQ →
+an argument of the equality lowering; FILTER_POS deleted; EngineTextBoundary/TextGoldens → the
+renderer/lowering instance — note `CastPolicy:50` deletes a cast from the MIR under that flag, so
+it is a LOWERING option, not a render option); 1b ledgers (RawSqlBoundary recorder object,
+ExecutionTrace comment returned with the result); 1c the FactLedger observer interfaces replacing
+`SqlTypeCensus`/`CanonicalDivergence` statics (PCT gate and Channel-B read the ledger; the dead V7
+block deleted); 1d guards.
+
+**Phase 3 — the 37 real defects** (roster-and-floor.md §4 is the list of record; v1 §2's homework
+for exists-with-subtype and the inheritance plan still applies), three fix cycles per leg then a
+named wall. Includes the md5 digest encoding (2), Date-vs-DateTime rendering, STRING_AGG, the 5
+simple-name resolutions, the 5 typer gaps.
+
+**Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
+assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the
+measured pool (ENGINE-MACHINERY 36 + CODE-AS-DATA 7; the engine's OWN compiler/router under test
+never passes and is named as such — size first, smallest witnessed slice). **Phase 6 — item 4 with
+referee.md's 30-site table as the spec** (classes (a) decline rules stay, (b) become SQL,
+(c) become counted leniencies or die), then the graph leg, the residue census (v1 §6b),
+scoped-equals-full (v1 §6c), then single-shot. The semantic-parity suite is a small leg at any
+point after Phase 0.
+
+**DONE (v2) = the audit's fifteen criteria (§10) + v1's §6f seven, merged**; every criterion is
+decided by a test, not a reading. §7's floor is restated from roster-and-floor.md: 121 − 37 real
+− (Phase 4 adjudications) → what remains is ENGINE-MACHINERY (36, named), TEXT decisions (≤29),
+OTHER-STORE (10), CODE-AS-DATA (7 → Phase 5), UNKNOWN (2 → named) ≈ 60–80 named before Phase 5
+and ≈ 35–45 after — restated from the ledger at each phase, never from memory.
+
+---
+
+# v1 (2026-09-08, kept as written; superseded where §V2 says so)
+
 
 This is THE plan. A new session reads this first, then the documents it points to. Nothing
 here is to be re-derived: every number below was measured, every wall was probed, every
