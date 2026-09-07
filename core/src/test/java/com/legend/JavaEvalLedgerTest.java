@@ -574,7 +574,10 @@ class JavaEvalLedgerTest {
             // evaluation.
             // 2045 → 2038 (batch 136): the engine-text funnel's two thread-local
             // scopes became a Lowerer option
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2038),
+            // 2038 → 2029 (batch 137): the raw-SQL ledger's static installs and the
+            // record-only PRIMARY KEY ALTER strings (a write-only meta ledger)
+            // are gone; the trace and the recorder ride the environment
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2029),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

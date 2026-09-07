@@ -11,25 +11,34 @@ package com.legend.exec;
  * the database receives carries the comment, and the last stamp is
  * published (thread-local) for the activity row of the frame that just
  * ran — one fact, recorded where it happened, never invented at the row.
+ * The stamp is state of the execution ENVIRONMENT (batch 137), not the
+ * thread.
  */
 public final class ExecutionTrace {
-    private ExecutionTrace() {
-    }
 
-    private static final ThreadLocal<String> LAST = new ThreadLocal<>();
+    /** The comment of the most recent stamped execution on THIS trace
+     * (null before any) — per-environment state since batch 137 (Phase
+     * 2b), a thread-local before. */
+    private @com.legend.Nullable String last;
 
     /** The statement text as the database receives it: the trace comment
-     * line, then the SQL. Publishes the comment as the last stamp. */
-    public static String stamp(String sql) {
-        String comment = "-- \"executionTraceID\" : \""
-                + java.util.UUID.randomUUID() + "\"";
-        LAST.set(comment);
+     * line, then the SQL. Publishes the comment as this trace's last stamp. */
+    public String stamp(String sql) {
+        String comment = comment();
+        last = comment;
         return comment + "\n" + sql;
     }
 
-    /** The comment of the most recent stamped execution on this thread
-     * (null before any). */
-    public static @com.legend.Nullable String lastComment() {
-        return LAST.get();
+    public @com.legend.Nullable String lastComment() {
+        return last;
+    }
+
+    /** A stamped statement whose comment nobody will read (no trace given). */
+    public static String stampOnly(String sql) {
+        return comment() + "\n" + sql;
+    }
+
+    private static String comment() {
+        return "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"";
     }
 }

@@ -32,111 +32,63 @@ public final class RawSqlBoundary {
     private RawSqlBoundary() {
     }
 
-    /** RAW-statement recorder (#67 H2 advisory backend): every corpus
-     * statement passing this boundary is H2-flavored BY DEFINITION, so
-     * the recorded stream replays verbatim on a real H2 to seed the
-     * advisory second target. Installed per test by the harness; null =
-     * off. */
     /** One EXECUTED raw statement: the corpus's own H2 text and whether
      * it produced a result set (a query) — the executor's fact, never a
      * reading of the text. */
     public record Raw(String sql, boolean query) {
     }
 
-    private static final ThreadLocal<List<Raw>> RECORDER =
-            new ThreadLocal<>();
+    /** THE RAW-SQL LEDGER (Phase 2b, batch 137): an OBJECT the caller
+     * creates per execution and hands through {@code ExecuteOptions}; the
+     * executor appends every raw statement that EXECUTED (recorded after
+     * the fact, with its kind — a failed statement is never recorded, so
+     * the ledger mirrors executed reality by construction); the referee
+     * reads it from the caller that owns it. Until batch 137 this was a
+     * thread-local the harness installed and the referee read back — the
+     * last of the ledger slots on the thread. (The metadata-only side
+     * channel that rode beside it had no reader and is gone.) */
+    public static final class Recorder {
+        private final List<Raw> entries = new java.util.ArrayList<>();
 
-    public static void record(List<Raw> sink) {
-        if (sink == null) {
-            RECORDER.remove();
-            META_RECORDER.remove();
-        } else {
-            RECORDER.set(sink);
-            META_RECORDER.set(new java.util.ArrayList<>());
+        public Recorder() {
         }
-    }
 
-    public static @com.legend.Nullable List<Raw> recording() {
-        return RECORDER.get();
-    }
-
-    /** The recorded statements' text, in order — the referee's replay
-     * stream (null when nothing records). */
-    public static @com.legend.Nullable List<String> recordedSql() {
-        List<Raw> sink = RECORDER.get();
-        return sink == null ? null : sink.stream().map(Raw::sql).toList();
-    }
-
-    /** The ledger's NON-QUERY statements only — the referee's seeds
-     * (Phase 0.6). A query never seeds, and the session's seed prefix is
-     * this subsequence, append-only across the session's tests: the
-     * mirror's cursor indexes it stably (a bare index into the full
-     * recording desynced when a test's queries left the next test's
-     * prefix — audit §4.10). */
-    public static @com.legend.Nullable List<String> recordedSeeds() {
-        List<Raw> sink = RECORDER.get();
-        return sink == null ? null
-                : sink.stream().filter(r -> !r.query()).map(Raw::sql).toList();
-    }
-
-    /** A raw statement that EXECUTED on the session: recorded after the
-     * fact, with its kind — a statement that failed is never recorded, so
-     * the ledger mirrors executed reality by construction. */
-    public static void recordExecuted(String sql, boolean query) {
-        List<Raw> sink = RECORDER.get();
-        if (sink != null) {
-            sink.add(new Raw(sql, query));
+        /** A ledger that starts with a PREFIX (the session's seeds so far). */
+        public Recorder(List<Raw> prefix) {
+            entries.addAll(prefix);
         }
-    }
 
-    /** Ledger position for a transactional execution attempt: statements
-     * recorded during
-     * a rolled-back attempt leave the ledger with the rollback, so the
-     * recording keeps matching executed (committed) reality. */
-    public record LedgerMark(int sql, int meta) {
-    }
-
-    public static LedgerMark mark() {
-        List<Raw> sink = RECORDER.get();
-        List<String> meta = META_RECORDER.get();
-        return new LedgerMark(sink == null ? -1 : sink.size(),
-                meta == null ? -1 : meta.size());
-    }
-
-    public static void truncateTo(LedgerMark m) {
-        List<Raw> sink = RECORDER.get();
-        if (sink != null && m.sql() >= 0) {
-            while (sink.size() > m.sql()) {
-                sink.remove(sink.size() - 1);
-            }
+        public void recordExecuted(String sql, boolean query) {
+            entries.add(new Raw(sql, query));
         }
-        List<String> meta = META_RECORDER.get();
-        if (meta != null && m.meta() >= 0) {
-            while (meta.size() > m.meta()) {
-                meta.remove(meta.size() - 1);
+
+        public List<Raw> entries() {
+            return java.util.Collections.unmodifiableList(entries);
+        }
+
+        /** The NON-QUERY statements only — the referee's seeds: a query
+         * never seeds, and this subsequence is append-only across a
+         * session's tests, so the mirror's cursor indexes it stably. */
+        public List<String> seeds() {
+            return entries.stream().filter(r -> !r.query()).map(Raw::sql).toList();
+        }
+
+        /** Ledger position for a transactional attempt: entries and seeds. */
+        public record Mark(int entries, int seeds) {
+        }
+
+        public Mark mark() {
+            return new Mark(entries.size(), seeds().size());
+        }
+
+        /** Statements recorded during a rolled-back attempt leave with it. */
+        public void truncateTo(Mark m) {
+            while (entries.size() > m.entries()) {
+                entries.remove(entries.size() - 1);
             }
         }
     }
 
-    /** METADATA-ONLY side channel: engine DDL semantics DuckDB
-     * deliberately skips (PRIMARY KEY constraints, schema creates) that
-     * ONLY the fetchDb* metadata replay consumes. Kept OUT of the main
-     * recording — the H2Verify row-replay stream must stay exactly the
-     * corpus's own statements (a synthetic ALTER failing there would
-     * downgrade row-verified tests to advisory). */
-    private static final ThreadLocal<List<String>> META_RECORDER =
-            new ThreadLocal<>();
-
-    public static void recordMeta(String sql) {
-        List<String> sink = META_RECORDER.get();
-        if (sink != null) {
-            sink.add(sql);
-        }
-    }
-
-    public static @com.legend.Nullable List<String> metaRecording() {
-        return META_RECORDER.get();
-    }
 
     private static final Pattern CREATE_HEAD = Pattern.compile(
             "(?i)^\\s*create\\s+table\\s+[\\w.\"]+\\s*\\(");

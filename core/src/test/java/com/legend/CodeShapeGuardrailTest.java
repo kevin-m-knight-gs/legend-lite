@@ -120,6 +120,10 @@ class CodeShapeGuardrailTest {
             // the two mapping-definition sites) and the engine-text
             // option (builder-style, set once before lower())
             "Lowerer.verbatimEquality", "Lowerer.engineText",
+            // Phase 2b (batch 137): the execution-trace stamp is state of the
+            // execution ENVIRONMENT (one ExecutionTrace per ExecEnv), a
+            // thread-local before
+            "ExecutionTrace.last",
             // builder-flag, same lifecycle as engineExistsJoinForm: set
             // once by the driver before lower(), read during the lowering
             "Lowerer.streamingGraphRoot",

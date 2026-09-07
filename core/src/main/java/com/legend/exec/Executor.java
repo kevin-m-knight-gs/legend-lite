@@ -54,8 +54,9 @@ public final class Executor {
 
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           Connection connection,
-                                          com.legend.sql.dialect.SqlDialect dialect) {
-        return execute(sql, plan, rootType, ResultShape.of(rootType), connection, dialect);
+                                          com.legend.sql.dialect.SqlDialect dialect,
+                                          @com.legend.Nullable ExecutionTrace trace) {
+        return execute(sql, plan, rootType, ResultShape.of(rootType), connection, dialect, trace);
     }
 
     /**
@@ -66,8 +67,9 @@ public final class Executor {
      */
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
-                                          com.legend.sql.dialect.SqlDialect dialect) {
-        return execute(sql, plan, rootType, shape, connection, dialect, null);
+                                          com.legend.sql.dialect.SqlDialect dialect,
+                                          @com.legend.Nullable ExecutionTrace trace) {
+        return execute(sql, plan, rootType, shape, connection, dialect, null, trace);
     }
 
     /** V11 rider entry: when {@code rider} is a wrapped canon carrier,
@@ -77,13 +79,16 @@ public final class Executor {
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable CanonRider rider) {
+                                          @com.legend.Nullable CanonRider rider,
+                                          @com.legend.Nullable ExecutionTrace trace) {
+        // trace (Phase 2b, batch 137): the caller's execution trace — the
+        // stamp this execution publishes lands there, not on the thread.
         // TYPED-IR Slice 1: the label-lie census — every executed plan's
         // declared labels vs the bottom-up judgment (measurement only)
         SqlTypeCensus.probe(plan);
         try {
             return execute0(sql, plan, rootType, shape, connection, dialect,
-                    rider);
+                    rider, trace);
         } catch (SQLException e) {
             // B7 (RaisedErrors) + THE SEAM: a message WE raised in SQL
             // surfaces clean of the driver's transport envelope — HERE,
@@ -100,7 +105,8 @@ public final class Executor {
     private static ExecutionResult execute0(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable CanonRider rider)
+                                          @com.legend.Nullable CanonRider rider,
+                                          @com.legend.Nullable ExecutionTrace trace)
             throws SQLException {
         // a TDSNull-TYPED root ([^TDSNull(), ^TDSNull()] — the grid
         // convention's null-cell VALUE, whose scalar form IS the SQL NULL):
@@ -120,7 +126,7 @@ public final class Executor {
         // errors were unreadable); prepare() surfaces the actual message
         try {
             return executePrepared(connection, sql, shape, plan, rootType,
-                    dialect, anyRoot, variantRoot, rider);
+                    dialect, anyRoot, variantRoot, rider, trace);
         } catch (SQLException e) {
             // error-path echo under the same diagnostic flag: a sweep's
             // failing statement is otherwise invisible (pre-exec dump
@@ -230,12 +236,14 @@ public final class Executor {
     private static ExecutionResult executePrepared(Connection connection,
             String sql, ResultShape shape, SqlQuery plan, ExprType rootType,
             com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
-            boolean variantRoot, @com.legend.Nullable CanonRider rider)
+            boolean variantRoot, @com.legend.Nullable CanonRider rider,
+            @com.legend.Nullable ExecutionTrace trace)
             throws SQLException {
         // the engine's execution-trace comment rides the statement the
-        // database receives (ExecutionTrace, batch 83)
+        // database receives (ExecutionTrace, batch 83); the stamp lands on
+        // the caller's trace (batch 137)
         try (java.sql.PreparedStatement st = connection.prepareStatement(
-                ExecutionTrace.stamp(sql));
+                trace != null ? trace.stamp(sql) : ExecutionTrace.stampOnly(sql));
              ResultSet rs = st.executeQuery()) {
             // CONTRACT PROGRAM: the wire census — label vs the result's
             // own metadata (rides with the data; no extra round trip).

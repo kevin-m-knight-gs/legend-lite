@@ -65,7 +65,8 @@ class SqlTextRatchetTest {
             new LinkedHashMap<>();
 
     static {
-        REGISTER.put("StatementExecutor.java", 2);
+        // (StatementExecutor.java: its two sites were the record-only PRIMARY KEY
+        // ALTER strings of a write-only meta ledger — deleted in batch 137)
         // batch 59: the LINEAGE REFEREE — one query that turns a
         // scanRelations tree PRINT (the golden literal, and the
         // database's own print of our LineageRows) into rows

@@ -33,10 +33,14 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             java.util.concurrent.atomic.LongAdder> OUTCOMES = new java.util.concurrent.ConcurrentHashMap<>();
 
 
-    /** The registered SPI implementation (run-wide, like the mirror). */
-    public static final ReplayOracle INSTANCE = new ReplayOracle();
+    /** The raw-SQL ledger of the execution this referee serves (Phase 2b):
+     * the harness creates it per test, hands it to the executor through
+     * {@code ExecuteOptions}, and to this referee — the seeds the goldens
+     * replay over. One referee per test; the mirror stays run-wide. */
+    private final com.legend.sql.dialect.RawSqlBoundary.Recorder recorder;
 
-    private ReplayOracle() {
+    public ReplayOracle(com.legend.sql.dialect.RawSqlBoundary.Recorder recorder) {
+        this.recorder = recorder;
     }
 
     private static final java.util.concurrent.atomic.AtomicInteger COUNTER =
@@ -109,12 +113,12 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     // =================================================================
 
     /** Open the attempt: transaction on, world position marked. */
-    public static com.legend.sql.dialect.RawSqlBoundary.LedgerMark
+    public com.legend.sql.dialect.RawSqlBoundary.Recorder.Mark
             beginAttempt(Connection conn) throws SQLException {
         conn.setAutoCommit(false);
         ATTEMPT_GOLDENS.clear();
         ATTEMPT_SQL_GOLDENS.clear();
-        return com.legend.sql.dialect.RawSqlBoundary.mark();
+        return recorder.mark();
     }
 
     private static String flat(String sql) {
@@ -195,7 +199,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         null);
             }
             String d = tdgChainedReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
+                    recorder.seeds(),
                     ancestors, goldenSql,
                     H2Verify.transcriptRows(f.columns(), f.rows()));
             return d == null
@@ -224,15 +228,15 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * a detach happened (the caller censuses it). Throws when the
      * session rollback itself fails — world state unknown, the caller
      * must stay LOUD. */
-    public static boolean rollbackAttempt(Connection conn,
-            com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark)
+    public boolean rollbackAttempt(Connection conn,
+            com.legend.sql.dialect.RawSqlBoundary.Recorder.Mark mark)
             throws SQLException {
         conn.rollback();
         conn.setAutoCommit(true);
-        com.legend.sql.dialect.RawSqlBoundary.truncateTo(mark);
+        recorder.truncateTo(mark);
         MirrorState mirror = MIRROR;
-        if (mirror != null && mark.sql() >= 0
-                && mirror.applied > mark.sql()) {
+        // the mirror's cursor and the mark are both in SEED space (batch 132)
+        if (mirror != null && mirror.applied > mark.seeds()) {
             MIRROR = null;
             return true;
         }
@@ -838,7 +842,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         };
         try {
             String r = verifyAuto(session,
-                    com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
+                    recorder.seeds(),
                     extraSeeds, goldenSql, ours, enumDecode, enumProp, facts);
             return r == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
@@ -872,7 +876,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             java.sql.Connection session, String goldenSql, String ourSql) {
         try {
             String d = tdgSqlReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
+                    recorder.seeds(),
                     goldenSql, session, ourSql);
             return d == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
@@ -891,7 +895,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     /** One statement on the seeded oracle (DDL for a replay's allocation
      * tables — same session and ledger discipline as {@link #rows}). */
     private void execute(String sql) throws SQLException {
-        onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
+        onOracle(recorder.seeds(),
                 VERIFY_SESSION, st -> {
                     st.execute(sql);
                     return Boolean.TRUE;
@@ -901,7 +905,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     @Override
     public com.legend.exec.SqlReplayOracle.OracleRows rows(String sql)
             throws SQLException {
-        return onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
+        return onOracle(recorder.seeds(),
                 VERIFY_SESSION, st -> {
                     try (java.sql.ResultSet rs = st.executeQuery(sql)) {
                         var md = rs.getMetaData();

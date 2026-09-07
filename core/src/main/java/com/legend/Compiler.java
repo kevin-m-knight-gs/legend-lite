@@ -496,7 +496,7 @@ public final class Compiler {
                         "graph results have no CSV wire");
             }
             var r = com.legend.exec.Executor.execute(dialect.render(l.plan()),
-                    l.plan(), l.root().info(), shape, connection, dialect);
+                    l.plan(), l.root().info(), shape, connection, dialect, null);
             out.write(r instanceof com.legend.exec.ExecutionResult.Graph g
                     && g.json() != null ? g.json() : "[]");
             return java.util.List.of();

@@ -89,6 +89,15 @@ final class StatementExecutor {
      * failure sink is GONE — a failed raw statement THROWS (zero live
      * sink firings on both full sweeps; the corpus runner records
      * failures per SETUP UNIT and keeps its emptiness guard). */
+    /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
+     * handed one through the options; the executor never keeps one. */
+    private static void record(ExecEnv env, String sql, boolean query) {
+        var r = env.options().recorder();
+        if (r != null) {
+            r.recordExecuted(sql, query);
+        }
+    }
+
     record ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
@@ -101,7 +110,8 @@ final class StatementExecutor {
                     planRows,
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
             com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext frame,
-            ExecuteOptions options) {
+            ExecuteOptions options,
+            com.legend.exec.ExecutionTrace trace) {
         /** Without the protocol body (a handle's rows built off the typed
          * tree alone). */
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -116,27 +126,28 @@ final class StatementExecutor {
                         planRows) {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
                     tableReplace, instanceIds, assertListener, replayOracle, planRows,
-                    java.util.List.of(), null, ExecuteOptions.NONE);
+                    java.util.List.of(), null, ExecuteOptions.NONE,
+                    new com.legend.exec.ExecutionTrace());
         }
         /** The caller's execute options (the PCT wire render). */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame, o);
+                    planRows, protocolBody, frame, o, trace);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, f, options);
+                    planRows, protocolBody, f, options, trace);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame, options);
+                    planRows, protocolBody, frame, options, trace);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.Nullable AssertListener l,
                 com.legend.exec.@com.legend.Nullable SqlReplayOracle o) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options);
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
             return frame == null ? com.legend.compiler.spec.typed.ExecutionContext.PostProcessors.NONE
@@ -152,7 +163,7 @@ final class StatementExecutor {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows,
-                    protocolBody, frame, options);
+                    protocolBody, frame, options, trace);
         }
 
         /** The query's PROTOCOL statements (the source-shaped lets a
@@ -162,7 +173,7 @@ final class StatementExecutor {
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds,
-                    assertListener, replayOracle, planRows, body, frame, options);
+                    assertListener, replayOracle, planRows, body, frame, options, trace);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -1477,7 +1488,7 @@ final class StatementExecutor {
             PlanAllocations.registerActivityRows(ec,
                     PlanAllocations.activitySql(ec, envelope, letPrefix, specs, env),
                     AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs),
-                    lqRun == null ? null : com.legend.exec.ExecutionTrace.lastComment(), env);
+                    lqRun == null ? null : env.trace().lastComment(), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
@@ -1525,7 +1536,7 @@ final class StatementExecutor {
         PlanAllocations.registerActivityRows(ec,
                 PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
                 AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs),
-                run == null ? null : com.legend.exec.ExecutionTrace.lastComment(), env);
+                run == null ? null : env.trace().lastComment(), env);
         return new ExecFrame(assembled.chain(),
                 assembled.relationRooted(), run, env.tableReplace(), ec);
     }
@@ -1941,7 +1952,7 @@ final class StatementExecutor {
         for (String blob : setups) {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
                 boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
-                com.legend.sql.dialect.RawSqlBoundary.recordExecuted(stmt, query);
+                record(env, stmt, query);
             }
         }
     }
@@ -2403,11 +2414,11 @@ final class StatementExecutor {
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         if (rider == null) {
             return Executor.execute(dialect.render(plan), plan, shapeInfo,
-                    shape, env.connection(), dialect, null);
+                    shape, env.connection(), dialect, null, env.trace());
         }
         try {
             return Executor.execute(dialect.render(plan), plan, shapeInfo,
-                    shape, env.connection(), dialect, rider);
+                    shape, env.connection(), dialect, rider, env.trace());
         } catch (RuntimeException e) {
             // THE DECLINE TUNNEL, V11 form (DataError included — the
             // seam made the boundary translation a RuntimeException) (prepCanon/runCanon caught
@@ -2447,7 +2458,7 @@ final class StatementExecutor {
                         return Executor.execute(
                                 dialect.render(w2.plan()), w2.plan(),
                                 shapeInfo, shape, env.connection(), dialect,
-                                rider);
+                                rider, env.trace());
                     }
                 } catch (RuntimeException e15) {
                     rider.rows().clear();
@@ -2463,7 +2474,7 @@ final class StatementExecutor {
                     throw e;
                 }
                 return Executor.execute(dialect.render(bare), bare,
-                        shapeInfo, shape, env.connection(), dialect, null);
+                        shapeInfo, shape, env.connection(), dialect, null, env.trace());
             } catch (RuntimeException e2) {
                 // the BARE side itself cannot execute: an unSQLable
                 // literal (NUL-bearing string — DuckDB VARCHAR is
@@ -2496,7 +2507,7 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.ExprType.one(
                         com.legend.compiler.element.type.Type.Primitive
                                 .STRING),
-                com.legend.exec.ResultShape.SCALAR, connection, dialect);
+                com.legend.exec.ResultShape.SCALAR, connection, dialect, null);   // PCT wire render: no activity reads its trace
         return new ExecutionResult.TdsText(
                 String.valueOf(((ExecutionResult.Scalar) text).value()),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
@@ -2556,7 +2567,7 @@ final class StatementExecutor {
                 // recorded AFTER it executes, with its kind: the ledger
                 // mirrors executed reality by construction
                 boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
-                com.legend.sql.dialect.RawSqlBoundary.recordExecuted(stmt, query);
+                record(env, stmt, query);
             } catch (com.legend.error.DataError e) {
                 throw e;
             }
@@ -2586,8 +2597,7 @@ final class StatementExecutor {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
         Executor.executeRaw(env.connection(), schemaDdl);
-        com.legend.sql.dialect.RawSqlBoundary.recordExecuted(schemaDdl, false);
-        com.legend.sql.dialect.RawSqlBoundary.recordMeta(schemaDdl);
+        record(env, schemaDdl, false);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
 
@@ -2638,30 +2648,12 @@ final class StatementExecutor {
         // session (Phase 0.6): the H2 lane's fresh replays inserted into
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
-        com.legend.sql.dialect.RawSqlBoundary.recordExecuted(drop, false);
-        com.legend.sql.dialect.RawSqlBoundary.recordExecuted(
+        record(env, drop, false);
+        record(env, 
                 Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true), false);
-        // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
-        // constraints; our DuckDB DDL deliberately omits them (milestoned
-        // re-seeds) — the H2 second target's stream keeps the engine
-        // semantics via a record-only ALTER (fetchDbPrimaryKeysMetaData)
-        java.util.List<String> pks = def.columns().stream()
-                .filter(com.legend.model.DatabaseDefinition
-                        .ColumnDefinition::primaryKey)
-                .map(com.legend.model.DatabaseDefinition
-                        .ColumnDefinition::name)
-                .toList();
-        if (!pks.isEmpty()) {
-            String qn = "default".equals(schema) ? table
-                    : schema + "." + table;
-            for (String pk : pks) {
-                // H2 2.x requires PK columns NOT NULL before the ALTER
-                com.legend.sql.dialect.RawSqlBoundary.recordMeta("Alter table "
-                        + qn + " alter column " + pk + " set not null");
-            }
-            com.legend.sql.dialect.RawSqlBoundary.recordMeta("Alter table " + qn
-                    + " add primary key (" + String.join(", ", pks) + ")");
-        }
+        // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
+        // a record-only ALTER ledger carried them for a metadata replay that
+        // no longer exists — deleted with the meta ledger, batch 137)
         return new ExecutionResult.Scalar(true, call.info().type());
     }
 

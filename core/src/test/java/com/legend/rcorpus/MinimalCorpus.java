@@ -492,7 +492,8 @@ public final class MinimalCorpus {
         return java.util.Collections.unmodifiableSet(inertSetups);
     }
 
-    private List<String> runSetups(TestCase t, Connection conn, boolean shared) {
+    private List<String> runSetups(TestCase t, Connection conn, boolean shared,
+            com.legend.ExecuteOptions options) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
             if (shared && setupsDone.contains(fqn)) {
@@ -504,7 +505,7 @@ public final class MinimalCorpus {
                 continue;
             }
             try {
-                Compiler.executeResolved(call, ctx, RUNTIME, conn);
+                Compiler.executeResolved(call, ctx, RUNTIME, conn, null, null, options);
                 if (shared) {
                     setupsDone.add(fqn);
                 }
@@ -551,11 +552,14 @@ public final class MinimalCorpus {
         boolean shared = !facts.seedsInlineCsv();
         com.legend.harness.ReplayOracle.mirrorSuspend(!shared);
         Connection conn = shared ? sessionConn : openSession();
-        List<com.legend.sql.dialect.RawSqlBoundary.Raw> recording = new ArrayList<>();
-        if (shared) {
-            recording.addAll(seedLedger);
-        }
-        com.legend.sql.dialect.RawSqlBoundary.record(recording);
+        // the raw-SQL ledger of THIS test (Phase 2b): the session's seed
+        // prefix, then everything the setups and the body execute; the
+        // executor appends through the options, the referee reads it
+        com.legend.sql.dialect.RawSqlBoundary.Recorder recorder =
+                new com.legend.sql.dialect.RawSqlBoundary.Recorder(
+                        shared ? seedLedger : List.of());
+        com.legend.ExecuteOptions options = com.legend.ExecuteOptions.recording(recorder);
+        com.legend.harness.ReplayOracle oracle = new com.legend.harness.ReplayOracle(recorder);
         com.legend.exec.TestResources.register(path -> {
             try {
                 return Files.readString(Corpus.RELATIONAL.getParent().getParent()
@@ -570,17 +574,17 @@ public final class MinimalCorpus {
             // as a test case of its own (PureTestBuilder.buildSuite), so a
             // failure there is scored, never tolerated; a body judged on a
             // half-seeded session is no verdict
-            List<String> setupFailures = runSetups(t, conn, shared);
+            List<String> setupFailures = runSetups(t, conn, shared, options);
             if (!setupFailures.isEmpty()) {
                 return new Result(t.fqn(), Status.FAIL, 0,
                         "setup failed: " + String.join("; ", setupFailures));
             }
-            return judge(t, resolved, facts, conn);
+            return judge(t, resolved, facts, conn, options, oracle);
         } finally {
             com.legend.harness.ReplayOracle.mirrorSuspend(false);
             if (shared) {
                 seedLedger.clear();
-                for (var stmt : recording) {
+                for (var stmt : recorder.entries()) {
                     if (!stmt.query()) {
                         seedLedger.add(stmt);
                     }
@@ -596,7 +600,9 @@ public final class MinimalCorpus {
     }
 
     private Result judge(TestCase t, ValueSpecification resolved,
-            com.legend.ProgramFacts facts, Connection conn) throws SQLException {
+            com.legend.ProgramFacts facts, Connection conn,
+            com.legend.ExecuteOptions options, com.legend.harness.ReplayOracle oracle)
+            throws SQLException {
         boolean effectful = facts.effects();
         List<Boolean> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();
@@ -608,9 +614,9 @@ public final class MinimalCorpus {
         Set<Integer> declinedAsserts = new LinkedHashSet<>();
         Set<Integer> refereedAsserts = new LinkedHashSet<>();
         boolean[] refereeMatched = {false};
-        com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark = null;
+        com.legend.sql.dialect.RawSqlBoundary.Recorder.Mark mark = null;
         if (effectful) {
-            mark = com.legend.harness.ReplayOracle.beginAttempt(conn);
+            mark = oracle.beginAttempt(conn);
         }
         boolean committed = false;
         try {
@@ -644,7 +650,7 @@ public final class MinimalCorpus {
                                 }
                             }
                         },
-                        com.legend.harness.ReplayOracle.INSTANCE);
+                        oracle, options);
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();
@@ -702,7 +708,7 @@ public final class MinimalCorpus {
             return new Result(t.fqn(), Status.FAIL, verdicts.size(), failure);
         } finally {
             if (effectful && !committed) {
-                com.legend.harness.ReplayOracle.rollbackAttempt(conn,
+                oracle.rollbackAttempt(conn,
                         java.util.Objects.requireNonNull(mark, "mark"));
             }
         }
