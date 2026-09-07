@@ -103,14 +103,56 @@ jobs:
     name: build (${{ matrix.os }}, JDK ${{ matrix.java }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    # Both JVMs in this build take the JVM default max heap of 25% of RAM
-    # when left alone: ~4g on the 16g ubuntu/windows runners, ~1.75g on the
-    # 7g macos ones. That is why compile + install OOM'd on macOS and only
-    # macOS. This covers the maven JVM (the shade plugin runs in it); the
-    # FORKED javac that carries ErrorProne + NullAway cannot be reached from
-    # here at all and takes its heap from <maxmem> in core/pom.xml.
+    # THREE JVMs run in this build, and each takes its own independent default
+    # max heap of 25% of RAM when left alone: ~4g on the 16g ubuntu/windows
+    # runners, ~1.75g on the 7g macos ones. That arithmetic - not anything
+    # macOS-specific in the code - is the whole of why compile + install and
+    # the pct suites OOM'd on macOS and only macOS.
+    #
+    # Each of the three needs a DIFFERENT lever, and only one of them is
+    # MAVEN_OPTS:
+    #
+    #   1. THE MAVEN JVM - MAVEN_OPTS. The shade plugin runs in it.
+    #   2. THE FORKED javac carrying ErrorProne + NullAway (core's
+    #      default-compile sets <fork>true</fork>). MAVEN_OPTS cannot reach a
+    #      forked compiler at all; the compiler plugin turns its `maxmem` into
+    #      the fork's -J-Xmx, so it is set on the compile step below as
+    #      -Dmaven.compiler.maxmem. Spell it 2048m and NOT 2g: plexus-compiler
+    #      accepts digits with an optional m/M and DROPS anything else after a
+    #      single [INFO] line - "Invalid value for maxmem '2g'. Ignoring this
+    #      option." - which leaves the fork on the runner default while the
+    #      flag reads as applied. Measured both ways on this tree: at 32m the
+    #      compile dies with OutOfMemoryError (so the value does reach the
+    #      fork), and at 32k it SUCCEEDS (a real -J-Xmx32k could not have
+    #      started a JVM, so a rejected value is dropped, not passed through).
+    #      This one is insurance, not the cure - MAVEN_OPTS is what stopped
+    #      the macOS compile OOM. It buys a fork heap that is the same on all
+    #      six legs instead of one derived from the runner's RAM.
+    #   3. THE SUREFIRE FORK, one per suite step. Neither MAVEN_OPTS nor
+    #      -DargLine reaches this one: the root pom pins an explicit <argLine>
+    #      (-Duser.timezone=GMT, load-bearing - it is the engine's test clock),
+    #      and an explicit <argLine> ELEMENT makes surefire ignore the argLine
+    #      PROPERTY outright, silently. JAVA_TOOL_OPTIONS is the lever left,
+    #      because the JVM honours it wherever it is launched from. Measured:
+    #      the forked test JVM prints its own "Picked up JAVA_TOOL_OPTIONS"
+    #      between surefire's T E S T S banner and the first Running line, and
+    #      surefire raises no corrupted-channel warning - the notice goes to
+    #      stderr, while surefire's event channel is stdout.
+    #
+    # JAVA_TOOL_OPTIONS is PREPENDED to every JVM's options, so it sets a floor
+    # and never overrides one: the timezone pin survives untouched, and the
+    # forked javac still takes the 2048m named on its own command line. Its one
+    # cost is a "Picked up JAVA_TOOL_OPTIONS" line on stderr per JVM.
+    #
+    # The numbers are FIXED rather than derived from the runner, so all six
+    # legs are sized identically and a green means the same thing on each:
+    # 3g sits above the 1.66g measured live set of the heaviest suite and below
+    # the ~4g the big runners would have defaulted to, so this LOWERS the
+    # ceiling on ubuntu/windows as much as it raises it on macos. Sizing only
+    # the small runner would leave macos as the one leg anyone had measured.
     env:
       MAVEN_OPTS: -Xmx3g
+      JAVA_TOOL_OPTIONS: -Xmx3g
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +174,7 @@ jobs:
       # in any module surfaces here, before any suite has run.
       - name: compile + install (null gate, guardrails, shade)
         id: build
-        run: mvn -B -e clean install -DskipTests
+        run: mvn -B -e clean install -DskipTests -Dmaven.compiler.maxmem=2048m
 
       - name: core suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -142,9 +184,16 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: mvn -B -e -pl nlq test
 
+      # -DreuseForks=false: each PCT suite class stands up a fully realised
+      # Pure repository, and under the default reuseForks=true they all pile up
+      # in ONE fork - the live set climbs suite by suite and the last ones die.
+      # A fork per test class pays for a re-initialisation each time and buys a
+      # flat ceiling instead of a rising one. It is not an alternative to the
+      # 3g above but the other half of the same fix: measured, a fresh fork per
+      # class at a 1500m heap still failed all five suites.
       - name: pct suites
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: mvn -B -e -pl pct test
+        run: mvn -B -e -pl pct test -DreuseForks=false
 
       - name: parser-equivalence suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
