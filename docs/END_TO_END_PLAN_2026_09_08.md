@@ -87,10 +87,7 @@ is its own small leg, not a prerequisite.
 0.8 The denominator re-derived (`discovered/excluded/declared` asserted against a corpus scan);
     `EVICT_SIZE` rows tightened to measured and failing on shrink (751 lines of slack today).
 
-**Phase 1 — the two H2 renderer bugs (139 tests): quoted alias vs unquoted reference in the core
-renderer; the single-branch union.** Then the H2 lane's SET pin. Then H2's missing functions as
-Java-in-H2 SQL functions, family by family (80 today), and the 283 declared gaps triaged: leg or
-named limit.
+**Phase 1 — the two H2 renderer bugs. DONE in batch 135 (2026-09-08): the `SourceSpelling` pass (a reference spells as its source declared the name) and the one-branch unions — H2 1847 → 1961 pass, 128 `Column not found` → 1, 11 `union` → 0. USER RULING 2026-09-08: no more time on H2 beyond this quick win — the missing functions (STRING_SPLIT / REGEXP_EXTRACT as Java-in-H2), the tree-print verdict SQL per dialect and the declared list/variant gaps move to the OPTIONAL PHASE 7 below.**
 
 **Phase 2 — the thread-local sweep** (v1 §1, corrected): 1a modes (NullSemantics.VERBATIM_EQ →
 an argument of the equality lowering; FILTER_POS deleted; EngineTextBoundary/TextGoldens → the
@@ -113,6 +110,8 @@ referee.md's 30-site table as the spec** (classes (a) decline rules stay, (b) be
 (c) become counted leniencies or die), then the graph leg, the residue census (v1 §6b),
 scoped-equals-full (v1 §6c), then single-shot. The semantic-parity suite is a small leg at any
 point after Phase 0.
+
+**Phase 7 (OPTIONAL, user 2026-09-08) — H2 as compatible as DuckDB:** the H2 fail roster at that time is the input: Java-in-H2 functions for the H2-missing spellings (STRING_SPLIT 49, REGEXP_EXTRACT 26 today; the dialect's `sessionSetup` hook is the product-side seam — supersedes the July "never the CREATE ALIAS route" note in `Spellings`), the tree-print verdict SQL (`LineageTreeVerdicts.TREE_ROWS`, hand-written DuckDB text) built through the IR so every dialect renders it, the list/variant carrier `DialectCapability` gaps (variant 145, LIST_MIN 46, UNNEST 32, LIST_GET 29) as emulation legs or named limits. Not in the floor arithmetic.
 
 **DONE (v2) = the audit's fifteen criteria (§10) + v1's §6f seven, merged**; every criterion is
 decided by a test, not a reading. §7's floor is restated from roster-and-floor.md: 121 − 37 real
@@ -161,7 +160,7 @@ Standing rules that bind every step (user rulings, in force):
 | Measure | Value |
 |---|---|
 | DuckDB lane (gate 4) | batch 132 (Phase 0.6): **2421 pass / 140 fail / 14 SKIPPED** of 2575 (+1 real defect the fixed referee surfaced: splitPart missing part, ledger §8); batch 131 (Phase 0.5b): 2422 / 139 / 14 (the page-membership verdict brought batch 130's 9 back); batch 130: 2413 / 148 / 14; batch 128 (Phase 0.3): 2422 / 139 / 14, pinned as SETS (`rcorpus/duckdb-fail-roster.txt`, `duckdb-skipped-roster.txt`). Was 2454 / 121 through batch 127: the −32 is the audit's zero-assertion census — 14 skipped + 18 named FAILs (`verdict-gap:guard-assert-in-expression-helper`, ledger §6). |
-| H2 lane (gate 5) | batch 132: **1847 pass / 714 fail / 14 SKIPPED** (the seed-ledger fault fixed: +13); batch 131: 1834 / 727 / 14; batch 130: 1825 / 736 / 14 (sets: `h2-fail-roster.txt`, `h2-skipped-roster.txt`); was 1866 / 709 |
+| H2 lane (gate 5) | batch 135: **1961 pass / 600 fail / 14 SKIPPED** (the renderer quick win; no further H2 legs until Phase 7); batch 132: 1847 / 714 / 14 (the seed-ledger fault fixed: +13); batch 131: 1834 / 727 / 14; batch 130: 1825 / 736 / 14 (sets: `h2-fail-roster.txt`, `h2-skipped-roster.txt`); was 1866 / 709 |
 | Strength of the passes (batch 133, Phase 0.7) | DuckDB: DIFFERENTIAL 1512 (1259 with a literal beside it + 253 alone) / LITERAL 838 / CARDINALITY 22 / SPELLING 49 / NONE 0 — pinned monotone (≥ 1512, ≤ 49, ≤ 22); H2: 1198 (977 + 221) / 575 / 18 / 56 (≥ 1198, ≤ 56, ≤ 18). |
 | Referee outcomes (DuckDB lane) | batch 132: verify8 1593 MATCH / 7 DIVERGED / 18 DECLINED / 0 FAULT (45 page-membership); text-decided tests by reason: rows-underivable 29, oracle-declined 22, plan-params-unbindable 6, foreign-dialect DB2 30 / Composite 7 — all pinned as ceilings. Batch 131: 1592 / 6 / 20. Batch 130: 1572 / 6 / 39. Before: verify 1591–1592 MATCH / 6 DIVERGED / 20–21 DECLINED; fetch-chain 49; fetch-texts 23; plan 28 / 4 DECLINED. The ±1 is `query::paginate::testPaginatedByVendor` (a page over a sort with ties; the two databases order ties differently — data nondeterminism, counted). |
 | Harness | `core/src/test/java/com/legend/rcorpus/MinimalCorpus(Test).java` (~700 lines): discovery by stereotype, engine suite order, platform-namespace guard, setups derived once, session choice from `ProgramFacts`. The old 13.6k-line harness is deleted (batch 115). |

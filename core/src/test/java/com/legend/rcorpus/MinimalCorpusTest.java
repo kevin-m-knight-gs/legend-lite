@@ -252,7 +252,11 @@ class MinimalCorpusTest {
     /** {differential floor, spelling ceiling, cardinality ceiling} per lane
      * (Phase 0.7; measured 2026-09-08, batch 133). */
     private static final int[] DUCKDB_STRENGTH = {1512, 49, 22};
-    private static final int[] H2_STRENGTH = {1198, 56, 18};
+    // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
+    // the one-branch explode brought 114 H2 passes back — 81 of them differential;
+    // one of the gained passes carries only cardinality asserts (a new pass, not a
+    // weakened one), so that ceiling moves with it
+    private static final int[] H2_STRENGTH = {1279, 56, 19};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

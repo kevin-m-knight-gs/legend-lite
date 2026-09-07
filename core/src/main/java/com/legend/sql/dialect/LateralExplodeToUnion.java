@@ -70,7 +70,7 @@ final class LateralExplodeToUnion extends SqlRewriter {
             branches.add(new SqlSelect(
                     List.of(new SqlSelect.Projection(e.value(), elemAlias, elemOut),
                             new SqlSelect.Projection(
-                                    SqlExpr.Column.derived(base, "_ROWID_"),
+                                    new SqlExpr.RowOrder(base),
                                     "__rid", ridOut)),
                     false, j.left(),
                     e.notNull() ? SqlExpr.Call.of(SqlFn.IS_NOT_NULL, e.value())
@@ -86,7 +86,7 @@ final class LateralExplodeToUnion extends SqlRewriter {
                         ? SqlSource.Join.Kind.INNER : SqlSource.Join.Kind.LEFT,
                 SqlExpr.Call.of(SqlFn.EQUAL,
                         SqlExpr.Column.derived(sub.alias(), "__rid"),
-                        SqlExpr.Column.derived(base, "_ROWID_")));
+                        new SqlExpr.RowOrder(base)));
         return s.withFrom(decorrelated);
     }
 

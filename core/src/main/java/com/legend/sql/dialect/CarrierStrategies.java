@@ -502,7 +502,11 @@ public final class CarrierStrategies extends SqlRewriter {
                         List.of(new SqlSelect.Projection(el, alias,
                                 slot0(s.outputs())))));
             }
-            return new com.legend.sql.SqlUnion(branches, true, s.outputs());
+            // a ONE-element literal explodes to its one row — a union
+            // needs two branches (Phase 1, batch 135: 11 H2 TDG tests
+            // threw here on single-element seed lists)
+            return branches.size() == 1 ? branches.get(0)
+                    : new com.legend.sql.SqlUnion(branches, true, s.outputs());
         }
         // EXPLODE-OF-COLLECT (R5b, witnessed): unnest((SELECT LIST(x)
         // FROM ...)) IS the collecting row set — the inner select
@@ -1006,8 +1010,9 @@ public final class CarrierStrategies extends SqlRewriter {
                 branches.add(fsel.withProjections(
                         List.of(new SqlSelect.Projection(cell, "v", null))));
             }
-            com.legend.sql.SqlUnion union =
-                    new com.legend.sql.SqlUnion(branches, true, List.of());
+            // one compile-time cell = one branch, no union (batch 135)
+            com.legend.sql.SqlQuery union = branches.size() == 1 ? branches.get(0)
+                    : new com.legend.sql.SqlUnion(branches, true, List.of());
             SqlExpr vRead = SqlExpr.Column.derived("_cells", "v");
             SqlExpr tv = transform == null ? vRead
                     : substParam(transform.body(),

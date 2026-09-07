@@ -513,7 +513,7 @@ public final class Lowerer {
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw ->
                     SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c
-                            raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.PHYSICAL)));
+                            raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.DERIVED)));
 
             case TypedFilter f -> filter(f);
 
