@@ -34,7 +34,7 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
-Status: **batch 121 / driver-PK option per execute call LANDED (2026-09-07)** — applied off the executed from's own context; program-wide derivation deleted; rosters exact (2454/1866). NEXT: part C PctRenderOption as an execute option (+ TdsText result), THEN item 4 (referee in the database; InDbVerdict at docs/parked), THEN item 5.
+Status: **batch 122 / PCT render flag as an execute option LANDED (2026-09-07)** — the execution-option thread-local family is CLOSED (118/120/121/122). NEXT: item 4 in three batches (123 executor prepare/run split, 124 referee verdict in the database, 125 row-compare policy deleted) per docs/REFEREE_IN_DATABASE_DESIGN_2026_09_07.md §Implementation plan; THEN item 5.
 
 Status: **batch 117 / the harness stdlib is the platform's LANDED (2026-09-06)** — corpus-library.pure deleted; the real demand was two natives (firstNotNull, date::add with a Duration), now kind-1 natives with SQL rules; the namespace guard covers every loaded source. Item 2 of the five done; item 3 (the harness body scans become platform facts) next.
 

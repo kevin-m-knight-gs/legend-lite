@@ -78,3 +78,56 @@ stay MATCH except rows attributed to the tolerance class (each named), 6 DIVERGE
 - The referee receives the SESSION connection (`SqlReplayOracle.verify(session, …)`).
 - The verdict arm holds our typed read (`rowsRead`) and the environment; rendering
   without executing is the executor's existing pipeline.
+
+## Implementation plan (2026-09-07, after the H2Verify census; batches 123–125)
+
+Census facts that shape the plan (measured by reading, not sampling):
+- `H2Verify.ORDERED_QUERY` is never set anywhere → `sortKeyIndexes` / `orderedVerdict` / `ordFallback` are
+  DEAD: today's referee already judges an ordered golden as a multiset. The database verdict keeps that,
+  counted (`ord-multiset`), the positional rule stays a follow-up.
+- `bookkeepingAlias` (pk_N, u_type, from_z/thru_z, k_businessDate) and the `EXTENT_SUBSET` pk-collapse
+  are used ONLY by `goldenGraphCompare` (graph results) — out of scope, they stay with it.
+- `enumPrecheck` (our column is an enum with no mapping decode → decline) needs OUR column Pure types
+  without executing — the prepared plan's typed columns (`Executor` derives them from the plan's outputs
+  and the root's declared schema; the same derivation, before the run).
+- The referee's H2-session fast path (`verifyOnSession`, gate 5's lane): the golden and our query are on
+  ONE database — no transfer; the golden SQL is the subquery directly.
+- Referee outcome baseline (main, batch 122): verify 1591–1592 MATCH / 6 DIVERGED / 20–21 DECLINED (the
+  paginate sort-tie decline flips run to run); fetch-chain 49; fetch-texts 23; plan 28 / 4.
+
+**Batch 123 — the executor hands back our SQL without running it (no behaviour change).**
+`StatementExecutor.executeTyped` splits into `prepareTyped(body, env, rider, identityLane)` returning a
+sealed `Prepared` = `Planned(SqlQuery plan, TypedSpec root, ExprType declaredInfo, ResultShape shape,
+List<Column> columns, ExecEnv env)` | `Answered(ExecutionResult)` (every pre-plan arm: EFFECT natives,
+StoreNav host evaluation, DDL strings, orchestration handles, the effectful map, the literal fold), and
+`executeTyped` = prepare → Answered ? result : executePlan. `renderValue(rowsRead, letPrefix, specs,
+env, hook)` = evalValue's pipeline (inline, stage, resolve) → prepare → `Rendered(sql, columns, shape,
+connection)` or null for an Answered read (the verdict declines it by name). Acceptance: rosters exact,
+chain green, no new Java evaluation (JavaEvalLedger pins hold).
+
+**Batch 124 — the verdict is one query in the database.**
+- `SqlReplayOracle` gains `verifyInDb(session, goldenSql, ourSql, ourColumns, valueFrame, mappingFqn,
+  rootClassFqn, extentSubset, ctx, temps)`; the default declines.
+- `SqlTextVerdicts.rowsLegAndVerdict`: for a row-shaped read, `renderValue` instead of `evalValue`; the
+  oracle gets our SQL. Graph results keep `evalValue` + the graph compare.
+- `ReplayOracle.verifyInDb`: seeds the mirror as today (recorded SQL ledger, extra seeds, temp tables);
+  enum decode pairs from `H2Verify.decodeOf` per OUR enum-typed column; declines computed without
+  values: `instantInSelectList(golden)`, the PAGINATED pattern, `enumPrecheck` over our typed columns,
+  the population-statement rule; then `InDbVerdict.judge(session, mirrorStatement, goldenSql, ourSql,
+  enumDecode, valueFrame)` (docs/parked/InDbVerdict.java → core/src/test/java/com/legend/harness,
+  registered with JdbcSurfaceCensusTest as the ONE transfer surface). H2 session: judge with the golden
+  SQL as a subquery (no transfer).
+- `InDbVerdict` as parked, plus: the H2-session branch; DuckDB column types from H2 metadata (the one
+  mapping, `duckType`); values by JDBC type (`appendTyped`); enum decode by LEFT JOIN to a VALUES
+  relation; value frames drop the single all-null row on both sides; verdict = count of two-way EXCEPT
+  ALL; samples for the message only.
+- Acceptance: outcomes 1591–1592 / 6 / 20–21 with EVERY change named (the Java two-ulp float tolerance is
+  gone — rows that matched only under it become `revisit:` rows); roster 2454; H2 lane 1866; chain green.
+
+**Batch 125 — the row-compare policy deleted.** `goldenRowsCompare`, `norm`, `multisetCompare`,
+`orderedVerdict`, `sortKeyIndexes`, `keyTuple`, `ordFallback`, `divergence`, `diffRows`, `firstDiff`,
+`rawRows`, `transcriptRows`, `nameOrder`, `carrierList`, `coerceTemporal`, `enumPrecheck` (replaced),
+`ORDERED_QUERY`, `EXTENT_SUBSET` if graph-only usage allows a parameter (~900 of 1,256 lines). STAYS:
+`goldenGraphCompare` + `bookkeepingAlias` (graph leg later), `decodeOf` (model metadata → VALUES),
+`instantInSelectList` (a decline rule), the mirror machinery in `ReplayOracle`, the decline funnel and
+roster display (item 5).

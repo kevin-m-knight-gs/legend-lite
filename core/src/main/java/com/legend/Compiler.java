@@ -734,6 +734,15 @@ public final class Compiler {
             com.legend.model.@com.legend.Nullable ImportScope imports,
             @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection) {
+        return execute(model, query, imports, runtimeFqn, connection, ExecuteOptions.NONE);
+    }
+
+    /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+            String model, String query,
+            com.legend.model.@com.legend.Nullable ImportScope imports,
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection, ExecuteOptions options) {
         ModelContext ctx = compileModel(model);
         // the ONE front door (resolveQuery: names, the statement splice, the
         // desugars) — a text query is its statements under its section scope
@@ -746,7 +755,7 @@ public final class Compiler {
                 resolveQuery(statements,
                         imports == null ? new com.legend.model.ImportScope(java.util.List.of())
                                 : imports, ctx),
-                ctx, runtimeFqn, connection);
+                ctx, runtimeFqn, connection, null, null, options);
     }
 
     /**
@@ -862,9 +871,20 @@ public final class Compiler {
             java.sql.Connection connection,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener,
+                replayOracle, ExecuteOptions.NONE);
+    }
+
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection,
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            ExecuteOptions options) {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
-                assertListener, replayOracle);
+                assertListener, replayOracle, options);
     }
 
     /**

@@ -50,11 +50,26 @@ final class StatementExecutor {
             java.sql.Connection connection,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
             com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+        return execute(resolved, ctx, runtimeFqn, dialect, connection, assertListener,
+                replayOracle, ExecuteOptions.NONE);
+    }
+
+    /** With the caller's execute OPTIONS (they ride the environment and the
+     * result — no static slot). */
+    static @com.legend.Nullable ExecutionResult execute(
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn,
+            com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection,
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            ExecuteOptions options) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
-        // the execution OPTIONS ride each execute call's own from (the
-        // engine's exeCtx overload binds them onto its bound context)
-        ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection);
+        // the execution OPTIONS: the per-call ones ride each execute call's
+        // own from (the engine's exeCtx overload binds them onto its bound
+        // context); the caller's ride the environment
+        ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection).withOptions(options);
         ExecEnv env = assertListener == null && replayOracle == null ? env0
                 : env0.withListeners(assertListener, replayOracle);
         if (resolved instanceof com.legend.protocol.spec.LambdaFunction rlf
@@ -85,13 +100,14 @@ final class StatementExecutor {
             java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                     planRows,
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
-            com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext frame) {
+            com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext frame,
+            ExecuteOptions options) {
         /** Without the protocol body (a handle's rows built off the typed
          * tree alone). */
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                    java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds,
                 com.legend.exec.@com.legend.Nullable AssertListener assertListener,
@@ -100,21 +116,27 @@ final class StatementExecutor {
                         planRows) {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
                     tableReplace, instanceIds, assertListener, replayOracle, planRows,
-                    java.util.List.of(), null);
+                    java.util.List.of(), null, ExecuteOptions.NONE);
+        }
+        /** The caller's execute options (the PCT wire render). */
+        ExecEnv withOptions(ExecuteOptions o) {
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection,
+                    queryLets, tableReplace, instanceIds, assertListener, replayOracle,
+                    planRows, protocolBody, frame, o);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, f);
+                    planRows, protocolBody, f, options);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame);
+                    planRows, protocolBody, frame, options);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.Nullable AssertListener l,
                 com.legend.exec.@com.legend.Nullable SqlReplayOracle o) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame);
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
             return frame == null ? com.legend.compiler.spec.typed.ExecutionContext.PostProcessors.NONE
@@ -130,7 +152,7 @@ final class StatementExecutor {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows,
-                    protocolBody, frame);
+                    protocolBody, frame, options);
         }
 
         /** The query's PROTOCOL statements (the source-shaped lets a
@@ -140,13 +162,13 @@ final class StatementExecutor {
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds,
-                    assertListener, replayOracle, planRows, body, frame);
+                    assertListener, replayOracle, planRows, body, frame, options);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                    java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds) {
             this(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, null, null,
@@ -156,7 +178,7 @@ final class StatementExecutor {
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                    java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace) {
             // F13: one site-id minter per env — both sides of every
             // verdict share it, so identity ids agree across lowerings
@@ -2275,7 +2297,7 @@ final class StatementExecutor {
         }
         // E1 (JAVA_EVICTION_PLAN): post-staticize wrap — the plan
         // emits the PCT wire text as one Scalar String
-        if (com.legend.exec.PctRenderOption.enabled()
+        if (env.options().pctRender()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type())) {
             return executePctTds(plan, root, dialect, connection);
@@ -2474,12 +2496,14 @@ final class StatementExecutor {
                         com.legend.compiler.element.type.Type
                                 .requireRelationSchema(root.info().type()),
                         probe, com.legend.exec.Executor::pureOfSqlType);
-        com.legend.exec.PctRenderOption.markRendered();
-        return Executor.execute(dialect.render(rendered), rendered,
+        ExecutionResult text = Executor.execute(dialect.render(rendered), rendered,
                 com.legend.compiler.element.type.ExprType.one(
                         com.legend.compiler.element.type.Type.Primitive
                                 .STRING),
                 com.legend.exec.ResultShape.SCALAR, connection, dialect);
+        return new ExecutionResult.TdsText(
+                String.valueOf(((ExecutionResult.Scalar) text).value()),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
     /** rows->toOne() READER enforcement (audit 22b F1): the lowering is

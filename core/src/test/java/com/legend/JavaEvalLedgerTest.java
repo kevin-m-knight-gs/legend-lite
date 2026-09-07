@@ -878,7 +878,6 @@ class JavaEvalLedgerTest {
                     "JsonCompare.java",
                     "H2Settings.java",
                     "PctProbe.java",
-                    "PctRenderOption.java",
                     // batch 83 (2026-09-06): the engine's execution-trace
                     // comment — the statement the database receives carries
                     // `-- "executionTraceID" : "<uuid>"` (the engine's
@@ -1003,7 +1002,7 @@ class JavaEvalLedgerTest {
                     // resolved program (effects / inline CSV seeds / a
                     // verdict call) — read off the typed tree by the one
                     // context reader; nothing evaluated, no static sink
-                    "ProgramFacts.java",
+                    "ProgramFacts.java", "ExecuteOptions.java",
                     "PlanAllocations.java", "PlanEnvelope.java",
                     "SeedSqlForms.java",
                     // SQLTEXT charter slice 3a (2026-09-01): the

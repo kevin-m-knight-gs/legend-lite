@@ -153,22 +153,14 @@ public class PctExecuteNative extends NativeFunction {
             // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root
             // mode) — the adapter receives one Scalar String and hands
             // it over verbatim; formatAsTds/formatValue are gone.
-            ExecutionResult result;
-            boolean tdsRendered;
-            try (AutoCloseable ignored2 =
-                    com.legend.exec.PctRenderOption.enable()) {
-                result = new QueryService().execute(model, pureExpression,
-                        null, connection);
-                tdsRendered = com.legend.exec.PctRenderOption.wasRendered();
-            }
-            if (tdsRendered) {
-                String tdsString = String.valueOf(((Scalar) result).value());
-                System.out.println("[LegendLite PCT] TDS: "
-                        + tdsString.replace("\n", "\\n"));
-                return bridge.createTDSResult(tdsString, processorSupport);
-            }
-
+            ExecutionResult result = new QueryService().execute(model, pureExpression,
+                    null, connection, com.legend.ExecuteOptions.PCT_RENDER);
             return switch (result) {
+                case ExecutionResult.TdsText t -> {
+                    System.out.println("[LegendLite PCT] TDS: "
+                            + t.text().replace("\n", "\\n"));
+                    yield bridge.createTDSResult(t.text(), processorSupport);
+                }
                 case Scalar s -> bridge.handleScalar(s, processorSupport);
                 case Collection c -> bridge.handleCollection(c, processorSupport);
                 case Tabular t -> throw new IllegalStateException(

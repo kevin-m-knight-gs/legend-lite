@@ -58,9 +58,16 @@ public class QueryService {
      */
     public ExecutionResult execute(String pureSource, String query, String runtimeName,
             Connection connection) throws SQLException {
+        return execute(pureSource, query, runtimeName, connection,
+                com.legend.ExecuteOptions.NONE);
+    }
 
+    /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
+    public ExecutionResult execute(String pureSource, String query, String runtimeName,
+            Connection connection, com.legend.ExecuteOptions options) throws SQLException {
         return Objects.requireNonNull(
-                com.legend.Compiler.execute(pureSource, query, runtimeName, connection),
+                com.legend.Compiler.execute(pureSource, query, null, runtimeName, connection,
+                        options),
                 "query produced no result");
     }
 
