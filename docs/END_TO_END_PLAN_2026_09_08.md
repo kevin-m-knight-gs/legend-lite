@@ -316,7 +316,7 @@ mvn -q -pl core install -DskipTests && mvn -q -pl pct test-compile
 | `CodeShapeGuardrailTest` | raw `new SqlExpr.Column(…)` sites (7): new references go through `Column.of(...)` / `derived` / `physical` |
 | `ArchitectureTest` | static-sink registry (every static accumulator named), verdict classes reachable only from the verdict seam, invariant 6a: `com.legend.sql` depends only on itself and the JDK (no `com.legend.error` from a dialect — throw `DialectCapability`) |
 | `JdbcSurfaceCensusTest` | every file touching `java.sql` in test roots is registered (InDbVerdict will need this) |
-| `ObservabilityGuardrailTest` | main-scope `System.err` print sites (33 after batch 123... verify: it was 34 before; the count is asserted exactly) |
+| `ObservabilityGuardrailTest` | main-scope `System.err` print sites, asserted EXACTLY at 34 (unchanged by batch 123's final cut; the stamp census print in `StampCensus.fire` is one of them and goes with step 1c) |
 | `ErrorShapeGuardrailTest` | broad-catch sites per file |
 | `MinimalCorpusTest` | the ONE roster pin per lane (2454 / 1866), `assertTrue(pass.size() >= floor)` |
 | gate 7 (`PCT`) | `PctCensusGate` ceilings per suite; Channel-B dual-verdict assertions (see step 1c) |
