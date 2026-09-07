@@ -46,6 +46,10 @@ class MinimalCorpusTest {
     /** The roster files: one test FQN per line, sorted, no messages. */
     private static final String DUCKDB_ROSTER = "/rcorpus/duckdb-fail-roster.txt";
     private static final String H2_ROSTER = "/rcorpus/h2-fail-roster.txt";
+    /** The SKIPPED rosters (Phase 0.3): tests whose program reaches no
+     * verdict function and that adjudicated none — never a pass. */
+    private static final String DUCKDB_SKIPPED = "/rcorpus/duckdb-skipped-roster.txt";
+    private static final String H2_SKIPPED = "/rcorpus/h2-skipped-roster.txt";
 
     /** The denominator per lane (the ceiling's other half: a pass-count
      * jump is either a GAINED name or a bigger corpus, and both must be
@@ -89,6 +93,7 @@ class MinimalCorpusTest {
         }
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
         /** every test that RAN, in discovery order, pass or fail */
         List<String> ran = new ArrayList<>();
         java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
@@ -103,12 +108,16 @@ class MinimalCorpusTest {
                 try {
                     r = corpus.run(t);
                 } catch (Exception e) {
-                    r = new MinimalCorpus.Result(t.fqn(), false, 0,
+                    r = new MinimalCorpus.Result(t.fqn(), MinimalCorpus.Status.FAIL, 0,
                             "harness: " + e.getClass().getSimpleName() + ": "
                                     + MinimalCorpus.whole(e.getMessage()));
                 }
                 ran.add(r.fqn());
-                (r.pass() ? pass : fail).add(r.fqn() + (r.pass() ? "" : " :: " + r.reason()));
+                switch (r.status()) {
+                    case PASS -> pass.add(r.fqn() + " :: " + r.reason());
+                    case FAIL -> fail.add(r.fqn() + " :: " + r.reason());
+                    case SKIPPED -> skipped.add(r.fqn() + " :: " + r.reason());
+                }
                 elapsed.put(r.fqn(), (System.nanoTime() - tStart) / 1_000_000L);
             }
         } finally {
@@ -117,11 +126,15 @@ class MinimalCorpusTest {
         Files.createDirectories(Path.of("target"));
         Files.write(Path.of("target/corpus2-pass.txt"), pass);
         Files.write(Path.of("target/corpus2-fail.txt"), fail);
+        Files.write(Path.of("target/corpus2-skipped.txt"), skipped);
         System.out.println("[corpus2] pass=" + pass.size() + " fail=" + fail.size()
-                + " of " + (pass.size() + fail.size()) + " in "
+                + " skipped=" + skipped.size() + " of " + ran.size() + " in "
                 + (System.nanoTime() - t0) / 1_000_000_000L + "s");
         for (String f : fail) {
             System.out.println("[corpus2] FAIL " + f);
+        }
+        for (String k : skipped) {
+            System.out.println("[corpus2] SKIP " + k);
         }
         // the referee's own roster: row verdicts by kind and the decline
         // buckets — DISPLAYED, no verdict flows through it
@@ -151,27 +164,30 @@ class MinimalCorpusTest {
                     + " a seeding setup read as inert unseeds its package silently;"
                     + " explain, then re-pin. Names: " + corpus.inertSetups());
         }
-        pinRoster(only, ran, fail);
+        pinRoster(only, ran, fail, "fail",
+                MinimalCorpus.H2_BACKEND ? H2_ROSTER : DUCKDB_ROSTER, true);
+        pinRoster(only, ran, skipped, "skipped",
+                MinimalCorpus.H2_BACKEND ? H2_SKIPPED : DUCKDB_SKIPPED, false);
     }
 
-    /** The pin: fail names == the committed roster (restricted to the tests
-     * that ran when scoped); the denominator when not scoped. */
-    private static void pinRoster(String only, List<String> ran, List<String> fail)
-            throws IOException {
+    /** The pin: the {@code kind} names == the committed roster (restricted
+     * to the tests that ran when scoped); the denominator when not scoped. */
+    private static void pinRoster(String only, List<String> ran, List<String> rows,
+            String kind, String resource, boolean denominator) throws IOException {
         String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
-        List<String> roster = readRoster(MinimalCorpus.H2_BACKEND ? H2_ROSTER : DUCKDB_ROSTER);
+        List<String> roster = readRoster(resource);
         Set<String> failNames = new LinkedHashSet<>();
-        for (String f : fail) {
+        for (String f : rows) {
             failNames.add(f.substring(0, f.indexOf(" :: ")));
         }
         Set<String> rosterNames = new HashSet<>(roster);
         Set<String> ranNames = new HashSet<>(ran);
-        if (only.isEmpty()) {
+        if (only.isEmpty() && denominator) {
             org.junit.jupiter.api.Assertions.assertEquals(DISCOVERED, ran.size(),
                     "[" + lane + "] the corpus denominator moved (" + ran.size()
                     + " tests ran, " + DISCOVERED + " pinned): a bigger or smaller"
                     + " corpus must be explained, never absorbed");
-        } else {
+        } else if (denominator) {
             org.junit.jupiter.api.Assertions.assertFalse(ran.isEmpty(),
                     "[" + lane + "] -Drcorpus.test=" + only + " selected no test");
         }
@@ -190,10 +206,10 @@ class MinimalCorpusTest {
             }
         }
         if (!lost.isEmpty() || !gained.isEmpty()) {
-            StringBuilder sb = new StringBuilder("[" + lane + "] fail roster != "
+            StringBuilder sb = new StringBuilder("[" + lane + "] " + kind + " roster != "
                     + "committed roster (" + (only.isEmpty() ? "full run" : "scoped to '" + only + "'")
-                    + "): LOST " + lost.size() + " (failing now, not in the roster)"
-                    + ", GAINED " + gained.size() + " (in the roster, passing now)."
+                    + "): LOST " + lost.size() + " (" + kind + " now, not in the roster)"
+                    + ", GAINED " + gained.size() + " (in the roster, not " + kind + " now)."
                     + " Every change to the roster file carries a written reason"
                     + " in docs/GATES.md.");
             for (String l : lost) {
@@ -205,7 +221,7 @@ class MinimalCorpusTest {
             org.junit.jupiter.api.Assertions.fail(sb.toString());
         }
         System.out.println("[corpus2] roster " + lane + " EXACT: " + failNames.size()
-                + " fail of " + ran.size() + (only.isEmpty() ? "" : " (scoped)")
+                + " " + kind + " of " + ran.size() + (only.isEmpty() ? "" : " (scoped)")
                 // USER DECISION 2026-09-08: the H2 lane is KEPT as a
                 // PORTABILITY check — its golden runs on the same connection
                 // as our query, so it is not an independent oracle; the

@@ -69,9 +69,21 @@ public final class MinimalCorpus {
     public record TestCase(String fqn, String pkg, FunctionDefinition fn,
             ImportScope imports) {}
 
-    /** One verdict: pass, or the reason. {@code verdicts} = assert
-     * verdicts the platform reported. */
-    public record Result(String fqn, boolean pass, int verdicts, String reason) {}
+    /** A test's outcome. SKIPPED (Phase 0.3): the body ran without a
+     * failure but adjudicated NO verdict and the platform states the
+     * program reaches no verdict function — such a test proves nothing
+     * and is never counted as a pass (the engine's own serverless branch
+     * of a {@code mayExecuteAlloyTest} shell is {@code | true}; a body
+     * whose asserts are commented out; a placeholder body). */
+    public enum Status { PASS, FAIL, SKIPPED }
+
+    /** One outcome with its reason. {@code verdicts} = assert verdicts
+     * the platform reported. */
+    public record Result(String fqn, Status status, int verdicts, String reason) {
+        public boolean pass() {
+            return status == Status.PASS;
+        }
+    }
 
     private static final String RUNTIME = "rcorpus::Rt";
     private static final String CONNECTION = "rcorpus::Conn";
@@ -424,9 +436,6 @@ public final class MinimalCorpus {
             beginSession(t.pkg());
         }
         List<ValueSpecification> body = t.fn().body();
-        if (body.size() == 1 && body.get(0) instanceof CBoolean cb && cb.value()) {
-            return new Result(t.fqn(), true, 0, "vacuous (engine body = true)");
-        }
         // the platform's facts about the program decide the session: a test
         // that seeds inline CSV data gets a private workspace
         ValueSpecification resolved;
@@ -434,12 +443,12 @@ public final class MinimalCorpus {
         try {
             resolved = Compiler.resolveQuery(List.copyOf(body), t.imports(), ctx);
         } catch (RuntimeException e) {
-            return new Result(t.fqn(), false, 0, "resolve: " + whole(e.getMessage()));
+            return new Result(t.fqn(), Status.FAIL, 0, "resolve: " + whole(e.getMessage()));
         }
         try {
             facts = Compiler.programFacts(resolved, ctx);
         } catch (RuntimeException e) {
-            return new Result(t.fqn(), false, 0, "type: " + whole(e.getMessage()));
+            return new Result(t.fqn(), Status.FAIL, 0, "type: " + whole(e.getMessage()));
         }
         boolean shared = !facts.seedsInlineCsv();
         com.legend.harness.ReplayOracle.mirrorSuspend(!shared);
@@ -465,7 +474,7 @@ public final class MinimalCorpus {
             // half-seeded session is no verdict
             List<String> setupFailures = runSetups(t, conn, shared);
             if (!setupFailures.isEmpty()) {
-                return new Result(t.fqn(), false, 0,
+                return new Result(t.fqn(), Status.FAIL, 0,
                         "setup failed: " + String.join("; ", setupFailures));
             }
             return judge(t, resolved, facts, conn);
@@ -525,13 +534,23 @@ public final class MinimalCorpus {
             }
             if (failure == null) {
                 if (effectful) {
+                    // the session state the body produced is what the
+                    // engine's run leaves too — kept whether or not the
+                    // body adjudicated anything
                     com.legend.harness.ReplayOracle.commitAttempt(conn);
                     committed = true;
                 }
-                return new Result(t.fqn(), true, verdicts.size(),
-                        verdicts.isEmpty() ? "ran, no asserts" : verdicts.size() + " verdict(s)");
+                if (verdicts.isEmpty()) {
+                    // facts.verdicts() is false here (true + no verdict
+                    // failed above): the program reaches no verdict
+                    // function — nothing was proved
+                    return new Result(t.fqn(), Status.SKIPPED, 0,
+                            "no assertion reachable (the program calls no verdict function)");
+                }
+                return new Result(t.fqn(), Status.PASS, verdicts.size(),
+                        verdicts.size() + " verdict(s)");
             }
-            return new Result(t.fqn(), false, verdicts.size(), failure);
+            return new Result(t.fqn(), Status.FAIL, verdicts.size(), failure);
         } finally {
             if (effectful && !committed) {
                 com.legend.harness.ReplayOracle.rollbackAttempt(conn,

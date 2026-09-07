@@ -795,6 +795,7 @@ public final class Compiler {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         java.util.Map<String, Boolean> memo = new java.util.HashMap<>();
+        java.util.Map<String, Boolean> verdictMemo = new java.util.HashMap<>();
         boolean effects = false;
         boolean seeds = false;
         boolean verdicts = false;
@@ -811,12 +812,20 @@ public final class Compiler {
                     .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
                             .letBound(v, preceding))
                     .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
-            verdicts |= callsVerdict(s);
+            verdicts |= callsVerdict(s, specs, verdictMemo);
         }
         return new ProgramFacts(effects, seeds, verdicts);
     }
 
-    private static boolean callsVerdict(TypedSpec n) {
+    /** Does the program REACH a verdict function — directly, or through
+     * the compiled body of a user function it calls (the same descent as
+     * {@link StatementExecutor#containsEffect}: memoized by signature,
+     * cycles and un-typeable callees score false)? Phase 0.3: a test
+     * whose program reaches no verdict is no pass — the runner classifies
+     * it SKIPPED (no assertion reachable) instead of scoring a body that
+     * merely did not throw. */
+    private static boolean callsVerdict(TypedSpec n, SpecCompiler specs,
+            java.util.Map<String, Boolean> memo) {
         String callee = n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 ? nc.callee().qualifiedName()
                 : n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
@@ -825,8 +834,32 @@ public final class Compiler {
                 .isVerdictFunction(callee)) {
             return true;
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            String key = uc.callee().signatureKey();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);   // in-progress: cycles score false
+                boolean reaches = false;
+                try {
+                    for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
+                        if (callsVerdict(stmt, specs, memo)) {
+                            reaches = true;
+                            break;
+                        }
+                    }
+                } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                    // an un-typeable callee cannot execute in either
+                    // channel; this reachability scan does not decide on it
+                }
+                memo.put(key, reaches);
+                known = reaches;
+            }
+            if (known) {
+                return true;
+            }
+        }
         for (TypedSpec c : n.children()) {
-            if (callsVerdict(c)) {
+            if (callsVerdict(c, specs, memo)) {
                 return true;
             }
         }

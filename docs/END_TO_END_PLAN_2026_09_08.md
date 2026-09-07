@@ -160,8 +160,8 @@ Standing rules that bind every step (user rulings, in force):
 
 | Measure | Value |
 |---|---|
-| DuckDB lane (gate 4) | 2454 pass / 121 fail of 2575 (floor 2454, exact since batch 114) |
-| H2 lane (gate 5) | 1866 pass / 709 fail (floor 1866) |
+| DuckDB lane (gate 4) | batch 128 (Phase 0.3): **2422 pass / 139 fail / 14 SKIPPED** of 2575, pinned as SETS (`rcorpus/duckdb-fail-roster.txt`, `duckdb-skipped-roster.txt`). Was 2454 / 121 through batch 127: the −32 is the audit's zero-assertion census — 14 skipped + 18 named FAILs (`verdict-gap:guard-assert-in-expression-helper`, ledger §6). |
+| H2 lane (gate 5) | batch 128: **1834 pass / 727 fail / 14 SKIPPED** (sets: `h2-fail-roster.txt`, `h2-skipped-roster.txt`); was 1866 / 709 |
 | Referee outcomes (DuckDB lane) | verify 1591–1592 MATCH / 6 DIVERGED / 20–21 DECLINED; fetch-chain 49; fetch-texts 23; plan 28 / 4 DECLINED. The ±1 is `query::paginate::testPaginatedByVendor` (a page over a sort with ties; the two databases order ties differently — data nondeterminism, counted). |
 | Harness | `core/src/test/java/com/legend/rcorpus/MinimalCorpus(Test).java` (~700 lines): discovery by stereotype, engine suite order, platform-namespace guard, setups derived once, session choice from `ProgramFacts`. The old 13.6k-line harness is deleted (batch 115). |
 | Execution-option thread-locals in main | ZERO (DriverPkOption 118, PostProcessBoundary 120, program-wide driver-PK 121, PctRenderOption 122). |

@@ -583,3 +583,26 @@ which is code-as-data); everything else is TEXT / ENGINE / OTHER / NAMED / REVIS
 - **testPlatformExpressionDependencyOnAFromExpression2** — `query::routing::multipleexpressions` [?]
     - run bucket: `wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, o`
     - assert #0 - → `decision`: decision:routeFunction: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function
+
+## 6. VERDICT-GAP (18) — batch 128 (Phase 0.3), 2026-09-08
+
+Bucket `verdict-gap:guard-assert-in-expression-helper`: alloy test-data-generation shells (`mayExecuteAlloyTest(serverThunk, {| true})`) whose SETUP half calls `meta::relational::testDataGeneration::createTableRowIdentifiers($db, …)`; that helper's body carries a guard `assert($table.columns->cast(@Column).name->contains($cv.first), …)` inside a `map` (engine testDataGeneration.pure L81). The engine executes the guard; our platform types it (an expression statement of the helper's lambda) but never adjudicates it — the listener sees statement-root asserts only, and a value-position helper's inner statements are not judged. `ProgramFacts.verdicts` is TRUE (the descent reaches the assert), the run reports 0 verdicts → FAIL `no verdict: the body calls an assert the platform did not adjudicate`. Instrumented once on the descent: the reaching callee was this helper for all 18. Before batch 128 these were counted as passes ("ran, no asserts"). The fix is a platform leg (Phase 3): adjudicate asserts reached inside expression-position user bodies (or lower the guard as a boolean the statement channel judges); never a harness arm. Both lanes.
+
+- meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews
+- meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSimpleTableToViewJoin_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTableMultipleStartRows_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTable_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testSimpleViewRootToJoin_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testTableToTDSMultipleJoins
+- meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithConcatenate
+- meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithJoinAndUnion
+- meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevelsWithStringHashing_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevels_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy
+- meta::relational::testDataGeneration::tests::alloy::testViewEmbeddedInChainedJoin_Alloy
