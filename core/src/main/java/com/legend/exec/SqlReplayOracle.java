@@ -93,8 +93,25 @@ public interface SqlReplayOracle {
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String rootClassFqn,
-            boolean extentSubset,
+            ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx);
+
+    /** The verdict arm's STATIC facts about the verified chain, the
+     * referee's comparison gates (Phase 0.5 — they rode thread-locals
+     * the old runner set per test until batch 115 deleted the writer and
+     * the ordered compare silently became a multiset compare):
+     * {@code extentSubset} — the chain is a class extent through
+     * subset-preserving ops (the graph compare may collapse the golden's
+     * join fan-out by full-row identity); {@code ordered} — the chain
+     * ENDS IN A SORT ({@code AssertVerdicts.orderView == SORTED}): row
+     * order is contract and the referee compares IN ORDER, ties grouped;
+     * {@code sortKeys} — the tail-most sort's key column/property names
+     * (the tie boundaries), null when underivable (a computed key): an
+     * ordered chain without keys keeps the multiset compare, COUNTED. */
+    record ReplayFacts(boolean extentSubset, boolean ordered,
+            java.util.@com.legend.Nullable List<String> sortKeys) {
+        public static final ReplayFacts NONE = new ReplayFacts(false, false, null);
+    }
 
     /** MATCH = rows agree (the verdict of record); DIVERGED = rows
      * differ ({@code detail} says how — a REAL failure whatever the
@@ -118,11 +135,11 @@ public interface SqlReplayOracle {
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String rootClassFqn,
-            boolean extentSubset,
+            ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx,
             java.util.List<TempTable> temps) {
         return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
-                extentSubset, ctx);
+                facts, ctx);
     }
 
     /** A golden PLAN's replay (batch 66): the plan text's nodes run in
@@ -138,7 +155,7 @@ public interface SqlReplayOracle {
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String rootClassFqn,
-            boolean extentSubset,
+            ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         return RowVerdict.declined("plan replay not supported by this oracle");
     }

@@ -125,47 +125,24 @@ public final class H2Verify {
     /** The test currently executing — set by the corpus runner so a
      *  decline names its test (correctness lane C1: 154 anonymous
      *  declines were unactionable). */
-    /** The verified query chain is a SUB-COLLECTION of a class extent
-     * (getAll root through subset-preserving ops — computed STATICALLY
-     * at the verify site (the old runner's extentSubset; the referee's caller sets it), the §7
-     * order-policy doctrine applied to multiplicity). Pure semantics
-     * then guarantees each instance at most once, so the graph
-     * compare may collapse golden-side full-row duplicates (pk
-     * included) as the engine's join fan-out re-manufacturing the
-     * same object — row-13 adjudication, SQLTEXT charter §6.1,
-     * 2026-09-01. OUR side never collapses: an over-duplicating
-     * pipeline still diverges loudly. */
-    public static final ThreadLocal<Boolean> EXTENT_SUBSET =
-            ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    /** The verified query chain ENDS IN SORT — a static order fact
-     * computed at the verify site exactly like {@link #EXTENT_SUBSET}.
-     * DANGLING since batch 115 (its writer, the old runner's endsInSort,
-     * was deleted; the readers stayed — audit §2): registered in
-     * DanglingStateGuardTest, restored from AssertVerdicts.orderView in
-     * Phase 0.5. Charter §7: ordered queries compare IN
-     * ORDER, unordered as multisets — this flag is the oracle
-     * compare's gate (and, under LL_ORD_COUNT, the blast-radius
-     * instrument's classification). */
-    public static final ThreadLocal<Boolean> ORDERED_QUERY =
-            ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    /** The ordered chain's EFFECTIVE sort-key column/property names
-     * (the sort nearest the tail, the engine's own last-sort-wins
-     * semantics), null when underivable. DANGLING since batch 115 like
-     * {@link #ORDERED_QUERY}; restored in Phase 0.5.
-     * The §7 in-order compare needs them for TIES: rows equal on the
-     * sort keys have no defined relative order on either backend
-     * (testSortByLambdaMultiple: two Johns under {@code order by
-     * FIRSTNAME asc} — H2 and DuckDB both correct, orders differ), so
-     * the compare checks the key SEQUENCE positionally and the full
-     * rows as multisets WITHIN each tie run. Ordered + null keys =
-     * counted decline. */
-    public static final ThreadLocal<java.util.@com.legend.Nullable List<String>> SORT_KEYS =
-            new ThreadLocal<>();
-
     public static final ThreadLocal<String> CURRENT_TEST =
             ThreadLocal.withInitial(() -> "<unattributed>");
+
+    /** Per-test ORDER-LENIENCY census (Phase 0.5, audit §10 item 5): every
+     * row verdict that held ONLY because rows were compared as a multiset
+     * — an UNORDERED chain whose two sides arrived in different orders
+     * (legitimate: SQL arrival order is not a contract), or an ORDERED
+     * chain whose sort keys the compared output could not carry (the
+     * counted residue) — keyed {@code tag + ' ' + test}; the harness
+     * prints it and pins the set against a committed register. */
+    public static final java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.atomic.LongAdder> ORD_CENSUS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void ord(String tag) {
+        ORD_CENSUS.computeIfAbsent(tag + " " + CURRENT_TEST.get(),
+                k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
 
     public static void decline(String reason) {
         System.err.println("[h2-unverifiable] replay declined ["
@@ -329,8 +306,22 @@ public final class H2Verify {
     static @com.legend.Nullable String compareFrame(Statement st,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
+            com.legend.exec.SqlReplayOracle.ReplayFacts facts)
             throws SQLException {
+        if (PAGINATED.matcher(goldenSql).find()) {
+            // a PAGE (offset/fetch/limit) over a sort that need not be total:
+            // which tied rows land in the page is the backend's tie order —
+            // the engine's own asserts do not pin it (witness
+            // testPaginatedByVendor: golden [22|John|Johnson] vs ours
+            // [12|John|Hill] on `order by firstName offset 0 fetch 4`). The
+            // page contents are not a row verdict: DECLINE BEFORE COMPARING
+            // (Phase 0.5 — until batch 129 this fired only AFTER a computed
+            // divergence and turned it into a decline, a rescue path).
+            throw new Unverifiable("paginated golden: page contents depend"
+                    + " on the sort-tie order (offset/fetch over a"
+                    + " non-total ORDER BY)", null);
+        }
         // (batch 69a, 2026-09-05: the forced-isolation VALUE-frame guard
         // is GONE. Re-measured with the fixture read: the forced golden
         // for testQualifierWithOperation yields 'PeterTest' + three
@@ -363,21 +354,9 @@ public final class H2Verify {
                     "datediff-to-now golden: oracle replay and our execution"
                     + " are two instants — row verdict non-reproducible", null);
         }
-        String d = ours instanceof ExecutionResult.Graph g
-                ? goldenGraphCompare(st, goldenSql, g, graphEnumProp)
-                : goldenRowsCompare(st, goldenSql, ours, enumDecode);
-        if (d != null && PAGINATED.matcher(goldenSql).find()) {
-            // a PAGE over a sort with ties (offset/fetch on a non-unique key):
-            // which tied rows land in the page is the backend's tie order —
-            // the engine's own asserts do not pin it; the page contents are
-            // not a row verdict (sqltext homework 2026-09-03, witness
-            // testPaginatedByVendor: golden [22|John|Johnson] vs ours
-            // [12|John|Hill] on `order by firstName offset 0 fetch 4`)
-            throw new Unverifiable("paginated golden: page contents depend"
-                    + " on the sort-tie order (offset/fetch over a"
-                    + " non-total ORDER BY)", null);
-        }
-        return d;
+        return ours instanceof ExecutionResult.Graph g
+                ? goldenGraphCompare(st, goldenSql, g, graphEnumProp, facts)
+                : goldenRowsCompare(st, goldenSql, ours, enumDecode, facts);
     }
 
     /** offset/fetch/limit spellings in a golden. */
@@ -426,7 +405,8 @@ public final class H2Verify {
     private static @com.legend.Nullable String goldenGraphCompare(Statement st,
             String goldenSql, ExecutionResult.Graph g,
             java.util.function.Function<String,
-                    java.util.Map<String, String>> enumProp) {
+                    java.util.Map<String, String>> enumProp,
+            com.legend.exec.SqlReplayOracle.ReplayFacts facts) {
         Object parsed = com.legend.sql.Json.parse(g.json());
         if (!(parsed instanceof List<?> arr)) {
             throw new Unverifiable("graph frame is not a json array", null);
@@ -558,8 +538,8 @@ public final class H2Verify {
             List<String> sorted = new ArrayList<>(keys);
             // §7: the sort-key indexes address the shared tuple order
             // (ordered queries only; underivable/absent keys decline)
-            int[] keyIdx = ORDERED_QUERY.get()
-                    ? sortKeyIndexes(sorted) : null;
+            int[] keyIdx = facts.ordered()
+                    ? sortKeyIndexes(sorted, facts.sortKeys()) : null;
             List<String> theirKeys = new ArrayList<>();
             List<String> mineKeys = new ArrayList<>();
             java.util.Map<String, Integer> byLabel = new java.util.HashMap<>();
@@ -639,7 +619,7 @@ public final class H2Verify {
             // ordered path below.
             List<String> collapsed = null;
             List<String> collapsedKeys = null;
-            if (EXTENT_SUBSET.get() && hasPk) {
+            if (facts.extentSubset() && hasPk) {
                 java.util.Set<String> seenFull = new java.util.HashSet<>();
                 collapsed = new ArrayList<>();
                 collapsedKeys = keyIdx == null ? null : new ArrayList<>();
@@ -657,7 +637,7 @@ public final class H2Verify {
             // Unordered — and ordered rows without usable tie
             // boundaries (keyIdx null, counted) — keep the multiset
             // compare.
-            if (ORDERED_QUERY.get() && keyIdx != null) {
+            if (facts.ordered() && keyIdx != null) {
                 if (orderedVerdict(theirs, mine, theirKeys,
                         mineKeys) == null) {
                     return null;
@@ -669,13 +649,17 @@ public final class H2Verify {
                 }
                 return divergence(theirs, mine);
             }
-            if (ORDERED_QUERY.get()) {
+            if (facts.ordered()) {
                 ordFallback();
             }
             List<String> sortedTheirs = new ArrayList<>(theirs);
+            List<String> mineRaw = new ArrayList<>(mine);
             Collections.sort(sortedTheirs);
             Collections.sort(mine);
             if (sortedTheirs.equals(mine)) {
+                if (!theirs.equals(mineRaw)) {
+                    ord("unordered-leniency");
+                }
                 return null;
             }
             if (collapsed != null) {
@@ -697,7 +681,8 @@ public final class H2Verify {
      * replay oracle and the session-direct verify). */
     private static @com.legend.Nullable String goldenRowsCompare(Statement st,
             String goldenSql, ExecutionResult tab,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode)
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            com.legend.exec.SqlReplayOracle.ReplayFacts facts)
             throws SQLException {
                 List<String> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
@@ -720,9 +705,9 @@ public final class H2Verify {
                 // indexes address both sides). Underivable keys or a
                 // key the compared output does not carry = counted
                 // decline — never a guessed tie policy.
-                int[] keyIdx = ORDERED_QUERY.get()
+                int[] keyIdx = facts.ordered()
                         ? sortKeyIndexes(tab.columns().stream()
-                                .map(c -> c.name()).toList())
+                                .map(c -> c.name()).toList(), facts.sortKeys())
                         : null;
                 List<String> theirKeys = new ArrayList<>();
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
@@ -805,11 +790,11 @@ public final class H2Verify {
                 // (keyIdx null, counted residue) — keep the multiset
                 // compare (the 103 measured unordered leniency passes
                 // are incidental backend order, legitimate forever).
-                if (ORDERED_QUERY.get() && keyIdx != null) {
+                if (facts.ordered() && keyIdx != null) {
                     return orderedVerdict(theirs, mine, theirKeys,
                             mineKeys);
                 }
-                if (ORDERED_QUERY.get()) {
+                if (facts.ordered()) {
                     ordFallback();
                 }
                 List<String> theirsRaw = new ArrayList<>(theirs);
@@ -818,14 +803,10 @@ public final class H2Verify {
                 Collections.sort(mine);
                 if (theirs.equals(mine)) {
                     // F2.4: the oracle discards row order for UNORDERED
-                    // queries by §7 — still counted under the
-                    // instrument so census numbers stay honest (strict
-                    // recheck = pre-sort order)
-                    if (System.getenv("LL_ORD_COUNT") != null
-                            && !theirsRaw.equals(mineRaw)) {
-                        System.err.println(
-                                "[ord] h2-oracle order-leniency pass"
-                                + " unordered");
+                    // queries by §7 — COUNTED per test (strict recheck =
+                    // pre-sort order) and pinned by the harness
+                    if (!theirsRaw.equals(mineRaw)) {
+                        ord("unordered-leniency");
                     }
                     return null;
                 }
@@ -843,8 +824,7 @@ public final class H2Verify {
      * LL_ORD_COUNT with its own tag (a named burn candidate), never a
      * decline that loses a working row verdict. */
     private static int @com.legend.Nullable [] sortKeyIndexes(
-            List<String> columnNames) {
-        List<String> keys = SORT_KEYS.get();
+            List<String> columnNames, @com.legend.Nullable List<String> keys) {
         if (keys == null) {
             return null;
         }
@@ -870,11 +850,7 @@ public final class H2Verify {
     /** The counted §7 residue: an ORDERED query whose strict compare
      * had no usable tie boundaries rode the multiset verdict. */
     private static void ordFallback() {
-        if (System.getenv("LL_ORD_COUNT") != null) {
-            System.err.println(
-                    "[ord] h2-oracle ordered-keys-unmappable multiset"
-                            + " fallback");
-        }
+        ord("ordered-keys-unmappable");
     }
 
     private static String keyTuple(String[] cells, int[] keyIdx) {
@@ -1123,7 +1099,7 @@ public final class H2Verify {
                 : o.size() > n ? "ours extra [" + o.get(n) + "]" : "?";
     }
 
-    private static String norm(Object v) {
+    static String norm(Object v) {
         if (v == null) {
             return "<null>";
         }
@@ -1198,8 +1174,11 @@ public final class H2Verify {
         // timestamp spellings: trim trailing fractional zeros and the
         // bare '.0' second fraction ('2015-08-26 00:00:00.0' ==
         // '2015-08-26 00:00:00')
-        if (s.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}(\\.\\d+)?")) {
-            s = s.replaceAll("\\.?0+$", "");
+        if (s.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d+")) {
+            // only the FRACTION loses its trailing zeros (and a bare '.'):
+            // the old `\.?0+$` also ate the seconds of a fraction-less
+            // '…00:00:10' → '…00:00:1' (audit referee.md §3)
+            s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
         }
         return s;
     }

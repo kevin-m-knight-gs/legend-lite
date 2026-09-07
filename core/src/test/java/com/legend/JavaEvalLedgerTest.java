@@ -446,7 +446,12 @@ class JavaEvalLedgerTest {
             // own meaning on our H2, assertEquals(upgraded, actual), instead
             // of leaving a standing call for a deleted route; no evaluation
             // added (the verdict is the plain one)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1652),
+            // 1652 → 1712 (batch 130, Phase 0.5): the referee's REPLAY FACTS
+            // derived by the verdict arm — orderView == SORTED and the
+            // tail-most sort's key names off the typed chain (typed-tree
+            // navigation, nothing evaluated); the facts replace three
+            // referee thread-locals whose writer batch 115 deleted
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1712),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

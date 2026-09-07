@@ -160,9 +160,9 @@ Standing rules that bind every step (user rulings, in force):
 
 | Measure | Value |
 |---|---|
-| DuckDB lane (gate 4) | batch 128 (Phase 0.3): **2422 pass / 139 fail / 14 SKIPPED** of 2575, pinned as SETS (`rcorpus/duckdb-fail-roster.txt`, `duckdb-skipped-roster.txt`). Was 2454 / 121 through batch 127: the −32 is the audit's zero-assertion census — 14 skipped + 18 named FAILs (`verdict-gap:guard-assert-in-expression-helper`, ledger §6). |
-| H2 lane (gate 5) | batch 128: **1834 pass / 727 fail / 14 SKIPPED** (sets: `h2-fail-roster.txt`, `h2-skipped-roster.txt`); was 1866 / 709 |
-| Referee outcomes (DuckDB lane) | verify 1591–1592 MATCH / 6 DIVERGED / 20–21 DECLINED; fetch-chain 49; fetch-texts 23; plan 28 / 4 DECLINED. The ±1 is `query::paginate::testPaginatedByVendor` (a page over a sort with ties; the two databases order ties differently — data nondeterminism, counted). |
+| DuckDB lane (gate 4) | batch 130 (Phase 0.5): **2413 pass / 148 fail / 14 SKIPPED** of 2575 (the −9 = paginated goldens declined before compare, `paginated-golden:text-differs`, fix owed in 0.5b); batch 128 (Phase 0.3): 2422 / 139 / 14, pinned as SETS (`rcorpus/duckdb-fail-roster.txt`, `duckdb-skipped-roster.txt`). Was 2454 / 121 through batch 127: the −32 is the audit's zero-assertion census — 14 skipped + 18 named FAILs (`verdict-gap:guard-assert-in-expression-helper`, ledger §6). |
+| H2 lane (gate 5) | batch 130: **1825 pass / 736 fail / 14 SKIPPED**; batch 128: 1834 / 727 / 14 (sets: `h2-fail-roster.txt`, `h2-skipped-roster.txt`); was 1866 / 709 |
+| Referee outcomes (DuckDB lane) | batch 130: verify8 1572 MATCH / 6 DIVERGED / 39 DECLINED (pages decline before compare; the paginate flip is gone). Before: verify 1591–1592 MATCH / 6 DIVERGED / 20–21 DECLINED; fetch-chain 49; fetch-texts 23; plan 28 / 4 DECLINED. The ±1 is `query::paginate::testPaginatedByVendor` (a page over a sort with ties; the two databases order ties differently — data nondeterminism, counted). |
 | Harness | `core/src/test/java/com/legend/rcorpus/MinimalCorpus(Test).java` (~700 lines): discovery by stereotype, engine suite order, platform-namespace guard, setups derived once, session choice from `ProgramFacts`. The old 13.6k-line harness is deleted (batch 115). |
 | Execution-option thread-locals in main | ZERO (DriverPkOption 118, PostProcessBoundary 120, program-wide driver-PK 121, PctRenderOption 122). |
 | Fail roster of record | `core/src/test/resources/rcorpus/duckdb-fail-roster.txt` (121 names) + `h2-fail-roster.txt` (709) — the gate's SET pin since batch 126; `docs/parked/duckdb-fail-roster-batch119.txt` is the dated snapshot with messages. Regenerable in 60s. |
@@ -515,8 +515,8 @@ mvn -q -pl core install -DskipTests && mvn -q -pl pct test-compile
 | `JdbcSurfaceCensusTest` | every file touching `java.sql` in test roots is registered (InDbVerdict will need this) |
 | `ObservabilityGuardrailTest` | main-scope `System.err` print sites, asserted EXACTLY at 34 (unchanged by batch 123's final cut; the stamp census print in `StampCensus.fire` is one of them and goes with step 1c) |
 | `ErrorShapeGuardrailTest` | broad-catch sites per file |
-| `DanglingStateGuardTest` (batch 129) | every static ThreadLocal/Atomic*/LongAdder/volatile across all modules has readers ⟺ writers (register = {H2Verify.ORDERED_QUERY, SORT_KEYS}, shrink-only → 0 in 0.5); guards pin only files in the tree and cite only live mechanisms |
-| `MinimalCorpusTest` | the fail roster as a SET per lane (`rcorpus/*-fail-roster.txt`, 121 / 709) + the denominator 2575; LOST and GAINED both fail; holds on the scoped subset too (batch 126) |
+| `DanglingStateGuardTest` (batch 129) | every static ThreadLocal/Atomic*/LongAdder/volatile across all modules has readers ⟺ writers (register at ZERO since batch 130); guards pin only files in the tree and cite only live mechanisms |
+| `MinimalCorpusTest` | per lane, as SETS: the fail roster (`rcorpus/*-fail-roster.txt`), the SKIPPED roster (0.3), the `ordered-keys-unmappable` register (0.5) + the denominator 2575 + ceilings on inert setups (5) and arrival-order leniency tests (DuckDB 108 / H2 11); LOST and GAINED both fail; holds on the scoped subset too |
 | gate 7 (`PCT`) | `PctCensusGate` ceilings per suite; Channel-B dual-verdict assertions (see step 1c) |
 
 ## Appendix D — document map (read in this order for any step)

@@ -78,8 +78,10 @@ class DanglingStateGuardTest {
      * writer since batch 115 (the old runner's per-test order derivation
      * was deleted with it); Phase 0.5 rewires both from
      * {@code AssertVerdicts.orderView}, and this register goes to zero. */
-    private static final Set<String> KNOWN_DANGLING = Set.of(
-            "H2Verify.ORDERED_QUERY", "H2Verify.SORT_KEYS");
+    private static final Set<String> KNOWN_DANGLING = Set.of();
+    // (batch 129 registered H2Verify.ORDERED_QUERY / SORT_KEYS — the audit's
+    // readers without a writer; batch 130 replaced all three referee
+    // thread-locals with the ReplayFacts value on the SPI: ZERO.)
 
     record Slot(String cls, String name, Path file) {
         String key() {

@@ -1181,6 +1181,80 @@ final class AssertVerdicts {
         return orderView(s0, letPrefix, new java.util.HashSet<>());
     }
 
+    /** The referee's gates for a verified chain, derived ONCE from the
+     * typed chain by the arm that owns the verdict (Phase 0.5): the
+     * extent-subset fact, the ORDER VIEW (ends in a sort = order is
+     * contract), and the tail-most sort's keys. Typed-tree navigation
+     * only — nothing evaluated. */
+    static com.legend.exec.SqlReplayOracle.ReplayFacts replayFacts(
+            TypedSpec chain, List<TypedSpec> letPrefix) {
+        boolean ordered = orderView(chain, letPrefix) == OrderView.SORTED;
+        return new com.legend.exec.SqlReplayOracle.ReplayFacts(
+                com.legend.compiler.spec.VerdictQueries.extentSubset(chain),
+                ordered,
+                ordered ? sortKeys(chain, letPrefix, new java.util.HashSet<>()) : null);
+    }
+
+    /** The key names of the sort NEAREST THE TAIL (the engine's own
+     * last-sort-wins semantics), through the same order-preserving tails
+     * {@link #orderView} descends; null = underivable (a computed key,
+     * a native sort spelling, a value the compared output cannot carry). */
+    private static @com.legend.Nullable List<String> sortKeys(TypedSpec s,
+            List<TypedSpec> lets, java.util.Set<String> seen) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedSort so) {
+            List<String> keys = new java.util.ArrayList<>();
+            for (var k : so.keys()) {
+                keys.add(k.column());
+            }
+            return keys.isEmpty() ? null : keys;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedSortBy sb) {
+            if (sb.keyAlias() != null) {
+                return List.of(sb.keyAlias());
+            }
+            List<TypedSpec> body = sb.key().body();
+            return body.size() == 1 && body.get(0)
+                    instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    ? List.of(pa.property()) : null;
+        }
+        if (s instanceof TypedNativeCall c) {
+            String fqn = c.callee().qualifiedName();
+            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
+            return !SORT_FQNS.contains(fqn) && ORDER_PRESERVING.contains(simple)
+                    && !c.args().isEmpty() ? sortKeys(c.args().get(0), lets, seen) : null;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            if (!seen.add(v.name())) {
+                return null;
+            }
+            for (int i = lets.size() - 1; i >= 0; i--) {
+                if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l
+                        && l.name().equals(v.name())) {
+                    return sortKeys(l.value(), lets, seen);
+                }
+            }
+            return null;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedFilter
+                || s instanceof com.legend.compiler.spec.typed.TypedProject
+                || s instanceof com.legend.compiler.spec.typed.TypedSelect
+                || s instanceof com.legend.compiler.spec.typed.TypedRename
+                || s instanceof com.legend.compiler.spec.typed.TypedDistinct
+                || s instanceof com.legend.compiler.spec.typed.TypedLimit
+                || s instanceof com.legend.compiler.spec.typed.TypedDrop
+                || s instanceof com.legend.compiler.spec.typed.TypedSlice
+                || s instanceof com.legend.compiler.spec.typed.TypedMap
+                || s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess
+                || s instanceof com.legend.compiler.spec.typed.TypedCast
+                || s instanceof com.legend.compiler.spec.typed.TypedFrom
+                || s instanceof com.legend.compiler.spec.typed.TypedNavigate
+                || s instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess) {
+            List<TypedSpec> ch = s.children();
+            return ch.isEmpty() ? null : sortKeys(ch.get(0), lets, seen);
+        }
+        return null;
+    }
+
     private static OrderView orderView(TypedSpec s, List<TypedSpec> lets,
             java.util.Set<String> seen) {
         if (s instanceof com.legend.compiler.spec.typed.TypedSort

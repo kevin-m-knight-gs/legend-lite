@@ -119,9 +119,14 @@ meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFro
 meta::relational::tests::postProcessor::filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL
 meta::relational::tests::postProcessor::testDb2ColumnRename
 meta::relational::tests::postProcessor::testPostProcessTransformJoinOp
+meta::relational::tests::projection::drop::testSimpleNestedDrop
+meta::relational::tests::projection::drop::testSimpleNestedDropAfterConcatenate
+meta::relational::tests::projection::drop::testSimpleNestedSlice
+meta::relational::tests::projection::drop::testSimpleNestedSliceAfterConcatenate
 meta::relational::tests::projection::exists::testExistsAsNullWithSubType
 meta::relational::tests::projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives
 meta::relational::tests::projection::view::testUnionOnViewsMapping
+meta::relational::tests::query::drop::testSimpleDrop
 meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector
@@ -134,6 +139,10 @@ meta::relational::tests::query::take::testLimitFilterInSequenceForTableAccessor
 meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition
 meta::relational::tests::tds::sort::testSortQuotes
 meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries
+meta::relational::tests::tds::tdsProject::testDropAfterLimit
+meta::relational::tests::tds::tdsProject::testLimitAfterDrop
+meta::relational::tests::tds::tdsProject::testLimitAfterSlice
+meta::relational::tests::tds::tdsProject::testSliceAfterLimit
 meta::relational::tests::tds::window::routing::testExecutionPlanGeneration
 meta::relational::tests::typeInference::testTranslateDbType
 meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase
