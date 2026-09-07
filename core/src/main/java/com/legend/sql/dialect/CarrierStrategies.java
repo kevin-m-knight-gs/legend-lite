@@ -93,7 +93,13 @@ public final class CarrierStrategies extends SqlRewriter {
             com.legend.sql.SqlSource leftCopy =
                     copyWithAlias(fj.left(), "_full");
             if (leftCopy != null) {
-                SqlSelect leftBranch = s.withFrom(new com.legend.sql
+                // the select's ORDER BY / LIMIT / OFFSET belong to the UNION,
+                // not to its branches (H2 rejects `… ORDER BY … UNION ALL …`):
+                // the branches are the bare select, the outer select over the
+                // union carries the sort keyed by OUTPUT NAME
+                SqlSelect bare = s.withOrderBy(List.of()).withLimit(null)
+                        .withOffset(null);
+                SqlSelect leftBranch = bare.withFrom(new com.legend.sql
                         .SqlSource.Join(fj.left(), fj.right(),
                                 com.legend.sql.SqlSource.Join.Kind.LEFT,
                                 fj.on()));
@@ -105,15 +111,24 @@ public final class CarrierStrategies extends SqlRewriter {
                                                 null)))
                                 .withWhere(remapAlias(fj.on(),
                                         fj.left().alias(), "_full"))));
-                SqlSelect rightBranch = s.withFrom(new com.legend.sql
+                SqlSelect rightBranch = bare.withFrom(new com.legend.sql
                         .SqlSource.Join(fj.left(), fj.right(),
                                 com.legend.sql.SqlSource.Join.Kind.RIGHT,
                                 fj.on()))
                         .withWhere(s.where() == null ? anti
                                 : SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
                                         s.where(), anti));
-                return new com.legend.sql.SqlUnion(
+                com.legend.sql.SqlUnion union = new com.legend.sql.SqlUnion(
                         List.of(leftBranch, rightBranch), true, s.outputs());
+                if (s.orderBy().isEmpty() && s.limit() == null
+                        && s.offset() == null) {
+                    return union;
+                }
+                return SqlSelect.starOf(new com.legend.sql.SqlSource.Subselect(
+                                union, "_fullu", null))
+                        .withOrderBy(s.orderBy().stream()
+                                .map(k -> outputKeyedSort(k, s, "_fullu")).toList())
+                        .withLimit(s.limit()).withOffset(s.offset());
             }
         }
         // EXPLODE PLACEMENTS (R3a + R5b, witnessed): a single-projection
@@ -373,6 +388,43 @@ public final class CarrierStrategies extends SqlRewriter {
             }
         }
         return false;
+    }
+
+    /** A sort key over the emulated union's OUTER select: the key addresses
+     * the union's OUTPUT (by the key's own output name, else the projection
+     * whose expression the key is) — a key naming neither is loud. */
+    private static SqlSelect.SortKey outputKeyedSort(SqlSelect.SortKey k,
+            SqlSelect s, String outerAlias) {
+        com.legend.sql.OutputCol out = null;
+        for (int i = 0; i < s.projections().size(); i++) {
+            com.legend.sql.OutputCol o = s.outputs().get(i);
+            if (o.name().equals(k.outputName())
+                    || s.projections().get(i).expr().equals(k.expr())) {
+                out = o;
+                break;
+            }
+        }
+        if (out == null && s.projections().isEmpty()
+                && k.expr() instanceof SqlExpr.Column kc) {
+            // a STAR select: the outputs are the expanded columns; the key
+            // names one of them — uniquely, or loud (two sides of a join may
+            // both carry the name; the union then has no addressable key)
+            List<com.legend.sql.OutputCol> named = s.outputs().stream()
+                    .filter(o -> o.name().equals(kc.name())).toList();
+            if (named.size() == 1) {
+                out = named.get(0);
+            }
+        }
+        if (out == null) {
+            throw new DialectCapability(
+                    "FULL OUTER JOIN emulation: sort key " + k.expr()
+                    + " is not one of the select's outputs "
+                    + s.outputs().stream().map(com.legend.sql.OutputCol::name).toList());
+        }
+        // the union's output is a DERIVED frame column of the outer select
+        return new SqlSelect.SortKey(SqlExpr.Column.of(outerAlias, out.name(),
+                out.type(), out.nullable(), com.legend.sql.OutputCol.Origin.DERIVED),
+                k.ascending(), k.nullOrder(), out.name());
     }
 
     private static SqlExpr remapAlias(SqlExpr e, String from, String to) {
