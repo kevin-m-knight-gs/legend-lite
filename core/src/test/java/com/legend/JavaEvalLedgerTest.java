@@ -143,7 +143,7 @@ class JavaEvalLedgerTest {
             // 196→199 (audit slice 3): the nav walker recognizes BOTH
             // toOne spellings inline (invariant 6d keeps exec off the
             // frontend) — recognition lines, not evaluation.
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 188),
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 187),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 106),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
@@ -460,7 +460,11 @@ class JavaEvalLedgerTest {
             // tail page node, rebuilt through withChildren (typed-tree
             // navigation for the referee's page-membership population;
             // the population itself executes in the database)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1750),
+            // 1750 -> 1765 (batch 142): the quantified arm learned NESTED quantification
+            // (ids->map(i | pairs->map(cv | assert))), a computed message routed through the
+            // per-element unroll, and let-bound instance fields as unroll sources — verdict
+            // ORCHESTRATION (which statement-root assert to judge), never evaluation
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1765),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

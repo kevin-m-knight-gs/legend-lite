@@ -177,12 +177,19 @@ public final class UserCallInliner {
     // The call frame
     // =====================================================================
 
+    /** A store-element IDENTITY call (StoreElementIdentity — the one
+     * owner of the shape) is never opened: the resolver roots it as the
+     * element's row, the structural readers consume the spelling. */
+    private static boolean isStoreElementIdentity(String fqn, List<TypedSpec> args) {
+        return com.legend.compiler.spec.typed.StoreElementIdentity.isIdentityCall(fqn, args);
+    }
+
     private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
         List<TypedSpec> args = new ArrayList<>(call.args().size());
         for (TypedSpec a : call.args()) {
             args.add(rewrite(a, env));
         }
-        if (configMode) {
+        if (configMode || isStoreElementIdentity(call.callee().qualifiedName(), args)) {
             return new TypedUserCall(call.callee(), args, call.info());
         }
         // signatureKey identifies the OVERLOAD — name/arity conflated two

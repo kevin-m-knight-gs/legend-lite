@@ -153,16 +153,15 @@ public final class StoreNav {
                                 .equals(nc.callee().qualifiedName()))) {
             return nav(nc.args().get(0), lets, ctx);
         }
-        if (!(n instanceof TypedNativeCall nc)
-                || !PlatformTypes.isStoreNavFn(nc.callee().qualifiedName())
-                || nc.args().size() != 2
-                || !(resolve(nc.args().get(1), lets)
+        String navFqn = com.legend.compiler.spec.typed.StoreElementIdentity.calleeOf(n);
+        List<TypedSpec> navArgs = com.legend.compiler.spec.typed.StoreElementIdentity.argsOf(n);
+        if (navFqn == null || !PlatformTypes.isStoreNavFn(navFqn) || navArgs.size() != 2
+                || !(resolve(navArgs.get(1), lets)
                         instanceof TypedCString name)) {
             return null;
         }
-        if (PlatformTypes.STORE_SCHEMA_NAV
-                .equals(nc.callee().qualifiedName())) {
-            if (!(resolve(nc.args().get(0), lets)
+        if (PlatformTypes.STORE_SCHEMA_NAV.equals(navFqn)) {
+            if (!(resolve(navArgs.get(0), lets)
                     instanceof TypedPackageableRef db)) {
                 return null;
             }
@@ -176,7 +175,7 @@ public final class StoreNav {
                     : List.of();
         }
         // table(schemaChain, 'name')
-        List<Object> schema = nav(nc.args().get(0), lets, ctx);
+        List<Object> schema = nav(navArgs.get(0), lets, ctx);
         if (schema == null) {
             return null;
         }

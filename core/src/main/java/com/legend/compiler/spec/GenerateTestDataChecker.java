@@ -63,7 +63,9 @@ public final class GenerateTestDataChecker {
             if (args.get(i) instanceof com.legend.protocol.spec.Variable v) {
                 ValueSpecification r = env.resolveAlias(v);
                 if (r != v && !(r instanceof com.legend.protocol.spec.Variable)) {
-                    args.set(i, r);
+                    // hoisted constructor lets inside the value adopt too
+                    args.set(i, env.aliases().isEmpty() ? r
+                            : SourceSubst.substitute(r, env.aliases()));
                 }
             }
         }

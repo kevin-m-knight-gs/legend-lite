@@ -93,6 +93,17 @@ final class Anchors {
                     v = true;
                     break;
                 }
+                // a store TABLE identity (db->schema('S')->table('T'), through
+                // toOne peels) anchors ONLY when a PROPERTY is navigated from
+                // it (.columns, .name); as a bare argument — loadCsvToDbTable,
+                // replaceTables pairs — it is the VALUE the structural
+                // native consumes (StoreElementIdentity)
+                if (n instanceof TypedPropertyAccess pa && pa.source() == c
+                        && com.legend.compiler.spec.typed.StoreElementIdentity
+                                .isTableIdentity(peelToOne(c))) {
+                    v = true;
+                    break;
+                }
                 if (c instanceof TypedNativeCall pn && planHandle.test(pn)
                         && navigatesSource(n, c)) {
                     v = true;
@@ -158,6 +169,14 @@ final class Anchors {
         };
     }
 
+    private static TypedSpec peelToOne(TypedSpec v) {
+        TypedSpec cur = v;
+        while (cur instanceof TypedNativeCall c && StoreResolver.isClassToOne(c)) {
+            cur = c.args().get(0);
+        }
+        return cur;
+    }
+
     /** {@code at(coll, k)} with a LITERAL index — class-space slice. */
     static boolean isStaticAt(TypedNativeCall c) {
         return c.args().size() == 2
@@ -180,6 +199,10 @@ final class Anchors {
             // an element REFERENCE of a tracked metaclass IS its row (D3)
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when elementRef.test(pr) -> true;
+            // a store TABLE named by its accessors (db->schema('S')->table('T'))
+            // IS its row in the system store (ElementReferences.storeTableKey)
+            case com.legend.compiler.spec.typed.TypedUserCall uc
+                    when com.legend.compiler.spec.typed.StoreElementIdentity.isTableIdentity(uc) -> true;
             // a CONSTRUCTED metamodel instance the store carries as rows
             case com.legend.compiler.spec.typed.TypedNewInstance ni
                     when constructedRow.test(ni) -> true;

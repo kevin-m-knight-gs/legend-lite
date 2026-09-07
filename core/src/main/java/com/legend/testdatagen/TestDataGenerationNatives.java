@@ -257,13 +257,40 @@ public final class TestDataGenerationNatives {
             }
             return;
         }
+        // the engine's constructors are PROGRAMS the statement inliner
+        // expands: their VALUES reach this carrier as instance literals
+        // (let-bound, adopted by SourceSubst.resolveStructuralArgs)
+        com.legend.protocol.spec.NewInstance ni =
+                com.legend.compiler.spec.SourceSubst.instanceOf(arg);
+        if (ni != null) {
+            switch (ni.className()) {
+                case TABLE_ROW_IDENTIFIERS_FQN -> {
+                    rowIds.add(tableRowIds(ni));
+                    return;
+                }
+                case TEMPORAL_MILESTONING_DATES_FQN -> {
+                    dates[0] = new TestDataGenerator.MilestoningDates(
+                            dateField(ni, "businessDate"),
+                            dateField(ni, "processingDate"),
+                            dateField(ni, "snapshotDate"));
+                    return;
+                }
+                default -> {
+                    // an execution-context / extension instance rides the
+                    // call (the generator uses the ambient session); one
+                    // WITH properties would need reading — loud
+                    if (!ni.properties().isEmpty()) {
+                        throw new com.legend.error.NotImplementedException(
+                                "generateTestData: instance argument '"
+                                        + ni.className() + "' with properties pending");
+                    }
+                    return;
+                }
+            }
+        }
         if (arg instanceof AppliedFunction af) {
             String simple = simple(af.function());
             switch (simple) {
-                case "createTableRowIdentifiers" -> {
-                    rowIds.add(parseTableRowIds(af));
-                    return;
-                }
                 case "createTemporalMilestoningDates" -> {
                     String[] d = new String[3];
                     for (int i = 0; i < af.parameters().size() && i < 3;
@@ -312,39 +339,70 @@ public final class TestDataGenerationNatives {
         }
         throw new com.legend.error.NotImplementedException(
                 "generateTestData: unclassified argument "
-                        + arg.getClass().getSimpleName());
+                        + arg.getClass().getSimpleName()
+                        + (arg instanceof com.legend.protocol.spec.Variable v
+                                ? " '" + v.name() + "' (a let the carrier did not adopt)" : ""));
     }
 
-    private static TestDataGenerator.TableRowIds parseTableRowIds(
-            AppliedFunction af) {
-        List<ValueSpecification> ps = af.parameters();
-        String schema;
-        String table;
-        ValueSpecification ids;
-        if (ps.size() == 4
-                && ps.get(1) instanceof com.legend.protocol.spec.CString sc
-                && ps.get(2) instanceof com.legend.protocol.spec.CString tc) {
-            schema = sc.value();
-            table = tc.value();
-            ids = ps.get(3);
-        } else if (ps.size() == 2
-                && ps.get(0) instanceof AppliedFunction gt
-                && simple(gt.function()).equals("getTable")
+    private static final String TABLE_ROW_IDENTIFIERS_FQN =
+            "meta::relational::testDataGeneration::TableRowIdentifiers";
+    private static final String ROW_IDENTIFIER_FQN =
+            "meta::relational::testDataGeneration::RowIdentifier";
+    private static final String TEMPORAL_MILESTONING_DATES_FQN =
+            "meta::relational::testDataGeneration::TemporalMilestoningDates";
+    private static final String GET_TABLE_FQN =
+            "meta::relational::testDataGeneration::getTable";
+
+    private static @com.legend.Nullable ValueSpecification field(
+            com.legend.protocol.spec.NewInstance ni, String key) {
+        for (var kb : ni.properties()) {
+            if (kb.key().equals(key)) {
+                return kb.expression().value();
+            }
+        }
+        return null;
+    }
+
+    /** {@code ^TableRowIdentifiers(table = getTable(db, schema, table),
+     * rowIdentifiers = [...])} — the table is the engine's own element
+     * accessor spelled with its literal names (D2: an element's identity). */
+    private static TestDataGenerator.TableRowIds tableRowIds(
+            com.legend.protocol.spec.NewInstance ni) {
+        ValueSpecification table = field(ni, "table");
+        if (!(table instanceof AppliedFunction gt
+                && GET_TABLE_FQN.equals(gt.function())
                 && gt.parameters().size() == 3
                 && gt.parameters().get(1) instanceof com.legend.protocol.spec.CString sc
-                && gt.parameters().get(2) instanceof com.legend.protocol.spec.CString tc) {
-            schema = sc.value();
-            table = tc.value();
-            ids = ps.get(1);
-        } else {
+                && gt.parameters().get(2) instanceof com.legend.protocol.spec.CString tc)) {
             throw new com.legend.error.NotImplementedException(
-                    "generateTestData: createTableRowIdentifiers shape pending");
+                    "generateTestData: TableRowIdentifiers.table must be"
+                            + " getTable(db, 'schema', 'table') — got "
+                            + (table == null ? "no table" : table.getClass().getSimpleName()));
         }
         List<TestDataGenerator.RowId> out = new ArrayList<>();
-        collectRowIds(ids, out);
-        return new TestDataGenerator.TableRowIds(schema, table, out);
+        ValueSpecification ids = field(ni, "rowIdentifiers");
+        if (ids != null) {
+            collectRowIds(ids, out);
+        }
+        return new TestDataGenerator.TableRowIds(sc.value(), tc.value(), out);
     }
 
+    private static @com.legend.Nullable String dateField(
+            com.legend.protocol.spec.NewInstance ni, String key) {
+        ValueSpecification v = field(ni, key);
+        if (v == null || v instanceof com.legend.protocol.spec.PureCollection pc
+                && pc.values().isEmpty()) {
+            return null;
+        }
+        if (v instanceof com.legend.protocol.spec.CDate cd) {
+            return cd.value().toEngineString();
+        }
+        throw new com.legend.error.NotImplementedException(
+                "generateTestData: non-literal milestoning date");
+    }
+
+    /** {@code ^RowIdentifier(columnValuePairs = [cols]->zip([values]))}
+     * (createRowIdentifier's value) or a collection of them. */
     private static void collectRowIds(ValueSpecification v,
             List<TestDataGenerator.RowId> out) {
         if (v instanceof com.legend.protocol.spec.PureCollection pc) {
@@ -353,16 +411,26 @@ public final class TestDataGenerationNatives {
             }
             return;
         }
-        if (v instanceof AppliedFunction af
-                && simple(af.function()).equals("createRowIdentifier")
-                && af.parameters().size() == 2) {
-            out.add(new TestDataGenerator.RowId(
-                    literalStrings(af.parameters().get(0)),
-                    literalValues(af.parameters().get(1))));
-            return;
+        com.legend.protocol.spec.NewInstance ni =
+                com.legend.compiler.spec.SourceSubst.instanceOf(v);
+        if (ni != null && ROW_IDENTIFIER_FQN.equals(ni.className())) {
+            ValueSpecification pairs = field(ni, "columnValuePairs");
+            if (pairs instanceof AppliedFunction z
+                    && simple(z.function()).equals("zip")
+                    && z.parameters().size() == 2) {
+                out.add(new TestDataGenerator.RowId(
+                        literalStrings(z.parameters().get(0)),
+                        literalValues(z.parameters().get(1))));
+                return;
+            }
+            throw new com.legend.error.NotImplementedException(
+                    "generateTestData: RowIdentifier.columnValuePairs must be"
+                            + " zip([names], [values]) — got "
+                            + (pairs == null ? "nothing" : pairs.getClass().getSimpleName()));
         }
         throw new com.legend.error.NotImplementedException(
-                "generateTestData: row-identifier shape pending");
+                "generateTestData: row-identifier value shape pending: "
+                        + v.getClass().getSimpleName());
     }
 
     private static List<String> literalStrings(ValueSpecification v) {

@@ -256,7 +256,10 @@ class MinimalCorpusTest {
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
     // weakened one), so that ceiling moves with it
-    private static final int[] H2_STRENGTH = {1279, 56, 19};
+    // cardinality 19 -> 22 (batch 142): the membership rewrite (EXISTS through
+    // the non-null / compact carriers) made 9 query::filter::exists tests pass
+    // on H2; their asserts are assertSize — the same 22 the DuckDB lane carries
+    private static final int[] H2_STRENGTH = {1279, 56, 22};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

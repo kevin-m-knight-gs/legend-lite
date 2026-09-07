@@ -508,7 +508,9 @@ public class AnsiSqlRenderer implements SqlDialect {
      * portable route is the CarrierStrategies IN-rewrite. */
     protected String membership(SqlExpr.Membership m) {
         throw new DialectCapability("collection membership reached a"
-                + " dialect without a list encoding");
+                + " dialect without a list encoding [collection: "
+                + m.collection().getClass().getSimpleName()
+                + (m.collection() instanceof SqlExpr.Call c ? " " + c.fn() : "") + "]");
     }
 
     protected String reduceCollection(SqlExpr.ReduceCollection rc) {

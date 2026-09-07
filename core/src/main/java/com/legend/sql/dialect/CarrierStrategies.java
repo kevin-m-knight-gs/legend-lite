@@ -1408,6 +1408,26 @@ public final class CarrierStrategies extends SqlRewriter {
             }
             return new SqlExpr.Case(whens, otherwise);
         }
+        // a NON-NULL filter over the collection (LIST_FILTER(coll, x -> x
+        // IS NOT NULL) — the many-property read's null-drop) is redundant
+        // under membership: needle = NULL is never true in the EXISTS /
+        // OR forms, so the rule sees through to the collection
+        if (m.collection() instanceof SqlExpr.Call lf
+                && lf.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                && lf.args().size() == 2
+                && lf.args().get(1) instanceof SqlExpr.Lambda nn
+                && nn.params().size() == 1
+                && nn.body() instanceof SqlExpr.Call nnc
+                && nnc.fn() == com.legend.sql.SqlFn.IS_NOT_NULL
+                && nnc.args().size() == 1
+                && nnc.args().get(0) instanceof SqlExpr.Column pc
+                && pc.table() == null && nn.params().get(0).equals(pc.name())) {
+            return membershipRule(new SqlExpr.Membership(m.needle(), lf.args().get(0)));
+        }
+        // the COMPACT list (nulls dropped) is the same redundancy
+        if (m.collection() instanceof SqlExpr.CompactList cl) {
+            return membershipRule(new SqlExpr.Membership(m.needle(), cl.list()));
+        }
         if (m.collection() instanceof SqlExpr.ScalarSubquery sq
                 && sq.subquery() instanceof SqlSelect sel
                 && sel.projections().size() == 1

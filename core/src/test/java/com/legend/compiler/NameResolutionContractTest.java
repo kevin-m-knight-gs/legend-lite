@@ -135,22 +135,24 @@ class NameResolutionContractTest {
      * prelude natives — both travel as candidates and the signature
      * picks. Regression: corpus relation::schema(rel) newly visible in
      * the global compile starved toDDL's schema($db, $name) 2-arg call
-     * of the platform schema(Database,String). */
+     * of the platform schema(Database,String). (Batch 142 made schema()
+     * a system-metamodel Pure accessor, so the example native here is
+     * joinStrings — the contract is the same.) */
     @Test
     @DisplayName("prelude natives join user candidates at call position")
     void preludeNativesJoinCallCandidates() {
         var imports = new com.legend.model.ImportScope.Builder()
                 .add("app::fns::*").build();
-        var call = new com.legend.protocol.spec.AppliedFunction("schema",
-                List.of(new com.legend.protocol.spec.Variable("db"),
-                        new com.legend.protocol.spec.CString("default")));
+        var call = new com.legend.protocol.spec.AppliedFunction("joinStrings",
+                List.of(new com.legend.protocol.spec.Variable("strs"),
+                        new com.legend.protocol.spec.CString(",")));
         var resolved = (com.legend.protocol.spec.AppliedFunction)
                 com.legend.compiler.NameResolver.resolveQuery(call, imports,
-                        java.util.Set.of("app::fns::schema"));
-        assertTrue(resolved.candidateFqns().contains("app::fns::schema"),
+                        java.util.Set.of("app::fns::joinStrings"));
+        assertTrue(resolved.candidateFqns().contains("app::fns::joinStrings"),
                 "the user wildcard candidate is carried");
         assertTrue(resolved.candidateFqns().contains(
-                        "meta::relational::metamodel::schema"),
+                        "meta::pure::functions::string::joinStrings"),
                 "the prelude native joins the candidate set instead of"
                         + " being shadowed");
     }

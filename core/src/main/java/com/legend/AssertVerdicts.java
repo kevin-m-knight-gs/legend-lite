@@ -818,16 +818,43 @@ final class AssertVerdicts {
         // the collection through the caller's lets (let expected = [...])
         TypedSpec source = com.legend.compiler.spec.ExecuteChainAssembly
                 .letBound(qm.source(), letPrefix);
+        // a property read over a LET-BOUND instance literal is that field
+        // ($_s2_hoisted.columnValuePairs — the hoisted constructor's zip):
+        // the one rule Pipelines.instanceLiteralProp spells, through the lets
+        if (source instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && com.legend.compiler.spec.ExecuteChainAssembly.letBound(pa.source(), letPrefix)
+                        instanceof com.legend.compiler.spec.typed.TypedNewInstance inst
+                && inst.properties().get(pa.property()) != null) {
+            source = java.util.Objects.requireNonNull(inst.properties().get(pa.property()));
+        }
         if (lam.parameters().size() != 1 || lam.body().isEmpty()) {
             return null;
         }
         TypedSpec root = lam.body().get(lam.body().size() - 1);
         String fqn = calleeFqn(root);
-        if (fqn == null || !fqn.startsWith(PKG)) {
+        // a NESTED quantification (ids->map(i | pairs->map(cv |
+        // assert(...)))) — the engine's guard idiom in
+        // createTableRowIdentifiers: each outer element's inner map is
+        // itself a quantified assert, adjudicated recursively
+        boolean nestedQuantified = root instanceof com.legend.compiler.spec.typed.TypedMap
+                || com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(root) != null;
+        if (!nestedQuantified && (fqn == null || !fqn.startsWith(PKG))) {
             return null;
         }
-        boolean simplePredicate = lam.body().size() == 1
-                && (fqn.endsWith("::assert") || fqn.endsWith("::assertFalse"));
+        // the VECTOR form (quantified) raises the message host-side, so it
+        // needs a literal one; a COMPUTED message ('Table : ' + $table->
+        // getQualifiedTableName() + ...) rides each element through the
+        // unroll instead, where the statement-root assert arm judges the
+        // condition (the message is diagnostic, never the verdict)
+        boolean literalMessage = true;
+        if (root instanceof TypedUserCall ru && ru.args().size() >= 2) {
+            literalMessage = ru.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCString;
+        } else if (root instanceof TypedNativeCall rn && rn.args().size() >= 2) {
+            literalMessage = rn.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCString;
+        }
+        boolean simplePredicate = !nestedQuantified && fqn != null && lam.body().size() == 1
+                && (fqn.endsWith("::assert") || fqn.endsWith("::assertFalse"))
+                && literalMessage;
         if (simplePredicate) {
             return null;
         }

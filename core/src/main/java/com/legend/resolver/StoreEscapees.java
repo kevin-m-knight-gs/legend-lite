@@ -37,6 +37,12 @@ final class StoreEscapees {
                     + ") unresolved — the query shape around it is not"
                     + " supported by the resolver yet [at " + path + "]");
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && com.legend.compiler.spec.typed.StoreElementIdentity.isIdentity(uc)) {
+            // a store-element IDENTITY (db->schema('S')->table('T')) is a
+            // value the structural natives consume — not an unresolved call
+            return;
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
             throw new com.legend.error.NotImplementedException(
                     "store resolution left user call '"

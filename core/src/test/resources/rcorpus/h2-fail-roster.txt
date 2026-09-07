@@ -439,16 +439,7 @@ meta::relational::tests::query::drop::testDropWithVariables
 meta::relational::tests::query::enumPushDown::testPushDownProject
 meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep
-meta::relational::tests::query::filter::exists::testContains
-meta::relational::tests::query::filter::exists::testContainsNegated
-meta::relational::tests::query::filter::exists::testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep
-meta::relational::tests::query::filter::exists::testIn
-meta::relational::tests::query::filter::exists::testInExistsCombined
-meta::relational::tests::query::filter::exists::testInNegated
 meta::relational::tests::query::filter::exists::testIsNotEmpty
-meta::relational::tests::query::filter::exists::testNestedExistsOne
-meta::relational::tests::query::filter::exists::testNestedNotExists
-meta::relational::tests::query::filter::exists::testNotExists
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation
 meta::relational::tests::query::filter::exists::testWithProjectGroupByRemoveDups

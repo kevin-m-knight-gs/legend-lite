@@ -63,8 +63,9 @@ public final class TestDataGenerator {
 
     /** The engine's TemporalMilestoningDates: forced dates that FILTER
      * every milestoned table's fetch. */
-    public record MilestoningDates(String business, String processing,
-            String snapshot) {
+    public record MilestoningDates(@com.legend.Nullable String business,
+            @com.legend.Nullable String processing,
+            @com.legend.Nullable String snapshot) {
     }
 
     public record Result(List<String> sqls, @com.legend.Nullable String dataCsvString,

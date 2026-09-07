@@ -67,6 +67,12 @@ public final class SourceSubst {
         List<ValueSpecification> out = new java.util.ArrayList<>(params.size());
         for (ValueSpecification p : params) {
             ValueSpecification r = env.resolveAlias(p);
+            if (r != p && r instanceof com.legend.protocol.spec.PureCollection
+                    && !aliases.isEmpty()) {
+                // a let-bound COLLECTION of hoisted constructor lets
+                // ([$_s2_hoisted, $_s3_hoisted]) is its values
+                r = substitute(r, aliases);
+            }
             if ((r instanceof LambdaFunction || r != p && tdgCtorShape(r))
                     && !aliases.isEmpty()) {
                 // lambdas close over remaining aliases; TDG
@@ -89,26 +95,51 @@ public final class SourceSubst {
         return out;
     }
 
-    /** The TDG data-constructor vocabulary — exactly the calls (and
-     * collections of them) {@code TestDataGenerationNatives.classifyArg}
-     * consumes structurally; the effectful cutover surfaced 31 walls
-     * where these reached generateTestData through lets. EXACT-FQN
-     * identification (the standing doctrine — a user function merely
-     * NAMED createRowIdentifier in another package must not adopt);
-     * the resolver has run by check time, so these arrive fully
-     * qualified. */
-    private static final java.util.Set<String> TDG_CTOR_FQNS = java.util.Set.of(
-            "meta::relational::testDataGeneration::createTableRowIdentifiers",
-            "meta::relational::testDataGeneration::createRowIdentifier",
-            "meta::relational::testDataGeneration::createTemporalMilestoningDates");
+    /** The TDG data VALUES — exactly the shapes
+     * {@code TestDataGenerationNatives.classifyArg} consumes: instance
+     * literals of the engine's row-identifier classes (the constructors
+     * are PROGRAMS the statement inliner expands; their values arrive
+     * through lets — {@code let tri = ^TableRowIdentifiers(table =
+     * getTable(...), rowIdentifiers = $_s1_hoisted)}), the milestoning-
+     * dates constructor call (a value function, spelled at the site),
+     * and collections of them. EXACT-FQN identification (the standing
+     * doctrine); the resolver has run by check time. */
+    private static final java.util.Set<String> TDG_VALUE_CLASSES = java.util.Set.of(
+            "meta::relational::testDataGeneration::TableRowIdentifiers",
+            "meta::relational::testDataGeneration::RowIdentifier",
+            "meta::relational::testDataGeneration::TemporalMilestoningDates");
+
+    private static final String CREATE_TEMPORAL_MILESTONING_DATES =
+            "meta::relational::testDataGeneration::createTemporalMilestoningDates";
 
     private static boolean tdgCtorShape(ValueSpecification v) {
         if (v instanceof com.legend.protocol.spec.PureCollection pc) {
             return !pc.values().isEmpty()
                     && pc.values().stream().allMatch(SourceSubst::tdgCtorShape);
         }
+        // the parser spells ^Class(...) as new(<class ptr>, NewInstance)
+        com.legend.protocol.spec.NewInstance ni = instanceOf(v);
+        if (ni != null) {
+            return TDG_VALUE_CLASSES.contains(ni.className());
+        }
         return v instanceof AppliedFunction af
-                && TDG_CTOR_FQNS.contains(af.function());
+                && CREATE_TEMPORAL_MILESTONING_DATES.equals(af.function());
+    }
+
+    /** The instance literal {@code v} spells: a bare {@code NewInstance} or
+     * the parser's {@code new(<class ptr>, NewInstance)} wrapper. */
+    public static com.legend.protocol.spec.@com.legend.Nullable NewInstance instanceOf(
+            ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.NewInstance ni) {
+            return ni;
+        }
+        if (v instanceof AppliedFunction af
+                && CoreFn.of(af.function()).orElse(null) == CoreFn.NEW
+                && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof com.legend.protocol.spec.NewInstance ni2) {
+            return ni2;
+        }
+        return null;
     }
 
     /** The ONE let-shape recognizer (protocol encoding, not user

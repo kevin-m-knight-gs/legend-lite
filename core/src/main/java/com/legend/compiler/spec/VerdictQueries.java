@@ -332,7 +332,18 @@ public final class VerdictQueries {
             com.legend.compiler.element.ModelContext ctx,
             java.util.function.Function<TypedSpec, List<Object>> fetch) {
         if (source instanceof TypedCollection coll) {
-            return coll.elements();
+            // elements that are let-bound values ([$_s1_hoisted, $_s2_hoisted]
+            // — hoisted constructor programs) read through the caller's lets
+            List<TypedSpec> out = new java.util.ArrayList<>(coll.elements().size());
+            for (TypedSpec e : coll.elements()) {
+                out.add(ExecuteChainAssembly.letBound(e, letPrefix));
+            }
+            return out;
+        }
+        // a [1] instance literal (a let-bound constructor value) is the
+        // one-element collection pure's [x] == x law makes it
+        if (source instanceof com.legend.compiler.spec.typed.TypedNewInstance ni) {
+            return List.of(ni);
         }
         if (source instanceof TypedNativeCall z
                 && z.callee().qualifiedName().equals(

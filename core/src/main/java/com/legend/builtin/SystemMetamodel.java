@@ -1010,6 +1010,16 @@ public final class SystemMetamodel {
                 $_this.enumValueMappings->filter(m|$m.sources.value->contains($sourceValue))->toOne().enum
             }
 
+            function meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:String[1]):meta::relational::metamodel::Schema[0..1]
+            {
+                $_this.schemas->filter(s|$s.name == $name)->first()
+            }
+
+            function meta::relational::metamodel::table(_this:meta::relational::metamodel::Schema[1], name:String[1]):meta::relational::metamodel::relation::Table[0..1]
+            {
+                $_this.tables->filter(t|$t.name == $name)->first()
+            }
+
             function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:String[1]):meta::relational::metamodel::relation::View[0..1]
             {
                 $_this.views->filter(t|$t.name == $name)->first()

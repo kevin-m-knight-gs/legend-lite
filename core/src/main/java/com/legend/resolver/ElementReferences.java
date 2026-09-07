@@ -202,6 +202,53 @@ final class ElementReferences {
     }
 
 
+    static final String TABLE_METACLASS = "meta::relational::metamodel::relation::Table";
+
+    /** {@code db->schema('S')->table('T')} (StoreElementIdentity): the row
+     * id of that table in the system store; null otherwise. */
+    @com.legend.Nullable String storeTableKey(TypedSpec n) {
+        var r = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(n,
+                java.util.function.UnaryOperator.identity());
+        if (r == null) {
+            return null;
+        }
+        // the Table row is keyed by its DECLARING database: a database
+        // reaches an included database's tables through its includes
+        // (functions.pure:227 — schema() concatenates the includes' schemas)
+        String declaring = declaringDatabase(r.dbFqn(), r.schema(), r.table(),
+                new java.util.HashSet<>());
+        return com.legend.compiler.element.RelationalOpRows.tableId(
+                declaring == null ? r.dbFqn() : declaring, r.schema(), r.table());
+    }
+
+    private @com.legend.Nullable String declaringDatabase(String dbFqn, String schema,
+            String table, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return null;
+        }
+        var db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return null;
+        }
+        if ("default".equals(schema)
+                && db.tables().stream().anyMatch(t -> t.name().equals(table))) {
+            return dbFqn;
+        }
+        for (var s : db.schemas()) {
+            if (s.name().equals(schema)
+                    && s.tables().stream().anyMatch(t -> t.name().equals(table))) {
+                return dbFqn;
+            }
+        }
+        for (String inc : db.includes()) {
+            String found = declaringDatabase(inc, schema, table, seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     /** A chain ROOT the store carries as rows: the re-rooted head and the
      * context it resolves under. */
     record RootRow(TypedSpec row, StoreResolver.Context context) {
@@ -223,6 +270,15 @@ final class ElementReferences {
         if (cur instanceof TypedPackageableRef pr && trackedElementClass(pr) != null) {
             return new RootRow(elementRow(pr, java.util.Objects.requireNonNull(
                     trackedElementClass(pr)), context, freshVar), context);
+        }
+        // a STORE TABLE named by its accessors — db->schema('S')->table('T')
+        // (through toOne peels) — is an element reference too (D2: the
+        // Table row keyed RelationalOpRows.tableId; the accessor calls are
+        // the identity spelling the inliner keeps closed)
+        String tableKey = storeTableKey(cur);
+        if (tableKey != null) {
+            return new RootRow(elementRowByKey(tableKey,
+                    TABLE_METACLASS, context, freshVar), context);
         }
         if (cur instanceof TypedNativeCall pn && planHandle.test(pn)) {
             String scope = com.legend.plan.PlanRows.scopeId(pn);

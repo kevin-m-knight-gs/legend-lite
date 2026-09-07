@@ -70,20 +70,14 @@ final class CsvLoad {
     /** {@code [dbFqn, schema, table]} of a store-navigation chain
      * ({@code table(schema(db, 's')->toOne(), 't')}), lets chased. */
     private static String[] tableRef(TypedSpec t, List<TypedSpec> body) {
-        TypedSpec n = peel(t, body);
-        if (n instanceof TypedNativeCall tc
-                && PlatformTypes.STORE_TABLE_NAV.equals(tc.callee().qualifiedName())
-                && tc.args().size() == 2
-                && peel(tc.args().get(1), body) instanceof TypedCString tn
-                && peel(tc.args().get(0), body) instanceof TypedNativeCall sc
-                && PlatformTypes.STORE_SCHEMA_NAV.equals(sc.callee().qualifiedName())
-                && sc.args().size() == 2
-                && peel(sc.args().get(0), body) instanceof TypedPackageableRef db
-                && peel(sc.args().get(1), body) instanceof TypedCString sn) {
-            return new String[]{db.fullPath(), sn.value(), tn.value()};
+        var r = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(t, x -> peel(x, body));
+        if (r == null) {
+            throw new com.legend.error.NotImplementedException("loadCsvToDbTable: the"
+                    + " table argument is not a db->schema(...)->table(...) navigation: "
+                    + t.getClass().getSimpleName() + " " + String.valueOf(t).substring(0,
+                            Math.min(400, String.valueOf(t).length())));
         }
-        throw new com.legend.error.NotImplementedException("loadCsvToDbTable: the"
-                + " table argument is not a db->schema(...)->table(...) navigation");
+        return new String[]{r.dbFqn(), r.schema(), r.table()};
     }
 
     private static TypedSpec peel(TypedSpec n, List<TypedSpec> body) {

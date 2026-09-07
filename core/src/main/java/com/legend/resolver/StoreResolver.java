@@ -1438,6 +1438,11 @@ public final class StoreResolver {
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNewInstance cni
                 && constructed.convertible(cni)) { out.add(cni.classFqn()); }
+        // a store TABLE identity is a fetch of the Table metaclass (D2)
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && com.legend.compiler.spec.typed.StoreElementIdentity.isTableIdentity(uc)) {
+            out.add(ElementReferences.TABLE_METACLASS);
+        }
         for (TypedSpec c : n.children()) {
             collectGetAllClasses(c, out);
         }

@@ -295,32 +295,12 @@ final class ContextReading {
      * non-default schema. */
     private static String tableName(TypedSpec nav,
             java.util.function.UnaryOperator<TypedSpec> bind) {
-        TypedSpec cur = peel(nav, bind);
-        if (cur instanceof TypedNativeCall t
-                && "meta::relational::metamodel::table"
-                        .equals(t.callee().qualifiedName())
-                && t.args().size() == 2) {
-            String table = stringOf(t.args().get(1), "table name");
-            TypedSpec sch = peel(t.args().get(0), bind);
-            if (sch instanceof TypedNativeCall s
-                    && "meta::relational::metamodel::schema"
-                            .equals(s.callee().qualifiedName())
-                    && s.args().size() == 2) {
-                String schema = stringOf(s.args().get(1), "schema name");
-                return "default".equals(schema) ? table
-                        : schema + "." + table;
-            }
+        var r = StoreElementIdentity.tableRef(nav, x -> peel(x, bind));
+        if (r != null) {
+            return "default".equals(r.schema()) ? r.table() : r.schema() + "." + r.table();
         }
         throw new NotImplementedException("replaceTables pair side is not"
                 + " a schema()/table() navigation: " + nav);
-    }
-
-    private static String stringOf(TypedSpec v, String what) {
-        if (peel(v) instanceof com.legend.compiler.spec.typed.TypedCString cs) {
-            return cs.value();
-        }
-        throw new NotImplementedException("replaceTables " + what
-                + " is not a string literal: " + v);
     }
 
     /** toOne()/cast wrappers peel — identity for navigation. */
