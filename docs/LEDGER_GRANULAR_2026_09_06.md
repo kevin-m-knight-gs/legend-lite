@@ -541,7 +541,16 @@
     - assert #2 assertSameElements → `engine-golden-defect`: engine-golden-defect:joinStrings-rendering: platform-fail: expected: ['_', 'N,John,Johnson :: expected: ['1,Peter,Smith,1,ee0af362d8c1e4fa8c
     - asserts passing: #1
 
-## (not in the breakdown) (6)
+## (not in the breakdown) (6) — CLASSIFIED 2026-09-07 (unattended session)
+
+The five `testConnectionEquality*` tests are the connection-equality family PARKED for the
+code-as-data leg (docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md; memory `code-as-data-leg-parked`): the
+scalar `match` over extension-contributed arms is Pure evaluating over metamodel instances. Bucket:
+NAMED / code-as-data. `testPlatformExpressionDependencyOnAFromExpression2` is the sibling of
+`…OnAFromExpression` in the ENGINE bucket (decision:routeFunction — the engine's router under test).
+Net: IMPL stays at 7 (5 real legs + the parked nested ModelJoin + the post-processor transform lambda,
+which is code-as-data); everything else is TEXT / ENGINE / OTHER / NAMED / REVISIT.
+
 
 - **testConnectionEqualityAllButOnePropertySame** — `metamodel::execute::tests` [?]
     - run bucket: `wall-exec: scalar match: the arm collection has a non-literal prefix (extension-contributed arms) that did not fold to [] — the low`

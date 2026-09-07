@@ -857,11 +857,8 @@ final class ArchitectureTest {
                 // live diagnostic ledger (Phase 0 honesty instrument):
                 // accumulates timings at runtime; content-addressing is
                 // meaningless for a metrics sink
-                "com.legend.exec.TimingLedger.NS",
-                "com.legend.exec.TimingLedger.COUNT",
                 // per-test wall of the same ledger (batch 8: the corpus
                 // dump names its 30 slowest tests)
-                "com.legend.exec.TimingLedger.NAMED",
                 // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
                 // bounded witness sample for the harness-published
                 // table; measurement only, never verdict-affecting
@@ -900,7 +897,6 @@ final class ArchitectureTest {
                 // replay declines) — bounded by decline-reason
                 // cardinality; measurement only, never
                 // verdict-affecting (the CanonicalDivergence pattern)
-                "com.legend.exec.SqlTextEmission.TEXT_VERDICT",
                 // TYPED-IR Slice 1: the label-lie census's classified
                 // counters (declared-vs-computed pair -> count);
                 // measurement only, never verdict-affecting — the
@@ -914,7 +910,6 @@ final class ArchitectureTest {
                 // — the M-N3 flip payload); measurement only, the
                 // §4AD navigation-arm census: runtime accumulation,
                 // dumped by the corpus runner (NAV_ARM_CENSUS_4AD.md)
-                "com.legend.lowering.NavArmCensus.FIRINGS",
                 // SqlTypeCensus pattern (runtime accumulation is the
                 // legitimate static-census shape)
                 "com.legend.exec.SqlTypeCensus.NUL_CLASSES",

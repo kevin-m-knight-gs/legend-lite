@@ -303,7 +303,6 @@ final class Substitution {
         // §4AD census: every EXISTS-material construction is a firing
         // of the non-row-algebra navigation family (redesign work item)
         ExistsSub {
-            com.legend.lowering.NavArmCensus.fire("exists-material");
         }
 
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,

@@ -203,16 +203,12 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     : com.legend.exec.SqlReplayOracle.RowVerdict
                             .diverged(d);
         } catch (H2Verify.Unverifiable u) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
-            }
+            H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(u.getMessage()));
         } catch (RuntimeException e) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm-tdg: "
-                        + String.valueOf(e.getMessage()).replace('\n', ' '));
-            }
+            H2Verify.decline("verdict-arm-tdg: "
+                    + String.valueOf(e.getMessage()).replace('\n', ' '));
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(e.getMessage()));
         }
@@ -692,9 +688,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             return verifyArmed(session, goldenSql, ours, mappingFqn,
                     rootClassFqn, ctx, seeds);
         } catch (H2Verify.Unverifiable u) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm: " + u.getMessage());
-            }
+            H2Verify.decline("verdict-arm: " + u.getMessage());
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(u.getMessage()));
         } finally {
@@ -773,9 +767,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             return verifyArmed(session, sql, ours, mappingFqn, rootClassFqn,
                     ctx, null);
         } catch (H2Verify.Unverifiable u) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm-plan: " + u.getMessage());
-            }
+            H2Verify.decline("verdict-arm-plan: " + u.getMessage());
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(u.getMessage()));
         } finally {
@@ -873,16 +865,12 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         } catch (H2Verify.Unverifiable u) {
             // probe isolation: the dual-channel's duplicate firings must
             // not double-feed the pinned unverifiable census
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm: " + u.getMessage());
-            }
+            H2Verify.decline("verdict-arm: " + u.getMessage());
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(u.getMessage()));
         } catch (java.sql.SQLException | RuntimeException e) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm: "
-                        + String.valueOf(e.getMessage()).replace('\n', ' '));
-            }
+            H2Verify.decline("verdict-arm: "
+                    + String.valueOf(e.getMessage()).replace('\n', ' '));
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(e.getMessage()));
         }
@@ -913,16 +901,12 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     : com.legend.exec.SqlReplayOracle.RowVerdict
                             .diverged(d);
         } catch (H2Verify.Unverifiable u) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
-            }
+            H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(u.getMessage()));
         } catch (RuntimeException e) {
-            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
-                H2Verify.decline("verdict-arm-tdg: "
-                        + String.valueOf(e.getMessage()).replace('\n', ' '));
-            }
+            H2Verify.decline("verdict-arm-tdg: "
+                    + String.valueOf(e.getMessage()).replace('\n', ' '));
             return com.legend.exec.SqlReplayOracle.RowVerdict
                     .declined(String.valueOf(e.getMessage()));
         }

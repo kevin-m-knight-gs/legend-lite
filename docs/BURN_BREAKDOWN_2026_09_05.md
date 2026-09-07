@@ -34,7 +34,7 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
-Status: **batch 122 / PCT render flag as an execute option LANDED (2026-09-07)** — the execution-option thread-local family is CLOSED (118/120/121/122). NEXT: item 4 in three batches (123 executor prepare/run split, 124 referee verdict in the database, 125 row-compare policy deleted) per docs/REFEREE_IN_DATABASE_DESIGN_2026_09_07.md §Implementation plan; THEN item 5.
+Status: **batch 123 / item 5a — unread counters deleted (2026-09-07, unattended)** — TimingLedger, SqlTextEmission, NavArmCensus, CanonDeclines gone (1,140 lines); SqlTypeCensus + CanonicalDivergence STAY pending the user's decision (the PCT module pins on them: PctCensusGate's 8 ceilings, Channel-B's dual-verdict-agreement assertions). The 6 unclassified failures classified. IMPL = 7 (5 real legs). Item 4 parked by recommendation; next = burn legs (exists-with-subtype nested navigation; the inheritance plan needs the union base in the plan printer — two walls).
 
 Status: **batch 117 / the harness stdlib is the platform's LANDED (2026-09-06)** — corpus-library.pure deleted; the real demand was two natives (firstNotNull, date::add with a Duration), now kind-1 natives with SQL rules; the namespace guard covers every loaded source. Item 2 of the five done; item 3 (the harness body scans become platform facts) next.
 

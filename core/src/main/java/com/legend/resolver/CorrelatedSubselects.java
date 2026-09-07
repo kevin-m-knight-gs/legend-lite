@@ -2302,7 +2302,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             }
         }
         if (!local.isEmpty()) {
-            com.legend.lowering.NavArmCensus.fire("agg-filter-position");
         }
         // demands re-stamped filterPosition=true: the emission takes the
         // PARENT-COPY grouped subselect (engine BuildCorrelatedSubQuery
@@ -2339,7 +2338,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 List<String> sp = Substitution.pathOf(ssb.source(), userVar);
                 if (sp != null && sp.size() == 1
                         && toManyHead.test(cs, sp.get(0))) {
-                    com.legend.lowering.NavArmCensus.fire("agg-sortby-arm");
                     aggOut.computeIfAbsent(sp.get(0), k -> new ArrayList<>())
                             .add(new StoreResolver.AggDemand(nc, spa.property(), null,
                                     ssb.key(), ssb.ascending()));
@@ -2370,8 +2368,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         Substitution.pathOf(mapSrc, userVar);
                 if (srcPath != null && srcPath.size() == 1
                         && toManyHead.test(cs, srcPath.get(0))) {
-                    com.legend.lowering.NavArmCensus.fire(
-                            "agg-computed-mapper-arm");
                     aggOut.computeIfAbsent(srcPath.get(0),
                                     k -> new ArrayList<>())
                             .add(new StoreResolver.AggDemand(nc, null, tmap.mapper(),
@@ -2392,7 +2388,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             }
             if (path != null && path.size() == 2
                     && toManyHead.test(cs, path.get(0))) {
-                com.legend.lowering.NavArmCensus.fire("agg-size2-leaf-arm");
                 aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
                         .add(new StoreResolver.AggDemand(nc, path.get(1)));
                 for (int i = 1; i < nc.args().size(); i++) {
@@ -2417,7 +2412,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                         nc.args().get(0).info().type(), one1)),
                                 new Type.Param(Type.Primitive.INTEGER, one1)),
                                 one1));
-                com.legend.lowering.NavArmCensus.fire("agg-bare-count-arm");
                 aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
                         .add(new StoreResolver.AggDemand(nc, null,
                                 constMapper));
@@ -2452,7 +2446,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                         nc.args().get(0).info().type(), one1)),
                                 new Type.Param(Type.Primitive.INTEGER, one1)),
                                 one1));
-                com.legend.lowering.NavArmCensus.fire("agg-chain-count-arm");
                 aggOut.computeIfAbsent(path.get(0) + "." + path.get(1),
                                 k -> new ArrayList<>())
                         .add(new StoreResolver.AggDemand(nc, null,
@@ -2473,7 +2466,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                     && toManyHead.test(cs, path.get(0))) {
                 TypedLambda synth = tailMapperOf(nc.args().get(0), userVar);
                 if (synth != null) {
-                    com.legend.lowering.NavArmCensus.fire("agg-deep-tail-arm");
                     aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
                             .add(new StoreResolver.AggDemand(nc, null, synth));
                     for (int i = 1; i < nc.args().size(); i++) {
@@ -2587,7 +2579,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         if (chainTail == null) {
             return false;
         }
-        com.legend.lowering.NavArmCensus.fire("agg-chain-tail-arm");
         aggOut.computeIfAbsent(path.get(0) + "." + path.get(1),
                         k -> new ArrayList<>())
                 .add(new StoreResolver.AggDemand(nc, null, chainTail));
@@ -2656,7 +2647,6 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             if (path != null && path.size() >= 2) {
                 TypedLambda tail = tailMapperOf(nc.args().get(0), mv, 1);
                 if (tail != null) {
-                    com.legend.lowering.NavArmCensus.fire("agg-mapper-scoped-arm");
                     aggOut.computeIfAbsent(head + "." + path.get(0), k -> new ArrayList<>())
                             .add(new StoreResolver.AggDemand(nc, null, tail));
                     aggHops.add(path.get(0));

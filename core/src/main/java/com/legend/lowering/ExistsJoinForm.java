@@ -160,7 +160,6 @@ final class ExistsJoinForm {
         // BY THEIR OWN SEMANTICS, and the engine's own
         // buildExistsAsJoinWithNullCheck shape. Predicate-reads left this
         // channel for the fan-out route (charter decision 2).
-        NavArmCensus.fire("exists-join-form-dedup");
         return outer.withFrom(from).withWhere(
                 Fold.mergeAnd(keep.toArray(SqlExpr[]::new)));
     }

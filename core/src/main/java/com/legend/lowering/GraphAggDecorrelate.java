@@ -146,7 +146,6 @@ final class GraphAggDecorrelate {
         fr[0] = fr[0].withFrom(new SqlSource.Join(fr[0].from(),
                 new SqlSource.Subselect(grouped, ga, null),
                 SqlSource.Join.Kind.LEFT, Fold.mergeAnd(eqs)));
-        NavArmCensus.fire("graph-reducer-decorrelated");
         SqlExpr read = derivedRead(ga, gouts, "aggCol");
         // COUNT over an unmatched parent is ZERO, not NULL (the join-back
         // pad) — the measured COUNT-zero contract of the grouped cell;

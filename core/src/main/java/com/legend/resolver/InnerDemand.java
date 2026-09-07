@@ -73,8 +73,6 @@ final class InnerDemand {
         }
         java.util.List<String> p = Substitution.pathOf(n, userVar);
         if (p != null && !p.isEmpty() && toManyHead.test(cs, p.get(0))) {
-            com.legend.lowering.NavArmCensus.fire(underEmptiness
-                    ? "filter-emptiness-call" : "filter-pred-read");
             return;
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedLambda l

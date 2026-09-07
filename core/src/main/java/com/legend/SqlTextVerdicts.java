@@ -11,7 +11,6 @@ import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.ExecutionResult;
 import com.legend.exec.SqlReplayOracle;
-import com.legend.exec.SqlTextEmission;
 
 import java.util.List;
 
@@ -142,7 +141,6 @@ final class SqlTextVerdicts {
         // from here every path is THIS arm's verdict — the marker lets
         // the dual-channel probe bucket walk-vs-arm outcomes as the
         // DESIGNED text-vs-rows divergence, never pinned disagreement
-        SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
         if (oracle == null) {
@@ -155,7 +153,6 @@ final class SqlTextVerdicts {
         if (!"H2".equals(dbType)) {
             // §4 FOREIGN-DIALECT residue: no oracle database for this
             // dialect — text stays the contract, counted forever
-            SqlTextEmission.textVerdict("foreign-dialect " + dbType);
             return textEqual ? ok()
                     : fail(name + " (sql-text, " + dbType
                             + " — text is the contract): expected "
@@ -273,7 +270,6 @@ final class SqlTextVerdicts {
                             ? "golden side" : "actual side")
                             + " did not evaluate to a string");
         }
-        SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
         if (oracle == null) {
@@ -394,7 +390,6 @@ final class SqlTextVerdicts {
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
         golden = stripChainedPlanWarning(golden);
-        SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
         if (oracle == null) {
@@ -519,7 +514,6 @@ final class SqlTextVerdicts {
             return null;
         }
         golden = stripChainedPlanWarning(golden);
-        SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
         if (oracle == null) {
@@ -776,7 +770,6 @@ final class SqlTextVerdicts {
         if (golden == null || ours == null) {
             return null;
         }
-        SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
         if (oracle == null) {
@@ -789,8 +782,6 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries
                         .refereeBindings(lam);
         if (bindings == null) {
-            SqlTextEmission.textVerdict(
-                    "plan-param-unbindable (non-scalar)");
             return textEqual ? ok()
                     : fail(name + " (plan-text, params unbindable —"
                             + " text is the contract): expected " + golden
@@ -930,7 +921,6 @@ final class SqlTextVerdicts {
         if (golden == null || ours == null) {
             return null;
         }
-        SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
         if (oracle == null) {
@@ -953,19 +943,12 @@ final class SqlTextVerdicts {
                                                 env.connection())));
         return switch (rv.outcome()) {
             case MATCH -> {
-                if (textEqual) {
-                    SqlTextEmission.textMatched();
-                } else {
-                    SqlTextEmission.textDiverged();
-                }
                 yield ok();
             }
             case DIVERGED -> fail(name + " (tdg fetch-text ROW verdict"
                     + " — golden rows vs ours diverged, whatever the"
                     + " text said): " + rv.detail());
             case DECLINED -> {
-                SqlTextEmission.textVerdict("tdg-declined: "
-                        + rv.detail());
                 yield textEqual ? ok()
                         : fail(name + " (tdg fetch-text, declined: "
                                 + rv.detail() + "): expected " + golden
@@ -1277,8 +1260,6 @@ final class SqlTextVerdicts {
             // the rows leg is underivable — counted, text stays the
             // contract (§3.7: a counted decline, visible, never silent;
             // DataError joined RuntimeException at the seam)
-            SqlTextEmission.textVerdict("our-rows-underivable: "
-                    + String.valueOf(e.getMessage()).replace('\n', ' '));
             return textEqual ? ok()
                     : fail(name + " (sql-text, rows underivable):"
                             + " expected " + golden + ", got " + ours);
@@ -1286,7 +1267,6 @@ final class SqlTextVerdicts {
             com.legend.exec.SqlTypeCensus.probeSuspend(priorSuspend);
         }
         if (rows == null) {
-            SqlTextEmission.textVerdict("our-rows-underivable: null result");
             return textEqual ? ok()
                     : fail(name + " (sql-text, rows underivable):"
                             + " expected " + golden + ", got " + ours);
@@ -1305,11 +1285,6 @@ final class SqlTextVerdicts {
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number
-                if (textEqual) {
-                    SqlTextEmission.textMatched();
-                } else {
-                    SqlTextEmission.textDiverged();
-                }
                 yield ok();
             }
             case DIVERGED -> fail(name + " (sql-text ROW verdict —"
@@ -1318,8 +1293,6 @@ final class SqlTextVerdicts {
             case DECLINED -> {
                 // oracle could not answer: text is the contract,
                 // decline counted (§3.7)
-                SqlTextEmission.textVerdict("oracle-declined: "
-                        + rv.detail());
                 yield textEqual ? ok()
                         : fail(name + " (sql-text, oracle declined: "
                                 + rv.detail() + "): expected " + golden

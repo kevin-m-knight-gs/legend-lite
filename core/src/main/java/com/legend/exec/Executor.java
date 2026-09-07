@@ -37,17 +37,9 @@ public final class Executor {
      * Raw-statement execution — the K-native {@code executeInDb} boundary:
      * one already-dialect-adapted statement, no plan, no result shaping.
      */
-    /** Raw-statement JDBC time + count — perf instrument (the corpus
-     * duck-vs-h2 seed accounting). */
-    public static final java.util.concurrent.atomic.AtomicLong RAW_NANOS =
-            new java.util.concurrent.atomic.AtomicLong();
-    public static final java.util.concurrent.atomic.AtomicLong RAW_CALLS =
-            new java.util.concurrent.atomic.AtomicLong();
-
     /** Runs one raw statement; true when it produced a result set (a
      * query) — the statement's KIND, from execution. */
     public static boolean executeRaw(Connection connection, String statement) {
-        long t0 = System.nanoTime();
         try (Statement st = connection.createStatement()) {
             return st.execute(statement);
         } catch (SQLException e) {
@@ -57,9 +49,6 @@ public final class Executor {
             // was ours) — assertError's position adjudication reads it
             java.sql.SQLException un = RaisedErrors.unwrapped(e);
             throw new DataError(String.valueOf(un.getMessage()), un);
-        } finally {
-            RAW_NANOS.addAndGet(System.nanoTime() - t0);
-            RAW_CALLS.incrementAndGet();
         }
     }
 
@@ -92,11 +81,6 @@ public final class Executor {
         // TYPED-IR Slice 1: the label-lie census — every executed plan's
         // declared labels vs the bottom-up judgment (measurement only)
         SqlTypeCensus.probe(plan);
-        // TEMPORARY (2026-08-15 G4-vs-G5 wall accounting): whole
-        // plan-execution boundary — prepare + executeQuery + result
-        // materialization/shaping. Histogram by RESULT SHAPE (scalar
-        // value-evals vs tabular/graph) + SQL duplication stats.
-        long qt0 = System.nanoTime();
         try {
             return execute0(sql, plan, rootType, shape, connection, dialect,
                     rider);
@@ -110,62 +94,8 @@ public final class Executor {
             // was ours) — assertError's position adjudication reads it
             java.sql.SQLException un = RaisedErrors.unwrapped(e);
             throw new DataError(String.valueOf(un.getMessage()), un);
-        } finally {
-            com.legend.exec.TimingLedger.add("query.exec",
-                    System.nanoTime() - qt0);
-            com.legend.exec.TimingLedger.add("query.exec.shape."
-                    + shape, System.nanoTime() - qt0);
-            HISTO.record(sql);
         }
     }
-
-    /** TEMPORARY (2026-08-15): SQL duplication histogram — hash-keyed
-     *  counts (memory-bounded), exemplars for the top repeats. */
-    private static final class Histo {
-        final java.util.concurrent.ConcurrentHashMap<Integer, java.util.concurrent.atomic.AtomicLong>
-                counts = new java.util.concurrent.ConcurrentHashMap<>();
-        final java.util.concurrent.ConcurrentHashMap<Integer, String>
-                exemplars = new java.util.concurrent.ConcurrentHashMap<>();
-
-        Histo() {
-            Runtime.getRuntime().addShutdownHook(new Thread(this::dump));
-        }
-
-        void record(String sql) {
-            int h = sql.hashCode();
-            long n = counts.computeIfAbsent(h,
-                    k -> new java.util.concurrent.atomic.AtomicLong())
-                    .incrementAndGet();
-            if (n == 2 && exemplars.size() < 5000) {
-                exemplars.put(h, sql.length() > 200
-                        ? sql.substring(0, 200) : sql);
-            }
-        }
-
-        void dump() {
-            long total = counts.values().stream()
-                    .mapToLong(java.util.concurrent.atomic.AtomicLong::get).sum();
-            StringBuilder sb = new StringBuilder();
-            sb.append("total executions\t").append(total).append('\n');
-            sb.append("distinct sql\t").append(counts.size()).append('\n');
-            counts.entrySet().stream()
-                    .sorted((a, b) -> Long.compare(b.getValue().get(),
-                            a.getValue().get()))
-                    .limit(25)
-                    .forEach(e -> sb.append(e.getValue().get()).append("x\t")
-                            .append(String.valueOf(exemplars.get(e.getKey()))
-                                    .replace('\n', ' '))
-                            .append('\n'));
-            try {
-                java.nio.file.Files.writeString(java.nio.file.Path.of(
-                        "target", "query-histogram.txt"), sb.toString());
-            } catch (java.io.IOException ignore) {
-                // best-effort diagnostic
-            }
-        }
-    }
-
-    private static final Histo HISTO = new Histo();
 
     private static ExecutionResult execute0(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,

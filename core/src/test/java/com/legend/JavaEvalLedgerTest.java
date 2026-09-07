@@ -899,7 +899,6 @@ class JavaEvalLedgerTest {
                     // compilation); only the probe stays in exec.
                     "GridProbe.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
-                    "TimingLedger.java",
                     // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
                     // REFERENCE render + its divergence census. Pure
                     // MEASUREMENT beside the comparison layer — probes
@@ -924,7 +923,6 @@ class JavaEvalLedgerTest {
                     // CanonDeclineTaxonomyTest so a respelled reason
                     // can never silently split a census class. Pure
                     // data: no JDBC, no evaluation, no verdict.
-                    "CanonDeclines.java",
                     // F13 (2026-08-22, OPEN_REGISTER): the SITE-ID
                     // minter for synthetic instance identity — an
                     // IdentityHashMap from construction-site NODE to a
@@ -965,7 +963,6 @@ class JavaEvalLedgerTest {
                     // census number, never a verdict: nothing here can
                     // affect one (the CanonicalDivergence pattern); no
                     // JDBC, no evaluation.
-                    "SqlTextEmission.java",
                     "package-info.java");
 
     /** THE ORCHESTRATION ROOT, closed (user directive 2026-09-01,

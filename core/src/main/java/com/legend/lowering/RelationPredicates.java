@@ -172,9 +172,6 @@ final class RelationPredicates {
                 // scalar COUNT subquery (outer-row refs — the banned
                 // navigation class) vs a WHOLE-EXTENT count (no outer
                 // refs — a plain scalar envelope, row- and shape-benign)
-                NavArmCensus.fire(referencesOuter(base)
-                        ? "correlated-count-reducer"
-                        : "extent-count-reducer");
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
                                 counter, null, null))));
@@ -202,9 +199,6 @@ final class RelationPredicates {
                         : Fold.sourceColumn(base.from(),
                                 rt2.columns().get(0).name());
                 // §4AD census, batch-6 split (see the COUNT arm)
-                NavArmCensus.fire(referencesOuter(base)
-                        ? "correlated-agg-reducer"
-                        : "extent-agg-reducer");
                 return new SqlExpr.ScalarSubquery(base.withProjections(
                         List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(fam, List.of(col), false,
