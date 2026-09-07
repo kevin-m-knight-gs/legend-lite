@@ -915,10 +915,8 @@ class JavaEvalLedgerTest {
                     // An identifier stamped at the JDBC boundary; no value
                     // a verdict reads is computed here.
                     "ExecutionTrace.java",
-                    // batch 85: the test-input resource resolver the harness
-                    // registers per run (path -> text; loud when absent) —
-                    // the reference checkout stays spec, never runtime
-                    "TestResources.java",
+                    // (TestResources.java: the per-run resource resolver — DELETED
+                    // in batch 138, it rides ExecuteOptions.resources now)
                     "QueryPlan.java",
                     // Phase 1c: the LIMIT-0 schema probe — the
                     // DynamicPivot.staticize model (a FIRST query pins a

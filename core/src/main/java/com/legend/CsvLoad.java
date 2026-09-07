@@ -10,7 +10,6 @@ import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.ExecutionResult;
 import com.legend.exec.Executor;
-import com.legend.exec.TestResources;
 
 import java.util.List;
 
@@ -40,7 +39,13 @@ final class CsvLoad {
                         + " table '" + ref[2] + "' is not declared in " + ref[0]));
         String[] cols = tableType.columns().stream().map(c -> c.name())
                 .toArray(String[]::new);
-        String[] lines = TestResources.read(path).split("\r?\n");
+        var resources = env.options().resources();
+        if (resources == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "test resource '" + path + "': this execution carries no"
+                    + " resource resolver (ExecuteOptions.resources)");
+        }
+        String[] lines = resources.apply(path).split("\r?\n");
         List<String[]> rows = new java.util.ArrayList<>();
         for (int i = 1; i < lines.length; i++) {   // the header row is dropped
             if (lines[i].isBlank()) {

@@ -62,6 +62,19 @@ final class RelationReads {
             String assocName, LegacyMappingDefinition md,
             @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
             @com.legend.Nullable ModelBuilder model) {
+        return rewrite(v, rowByVar, rfByVar, assocName, md, nestedCols, model, 0);
+    }
+
+    /** {@code derivedDepth}: how many derived-property inlines enclose this
+     * rewrite — a parameter of the recursion (Phase 2d, batch 138), a
+     * thread-local counter before; a self-referential derived property
+     * runs out of depth and falls through to the loud wall. */
+    private static ValueSpecification rewrite(ValueSpecification v,
+            Map<String, Variable> rowByVar,
+            Map<String, ClassMapping.RelationFunction> rfByVar,
+            String assocName, LegacyMappingDefinition md,
+            @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
+            @com.legend.Nullable ModelBuilder model, int derivedDepth) {
         // NESTED hop read: $end.assocProp.leaf resolves to the nested
         // target's column on the END's composite row
         if (v instanceof AppliedProperty ap0
@@ -127,22 +140,17 @@ final class RelationReads {
             // so its leaf reads take the plain-column arm above.
             // Depth-guarded: a self-referential derived property falls
             // through to the loud wall below.
-            if (model != null && DERIVED_DEPTH.get() < 16) {
+            if (model != null && derivedDepth < 16) {
                 ClassDefinition dcd =
                         MappingNormalizer.classDef(model, rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
                 com.legend.protocol.DerivedPropertyDefinition dp =
                         findDerivedInline(dcd, ap.property(), model);
                 if (dp != null) {
-                    DERIVED_DEPTH.set(DERIVED_DEPTH.get() + 1);
-                    try {
-                        return rewrite(
-                                substVars(dp.expression().get(0),
-                                        Map.of("this", var)),
-                                rowByVar, rfByVar, assocName, md,
-                                nestedCols, model);
-                    } finally {
-                        DERIVED_DEPTH.set(DERIVED_DEPTH.get() - 1);
-                    }
+                    return rewrite(
+                            substVars(dp.expression().get(0),
+                                    Map.of("this", var)),
+                            rowByVar, rfByVar, assocName, md,
+                            nestedCols, model, derivedDepth + 1);
                 }
             }
             throw new NotImplementedException(
@@ -155,25 +163,22 @@ final class RelationReads {
             case AppliedFunction af -> af.withParameters(
                     af.parameters().stream().map(x -> rewrite(x,
                             rowByVar, rfByVar, assocName, md, nestedCols,
-                            model)).toList());
+                            model, derivedDepth)).toList());
             case AppliedProperty ap2 -> new AppliedProperty(
                     rewrite(ap2.receiver(), rowByVar, rfByVar,
-                            assocName, md, nestedCols, model), ap2.property());
+                            assocName, md, nestedCols, model, derivedDepth), ap2.property());
             case PureCollection pc -> new PureCollection(
                     pc.values().stream().map(x -> rewrite(x,
                             rowByVar, rfByVar, assocName, md, nestedCols,
-                            model)).toList());
+                            model, derivedDepth)).toList());
             case LambdaFunction lf2 -> new LambdaFunction(lf2.parameters(),
                     lf2.body().stream().map(x -> rewrite(x,
                             rowByVar, rfByVar, assocName, md, nestedCols,
-                            model)).toList());
+                            model, derivedDepth)).toList());
             default -> v.mapChildren(x -> rewrite(x, rowByVar, rfByVar,
-                    assocName, md, nestedCols, model));
+                    assocName, md, nestedCols, model, derivedDepth));
         };
     }
-
-    private static final ThreadLocal<Integer> DERIVED_DEPTH =
-            ThreadLocal.withInitial(() -> 0);
 
     /** The owner's (or a superclass's) zero-arg derived property with a
      * single-expression Inline body — the only shape the join-condition

@@ -558,9 +558,8 @@ public final class MinimalCorpus {
         com.legend.sql.dialect.RawSqlBoundary.Recorder recorder =
                 new com.legend.sql.dialect.RawSqlBoundary.Recorder(
                         shared ? seedLedger : List.of());
-        com.legend.ExecuteOptions options = com.legend.ExecuteOptions.recording(recorder);
-        com.legend.harness.ReplayOracle oracle = new com.legend.harness.ReplayOracle(recorder);
-        com.legend.exec.TestResources.register(path -> {
+        // the test-input resource resolver rides the same options (Phase 2d)
+        com.legend.ExecuteOptions options = com.legend.ExecuteOptions.recording(recorder, path -> {
             try {
                 return Files.readString(Corpus.RELATIONAL.getParent().getParent()
                         .resolve(path.startsWith("/") ? path.substring(1) : path));
@@ -568,6 +567,7 @@ public final class MinimalCorpus {
                 throw new com.legend.error.DataError("test resource '" + path + "'", e);
             }
         });
+        com.legend.harness.ReplayOracle oracle = new com.legend.harness.ReplayOracle(recorder);
         try {
             // a setup that fails FAILS every test depending on it (Phase
             // 0.2): the engine's suite scores each BeforePackage function
