@@ -264,3 +264,73 @@ NAMED receipts — named, with reasons, in the ledger. "Zero" means zero UNNAMED
   context plumbing moved out of a static sink is a justified bump; evaluation is not.
 - Item 4 was parked by MY recommendation (it changes no verdict today) — the user accepted
   "burn first"; it returns at step 6 because single-shot needs it.
+
+## Appendix A — step 1's fields: who sets, who reads (measured 2026-09-08)
+
+| Field | Set by | Read by | Principled home |
+|---|---|---|---|
+| `NullSemantics.FILTER_POS` | `Lowerer` L1470, L1926 (`enterFilter()` scope around lowering a filter predicate) | `NullSemantics` (the null-arm choice of comparisons) | a parameter of the lowering call for the predicate node (the Lowerer knows it is lowering a filter) |
+| `NullSemantics.VERBATIM_EQ` | `Lowerer` L1472/L1932 (`enterVerbatimEquality()` / `keep()`) | `NullSemantics.equalNullArms` via `Scalars` L156 | same: an argument of the equality lowering, not a thread flag |
+| `EngineTextBoundary.ACTIVE` | `StatementExecutor` L619 (`enter()` around the engine-text render) | `CastPolicy` L50 (`c.wire() && active()`) | the render request: the engine-style renderer instance / a lowering option, like `withDbTimeZone` |
+| `TextGoldens.ACTIVE` | `StatementExecutor` L620, L640 (`enter()`) | `EngineStyleH2` L1031 | the renderer instance (EngineStyle* are already distinct classes; make the mode a constructor argument) |
+| `RawSqlBoundary.RECORDER` / `META_RECORDER` | `MinimalCorpus` L442 (`record(recording)` per test); `StatementExecutor` L1948/L2563/L2593/L2643/L2644 (`recordExecuted`), L2594/L2662/L2665 (`recordMeta`) | `ReplayOracle` L198/L859/L897 (`recordedSql()`) | a recorder OBJECT the harness creates per test and passes through `ExecuteOptions`; the executor appends to it; the referee reads it from the harness |
+| `ExecutionTrace.LAST` | `Executor` L238 (`stamp(sql)` per executed query) | `StatementExecutor` L1484, L1532 (`lastComment()` → `PlanAllocations.registerActivityRows`) | the executed statement's comment returned with its result (or passed forward from `Executor.execute` to the register) |
+| `SqlTypeCensus.CONTEXT` / `WIRE_WATCH`, `StampCensus.CONTEXT` | `pct/…/ChannelB.runOne` L191–192 (per test); the census itself | the census reports; `PctCensusGate` | step 1c (option C: per-run fact ledger) |
+| `RelationReads.DERIVED_DEPTH` | itself (recursion guard inside `RelationReads`) | itself | a depth parameter of the recursive method |
+| `TestResources.RESOLVER` | `MinimalCorpus` L443 (`register(path -> …)`) | `CsvLoad` L43 (`TestResources.read(path)`) | a resolver argument of the CSV load (through `ExecuteOptions` / the environment) |
+
+## Appendix B — the commands (copy these; do not retype the flags)
+
+```bash
+# DuckDB lane (gate 4), exact roster + set difference against the roster of record
+mvn -pl core test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= \
+  -Dlegend.engine.root=/Users/neemsandv/legend/legend-engine -Dlegend.pure.root=/Users/neemsandv/legend/legend-pure > $T/lane-duck.out 2>&1
+grep -a "\[corpus2\] pass=\|roster shrank\|referee-outcome" $T/lane-duck.out
+grep -a "\[corpus2\] FAIL" $T/lane-duck.out | sed 's/.*FAIL //' | sort > $T/fail-now.txt
+comm -13 docs/parked/duckdb-fail-roster-batch119.txt $T/fail-now.txt   # LOST (must be empty)
+comm -23 docs/parked/duckdb-fail-roster-batch119.txt $T/fail-now.txt   # GAINED
+
+# H2 lane (gate 5): add -Drcorpus.backend=h2 (floor 1866)
+# one test, with stacks and the resolved dump:
+LEGEND_LITE_STACKS=1 LL_DUMP_RESOLVED=1 mvn -q -pl core test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= \
+  -Drcorpus.test=<fqn> -Dlegend.engine.root=… -Dlegend.pure.root=…   # output: core/target/surefire-reports/…-output.txt or the redirected file
+# SQL of what ran: LEGEND_LITE_DUMP_SQL=1 (or LL_TMP_SQL=1 for the exec-sql lines)
+
+# full chain (tree FROZEN until ALLGATES_DONE); outputs kept in $TMPDIR/gates-neema.{log,g4.out,g5.out}
+LEGEND_ENGINE_ROOT=/Users/neemsandv/legend/legend-engine LEGEND_PURE_ROOT=/Users/neemsandv/legend/legend-pure \
+  nohup caffeinate -dims tools/allgates.sh > $T/allgates.log 2>&1 &
+# waiter (background): the pgrep pattern must not match itself
+until grep -q ALLGATES_DONE $L && [ "$(stat -f %m $L)" -ge "$start" ] && ! pgrep -f "[t]ools/allgates" >/dev/null; do sleep 15; done
+
+# downstream modules compile against core's INSTALLED jar: after a core change touching pct,
+mvn -q -pl core install -DskipTests && mvn -q -pl pct test-compile
+```
+
+## Appendix C — the guardrails and what each pins (they WILL fire; that is their job)
+
+| Test | Pins |
+|---|---|
+| `PlatformNamesGuardrailTest` | literal `equals("meta::…")` checks outside `PlatformTypes` — 72, shrink-only; no runtime-shape walker outside `ExecutionContext.Reader` |
+| `JavaEvalLedgerTest` | ROOT_CLASSES / file lists of Java-evaluating classes (register new root classes consciously, e.g. `ExecuteOptions.java`); verdict-class stripped-line pins (SqlTextVerdicts 1071 — bump only with a written justification) |
+| `HarnessDisciplineTest` | per-file sort/distinct site counts (display sorts count: use a TreeMap) |
+| `CodeShapeGuardrailTest` | raw `new SqlExpr.Column(…)` sites (7): new references go through `Column.of(...)` / `derived` / `physical` |
+| `ArchitectureTest` | static-sink registry (every static accumulator named), verdict classes reachable only from the verdict seam, invariant 6a: `com.legend.sql` depends only on itself and the JDK (no `com.legend.error` from a dialect — throw `DialectCapability`) |
+| `JdbcSurfaceCensusTest` | every file touching `java.sql` in test roots is registered (InDbVerdict will need this) |
+| `ObservabilityGuardrailTest` | main-scope `System.err` print sites (33 after batch 123... verify: it was 34 before; the count is asserted exactly) |
+| `ErrorShapeGuardrailTest` | broad-catch sites per file |
+| `MinimalCorpusTest` | the ONE roster pin per lane (2454 / 1866), `assertTrue(pass.size() >= floor)` |
+| gate 7 (`PCT`) | `PctCensusGate` ceilings per suite; Channel-B dual-verdict assertions (see step 1c) |
+
+## Appendix D — document map (read in this order for any step)
+
+- docs/END_TO_END_PLAN_2026_09_08.md — this plan.
+- docs/GATES.md — one entry per batch (113–125 are this week's); the record of what changed and why.
+- docs/SESSION_HANDOFF_2026_09_02.md §0 — per-batch paragraphs incl. the batch-123 item-5 finding (options A/B/C) and the batch-120 rule.
+- docs/BURN_BREAKDOWN_2026_09_05.md — the 168-fail breakdown by leg (IMPL L1–L16, TEXT T1–T5, ENGINE, OTHER, NAMED) + status line.
+- docs/LEDGER_GRANULAR_2026_09_06.md — per-test rows with walls; the exists-with-subtype probe; the 6 classified.
+- docs/parked/ — `duckdb-fail-roster-batch119.txt` (roster of record), `InDbVerdict.java` (item 4), the batch-120 patch scripts.
+- docs/REFEREE_IN_DATABASE_DESIGN_2026_09_07.md — item 4 design, census, three-batch implementation plan.
+- docs/BATCH_120_FRAME_FACTS_HANDOFF_2026_09_07.md — the from-is-the-carrier rule, the reader call-site inventory.
+- docs/AUDIT_BATCHES_116_118_2026_09_07.md — the audit that found the option statics.
+- docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md, docs/METAMODEL_AS_RELATIONS_HOMEWORK_2026_09_02.md, docs/WORLD_MAP.md — step 5.
+- Memory: `end-to-end-plan-2026-09-08` (pointer), `harness-rebuild-audit` (history), `stop-when-probing-blind`, `sequence-by-importance-not-size`, `code-as-data-leg-parked`, `metamodel-as-relations-state`, `string-hacking-audit-navigation-paths` (owed before single-shot).
