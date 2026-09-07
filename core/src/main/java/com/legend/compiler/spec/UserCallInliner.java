@@ -111,11 +111,40 @@ public final class UserCallInliner {
      */
     public UserCallInliner(SpecCompiler specs,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+        this(specs, hook, false);
+    }
+
+    private UserCallInliner(SpecCompiler specs,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
+            boolean verdictSource) {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.hook = hook;
+        this.verdictSource = verdictSource;
     }
 
     /** Inline every user call in a query body (statements = lets + result). */
+    /** The quantified verdict's SOURCE collection reduced with the literal
+     * arms ON (a user-authored statement keeps its shape everywhere else —
+     * engine parity): {@code DatabaseType->enumValues()->filter(e | $e->in(
+     * [...]))} is its literal elements for the unroll; the unroll compares,
+     * never computes — the elements were already spelled. */
+    private final boolean verdictSource;
+
+    /** An inliner whose literal arms are ON at the root — for the
+     * quantified verdict's SOURCE only (see {@link #reduceVerdictSource}). */
+    public static UserCallInliner forVerdictSource(SpecCompiler specs,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
+        return new UserCallInliner(specs, hook, true);
+    }
+
+    public TypedSpec reduceVerdictSource(TypedSpec source, List<TypedSpec> letPrefix) {
+        List<TypedSpec> seq = new ArrayList<>(letPrefix);
+        seq.add(source);
+        List<TypedSpec> reduced = inlineBody(seq);
+        return reduced.get(reduced.size() - 1);
+    }
+
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
         // The fresh namespace must clear every user-written _i<N> — a query
         // variable literally named _i0 would otherwise be CAPTURED by an
@@ -603,7 +632,7 @@ public final class UserCallInliner {
                 quotedFrames.pop();
             }
         }
-        if (!quotedFrames.isEmpty() || stack.isEmpty()) {
+        if (!quotedFrames.isEmpty() || (stack.isEmpty() && !verdictSource)) {
             return Optional.empty();
         }
         return switch (n) {

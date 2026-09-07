@@ -827,6 +827,18 @@ final class AssertVerdicts {
                 && inst.properties().get(pa.property()) != null) {
             source = java.util.Objects.requireNonNull(inst.properties().get(pa.property()));
         }
+        // a COMPUTED-but-spelled collection (DatabaseType->enumValues()
+        // ->filter(e | $e->in([...]))) reduces through the one substitution
+        // engine to its literal elements before the shape is judged
+        if (!(source instanceof com.legend.compiler.spec.typed.TypedCollection
+                || source instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                || source instanceof TypedNativeCall)) {
+            TypedSpec last = com.legend.compiler.spec.UserCallInliner
+                    .forVerdictSource(specs, rawHook).reduceVerdictSource(source, letPrefix);
+            if (last instanceof com.legend.compiler.spec.typed.TypedCollection) {
+                source = last;
+            }
+        }
         if (lam.parameters().size() != 1 || lam.body().isEmpty()) {
             return null;
         }

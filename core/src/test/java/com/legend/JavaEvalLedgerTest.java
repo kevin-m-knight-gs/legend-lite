@@ -464,7 +464,10 @@ class JavaEvalLedgerTest {
             // (ids->map(i | pairs->map(cv | assert))), a computed message routed through the
             // per-element unroll, and let-bound instance fields as unroll sources — verdict
             // ORCHESTRATION (which statement-root assert to judge), never evaluation
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1765),
+            // 1765 -> 1774 (batch 143): the quantified verdict's SOURCE reduces through the
+            // inliner with the literal arms on (enumValues()->filter(in) unrolls) — which
+            // elements to judge, never a judgment
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1774),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

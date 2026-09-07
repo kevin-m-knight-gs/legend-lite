@@ -328,12 +328,18 @@ class MinimalCorpusTest {
 
     /** Ceilings on TESTS with a text-decided verdict, per reason (Phase 0.6;
      * measured 2026-09-08, batch 132). */
+    // foreign-dialect 30 -> 31 (batch 143): testSortQuotes's forAll over
+    // DatabaseType->enumValues()->filter(in) now unrolls (the verdict source
+    // reduces with the literal arms on); its assertEquals is a POSTGRES
+    // SQL-text golden — a foreign dialect, text is the contract, one more
+    // test the arm counts (it stays in the fail roster: TEXT-ONLY)
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 29, "plan-params-unbindable", 6, "oracle-declined", 22,
-            "foreign-dialect:DB2", 30, "foreign-dialect:Composite", 7);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
+    // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 38, "plan-params-unbindable", 6, "oracle-declined", 28,
-            "foreign-dialect:DB2", 30, "foreign-dialect:Composite", 7);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(
             "float-10-digits", 48, "micro-floor", 7,

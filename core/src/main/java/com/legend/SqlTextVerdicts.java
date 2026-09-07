@@ -1288,8 +1288,8 @@ final class SqlTextVerdicts {
             // DataError joined RuntimeException at the seam)
             declined(env, name, "rows-underivable");
             return textEqual ? ok()
-                    : fail(name + " (sql-text, rows underivable):"
-                            + " expected " + golden + ", got " + ours);
+                    : fail(name + " (sql-text, rows underivable — " + e.getClass().getSimpleName()
+                            + ": " + e.getMessage() + "): expected " + golden + ", got " + ours);
         } finally {
             com.legend.exec.SqlTypeCensus.probeSuspend(priorSuspend);
         }
