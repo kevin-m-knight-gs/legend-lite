@@ -126,6 +126,11 @@ programs, the carrier reads VALUES, the guard is a verdict — 18 shells PASS on
 schema()/table() are system-metamodel Pure accessors and `db->schema('S')->table('T')` is a store-element IDENTITY
 (`StoreElementIdentity`, one owner); the H2 membership rewrite sees through the list carriers → +9 exists tests on H2
 (1989 pass). Rule (memory `phase3-fix-not-reclassify`): never reclassify when a 1–2 batch code leg exists.
+PHASE 3 CLOSE-OUT (batch 143, ledger §15): 21 DuckDB passes landed (+9 H2); the code pool left is THREE single
+tests (importDataFlow option, mixed-mapping union key demand, TDG view slice — each a batch); the rest of the 120 is
+REVISIT 10 + data nondeterminism 1 (USER), SCOPE 5 (USER), TEXT contracts ~27, ENGINE-MACHINERY ~38, CODE-AS-DATA/
+OTHER-STORE ~19. The 'under 100' path is the two USER decisions. Mechanism landed: the quantified verdict's source
+reduces with the literal arms on (`UserCallInliner.forVerdictSource`).
 
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the
