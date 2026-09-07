@@ -141,6 +141,8 @@ SCOPE DECIDED (batch 145): the four engine-core fixture files are NAMED library 
 `Corpus.CORE_PURE`; the guard refuses stdlib FUNCTIONS only; Prelude regenerated +5 spec classes). The five tests
 resolve their names and reach their true walls — CODE-AS-DATA (2), ENGINE-MACHINERY (3); no pass change. USER lesson:
 a Pure import is a name shorthand, not a dependency. NEXT: importDataFlow (146), mixed-mapping union key, TDG view slice.
+importDataFlow ATTEMPT REVERTED (2026-09-08, six cycles > the three-cycle rule; USER: clean sheet): the design is
+`docs/IMPORT_DATA_FLOW_DESIGN_2026_09_08.md` — implement §3 in order as batch 146.
 
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the
