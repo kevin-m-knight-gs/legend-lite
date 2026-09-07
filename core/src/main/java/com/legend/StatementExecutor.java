@@ -52,11 +52,9 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
-        // the execution OPTIONS ride the program: an execute call on the
-        // engine's exeCtx overload binds them (addDriverTablePkForProject) —
-        // the environment states what the program asked for
-        ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                driverTablePkRequested(typedBody));
+        // the execution OPTIONS ride each execute call's own from (the
+        // engine's exeCtx overload binds them onto its bound context)
+        ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection);
         ExecEnv env = assertListener == null && replayOracle == null ? env0
                 : env0.withListeners(assertListener, replayOracle);
         if (resolved instanceof com.legend.protocol.spec.LambdaFunction rlf
@@ -66,42 +64,6 @@ final class StatementExecutor {
         return executeStatements(typedBody,
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
-    }
-
-    /** Whether any execute call in the program asks for driver-table PK
-     * columns through its ExecutionContext argument (read by the one
-     * context reader; a let-bound context chases through the lets met so
-     * far in the statement list). */
-    private static boolean driverTablePkRequested(java.util.List<TypedSpec> body) {
-        java.util.Map<String, TypedSpec> lets = new java.util.HashMap<>();
-        for (TypedSpec stmt : body) {
-            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet l) {
-                lets.put(l.name(), l.value());
-            }
-            if (requestsDriverPk(stmt, lets)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean requestsDriverPk(TypedSpec n, java.util.Map<String, TypedSpec> lets) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
-            TypedSpec ctxArg = com.legend.compiler.spec.ExecuteChainAssembly
-                    .executionContextArg(nc);
-            if (ctxArg != null && com.legend.compiler.spec.typed.ExecutionContext.NONE
-                    .withOptions(ctxArg, v -> v instanceof com.legend.compiler.spec.typed
-                            .TypedVariable tv && lets.containsKey(tv.name())
-                            ? lets.get(tv.name()) : v).driverTablePk()) {
-                return true;
-            }
-        }
-        for (TypedSpec c : n.children()) {
-            if (requestsDriverPk(c, lets)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** The K-phase execution environment: ONE ambient connection, ONE
@@ -115,7 +77,6 @@ final class StatementExecutor {
     record ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            boolean addDriverTablePk,
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
@@ -130,34 +91,30 @@ final class StatementExecutor {
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                boolean addDriverTablePk,
-                java.util.Map<String, TypedSpec> queryLets,
+                    java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds,
                 com.legend.exec.@com.legend.Nullable AssertListener assertListener,
                 com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
                 java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                         planRows) {
-            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk, queryLets,
+            this(ctx, runtimeFqn, dialect, connection, queryLets,
                     tableReplace, instanceIds, assertListener, replayOracle, planRows,
                     java.util.List.of(), null);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tableReplace, instanceIds, assertListener, replayOracle,
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
                     planRows, protocolBody, f);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tr, instanceIds, assertListener, replayOracle,
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
                     planRows, protocolBody, frame);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.Nullable AssertListener l,
                 com.legend.exec.@com.legend.Nullable SqlReplayOracle o) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame);
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
             return frame == null ? com.legend.compiler.spec.typed.ExecutionContext.PostProcessors.NONE
@@ -171,7 +128,7 @@ final class StatementExecutor {
          * database's connection for a body that reads the metamodel. */
         ExecEnv withConnection(java.sql.Connection other) {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
-                    dialect, other, addDriverTablePk, queryLets, tableReplace,
+                    dialect, other, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows,
                     protocolBody, frame);
         }
@@ -182,54 +139,48 @@ final class StatementExecutor {
         ExecEnv withProtocolBody(
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                    addDriverTablePk, queryLets, tableReplace, instanceIds,
+                    queryLets, tableReplace, instanceIds,
                     assertListener, replayOracle, planRows, body, frame);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                boolean addDriverTablePk,
-                java.util.Map<String, TypedSpec> queryLets,
+                    java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds) {
-            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tableReplace, instanceIds, null, null,
+            this(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, null, null,
                     new java.util.LinkedHashMap<>());
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                boolean addDriverTablePk,
-                java.util.Map<String, TypedSpec> queryLets,
+                    java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace) {
             // F13: one site-id minter per env — both sides of every
             // verdict share it, so identity ids agree across lowerings
-            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tableReplace, new com.legend.exec.InstanceIds());
+            this(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, new com.legend.exec.InstanceIds());
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                boolean addDriverTablePk,
-                java.util.Map<String, TypedSpec> queryLets) {
+                    java.util.Map<String, TypedSpec> queryLets) {
             // historical arity: no connection post-processor hooks
             this(ctx, runtimeFqn, dialect, connection,
-                    addDriverTablePk, queryLets, java.util.Map.of());
+                    queryLets, java.util.Map.of());
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
-                java.sql.Connection connection,
-                boolean addDriverTablePk) {
+                java.sql.Connection connection) {
             // run-scoped accumulator of inliner-consumed lets: graph-tree
             // date args keep their source spelling (the serialize key), so
             // every resolver seeds its let env from here (engine
             // inScopeVars)
             this(ctx, runtimeFqn, dialect, connection,
-                    addDriverTablePk, new java.util.LinkedHashMap<>());
+                    new java.util.LinkedHashMap<>());
         }
     }
 
@@ -437,13 +388,6 @@ final class StatementExecutor {
             // C2.2: stores bound to DIFFERENT connections cannot share
             // the one session connection — wall, never wrong-database rows
             CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
-            if (env.addDriverTablePk()) {
-                // the engine's addDriverTablePkForProject option (#45):
-                // projections gain driver-table PK columns; non-projection
-                // statements pass through unchanged
-                body = com.legend.resolver.DriverPkAppend.apply(
-                        body, env.ctx());
-            }
             result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
                     env, letPrefix, specs));
         }
@@ -1558,12 +1502,6 @@ final class StatementExecutor {
                     resolver(specs, env);
             java.util.List<TypedSpec> body = chainResolver.resolve(
                     java.util.List.of(assembled.chain()), env.runtimeFqn());
-            // the engine's RelationalExecutionContext option: driver-table
-            // PK columns join every projection (#45 validation)
-            if (env.addDriverTablePk()) {
-                body = com.legend.resolver.DriverPkAppend.apply(
-                        body, env.ctx());
-            }
             run = executeTyped(body, env);
         }
         PlanAllocations.registerActivityRows(ec,
@@ -2145,12 +2083,6 @@ final class StatementExecutor {
                 resolver(specs, env);
         body = sideResolver.resolve(body, env.runtimeFqn());
         // the addDriverTablePkForProject option is part of the EXECUTION
-        // ENV — a verdict side must project the same columns the generic
-        // statement path projects (#45; the validation-family probe
-        // caught the missing ID column, V7 batch 2)
-        if (env.addDriverTablePk()) {
-            body = com.legend.resolver.DriverPkAppend.apply(body, env.ctx());
-        }
         return executeTyped(body, env,
                 rider, identity);
     }
@@ -2184,17 +2116,24 @@ final class StatementExecutor {
         // the resolver pass takes the probed roster through the oracle
         body = com.legend.resolver.RawGridSchema.stamp(body,
                 gridOracle(connection, env));
-        TypedSpec root = body.get(body.size() - 1);
         // the from being executed IS the frame: its bound context carries the
         // post-processors, the connection's time zone and the options this
         // execution runs under (batch 120 — no static slot). The OUTERMOST
         // from in tree order (an assert side re-plans a spliced chain under a
         // property access; nested froms are the resolver's own wrappers).
         java.util.List<com.legend.compiler.spec.typed.TypedFrom> froms =
-                com.legend.compiler.spec.typed.ExecutionContext.froms(root);
+                com.legend.compiler.spec.typed.ExecutionContext.froms(
+                        body.get(body.size() - 1));
         if (!froms.isEmpty()) {
             env = env.withFrame(froms.get(0).context());
+            // the engine's addDriverTablePkForProject option (#45) is PER
+            // EXECUTE CALL — the from's own bound option (batch 121):
+            // projections gain the driver table's PK columns
+            if (froms.get(0).context().driverTablePk()) {
+                body = com.legend.resolver.DriverPkAppend.apply(body, ctx);
+            }
         }
+        TypedSpec root = body.get(body.size() - 1);
         // from() is context-only, but its info is the PRE-RESOLUTION
         // declared type — kept: a primitive-many declared root whose
         // resolved source became relation-shaped (scalar ->map lowers to
