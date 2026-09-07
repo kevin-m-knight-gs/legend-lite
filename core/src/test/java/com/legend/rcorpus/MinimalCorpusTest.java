@@ -101,6 +101,8 @@ class MinimalCorpusTest {
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
+        /** the strength census of the passes (Phase 0.7) */
+        java.util.Map<String, Integer> strength = new java.util.LinkedHashMap<>();
         /** every test that RAN, in discovery order, pass or fail */
         List<String> ran = new ArrayList<>();
         java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
@@ -120,6 +122,11 @@ class MinimalCorpusTest {
                                     + MinimalCorpus.whole(e.getMessage()));
                 }
                 ran.add(r.fqn());
+                if (r.status() == MinimalCorpus.Status.PASS) {
+                    strength.merge(r.strength().name()
+                            + (r.strength() == MinimalCorpus.Strength.DIFFERENTIAL
+                                    ? (r.literalToo() ? "+literal" : "-only") : ""), 1, Integer::sum);
+                }
                 switch (r.status()) {
                     case PASS -> pass.add(r.fqn() + " :: " + r.reason());
                     case FAIL -> fail.add(r.fqn() + " :: " + r.reason());
@@ -207,7 +214,37 @@ class MinimalCorpusTest {
         pinRoster(only, ranTagged, unmappable, "ord",
                 MinimalCorpus.H2_BACKEND ? H2_ORD : DUCKDB_ORD, false);
         pinChannels(only, corpus);
+        pinStrength(only, strength);
     }
+
+    /** Phase 0.7 — the STRENGTH census of the passes (audit §3's ladder),
+     * derived from listener events; pinned MONOTONE per lane: the
+     * differential count may only grow, the spelling-only and
+     * cardinality-only counts may only shrink. */
+    private static void pinStrength(String only, java.util.Map<String, Integer> strength) {
+        strength.forEach((k, v) -> System.out.println("[corpus2] strength " + k + "=" + v));
+        if (!only.isEmpty()) {
+            return;
+        }
+        int differential = strength.getOrDefault("DIFFERENTIAL+literal", 0)
+                + strength.getOrDefault("DIFFERENTIAL-only", 0);
+        int spelling = strength.getOrDefault("SPELLING", 0);
+        int weak = strength.getOrDefault("CARDINALITY", 0);
+        int[] floor = MinimalCorpus.H2_BACKEND ? H2_STRENGTH : DUCKDB_STRENGTH;
+        org.junit.jupiter.api.Assertions.assertTrue(differential >= floor[0],
+                "differential passes (a referee row verdict matched) SHRANK: " + differential
+                + " < " + floor[0] + " — a rows leg stopped being judged; explain or fix");
+        org.junit.jupiter.api.Assertions.assertTrue(spelling <= floor[1],
+                "spelling-only passes (every verdict decided by text) GREW: " + spelling
+                + " > " + floor[1]);
+        org.junit.jupiter.api.Assertions.assertTrue(weak <= floor[2],
+                "cardinality-only passes GREW: " + weak + " > " + floor[2]);
+    }
+
+    /** {differential floor, spelling ceiling, cardinality ceiling} per lane
+     * (Phase 0.7; measured 2026-09-08, batch 133). */
+    private static final int[] DUCKDB_STRENGTH = {1512, 49, 22};
+    private static final int[] H2_STRENGTH = {1198, 56, 18};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

@@ -77,13 +77,37 @@ public final class MinimalCorpus {
      * whose asserts are commented out; a placeholder body). */
     public enum Status { PASS, FAIL, SKIPPED }
 
+    /** What a PASS proves (Phase 0.7, audit §3's ladder), derived from the
+     * events the platform reported for the test — never from reading its
+     * body: DIFFERENTIAL = the referee matched a rows leg against the
+     * engine's golden (the strongest witness; whether a literal assert
+     * also held is a second census); LITERAL = a value assert was judged
+     * with no referee involved; CARDINALITY = only size / emptiness /
+     * boolean asserts; SPELLING = every verdict was decided by text
+     * (declined); NONE = no verdict (never a pass since batch 128). */
+    public enum Strength { DIFFERENTIAL, LITERAL, CARDINALITY, SPELLING, NONE }
+
     /** One outcome with its reason. {@code verdicts} = assert verdicts
      * the platform reported. */
-    public record Result(String fqn, Status status, int verdicts, String reason) {
+    public record Result(String fqn, Status status, int verdicts, String reason,
+            Strength strength, boolean literalToo) {
+        public Result(String fqn, Status status, int verdicts, String reason) {
+            this(fqn, status, verdicts, reason, Strength.NONE, false);
+        }
+
         public boolean pass() {
             return status == Status.PASS;
         }
     }
+
+    /** The asserts that pin a COUNT or a boolean, not a value (the catalog's
+     * assert family by exact FQN). */
+    private static final Set<String> CARDINALITY_ASSERTS = Set.of(
+            "meta::pure::functions::asserts::assert",
+            "meta::pure::functions::asserts::assertFalse",
+            "meta::pure::functions::asserts::assertSize",
+            "meta::pure::functions::asserts::assertEmpty",
+            "meta::pure::functions::asserts::assertNotEmpty");
 
     private static final String RUNTIME = "rcorpus::Rt";
     private static final String CONNECTION = "rcorpus::Conn";
@@ -520,6 +544,14 @@ public final class MinimalCorpus {
         boolean effectful = facts.effects();
         List<Boolean> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();
+        // the strength ledger of this test: what judged each assert
+        List<String> assertNames = new ArrayList<>();
+        // keyed by the assert's INDEX (the arm reports before it decides, so
+        // the upcoming verdict's index is verdicts.size()); the arm's short
+        // name and the listener's FQN differ
+        Set<Integer> declinedAsserts = new LinkedHashSet<>();
+        Set<Integer> refereedAsserts = new LinkedHashSet<>();
+        boolean[] refereeMatched = {false};
         com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark = null;
         if (effectful) {
             mark = com.legend.harness.ReplayOracle.beginAttempt(conn);
@@ -534,6 +566,7 @@ public final class MinimalCorpus {
                             public void verdict(String name, boolean pass,
                                     @com.legend.Nullable String detail) {
                                 verdicts.add(pass);
+                                assertNames.add(name);
                                 if (!pass) {
                                     failedAsserts.add("#" + verdicts.size() + " " + name
                                             + (detail == null ? "" : ": " + whole(detail)));
@@ -544,6 +577,15 @@ public final class MinimalCorpus {
                             public void declined(String name, String reason) {
                                 // a text-decided verdict, named by the arm (Phase 0.6)
                                 textDecided.merge(reason + " " + t.fqn(), 1, Integer::sum);
+                                declinedAsserts.add(verdicts.size());
+                            }
+
+                            @Override
+                            public void refereed(String name, String outcome) {
+                                refereedAsserts.add(verdicts.size());
+                                if ("MATCH".equals(outcome)) {
+                                    refereeMatched[0] = true;
+                                }
                             }
                         },
                         com.legend.harness.ReplayOracle.INSTANCE);
@@ -575,8 +617,31 @@ public final class MinimalCorpus {
                     return new Result(t.fqn(), Status.SKIPPED, 0,
                             "no assertion reachable (the program calls no verdict function)");
                 }
+                // the strength ladder (Phase 0.7): counts of what judged the
+                // asserts — a text-decided assert is the one whose decline
+                // preceded its verdict (the arm reports before it decides)
+                int textDecidedCount = 0;
+                int cardinality = 0;
+                int literal = 0;
+                for (int i = 0; i < assertNames.size(); i++) {
+                    String an = assertNames.get(i);
+                    if (declinedAsserts.contains(i)) {
+                        textDecidedCount++;
+                    } else if (refereedAsserts.contains(i)) {
+                        continue;          // judged by the referee's rows, not a literal
+                    } else if (CARDINALITY_ASSERTS.contains(an)) {
+                        cardinality++;
+                    } else {
+                        literal++;
+                    }
+                }
+                Strength strength = refereeMatched[0] ? Strength.DIFFERENTIAL
+                        : literal > 0 ? Strength.LITERAL
+                        : cardinality > 0 ? Strength.CARDINALITY
+                        : Strength.SPELLING;
                 return new Result(t.fqn(), Status.PASS, verdicts.size(),
-                        verdicts.size() + " verdict(s)");
+                        verdicts.size() + " verdict(s) " + strength, strength,
+                        literal > 0 || cardinality > 0);
             }
             return new Result(t.fqn(), Status.FAIL, verdicts.size(), failure);
         } finally {

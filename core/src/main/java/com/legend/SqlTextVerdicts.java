@@ -959,6 +959,7 @@ final class SqlTextVerdicts {
                                 com.legend.testdatagen.TestDataGenerationNatives
                                         .transcript(hop.source(), env.ctx(),
                                                 env.connection())));
+        refereed(env, name, rv);
         return switch (rv.outcome()) {
             case MATCH -> {
                 yield ok();
@@ -1325,6 +1326,7 @@ final class SqlTextVerdicts {
                                         letPrefix, frameZone(hook == null ? rowsRead
                                                 : hook.apply(rowsRead, java.util.Set.of())))
                                 : temps);
+        refereed(env, name, rv);
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number
@@ -1485,6 +1487,17 @@ final class SqlTextVerdicts {
         com.legend.exec.AssertListener l = env.assertListener();
         if (l != null) {
             l.declined(name, reason);
+        }
+    }
+
+    /** The referee's row verdict for this assert, reported to the runner
+     * (Phase 0.7): the strength census reads a MATCH as the differential
+     * witness. */
+    private static void refereed(StatementExecutor.ExecEnv env, String name,
+            SqlReplayOracle.RowVerdict rv) {
+        com.legend.exec.AssertListener l = env.assertListener();
+        if (l != null) {
+            l.refereed(name, rv.outcome().name());
         }
     }
 

@@ -25,4 +25,10 @@ public interface AssertListener {
      * ledger rides this seam, not a static sink. */
     default void declined(String assertName, String reason) {
     }
+
+    /** The REFEREE judged this assert's rows leg (Phase 0.7): {@code outcome}
+     * is the row verdict's name (MATCH / DIVERGED / DECLINED / FAULT). A
+     * MATCH is the differential witness — the strength census reads it. */
+    default void refereed(String assertName, String outcome) {
+    }
 }
