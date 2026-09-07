@@ -55,6 +55,9 @@ public enum SqlFn {
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
     LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART,
+    /** Pure's splitPart(str, token, 1-based part): split DROPPING empty tokens,
+     *  indexed; NULL past the end (batch 139). Semantic — each dialect spells it. */
+    PURE_SPLIT_PART,
     REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
     ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256,
     // Temporal: EXTRACT takes a part-name literal first (one entry, all parts)

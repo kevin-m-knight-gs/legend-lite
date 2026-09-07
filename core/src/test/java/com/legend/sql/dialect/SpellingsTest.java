@@ -80,6 +80,7 @@ class SpellingsTest {
             SqlFn.LIST_DISTINCT,
             SqlFn.LIST_EXISTS,
             SqlFn.LIST_FILTER,
+            SqlFn.PURE_SPLIT_PART,  // splitPartCall: dialect idiom point (batch 139)
             SqlFn.LIST_FOR_ALL,
             SqlFn.LIST_GET,
             SqlFn.LIST_INIT,

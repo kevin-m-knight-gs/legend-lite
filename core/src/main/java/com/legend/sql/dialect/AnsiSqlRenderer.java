@@ -752,6 +752,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                  LIST_POSITION ->
                     listCall(c.fn(), a);
             case STRUCT_INSERT -> structInsert(a);
+            case PURE_SPLIT_PART -> splitPartCall(a);
             case LIST_EXISTS -> listExists(a);
             case ALL_DISTINCT -> allDistinct(a);
             case LIST_FOR_ALL -> listForAll(a);
@@ -824,6 +825,11 @@ public class AnsiSqlRenderer implements SqlDialect {
     /** map/filter/concat/contains over list values. */
     protected String listCall(SqlFn fn, List<SqlExpr> args) {
         throw new DialectCapability(fn + " reached a dialect without a list encoding");
+    }
+
+    /** Pure's splitPart (non-empty tokens, 1-based, NULL past the end). */
+    protected String splitPartCall(List<SqlExpr> args) {
+        throw new DialectCapability("PURE_SPLIT_PART reached a dialect without a spelling");
     }
 
     /** Explode a collection into rows, aligned with sibling projections. */

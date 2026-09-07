@@ -1794,4 +1794,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
         return expr(m.needle(), 4) + " in (" + expr(coll, 0) + ")";
     }
+
+    /** splitPart = the engine's own H2 extension function (commons split:
+     *  adjacent separators collapse, past the end -> NULL) — the golden's spelling. */
+    @Override
+    protected String splitPartCall(java.util.List<SqlExpr> a) {
+        return "legend_h2_extension_split_part(" + expr(a.get(0), 0) + ", "
+                + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+    }
 }

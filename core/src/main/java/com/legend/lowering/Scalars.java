@@ -2005,9 +2005,9 @@ final class Scalars {
                     return args.get(2) instanceof SqlExpr.IntLit i && i.value() == 0
                             ? args.get(0) : new SqlExpr.NullLit();
                 }
-                List<SqlExpr> shifted = new ArrayList<>(args);
-                shifted.set(2, plusOne(args.get(2)));
-                return new SqlExpr.Call(SqlFn.SPLIT_PART, shifted);
+                // Pure's meaning (SqlFn.PURE_SPLIT_PART), not SQL split_part's
+                return SqlExpr.Call.of(SqlFn.PURE_SPLIT_PART, args.get(0), args.get(1),
+                        plusOne(args.get(2)));
             });
         }
         // contains on a TO-ONE STRING: strpos > 0. A String[*] source is a

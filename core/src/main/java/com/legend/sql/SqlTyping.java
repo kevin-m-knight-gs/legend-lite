@@ -376,7 +376,7 @@ public final class SqlTyping {
             case COALESCE, GREATEST, LEAST -> allNullable(a);
             // probed: out-of-range list_extract and missing
             // list_position -> NULL
-            case LIST_GET, LIST_POSITION -> true;
+            case LIST_GET, LIST_POSITION, PURE_SPLIT_PART -> true;  // NULL past the end
             // §E3 slack fix 2 — ELEMENT PURITY (probed 1.5.0:
             // unnest(NULL) and unnest([]) yield ZERO rows, so UNNEST's
             // value nullability is exactly its ELEMENTS')
@@ -411,7 +411,7 @@ public final class SqlTyping {
                     XOR -> T_BOOLEAN;
             case CONCAT, CONCAT_JOIN, UPPER, LOWER, TRIM, LTRIM, RTRIM,
                     REPLACE, SUBSTRING, LEFT, RIGHT, LPAD, RPAD,
-                    REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART,
+                    REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
                     MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, FORMAT,

@@ -398,4 +398,16 @@ public final class DuckDb extends AnsiSqlRenderer {
         return super.variantAwareCast(c);
     }
 
+    /** splitPart over the list encoding: list_extract(list_filter(string_split(s, t),
+     *  x -> x <> ''), p) — a list index past the end is NULL. */
+    @Override
+    protected String splitPartCall(List<SqlExpr> a) {
+        SqlExpr parts = SqlExpr.Call.of(SqlFn.SPLIT, a.get(0), a.get(1));
+        SqlExpr nonEmpty = SqlExpr.Call.of(SqlFn.LIST_FILTER, parts,
+                new SqlExpr.Lambda(List.of("x"),
+                        SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                                SqlExpr.Column.param("x", parts),
+                                new SqlExpr.StringLit(""))));
+        return expr(SqlExpr.Call.of(SqlFn.LIST_GET, nonEmpty, a.get(2)), 0);
+    }
 }
