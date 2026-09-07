@@ -158,6 +158,11 @@ CODE-AS-DATA 19 / ENGINE-MACHINERY 38 as the first sizing step. Leg 1 single-sho
 sequence P-25 (resolvedDefinition census) and P-19 (NULL verdict) first, then the SqlUnion set-operator enum, then the
 ~700-test mapping/projection pilot. USER ORDER: Phase 5 next (the two remaining code legs deferred).
 
+PHASE 5 SIZED (2026-09-08, after 146): `docs/PHASE5_SIZING_2026_09_08.md` — the 108 by owner NAMED (TEXT 33 /
+ENGINE-MACHINERY 44 / CODE-AS-DATA 16 / other 15); D1+D2 landed, D4 STARTED (FunctionBodyRows + VS_KINDS rows), D5 out of
+scope; slices: 1 extension registry by need (5, designed) → 2 program as m3 data both directions (2 + the func column) →
+3 protocol types (2) → 4 class instances in value position (5, H4). Two user decisions owed before batch 147.
+
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the
 measured pool (ENGINE-MACHINERY 36 + CODE-AS-DATA 7; the engine's OWN compiler/router under test
