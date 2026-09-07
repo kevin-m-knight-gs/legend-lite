@@ -94,11 +94,9 @@ public final class ValidateDesugar {
                 || !(af.parameters().get(0) instanceof LambdaFunction)) {
             return false;
         }
-        String f = af.function();
-        if (f.contains("::")) {
-            return (PKG + "::validate").equals(f);
-        }
-        return "validate".equals(f) && imports.contains(PKG);
+        // the RESOLVER's name (the query is resolved before this pass):
+        // exact, or among the candidates it left on a bare call
+        return com.legend.compiler.ResolvedNames.names(af, PKG + "::validate");
     }
 
     private static ValueSpecification desugar(AppliedFunction af,

@@ -268,25 +268,9 @@ public final class StatementInline {
             return false;
         }
 
-        /** The catalog FQNs a call names: an exact FQN, the resolver's
-         * candidates on a bare name, and for a bare name the natives the
-         * catalog's bare-name index holds at the call's arity (the typer's
-         * own resolution of a bare native). */
-        private static List<String> referents(AppliedFunction af) {
-            if (af.function().contains("::")) {
-                return List.of(af.function());
-            }
-            List<String> out = new ArrayList<>(af.candidateFqns());
-            com.legend.builtin.Pure.nativeFunctionsAt(af.function()).stream()
-                    .filter(n -> n.parameters().size() == af.parameters().size())
-                    .map(com.legend.model.NativeFunctionDefinition::qualifiedName)
-                    .filter(n -> !out.contains(n)).forEach(out::add);
-            return out;
-        }
-
         private boolean reachesStatementOnly(ValueSpecification v) {
             if (v instanceof AppliedFunction af
-                    && referents(af).stream().anyMatch(PlatformTypes::isStatementOnly)) {
+                    && ResolvedNames.referents(af).stream().anyMatch(PlatformTypes::isStatementOnly)) {
                 return true;
             }
             return v.children().stream().anyMatch(this::reachesStatementOnly);

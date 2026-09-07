@@ -4564,3 +4564,7 @@ MinimalCorpusTest alone. THEN the single-shot design (WITH seeds + one verdict S
 (13.6k lines); gates 4/5 = MinimalCorpusTest (2454 / 1866); one helper mechanism; nine H2-compatible tests back
 via the total verdict arm; timing doubling attributed (setup derivation per test) and fixed at parity. NEXT = the
 five items in §0 Phase 1b (single resolution pass first), then single-shot.
+
+**Batch 116 / one resolution pass (2026-09-06, chain GREEN 6m35s; GATES batch 116).** Front door resolves once;
+ResolvedNames.referents is the one reading; ValidateDesugar / LiteralMapUnroll consume it. Rosters exact; DuckDB
+lane 55s. NEXT = item 2 (corpus-library.pure → platform natives), then items 3–5, then single-shot.

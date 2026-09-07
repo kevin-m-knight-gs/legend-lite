@@ -672,20 +672,10 @@ public final class Compiler {
     public static com.legend.protocol.spec.ValueSpecification resolveQuery(
             java.util.List<com.legend.protocol.spec.ValueSpecification> statements,
             com.legend.model.ImportScope imports, ModelContext ctx) {
-        // names FIRST (the resolver's own scope rules: imports, own package,
-        // prelude), so the splice below identifies every callee by exact
-        // FQN; the final resolution is idempotent over resolved names
-        com.legend.protocol.spec.ValueSpecification named =
-                com.legend.compiler.NameResolver.resolveQuery(
-                        new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
-                        imports, ctx.elementFqns());
-        statements = ((com.legend.protocol.spec.LambdaFunction) named).body();
-        // a statement-root (or let-bound) call to a user function that is a
-        // PROGRAM splices that body in (Pure's call semantics spelled out;
-        // the expression inliner owns value functions)
-        // names FIRST (the resolver's own scope rules: imports, own package,
-        // prelude, candidates on a bare call), so the splice consumes the
-        // resolver's names; the final resolution below is idempotent
+        // ONE name resolution, first (the resolver's own scope rules: imports,
+        // own package, prelude; candidates on a bare call) — every pass
+        // below consumes the resolver's names (ResolvedNames) and constructs
+        // only bare natives and lets, which need no further resolution
         statements = ((com.legend.protocol.spec.LambdaFunction)
                 com.legend.compiler.NameResolver.resolveQuery(
                         new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
@@ -705,9 +695,7 @@ public final class Compiler {
         // statement-root verdicts)
         desugared = com.legend.compiler.LiteralMapUnroll.rewrite(desugared);
         com.legend.validation.DriverPkOption.set(fired);
-        return com.legend.compiler.NameResolver.resolveQuery(
-                new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), desugared),
-                imports, ctx.elementFqns());
+        return new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), desugared);
     }
 
     /**

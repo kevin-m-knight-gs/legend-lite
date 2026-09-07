@@ -54,7 +54,8 @@ public final class LiteralMapUnroll {
     }
 
     private static @com.legend.Nullable List<ValueSpecification> unroll(ValueSpecification st) {
-        if (!(st instanceof AppliedFunction af) || !isMap(af.function())
+        if (!(st instanceof AppliedFunction af)
+                || !ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.MAP)
                 || af.parameters().size() != 2) {
             return null;
         }
@@ -88,7 +89,4 @@ public final class LiteralMapUnroll {
         return out;
     }
 
-    private static boolean isMap(String fn) {
-        return fn.equals("map") || fn.equals("meta::pure::functions::collection::map");
-    }
 }

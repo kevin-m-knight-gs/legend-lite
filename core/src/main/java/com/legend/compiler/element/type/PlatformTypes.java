@@ -447,6 +447,7 @@ public final class PlatformTypes {
     public static final String TEST_RUNTIME =
             "meta::external::store::relational::tests::testRuntime";
     public static final String IS_EMPTY = "meta::pure::functions::collection::isEmpty";
+    public static final String MAP = "meta::pure::functions::collection::map";
     public static final String PLUS = "meta::pure::functions::math::plus";
 
     /** The three relational connection classes (exact FQN). */
