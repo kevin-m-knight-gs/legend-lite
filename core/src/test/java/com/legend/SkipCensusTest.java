@@ -48,9 +48,6 @@ class SkipCensusTest {
 
     /** Files permitted to carry {@code Assumptions.assume*} sites. */
     private static final List<String> ASSUMPTION_FILES = List.of(
-            // harness scoping (rcorpus.only et al) — the runner's own
-            // scoping mechanism, not a suite claim going quiet
-            "RelationalCorpusRunner.java",
             // the minimal harness (2026-09-06): skips only when the engine
             // checkout is absent — gate 4 runs it explicitly
             "MinimalCorpusTest.java",

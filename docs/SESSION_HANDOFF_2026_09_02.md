@@ -103,6 +103,24 @@ equality with the platform-flipped 2451, then delete the walk, the flip machiner
 forms, the censuses (test and main side), the harness-named Compiler overloads, and fold
 H2Verify's comparison policy into the platform's. Runs BEFORE the NavPath cleanup.
 
+STEP B LANDED (batch 115, 2026-09-06): the old harness is DELETED — EngineTestExecutor, RelationalCorpusRunner,
+Runner, WholeTestFlip/FlipProbe/WholeTestCensus, AssertLedger, the eleven forms, TdsEquivalence, EngineTestExecutorTest,
+SubstitutionParityTest (13,561 lines); gate 4 = MinimalCorpusTest (2454), gate 5 = the H2 lane through it (1866 —
+platform-to-platform against the old lane's flip file: 0 lost, 11 gained; the old 1976 counted 121 walk answers).
+The executor's call-frame route is gone; StatementInline (sequence rule, thin-wrapper rule, argument hoisting with
+hoisted lets EXPANDED, resolver-supplied names) is the one mechanism; the native let-bound effect stays at the let;
+Compiler.execute passes the front door. KEPT (3,828 lines): MinimalCorpus(+Test), Corpus, DuckWorkspaces,
+corpus-library.pure, ReplayOracle, PlanReplay, H2ExtensionFunctions, H2Verify. NAMED COMPENSATIONS still in the kept
+harness: corpus-library.pure (stdlib functions as harness Pure — belongs in the platform), the three body scans
+(carriesInlineCsv, callsAssert, isQuery), H2Verify's raw-grid comparison policy (the referee should hand the golden's
+rows to the platform as a typed relation and let database equality judge). ALSO OWED: the single resolution pass
+(Compiler.resolveQuery still resolves twice because LiteralMapUnroll and ValidateDesugar match names by spelling);
+the main-side censuses (static sinks: CanonicalDivergence/CanonRider/CanonDeclines/CanonicalForm, SqlTypeCensus,
+TimingLedger, StampCensus, NavArmCensus, SqlTextEmission — ~100 hook lines + 10 unit tests). LESSONS: profile before
+caching (the setup-derivation-per-test doubling; the universe cache was reverted); hoisted lets must expand; a
+product door that resolves its own names bypasses the splice; scoped-vs-full order dependence exists
+(resultSourcing::relationalResultSourcingOfListExecutionPlan, pre-existing — revisit:).
+
 STEP A LANDED (batch 114, 2026-09-06): execution context as a VALUE — docs/EXECUTION_CONTEXT_DESIGN
 _2026_09_06.md; ExecutionContext + ContextReading (compiler/spec/typed), TypedFrom(source, context,
 executedExtent, info); binders = FromChecker, ExecuteChainAssembly.chain, RoutingContext (entryCall peels
@@ -4541,3 +4559,8 @@ WholeTestFlip/FlipProbe/WholeTestCensus, the forms; main-side censuses reference
 converge the executor's call-frame route (executeCallStatement / hasNonLetIntermediate /
 helperValueLet / callArgumentFrame, hostChannel for the walk) into StatementInline; gate 4 =
 MinimalCorpusTest alone. THEN the single-shot design (WITH seeds + one verdict SELECT).
+
+**Batch 115 / harness rebuild step B (2026-09-06, chain GREEN 6m50s; GATES batch 115).** Old harness deleted
+(13.6k lines); gates 4/5 = MinimalCorpusTest (2454 / 1866); one helper mechanism; nine H2-compatible tests back
+via the total verdict arm; timing doubling attributed (setup derivation per test) and fixed at parity. NEXT = the
+five items in §0 Phase 1b (single resolution pass first), then single-shot.

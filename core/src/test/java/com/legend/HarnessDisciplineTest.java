@@ -65,7 +65,6 @@ class HarnessDisciplineTest {
             // leniency; registered, [ord]-tagged.
             // 4 -> 3 (TDG S4): a sort site died with csvCensusAssert —
             // the census asserts route through the platform now
-            Map.entry("EngineTestExecutor.java", 3),
             // 2 -> 4 (diff-noreplay burndown 2026-08-28): the GRAPH
             // frame compare (goldenGraphCompare) sorts BOTH sides for
             // the same order-insensitive row-multiset verdict the
@@ -96,9 +95,6 @@ class HarnessDisciplineTest {
             // either backend), gated on the COMPILE-TIME sort-key
             // derivation (EngineTestExecutor.sortKeyCols -> SORT_KEYS).
             Map.entry("H2Verify.java", 10),
-            Map.entry("JsonAssertCanon.java", 1),
-            Map.entry("LineageForm.java", 1),
-            Map.entry("Runner.java", 2),
             // 15 -> 17 (SQLTEXT slice-3 step 0, 2026-09-01): the shape
             // census dump's two sorts — count-descending histogram +
             // name-sorted roster for a DIFFABLE census file (the
@@ -106,12 +102,13 @@ class HarnessDisciplineTest {
             // through them). 17 -> 18 (slice 3a): the emission
             // census's count-descending text-verdict print — same
             // display-only class.
-            Map.entry("RelationalCorpusRunner.java", 17),
             // MinimalCorpus (harness rebuild, 2026-09-06): DISCOVERY order
             // only — source files by name, tests by the engine suite
             // order, setup packages by nesting depth; no result flows
             // through a sort (the platform judges every verdict).
             Map.entry("MinimalCorpus.java", 4),
+            // the timing ledger: the slowest tests DISPLAYED, no comparison
+            Map.entry("MinimalCorpusTest.java", 1),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             Map.entry("DuckWorkspaces.java", 1),
@@ -123,7 +120,6 @@ class HarnessDisciplineTest {
             // audit-of-Blocker-3 closed], CSVJOIN cell multiset, text
             // line multiset) — two-sided comparison policy gated on the
             // chain's sortedness, each with a distinct [ord] tag (#10)
-            Map.entry("TdsCompare.java", 4),
             // PureAsserts: the typeRank sort inside sameElements — the
             // pure total-order comparator applied to BOTH sides
             Map.entry("PureAsserts.java", 1),
@@ -172,7 +168,9 @@ class HarnessDisciplineTest {
             // 1 -> 3 (metamodel handoff §5 step 1, 2026-09-02): the
             // bucket→tests roster dump sorts bucket names and, within
             // a bucket, test names — the same display-only class
-            Map.entry("WholeTestFlip.java", 3));
+            // (WholeTestFlip, the old runner and the walk: DELETED in
+            // batch 115 — their rows left this list)
+            Map.entry("TdsCompare.java", 4));
 
     /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
      * original audit's probe 12 — {@code Collections.max} in the

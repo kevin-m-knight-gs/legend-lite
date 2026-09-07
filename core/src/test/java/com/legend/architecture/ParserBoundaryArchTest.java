@@ -47,17 +47,16 @@ class ParserBoundaryArchTest {
             // are fixed Pure SOURCE parsed once at class load — the same
             // bootstrap-loader regime as Pure itself
             "com/legend/builtin/SystemMetamodel.java",
-            "com/legend/harness/EngineTestExecutor.java",
             "com/legend/harness/HarnessSubstitution.java",
             "com/legend/ide/ModelOrchestrator.java",
             "com/legend/testing/Own.java",
             "com/legend/testing/Engine.java",
             "com/legend/testing/Platform.java",
-            "com/legend/rcorpus/Runner.java",
             // the minimal harness parses the engine's corpus sources in the
-            // PLATFORM dialect (their provenance), as Runner does
+            // PLATFORM dialect (their provenance); its namespace-guard test
+            // parses a platform-dialect fixture the same way
             "com/legend/rcorpus/MinimalCorpus.java",
-            "com/legend/harness/EngineTestExecutorTest.java",
+            "com/legend/rcorpus/LibraryPlatformNamespaceGuardTest.java",
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)
             "com/legend/tools/PreludeGeneratorTest.java",

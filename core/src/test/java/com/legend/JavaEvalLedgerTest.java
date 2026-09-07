@@ -441,7 +441,12 @@ class JavaEvalLedgerTest {
             // no-key sort() over flat TDS cells judges as the cell-pool
             // multiset (both channels order-insensitive) — a mixed
             // Integer/StrictDate pool is never a SQL column to sort.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1646),
+            // 1646 -> 1652 (batch 115): the assertEqualsH2Compatible arm is
+            // TOTAL — where no text arm applies it adjudicates the function's
+            // own meaning on our H2, assertEquals(upgraded, actual), instead
+            // of leaving a standing call for a deleted route; no evaluation
+            // added (the verdict is the plain one)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1652),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

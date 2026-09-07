@@ -190,6 +190,18 @@ final class AssertVerdicts {
             if (hv != null) {
                 return hv;
             }
+            // the arm is TOTAL: where no text arm applies, the function's own
+            // meaning on our H2 (h2Extension.pure:29 picks the upgraded
+            // golden on every version but 1.4.200) IS assertEquals(upgraded,
+            // actual) — adjudicated as that verdict, never as a standing
+            // call for some other route to catch
+            if (hroot.args().size() == 3) {
+                TypedSpec asEquals = com.legend.compiler.spec.VerdictQueries
+                        .assertEqualsOf(hroot.args().get(1), hroot.args().get(2), specs);
+                if (asEquals != null) {
+                    return adjudicate(asEquals, letPrefix, specs, env, rawHook);
+                }
+            }
         }
         // THE GRID VERDICT (Clause 2c — TdsCompare's chartered route;
         // witness: the relation suite's 79 assertTdsEquivalent rows):

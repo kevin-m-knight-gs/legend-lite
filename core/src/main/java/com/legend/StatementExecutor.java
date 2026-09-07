@@ -228,62 +228,27 @@ final class StatementExecutor {
                     // let x = executeInDb(...): the effect runs exactly ONCE,
                     // here at the let (engine parity — the corpus binds an
                     // opaque ResultSet handle as a smoke check and never
-                    // reads it; β-substitution would drop or double it). The
-                    // rhs may be the K-native OR the corpus's own executeInDb
-                    // wrapper (a user call). An effectful HELPER whose value
-                    // is effect-free (let runtime = initDatabase(): DDL
-                    // effects, then ^Runtime(...)) binds that value; any
-                    // other read of the binding has no frame — wall it up
-                    // front, never an unbound-variable surprise.
-                    com.legend.compiler.spec.typed.TypedLet helperValue =
-                            rhs instanceof com.legend.compiler.spec.typed.TypedUserCall hc
-                            ? com.legend.compiler.spec.UserCallInliner.helperValueLet(
-                                    let.name(), hc, letPrefix, specs,
-                                    v -> containsEffect(v, specs, effectMemo))
-                            : null;
-                    if (helperValue == null
-                            && !ConnectionLets.onlyConnectionReads(stmts, i + 1,
-                                    let.name())) {
+                    // reads it; β-substitution would drop or double it). A
+                    // helper PROGRAM never reaches here (StatementInline
+                    // spliced its statements at the front door); any other
+                    // read of the binding has no value — wall it up front,
+                    // never an unbound-variable surprise.
+                    if (!ConnectionLets.onlyConnectionReads(stmts, i + 1, let.name())) {
                         throw new IllegalStateException("reading an"
                                 + " executeInDb result binding ('"
                                 + let.name() + "') is not supported");
                     }
-                    if (rhs instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-                        executeCallStatement(uc, letPrefix, specs, env, frames);
-                        if (helperValue != null) {
-                            // the helper's VALUE binds as the let would have:
-                            // an execute() value is a FRAME, anything else a
-                            // plain let (its handles registered)
-                            TypedSpec hv = helperValue.value();
-                            while (hv instanceof com.legend.compiler.spec.typed.TypedFrom hf) {
-                                hv = hf.source();
-                            }
-                            if (hv instanceof com.legend.compiler.spec.typed.TypedNativeCall hec
-                                    && com.legend.compiler.element.type.PlatformTypes
-                                            .isExecuteFqn(hec.callee().qualifiedName())) {
-                                execFrames.put(let.name(),
-                                        buildFrame(hec, letPrefix, true, specs, env));
-                            } else {
-                                PlanAllocations.registerHandlesIn(let.name(), hv, letPrefix, specs, env);
-                                letPrefix.add(helperValue);
-                            }
-                        }
-                    } else {
-                        java.util.List<TypedSpec> single =
-                                new java.util.ArrayList<>(letPrefix);
-                        single.add(let.value());
-                        java.util.List<TypedSpec> inlined =
-                                new com.legend.compiler.spec.UserCallInliner(
-                                specs, spliceHook(execFrames, letPrefix, specs, env))
-                                .inlineBody(single);
-                        // Phase H runs HERE too (remediation T1.9): an
-                        // effect arg derived from a class query must not
-                        // reach the Lowerer with TypedGetAll intact
-                        com.legend.resolver.StoreResolver letResolver =
-                                resolver(specs, env);
-                        inlined = letResolver.resolve(inlined, env.runtimeFqn());
-                        executeTyped(inlined, env);
-                    }
+                    java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+                    single.add(let.value());
+                    java.util.List<TypedSpec> inlined =
+                            new com.legend.compiler.spec.UserCallInliner(
+                            specs, spliceHook(execFrames, letPrefix, specs, env))
+                            .inlineBody(single);
+                    // Phase H runs HERE too (remediation T1.9): an effect arg
+                    // derived from a class query must not reach the Lowerer
+                    // with TypedGetAll intact
+                    inlined = resolver(specs, env).resolve(inlined, env.runtimeFqn());
+                    executeTyped(inlined, env);
                     continue;
                 }
                 // a HANDLE binding (let plan = executionPlan(...), let t =
@@ -303,20 +268,6 @@ final class StatementExecutor {
             // (Phase 1c: a grid VALUE READ never reaches here as a user
             // call — the Typer types it as a relation property read; the
             // TYPE decides, no recognizer needed)
-            // EFFECTFUL call statements need the STATEMENT-ORCHESTRATION
-            // machinery (sequential effect execution, recursion guard,
-            // argument frames) — a nested executeInDb cannot lower, so
-            // the side path can never claim these. This is the gate's
-            // OWN ground (V11 adjudication: the old double-execution
-            // citation died with runCanon; the gate did not). Effectful
-            // ASSERTS therefore route to body inlining and get host
-            // verdicts, not byte verdicts — register row, V7 territory.
-            if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
-                    && (containsEffect(call, specs, effectMemo)
-                        || com.legend.testdatagen.TestDataGenerationNatives.needsBodyRoute(call, specs))) {
-                result = executeCallStatement(call, letPrefix, specs, env, frames);
-                continue;
-            }
             // Clause 2c: a STATEMENT-ROOT assert-family call is a
             // VERDICT — arguments execute in the database, the judgment
             // is World 1's (AssertVerdicts; pre-inline so the assert
@@ -338,18 +289,6 @@ final class StatementExecutor {
             ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
             if (hosted != null) {
                 result = hosted;
-                continue;
-            }
-            // a helper whose body carries NON-LET intermediate statements
-            // (two asserts in a row — the corpus's runTest(f, expectedSql,
-            // expectedCount) wrappers) cannot β-reduce to one expression:
-            // each statement runs in order in a fresh call frame
-            // (parameters bound as lets). AFTER the assert root arms above
-            // — an assert-family wrapper (assertSameSQL, assertEqualsH2
-            // Compatible) keeps its verdict route.
-            if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall seqCall
-                    && hasNonLetIntermediate(seqCall, specs)) {
-                result = executeCallStatement(seqCall, letPrefix, specs, env, frames);
                 continue;
             }
             java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
@@ -1508,16 +1447,6 @@ final class StatementExecutor {
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
                 .prepare(ec, letPrefix, specs);
-        // the RUNTIME ARGUMENT's effectful user calls (the corpus's
-        // createDbAndGetConnection: DDL + seed, returns the handle) run
-        // ONCE here — engine order: runtime construction precedes
-        // execution; the value itself stays an opaque handle (re-running
-        // on a non-eager chain build would double the DDL)
-        if (eager && ec.args().size() >= 3) {
-            runRuntimeArgEffects(com.legend.compiler.spec
-                    .ExecuteChainAssembly.letBound(ec.args().get(2),
-                            letPrefix), letPrefix, specs, env);
-        }
         // connection POST-PROCESSOR hooks ride the runtime argument
         // (sqlQueryPostProcessorsConnectionAware): inline the runtime
         // helper, recognize the replaceTables shape, thread the rename
@@ -1582,32 +1511,6 @@ final class StatementExecutor {
 
     /** A callee body with a NON-LET statement before its last (a
      * statement sequence, not one expression). */
-    private static boolean hasNonLetIntermediate(
-            com.legend.compiler.spec.typed.TypedUserCall call, SpecCompiler specs) {
-        return hasNonLetIntermediate(call, specs, 0);
-    }
-
-    private static boolean hasNonLetIntermediate(
-            com.legend.compiler.spec.typed.TypedUserCall call, SpecCompiler specs,
-            int depth) {
-        try {
-            java.util.List<TypedSpec> body = specs.compile(call.callee()).body();
-            for (int i = 0; i < body.size() - 1; i++) {
-                if (!(body.get(i) instanceof com.legend.compiler.spec.typed.TypedLet)) {
-                    return true;
-                }
-            }
-            // a thin overload forwarding to the real helper (runTest/3 ->
-            // runTest/4): the sequence shape is the callee's
-            return depth < 4 && !body.isEmpty()
-                    && body.get(body.size() - 1)
-                            instanceof com.legend.compiler.spec.typed.TypedUserCall tail
-                    && hasNonLetIntermediate(tail, specs, depth + 1);
-        } catch (com.legend.error.NotImplementedException
-                | com.legend.compiler.spec.TypeInferenceException e) {
-            return false;
-        }
-    }
 
     /** The first from() mapping reference in the chain (pre-order), or null. */
     private static @com.legend.Nullable String firstMappingFqn(TypedSpec n) {
@@ -1624,51 +1527,6 @@ final class StatementExecutor {
         return null;
     }
 
-    /** Effectful user calls inside an execute() RUNTIME argument run once
-     * (executeCallStatement); the walk stops AT each call — its own args
-     * are the callee's business, and non-effectful calls (testRuntime())
-     * stay unevaluated orchestration handles. */
-    private static void runRuntimeArgEffects(TypedSpec n,
-            java.util.List<TypedSpec> letPrefix, SpecCompiler specs,
-            ExecEnv env) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            if (containsEffect(uc, specs, new java.util.HashMap<>())) {
-                executeCallStatement(uc, letPrefix, specs, env,
-                        new java.util.ArrayDeque<>());
-            }
-            return;
-        }
-        // post-processor CONFIG values never run as effects and must not
-        // be compiled by the effect scan (ledger cluster 63 — the same
-        // skip containsEffect applies, mirrored on this walk's own
-        // recursion)
-        if (n instanceof com.legend.compiler.spec.typed
-                .TypedNewInstance ni8) {
-            for (var pe : ni8.properties().entrySet()) {
-                if (!com.legend.compiler.element.type.PlatformTypes
-                        .isPostProcessorConfigProperty(pe.getKey())) {
-                    runRuntimeArgEffects(pe.getValue(), letPrefix, specs,
-                            env);
-                }
-            }
-            return;
-        }
-        if (n instanceof com.legend.compiler.spec.typed
-                .TypedCopyInstance cp8) {
-            runRuntimeArgEffects(cp8.source(), letPrefix, specs, env);
-            for (var pe : cp8.overrides().entrySet()) {
-                if (!com.legend.compiler.element.type.PlatformTypes
-                        .isPostProcessorConfigProperty(pe.getKey())) {
-                    runRuntimeArgEffects(pe.getValue(), letPrefix, specs,
-                            env);
-                }
-            }
-            return;
-        }
-        for (TypedSpec c : n.children()) {
-            runRuntimeArgEffects(c, letPrefix, specs, env);
-        }
-    }
 
     /** pair(a, b).first/.second folds STRUCTURALLY (the datetime
      * helpers thread plan + plan-text through a pair) — pure data
@@ -1953,32 +1811,6 @@ final class StatementExecutor {
         return String.valueOf(v);
     }
 
-    /**
-     * A statement-position call to an EFFECTFUL function: bind the caller's
-     * arguments as parameter lets (caller lets substituted in — the callee
-     * body is otherwise closed) and run the body as a statement sequence.
-     */
-    static @com.legend.Nullable ExecutionResult executeCallStatement(
-            com.legend.compiler.spec.typed.TypedUserCall call,
-            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env,
-            java.util.Deque<String> frames) {
-        String key = call.callee().signatureKey();
-        if (frames.contains(key)) {
-            throw new IllegalStateException("recursive effectful call: "
-                    + call.callee().qualifiedName());
-        }
-        frames.push(key);
-        try {
-            java.util.List<TypedSpec> frame =
-                    com.legend.compiler.spec.UserCallInliner.callArgumentFrame(
-                            call, letPrefix, specs,
-                            v -> containsEffectfulNode(java.util.List.of(v)));
-            return executeStatements(specs.compile(call.callee()).body(), frame,
-                    specs, env, frames);
-        } finally {
-            frames.pop();
-        }
-    }
 
     /**
      * Does this expression (transitively, through user calls) reach the

@@ -38,7 +38,7 @@ class OwnDialectCensusTest {
             java.util.Set.of("ElementParserTest.java", "LexerTest.java",
                     "SectionGrammarRegistryTest.java",
                     "TdsLambdaProbeTest.java", "ProbeWireShapes.java",
-                    "RelationalCorpusRunner.java", "TypeCheckerTest.java",
+                    "TypeCheckerTest.java",
                     "PlatformInliningTest.java", "CompileFunctionTest.java",
                     // NEGATIVE differential fixtures — rows built to
                     // REFUSE on purpose (verdict/byte/message parity
@@ -108,7 +108,6 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("MappingNormalizerTest.java", 4),
                     java.util.Map.entry("MessageParityTest.java", 1),
                     java.util.Map.entry("PureModelContextTest.java", 3),
-                    java.util.Map.entry("RelationalCorpusRunner.java", 1),
                     java.util.Map.entry("SQLiteIntegrationTest.java", 2),
                     java.util.Map.entry("TdsLambdaProbeTest.java", 1),
                     java.util.Map.entry("TypeCheckerTest.java", 1),

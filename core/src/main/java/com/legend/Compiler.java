@@ -672,9 +672,24 @@ public final class Compiler {
     public static com.legend.protocol.spec.ValueSpecification resolveQuery(
             java.util.List<com.legend.protocol.spec.ValueSpecification> statements,
             com.legend.model.ImportScope imports, ModelContext ctx) {
-        // a statement-root (or let-bound) call to a user function whose
-        // body is a statement sequence splices that body in (Pure's call
-        // semantics spelled out; the expression inliner owns the rest)
+        // names FIRST (the resolver's own scope rules: imports, own package,
+        // prelude), so the splice below identifies every callee by exact
+        // FQN; the final resolution is idempotent over resolved names
+        com.legend.protocol.spec.ValueSpecification named =
+                com.legend.compiler.NameResolver.resolveQuery(
+                        new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
+                        imports, ctx.elementFqns());
+        statements = ((com.legend.protocol.spec.LambdaFunction) named).body();
+        // a statement-root (or let-bound) call to a user function that is a
+        // PROGRAM splices that body in (Pure's call semantics spelled out;
+        // the expression inliner owns value functions)
+        // names FIRST (the resolver's own scope rules: imports, own package,
+        // prelude, candidates on a bare call), so the splice consumes the
+        // resolver's names; the final resolution below is idempotent
+        statements = ((com.legend.protocol.spec.LambdaFunction)
+                com.legend.compiler.NameResolver.resolveQuery(
+                        new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
+                        imports, ctx.elementFqns())).body();
         statements = com.legend.compiler.StatementInline.rewrite(statements, imports, ctx);
         java.util.List<com.legend.protocol.spec.ValueSpecification> desugared =
                 new java.util.ArrayList<>(statements.size());
@@ -736,13 +751,17 @@ public final class Compiler {
             @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         ModelContext ctx = compileModel(model);
+        // the ONE front door (resolveQuery: names, the statement splice, the
+        // desugars) — a text query is its statements under its section scope
+        com.legend.protocol.spec.ValueSpecification parsed = SpecParser.parse(query,
+                com.legend.parser.Dialect.LEGEND_LITE);
+        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf
+                        && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
         return executeResolved(
-                imports == null
-                        ? NameResolver.resolveQuery(SpecParser.parse(query,
-                                com.legend.parser.Dialect.LEGEND_LITE))
-                        : NameResolver.resolveQuery(SpecParser.parse(query,
-                                com.legend.parser.Dialect.LEGEND_LITE),
-                                imports, ctx.elementFqns()),
+                resolveQuery(statements,
+                        imports == null ? new com.legend.model.ImportScope(java.util.List.of())
+                                : imports, ctx),
                 ctx, runtimeFqn, connection);
     }
 

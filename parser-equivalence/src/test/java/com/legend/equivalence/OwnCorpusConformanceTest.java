@@ -238,7 +238,9 @@ class OwnCorpusConformanceTest {
                 // concatenateTemporalTdsQueries) spell Function<{...}>
                 // parameters to witness the nominal gate's reject direction
                 Map.entry("PURE-DIALECT-function-types", 18),
-                Map.entry("PURE-DIALECT-generics", 7),
+                // 7 -> 6 (batch 115, 2026-09-06): one generics row rode a
+                // test file deleted with the old corpus harness
+                Map.entry("PURE-DIALECT-generics", 6),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

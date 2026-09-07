@@ -45,6 +45,23 @@ public final class VerdictQueries {
                 read.callee(), List.of(read.args().get(0)), read.info());
     }
 
+    /** {@code assertEquals(expected, actual)} as a typed call — the meaning
+     * of a dual-golden assert once its golden is chosen (the verdict arm
+     * adjudicates it as the plain verdict). Null when the catalog has no
+     * two-argument assertEquals (never, in a platform build). */
+    public static @com.legend.Nullable TypedSpec assertEqualsOf(TypedSpec expected,
+            TypedSpec actual, SpecCompiler specs) {
+        return specs.ctx().findFunction(
+                        com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS)
+                .stream().filter(f -> f.parameters().size() == 2).findFirst()
+                .map(f -> (TypedSpec) new com.legend.compiler.spec.typed.TypedNativeCall(f,
+                        java.util.List.of(expected, actual),
+                        new com.legend.compiler.element.type.ExprType(
+                                com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)))
+                .orElse(null);
+    }
+
     public static TypedSpec fromWrapped(TypedSpec query,
             com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
         return new com.legend.compiler.spec.typed.TypedFrom(query,

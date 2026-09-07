@@ -128,11 +128,12 @@ public final class MinimalCorpus {
             Compiler.parseSources(List.of(src), (name, err) -> walls.add(err),
                     com.legend.parser.Dialect.LEGEND_PLATFORM);
             if (walls.isEmpty()) {
-                all.add(src);
                 // library sources contribute MODEL only: their own test
                 // functions (the platform's M2M suites) are not this corpus
                 Compiler.ParsedModule one = Compiler.parseSources(List.of(src),
                         (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                refusePlatformNamespace(one.model().elements());
+                all.add(src);
                 for (PackageableElement el : one.model().elements()) {
                     libraryElements.add(el.qualifiedName());
                 }
@@ -163,7 +164,9 @@ public final class MinimalCorpus {
                         new com.legend.model.RuntimeDefinition(RUNTIME, List.of(),
                                 dbBindings, List.of()),
                         new com.legend.model.ConnectionDefinition(CONNECTION, null,
-                                com.legend.model.ConnectionDefinition.DatabaseType.DuckDB,
+                                H2_BACKEND
+                                        ? com.legend.model.ConnectionDefinition.DatabaseType.H2
+                                        : com.legend.model.ConnectionDefinition.DatabaseType.DuckDB,
                                 new com.legend.model.ConnectionSpecification.InMemory(),
                                 new com.legend.model.AuthenticationSpec.NoAuth()));
         discover(parsed.model());
@@ -268,7 +271,7 @@ public final class MinimalCorpus {
             }
         }
         // the engine suite's traversal order: package tree first, then name
-        tests.sort((a, b) -> RelationalCorpusRunner.engineSuiteOrder(a.fqn(), b.fqn()));
+        tests.sort((a, b) -> engineSuiteOrder(a.fqn(), b.fqn()));
     }
 
     public List<TestCase> tests() {
@@ -284,11 +287,32 @@ public final class MinimalCorpus {
     /** The session's non-query statements so far — the referee's seed
      * ledger prefix for every later test of the session. */
     private final List<String> seedLedger = new ArrayList<>();
+    /** Each setup's resolved program (or {@link #INERT_SETUP} when the
+     * platform says its body has no effects) — derived once. */
+    private final java.util.Map<String, ValueSpecification> setupPrograms = new java.util.HashMap<>();
+    private static final ValueSpecification INERT_SETUP = new CBoolean(true);
+
+    /** {@code -Drcorpus.backend=h2}: the PORTABILITY lane — every session is
+     * a fresh in-memory H2 with the engine's session settings instead of a
+     * DuckDB workspace; the platform's dialect follows the connection. */
+    static final boolean H2_BACKEND =
+            "h2".equalsIgnoreCase(System.getProperty("rcorpus.backend", ""));
+
+    private static Connection openSession() throws SQLException {
+        if (H2_BACKEND) {
+            return DriverManager.getConnection("jdbc:h2:mem:c2s"
+                    + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
+                    "sa", "");
+        }
+        return DuckWorkspaces.open();
+    }
 
     private void beginSession(String pkg) throws SQLException {
         endSession();
-        sessionConn = DuckWorkspaces.open();
-        if (com.legend.harness.H2Verify.ready()) {
+        sessionConn = openSession();
+        // the referee's H2 mirror replays goldens beside a DuckDB session; an
+        // H2 session IS the oracle's engine and needs no mirror
+        if (!H2_BACKEND && com.legend.harness.H2Verify.ready()) {
             mirrorConn = DriverManager.getConnection("jdbc:h2:mem:c2Mirror"
                     + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
                     "sa", "");
@@ -335,12 +359,17 @@ public final class MinimalCorpus {
             if (!seen.add(fqn) || (shared && setupsDone.contains(fqn))) {
                 continue;
             }
-            ValueSpecification call = com.legend.compiler.NameResolver.resolveQuery(
-                    new AppliedFunction(fqn, List.of()));
+            // a setup's resolved program and its effect verdict are facts
+            // about the MODEL: derived once per setup, never per test
+            ValueSpecification call = setupPrograms.computeIfAbsent(fqn, f -> {
+                ValueSpecification resolved = Compiler.resolveQuery(
+                        List.of(new AppliedFunction(f, List.of())), new ImportScope(List.of()), ctx);
+                return Compiler.hasStatementEffects(resolved, ctx) ? resolved : INERT_SETUP;
+            });
+            if (call == INERT_SETUP) {
+                continue;
+            }
             try {
-                if (!Compiler.hasStatementEffects(call, ctx)) {
-                    continue;
-                }
                 Compiler.executeResolved(call, ctx, RUNTIME, conn);
                 if (shared) {
                     setupsDone.add(fqn);
@@ -364,7 +393,7 @@ public final class MinimalCorpus {
         }
         boolean shared = !carriesInlineCsv(body);
         com.legend.harness.ReplayOracle.mirrorSuspend(!shared);
-        Connection conn = shared ? sessionConn : DuckWorkspaces.open();
+        Connection conn = shared ? sessionConn : openSession();
         List<String> recording = new ArrayList<>();
         if (shared) {
             recording.addAll(seedLedger);
@@ -439,7 +468,10 @@ public final class MinimalCorpus {
                         },
                         com.legend.harness.ReplayOracle.INSTANCE);
             } catch (RuntimeException e) {
-                    failure = e.getClass().getSimpleName() + ": " + firstLine(e.getMessage());
+                if (System.getenv("LEGEND_LITE_STACKS") != null) {
+                    e.printStackTrace();
+                }
+                failure = e.getClass().getSimpleName() + ": " + firstLine(e.getMessage());
             }
             if (failure == null && !failedAsserts.isEmpty()) {
                 failure = "assert " + failedAsserts.get(0);
@@ -469,6 +501,43 @@ public final class MinimalCorpus {
 
     /** The test carries its OWN data ({@code testDataSetupCsv} on an
      * instance in its body): the engine runs it on a fresh database. */
+    /** THE PLATFORM-NAMESPACE GUARD (user catch 2026-08-28): reference
+     * checkouts are SPEC and test input, never runtime components. A
+     * library source defining {@code meta::pure::functions::} elements
+     * would compile the reference stdlib into our model — refused LOUDLY.
+     * Test-fixture models (corpus test classes, engine test domains) load:
+     * they are the thing under test, not the thing judging. */
+    static void refusePlatformNamespace(List<? extends PackageableElement> elements) {
+        for (PackageableElement el : elements) {
+            if (el.qualifiedName().startsWith(PLATFORM_STDLIB_PACKAGE)) {
+                throw new IllegalStateException("platform-namespace library element "
+                        + el.qualifiedName() + ": reference checkouts are spec, never runtime");
+            }
+        }
+    }
+
+    private static final String PLATFORM_STDLIB_PACKAGE = "meta::pure::functions::";
+
+    /** PureTestBuilder.buildSuite's traversal as a comparator: compare
+     *  package segments; at the first divergence sort alphabetically;
+     *  an ANCESTOR package's own tests run AFTER its sub-suites (deeper
+     *  fqn first); same package sorts by test name. */
+    static int engineSuiteOrder(String fqnA, String fqnB) {
+        String[] a = fqnA.split("::");
+        String[] b = fqnB.split("::");
+        int i = 0;
+        while (i < a.length - 1 && i < b.length - 1 && a[i].equals(b[i])) {
+            i++;
+        }
+        if (i < a.length - 1 && i < b.length - 1) {
+            return a[i].compareTo(b[i]);
+        }
+        if (a.length == b.length) {
+            return a[a.length - 1].compareTo(b[b.length - 1]);
+        }
+        return a.length < b.length ? 1 : -1;
+    }
+
     private static boolean carriesInlineCsv(List<ValueSpecification> body) {
         java.util.ArrayDeque<ValueSpecification> q = new java.util.ArrayDeque<>(body);
         while (!q.isEmpty()) {

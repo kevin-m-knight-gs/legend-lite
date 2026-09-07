@@ -10,6 +10,7 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 
@@ -23,36 +24,38 @@ import java.util.Map;
 /**
  * STATEMENT-level &beta;-reduction of user function calls (the front-door
  * sibling of {@link com.legend.compiler.spec.UserCallInliner}): a call whose
- * callee is a PROGRAM &mdash; its body reaches a statement-only call (an
- * execution, a store effect, a verdict) &mdash; cannot become one
- * expression the SQL lowering runs, so the expression inliner leaves it
- * standing. Pure's semantics for the call are the callee's
- * statements evaluated in order under the parameter bindings; this pass
- * spells exactly that into the caller's statement list:
+ * callee is a PROGRAM cannot become one expression the SQL lowering runs, so
+ * Pure's call semantics — the callee's statements evaluated in order under
+ * the parameter bindings — are spelled into the caller's statement list:
  * <pre>
  *   helper($m, 3);                 &lt;helper's statements with $m and 3
  *   let r = helper2($m);      →     substituted, lets renamed&gt;
  *                                  ... let r = &lt;helper2's last statement&gt;;
  * </pre>
- * Rules: (1) only a statement-root call or a let-bound call expands
- * (calls nested in expressions are the expression inliner's); (2) only a
- * PROGRAM expands &mdash; a callee whose body reaches a statement-only
- * call ({@link PlatformTypes#isStatementOnly}: an execution, a store
- * effect, a test-data generator, a verdict), directly or through another
- * program; a value function stays with the expression inliner, generics
- * and all, and a platform-owned verdict ({@link
- * PlatformTypes#isVerdictFunction}) is never spliced &mdash; the statement
- * channel adjudicates its call, its Pure body never runs; (3) parameters substitute (&beta;, the expression inliner's rule) and
- * every let the callee introduces is renamed to a fresh
- * {@code _s&lt;N&gt;_&lt;name&gt;} through the body, so the caller's
- * single-assignment scope never collides;
- * (4) spliced statements expand recursively; a call cycle leaves the
- * inner call standing (the expression inliner's loud wall names it).
- * Callee bodies come from the module (already name-resolved under their
- * own imports), so splicing under the caller's scope resolves the same
- * referents. The callee is identified by exact FQN (a bare name resolves
- * through the caller's wildcard imports, first match wins only when it is
- * unique) and arity.
+ * Rules: (1) only a statement-root call or a let-bound call expands; a
+ * program call in ARGUMENT position is first hoisted into a let before the
+ * statement, in evaluation order (Pure evaluates arguments left to right
+ * before the call; lambda bodies are deferred code and are not entered);
+ * (2) a callee is a PROGRAM when its own statements reach a statement-only
+ * call ({@link PlatformTypes#isStatementOnly}: an execution, a store effect,
+ * a test-data generator, the seed-SQL form), when its body is a statement
+ * SEQUENCE (a non-let statement before the last), or when it is a thin
+ * wrapper whose value is a call to a program (depth-capped); a value
+ * function stays with the expression inliner, and a platform-owned verdict
+ * ({@link PlatformTypes#isVerdictFunction}) is never opened — the statement
+ * channel adjudicates its call; (3) parameters substitute (&beta;, the
+ * expression inliner's rule) and every let the callee introduces is renamed
+ * to a fresh {@code _s&lt;N&gt;_&lt;name&gt;} through the body, so the caller's
+ * single-assignment scope never collides; (4) spliced statements expand
+ * recursively; a call cycle leaves the inner call standing (the expression
+ * inliner's loud wall names it).
+ *
+ * <p>Names are the RESOLVER's (the query is name-resolved before this pass
+ * runs, and module bodies at build): an exact FQN, or the candidate FQNs the
+ * resolver leaves on a bare call for signature matching — the one candidate
+ * with a definition at the call's arity is the callee; several is the
+ * typer's business. A native registered under a name is the platform's:
+ * the model's Pure overloads of it are never opened.
  */
 public final class StatementInline {
 
@@ -61,40 +64,46 @@ public final class StatementInline {
 
     public static List<ValueSpecification> rewrite(List<ValueSpecification> statements,
             ImportScope imports, ModelContext ctx) {
-        return new StatementInline.Pass(imports, ctx).expand(statements, new ArrayDeque<>());
+        return new StatementInline.Pass(ctx).expand(statements, new ArrayDeque<>());
     }
 
     private static final class Pass {
-        private final ImportScope imports;
         private final ModelContext ctx;
         /** Every binder minted so far, in order: the fresh-name ledger (its
          * size is the next index; names never repeat within a rewrite). */
         private final List<String> minted = new ArrayList<>();
+        /** Program-ness per signature, memoized within a rewrite. */
+        private final Map<String, Boolean> programs = new LinkedHashMap<>();
 
-        Pass(ImportScope imports, ModelContext ctx) {
-            this.imports = imports;
+        Pass(ModelContext ctx) {
             this.ctx = ctx;
         }
 
         List<ValueSpecification> expand(List<ValueSpecification> statements,
                 Deque<String> stack) {
             List<ValueSpecification> out = new ArrayList<>(statements.size());
-            for (ValueSpecification st : statements) {
+            for (ValueSpecification st0 : statements) {
+                // hoisted argument programs are statements like any other:
+                // they expand (recursively) before the statement that read them
+                List<ValueSpecification> hoisted = new ArrayList<>();
+                ValueSpecification st = hoistProgramArguments(st0, hoisted);
+                if (!hoisted.isEmpty()) {
+                    out.addAll(expand(hoisted, stack));
+                }
                 CString letName = SourceSubst.letName(st);
                 ValueSpecification callSite = letName == null ? st
                         : ((AppliedFunction) st).parameters().get(1);
                 FunctionDefinition callee = callSite instanceof AppliedFunction af
-                        && SourceSubst.letName(af) == null ? sequenceCallee(af) : null;
-                if (callee == null || stack.contains(callee.qualifiedName())) {
+                        && SourceSubst.letName(af) == null ? programCallee(af) : null;
+                // the cycle guard keys on the SIGNATURE: an overload
+                // forwarding to its sibling (runTest/3 -> runTest/4) is a
+                // call, not recursion
+                if (callee == null || stack.contains(signature(callee))) {
                     out.add(st);
                     continue;
                 }
                 AppliedFunction call = (AppliedFunction) callSite;
                 Map<String, ValueSpecification> env = new LinkedHashMap<>();
-                // β: parameter occurrences become the argument expressions
-                // (the expression inliner's rule — a lambda literal types
-                // only in a call position, and a substituted argument lets
-                // static folding see the call site's shape)
                 for (int i = 0; i < callee.parameters().size(); i++) {
                     env.put(callee.parameters().get(i).name(), call.parameters().get(i));
                 }
@@ -112,7 +121,7 @@ public final class StatementInline {
                     body.add(let.withParameters(List.of(new CString(renamed, ln.pos()), value)));
                     env.put(ln.value(), new Variable(renamed, null, null, ln.pos()));
                 }
-                stack.push(callee.qualifiedName());
+                stack.push(signature(callee));
                 List<ValueSpecification> spliced = expand(body, stack);
                 stack.pop();
                 if (letName == null) {
@@ -133,91 +142,152 @@ public final class StatementInline {
             return out;
         }
 
+        /** A program call in ARGUMENT position ({@code execute(f, m,
+         * initDatabase(), ext)}: DDL effects, then a runtime value) is
+         * hoisted into a let before the statement, in evaluation order. The
+         * statement's own root call and a let's own bound call are the
+         * splice's, not the hoist's. */
+        private ValueSpecification hoistProgramArguments(ValueSpecification st,
+                List<ValueSpecification> out) {
+            CString letName = SourceSubst.letName(st);
+            ValueSpecification root = letName == null ? st
+                    : ((AppliedFunction) st).parameters().get(1);
+            ValueSpecification hoisted = root.mapChildren(c -> hoistIn(c, out));
+            if (hoisted == root) {
+                return st;
+            }
+            return letName == null ? hoisted
+                    : ((AppliedFunction) st).withParameters(List.of(letName, hoisted));
+        }
+
+        private ValueSpecification hoistIn(ValueSpecification v, List<ValueSpecification> out) {
+            if (v instanceof LambdaFunction) {
+                return v;
+            }
+            ValueSpecification inner = v.mapChildren(c -> hoistIn(c, out));
+            if (inner instanceof AppliedFunction af && SourceSubst.letName(af) == null
+                    && programCallee(af) != null) {
+                String name = freshName("hoisted");
+                out.add(new AppliedFunction("letFunction",
+                        List.of(new CString(name), inner)));
+                return new Variable(name);
+            }
+            return inner;
+        }
+
+        private static String signature(FunctionDefinition fd) {
+            return fd.qualifiedName() + "/" + fd.parameters().size();
+        }
+
         private String freshName(String name) {
             minted.add(name);
             return "_s" + minted.size() + "_" + name;
         }
 
-        /** The callee when {@code af} calls a user function that is a
-         * PROGRAM (its body reaches a statement-only call) and not a
-         * platform-owned verdict, else null. */
-        private @com.legend.Nullable FunctionDefinition sequenceCallee(AppliedFunction af) {
-            FunctionDefinition fd;
-            if (af.function().contains("::")) {
-                fd = definition(af.function(), af.parameters().size());
-            } else {
-                fd = null;
-                for (String pkg : imports.wildcards()) {
-                    String fqn = pkg + "::" + af.function();
-                    if (ctx.findFunction(fqn).isEmpty()
-                            && ctx.findFunctionDefinitions(fqn).isEmpty()) {
-                        continue;
-                    }
-                    if (fd != null) {
-                        return null; // ambiguous: name resolution's wall
-                    }
-                    fd = definition(fqn, af.parameters().size());
-                    if (fd == null) {
-                        return null; // platform-owned, or no such overload
-                    }
-                }
-            }
+        /** The callee when {@code af} calls a user function that is a PROGRAM
+         * and not a platform-owned verdict, else null. */
+        private @com.legend.Nullable FunctionDefinition programCallee(AppliedFunction af) {
+            FunctionDefinition fd = resolvedDefinition(af);
             return fd == null || fd.body().isEmpty()
                     || PlatformTypes.isVerdictFunction(fd.qualifiedName())
-                    || !isProgram(fd) ? null : fd;
+                    || !isProgram(fd, 0) ? null : fd;
         }
 
-        /** The ONE parsed definition of {@code fqn} at {@code arity}; null
-         * when the platform owns the FQN (a native is registered under it
-         * &mdash; the model's Pure bodies for it are documentation), when
-         * no overload has that arity, or when several do. */
-        private @com.legend.Nullable FunctionDefinition definition(String fqn, int arity) {
-            if (ctx.findFunction(fqn).stream().anyMatch(
-                    com.legend.compiler.element.TypedFunction::isNative)) {
-                return null;
-            }
+        /** The user definition the RESOLVER assigned a call: its exact FQN,
+         * or the candidate FQNs it left on a bare name — the one candidate
+         * with a user definition at this arity. Null when the platform owns
+         * the name (a native is registered under it), when no candidate has
+         * the arity, or when several do. */
+        private @com.legend.Nullable FunctionDefinition resolvedDefinition(AppliedFunction af) {
+            List<String> names = af.function().contains("::")
+                    ? List.of(af.function()) : af.candidateFqns();
             FunctionDefinition found = null;
-            for (FunctionDefinition fd : ctx.findFunctionDefinitions(fqn)) {
-                if (fd.parameters().size() != arity) {
+            for (String fqn : names) {
+                // a native registered under the name is the platform's — the
+                // catalog's FQN index answers without compiling anything
+                if (!com.legend.builtin.Pure.nativeFunctionsAt(fqn).isEmpty()) {
+                    return null;
+                }
+                FunctionDefinition d = null;
+                for (FunctionDefinition fd : ctx.findFunctionDefinitions(fqn)) {
+                    if (fd.parameters().size() != af.parameters().size()) {
+                        continue;
+                    }
+                    if (d != null) {
+                        return null;
+                    }
+                    d = fd;
+                }
+                if (d == null) {
                     continue;
                 }
                 if (found != null) {
                     return null;
                 }
-                found = fd;
+                found = d;
             }
             return found;
         }
 
-        /** A function is a program when its OWN statements reach a
-         * statement-only call &mdash; directly, never through another user
-         * function: a value function that merely calls a program somewhere
-         * below is still a value function to its caller (its standing call
-         * takes the executor's call-frame route), and a library value
-         * function whose rarely-taken arm executes must never be opened
-         * statement by statement on a caller's behalf. */
-        private boolean isProgram(FunctionDefinition fd) {
-            return fd.body().stream().anyMatch(this::reachesStatementOnly);
+        private boolean isProgram(FunctionDefinition fd, int depth) {
+            Boolean known = programs.get(signature(fd));
+            if (known != null) {
+                return known;
+            }
+            boolean program = isProgram0(fd, depth);
+            programs.put(signature(fd), program);
+            return program;
         }
 
-        /** The catalog FQNs a call name denotes: an exact FQN, or for a
-         * bare name the natives the catalog's bare-name index holds at
-         * the call's arity (the typer's own resolution of a bare native). */
+        private boolean isProgram0(FunctionDefinition fd, int depth) {
+            if (fd.body().stream().anyMatch(this::reachesStatementOnly)) {
+                return true;
+            }
+            // a statement SEQUENCE (a non-let statement before the last —
+            // two asserts in a row) cannot become one expression
+            for (int i = 0; i < fd.body().size() - 1; i++) {
+                if (SourceSubst.letName(fd.body().get(i)) == null) {
+                    return true;
+                }
+            }
+            // a thin wrapper whose VALUE is a program call (runTest/3 ->
+            // runTest/4) is that program (depth-capped)
+            if (fd.body().isEmpty()) {
+                return false;
+            }
+            ValueSpecification last = fd.body().get(fd.body().size() - 1);
+            if (SourceSubst.letName(last) != null) {
+                last = ((AppliedFunction) last).parameters().get(1);
+            }
+            if (depth < 4 && last instanceof AppliedFunction tail
+                    && SourceSubst.letName(tail) == null) {
+                FunctionDefinition callee = resolvedDefinition(tail);
+                return callee != null && !PlatformTypes.isVerdictFunction(callee.qualifiedName())
+                        && isProgram(callee, depth + 1);
+            }
+            return false;
+        }
+
+        /** The catalog FQNs a call names: an exact FQN, the resolver's
+         * candidates on a bare name, and for a bare name the natives the
+         * catalog's bare-name index holds at the call's arity (the typer's
+         * own resolution of a bare native). */
         private static List<String> referents(AppliedFunction af) {
             if (af.function().contains("::")) {
                 return List.of(af.function());
             }
-            return com.legend.builtin.Pure.nativeFunctionsAt(af.function()).stream()
+            List<String> out = new ArrayList<>(af.candidateFqns());
+            com.legend.builtin.Pure.nativeFunctionsAt(af.function()).stream()
                     .filter(n -> n.parameters().size() == af.parameters().size())
                     .map(com.legend.model.NativeFunctionDefinition::qualifiedName)
-                    .toList();
+                    .filter(n -> !out.contains(n)).forEach(out::add);
+            return out;
         }
 
         private boolean reachesStatementOnly(ValueSpecification v) {
-            if (v instanceof AppliedFunction af) {
-                if (referents(af).stream().anyMatch(PlatformTypes::isStatementOnly)) {
-                    return true;
-                }
+            if (v instanceof AppliedFunction af
+                    && referents(af).stream().anyMatch(PlatformTypes::isStatementOnly)) {
+                return true;
             }
             return v.children().stream().anyMatch(this::reachesStatementOnly);
         }

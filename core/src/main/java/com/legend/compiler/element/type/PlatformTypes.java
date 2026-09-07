@@ -496,6 +496,7 @@ public final class PlatformTypes {
     /** The asserts package: every function in it is a VERDICT the
      * statement channel adjudicates (AssertVerdicts). */
     public static final String ASSERTS_PACKAGE = "meta::pure::functions::asserts::";
+    public static final String ASSERT_EQUALS = ASSERTS_PACKAGE + "assertEquals";
     /** VERDICT functions declared OUTSIDE the asserts package — user
      * functions in the model whose calls the statement channel
      * adjudicates by exact FQN instead of running their Pure bodies
@@ -534,7 +535,11 @@ public final class PlatformTypes {
                 || EXECUTION_PLAN_EXECUTE.equals(fqn)
                 || EXECUTE_LEGEND_QUERY.equals(fqn)
                 || GENERATE_TEST_DATA.equals(fqn)
-                || GENERATE_SEED_DATA_STRING.equals(fqn);
+                || GENERATE_SEED_DATA_STRING.equals(fqn)
+                // the seed-SQL form (setUpDataSQLs): a statement-channel
+                // form — executed when mapped over executeInDb, compared as
+                // engine text under a TDG assert; never a value expression
+                || isSeedSqlForm(fqn);
     }
 
     /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet

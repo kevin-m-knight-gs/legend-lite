@@ -261,15 +261,12 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/compiler/PctFunctionSuppressionTest.java",
             "core/src/test/java/com/legend/exec/ExecutorTest.java",
             "core/src/test/java/com/legend/exec/StructValueTest.java",
-            "core/src/test/java/com/legend/harness/AssertLoopForm.java",
-            "core/src/test/java/com/legend/harness/EngineTestExecutor.java",
             // FLIP PROBE (harness-deletion item 1 slice 2): the dual-run
             // agreement instrument — passes the family session's
             // Connection THROUGH to Compiler.executeResolved (the one
             // platform seam); no JDBC calls of its own; effect-gated so
             // it only re-runs bodies the compiler proves read-only.
             // Migration scaffolding: dies at the whole-test cutover.
-            "core/src/test/java/com/legend/harness/FlipProbe.java",
             // SCORING FLIP (slice 3): the migration dispatch itself —
             // Connection passed THROUGH to the one platform seam; the
             // effectful cutover's atomic-attempt protocol (begin/
@@ -278,8 +275,6 @@ class JdbcSurfaceCensusTest {
             // this file only DRIVES it (SQLException handling at the
             // call site); at cutover the call site moves to the runner
             // and the walk's JDBC surfaces above delete.
-            "core/src/test/java/com/legend/harness/WholeTestFlip.java",
-            "core/src/test/java/com/legend/harness/EngineTestExecutorTest.java",
             // (ExecCallFinder RETIRED from the register 2026-08-28 —
             // sideSqlText's evaluation path deleted with the slice-3
             // equality half; the finder is pure tree navigation now)
@@ -291,10 +286,6 @@ class JdbcSurfaceCensusTest {
             // reference database IS its job; the platform reaches it
             // only through the SqlReplayOracle SPI on ExecEnv.
             "core/src/test/java/com/legend/harness/ReplayOracle.java",
-            "core/src/test/java/com/legend/harness/PlanAsserts.java",
-            "core/src/test/java/com/legend/harness/RuntimeIfForm.java",
-            "core/src/test/java/com/legend/harness/TdsEquivalence.java",
-            "core/src/test/java/com/legend/harness/TestDataGenForm.java",
             "core/src/test/java/com/legend/integration/AbstractDatabaseTest.java",
             "core/src/test/java/com/legend/integration/AsOfJoinCheckerTest.java",
             "core/src/test/java/com/legend/integration/AssociationIntegrationTest.java",
@@ -377,7 +368,6 @@ class JdbcSurfaceCensusTest {
             // what the platform compiles; the harness only finds and runs
             // tests)
             "core/src/test/java/com/legend/rcorpus/MinimalCorpus.java",
-            "core/src/test/java/com/legend/rcorpus/Runner.java",
             "core/src/test/java/com/legend/resolver/ResolveDeepEmptinessProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveDerivedLeafProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveFilterDemandTest.java",

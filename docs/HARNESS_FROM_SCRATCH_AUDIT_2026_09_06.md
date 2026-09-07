@@ -137,6 +137,11 @@ The user's second question: "no functions in Compiler.java specialized for the h
 
 ## 5. Recommendation: rebuild, literally, beside the old one
 
+STATUS 2026-09-06 (batch 115): STEP 2 LANDED — the old harness is deleted; the kept harness is 3,828 lines
+(MinimalCorpus 690, referee 2,580 of which H2Verify 1,256 is comparison policy owed to the platform, Corpus/
+DuckWorkspaces 373, corpus-library.pure 64 — stdlib as harness Pure, owed to the platform). See the handoff §0
+Phase 1b for the five remaining items.
+
 STATUS 2026-09-06 (batch 113): step 1 LANDED — the minimum harness exists beside the old one
 (MinimalCorpus, ~600 lines), its roster equals the old runner's platform-scored roster plus the
 three walk-only trivial passes, and the helper expansion the old runner did by heuristics is now

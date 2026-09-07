@@ -1230,68 +1230,6 @@ public final class UserCallInliner {
         return node;
     }
 
-    /** The executor's staged CALL FRAME: each argument β-inlines against
-     * the caller's let prefix and binds as a {@link TypedLet} (β-reduction
-     * by environment — the callee's body statements then execute over the
-     * frame). An EFFECTFUL argument refuses loudly: the frame would drop
-     * an unused one or double a twice-used one (audit 17:
-     * {@code ignore(executeInDb(...))} silently lost the insert). */
-    /** The VALUE an effectful helper returns — {@code let runtime =
-     * initDatabase()} whose body runs DDL effects and ends in
-     * {@code ^Runtime(connectionStores = ...)}: the callee's last statement
-     * reduced over the call's argument frame and the body's own lets, as a
-     * let binding for the caller — or null when that value is itself
-     * effectful (an executeInDb handle: opaque, never bound). */
-    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedLet helperValueLet(
-            String name, com.legend.compiler.spec.typed.TypedUserCall call,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            java.util.function.Predicate<TypedSpec> effectful) {
-        List<TypedSpec> seq = new ArrayList<>(callArgumentFrame(call, letPrefix, specs, effectful));
-        List<TypedSpec> body = specs.compile(call.callee()).body();
-        // the body's lets and its last statement: intermediate effects and
-        // asserts are the CALL's business (executeCallStatement runs them)
-        for (int i = 0; i < body.size() - 1; i++) {
-            if (body.get(i) instanceof com.legend.compiler.spec.typed.TypedLet) {
-                seq.add(body.get(i));
-            }
-        }
-        seq.add(body.get(body.size() - 1));
-        List<TypedSpec> reduced = new UserCallInliner(specs).inlineBody(seq);
-        TypedSpec last = reduced.get(reduced.size() - 1);
-        if (last instanceof com.legend.compiler.spec.typed.TypedLet tl) {
-            last = tl.value();
-        }
-        if (effectful.test(last)) {
-            return null;
-        }
-        return new com.legend.compiler.spec.typed.TypedLet(name, last, last.info());
-    }
-
-    public static List<TypedSpec> callArgumentFrame(
-            com.legend.compiler.spec.typed.TypedUserCall call,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            java.util.function.Predicate<TypedSpec> effectful) {
-        List<TypedSpec> frame = new ArrayList<>();
-        for (int p = 0; p < call.callee().parameters().size(); p++) {
-            List<TypedSpec> argBody = new ArrayList<>(letPrefix);
-            argBody.add(call.args().get(p));
-            TypedSpec argValue = new UserCallInliner(specs)
-                    .inlineBody(argBody).get(0);
-            if (effectful.test(argValue)) {
-                throw new IllegalStateException("effectful argument to '"
-                        + call.callee().qualifiedName()
-                        + "' (parameter '"
-                        + call.callee().parameters().get(p).name()
-                        + "' binds an executeInDb-family call) is not"
-                        + " supported");
-            }
-            frame.add(new TypedLet(
-                    call.callee().parameters().get(p).name(), argValue,
-                    argValue.info()));
-        }
-        return frame;
-    }
-
     /** Whether {@code node} (transitively) reads the variable. */
     public static boolean referencesVar(TypedSpec node, String name) {
         if (node instanceof TypedVariable tv && tv.name().equals(name)) {

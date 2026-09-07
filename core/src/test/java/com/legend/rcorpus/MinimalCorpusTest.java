@@ -23,6 +23,13 @@ import java.util.List;
 @Tag("heavy")
 class MinimalCorpusTest {
 
+    /** The H2 portability lane's floor (batch 115, 2026-09-06): 1866 = the
+     * old runner's PLATFORM-scored H2 roster at cutover (1855, from its
+     * flip file — its reported 1976 counted 121 walk answers on top) + the
+     * three walk-only trivial passes + the batch-113/114 platform gains;
+     * set difference against the old platform roster empty. Shrink-only. */
+    private static final int H2_FLOOR = 1866;
+
     @Test
     void corpus() throws Exception {
         Assumptions.assumeTrue(Corpus.available(), "legend-engine checkout not present");
@@ -49,6 +56,7 @@ class MinimalCorpusTest {
         }
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();
+        java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
         long t0 = System.nanoTime();
         try {
             for (MinimalCorpus.TestCase t : corpus.tests()) {
@@ -56,6 +64,7 @@ class MinimalCorpusTest {
                     continue;
                 }
                 MinimalCorpus.Result r;
+                long tStart = System.nanoTime();
                 try {
                     r = corpus.run(t);
                 } catch (Exception e) {
@@ -64,6 +73,7 @@ class MinimalCorpusTest {
                                     + String.valueOf(e.getMessage()).split("\n")[0]);
                 }
                 (r.pass() ? pass : fail).add(r.fqn() + (r.pass() ? "" : " :: " + r.reason()));
+                elapsed.put(r.fqn(), (System.nanoTime() - tStart) / 1_000_000L);
             }
         } finally {
             corpus.endSession();
@@ -77,12 +87,21 @@ class MinimalCorpusTest {
         for (String f : fail) {
             System.out.println("[corpus2] FAIL " + f);
         }
+        // the slowest tests (wall time includes the package session's setups
+        // when this test opened it) — the timing ledger a slow run reads
+        elapsed.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(15)
+                .forEach(e -> System.out.println("[corpus2] slow " + e.getValue() + "ms " + e.getKey()));
         if (only.isEmpty()) {
             // the ONE pin: the pass roster never shrinks (2454 at batch 114,
             // 2026-09-06 = the old runner's platform-scored 2451 + the
             // assert-free twin and the two vacuous placeholders it walked)
-            org.junit.jupiter.api.Assertions.assertTrue(pass.size() >= 2454,
-                    "corpus pass roster shrank: " + pass.size() + " < 2454");
+            // per lane: DuckDB (gate 4) and the H2 portability lane (gate 5,
+            // -Drcorpus.backend=h2) each keep their own floor
+            int floor = MinimalCorpus.H2_BACKEND ? H2_FLOOR : 2454;
+            org.junit.jupiter.api.Assertions.assertTrue(pass.size() >= floor,
+                    "corpus pass roster shrank: " + pass.size() + " < " + floor);
         }
     }
 }

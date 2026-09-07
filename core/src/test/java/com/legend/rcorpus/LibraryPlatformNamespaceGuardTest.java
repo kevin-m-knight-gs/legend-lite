@@ -25,12 +25,11 @@ class LibraryPlatformNamespaceGuardTest {
 
     @Test
     void refusesPlatformStdlibLibrarySources() {
-        Runner r = new Runner(List.of(), List.of());
         IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> r.registerLibrarySource(
+                () -> MinimalCorpus.refusePlatformNamespace(parse(
                         "function meta::pure::functions::asserts::"
                         + "assertEquals(expected:Any[*], actual:Any[*])"
-                        + ":Boolean[1] { true; }"));
+                        + ":Boolean[1] { true; }")));
         assertTrue(e.getMessage().contains("platform-namespace"),
                 e.getMessage());
         assertTrue(e.getMessage().contains(
@@ -40,8 +39,14 @@ class LibraryPlatformNamespaceGuardTest {
 
     @Test
     void acceptsTestFixtureLibrarySources() {
-        Runner r = new Runner(List.of(), List.of());
-        assertDoesNotThrow(() -> r.registerLibrarySource(
-                "Class my::fixtures::Widget { name: String[1]; }"));
+        assertDoesNotThrow(() -> MinimalCorpus.refusePlatformNamespace(parse(
+                "Class my::fixtures::Widget { name: String[1]; }")));
+    }
+
+    private static List<? extends com.legend.model.PackageableElement> parse(String source) {
+        return com.legend.Compiler.parseSources(
+                List.of(new com.legend.Compiler.ModelSource("t.pure", source)),
+                (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM)
+                .model().elements();
     }
 }

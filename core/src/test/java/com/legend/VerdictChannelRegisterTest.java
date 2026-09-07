@@ -38,9 +38,6 @@ class VerdictChannelRegisterTest {
             // tree verdicts (wire-tree leaves ride equalScalar as a
             // method reference)
             "core/src/main/java/com/legend/exec/JsonCompare.java",
-            // channel-A harness adjudication (test scope, delegates here
-            // precisely so it is NOT a third implementation)
-            "core/src/test/java/com/legend/harness/EngineTestExecutor.java",
             // the two SPEC fixtures — they pin the adjudicator itself
             "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/exec/PureAssertsTest.java");

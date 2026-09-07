@@ -160,7 +160,6 @@ public final class PureModelContext implements ModelContext {
         return model.findLegacyMapping(fqn);
     }
 
-    @Override
     public java.util.Set<String> elementFqns() {
         java.util.Set<String> out = new java.util.HashSet<>();
         model.classes().forEach(e -> out.add(e.qualifiedName()));
