@@ -100,7 +100,7 @@ Totals: 33 + 44 + 16 + 15 = 108.
 | D2 | closures as relations | YES | `mapping_includes_closure`, `set_ancestry`, `plan_node_closure`; `class_ancestry` exists on the parked branch only |
 | D3 | the plan as relations | PARTLY | `PlanRows` (nodes, closure, template functions, connections); `PLAN_NODE_KINDS` is a fixed list — the graph-fetch temp-table node is not in it because the planner never emits it |
 | D4 | the user program as relations | STARTED (2026-09-03, groups A/H) | `FunctionBodyRows`: a lambda's `expressionSequence` is `functions` / `value_specifications(id, function_id, ordinal, kind, parent_id, depth, mult_lower, mult_upper, var_name)` rows riding the query; `VS_KINDS` = FunctionExpression / InstanceValue / VariableExpression class mappings over `kind`; `parametersValues` = children rows; `multiplicity` = the real m3 Multiplicity → MultiplicityValue shape; `inferredPrimaryKeyColumns` (PkInference). MISSING on the row: `func` (the callee — a reference to the function/property row), `functionName`, `values` of an InstanceValue, `genericType`, the QUOTED-code reader (a hand-built m3 tree → executable) |
-| D5 | re-hosting the engine's compiler | NO, by decision | the 44 ENGINE-MACHINERY rows above; named out of scope once, here |
+| D5 | running the engine's own programs | OPEN (USER 2026-09-08) | not out of scope until proven program by program: every engine program the strict run meets gets a ledger row (program, kind, first wall); the 44 ENGINE-MACHINERY rows describe the wall, not a scope decision |
 
 Correction to the earlier census (ledger §15 "CODE-AS-DATA ~19 / ENGINE-MACHINERY ~38"):
 by message the split is 16 / 44. The difference is the SQL-AST-as-values group (alias merging,
@@ -143,13 +143,33 @@ size after slices 1–3 (it is a resolver leg, not a data leg).
 **Not a slice — the plan-kind pair (2).** Needs the graph-fetch temp-table planner strategy itself;
 planner parity, not data. Stays ENGINE-adjacent until a planner leg exists.
 
-## 4. Recommendation
+## 4. Method — STRICT FIRST (USER 2026-09-08)
 
-Start with slice 1: five witnesses, a written design, the branch already holds the D2 rows and the
-prelude change, and it is the leg the user parked on 2026-09-05 to return to. Batch 147 = slice 1
-whole (one batch, three fix cycles then a wall). Then slice 2a+2b (batch 148), 2c (149), slice 3
-riding whichever prelude change lands first. Slice 4 after.
+USER: "start strict first to understand if/where we fail so we can make a conscious choice about
+failed features"; "D5 is not out of scope until we prove we can't run arbitrary programs one by one".
+So slice 1 is NOT the by-need design. It is the strict run of the extension-registry chain with a
+PROGRAM LEDGER: every engine program the chain reaches is compiled under Pure's own strict semantics
+(a call in field position IS evaluated; a let IS evaluated; a LAMBDA LITERAL is a value whose body
+compiles only when applied — that is strict Pure, not by-need), and the first wall of each program
+is a named row: program, kind (A engine-implementation / B vocabulary / C typer-model gap), reason.
+Kind B rows are fixed in the batch. Kind A/C rows are attempted one at a time (three cycles each)
+and the ones that stay are the decision list the user rules on. The by-need design (homework §4)
+stays on paper as the fallback for programs we DECIDE not to run.
 
-Pending user decisions before batch 147: (i) the strict-vs-by-need deviation (§3 slice 1);
-(ii) confirm D5 is named out of scope for the whole phase (the 44 rows stay FAIL under
-`engine-machinery`, no new status).
+Known from the 2026-09-05 probes, so the first three rows are predictable: `TdsToRelationExtension_V_X_X`
+(B — the prelude excludes the template protocol package; fixed on the branch), `executeInMemory` via
+`modelStoreContract().executeStoreQuery` (an INLINER over-eagerness — it compiled a lambda field's
+body at construction; strict Pure does not: fix, not a wall), `buildClassMappingsById` via
+`relationalStoreContract()`'s `let defaultState` (the first genuine strict wall: the engine's planner
+state — metamodel reflection over a Mapping, which is D1 material and may compile over the rows).
+
+## 5. Recommendation
+
+Batch 147 = the strict run over the five connection-equality tests with the program ledger
+(§4): the bodiless `relationalExtensions` native hands off to the engine's program when its result
+is READ (the argument position stays a typing surface — 2,341 tests pass it and never read it),
+lambda fields stand until applied, the template protocol package enters the prelude, then every
+program met compiles or gets its row. Passes if the chain closes; otherwise the decision list is
+the deliverable. Then slice 2 (the program as m3 data, both directions), slice 3, slice 4.
+
+Decided 2026-09-08: strict first (no by-need); D5 open, decided program by program.
