@@ -338,11 +338,6 @@ public final class MinimalCorpus {
         sessionPkg = null;
     }
 
-    /** The setups a test's package inherits: the shared fixture units and
-     * every BeforePackage of a package that prefixes the test's, outermost
-     * first — each run at most once per session, and only when the
-     * platform says its body has effects. Failures are reported, not
-     * fatal (the engine's harness tolerance). */
     /** The setups a package inherits: the shared fixture units and every
      * BeforePackage of a package that prefixes it, outermost first. */
     private List<String> setupCandidates(String pkg) {
@@ -368,9 +363,23 @@ public final class MinimalCorpus {
             setupPrograms.computeIfAbsent(fqn, f -> {
                 ValueSpecification resolved = Compiler.resolveQuery(
                         List.of(new AppliedFunction(f, List.of())), new ImportScope(List.of()), ctx);
-                return Compiler.hasStatementEffects(resolved, ctx) ? resolved : INERT_SETUP;
+                if (Compiler.hasStatementEffects(resolved, ctx)) {
+                    return resolved;
+                }
+                inertSetups.add(f);
+                return INERT_SETUP;
             });
         }
+    }
+
+    /** Setups the platform derived as INERT (no statement effects) and so
+     * never ran — counted and pinned by the run (Phase 0.2): a platform
+     * effect analysis that wrongly reads a seeding setup as inert would
+     * silently unseed its package. */
+    private final Set<String> inertSetups = new LinkedHashSet<>();
+
+    public Set<String> inertSetups() {
+        return java.util.Collections.unmodifiableSet(inertSetups);
     }
 
     private List<String> runSetups(TestCase t, Connection conn, boolean shared) {
@@ -390,7 +399,7 @@ public final class MinimalCorpus {
                     setupsDone.add(fqn);
                 }
             } catch (RuntimeException e) {
-                failures.add("setup " + fqn + "() => " + firstLine(e.getMessage()));
+                failures.add("setup " + fqn + "() => " + whole(e.getMessage()));
             }
         }
         return failures;
@@ -425,12 +434,12 @@ public final class MinimalCorpus {
         try {
             resolved = Compiler.resolveQuery(List.copyOf(body), t.imports(), ctx);
         } catch (RuntimeException e) {
-            return new Result(t.fqn(), false, 0, "resolve: " + firstLine(e.getMessage()));
+            return new Result(t.fqn(), false, 0, "resolve: " + whole(e.getMessage()));
         }
         try {
             facts = Compiler.programFacts(resolved, ctx);
         } catch (RuntimeException e) {
-            return new Result(t.fqn(), false, 0, "type: " + firstLine(e.getMessage()));
+            return new Result(t.fqn(), false, 0, "type: " + whole(e.getMessage()));
         }
         boolean shared = !facts.seedsInlineCsv();
         com.legend.harness.ReplayOracle.mirrorSuspend(!shared);
@@ -449,13 +458,17 @@ public final class MinimalCorpus {
             }
         });
         try {
+            // a setup that fails FAILS every test depending on it (Phase
+            // 0.2): the engine's suite scores each BeforePackage function
+            // as a test case of its own (PureTestBuilder.buildSuite), so a
+            // failure there is scored, never tolerated; a body judged on a
+            // half-seeded session is no verdict
             List<String> setupFailures = runSetups(t, conn, shared);
-            Result r = judge(t, resolved, facts, conn);
             if (!setupFailures.isEmpty()) {
-                r = new Result(r.fqn(), r.pass(), r.verdicts(),
-                        r.reason() + " [setup: " + String.join("; ", setupFailures) + "]");
+                return new Result(t.fqn(), false, 0,
+                        "setup failed: " + String.join("; ", setupFailures));
             }
-            return r;
+            return judge(t, resolved, facts, conn);
         } finally {
             com.legend.harness.ReplayOracle.mirrorSuspend(false);
             if (shared) {
@@ -493,7 +506,7 @@ public final class MinimalCorpus {
                             verdicts.add(pass);
                             if (!pass) {
                                 failedAsserts.add("#" + verdicts.size() + " " + name
-                                        + (detail == null ? "" : ": " + firstLine(detail)));
+                                        + (detail == null ? "" : ": " + whole(detail)));
                             }
                         },
                         com.legend.harness.ReplayOracle.INSTANCE);
@@ -501,7 +514,7 @@ public final class MinimalCorpus {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();
                 }
-                failure = e.getClass().getSimpleName() + ": " + firstLine(e.getMessage());
+                failure = e.getClass().getSimpleName() + ": " + whole(e.getMessage());
             }
             if (failure == null && !failedAsserts.isEmpty()) {
                 failure = "assert " + failedAsserts.get(0);
@@ -571,11 +584,15 @@ public final class MinimalCorpus {
 
 
 
-    private static String firstLine(@com.legend.Nullable String s) {
+    /** The platform's message, WHOLE, on one line: the harness never
+     * truncates what the platform said (Phase 0.2 — 21 of 121 roster
+     * entries carried no diagnostic because the first line of an assert
+     * failure is its name and the expected/actual lines followed). Lines
+     * join with {@code " | "} so every FAIL stays one greppable line. */
+    static String whole(@com.legend.Nullable String s) {
         if (s == null) {
             return "null";
         }
-        int nl = s.indexOf('\n');
-        return nl < 0 ? s : s.substring(0, nl);
+        return s.strip().replaceAll("\\s*\\R\\s*", " | ");
     }
 }

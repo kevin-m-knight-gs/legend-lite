@@ -54,6 +54,15 @@ class MinimalCorpusTest {
      * 0.8. */
     private static final int DISCOVERED = 2575;
 
+    /** Setups the platform derives as INERT on the full run (Phase 0.2;
+     * measured 2026-09-08, the names print as {@code [corpus2] inert-setup}):
+     * the five are zero-arg functions of the shared fixture that are not
+     * setups at all (testRuntime, testRuntimeForBQ,
+     * createTestDatabaseConnection, the two typeInference maps) — the
+     * arity rule in {@code MinimalCorpus.sharedSetups} nominates them; the
+     * platform's effect analysis is what keeps them from running. */
+    private static final int INERT_SETUPS = 5;
+
     @Test
     void corpus() throws Exception {
         Assumptions.assumeTrue(Corpus.available(), "legend-engine checkout not present");
@@ -96,7 +105,7 @@ class MinimalCorpusTest {
                 } catch (Exception e) {
                     r = new MinimalCorpus.Result(t.fqn(), false, 0,
                             "harness: " + e.getClass().getSimpleName() + ": "
-                                    + String.valueOf(e.getMessage()).split("\n")[0]);
+                                    + MinimalCorpus.whole(e.getMessage()));
                 }
                 ran.add(r.fqn());
                 (r.pass() ? pass : fail).add(r.fqn() + (r.pass() ? "" : " :: " + r.reason()));
@@ -130,6 +139,18 @@ class MinimalCorpusTest {
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(15)
                 .forEach(e -> System.out.println("[corpus2] slow " + e.getValue() + "ms " + e.getKey()));
+        // setups the platform derived as inert (never ran): named, and
+        // pinned exactly on the full run — Phase 0.2
+        for (String s : corpus.inertSetups()) {
+            System.out.println("[corpus2] inert-setup " + s);
+        }
+        System.out.println("[corpus2] inert-setups=" + corpus.inertSetups().size());
+        if (only.isEmpty()) {
+            org.junit.jupiter.api.Assertions.assertEquals(INERT_SETUPS, corpus.inertSetups().size(),
+                    "inert setups (the platform says the body has no effects) moved:"
+                    + " a seeding setup read as inert unseeds its package silently;"
+                    + " explain, then re-pin. Names: " + corpus.inertSetups());
+        }
         pinRoster(only, ran, fail);
     }
 
