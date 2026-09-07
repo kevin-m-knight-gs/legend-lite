@@ -133,7 +133,7 @@ if want 4; then
   # a failed lane keeps its log beside the chain log (like G1): the
   # moved pin's assertion is in there, and re-running the lane to read
   # it cost a full sweep per pin (2026-09-02)
-  [ "$G4" -ne 0 ] && cp "$OUT/g4.out" "${L%.log}.g4.out" 2>/dev/null
+  cp "$OUT/g4.out" "${L%.log}.g4.out" 2>/dev/null   # kept on GREEN too: the exact roster of record
   fi
 fi
 
@@ -148,7 +148,7 @@ if want 5; then
     echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
   fi
   rec 5 $G5; grep -E "EXACT|h2|Tests run: [0-9]+, Fail" "$OUT/g5.out" | tail -3 >> "$L"
-  [ "$G5" -ne 0 ] && cp "$OUT/g5.out" "${L%.log}.g5.out" 2>/dev/null
+  cp "$OUT/g5.out" "${L%.log}.g5.out" 2>/dev/null   # kept on GREEN too
   fi
 fi
 

@@ -87,6 +87,16 @@ class MinimalCorpusTest {
         for (String f : fail) {
             System.out.println("[corpus2] FAIL " + f);
         }
+        // the referee's own roster: row verdicts by kind and the decline
+        // buckets — DISPLAYED, no verdict flows through it
+        java.util.Map<String, Long> kinds = new java.util.TreeMap<>();
+        com.legend.harness.H2Verify.VERDICT_ROSTER.forEach((k, v) ->
+                kinds.merge(k.substring(0, k.indexOf(' ')), v.sum(), Long::sum));
+        kinds.forEach((k, v) -> System.out.println("[corpus2] referee " + k + "=" + v));
+        new java.util.TreeMap<>(com.legend.harness.ReplayOracle.OUTCOMES).forEach((k, v) ->
+                System.out.println("[corpus2] referee-outcome " + k + "=" + v.sum()));
+        new java.util.TreeMap<>(com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS).forEach((k, v) ->
+                System.out.println("[corpus2] referee-declined " + v.sum() + "x " + k));
         // the slowest tests (wall time includes the package session's setups
         // when this test opened it) — the timing ledger a slow run reads
         elapsed.entrySet().stream()

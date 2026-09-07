@@ -40,7 +40,7 @@ import java.util.Map;
  * call ({@link PlatformTypes#isStatementOnly}: an execution, a store effect,
  * a test-data generator, the seed-SQL form), when its body is a statement
  * SEQUENCE (a non-let statement before the last), or when it is a thin
- * wrapper whose value is a call to a program (depth-capped); a value
+ * wrapper whose value is a call to a program (to a non-program or a cycle); a value
  * function stays with the expression inliner, and a platform-owned verdict
  * ({@link PlatformTypes#isVerdictFunction}) is never opened — the statement
  * channel adjudicates its call; (3) parameters substitute (&beta;, the
@@ -190,7 +190,7 @@ public final class StatementInline {
             FunctionDefinition fd = resolvedDefinition(af);
             return fd == null || fd.body().isEmpty()
                     || PlatformTypes.isVerdictFunction(fd.qualifiedName())
-                    || !isProgram(fd, 0) ? null : fd;
+                    || !isProgram(fd) ? null : fd;
         }
 
         /** The user definition the RESOLVER assigned a call: its exact FQN,
@@ -229,17 +229,18 @@ public final class StatementInline {
             return found;
         }
 
-        private boolean isProgram(FunctionDefinition fd, int depth) {
+        private boolean isProgram(FunctionDefinition fd) {
             Boolean known = programs.get(signature(fd));
             if (known != null) {
                 return known;
             }
-            boolean program = isProgram0(fd, depth);
+            programs.put(signature(fd), false);   // in progress: a cycle scores false
+            boolean program = isProgram0(fd);
             programs.put(signature(fd), program);
             return program;
         }
 
-        private boolean isProgram0(FunctionDefinition fd, int depth) {
+        private boolean isProgram0(FunctionDefinition fd) {
             if (fd.body().stream().anyMatch(this::reachesStatementOnly)) {
                 return true;
             }
@@ -251,7 +252,7 @@ public final class StatementInline {
                 }
             }
             // a thin wrapper whose VALUE is a program call (runTest/3 ->
-            // runTest/4) is that program (depth-capped)
+            // runTest/4) is that program (the chain ends at a non-program or a cycle)
             if (fd.body().isEmpty()) {
                 return false;
             }
@@ -259,11 +260,13 @@ public final class StatementInline {
             if (SourceSubst.letName(last) != null) {
                 last = ((AppliedFunction) last).parameters().get(1);
             }
-            if (depth < 4 && last instanceof AppliedFunction tail
+            if (last instanceof AppliedFunction tail
                     && SourceSubst.letName(tail) == null) {
                 FunctionDefinition callee = resolvedDefinition(tail);
+                // a tail call chain ends at a non-program or a cycle (the
+                // memo scores an in-progress callee false — no depth cap)
                 return callee != null && !PlatformTypes.isVerdictFunction(callee.qualifiedName())
-                        && isProgram(callee, depth + 1);
+                        && isProgram(callee);
             }
             return false;
         }

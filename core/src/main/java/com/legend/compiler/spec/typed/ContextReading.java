@@ -72,10 +72,22 @@ final class ContextReading {
             return false;
         }
         TypedSpec v = bind.apply(contextArg);
-        return v instanceof TypedNewInstance ni
-                && PlatformTypes.RELATIONAL_EXECUTION_CONTEXT.equals(ni.classFqn())
-                && ni.properties().get("addDriverTablePkForProject") instanceof TypedCBoolean b
-                && b.value();
+        if (!(v instanceof TypedNewInstance ni)
+                || !PlatformTypes.RELATIONAL_EXECUTION_CONTEXT.equals(ni.classFqn())) {
+            return false;
+        }
+        TypedSpec flag = ni.properties().get("addDriverTablePkForProject");
+        if (flag == null) {
+            return false;
+        }
+        if (flag instanceof TypedCBoolean b) {
+            return b.value();
+        }
+        // the option is a compile-time fact of the call; a computed value
+        // is loud, never a silent default (the reader never guesses)
+        throw new com.legend.error.NotImplementedException(
+                "addDriverTablePkForProject must be a literal; got "
+                        + flag.getClass().getSimpleName());
     }
 
     private TypedSpec chase(TypedSpec v) {

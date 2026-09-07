@@ -28,6 +28,10 @@ import java.util.List;
  * verdict arms (charter §8 slice 3) read it off ExecEnv.
  */
 public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
+    /** Row-verdict outcomes by SPI entry — DISPLAY only (the harness prints it). */
+    public static final java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.atomic.LongAdder> OUTCOMES = new java.util.concurrent.ConcurrentHashMap<>();
+
 
     /** The registered SPI implementation (run-wide, like the mirror). */
     public static final ReplayOracle INSTANCE = new ReplayOracle();
@@ -125,6 +129,16 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
 
     @Override
     public com.legend.exec.SqlReplayOracle.RowVerdict verifyFetchChain(
+            Connection session, int hopIndex, String goldenSql,
+            String ourSql,
+            java.util.function.Supplier<com.legend.exec.SqlReplayOracle
+                    .FetchTranscript> transcript) {
+        com.legend.exec.SqlReplayOracle.RowVerdict v = verifyFetchChain0(session, hopIndex, goldenSql, ourSql, transcript);
+        OUTCOMES.computeIfAbsent("verifyFetchChain " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        return v;
+    }
+
+    public com.legend.exec.SqlReplayOracle.RowVerdict verifyFetchChain0(
             Connection session, int hopIndex, String goldenSql,
             String ourSql,
             java.util.function.Supplier<com.legend.exec.SqlReplayOracle
@@ -597,6 +611,18 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             @com.legend.Nullable String rootClassFqn,
             boolean extentSubset,
             com.legend.compiler.element.ModelContext ctx) {
+        com.legend.exec.SqlReplayOracle.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, extentSubset, ctx);
+        OUTCOMES.computeIfAbsent("verify " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        return v;
+    }
+
+    public com.legend.exec.SqlReplayOracle.RowVerdict verify0(
+            java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx) {
         // the STATIC extent-subset fact of the verified chain (computed on
         // the platform's typed chain — a class extent through subset-
         // preserving ops) arms the graph compare's pk-collapse exactly as
@@ -611,6 +637,19 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * (verifyAuto's extraSeeds). */
     @Override
     public com.legend.exec.SqlReplayOracle.RowVerdict verify(
+            java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx,
+            List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
+        com.legend.exec.SqlReplayOracle.RowVerdict v = verify1(session, goldenSql, ours, mappingFqn, rootClassFqn, extentSubset, ctx, temps);
+        OUTCOMES.computeIfAbsent("verify8 " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        return v;
+    }
+
+    public com.legend.exec.SqlReplayOracle.RowVerdict verify1(
             java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
             @com.legend.Nullable String mappingFqn,
@@ -675,6 +714,19 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * bodies) and the final node's filled SQL replays for rows. */
     @Override
     public com.legend.exec.SqlReplayOracle.RowVerdict verifyPlan(
+            Connection session, String goldenPlan,
+            java.util.Map<String, List<String>> bindings,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            boolean extentSubset,
+            com.legend.compiler.element.ModelContext ctx) {
+        com.legend.exec.SqlReplayOracle.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, extentSubset, ctx);
+        OUTCOMES.computeIfAbsent("verifyPlan " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        return v;
+    }
+
+    public com.legend.exec.SqlReplayOracle.RowVerdict verifyPlan0(
             Connection session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
             ExecutionResult ours,
@@ -844,6 +896,13 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * raw-SQL history (testing-side policy, exactly the walk's). */
     @Override
     public com.legend.exec.SqlReplayOracle.RowVerdict verifyFetchTexts(
+            java.sql.Connection session, String goldenSql, String ourSql) {
+        com.legend.exec.SqlReplayOracle.RowVerdict v = verifyFetchTexts0(session, goldenSql, ourSql);
+        OUTCOMES.computeIfAbsent("verifyFetchTexts " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        return v;
+    }
+
+    public com.legend.exec.SqlReplayOracle.RowVerdict verifyFetchTexts0(
             java.sql.Connection session, String goldenSql, String ourSql) {
         try {
             String d = tdgSqlReplay(
