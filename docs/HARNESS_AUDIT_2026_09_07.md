@@ -9,6 +9,22 @@
 > orchestrator against source or a run; figures that failed verification were dropped and
 > are listed in §9. One reviewer executed the gates twice per lane; one reproduced the lane
 > with its own driver and instrumented per-test referee traffic.
+>
+> **Evidence base: [`harness-audit-2026-09-07/`](harness-audit-2026-09-07/)** — the tables,
+> per-site enumerations and concrete refactors this summary compresses to a line each.
+> [`referee.md`](harness-audit-2026-09-07/referee.md) (the 30 Java-comparison sites, the
+> relaxation table, the SQL formulation per class) ·
+> [`ambient-state.md`](harness-audit-2026-09-07/ambient-state.md) (the 12-field inventory,
+> the sweep plan, the `FactLedger` design) ·
+> [`guards.md`](harness-audit-2026-09-07/guards.md) (per-guard slip-past, ratchet slack, the
+> 12 false "ONE OWNER" claims) ·
+> [`roster-and-floor.md`](harness-audit-2026-09-07/roster-and-floor.md) (all 121 failures
+> categorized, the H2 families) ·
+> [`main-residue.md`](harness-audit-2026-09-07/main-residue.md) (per-file verdicts, the
+> 12-step deletion path) ·
+> [`strength.md`](harness-audit-2026-09-07/strength.md) (the ladder, traced journeys,
+> semantic spot-checks) ·
+> [`driver.md`](harness-audit-2026-09-07/driver.md) (every path to a false pass).
 
 ---
 
