@@ -620,3 +620,13 @@ Bucket `paginated-golden:text-differs`: the golden SQL pages (`offset/fetch/limi
 - meta::relational::tests::tds::tdsProject::testLimitAfterDrop
 - meta::relational::tests::tds::tdsProject::testLimitAfterSlice
 - meta::relational::tests::tds::tdsProject::testSliceAfterLimit
+
+## 8. REAL-DEFECT found by the referee — batch 132 (Phase 0.6), 2026-09-08
+
+- **testToSQLStringSplitPart** — `relational::tests::functions::sqlstring` — bucket `real-defect:splitPart-missing-part`. Surfaced when the referee gained `legend_h2_extension_split_part` (until batch 132 the golden failed to execute and the test passed on byte-equal text): golden rows on H2 give NULL for a part past the end (the engine's extension: commons split — adjacent separators collapse — and `parts.length > part-1 ? … : null`; Pure's `splitPart(str, token, part):String[0..1]` returns nothing), our DuckDB `split_part` gives '' (5 of 7 rows, both columns). The lowering of `splitPart` must return NULL for a missing part and collapse adjacent separators like Pure's `split`. Phase 3. Both lanes fail it (H2 lane: same-session golden through our Java-in-H2 function).
+
+## 9. GAPS named by batch 132 (declines the referee cannot judge; text stays the contract, counted)
+
+- `quoted-identifier golden over an unquoted schema` (6): `executionPlan::tests::testQuoteIdentifiersFlag`, `…InGroupBy`, `…InOrderByClause`, `…WithGraphFetch`, `testTypedTDSWithEnum`, `testTypedTDSWithEnumFilter` — `quoteIdentifiers=true` plan texts spell `"productSchema"."productTable"`; the corpus creates the schema UNQUOTED (relationalSetUp.pure `createProductSchemaTablesAndFillDb`), H2 uppercases it; the engine never executes these SQLs.
+- `unformatted golden` (4): `projection::filter::testFilterAfterJoinInRelation`, `…WithExtendedPrimitives`, `query::take::testFilterLimitInSequenceForTableAccessor`, `testLimitFilterInSequenceForTableAccessor` — whitespace-stripped SQL text nobody can execute.
+- `plan binding spelling` (1): `executionPlan::tests::testFilterEqualsWithOptionalParameter_H2` — H2 rejects VARCHAR(5) vs BOOLEAN; the golden's `varPlaceHolderToString(optionalActive![] "'" "'" …)` quotes the Boolean hole. Phase 4 (referee bindings by declared type, or an engine-template decision).

@@ -710,7 +710,11 @@ class JavaEvalLedgerTest {
             // 1071 → 1083 (batch 0.5b): the population read threaded to the
             // rows leg and executed there (evalValue, in the database) for
             // the referee's page-membership verdict — plumbing, no judgment
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1083),
+            // 1083 → 1102 (batch 132, Phase 0.6): the six text-decided arms
+            // REPORT their named decline to the listener before the text
+            // decides, and the two outcome switches fail a referee FAULT
+            // whatever the text said — reporting and refusal, no judgment
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1102),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

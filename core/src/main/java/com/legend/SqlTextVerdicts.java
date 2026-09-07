@@ -153,6 +153,7 @@ final class SqlTextVerdicts {
         if (!"H2".equals(dbType)) {
             // §4 FOREIGN-DIALECT residue: no oracle database for this
             // dialect — text stays the contract, counted forever
+            declined(env, name, "foreign-dialect:" + dbType);
             return textEqual ? ok()
                     : fail(name + " (sql-text, " + dbType
                             + " — text is the contract): expected "
@@ -796,6 +797,7 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries
                         .refereeBindings(lam);
         if (bindings == null) {
+            declined(env, name, "plan-params-unbindable");
             return textEqual ? ok()
                     : fail(name + " (plan-text, params unbindable —"
                             + " text is the contract): expected " + golden
@@ -964,7 +966,11 @@ final class SqlTextVerdicts {
             case DIVERGED -> fail(name + " (tdg fetch-text ROW verdict"
                     + " — golden rows vs ours diverged, whatever the"
                     + " text said): " + rv.detail());
+            case FAULT -> fail(name + " (tdg fetch-text: referee FAULT —"
+                    + " the referee's own machinery failed, the text cannot"
+                    + " stand in): " + rv.detail());
             case DECLINED -> {
+                declined(env, name, "oracle-declined");
                 yield textEqual ? ok()
                         : fail(name + " (tdg fetch-text, declined: "
                                 + rv.detail() + "): expected " + golden
@@ -1279,6 +1285,7 @@ final class SqlTextVerdicts {
             // the rows leg is underivable — counted, text stays the
             // contract (§3.7: a counted decline, visible, never silent;
             // DataError joined RuntimeException at the seam)
+            declined(env, name, "rows-underivable");
             return textEqual ? ok()
                     : fail(name + " (sql-text, rows underivable):"
                             + " expected " + golden + ", got " + ours);
@@ -1302,6 +1309,7 @@ final class SqlTextVerdicts {
             }
         }
         if (rows == null) {
+            declined(env, name, "rows-underivable");
             return textEqual ? ok()
                     : fail(name + " (sql-text, rows underivable):"
                             + " expected " + golden + ", got " + ours);
@@ -1325,9 +1333,13 @@ final class SqlTextVerdicts {
             case DIVERGED -> fail(name + " (sql-text ROW verdict —"
                     + " golden rows vs ours diverged, whatever the text"
                     + " said): " + rv.detail());
+            case FAULT -> fail(name + " (sql-text: referee FAULT — the"
+                    + " referee's own machinery failed, the text cannot"
+                    + " stand in): " + rv.detail());
             case DECLINED -> {
                 // oracle could not answer: text is the contract,
                 // decline counted (§3.7)
+                declined(env, name, "oracle-declined");
                 yield textEqual ? ok()
                         : fail(name + " (sql-text, oracle declined: "
                                 + rv.detail() + "): expected " + golden
@@ -1463,6 +1475,17 @@ final class SqlTextVerdicts {
             @com.legend.Nullable ExecutionResult r) {
         return r instanceof ExecutionResult.Scalar s
                 && s.value() instanceof String str ? str : null;
+    }
+
+    /** A text-decided arm reports its NAMED decline to the runner before
+     * the text decides (Phase 0.6, audit §10 item 7 — no path returns
+     * {@code textEqual ? ok() : fail(...)} uncounted). */
+    private static void declined(StatementExecutor.ExecEnv env, String name,
+            String reason) {
+        com.legend.exec.AssertListener l = env.assertListener();
+        if (l != null) {
+            l.declined(name, reason);
+        }
     }
 
     private static ExecutionResult ok() {

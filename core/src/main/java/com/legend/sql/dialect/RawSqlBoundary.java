@@ -67,6 +67,18 @@ public final class RawSqlBoundary {
         return sink == null ? null : sink.stream().map(Raw::sql).toList();
     }
 
+    /** The ledger's NON-QUERY statements only — the referee's seeds
+     * (Phase 0.6). A query never seeds, and the session's seed prefix is
+     * this subsequence, append-only across the session's tests: the
+     * mirror's cursor indexes it stably (a bare index into the full
+     * recording desynced when a test's queries left the next test's
+     * prefix — audit §4.10). */
+    public static @com.legend.Nullable List<String> recordedSeeds() {
+        List<Raw> sink = RECORDER.get();
+        return sink == null ? null
+                : sink.stream().filter(r -> !r.query()).map(Raw::sql).toList();
+    }
+
     /** A raw statement that EXECUTED on the session: recorded after the
      * fact, with its kind — a statement that failed is never recorded, so
      * the ledger mirrors executed reality by construction. */

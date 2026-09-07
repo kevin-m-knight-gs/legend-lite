@@ -2638,12 +2638,13 @@ final class StatementExecutor {
         Executor.executeRaw(connection,
                 Ddl.createTable(def, schema,
                         rawH2 ? Ddl.Flavor.H2_EXEC : Ddl.Flavor.DUCK_EXEC, true));
-        if (!rawH2) {
-            // the replay ledger carries the mirror's (H2) spelling of the DDL
-            com.legend.sql.dialect.RawSqlBoundary.recordExecuted(drop, false);
-            com.legend.sql.dialect.RawSqlBoundary.recordExecuted(
-                    Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true), false);
-        }
+        // the replay ledger carries the H2 spelling of the DDL on EVERY
+        // session (Phase 0.6): the H2 lane's fresh replays inserted into
+        // tables nobody created because this recording was gated on the
+        // DuckDB session (17 `ADDRESSTABLE not found` declines)
+        com.legend.sql.dialect.RawSqlBoundary.recordExecuted(drop, false);
+        com.legend.sql.dialect.RawSqlBoundary.recordExecuted(
+                Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true), false);
         // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
         // constraints; our DuckDB DDL deliberately omits them (milestoned
         // re-seeds) — the H2 second target's stream keeps the engine

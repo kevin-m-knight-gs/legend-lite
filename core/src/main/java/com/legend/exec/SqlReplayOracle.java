@@ -178,7 +178,7 @@ public interface SqlReplayOracle {
     }
 
     record RowVerdict(Outcome outcome, @com.legend.Nullable String detail) {
-        public enum Outcome { MATCH, DIVERGED, DECLINED }
+        public enum Outcome { MATCH, DIVERGED, DECLINED, FAULT }
 
         public static RowVerdict match() {
             return new RowVerdict(Outcome.MATCH, null);
@@ -190,6 +190,15 @@ public interface SqlReplayOracle {
 
         public static RowVerdict declined(String reason) {
             return new RowVerdict(Outcome.DECLINED, reason);
+        }
+
+        /** The referee's OWN machinery failed (Phase 0.6): a seed of our
+         * ledger would not replay, an extension function we ship is
+         * missing, the compare threw. Unlike DECLINED (a modeled gap in
+         * what the golden can be judged on) a FAULT never lets the text
+         * stand in for rows — the test fails until the referee is fixed. */
+        public static RowVerdict fault(String detail) {
+            return new RowVerdict(Outcome.FAULT, detail);
         }
     }
 }

@@ -15,4 +15,14 @@ public interface AssertListener {
 
     void verdict(String assertName, boolean pass,
             @com.legend.Nullable String detail);
+
+    /** A verdict arm DECIDED BY TEXT (Phase 0.6): the rows leg could not
+     * be judged — {@code reason} names why (the arm's own vocabulary:
+     * {@code foreign-dialect}, {@code rows-underivable}, {@code
+     * oracle-declined}, …) — and the byte-equal text is the contract for
+     * this assert. Reported BEFORE the text decides, never silently; the
+     * runner counts per test and pins ceilings. The platform's fact
+     * ledger rides this seam, not a static sink. */
+    default void declined(String assertName, String reason) {
+    }
 }

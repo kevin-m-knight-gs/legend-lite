@@ -310,9 +310,19 @@ public final class MinimalCorpus {
 
     private static Connection openSession() throws SQLException {
         if (H2_BACKEND) {
-            return DriverManager.getConnection("jdbc:h2:mem:c2s"
+            Connection h2 = DriverManager.getConnection("jdbc:h2:mem:c2s"
                     + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
                     "sa", "");
+            // the engine's H2 test database carries its extension functions;
+            // on this lane the golden runs on THIS session (same-session
+            // oracle), so the session carries them too (Phase 0.6: a golden
+            // calling legend_h2_extension_lpad was a referee FAULT here)
+            try (java.sql.Statement st = h2.createStatement()) {
+                for (String alias : com.legend.harness.H2ExtensionFunctions.aliases()) {
+                    st.execute(alias);
+                }
+            }
+            return h2;
         }
         return DuckWorkspaces.open();
     }
@@ -382,6 +392,14 @@ public final class MinimalCorpus {
                 return INERT_SETUP;
             });
         }
+    }
+
+    /** Verdicts DECIDED BY TEXT, as the platform reported them (Phase 0.6):
+     * {@code reason + ' ' + test} → count; the run prints and pins them. */
+    private final Map<String, Integer> textDecided = new LinkedHashMap<>();
+
+    public Map<String, Integer> textDecided() {
+        return java.util.Collections.unmodifiableMap(textDecided);
     }
 
     /** Setups the platform derived as INERT (no statement effects) and so
@@ -511,11 +529,21 @@ public final class MinimalCorpus {
             String failure = null;
             try {
                 Compiler.executeResolved(resolved, ctx, RUNTIME, conn,
-                        (name, pass, detail) -> {
-                            verdicts.add(pass);
-                            if (!pass) {
-                                failedAsserts.add("#" + verdicts.size() + " " + name
-                                        + (detail == null ? "" : ": " + whole(detail)));
+                        new com.legend.exec.AssertListener() {
+                            @Override
+                            public void verdict(String name, boolean pass,
+                                    @com.legend.Nullable String detail) {
+                                verdicts.add(pass);
+                                if (!pass) {
+                                    failedAsserts.add("#" + verdicts.size() + " " + name
+                                            + (detail == null ? "" : ": " + whole(detail)));
+                                }
+                            }
+
+                            @Override
+                            public void declined(String name, String reason) {
+                                // a text-decided verdict, named by the arm (Phase 0.6)
+                                textDecided.merge(reason + " " + t.fqn(), 1, Integer::sum);
                             }
                         },
                         com.legend.harness.ReplayOracle.INSTANCE);

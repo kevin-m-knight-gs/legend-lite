@@ -206,7 +206,89 @@ class MinimalCorpusTest {
         }
         pinRoster(only, ranTagged, unmappable, "ord",
                 MinimalCorpus.H2_BACKEND ? H2_ORD : DUCKDB_ORD, false);
+        pinChannels(only, corpus);
     }
+
+    /** Phase 0.6 — the verdict CHANNELS the platform and the referee
+     * reported: text-decided verdicts by the arm's reason (ceilings per
+     * reason), referee FAULTS (pinned at ZERO — a fault of our own machinery
+     * never stands in for a verdict and never hides in a decline count),
+     * and the referee's leniencies (ceilings). Counts are TESTS, not
+     * firings, where a test may fire several times. */
+    private static void pinChannels(String only, MinimalCorpus corpus) {
+        java.util.Map<String, Integer> byReason = new java.util.LinkedHashMap<>();
+        for (String k : corpus.textDecided().keySet()) {
+            String reason = k.substring(0, k.indexOf(' '));
+            byReason.merge(reason, 1, Integer::sum);
+            System.out.println("[corpus2] text-decided " + k);
+        }
+        byReason.forEach((r, n) -> System.out.println("[corpus2] text-decided-tests " + r + "=" + n));
+        long faults = 0;
+        for (var e : com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet()) {
+            if (e.getKey().startsWith("FAULT ")) {
+                faults += e.getValue().sum();
+            }
+        }
+        System.out.println("[corpus2] referee-faults=" + faults);
+        java.util.Map<String, Integer> lenTests = new java.util.LinkedHashMap<>();
+        for (String k : com.legend.harness.H2Verify.LENIENCY_CENSUS.keySet()) {
+            lenTests.merge(k.substring(0, k.indexOf(' ')), 1, Integer::sum);
+        }
+        for (var kind : List.of("golden-fanout-collapsed", "golden-stitch-keys-dropped")) {
+            int n = (int) com.legend.harness.H2Verify.VERDICT_ROSTER.keySet().stream()
+                    .filter(k -> k.startsWith(kind + " ")).count();
+            if (n > 0) {
+                lenTests.put(kind, n);
+            }
+        }
+        lenTests.forEach((t, n) -> System.out.println("[corpus2] leniency-tests " + t + "=" + n));
+        if (!only.isEmpty()) {
+            return;
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(0, faults,
+                "referee FAULTS (our own machinery failed — a seed would not replay,"
+                + " an extension function we ship is missing, the session failed) must"
+                + " be ZERO: " + com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.keySet()
+                        .stream().filter(k -> k.startsWith("FAULT ")).toList());
+        java.util.Map<String, Integer> ceilings = MinimalCorpus.H2_BACKEND
+                ? H2_TEXT_DECIDED : DUCKDB_TEXT_DECIDED;
+        List<String> over = new ArrayList<>();
+        byReason.forEach((r, n) -> {
+            if (n > ceilings.getOrDefault(r, 0)) {
+                over.add(r + "=" + n + " > " + ceilings.getOrDefault(r, 0));
+            }
+        });
+        org.junit.jupiter.api.Assertions.assertTrue(over.isEmpty(),
+                "text-decided verdicts grew past their ceilings (a rows leg stopped"
+                + " being judged): " + over + " — explain, then re-pin");
+        java.util.Map<String, Integer> lenCeil = MinimalCorpus.H2_BACKEND
+                ? H2_LENIENCY : DUCKDB_LENIENCY;
+        List<String> overLen = new ArrayList<>();
+        lenTests.forEach((t, n) -> {
+            if (n > lenCeil.getOrDefault(t, 0)) {
+                overLen.add(t + "=" + n + " > " + lenCeil.getOrDefault(t, 0));
+            }
+        });
+        org.junit.jupiter.api.Assertions.assertTrue(overLen.isEmpty(),
+                "referee leniencies grew past their ceilings: " + overLen
+                + " — explain, then re-pin");
+    }
+
+    /** Ceilings on TESTS with a text-decided verdict, per reason (Phase 0.6;
+     * measured 2026-09-08, batch 132). */
+    private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
+            "rows-underivable", 29, "plan-params-unbindable", 6, "oracle-declined", 22,
+            "foreign-dialect:DB2", 30, "foreign-dialect:Composite", 7);
+    private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
+            "rows-underivable", 38, "plan-params-unbindable", 6, "oracle-declined", 28,
+            "foreign-dialect:DB2", 30, "foreign-dialect:Composite", 7);
+    /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
+    private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(
+            "float-10-digits", 48, "micro-floor", 7,
+            "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
+    private static final java.util.Map<String, Integer> H2_LENIENCY = java.util.Map.of(
+            "float-10-digits", 32, "micro-floor", 7,
+            "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
 
     private static final String ORD_UNMAPPABLE = "ordered-keys-unmappable";
     /** Ceilings on the number of TESTS with an arrival-order leniency pass

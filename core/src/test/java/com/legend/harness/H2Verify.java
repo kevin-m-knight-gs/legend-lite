@@ -40,8 +40,34 @@ public final class H2Verify {
     /** Verification could not run (driver absent, seed replay failed,
      * golden text not executable) — the caller stays advisory. */
     public static final class Unverifiable extends RuntimeException {
+        /** FAULT (Phase 0.6): the referee's OWN machinery failed — our
+         * seed ledger would not replay, an extension function we ship is
+         * missing — as opposed to a modeled GAP in what the golden can be
+         * judged on. A fault never lets the text stand in for rows. */
+        private final boolean fault;
+
         public Unverifiable(String msg, @com.legend.Nullable Throwable cause) {
+            this(msg, cause, false);
+        }
+
+        public Unverifiable(String msg, @com.legend.Nullable Throwable cause, boolean fault) {
             super(msg, cause);
+            this.fault = fault;
+        }
+
+        public boolean fault() {
+            return fault;
+        }
+
+        /** A golden-execution SQLException is OUR fault when the golden
+         * called an engine extension function the referee is supposed to
+         * ship ({@code legend_h2_extension_*}); otherwise the golden itself
+         * cannot run here (unformatted text, quoted identifiers over an
+         * unquoted schema, …) — a named gap. */
+        public static Unverifiable goldenExecution(java.sql.SQLException e) {
+            String m = String.valueOf(e.getMessage());
+            return new Unverifiable("golden execution: " + m, e,
+                    m.contains("LEGEND_H2_EXTENSION_"));
         }
     }
 
@@ -148,6 +174,29 @@ public final class H2Verify {
         System.err.println("[h2-unverifiable] replay declined ["
                 + CURRENT_TEST.get() + "]: " + reason);
         UNVERIFIABLE_CENSUS.computeIfAbsent(bucketOf(reason),
+                k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    /** A referee FAULT (Phase 0.6): counted under its own prefix so the
+     * harness can pin FAULTS AT ZERO apart from the modeled gaps. */
+    public static void fault(String reason) {
+        System.err.println("[h2-fault] referee FAULT [" + CURRENT_TEST.get() + "]: " + reason);
+        UNVERIFIABLE_CENSUS.computeIfAbsent("FAULT " + bucketOf(reason),
+                k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    /** Per-test LENIENCY census (Phase 0.6, audit §10 item 6): every
+     * comparison that held only through a declared relaxation — the float
+     * 10-significant-digit rounding, the microsecond floor — keyed
+     * {@code tag + ' ' + test}; the harness prints it and pins ceilings.
+     * (The graph compare's fan-out collapse and stitch-key drop already
+     * count on {@link #VERDICT_ROSTER}.) */
+    public static final java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.atomic.LongAdder> LENIENCY_CENSUS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void leniency(String tag) {
+        LENIENCY_CENSUS.computeIfAbsent(tag + " " + CURRENT_TEST.get(),
                 k -> new java.util.concurrent.atomic.LongAdder()).increment();
     }
 
@@ -654,8 +703,7 @@ public final class H2Verify {
             }
             return divergence(sortedTheirs, mine);
         } catch (SQLException e) {
-            throw new Unverifiable("golden execution: "
-                    + e.getMessage(), e);
+            throw Unverifiable.goldenExecution(e);
         }
     }
 
@@ -724,8 +772,7 @@ public final class H2Verify {
                         }
                     }
                 } catch (SQLException e) {
-                    throw new Unverifiable("golden execution: "
-                            + e.getMessage(), e);
+                    throw Unverifiable.goldenExecution(e);
                 }
                 if (theirsCols[0] != tab.columns().size()) {
                     if (theirsCols[0] == 1 && goldenSql.toLowerCase(
@@ -1209,8 +1256,11 @@ public final class H2Verify {
                 // empirically-clean cross-engine floor. The REAL defect
                 // (integral collapse — epoch-millis comparing equal) is
                 // fixed above by the exact integral arm.
-                return d.round(new java.math.MathContext(10))
-                        .stripTrailingZeros().toPlainString();
+                BigDecimal rounded = d.round(new java.math.MathContext(10));
+                if (rounded.compareTo(d) != 0) {
+                    leniency("float-10-digits");
+                }
+                return rounded.stripTrailingZeros().toPlainString();
             } catch (NumberFormatException e) {
                 return v.toString();
             }
@@ -1246,6 +1296,9 @@ public final class H2Verify {
             // '15:22:23.123456789' vs our read '…123456'). Divergence at
             // micro or coarser still fails.
             int nano = ldt.getNano() / 1000 * 1000;
+            if (nano != ldt.getNano()) {
+                leniency("micro-floor");
+            }
             if (nano != 0) {
                 s += ("." + String.valueOf(1_000_000_000L + nano)
                         .substring(1)).replaceAll("0+$", "");

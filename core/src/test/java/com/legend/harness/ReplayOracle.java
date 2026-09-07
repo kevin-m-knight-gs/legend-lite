@@ -195,7 +195,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         null);
             }
             String d = tdgChainedReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
+                    com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
                     ancestors, goldenSql,
                     H2Verify.transcriptRows(f.columns(), f.rows()));
             return d == null
@@ -203,14 +203,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     : com.legend.exec.SqlReplayOracle.RowVerdict
                             .diverged(d);
         } catch (H2Verify.Unverifiable u) {
-            H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(u.getMessage()));
-        } catch (RuntimeException e) {
-            H2Verify.decline("verdict-arm-tdg: "
-                    + String.valueOf(e.getMessage()).replace('\n', ' '));
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(e.getMessage()));
+            return outcome("verdict-arm-tdg: ", u);
         }
     }
 
@@ -281,7 +274,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
             if (mirror.poison != null) {
-                throw new H2Verify.Unverifiable(mirror.poison, null);
+                throw new H2Verify.Unverifiable(mirror.poison, null, true);
             }
             try (Statement st = mirror.conn.createStatement()) {
                 applyPendingSeeds(mirror, st, seeds);
@@ -312,7 +305,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         } catch (SQLException e) {
                             throw new H2Verify.Unverifiable(
                                     session.seedFailPrefix()
-                                            + e.getMessage(), e);
+                                            + e.getMessage(), e, true);
                         }
                     }
                 }
@@ -339,7 +332,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     st.execute(one);
                 } catch (SQLException e) {
                     mirror.poison = "seed replay: " + e.getMessage();
-                    throw new H2Verify.Unverifiable(mirror.poison, e);
+                    throw new H2Verify.Unverifiable(mirror.poison, e, true);
                 }
             }
             mirror.applied++;
@@ -667,11 +660,25 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             return verifyArmed(session, goldenSql, ours, mappingFqn,
                     rootClassFqn, ctx, seeds, facts);
         } catch (H2Verify.Unverifiable u) {
-            H2Verify.decline("verdict-arm: " + u.getMessage());
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(u.getMessage()));
+            return outcome("verdict-arm: ", u);
         } finally {
         }
+    }
+
+    /** The ONE funnel from a referee refusal to an outcome (Phase 0.6): a
+     * modeled GAP is a counted DECLINE (the arm's text policy applies); a
+     * FAULT of the referee's own machinery is counted apart and never
+     * lets the text stand in. No broad catch remains in the referee — a
+     * bug in the compare propagates and fails the test. */
+    private static com.legend.exec.SqlReplayOracle.RowVerdict outcome(String arm,
+            H2Verify.Unverifiable u) {
+        String m = arm + u.getMessage();
+        if (u.fault()) {
+            H2Verify.fault(m);
+            return com.legend.exec.SqlReplayOracle.RowVerdict.fault(String.valueOf(u.getMessage()));
+        }
+        H2Verify.decline(m);
+        return com.legend.exec.SqlReplayOracle.RowVerdict.declined(String.valueOf(u.getMessage()));
     }
 
     /** Every golden verified in the attempt, in order — a later
@@ -744,9 +751,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             return verifyArmed(session, sql, ours, mappingFqn, rootClassFqn,
                     ctx, null, facts);
         } catch (H2Verify.Unverifiable u) {
-            H2Verify.decline("verdict-arm-plan: " + u.getMessage());
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(u.getMessage()));
+            return outcome("verdict-arm-plan: ", u);
         } finally {
             for (String name : allocTables) {
                 try {
@@ -833,23 +838,19 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         };
         try {
             String r = verifyAuto(session,
-                    com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
+                    com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
                     extraSeeds, goldenSql, ours, enumDecode, enumProp, facts);
             return r == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
                     : com.legend.exec.SqlReplayOracle.RowVerdict
                             .diverged(r);
         } catch (H2Verify.Unverifiable u) {
-            // probe isolation: the dual-channel's duplicate firings must
-            // not double-feed the pinned unverifiable census
-            H2Verify.decline("verdict-arm: " + u.getMessage());
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(u.getMessage()));
-        } catch (java.sql.SQLException | RuntimeException e) {
-            H2Verify.decline("verdict-arm: "
-                    + String.valueOf(e.getMessage()).replace('\n', ' '));
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(e.getMessage()));
+            return outcome("verdict-arm: ", u);
+        } catch (java.sql.SQLException e) {
+            // the session itself failed us (metadata, statement): a FAULT
+            String m = "verdict-arm: " + String.valueOf(e.getMessage()).replace('\n', ' ');
+            H2Verify.fault(m);
+            return com.legend.exec.SqlReplayOracle.RowVerdict.fault(m);
         }
     }
 
@@ -871,21 +872,14 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             java.sql.Connection session, String goldenSql, String ourSql) {
         try {
             String d = tdgSqlReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
+                    com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
                     goldenSql, session, ourSql);
             return d == null
                     ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
                     : com.legend.exec.SqlReplayOracle.RowVerdict
                             .diverged(d);
         } catch (H2Verify.Unverifiable u) {
-            H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(u.getMessage()));
-        } catch (RuntimeException e) {
-            H2Verify.decline("verdict-arm-tdg: "
-                    + String.valueOf(e.getMessage()).replace('\n', ' '));
-            return com.legend.exec.SqlReplayOracle.RowVerdict
-                    .declined(String.valueOf(e.getMessage()));
+            return outcome("verdict-arm-tdg: ", u);
         }
     }
 
@@ -897,7 +891,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     /** One statement on the seeded oracle (DDL for a replay's allocation
      * tables — same session and ledger discipline as {@link #rows}). */
     private void execute(String sql) throws SQLException {
-        onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
+        onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
                 VERIFY_SESSION, st -> {
                     st.execute(sql);
                     return Boolean.TRUE;
@@ -907,7 +901,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     @Override
     public com.legend.exec.SqlReplayOracle.OracleRows rows(String sql)
             throws SQLException {
-        return onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSql(),
+        return onOracle(com.legend.sql.dialect.RawSqlBoundary.recordedSeeds(),
                 VERIFY_SESSION, st -> {
                     try (java.sql.ResultSet rs = st.executeQuery(sql)) {
                         var md = rs.getMetaData();
