@@ -109,8 +109,25 @@ public interface SqlReplayOracle {
      * (the tie boundaries), null when underivable (a computed key): an
      * ordered chain without keys keeps the multiset compare, COUNTED. */
     record ReplayFacts(boolean extentSubset, boolean ordered,
-            java.util.@com.legend.Nullable List<String> sortKeys) {
-        public static final ReplayFacts NONE = new ReplayFacts(false, false, null);
+            java.util.@com.legend.Nullable List<String> sortKeys,
+            @com.legend.Nullable ExecutionResult population) {
+        public static final ReplayFacts NONE = new ReplayFacts(false, false, null, null);
+
+        /** The compile-time facts alone (no page). */
+        public ReplayFacts(boolean extentSubset, boolean ordered,
+                java.util.@com.legend.Nullable List<String> sortKeys) {
+            this(extentSubset, ordered, sortKeys, null);
+        }
+
+        /** A PAGED chain (batch 0.5b): {@code population} = OUR rows for the
+         * same chain WITHOUT its tail page (limit / drop / slice / take). A
+         * page's contents over ties or over an unsorted chain are the
+         * database's arrival order, not a contract; what IS defined is that
+         * every golden page row is a member of the population and that the
+         * page sizes agree — the PAGE-MEMBERSHIP verdict. */
+        public ReplayFacts withPopulation(ExecutionResult rows) {
+            return new ReplayFacts(extentSubset, ordered, sortKeys, rows);
+        }
     }
 
     /** MATCH = rows agree (the verdict of record); DIVERGED = rows

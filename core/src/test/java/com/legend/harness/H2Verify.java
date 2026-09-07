@@ -309,18 +309,22 @@ public final class H2Verify {
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts)
             throws SQLException {
-        if (PAGINATED.matcher(goldenSql).find()) {
-            // a PAGE (offset/fetch/limit) over a sort that need not be total:
-            // which tied rows land in the page is the backend's tie order —
-            // the engine's own asserts do not pin it (witness
-            // testPaginatedByVendor: golden [22|John|Johnson] vs ours
-            // [12|John|Hill] on `order by firstName offset 0 fetch 4`). The
-            // page contents are not a row verdict: DECLINE BEFORE COMPARING
-            // (Phase 0.5 — until batch 129 this fired only AFTER a computed
-            // divergence and turned it into a decline, a rescue path).
-            throw new Unverifiable("paginated golden: page contents depend"
-                    + " on the sort-tie order (offset/fetch over a"
-                    + " non-total ORDER BY)", null);
+        if (facts.population() != null) {
+            // a PAGED chain (batch 0.5b): the page's contents over ties or
+            // over an unsorted chain are the database's arrival order, not a
+            // contract (witness testPaginatedByVendor: golden [22|John|
+            // Johnson] vs ours [12|John|Hill] on `order by firstName offset 0
+            // fetch 4`). What IS defined: every golden page row is a member
+            // of OUR unpaged population and the page sizes agree — the
+            // PAGE-MEMBERSHIP verdict, judged below in goldenRowsCompare.
+        } else if (PAGINATED.matcher(goldenSql).find()) {
+            // a page the typed chain does not expose at its tail (a page
+            // under an aggregate, or inside a helper): no population to
+            // judge against — DECLINE BEFORE COMPARING (Phase 0.5; until
+            // batch 129 this fired only AFTER a computed divergence and
+            // turned it into a decline, a rescue path)
+            throw new Unverifiable("paginated golden without a typed tail page:"
+                    + " page contents depend on the arrival/tie order", null);
         }
         // (batch 69a, 2026-09-05: the forced-isolation VALUE-frame guard
         // is GONE. Re-measured with the fixture read: the forced golden
@@ -407,28 +411,17 @@ public final class H2Verify {
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts) {
-        Object parsed = com.legend.sql.Json.parse(g.json());
-        if (!(parsed instanceof List<?> arr)) {
-            throw new Unverifiable("graph frame is not a json array", null);
-        }
-        List<java.util.Map<String, Object>> objs = new ArrayList<>();
         java.util.TreeSet<String> keys = new java.util.TreeSet<>();
-        for (Object o : arr) {
-            if (!(o instanceof java.util.Map<?, ?> m)) {
-                throw new Unverifiable("graph nesting in result frame", null);
+        List<java.util.Map<String, Object>> objs = flatObjects(g, keys);
+        // the PAGE-MEMBERSHIP population (batch 0.5b): our unpaged frame,
+        // flattened the same way; its keys are the page's keys
+        List<java.util.Map<String, Object>> populationObjs = null;
+        if (facts.population() != null) {
+            if (!(facts.population() instanceof ExecutionResult.Graph pg)) {
+                throw new Unverifiable("paginated graph golden: population is"
+                        + " not a graph frame", null);
             }
-            java.util.Map<String, Object> flat =
-                    new java.util.LinkedHashMap<>();
-            for (var e : m.entrySet()) {
-                if (e.getValue() instanceof java.util.Map
-                        || e.getValue() instanceof List) {
-                    throw new Unverifiable(
-                            "graph nesting in result frame", null);
-                }
-                flat.put((String) e.getKey(), e.getValue());
-                keys.add((String) e.getKey());
-            }
-            objs.add(flat);
+            populationObjs = flatObjects(pg, new java.util.TreeSet<>());
         }
         // per-key enum decode (the tabular per-column decode's
         // label-mapped twin): null = not an enum property; an EMPTY map
@@ -575,30 +568,8 @@ public final class H2Verify {
             }
             List<String> mine = new ArrayList<>();
             for (java.util.Map<String, Object> obj : objs) {
-                StringBuilder row = new StringBuilder();
-                String[] cells = new String[sorted.size()];
-                int ci = 0;
-                for (String k : sorted) {
-                    if (row.length() > 0) {
-                        row.append('|');
-                    }
-                    Object v = obj.get(k);
-                    if (v instanceof String s && temporal.contains(k)) {
-                        // type-driven temporal decode (golden JDBC type):
-                        // the json carrier spells the engine convention —
-                        // ISO text, 'T' separator, 9-digit nanos
-                        try {
-                            v = s.contains("T")
-                                    ? java.time.LocalDateTime.parse(s)
-                                    : (Object) java.time.LocalDate.parse(s);
-                        } catch (java.time.format.DateTimeParseException x) {
-                            // unexpected spelling: compare raw, loudly
-                        }
-                    }
-                    cells[ci] = norm(v);
-                    row.append(cells[ci++]);
-                }
-                mine.add(row.toString());
+                String[] cells = graphCells(obj, sorted, temporal);
+                mine.add(String.join("|", cells));
                 if (keyIdx != null) {
                     mineKeys.add(keyTuple(cells, keyIdx));
                 }
@@ -631,6 +602,18 @@ public final class H2Verify {
                         }
                     }
                 }
+            }
+            if (populationObjs != null) {
+                // the PAGE-MEMBERSHIP verdict on an instance frame: the
+                // golden page (fan-out collapsed when the extent-subset fact
+                // allows) vs our page's size, every golden row a member of
+                // our unpaged population
+                List<String> population = new ArrayList<>();
+                for (java.util.Map<String, Object> obj : populationObjs) {
+                    population.add(String.join("|", graphCells(obj, sorted, temporal)));
+                }
+                return pageMembership(collapsed != null ? collapsed : theirs, mine,
+                        population);
             }
             // §7 RATIFIED (flip landed 2026-09-01): ordered instance
             // queries compare IN ORDER, ties grouped (orderedVerdict).
@@ -790,6 +773,20 @@ public final class H2Verify {
                 // (keyIdx null, counted residue) — keep the multiset
                 // compare (the 103 measured unordered leniency passes
                 // are incidental backend order, legitimate forever).
+                if (facts.population() != null) {
+                    List<String> population = new ArrayList<>();
+                    for (Row r : facts.population().rows()) {
+                        StringBuilder row = new StringBuilder();
+                        for (int i = 0; i < r.values().size(); i++) {
+                            if (i > 0) {
+                                row.append('|');
+                            }
+                            row.append(norm(r.values().get(i)));
+                        }
+                        population.add(row.toString());
+                    }
+                    return pageMembership(theirs, mine, population);
+                }
                 if (facts.ordered() && keyIdx != null) {
                     return orderedVerdict(theirs, mine, theirKeys,
                             mineKeys);
@@ -893,6 +890,91 @@ public final class H2Verify {
             }
             i = j;
         }
+        return null;
+    }
+
+    /** A graph frame's objects, flattened one level ({@code keys} collects
+     * every property name); nesting is a counted decline. */
+    private static List<java.util.Map<String, Object>> flatObjects(
+            ExecutionResult.Graph g, java.util.TreeSet<String> keys) {
+        Object parsed = com.legend.sql.Json.parse(g.json());
+        if (!(parsed instanceof List<?> arr)) {
+            throw new Unverifiable("graph frame is not a json array", null);
+        }
+        List<java.util.Map<String, Object>> objs = new ArrayList<>();
+        for (Object o : arr) {
+            if (!(o instanceof java.util.Map<?, ?> m)) {
+                throw new Unverifiable("graph nesting in result frame", null);
+            }
+            java.util.Map<String, Object> flat = new java.util.LinkedHashMap<>();
+            for (var e : m.entrySet()) {
+                if (e.getValue() instanceof java.util.Map
+                        || e.getValue() instanceof List) {
+                    throw new Unverifiable("graph nesting in result frame", null);
+                }
+                flat.put((String) e.getKey(), e.getValue());
+                keys.add((String) e.getKey());
+            }
+            objs.add(flat);
+        }
+        return objs;
+    }
+
+    /** One object's cells over the shared key order, {@link #norm}-spelled;
+     * temporal keys decode the json carrier's ISO text first. */
+    private static String[] graphCells(java.util.Map<String, Object> obj,
+            List<String> sorted, java.util.Set<String> temporal) {
+        String[] cells = new String[sorted.size()];
+        int ci = 0;
+        for (String k : sorted) {
+            Object v = obj.get(k);
+            if (v instanceof String s && temporal.contains(k)) {
+                // type-driven temporal decode (golden JDBC type): the json
+                // carrier spells the engine convention — ISO text, 'T'
+                // separator, 9-digit nanos
+                try {
+                    v = s.contains("T")
+                            ? java.time.LocalDateTime.parse(s)
+                            : (Object) java.time.LocalDate.parse(s);
+                } catch (java.time.format.DateTimeParseException x) {
+                    // unexpected spelling: compare raw, loudly
+                }
+            }
+            cells[ci++] = norm(v);
+        }
+        return cells;
+    }
+
+    /** The PAGE-MEMBERSHIP verdict (batch 0.5b): the golden page and our
+     * page have the same size, and every golden row is a member of OUR
+     * unpaged population (as a multiset — a duplicated row needs a
+     * duplicate). All three sides render through the same {@link #norm}
+     * spelling. Counted on the verdict roster as its own kind. */
+    private static @com.legend.Nullable String pageMembership(List<String> theirs,
+            List<String> mine, List<String> population) {
+        if (theirs.size() != mine.size()) {
+            return "page-membership divergence: golden page has " + theirs.size()
+                    + " row(s), ours " + mine.size();
+        }
+        java.util.Map<String, Integer> pool = new java.util.HashMap<>();
+        for (String row : population) {
+            pool.merge(row, 1, Integer::sum);
+        }
+        List<String> missing = new ArrayList<>();
+        for (String t : theirs) {
+            Integer n = pool.get(t);
+            if (n == null || n == 0) {
+                missing.add(t);
+            } else {
+                pool.put(t, n - 1);
+            }
+        }
+        if (!missing.isEmpty()) {
+            return "page-membership divergence: golden page row(s) not in our"
+                    + " unpaged population (" + population.size() + " rows): "
+                    + head(missing);
+        }
+        verdict("page-membership");
         return null;
     }
 

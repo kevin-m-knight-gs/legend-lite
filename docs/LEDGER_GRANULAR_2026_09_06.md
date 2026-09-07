@@ -607,7 +607,7 @@ Bucket `verdict-gap:guard-assert-in-expression-helper`: alloy test-data-generati
 - meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy
 - meta::relational::testDataGeneration::tests::alloy::testViewEmbeddedInChainedJoin_Alloy
 
-## 7. PAGINATED-GOLDEN (9) — batch 130 (Phase 0.5), 2026-09-08 — TO BE FIXED in 0.5b
+## 7. PAGINATED-GOLDEN (9) — batch 130 (Phase 0.5), 2026-09-08 — FIXED in batch 131 (0.5b): the page-membership verdict; all 9 pass again on both lanes (45 / 44 page-membership verdicts). Kept as the record of the class.
 
 Bucket `paginated-golden:text-differs`: the golden SQL pages (`offset/fetch/limit`) over an unsorted chain or a sort that need not be total; the referee now DECLINES a paginated golden before comparing (until batch 129 a page's row MATCH was two databases agreeing on arrival order, and a divergence was re-classified as a decline after the fact); the sql-text assert then falls back to text, which differs. Each test's own literal asserts on the page still pass. FIX (batch 0.5b, user ruling 2026-09-08 'land, then fix'): the page-membership verdict — our UNPAGED population from the typed chain minus its tail page node; golden page ⊆ population, row count equal, key sequence sorted when ordered. Both lanes.
 

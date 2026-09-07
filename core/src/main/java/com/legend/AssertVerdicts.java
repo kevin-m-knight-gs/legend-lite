@@ -1195,6 +1195,52 @@ final class AssertVerdicts {
                 ordered ? sortKeys(chain, letPrefix, new java.util.HashSet<>()) : null);
     }
 
+    /** The rows read WITHOUT its tail page (batch 0.5b): the same read with
+     * the first page node reached through order-preserving tails
+     * ({@code TypedLimit} / {@code TypedDrop} / {@code TypedSlice}, the
+     * typed forms of limit / take / drop / slice) replaced by its source —
+     * OUR unpaged population for the referee's page-membership verdict.
+     * Null when the chain carries no page at its tail. Typed-tree
+     * navigation and rebuild ({@code withChildren}), nothing evaluated. */
+    static @com.legend.Nullable TypedSpec unpagedRead(TypedSpec read) {
+        if (read instanceof com.legend.compiler.spec.typed.TypedLimit l) {
+            return l.source();
+        }
+        if (read instanceof com.legend.compiler.spec.typed.TypedDrop d) {
+            return d.source();
+        }
+        if (read instanceof com.legend.compiler.spec.typed.TypedSlice sl) {
+            return sl.source();
+        }
+        boolean wrapper = read instanceof com.legend.compiler.spec.typed.TypedFrom
+                || read instanceof com.legend.compiler.spec.typed.TypedFilter
+                || read instanceof com.legend.compiler.spec.typed.TypedProject
+                || read instanceof com.legend.compiler.spec.typed.TypedSelect
+                || read instanceof com.legend.compiler.spec.typed.TypedRename
+                || read instanceof com.legend.compiler.spec.typed.TypedDistinct
+                || read instanceof com.legend.compiler.spec.typed.TypedSort
+                || read instanceof com.legend.compiler.spec.typed.TypedSortBy
+                || read instanceof com.legend.compiler.spec.typed.TypedMap
+                || read instanceof com.legend.compiler.spec.typed.TypedPropertyAccess
+                || read instanceof com.legend.compiler.spec.typed.TypedCast
+                || read instanceof com.legend.compiler.spec.typed.TypedNavigate;
+        if (read instanceof TypedNativeCall c) {
+            String fqn = c.callee().qualifiedName();
+            wrapper = ORDER_PRESERVING.contains(fqn.substring(fqn.lastIndexOf(':') + 1))
+                    && !c.args().isEmpty();
+        }
+        if (!wrapper || read.children().isEmpty()) {
+            return null;
+        }
+        TypedSpec inner = unpagedRead(read.children().get(0));
+        if (inner == null) {
+            return null;
+        }
+        List<TypedSpec> kids = new java.util.ArrayList<>(read.children());
+        kids.set(0, inner);
+        return read.withChildren(kids);
+    }
+
     /** The key names of the sort NEAREST THE TAIL (the engine's own
      * last-sort-wins semantics), through the same order-preserving tails
      * {@link #orderView} descends; null = underivable (a computed key,

@@ -185,6 +185,8 @@ final class SqlTextVerdicts {
                             let0.value(), mapping, legCtx),
                     null, mapping.fullPath(), letCls,
                     AssertVerdicts.replayFacts(let0.value(), lamPrefix),
+                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            let0.value(), mapping, legCtx)),
                     lamPrefix, specs, envF, hook, lam);
         }
         TypedSpec query = lam.body().get(lam.body().size() - 1);
@@ -195,7 +197,9 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         query, mapping, legCtx),
                 null, mapping.fullPath(), rootClassFqn(lam),
-                AssertVerdicts.replayFacts(query, lamPrefix), lamPrefix,
+                AssertVerdicts.replayFacts(query, lamPrefix),
+                AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                        query, mapping, legCtx)), lamPrefix,
                 specs, envF, hook, lam);
     }
 
@@ -283,7 +287,7 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, fm.mapping(), fm.cls(), fm.facts(), letPrefix,
+                null, fm.mapping(), fm.cls(), fm.facts(), fm.populationRead(), letPrefix,
                 specs, env, hook, fm.query());
     }
 
@@ -416,12 +420,14 @@ final class SqlTextVerdicts {
                             route.let().value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
                     AssertVerdicts.replayFacts(route.let().value(), letPrefix),
+                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            route.let().value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
         return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                 textEqual, oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, fm.mapping(), fm.cls(), fm.facts(), letPrefix,
+                null, fm.mapping(), fm.cls(), fm.facts(), fm.populationRead(), letPrefix,
                 specs, env, hook, fm.query());
     }
 
@@ -533,6 +539,8 @@ final class SqlTextVerdicts {
                             letStatement.value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
                     AssertVerdicts.replayFacts(letStatement.value(), letPrefix),
+                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            letStatement.value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
         // the engine's two-statement in-list plan (batch 67): golden(0)
@@ -550,12 +558,14 @@ final class SqlTextVerdicts {
                             pop.rowsRead(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), null,
                     AssertVerdicts.replayFacts(pop.rowsRead(), letPrefix),
+                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                            pop.rowsRead(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, fm.mapping(), fm.cls(), fm.facts(), letPrefix,
+                null, fm.mapping(), fm.cls(), fm.facts(), fm.populationRead(), letPrefix,
                 specs, env, hook, fm.query(), null, java.util.Map.of(),
                 pop == null ? List.of() : pop.temps());
     }
@@ -817,7 +827,9 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         lam.body().get(lam.body().size() - 1), mapping, planCtx),
                 replay, mapping.fullPath(), rootClassFqn(lam),
-                AssertVerdicts.replayFacts(lam.body().get(lam.body().size() - 1), bound), bound,
+                AssertVerdicts.replayFacts(lam.body().get(lam.body().size() - 1), bound),
+                AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                        lam.body().get(lam.body().size() - 1), mapping, planCtx)), bound,
                 specs, env, hook, lam,
                 replay == null ? golden : null, bindings.lists());
     }
@@ -1208,12 +1220,13 @@ final class SqlTextVerdicts {
             @com.legend.Nullable String replaySqlOrNull,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook,
             @com.legend.Nullable TypedSpec query) {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
-                rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts,
+                rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                 letPrefix, specs, env, hook, query, null, java.util.Map.of());
     }
 
@@ -1226,6 +1239,7 @@ final class SqlTextVerdicts {
             @com.legend.Nullable String replaySqlOrNull,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook,
@@ -1233,7 +1247,7 @@ final class SqlTextVerdicts {
             @com.legend.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings) {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
-                rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts,
+                rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                 letPrefix, specs, env, hook, query, goldenPlan, planBindings,
                 List.of());
     }
@@ -1246,6 +1260,7 @@ final class SqlTextVerdicts {
             @com.legend.Nullable String replaySqlOrNull,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook,
@@ -1269,6 +1284,22 @@ final class SqlTextVerdicts {
                             + " expected " + golden + ", got " + ours);
         } finally {
             com.legend.exec.SqlTypeCensus.probeSuspend(priorSuspend);
+        }
+        if (populationRead != null && rows != null) {
+            // the PAGE-MEMBERSHIP verdict's population (batch 0.5b): our rows
+            // for the same chain without its tail page. No catch: the paged
+            // read just executed, so a failure here is a FAULT of ours and
+            // fails the test loudly — never a decline that rescues the text
+            com.legend.exec.SqlTypeCensus.probeSuspend(true);
+            try {
+                ExecutionResult population = StatementExecutor.evalValue(populationRead,
+                        letPrefix, specs, env, null, false, hook);
+                if (population != null) {
+                    facts = facts.withPopulation(population);
+                }
+            } finally {
+                com.legend.exec.SqlTypeCensus.probeSuspend(priorSuspend);
+            }
         }
         if (rows == null) {
             return textEqual ? ok()
@@ -1356,6 +1387,7 @@ final class SqlTextVerdicts {
      * compare's pk-collapse licence). */
     private record FrameFacts(@com.legend.Nullable String mapping,
             @com.legend.Nullable String cls, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.Nullable TypedSpec populationRead,
             @com.legend.Nullable TypedSpec query,
             @com.legend.Nullable TypedPackageableRef mappingRef,
             com.legend.compiler.spec.typed.ExecutionContext context) {
@@ -1396,18 +1428,26 @@ final class SqlTextVerdicts {
                     .letBound(ec.args().get(0), letPrefix);
             String cls = lamArg instanceof TypedLambda lam
                     && !lam.body().isEmpty() ? rootClassFqn(lam) : null;
-            SqlReplayOracle.ReplayFacts facts = lamArg instanceof TypedLambda lam2
-                    && !lam2.body().isEmpty()
-                    ? AssertVerdicts.replayFacts(
-                            lam2.body().get(lam2.body().size() - 1), letPrefix)
+            TypedPackageableRef mappingRef =
+                    ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null;
+            com.legend.compiler.spec.typed.ExecutionContext context = ec.args().size() >= 3
+                    ? StatementExecutor.boundContext(ec.args().get(2), letPrefix, specs)
+                    : com.legend.compiler.spec.typed.ExecutionContext.NONE;
+            TypedSpec chain = lamArg instanceof TypedLambda lam2 && !lam2.body().isEmpty()
+                    ? lam2.body().get(lam2.body().size() - 1) : null;
+            SqlReplayOracle.ReplayFacts facts = chain != null
+                    ? AssertVerdicts.replayFacts(chain, letPrefix)
                     : SqlReplayOracle.ReplayFacts.NONE;
-            return new FrameFacts(mapping, cls, facts, lamArg,
-                    ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null,
-                    ec.args().size() >= 3
-                            ? StatementExecutor.boundContext(ec.args().get(2), letPrefix, specs)
-                            : com.legend.compiler.spec.typed.ExecutionContext.NONE);
+            // a PAGED frame chain: our unpaged population is the same chain
+            // minus its tail page, wrapped in the frame's own context
+            TypedSpec populationRead = chain != null && mappingRef != null
+                    ? AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries
+                            .fromWrapped(chain, mappingRef, context))
+                    : null;
+            return new FrameFacts(mapping, cls, facts, populationRead, lamArg,
+                    mappingRef, context);
         }
-        return new FrameFacts(null, null, SqlReplayOracle.ReplayFacts.NONE, null, null,
+        return new FrameFacts(null, null, SqlReplayOracle.ReplayFacts.NONE, null, null, null,
                 com.legend.compiler.spec.typed.ExecutionContext.NONE);
     }
 

@@ -529,10 +529,6 @@ meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationO
 meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithFilter
 meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithFilterAndGroupBy
 meta::relational::tests::projection::concatenate::tdsQueries::testConcatenationOfTdsQueriesWithGroupBy
-meta::relational::tests::projection::drop::testSimpleNestedDrop
-meta::relational::tests::projection::drop::testSimpleNestedDropAfterConcatenate
-meta::relational::tests::projection::drop::testSimpleNestedSlice
-meta::relational::tests::projection::drop::testSimpleNestedSliceAfterConcatenate
 meta::relational::tests::projection::exists::testExistsAsNullWithSubType
 meta::relational::tests::projection::filter::dates::testDateWithSeconds
 meta::relational::tests::projection::filter::in::H2Test
@@ -569,7 +565,6 @@ meta::relational::tests::projection::view::testViewWithGroupBy
 meta::relational::tests::query::association::mixed::testAssociationMixed
 meta::relational::tests::query::association::mixed::testAssociationMixedDeep
 meta::relational::tests::query::drop::testDropWithVariables
-meta::relational::tests::query::drop::testSimpleDrop
 meta::relational::tests::query::enumPushDown::testPushDownProject
 meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter
 meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep
@@ -691,10 +686,7 @@ meta::relational::tests::tds::tdsJoin::testRestrictAfterJoin
 meta::relational::tests::tds::tdsJoin::testRightOuterJoinConditionFalse
 meta::relational::tests::tds::tdsJoin::testRightOuterJoinSimple
 meta::relational::tests::tds::tdsProject::testDateLiteral
-meta::relational::tests::tds::tdsProject::testDropAfterLimit
 meta::relational::tests::tds::tdsProject::testHourFunction
-meta::relational::tests::tds::tdsProject::testLimitAfterDrop
-meta::relational::tests::tds::tdsProject::testLimitAfterSlice
 meta::relational::tests::tds::tdsProject::testProjectAndProjectAgain
 meta::relational::tests::tds::tdsProject::testProjectEnumFromOpenVariable
 meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringColumn
@@ -705,7 +697,6 @@ meta::relational::tests::tds::tdsProject::testProjectOnMultiple
 meta::relational::tests::tds::tdsProject::testProjectWithAdjustFunction
 meta::relational::tests::tds::tdsProject::testProjectWithColumnSubSet
 meta::relational::tests::tds::tdsProject::testProjectWithColumnSubSetFunctions
-meta::relational::tests::tds::tdsProject::testSliceAfterLimit
 meta::relational::tests::tds::tdsRename::testRenameColumnsAfterGroupBy
 meta::relational::tests::tds::tdsRestrict::testRestrictAfterMultiColumnGroupByFollowedByRename
 meta::relational::tests::tds::tdsRestrict::testRestrictOnGroupByColumn_SubSetOfGroupByColumns
