@@ -7,28 +7,52 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The minimal harness's run (docs/HARNESS_FROM_SCRATCH_AUDIT_2026_09_06.md):
  * every runnable corpus test through {@link MinimalCorpus}, two rosters
  * written ({@code target/corpus2-pass.txt}, {@code target/corpus2-fail.txt}
  * with the reason), one summary line. Scope with {@code -Drcorpus.test=
- * <substring>}. ACCEPTANCE of the rebuild = the pass roster equals the
- * old runner's platform-scored roster; the pin arrives at cutover.
+ * <substring>}.
+ *
+ * <p>THE PIN (Phase 0.1, 2026-09-08 — docs/END_TO_END_PLAN_2026_09_08.md
+ * "THE ORDER (v2)"): the FAIL roster is a SET of test names per lane,
+ * equal to a committed file ({@code rcorpus/duckdb-fail-roster.txt},
+ * {@code rcorpus/h2-fail-roster.txt}); the denominator is pinned per lane.
+ * A set is both floor and ceiling: a test that starts failing is LOST, a
+ * test that starts passing is GAINED, and either fails the gate until the
+ * roster file is changed with a written reason (docs/GATES.md). A count
+ * (the pin until batch 125, {@code pass.size() >= floor}) let a red flip
+ * hide behind a green one and let manufactured passes through unseen
+ * (docs/HARNESS_AUDIT_2026_09_07.md §4.2). Under {@code -Drcorpus.test}
+ * the same pin holds on the scoped subset: the scoped fails equal the
+ * roster restricted to the tests that ran, and the scope must select at
+ * least one test (a typo never reads green). Set difference is by NAME;
+ * messages are printed, never compared.
  */
 @Tag("heavy")
 class MinimalCorpusTest {
 
-    /** The H2 portability lane's floor (batch 115, 2026-09-06): 1866 = the
-     * old runner's PLATFORM-scored H2 roster at cutover (1855, from its
-     * flip file — its reported 1976 counted 121 walk answers on top) + the
-     * three walk-only trivial passes + the batch-113/114 platform gains;
-     * set difference against the old platform roster empty. Shrink-only. */
-    private static final int H2_FLOOR = 1866;
+    /** The roster files: one test FQN per line, sorted, no messages. */
+    private static final String DUCKDB_ROSTER = "/rcorpus/duckdb-fail-roster.txt";
+    private static final String H2_ROSTER = "/rcorpus/h2-fail-roster.txt";
+
+    /** The denominator per lane (the ceiling's other half: a pass-count
+     * jump is either a GAINED name or a bigger corpus, and both must be
+     * explained). 2575 = 2721 declared − 146 excluded by the engine's own
+     * stereotypes (audit §9); re-derived against a corpus scan in Phase
+     * 0.8. */
+    private static final int DISCOVERED = 2575;
 
     @Test
     void corpus() throws Exception {
@@ -56,6 +80,8 @@ class MinimalCorpusTest {
         }
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();
+        /** every test that RAN, in discovery order, pass or fail */
+        List<String> ran = new ArrayList<>();
         java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
         long t0 = System.nanoTime();
         try {
@@ -72,6 +98,7 @@ class MinimalCorpusTest {
                             "harness: " + e.getClass().getSimpleName() + ": "
                                     + String.valueOf(e.getMessage()).split("\n")[0]);
                 }
+                ran.add(r.fqn());
                 (r.pass() ? pass : fail).add(r.fqn() + (r.pass() ? "" : " :: " + r.reason()));
                 elapsed.put(r.fqn(), (System.nanoTime() - tStart) / 1_000_000L);
             }
@@ -103,15 +130,85 @@ class MinimalCorpusTest {
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(15)
                 .forEach(e -> System.out.println("[corpus2] slow " + e.getValue() + "ms " + e.getKey()));
+        pinRoster(only, ran, fail);
+    }
+
+    /** The pin: fail names == the committed roster (restricted to the tests
+     * that ran when scoped); the denominator when not scoped. */
+    private static void pinRoster(String only, List<String> ran, List<String> fail)
+            throws IOException {
+        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        List<String> roster = readRoster(MinimalCorpus.H2_BACKEND ? H2_ROSTER : DUCKDB_ROSTER);
+        Set<String> failNames = new LinkedHashSet<>();
+        for (String f : fail) {
+            failNames.add(f.substring(0, f.indexOf(" :: ")));
+        }
+        Set<String> rosterNames = new HashSet<>(roster);
+        Set<String> ranNames = new HashSet<>(ran);
         if (only.isEmpty()) {
-            // the ONE pin: the pass roster never shrinks (2454 at batch 114,
-            // 2026-09-06 = the old runner's platform-scored 2451 + the
-            // assert-free twin and the two vacuous placeholders it walked)
-            // per lane: DuckDB (gate 4) and the H2 portability lane (gate 5,
-            // -Drcorpus.backend=h2) each keep their own floor
-            int floor = MinimalCorpus.H2_BACKEND ? H2_FLOOR : 2454;
-            org.junit.jupiter.api.Assertions.assertTrue(pass.size() >= floor,
-                    "corpus pass roster shrank: " + pass.size() + " < " + floor);
+            org.junit.jupiter.api.Assertions.assertEquals(DISCOVERED, ran.size(),
+                    "[" + lane + "] the corpus denominator moved (" + ran.size()
+                    + " tests ran, " + DISCOVERED + " pinned): a bigger or smaller"
+                    + " corpus must be explained, never absorbed");
+        } else {
+            org.junit.jupiter.api.Assertions.assertFalse(ran.isEmpty(),
+                    "[" + lane + "] -Drcorpus.test=" + only + " selected no test");
+        }
+        // LOST: failing now, not in the roster. GAINED: in the roster (and
+        // ran), passing now. Both in discovery/roster order — no sort site.
+        List<String> lost = new ArrayList<>();
+        for (String f : failNames) {
+            if (!rosterNames.contains(f)) {
+                lost.add(f);
+            }
+        }
+        List<String> gained = new ArrayList<>();
+        for (String r : roster) {
+            if (ranNames.contains(r) && !failNames.contains(r)) {
+                gained.add(r);
+            }
+        }
+        if (!lost.isEmpty() || !gained.isEmpty()) {
+            StringBuilder sb = new StringBuilder("[" + lane + "] fail roster != "
+                    + "committed roster (" + (only.isEmpty() ? "full run" : "scoped to '" + only + "'")
+                    + "): LOST " + lost.size() + " (failing now, not in the roster)"
+                    + ", GAINED " + gained.size() + " (in the roster, passing now)."
+                    + " Every change to the roster file carries a written reason"
+                    + " in docs/GATES.md.");
+            for (String l : lost) {
+                sb.append("\n  LOST   ").append(l);
+            }
+            for (String g : gained) {
+                sb.append("\n  GAINED ").append(g);
+            }
+            org.junit.jupiter.api.Assertions.fail(sb.toString());
+        }
+        System.out.println("[corpus2] roster " + lane + " EXACT: " + failNames.size()
+                + " fail of " + ran.size() + (only.isEmpty() ? "" : " (scoped)")
+                // USER DECISION 2026-09-08: the H2 lane is KEPT as a
+                // PORTABILITY check — its golden runs on the same connection
+                // as our query, so it is not an independent oracle; the
+                // DuckDB lane with the H2 mirror is
+                + (MinimalCorpus.H2_BACKEND ? " oracle=same-session" : " oracle=h2-mirror"));
+    }
+
+    private static List<String> readRoster(String resource) throws IOException {
+        try (InputStream in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalStateException("roster file missing on the classpath: " + resource);
+            }
+            List<String> out = new ArrayList<>();
+            for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                String s = line.trim();
+                if (!s.isEmpty()) {
+                    if (!out.isEmpty() && s.compareTo(out.get(out.size() - 1)) <= 0) {
+                        throw new IllegalStateException("roster " + resource
+                                + " is not sorted-unique at: " + s);
+                    }
+                    out.add(s);
+                }
+            }
+            return out;
         }
     }
 }

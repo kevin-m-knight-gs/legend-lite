@@ -444,6 +444,8 @@ pruning) is the one optimization that would be worth doing for its own sake.
 | NAMED (receipts/defects/decisions) | 16 | 10% |
 | **total** | **168** | |
 
+**Phase 0 (measurement integrity, 2026-09-08):** batch 126 (0.1) pins the fail roster as a SET per lane (`core/src/test/resources/rcorpus/*-fail-roster.txt`); the 121 are unchanged by name. Batch 0.3 will move ~32 zero-assertion passes out of the pass count (an honest drop, not a regression — plan §V2).
+
 Cross-check: 68 + 44 + 32 + 8 + 16 = 168 (every FQN of the flip-buckets file appears once; checked mechanically).
 
 **Running IMPL count** (flips and reclassification receipts, from the Status

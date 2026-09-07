@@ -165,7 +165,7 @@ Standing rules that bind every step (user rulings, in force):
 | Referee outcomes (DuckDB lane) | verify 1591–1592 MATCH / 6 DIVERGED / 20–21 DECLINED; fetch-chain 49; fetch-texts 23; plan 28 / 4 DECLINED. The ±1 is `query::paginate::testPaginatedByVendor` (a page over a sort with ties; the two databases order ties differently — data nondeterminism, counted). |
 | Harness | `core/src/test/java/com/legend/rcorpus/MinimalCorpus(Test).java` (~700 lines): discovery by stereotype, engine suite order, platform-namespace guard, setups derived once, session choice from `ProgramFacts`. The old 13.6k-line harness is deleted (batch 115). |
 | Execution-option thread-locals in main | ZERO (DriverPkOption 118, PostProcessBoundary 120, program-wide driver-PK 121, PctRenderOption 122). |
-| Fail roster of record | `docs/parked/duckdb-fail-roster-batch119.txt` (121 names + messages; 0 lost since). Regenerable in 60s. |
+| Fail roster of record | `core/src/test/resources/rcorpus/duckdb-fail-roster.txt` (121 names) + `h2-fail-roster.txt` (709) — the gate's SET pin since batch 126; `docs/parked/duckdb-fail-roster-batch119.txt` is the dated snapshot with messages. Regenerable in 60s. |
 
 The five "harness endgame" items (memory `harness-rebuild-audit`): 1 single resolution pass
 DONE (116); 2 corpus-library.pure into the platform DONE (117); 3 harness body scans → platform
@@ -479,10 +479,13 @@ NAMED receipts — named, with reasons, in the ledger. "Zero" means zero UNNAMED
 # DuckDB lane (gate 4), exact roster + set difference against the roster of record
 mvn -pl core test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= \
   -Dlegend.engine.root=/Users/neemsandv/legend/legend-engine -Dlegend.pure.root=/Users/neemsandv/legend/legend-pure > $T/lane-duck.out 2>&1
-grep -a "\[corpus2\] pass=\|roster shrank\|referee-outcome" $T/lane-duck.out
-grep -a "\[corpus2\] FAIL" $T/lane-duck.out | sed 's/.*FAIL //' | sort > $T/fail-now.txt
-comm -13 docs/parked/duckdb-fail-roster-batch119.txt $T/fail-now.txt   # LOST (must be empty)
-comm -23 docs/parked/duckdb-fail-roster-batch119.txt $T/fail-now.txt   # GAINED
+grep -a "\[corpus2\] pass=\|\[corpus2\] roster\|referee-outcome\|LOST\|GAINED" $T/lane-duck.out
+# batch 126 (Phase 0.1): the test itself pins the fail roster as a SET of NAMES per lane against
+# core/src/test/resources/rcorpus/{duckdb,h2}-fail-roster.txt (LOST / GAINED in the assertion message,
+# also under -Drcorpus.test). By hand, by NAME (never name+message — one drifted message read as a regression):
+grep -a "\[corpus2\] FAIL" $T/lane-duck.out | sed 's/.*FAIL //' | cut -d' ' -f1 | LC_ALL=C sort > $T/fail-now.txt
+comm -13 core/src/test/resources/rcorpus/duckdb-fail-roster.txt $T/fail-now.txt   # LOST (must be empty)
+comm -23 core/src/test/resources/rcorpus/duckdb-fail-roster.txt $T/fail-now.txt   # GAINED (explain, then update the file)
 
 # H2 lane (gate 5): add -Drcorpus.backend=h2 (floor 1866)
 # one test, with stacks and the resolved dump:
@@ -512,7 +515,7 @@ mvn -q -pl core install -DskipTests && mvn -q -pl pct test-compile
 | `JdbcSurfaceCensusTest` | every file touching `java.sql` in test roots is registered (InDbVerdict will need this) |
 | `ObservabilityGuardrailTest` | main-scope `System.err` print sites, asserted EXACTLY at 34 (unchanged by batch 123's final cut; the stamp census print in `StampCensus.fire` is one of them and goes with step 1c) |
 | `ErrorShapeGuardrailTest` | broad-catch sites per file |
-| `MinimalCorpusTest` | the ONE roster pin per lane (2454 / 1866), `assertTrue(pass.size() >= floor)` |
+| `MinimalCorpusTest` | the fail roster as a SET per lane (`rcorpus/*-fail-roster.txt`, 121 / 709) + the denominator 2575; LOST and GAINED both fail; holds on the scoped subset too (batch 126) |
 | gate 7 (`PCT`) | `PctCensusGate` ceilings per suite; Channel-B dual-verdict assertions (see step 1c) |
 
 ## Appendix D — document map (read in this order for any step)
