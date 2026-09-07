@@ -75,7 +75,10 @@ public final class MinimalCorpus {
      * and is never counted as a pass (the engine's own serverless branch
      * of a {@code mayExecuteAlloyTest} shell is {@code | true}; a body
      * whose asserts are commented out; a placeholder body). */
-    public enum Status { PASS, FAIL, SKIPPED }
+    /** ACCEPTED = a DECIDED divergence (USER, 2026-09-08): the test fails,
+     * the failure carries the register's witness, and the trace bucket says
+     * why the engine's golden is not the spec; never a pass, never hidden. */
+    public enum Status { PASS, FAIL, SKIPPED, ACCEPTED }
 
     /** What a PASS proves (Phase 0.7, audit §3's ladder), derived from the
      * events the platform reported for the test — never from reading its

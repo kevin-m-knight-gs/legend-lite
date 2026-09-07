@@ -48,6 +48,12 @@ class MinimalCorpusTest {
     private static final String H2_ROSTER = "/rcorpus/h2-fail-roster.txt";
     /** The SKIPPED rosters (Phase 0.3): tests whose program reaches no
      * verdict function and that adjudicated none — never a pass. */
+    /** ACCEPTED DIVERGENCES (batch 144, USER-decided 2026-09-08): one row per
+     * lane and test — {@code fqn ||| bucket ||| witness}; the failure must
+     * carry the witness or the row is an ordinary FAIL (the divergence
+     * changed: re-decide); a row that stops failing is GAINED (trim it). */
+    private static final String DUCKDB_ACCEPTED = "/rcorpus/duckdb-accepted-roster.txt";
+    private static final String H2_ACCEPTED = "/rcorpus/h2-accepted-roster.txt";
     private static final String DUCKDB_SKIPPED = "/rcorpus/duckdb-skipped-roster.txt";
     private static final String H2_SKIPPED = "/rcorpus/h2-skipped-roster.txt";
     /** The ORDER-LENIENCY registers (Phase 0.5): "ordered-keys-unmappable
@@ -109,6 +115,9 @@ class MinimalCorpusTest {
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
+        List<String> accepted = new ArrayList<>();
+        java.util.Map<String, String[]> acceptedRegister = readAccepted(
+                MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED);
         /** the strength census of the passes (Phase 0.7) */
         java.util.Map<String, Integer> strength = new java.util.LinkedHashMap<>();
         /** every test that RAN, in discovery order, pass or fail */
@@ -130,6 +139,16 @@ class MinimalCorpusTest {
                                     + MinimalCorpus.whole(e.getMessage()));
                 }
                 ran.add(r.fqn());
+                String[] acc = acceptedRegister.get(r.fqn());
+                if (acc != null && r.status() == MinimalCorpus.Status.FAIL) {
+                    r = r.reason().contains(acc[1])
+                            ? new MinimalCorpus.Result(r.fqn(), MinimalCorpus.Status.ACCEPTED,
+                                    r.verdicts(), acc[0] + " :: " + r.reason())
+                            : new MinimalCorpus.Result(r.fqn(), MinimalCorpus.Status.FAIL,
+                                    r.verdicts(), "accepted-divergence WITNESS MISSING ('"
+                                    + acc[1] + "') — the divergence changed, re-decide :: "
+                                    + r.reason());
+                }
                 if (r.status() == MinimalCorpus.Status.PASS) {
                     strength.merge(r.strength().name()
                             + (r.strength() == MinimalCorpus.Strength.DIFFERENTIAL
@@ -139,6 +158,7 @@ class MinimalCorpusTest {
                     case PASS -> pass.add(r.fqn() + " :: " + r.reason());
                     case FAIL -> fail.add(r.fqn() + " :: " + r.reason());
                     case SKIPPED -> skipped.add(r.fqn() + " :: " + r.reason());
+                    case ACCEPTED -> accepted.add(r.fqn() + " :: " + r.reason());
                 }
                 elapsed.put(r.fqn(), (System.nanoTime() - tStart) / 1_000_000L);
             }
@@ -190,6 +210,16 @@ class MinimalCorpusTest {
                 MinimalCorpus.H2_BACKEND ? H2_ROSTER : DUCKDB_ROSTER, true);
         pinRoster(only, ran, skipped, "skipped",
                 MinimalCorpus.H2_BACKEND ? H2_SKIPPED : DUCKDB_SKIPPED, false);
+        pinRoster(only, ran, accepted, "accepted",
+                MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED, false);
+        java.util.Map<String, Integer> acceptedByBucket = new java.util.TreeMap<>();
+        for (String a : accepted) {
+            String bucket = a.substring(a.indexOf(" :: ") + 4);
+            bucket = bucket.substring(0, bucket.indexOf(" :: "));
+            acceptedByBucket.merge(bucket, 1, Integer::sum);
+        }
+        System.out.println("[corpus2] accepted divergences " + accepted.size()
+                + " " + acceptedByBucket);
         // the referee's ORDER-LENIENCY census (Phase 0.5): every row verdict
         // that held only as a multiset. Two tags, two pins: an ORDERED chain
         // whose sort keys the compared output could not carry is a
@@ -459,6 +489,29 @@ class MinimalCorpusTest {
                 + (MinimalCorpus.H2_BACKEND ? " oracle=same-session" : " oracle=h2-mirror"));
     }
 
+    /** The accepted-divergence register: {@code fqn -> {bucket, witness}}. */
+    private static java.util.Map<String, String[]> readAccepted(String resource) throws IOException {
+        java.util.Map<String, String[]> out = new java.util.LinkedHashMap<>();
+        try (InputStream in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalStateException("accepted register missing on the classpath: " + resource);
+            }
+            for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                String s = line.trim();
+                if (s.isEmpty()) {
+                    continue;
+                }
+                String[] parts = s.split(" \\|\\|\\| ");
+                if (parts.length != 3) {
+                    throw new IllegalStateException("accepted register row needs"
+                            + " 'fqn ||| bucket ||| witness': " + s);
+                }
+                out.put(parts[0], new String[]{parts[1], parts[2]});
+            }
+        }
+        return out;
+    }
+
     private static List<String> readRoster(String resource) throws IOException {
         try (InputStream in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
             if (in == null) {
@@ -467,6 +520,10 @@ class MinimalCorpusTest {
             List<String> out = new ArrayList<>();
             for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
                 String s = line.trim();
+                int ann = s.indexOf(" ||| ");
+                if (ann >= 0) {
+                    s = s.substring(0, ann);   // the annotated registers: name first
+                }
                 if (!s.isEmpty()) {
                     if (!out.isEmpty() && s.compareTo(out.get(out.size() - 1)) <= 0) {
                         throw new IllegalStateException("roster " + resource

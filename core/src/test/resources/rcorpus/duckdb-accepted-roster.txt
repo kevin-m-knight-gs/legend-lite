@@ -1,0 +1,11 @@
+meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| engine-golden-defect:adjust-strictdate-render ||| 2014-12-01T00:00:00.000000000+0000
+meta::pure::tds::tests::extensions::testExtendDigest_Relational ||| engine-golden-defect:digest-joinStrings ||| 9e103ea06a6999b4c5a86cf25d68b083
+meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
+meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
+meta::relational::tests::functions::sqlstring::testHashFunctions ||| engine-golden-defect:joinStrings-literal-collection ||| aceae9411805b964e79dd85254a18a64
+meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]
+meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek ||| engine-golden-defect:firstDayOfWeek-h2-week-start ||| 2014-11-30
+meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject ||| engine-golden-defect:filter-lambda-binds-outer-row ||| Oliver,Fabrice
+meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProject ||| engine-golden-defect:empty-string-as-null ||| Anand,null
+meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion ||| engine-golden-defect:empty-string-as-null ||| Anand,null
+meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries ||| engine-golden-defect:digest-joinStrings ||| ee0af362d8c1e4fa8c805dfeadd1aa37
