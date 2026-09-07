@@ -205,6 +205,28 @@ static String intervalFn(String unitName) {
         // sqlDialectTranslation lowercase): the plain adjust lowering with
         // its interval calls retagged to the TEMPORAL spelling fn.
         String adjustKey = com.legend.builtin.Pure.nativeKeysAt("adjust").get(0);
+        // date::add(date, duration) — the spec body IS adjust over the
+        // Duration value's fields ($date->adjust($duration.number,
+        // $duration.unit)): the amount reads off the lowered struct (a
+        // literal folds to its field), the unit must be a static enum (the
+        // interval spelling is compile-time) — a computed unit is loud.
+        for (String f : com.legend.builtin.Pure.nativeKeysAt("add",
+                com.legend.compiler.element.type.PlatformTypes.DURATION)) {
+            rules.put(f, (n, args) -> {
+                if (!(n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
+                        || ni.properties().get("unit") == null
+                        || ni.properties().get("number") == null) {
+                    throw new com.legend.error.NotImplementedException(
+                            "date::add over a non-literal Duration (the unit must be static)");
+                }
+                com.legend.compiler.spec.typed.TypedNativeCall asAdjust =
+                        new com.legend.compiler.spec.typed.TypedNativeCall(n.callee(),
+                                List.of(n.args().get(0), ni.properties().get("number"),
+                                        ni.properties().get("unit")), n.info());
+                return java.util.Objects.requireNonNull(rules.get(adjustKey)).apply(asAdjust,
+                        List.of(args.get(0), SqlExpr.StructGet.of(args.get(1), "number"), args.get(1)));
+            });
+        }
         for (String f : com.legend.builtin.Pure.nativeKeysAt(
                 com.legend.builtin.Pure.Lite.ADJUST_TEMPORAL)) {
             rules.put(f, (n, args) -> retagTemporal(

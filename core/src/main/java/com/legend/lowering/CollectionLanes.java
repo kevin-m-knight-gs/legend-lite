@@ -4,6 +4,8 @@
 package com.legend.lowering;
 
 import com.legend.compiler.spec.typed.TypedAggColSpec;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 import com.legend.compiler.spec.typed.TypedAggColSpecArray;
 import com.legend.compiler.spec.typed.TypedAggregate;
 import com.legend.compiler.spec.typed.TypedAsOfJoin;
@@ -291,5 +293,84 @@ final class CollectionLanes {
                                                 com.legend.sql.SqlExpr.Column
                                                         .param("_nv", list))))),
                 new com.legend.sql.SqlExpr.IntLit(0)));
+    }
+
+    /** The collection {@code add(set, value)} / {@code add(set, index,
+     * value)} overloads only — {@code date::add(date, Duration)} is
+     * DateShifts' (adjust over the Duration value's fields). */
+    static java.util.List<String> collectionAddKeys() {
+        java.util.List<String> dateAdd = com.legend.builtin.Pure.nativeKeysAt("add",
+                com.legend.compiler.element.type.PlatformTypes.DURATION);
+        return com.legend.builtin.Pure.nativeKeysAt("add").stream()
+                .filter(k -> !dateAdd.contains(k)).toList();
+    }
+
+    /** firstNotNull(set) — pureToSQLQuery.pure: {@code $set->filter(v |
+     * $v != TDSNull)->first()}. A LITERAL collection unrolls to a coalesce
+     * over its elements (the literal-flattening doctrine; portable — no
+     * list encoding); a computed collection filters the list carrier. The
+     * null CELL is by lane: SQL NULL on the plain lane; on the variant lane
+     * (an Any-typed / mixed collection) TDSNull is the json null slot
+     * (MixedEncoding — TDSNull is DATA). A to-one value is itself. */
+    static void registerFirstNotNull(java.util.Map<String, Scalars.Rule> rules) {
+        for (String f : com.legend.builtin.Pure.nativeKeysAt("firstNotNull")) {
+            rules.put(f, (n, args) -> {
+                if (Scalars.isToOne(n.args().get(0))) {
+                    return args.get(0);
+                }
+                com.legend.compiler.element.type.Type elems = n.args().get(0).info().type();
+                boolean variant = com.legend.compiler.element.type.PlatformTypes.isAny(elems)
+                        || com.legend.compiler.element.type.PlatformTypes.isVariant(elems);
+                SqlExpr coll = args.get(0) instanceof SqlExpr.CompactList cl ? cl.list() : args.get(0);
+                if (coll instanceof SqlExpr.ArrayLit al) {
+                    // a LITERAL collection: a ^TDSNull() element is known at
+                    // compile time and drops (the static fold the spec body's
+                    // filter takes over a literal); a computed element on the
+                    // variant lane may hold the json null slot at run time
+                    java.util.List<TypedSpec> typedEls = n.args().get(0) instanceof TypedCollection tc
+                            && tc.elements().size() == al.elements().size()
+                            ? tc.elements() : null;
+                    java.util.List<SqlExpr> slots = new java.util.ArrayList<>();
+                    for (int i = 0; i < al.elements().size(); i++) {
+                        TypedSpec te = typedEls == null ? null : typedEls.get(i);
+                        if (te instanceof TypedNewInstance ni && com.legend.compiler.element.type
+                                .PlatformTypes.TDS_NULL_FQN.equals(ni.classFqn())) {
+                            continue;
+                        }
+                        boolean literal = te instanceof TypedCInteger || te instanceof TypedCFloat
+                                || te instanceof TypedCDecimal || te instanceof TypedCString
+                                || te instanceof TypedCBoolean || te instanceof TypedCDate;
+                        SqlExpr el = al.elements().get(i);
+                        slots.add(variant && !literal ? nullifyJsonNull(el) : el);
+                    }
+                    return slots.isEmpty() ? new SqlExpr.NullLit()
+                            : slots.size() == 1 ? slots.get(0)
+                            : new SqlExpr.Call(SqlFn.COALESCE, slots);
+                }
+                SqlExpr x = SqlExpr.Column.param("x", coll);
+                SqlExpr notNull = variant
+                        ? new SqlExpr.Call(SqlFn.AND, java.util.List.of(
+                                new SqlExpr.Call(SqlFn.IS_NOT_NULL, java.util.List.of(x)),
+                                new SqlExpr.Call(SqlFn.NOT_EQUAL, java.util.List.of(
+                                        SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
+                                        new SqlExpr.StringLit("NULL")))))
+                        : new SqlExpr.Call(SqlFn.IS_NOT_NULL, java.util.List.of(x));
+                // a computed collection IS find(set, v | v != TDSNull): the
+                // find rule owns the carrier emission (no new list site)
+                return java.util.Objects.requireNonNull(rules.get(
+                        com.legend.builtin.Pure.nativeKeysAt("find").get(0)))
+                        .apply(n, java.util.List.of(coll,
+                                new SqlExpr.Lambda(java.util.List.of("x"), notNull)));
+            });
+        }
+    }
+
+    /** A variant-lane element whose value is the json null slot reads as
+     * SQL NULL (the coalesce sees the cell as empty). */
+    private static SqlExpr nullifyJsonNull(SqlExpr el) {
+        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
+                new SqlExpr.Call(SqlFn.EQUAL, java.util.List.of(
+                        SqlExpr.Call.of(SqlFn.JSON_TYPE, el), new SqlExpr.StringLit("NULL"))),
+                new SqlExpr.NullLit())), el);
     }
 }

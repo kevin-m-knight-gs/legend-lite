@@ -651,6 +651,7 @@ final class Scalars {
         // adjust + its TEMPORAL channel twin live with the date-shift
         // machinery (DateShifts) — the 3500-line split seam.
         DateShifts.registerAdjustRules(RULES);
+        CollectionLanes.registerFirstNotNull(RULES);
         // datePart of a PARTIAL literal is the IDENTITY (a year has no finer
         // date part); full-precision values truncate to the day.
         for (String f : Pure.nativeKeysAt("datePart")) {
@@ -1504,7 +1505,7 @@ final class Scalars {
         }
         // add(set, val) appends; add(set, index, val) INSERTS at the 0-based
         // index: prefix || [val] || suffix.
-        for (String f : Pure.nativeKeysAt("add")) {
+        for (String f : CollectionLanes.collectionAddKeys()) {
             RULES.put(f, (n, args) -> {
                 if (args.size() == 2) {
                     // audit §4: a to-one first operand carriers as its

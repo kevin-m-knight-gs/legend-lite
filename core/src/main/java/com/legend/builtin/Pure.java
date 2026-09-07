@@ -917,6 +917,12 @@ public final class Pure {
     public static final NativeFunctionDefinition CAL_REPORT_END_DAY = signature("native function meta::pure::functions::date::calendar::reportEndDay(date:meta::pure::metamodel::type::Date[0..1], calendarType:meta::pure::metamodel::type::String[1], endDate:meta::pure::metamodel::type::Date[1], value:meta::pure::metamodel::type::Number[0..1]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition CAL_WTD = signature("native function meta::pure::functions::date::calendar::wtd(date:meta::pure::metamodel::type::Date[0..1], calendarType:meta::pure::metamodel::type::String[1], endDate:meta::pure::metamodel::type::Date[1], value:meta::pure::metamodel::type::Number[0..1]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition CAL_YTD = signature("native function meta::pure::functions::date::calendar::ytd(date:meta::pure::metamodel::type::Date[0..1], calendarType:meta::pure::metamodel::type::String[1], endDate:meta::pure::metamodel::type::Date[1], value:meta::pure::metamodel::type::Number[0..1]):meta::pure::metamodel::type::Number[0..1];");
+    /** date::add(date, duration) — dateExtension.pure: {@code $date->adjust($duration.number, $duration.unit)}
+     *  (the StrictDate / DateTime overloads keep their input type). A kind-1 native: the SQL rule is
+     *  adjust's over the Duration value's fields (DateShifts). */
+    public static final NativeFunctionDefinition ADD__DATE_1__DURATION_1 = signature("native function meta::pure::functions::date::add(date:meta::pure::metamodel::type::Date[1], duration:meta::pure::functions::date::Duration[1]):meta::pure::metamodel::type::Date[1];");
+    public static final NativeFunctionDefinition ADD__STRICTDATE_1__DURATION_1 = signature("native function meta::pure::functions::date::add(date:meta::pure::metamodel::type::StrictDate[1], duration:meta::pure::functions::date::Duration[1]):meta::pure::metamodel::type::StrictDate[1];");
+    public static final NativeFunctionDefinition ADD__DATETIME_1__DURATION_1 = signature("native function meta::pure::functions::date::add(date:meta::pure::metamodel::type::DateTime[1], duration:meta::pure::functions::date::Duration[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition ADJUST__DATE_1__INTEGER_1__DURATION_UNIT_1 = signature("native function meta::pure::functions::date::adjust(d:meta::pure::metamodel::type::Date[1], amount:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::Date[1];");
     // adjustTemporal: identical shape to adjust — the internal legacy-print
     // channel marker (Pure.Lite.ADJUST_TEMPORAL javadoc has the two-channel
@@ -1120,6 +1126,9 @@ public final class Pure {
     // (core_functions_relation/relation/functions/slice/first.pure) — kept
     // faithful even though they read swapped.
     public static final NativeFunctionDefinition FIRST__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::first<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+    /** tds::extensions::firstNotNull — pureToSQLQuery.pure: {@code $set->filter(v | $v != TDSNull)->first()}.
+     *  A kind-1 native: list-filter-not-null then first (Scalars). */
+    public static final NativeFunctionDefinition FIRST_NOT_NULL__T_MANY = signature("native function meta::pure::tds::extensions::firstNotNull<T>(set:T[*]):T[0..1];");
     public static final NativeFunctionDefinition FIRST__T_MANY = signature("native function meta::pure::functions::collection::first<T>(set:T[*]):T[0..1];");
     public static final NativeFunctionDefinition FIRST__T_MANY__INTEGER_1 = signature("native function meta::pure::functions::collection::first<T>(set:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition FLATTEN__T_MANY__COL_SPEC_1 = signature("native function meta::pure::functions::relation::variant::flatten<T,Z>(valueToFlatten:T[*], columnWithFlattenedValue:meta::pure::metamodel::relation::ColSpec<Z=(?:T)>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");

@@ -4568,3 +4568,10 @@ five items in §0 Phase 1b (single resolution pass first), then single-shot.
 **Batch 116 / one resolution pass (2026-09-06, chain GREEN 6m35s; GATES batch 116).** Front door resolves once;
 ResolvedNames.referents is the one reading; ValidateDesugar / LiteralMapUnroll consume it. Rosters exact; DuckDB
 lane 55s. NEXT = item 2 (corpus-library.pure → platform natives), then items 3–5, then single-shot.
+
+**Batch 117 / the harness stdlib is the platform's (2026-09-06, chain GREEN 6m40s; GATES batch 117).**
+corpus-library.pure deleted; measured demand = firstNotNull + date::add(Duration) → two natives (Pure.java
+signatures; CollectionLanes.registerFirstNotNull composes `find`; DateShifts date-add = adjust over the Duration's
+fields; collection add registers under its own overloads only — it had clobbered the date keys); namespace guard
+over every source; catalog golden regenerated (+4 lines). Rosters exact. NEXT = item 3 (ProgramFacts + the typed
+raw-SQL ledger), then 4 (referee golden rows as a typed relation), 5 (main-side censuses), then single-shot.

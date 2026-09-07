@@ -145,6 +145,10 @@ public final class MinimalCorpus {
         Compiler.ParsedModule parsed = Compiler.parseSources(all,
                 (name, err) -> parseWalls.add(name + " => " + err),
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
+        // EVERY source (the corpus's own files included) is under the
+        // platform-namespace guard: nothing the harness loads may define
+        // the platform's stdlib
+        refusePlatformNamespace(parsed.model().elements());
         if (!parseWalls.isEmpty()) {
             throw new IllegalStateException("corpus parse walls: " + parseWalls);
         }
@@ -191,12 +195,6 @@ public final class MinimalCorpus {
                 "tests/testModel/inheritanceTestModel.pure",
                 "tests/relationalSetUp.pure", "relationalExtension.pure")) {
             out.add(new Compiler.ModelSource("shared-" + i++ + ".pure", Corpus.read(rel)));
-        }
-        try (var in = MinimalCorpus.class.getResourceAsStream("/corpus-library.pure")) {
-            out.add(new Compiler.ModelSource("shared-library.pure",
-                    new String(java.util.Objects.requireNonNull(in,
-                            "corpus-library.pure").readAllBytes(),
-                            java.nio.charset.StandardCharsets.UTF_8)));
         }
         return out;
     }
