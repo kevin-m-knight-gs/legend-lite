@@ -229,7 +229,7 @@ public final class Compiler {
         // the system metamodel store rides EVERY build (charter §4: one
         // owner, parsed elements, no parallel lane)
         return PureModelContext.from(normalizeWithSystem(NameResolver.resolveAlongside(parsed,
-                com.legend.builtin.SystemMetamodel.elementFqns(), null), null));
+                bootFqns(), null), null));
     }
 
     /**
@@ -246,11 +246,63 @@ public final class Compiler {
             new com.legend.cache.ContentStore(4);
 
     private static NormalizedModel bootLayer() {
-        String source = com.legend.builtin.SystemMetamodel.source();
-        return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source),
-                () -> ModelNormalizer.normalize(NameResolver.resolve(new ParsedModel(
-                        com.legend.builtin.SystemMetamodel.elements(),
-                        com.legend.model.ImportScope.empty()))));
+        // the system metamodel AND the generated prelude module
+        // (SYSTEM_PRELUDE_DESIGN §10): one boot source, its hash the cache
+        // key; the prelude's elements keep their section imports (a
+        // derived body resolves through them), the system metamodel's
+        // resolve in the empty scope as before
+        String source = com.legend.builtin.SystemMetamodel.source() + "\n"
+                + com.legend.builtin.Prelude.source();
+        return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source), () -> {
+            ParsedModel pre = com.legend.builtin.Prelude.parsedModel();
+            List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
+                    com.legend.builtin.SystemMetamodel.elements());
+            elements.addAll(pre.elements());
+            ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
+                    pre.elementOffsets(), pre.elementImports(), pre.elementSources());
+            return ModelNormalizer.normalize(NameResolver.resolve(boot));
+        });
+    }
+
+    /** The boot layer's FQNs — what a graph's own elements may name by import. */
+    private static java.util.Set<String> bootFqns() {
+        return BootFqns.ALL;
+    }
+
+    private static final class BootFqns {
+        static final java.util.Set<String> ALL = union();
+
+        private static java.util.Set<String> union() {
+            java.util.Set<String> out = new java.util.HashSet<>(
+                    com.legend.builtin.SystemMetamodel.elementFqns());
+            out.addAll(com.legend.builtin.Prelude.elementFqns());
+            return java.util.Set.copyOf(out);
+        }
+    }
+
+    /**
+     * T4 (PRELUDE_MODULE_HOMEWORK §2): a graph class or enum redefining a
+     * PRELUDE shape is a modeling error; transitionally the prelude wins
+     * and the graph's copy is dropped — what the catalog-first lookup did
+     * silently before §10 (the corpus tree's copies of platform classes,
+     * the census's spec files). The receipt list is at the foot of
+     * prelude.pure and burns to zero in phase 3.
+     */
+    private static ParsedModel withoutPreludeShadows(ParsedModel parsed) {
+        List<com.legend.model.PackageableElement> kept = new java.util.ArrayList<>();
+        for (com.legend.model.PackageableElement el : parsed.elements()) {
+            boolean shadow = (el instanceof com.legend.model.ClassDefinition
+                    && com.legend.builtin.Prelude.classFqns().contains(el.qualifiedName()))
+                    || (el instanceof com.legend.model.EnumDefinition
+                    && com.legend.builtin.Prelude.enumFqns().contains(el.qualifiedName()));
+            if (!shadow) {
+                kept.add(el);
+            }
+        }
+        return kept.size() == parsed.elements().size() ? parsed
+                : new ParsedModel(kept, parsed.imports(), parsed.source(),
+                        parsed.elementOffsets(), parsed.elementImports(),
+                        parsed.elementSources(), parsed.unclaimedSections());
     }
 
     /**
@@ -264,7 +316,8 @@ public final class Compiler {
     private static NormalizedModel normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.Nullable Map<String, String> walls) {
         NormalizedModel user = ModelNormalizer.normalize(
-                com.legend.builtin.SystemMetamodel.withoutSystemShadows(resolved), walls);
+                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                        withoutPreludeShadows(resolved)), walls);
         NormalizedModel sys = bootLayer();
         List<com.legend.model.PackageableElement> elements =
                 new java.util.ArrayList<>(user.elements().size() + sys.elements().size());
@@ -334,7 +387,7 @@ public final class Compiler {
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         NormalizedModel normalized = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
-                com.legend.builtin.SystemMetamodel.elementFqns(), walls), walls);
+                bootFqns(), walls), walls);
         PureModelContext ctx = PureModelContext.from(normalized, walls);
         return new BuiltModule(ctx, walls);
     }
@@ -982,7 +1035,21 @@ public final class Compiler {
     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+        // the MODULE's own bodies: the boot layer's (the system metamodel's
+        // functions, the prelude's lifted derived properties and constraints)
+        // are compiled once per process and typed by the spec census
+        // (SpecBodyCensusTest) — its failures are the census's rows, never a
+        // user module's walls (PRELUDE_MODULE_HOMEWORK §9.4)
+        java.util.Set<String> boot = new java.util.HashSet<>();
+        for (com.legend.model.PackageableElement el : bootLayer().elements()) {
+            if (el instanceof com.legend.model.FunctionDefinition) {
+                boot.add(el.qualifiedName());
+            }
+        }
         for (String fqn : new java.util.TreeSet<>(ctx.functionFqns())) {
+            if (boot.contains(fqn)) {
+                continue;
+            }
             java.util.List<com.legend.compiler.element.TypedFunction> overloads;
             try {
                 overloads = ctx.findFunction(fqn);

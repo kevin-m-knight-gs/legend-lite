@@ -214,7 +214,11 @@ final class ModelPacker {
                 enums.add(fqn);
             } else if (el != null && Instance.instanceOf(el,
                     "meta::pure::metamodel::type::Class", ps)) {
-                if (com.legend.builtin.Pure.findNativeClass(fqn).isEmpty()) {
+                // the PLATFORM's classes are never extracted from the M3
+                // graph: the catalog's hand shapes AND the generated prelude
+                // module (prelude.pure — the boot layer, SYSTEM_PRELUDE_DESIGN
+                // §10); a test's own classes are
+                if (com.legend.builtin.Pure.findNativeClass(fqn).isEmpty() && !com.legend.builtin.Prelude.classFqns().contains(fqn)) {
                     extractClassRecursive(fqn, classes, visited, enums, ps);
                 }
             } else if (fqn.contains("::tests::")) {

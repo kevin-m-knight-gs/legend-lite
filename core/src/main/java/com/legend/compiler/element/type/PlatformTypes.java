@@ -570,6 +570,36 @@ public final class PlatformTypes {
                     "meta::pure::functions::asserts::assertEqWithinTolerance",
                     "meta::pure::functions::asserts::assertJsonStringsEqual");
 
+    /**
+     * DERIVED properties the platform implements NATIVELY — the function
+     * half's by-name suppression rule (PRELUDE_MODULE_HOMEWORK §3, §9.14)
+     * applied to a class's own qualified properties. The spec's
+     * {@code TDSRow} reads its cells through the engine's row
+     * representation ({@code $this.values}, {@code columnByName}, asserts);
+     * on this platform a row IS a SQL row and the accessors are the natives
+     * {@code meta::pure::tds::get*(row, col)}. The typer's derived-shadow
+     * route and the overload set yield to the native for these; the
+     * module still CARRIES the spec bodies (verbatim, T5).
+     */
+    private static final java.util.Set<String> TDS_ROW_OWNED_ACCESSORS = java.util.Set.of(
+            "get", "isNull", "isNotNull",
+            "getString", "getNullableString", "getNumber", "getInteger", "getFloat",
+            "getDecimal", "getDate", "getDateTime", "getStrictDate", "getBoolean", "getEnum");
+
+    public static boolean isPlatformOwnedDerivedProperty(String ownerFqn, String name) {
+        return (TDS_ROW.equals(ownerFqn) && TDS_ROW_OWNED_ACCESSORS.contains(name))
+                // TRANSITIONAL (phase 1, PRELUDE_MODULE_HOMEWORK §9.15): the
+                // module now carries Pair.toString / List.toString as spec
+                // bodies, but lowering/Scalars' Java arms (isPairCarrier,
+                // isListCarrier) still render them — the bodies expose the
+                // Any-to-text rendering gap (channel B essential
+                // testPairCollectionToString: an Any-carried 'b' renders as
+                // "b"). The leg that fixes that rendering deletes the two
+                // arms AND these two entries (SYSTEM_PRELUDE_DESIGN §8).
+                || (PAIR.equals(ownerFqn) && "toString".equals(name))
+                || (LIST.equals(ownerFqn) && "toString".equals(name));
+    }
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || TO_REPRESENTATION.equals(fqn)

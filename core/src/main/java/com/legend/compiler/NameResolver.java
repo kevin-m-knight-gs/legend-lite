@@ -290,14 +290,31 @@ public final class NameResolver {
      * tie-broken by the file's wildcards ({@link #PRELUDE_COLLISIONS}). */
     private static final Map<String, String> PRELUDE_TYPES = preludeTypes();
 
+    /**
+     * The platform's TYPE universe, IN COLLISION ORDER (PRELUDE_MODULE_HOMEWORK
+     * §9.12): the catalog's hand shapes and enums in declaration order, then
+     * the generated prelude module in module order (legend-pure's sections
+     * before legend-engine's, each by spec path, source order within). The
+     * bare-name fallback ({@link #PRELUDE_TYPES}) gives a colliding simple
+     * name to the FIRST claimant — a rule; the catalog's HashMap key order
+     * was luck (bare {@code Boolean} once fell to the relational datatype).
+     */
+    private static List<String> platformTypeFqns() {
+        List<String> all = new ArrayList<>();
+        Pure.allNativeClasses().forEach(c -> all.add(c.qualifiedName()));
+        Pure.allNativeEnums().forEach(e -> all.add(e.qualifiedName()));
+        all.addAll(com.legend.builtin.Prelude.classFqns());
+        all.addAll(com.legend.builtin.Prelude.enumFqns());
+        return all;
+    }
+
     private static Map<String, String> preludeTypes() {
         Map<String, String> bySimple = new HashMap<>();
-        List<String> all = new ArrayList<>(Pure.nativeClassFqns());
-        all.addAll(Pure.nativeEnumFqns());
+        List<String> all = platformTypeFqns();
         for (String fqn : all) {
             int cut = fqn.lastIndexOf("::");
             if (cut > 0) {
-                bySimple.put(fqn.substring(cut + 2), fqn);
+                bySimple.putIfAbsent(fqn.substring(cut + 2), fqn);   // first claimant wins
             }
         }
         return bySimple;
@@ -313,8 +330,7 @@ public final class NameResolver {
 
     private static Map<String, List<String>> preludeCollisions() {
         Map<String, List<String>> bySimple = new HashMap<>();
-        List<String> all = new ArrayList<>(Pure.nativeClassFqns());
-        all.addAll(Pure.nativeEnumFqns());
+        List<String> all = platformTypeFqns();
         for (String fqn : all) {
             int cut = fqn.lastIndexOf("::");
             if (cut > 0) {
@@ -332,8 +348,7 @@ public final class NameResolver {
         for (PackageableElement el : elements) {
             known.add(el.qualifiedName());
         }
-        known.addAll(Pure.nativeClassFqns());
-        known.addAll(Pure.nativeEnumFqns());
+        known.addAll(platformTypeFqns());
         return known;
     }
 
@@ -474,8 +489,7 @@ public final class NameResolver {
      */
     public static ValueSpecification resolveQuery(ValueSpecification query,
             ImportScope imports, Set<String> modelFqns) {
-        Set<String> known = new HashSet<>(Pure.nativeClassFqns());
-        known.addAll(Pure.nativeEnumFqns());
+        Set<String> known = new HashSet<>(platformTypeFqns());
         known.addAll(modelFqns);
         return Objects.requireNonNull(
                 resolveVs(query, Scope.preludeOf(imports, Set.copyOf(known))));
@@ -485,8 +499,7 @@ public final class NameResolver {
     private static final Scope QUERY_SCOPE = querycope();
 
     private static Scope querycope() {
-        Set<String> known = new HashSet<>(Pure.nativeClassFqns());
-        known.addAll(Pure.nativeEnumFqns());
+        Set<String> known = new HashSet<>(platformTypeFqns());
         return Scope.preludeOf(new ImportScope.Builder().build(), Set.copyOf(known));
     }
 

@@ -60,6 +60,16 @@ final class ClassCompiler {
                     pd.hasDefault(), pd.defaultValue()));
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
+            // a PLATFORM-OWNED derived property (TDSRow's cell accessors: the
+            // prelude module carries the spec's bodies verbatim, the platform's
+            // meaning is the row natives meta::pure::tds::get*(row, col)) is
+            // not part of the TYPED class — exactly as the catalog presented
+            // it; every property route then reaches the native, as before
+            // (PRELUDE_MODULE_HOMEWORK §9.14; the function half's rule)
+            if (com.legend.compiler.element.type.PlatformTypes
+                    .isPlatformOwnedDerivedProperty(cd.qualifiedName(), dp.name())) {
+                continue;
+            }
             List<TypedParameter> params = new ArrayList<>(dp.parameters().size());
             for (ParameterDefinition p : dp.parameters()) {
                 params.add(new TypedParameter(

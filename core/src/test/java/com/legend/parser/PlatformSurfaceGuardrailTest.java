@@ -45,7 +45,11 @@ class PlatformSurfaceGuardrailTest {
             // LEGEND_ENGINE — matching the engine's own architecture)
             // (servers AND the Compiler migrated to parseLegendLite
             // 2026-08-12 — the platform surface is bootstrap-only now)
-            "com/legend/builtin/Pure.java");
+            "com/legend/builtin/Pure.java",
+            // the prelude MODULE (SYSTEM_PRELUDE_DESIGN §10, 2026-09-08):
+            // generated spec declarations parsed once at class load in the
+            // platform dialect — the same bootstrap-loader regime as Pure
+            "com/legend/builtin/Prelude.java");
 
     @Test
     void platformSurfaceCallersAreWhitelisted() throws IOException {

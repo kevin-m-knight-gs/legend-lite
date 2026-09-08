@@ -241,3 +241,29 @@ shapes; `newUnit`/`getUnitValue` natives (no SQL carrier: lowering walls); a mea
 - The first cut of the receiver-owned routing matched ANY model function whose first parameter accepted the receiver's class:
   `tableToTDS(table:Table[1])` displaced the platform's special form (35 tests) and `->cast(@ColumnType)` reached the sqlDialectTranslation
   `cast` helper (19 tests). Narrowed twice (§9.1); the `_this` convention is the spec's own marker for a class-owned function.
+
+## 10. Batch 151 — the prelude is a MODULE: 3 → 0 derived rows, 22 honest boot-body rows (2026-09-08)
+
+Run: 261 files, **6 load walls** (unchanged), **1226 typed / 22 failed** (from 1128 / 3). The prelude's 569 declarations now
+enter every graph through the boot layer (`docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md`), so the 136 derived properties and 16
+constraints they carry are lifted and typed here for the first time: 98 more bodies type, 22 cannot — nothing excluded.
+
+### 10.1 The 3 that closed
+
+`TableAlias.relation` ×2 and `GraphFetchTree.propertyTrees` — derived properties of generated shapes, emitted VERBATIM under
+their spec file's imports; no printer was written (the homework's §0b rejected it).
+
+### 10.2 The 22 that surfaced (all boot-layer bodies; owner = the vocabulary each names)
+
+| rows | body | what is missing |
+|---|---|---|
+| 8 | `SchemaState.extend/groupBy/join ×2/olap/rename/restrict/columnValueDifference` (tds/schema) | `removeAll` ×4, `createSchemaState` ×2, `containsAll`; `olap` needs a normalization the inliner lacks |
+| 6 | `DbConfig.dataTypeToSqlText/dynaFuncDispatch/joinProcessor/lateralJoinProcessor/literalProcessor`, `DynaFunctionToSql.toSql` (sqlQueryToString) | `DynaFunctionRegistry` (a class outside today's demand), `processOperation`, `getLiteralProcessorForType`, `indent` — the engine's SQL printer, WALLED by the user (batch 149) |
+| 2 | `ExternalFormatFromPureDescriptor` / `ExternalFormatToPureDescriptor` `$constraint$configurationType` | `checkSuperType` |
+| 2 | `Extension.fetchSerializerExtension/serializerExtension` | `forgivingPathToElement`, `mutateAdd` |
+| 1 | `MultiExecutionContext.allContexts` | `collectionMultiExecutionContexts` |
+| 1 | `Service$constraint$executionAndTestTypesMatch` | `PureMultiExecution` (a class outside today's demand) |
+| 1 | `SQLResult.toSQLString` | `sqlQueryToString` (the walled printer) |
+| 1 | `RelationElementAccessorExtension$constraint$0` | a typer gap on the constraint's body |
+
+Phase 3 (T1/T2 demand cut) removes the engine-side owners of most of these from the prelude; what stays is the typing list.

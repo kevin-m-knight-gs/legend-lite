@@ -62,9 +62,12 @@ class PureModelContextTest {
         assertSame(Type.Primitive.STRING, ctx.findType(STRING).orElseThrow());
         assertSame(Type.Primitive.INTEGER, ctx.findType(INTEGER).orElseThrow());
 
-        // Native enum from the bootstrap Pure catalog (not user-declared).
+        // Native enum from the bootstrap Pure CATALOG (not user-declared).
+        // This fixture bypasses the boot layer, so a generated prelude enum
+        // (Month lives in prelude.pure since SYSTEM_PRELUDE_DESIGN §10) is
+        // not visible here — a hand enum of the catalog is the witness.
         assertInstanceOf(Type.EnumType.class,
-                ctx.findType("meta::pure::functions::date::Month").orElseThrow());
+                ctx.findType("meta::pure::functions::date::DateTimeFormat").orElseThrow());
     }
 
     @Test
@@ -312,7 +315,8 @@ class PureModelContextTest {
                 Pure.ENUMERATION.qualifiedName());
         assertTrue(extent.contains("model::Color"),
                 "user enum missing from the Enumeration extent");
-        assertTrue(extent.contains("meta::pure::functions::date::Month"),
+        // a CATALOG enum: the fixture bypasses the boot layer (see findTypeClassifiesEveryKind)
+        assertTrue(extent.contains("meta::pure::functions::date::DateTimeFormat"),
                 "native enum missing from the Enumeration extent");
     }
 

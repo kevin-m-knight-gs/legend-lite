@@ -138,7 +138,11 @@ qualifies it like user code. Half the slicing code written on 2026-09-08 (derive
 exists only because emission was still re-printing. Delete it; copy the declaration.
 
 Phases, one batch each, lanes exact between them:
-1. **Mechanism.** `prelude.pure` written by the generator (verbatim declarations, per-file sections + imports), a small hand-written
+1. **Mechanism — LANDED 2026-09-08 (batch 151; §9 carries every decision and the four findings).** Pass counts unchanged
+   (DuckDB 2442/108/14/11, H2 1990/565/14/6, channel B 314/13, 355, 137, 95, 204; G1 4377); census 1128/3 → 1226/22 (§9.4).
+   Branch `wip/prelude-module` is superseded by this landing (never merged; delete at leisure). NEXT LEG, before phase 2: the
+   Any-to-text rendering (§9.15) so `Pair`/`List` `toString` run as bodies and Scalars' two Java arms go.
+   As planned: `prelude.pure` written by the generator (verbatim declarations, per-file sections + imports), a small hand-written
    `Prelude.java` reader, the boot layer merging it beside the system metamodel (one hash, one cache), the resolver's bare-name
    fallback knowing its names, T4's drop rule, the pins widened (`headlineNativeClassesAreAllPresent`,
    `everyTypePositionFqnInNativeSignaturesResolvesToCatalog` — the platform universe is catalog ∪ module). Demand UNCHANGED (today's
@@ -182,26 +186,104 @@ mvn -q -o test -pl core -Dtest=SpecBodyCensusTest -Dsurefire.excludedGroups= (sa
 lanes / guards / chain: docs/GATES.md and memory (harness-iteration-speed); LEGEND_LITE_PROGRESS=1 names a hanging corpus test
 ```
 
-## 9. Open checks (found while probing; not decided — decide in phase 1, write the answer here)
+## 9. Open checks — DECIDED 2026-09-08 (phase 1), each answer with its receipt
 
-1. **`native` or not.** Spec declarations are `Class …`; copied verbatim they are ordinary classes in the boot layer, not `native Class`.
-   Who reads `isNative()` on a CLASS: `FromProtocol`, `ClassCompiler`, `NameResolver`, `ModelNormalizer` (pass-through) and
-   `Pure.nativeClass` (catalog only). Expected: nothing depends on it for prelude classes — verify by grep before deciding; if the
-   pins (`everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface`) reach module classes, they are catalog pins and
-   must scope to the catalog.
-2. **Stereotypes and profiles in verbatim text.** Spec classes carry `<<doc.doc>>`, `{doc.doc = '…'}`, `<<equality.Key>>`,
-   `<<meta::pure::profiles::…>>`. The census parses these files, so the parser accepts them; the equality-key filter in `printClass`
-   (Key only) goes away with re-printing — check `ClassLayouts`/equality consumers read the stereotype by profile+name, not by the
-   printed spelling.
-3. **Dialect.** `SystemMetamodel` parses as LEGEND_LITE; the prelude as LEGEND_PLATFORM (legend-pure grammar: `|m` parameters,
-   `Function<{…}>`). One boot `ParsedModel` from two dialects is fine (elements, not text, are merged) — confirm the resolver's
-   per-element import scopes survive the merge (`elementImports` keyed by FQN).
-4. **The 136 derived + 16 constraint bodies now TYPE.** The census's typing list will show whatever they cannot type; those are new,
-   honest rows (§5). Do not hide them behind an exclusion.
-5. **`SetImplementation`/`Mapping` are HAND shapes with system-store rows; prelude classes referencing them resolve to the catalog** —
-   fine in phase 1; phase 2 migrates them.
-6. **Performance.** ~450 more boot elements normalized once per process; per graph, indexing only. Measure the first compile in the
-   lane log (the 2026-09-02 budget entry method) and record it.
+1. **`native` or not → NOT native.** The module copies the spec's `Class …` verbatim; a prelude class is an ordinary class of the
+   boot layer. Receipt (grep of `isNative()` on classes, 2026-09-08): `FromProtocol:373`, `NameResolver:706`, `ModelNormalizer:199`
+   copy the flag through; `ClassCompiler:101` stores it on `TypedClass.isNative`, which NO code reads (its javadoc already says
+   "bootstrap native classes from builtin/Pure"); `Pure.nativeClass` (Pure.java:161) demands it — the catalog's door, which the module
+   no longer passes through. The four `NativeFunctionTest` pins that iterate `Pure.allNativeClasses()` and skip
+   `Prelude.classFqns()` are catalog pins by construction once the module leaves the catalog: their skip lines are dead and are
+   removed; the hand count is simply the catalog's size.
+2. **Stereotypes and profiles → verbatim, no filter.** `ClassCompiler:55-59` reads the equality key as
+   `PlatformTypes.isProfile(profile, EQUALITY_PROFILE) && "Key".equals(name)` — profile + name, never the printed spelling. The
+   resolver qualifies stereotype and tagged-value profile names through `resolveName` (`NameResolver:1570/1581`) and leaves an
+   unresolvable one as written (no wall) — the census already parses and resolves these files through the same path. The Key-only
+   filter of `printClass` dies with the printer.
+3. **Dialect → one boot `ParsedModel`, two dialects, fine.** `NameResolver.resolve` scopes each element by
+   `model.elementImports().get(fqn)` and falls back to `model.imports()` (NameResolver:249-255). The boot model is built from the
+   prelude's parsed model (its `elementOffsets/elementImports/elementSources`) plus the system metamodel's elements, which have no
+   per-element entry and therefore resolve in the empty scope exactly as today. Nothing text-level is merged.
+4. **The 136 derived + 16 constraint bodies TYPE — MEASURED.** `SpecBodyCensusTest` after phase 1: **1226 typed / 22 failed**
+   (was 1128 / 3; load walls 6 unchanged). The 3 derived rows (`TableAlias.relation` ×2, `GraphFetchTree.propertyTrees`) are
+   GONE. The 22 new rows are all boot-layer bodies the module now carries, honest and listed
+   (`docs/SPEC_BODY_CENSUS_2026_09_08.md` §10): 18 unknown functions in engine-internal derived/constraint bodies
+   (`removeAll` ×4, `createSchemaState` ×2, `checkSuperType` ×2, `sqlQueryToString`, `processOperation`, `mutateAdd`, `indent`,
+   `getLiteralProcessorForType`, `forgivingPathToElement`, `containsAll`, `collectionMultiExecutionContexts` — the
+   `SchemaState`, `DbConfig`, `Extension`, `ExternalFormat*Descriptor` families), 3 unknown types (`PureMultiExecution`,
+   `DynaFunctionRegistry` — classes outside today's demand), 1 normalize (`SchemaState.extend`). Nothing excluded.
+5. **`SetImplementation`/`Mapping` stay HAND shapes.** A prelude declaration naming them resolves to the catalog because the boot
+   resolution's known set is `bootFqns()` ∪ the resolver's `knownFqns` (which already carries `Pure.nativeClassFqns()`), and
+   `TypeClassifier.classDef` still asks the catalog first. Phase 2 migrates them.
+6. **Performance → MEASURED.** Method: `Compiler.compileModel` of a one-class model in a fresh JVM, jshell over the core
+   classpath, HEAD (a scratch worktree) vs the module. First compile (boot layer compiled on that call): HEAD 339–354 ms, module
+   369–381 ms — **about +25 ms once per process** for the ~570 extra boot elements; second compile 32–37 ms both. The chain:
+   6m03s (G1 50, G2 8, G4 61, G5 39, G6 85, G7 27, G9 19, G8 74) against batch 150's 6m00s — inside the wobble.
+
+Decided while implementing (2026-09-08):
+
+7. **Verbatim = PARSER-DELIMITED, never brace-matched.** The declaration's text is `source[tokens.start(i) .. tokens.end(j))` where
+   `i` is the element's first token (the parser's own `elementOffsets`) and `j` is where `ElementParser.at(tokens, i, LEGEND_PLATFORM)
+   .parseClassDefinition(false)` / `.parseEnumDefinition()` leaves the cursor. A header tagged-value block `{doc.doc = '…'}`, a
+   constraint block, a string literal holding a brace — all handled by the parser that will read the module, not by a regex. The
+   branch's `declarationText` (first `{` after the offset, brace count) was wrong for any class with a tagged value in its header.
+8. **Enums verbatim too** (§8 said "as today"): one rule for every declaration; an enum's `<<doc.doc>>` rides with it.
+9. **Closure = the relaxed rule of the branch, with no OMITTED list.** A type a wanted declaration names (supertype, stored or
+   derived property type, derived parameter type) is admitted when the spec declares it and it is not a DECIDED exclusion
+   (`EXCLUDED_CLASSES`, the versioned protocol packages, m3 paths); the spec-test-package rule applies to DEMAND only. That is what
+   makes the module CLOSED (T5) and the census's "references outside prelude ∪ catalog = 0" true; a reference that still escapes is
+   a generator ERROR (the dangling check), never a silently omitted class. A corpus-tree class pulled this way is listed at the foot
+   of `prelude.pure` — the T4 receipt list phase 3 burns.
+10. **Section headers name the spec file RELATIVE to its checkout root** (`legend-pure/…`, `legend-engine/…`): the module is a
+    committed resource and must not carry a machine's absolute paths.
+11. **Two architecture allowlists widen by one receipt each**: `PlatformSurfaceGuardrailTest` (Prelude.java names
+    `Dialect.LEGEND_PLATFORM` — the same bootstrap-loader regime as Pure.java/SystemMetamodel.java) and
+    `ParserBoundaryArchTest.DIALECT_CLASSES` (Prelude.java parses fixed Pure source once at class load).
+12. **FOUND: the bare-name fallback's collision winner was HashMap luck — now a rule.** The resolver's fallback tier
+    (`NameResolver.PRELUDE_TYPES`, simple name → FQN, consulted only when imports, wildcards, own package and the core
+    imports claim nothing) was built by `put` over the catalog's `HashMap` key sets: 48 simple names collide across catalog ∪
+    module (`Relation` ×3, `JoinType`, `Table`, `Window` ×3, `Column`, `Frame`, `SortDirection`, …) and the winner was whichever
+    FQN the hash order visited last — bare `Boolean` fell to `meta::relational::metamodel::datatype::Boolean`, bare
+    `PackageableElement`/`Property`/`Multiplicity`/`Constraint`/`ValueSpecification` to the protocol-template copies (masked
+    only because the core imports claim those first). The first gate-1 run of the module flipped `Relation` and `JoinType` to
+    the sql-protocol copies (13 failures: relation-typed parameters, a let-bound join kind). RULE (phase 1): the universe is
+    read IN ORDER — the catalog's hand shapes and enums in declaration order, then the module in module order (legend-pure's
+    sections before legend-engine's, each by spec path, source order within; `Prelude.classFqns()/enumFqns()` are ordered) —
+    and the FIRST claimant of a simple name wins. Receipt: `NameResolver.platformTypeFqns/preludeTypes`, the generator's
+    section order, `Prelude`'s ordered sets. The rule is a phase-1 container decision, not the end state: real Pure has no
+    fallback tier (a bare name is its imports or an error), and phase 3's demand cut removes most of the 48 collisions from
+    the module; whether an ambiguous bare name should then be an error is a leg of its own.
+13. **`Compiler.compileAllBodies` is the MODULE's eager pass, not the boot layer's.** The boot layer's functions (the system
+    metamodel's, the prelude's lifted derived properties and constraints) are compiled once per process and typed by
+    `SpecBodyCensusTest`, whose loop walks every function in the context — the 136 + 16 bodies' failures are that census's
+    rows (§9.4). A user module's eager pass skips the boot FQNs (`CompilerModuleTest.eagerCompileAllBodies` pins one wall,
+    the module's own).
+14. **FOUND: a derived property the platform implements natively — the function half's rule, extended.** The first lane run
+    lost 8 (DuckDB) / 3 (H2) tests, all `tdsContains`/`tdsJoin`, all one message: `TDSRow$prop$get has non-let intermediate
+    statements — cannot inline`. The catalog DROPPED derived properties, so `$row.get('c')` never saw the spec's
+    `TDSRow.get(colName)` body (`$this.values`, `columnByName`, two asserts — the engine's row representation); the module
+    carries it verbatim, and the typer's derived-shadow route (`Typer.derivedShadow`: the receiver's own qualified property
+    beats an Any-first native) redirected the call into it. On this platform a row IS a SQL row and the accessors are the
+    natives `meta::pure::tds::get*(row, col)` (Pure.java: "real tds.pure spells getString as a TDSRow qualified property").
+    §3 already states the rule for FUNCTIONS (the engine writes in Pure what a platform implements natively; the by-name
+    suppression picks the native); a class's derived property is the same case. RULE:
+    `PlatformTypes.isPlatformOwnedDerivedProperty(owner, name)` — exact owner FQN (`meta::pure::tds::TDSRow`) and the
+    fourteen accessor names. ONE owner: `ClassCompiler` leaves such a property out of the TYPED class (the catalog never
+    presented it, so every property route — the ordinary derived route, the derived-shadow route — reaches the native as
+    before); `FunctionCompiler.compileAll` suppresses the lifted body's overload as it does a platform-owned function. A
+    first cut guarded only the shadow route and the ordinary route then routed `$row.getString('c')` into the suppressed
+    body ("unknown function TDSRow$prop$getString") — the second cycle; the class-compile site is the third and last. The
+    module still carries the bodies (T5); the census may list them. Any further name on this list needs the same receipt:
+    a native that IS the platform's meaning.
+15. **FOUND: `Pair.toString` / `List.toString` as bodies expose the Any-to-text rendering gap — parked on the same rule,
+    transitionally.** With the module, `->toString()` on a Pair routes through the derived-shadow rule into the spec body
+    (`'<' + $this.first->toString() + ', ' + $this.second->toString() + '>'`); channel B's essential suite lost exactly one
+    test, `testPairCollectionToString` (`<a, "b">` — an Any-carried string renders JSON-quoted), the witness
+    `SYSTEM_PRELUDE_DESIGN` §8 already names for this day. Phase 1 is mechanism-only, so the two Java arms in
+    `lowering/Scalars` (`isPairCarrier`, `isListCarrier`) keep rendering: `Pair.toString` and `List.toString` are on the
+    platform-owned derived list with a TRANSITIONAL receipt. NEXT LEG (first after phase 1): fix the Any-to-text rendering
+    (the variant carrier's `toString` of a scalar renders the scalar's text, never its JSON), delete the two arms and the
+    two list entries, and let the bodies run — the design's original batch-148 item 3.
 
 ## 10. Glossary (terms that confused in discussion)
 

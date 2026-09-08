@@ -570,8 +570,10 @@ class NativeFunctionTest {
         // (ModelConversionState + 3 functions — a Java port of a Pure
         // program) are deleted, ModuleExtension/RelationalExtension moved to
         // the generator.
-        long hand = Pure.allNativeClasses().stream()
-                .filter(c -> !Prelude.classFqns().contains(c.qualifiedName())).count();
+        // 2026-09-08 (SYSTEM_PRELUDE_DESIGN §10): the generated prelude is a
+        // MODULE (prelude.pure, the boot layer), no longer in this catalog —
+        // the catalog IS the hand count now
+        long hand = Pure.allNativeClasses().size();
         // 255 -> 264 (2026-09-04, option S): +9 m3 BOOTSTRAP shapes the
         // generated declarations name (AbstractProperty, QualifiedProperty,
         // PropertyOwner, Association, Constraint, ConstraintsOverride,
@@ -1198,11 +1200,10 @@ class NativeFunctionTest {
     void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {
         // Opaque carriers — EXCEPT where real legend-pure declares properties:
         // Pair has first/second (anonymousCollections.pure:17-25), which property
-        // access and ^Pair(...) construction validate against.
+        // access and ^Pair(...) construction validate against. A CATALOG pin:
+        // the generated prelude module's classes are ordinary (non-native)
+        // classes of the boot layer (PRELUDE_MODULE_HOMEWORK §9.1).
         for (ClassDefinition c : Pure.allNativeClasses()) {
-            if (Prelude.classFqns().contains(c.qualifiedName())) {
-                continue;   // generated from the spec (PreludeGeneratorTest) — its own pins
-            }
             assertTrue(c.isNative(),
                     () -> "native class '" + c.qualifiedName() + "' has isNative=false");
             if (c.qualifiedName().startsWith("meta::json::JSON")) {
@@ -1331,9 +1332,6 @@ class NativeFunctionTest {
     void everyNativeClassHasUniqueFqn() {
         Set<String> seen = new HashSet<>();
         for (ClassDefinition c : Pure.allNativeClasses()) {
-            if (Prelude.classFqns().contains(c.qualifiedName())) {
-                continue;   // generated from the spec (PreludeGeneratorTest) — its own pins
-            }
             assertTrue(seen.add(c.qualifiedName()),
                     () -> "duplicate native class FQN: " + c.qualifiedName());
         }
@@ -1401,9 +1399,12 @@ class NativeFunctionTest {
 
     @Test
     void headlineNativeClassesAreAllPresent() {
+        // the platform's class universe: the catalog's hand shapes AND the
+        // generated prelude module (SYSTEM_PRELUDE_DESIGN §10)
         Set<String> simpleNames = Pure.allNativeClasses().stream()
                 .map(c -> simpleName(c.qualifiedName()))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(HashSet::new));
+        Prelude.classFqns().forEach(f -> simpleNames.add(simpleName(f)));
         for (String required : List.of(
                 "Any", "Nil", "Type",
                 "Number", "Integer", "Float", "Decimal",
@@ -1485,9 +1486,6 @@ class NativeFunctionTest {
                 // (real core/pure/router/extension)
                 "meta::pure::router::extension");
         for (ClassDefinition c : Pure.allNativeClasses()) {
-            if (Prelude.classFqns().contains(c.qualifiedName())) {
-                continue;   // generated from the spec (PreludeGeneratorTest) — its own pins
-            }
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
             assertTrue(ok, () -> "native class FQN outside expected packages: " + fqn);
@@ -1512,13 +1510,14 @@ class NativeFunctionTest {
         //     metamodel.pure — the bridge node enums).
         // 19: +SortItemOrdering/SortItemNullOrdering (postgres
         //     metamodel.pure:511/517).
-        long handEnums = Pure.allNativeEnums().stream()
-                .filter(e -> !Prelude.enumFqns().contains(e.qualifiedName())).count();
         // 19 -> 6 (2026-09-04, option S cut-over): 13 hand enum copies of
-        // spec enums deleted; the generator carries them now.
+        // spec enums deleted; the generator carries them now. 2026-09-08:
+        // the generated enums live in the prelude MODULE (prelude.pure),
+        // not this catalog — the catalog IS the hand count.
+        long handEnums = Pure.allNativeEnums().size();
         assertEquals(6, handEnums,
                 "Pure.java hand-declared native enum count moved: review the catalog"
-                        + " (generated enums live in Prelude.java)");
+                        + " (generated enums live in prelude.pure)");
     }
 
     @Test
@@ -1574,6 +1573,10 @@ class NativeFunctionTest {
         Set<String> catalogFqns = new HashSet<>();
         Pure.allNativeClasses().forEach(c -> catalogFqns.add(c.qualifiedName()));
         Pure.allNativeEnums().forEach(e -> catalogFqns.add(e.qualifiedName()));
+        // the generated prelude module is part of the platform's type
+        // universe (SYSTEM_PRELUDE_DESIGN §10): catalog ∪ module
+        catalogFqns.addAll(Prelude.classFqns());
+        catalogFqns.addAll(Prelude.enumFqns());
 
         java.util.SortedSet<String> missing = new java.util.TreeSet<>();
         for (NativeFunctionDefinition def : Pure.all()) {

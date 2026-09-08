@@ -828,3 +828,20 @@ USER: burn to zero, nothing decided away. Method as §22. SPEC_BODY_CENSUS §9 h
 | 7 | lanes | 2442 → 2376 → 2442 | the routing hijacked tableToTDS and cast; narrowed to `_this` functions with natives that never take the class |
 | 8 | guards | — | unify's generic arm split; `NumberLiterals` out of SpecParser; class count 84; Measure/Unit/Database surfaces; catalog +8 |
 | — | REMAINING 3 | | derived-property bodies — the generator's printer leg (SYSTEM_PRELUDE_DESIGN §9.3) |
+
+## 24. Batch 151 — the prelude is a MODULE, phase 1 (2026-09-08)
+
+Homework first (`docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md`, every §9 check decided before code), then the mechanism with
+today's demand: `prelude.pure` (verbatim, parser-delimited slices, per-file import scopes), `Prelude` reader, boot-layer
+merge, `bootFqns`, `withoutPreludeShadows` (61 T4 receipts), resolver universe = catalog ∪ module. Chain green, pass counts
+unchanged on every gate; census 1128/3 → 1226/22.
+
+| # | what the lanes/gates named | decided | where |
+|---|---|---|---|
+| 1 | bare `Relation`/`JoinType` flipped to the sql-protocol copies (13 G1 failures) — the fallback's collision winner was HashMap luck over 48 colliding simple names | RULE: catalog (declaration order), then module order (legend-pure first), FIRST claimant wins | homework §9.12; `NameResolver.platformTypeFqns` |
+| 2 | 8 DuckDB / 3 H2 tests: `TDSRow$prop$get` cannot inline, then `TDSRow$prop$getString` unknown — the spec's accessor bodies read the engine's row; ours are row natives | `PlatformTypes.isPlatformOwnedDerivedProperty`, one owner in `ClassCompiler` (three cycles: shadow route, ordinary route, class compile) | homework §9.14 |
+| 3 | channel B essential 313 < 314: `testPairCollectionToString` `<a, "b">` — `Pair.toString` as a body hits the Any-to-text rendering gap | TRANSITIONAL on the same list; NEXT LEG fixes the rendering and deletes Scalars' two arms | homework §9.15 |
+| 4 | `CompilerModuleTest.eagerCompileAllBodies`: the boot layer's 152 bodies in a user module's walls | `compileAllBodies` = the module's own pass; boot bodies are the census's | homework §9.13 |
+| 5 | G7 222 errors: `ModelPacker` read generic prelude classes as user classes | platform filter = catalog ∪ module | `pct/.../ModelPacker` |
+| 6 | `PureModelContextTest` ×2: a fixture bypassing the boot layer asked for `Month` | catalog enum as the witness (`DateTimeFormat`) | test |
+| 7 | `JavaEvalLedgerTest`: ModelPacker 267 > 266 code lines | one line | pin unchanged |

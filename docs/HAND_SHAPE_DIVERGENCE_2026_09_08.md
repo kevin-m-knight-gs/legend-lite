@@ -67,7 +67,7 @@ go when the shapes migrate).
 
 ## 4. The plan — in the order that removes mechanisms
 
-1. **The prelude becomes a Pure MODULE compiled through the user pipeline** (parse → resolve → normalize → build), the way
+1. **LANDED 2026-09-08 (batch 151, PRELUDE_MODULE_HOMEWORK §9).** The prelude becomes a Pure MODULE compiled through the user pipeline (parse → resolve → normalize → build), the way
    `SystemMetamodel.source()` already is. The generator writes source with imports instead of `nativeClass(...)` calls; derived
    properties are emitted verbatim and the normalizer lifts them like a user class's. This closes the last 3 census rows
    (`TableAlias.relation`, `GraphFetchTree.propertyTrees`), makes the printer unnecessary, and retires the on-demand lift in

@@ -47,6 +47,10 @@ class ParserBoundaryArchTest {
             // are fixed Pure SOURCE parsed once at class load — the same
             // bootstrap-loader regime as Pure itself
             "com/legend/builtin/SystemMetamodel.java",
+            // the prelude MODULE (SYSTEM_PRELUDE_DESIGN §10, 2026-09-08):
+            // generated spec declarations, fixed Pure SOURCE parsed once at
+            // class load — the same regime as the system metamodel
+            "com/legend/builtin/Prelude.java",
             "com/legend/harness/HarnessSubstitution.java",
             "com/legend/ide/ModelOrchestrator.java",
             "com/legend/testing/Own.java",

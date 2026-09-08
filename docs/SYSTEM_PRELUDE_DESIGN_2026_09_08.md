@@ -240,6 +240,14 @@ redefining a prelude class or enum is dropped in favour of the prelude (what the
 5. `tools/shape_sweep.py` becomes the governance pin; `FunctionCompiler`'s on-demand lift is deleted with the last
    catalog derived property.
 
+**Phase 1 LANDED (2026-09-08, batch 151):** `prelude.pure` (537 classes + 32 enums, VERBATIM, parser-delimited), the
+`Prelude` reader, the boot-layer merge, the resolver's ordered platform universe, the T4 drop with 61 receipts. Pass counts
+unchanged on every gate; census 1128/3 → 1226/22 (the 3 derived rows closed; 22 honest boot-body rows). Four findings
+decided in the homework's §9.12–§9.15: the bare-name collision winner is now a rule (catalog, then module order, first
+claimant); a derived property the platform implements natively (`TDSRow`'s accessors) is left out of the typed class by
+`PlatformTypes.isPlatformOwnedDerivedProperty`; `Pair`/`List` `toString` ride that list TRANSITIONALLY until the Any-to-text
+rendering leg (§8's last bullet) — the next leg; `Compiler.compileAllBodies` is the module's own pass.
+
 **Tenets and homework (added the same day):** `docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md` — T1 the prelude is what exists before
 any program (legend-pure platform + Java vocabulary + closure); T2 the graph is what programs declare or import by file (engine
 modules included; "the corpus names it" is not a prelude reason); T3 a prelude declaration names only prelude/catalog types; T4 a
