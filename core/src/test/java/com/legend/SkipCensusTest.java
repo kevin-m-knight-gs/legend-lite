@@ -54,6 +54,11 @@ class SkipCensusTest {
             // skips when the generated expected/ dir is absent — the
             // differential needs its oracle materialized first
             "CorpusDifferentialTest.java",
+            // the typing census (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08):
+            // skips only when the legend-pure checkout is absent — it is a
+            // REPORT (target/spec-body-census.txt), not yet a pin; its
+            // numbers are recorded in docs/SPEC_BODY_CENSUS_2026_09_08.md
+            "SpecBodyCensusTest.java",
             // ---- parser-equivalence (audit-of-audits #11: the walk
             // now covers sibling modules — these 8 carried the exact
             // vacuous-green pattern c4386547 was written to kill,

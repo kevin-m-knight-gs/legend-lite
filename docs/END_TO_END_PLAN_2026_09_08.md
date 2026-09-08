@@ -163,6 +163,8 @@ ENGINE-MACHINERY 44 / CODE-AS-DATA 16 / other 15); D1+D2 landed, D4 STARTED (Fun
 scope; slices: 1 extension registry by need (5, designed) → 2 program as m3 data both directions (2 + the func column) →
 3 protocol types (2) → 4 class instances in value position (5, H4). Two user decisions owed before batch 147.
 
+BATCH 148 LANDED (2026-09-08, the system prelude): design `docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md` (WORLD_MAP §8) — the prelude is system Pure GENERATED from the spec (shapes, derived bodies, spec function bodies); the five connection tests are ENGINE-MACHINERY; function-references/per-property/hand-off WITHDRAWN. `SpecBodyCensusTest` types every platform body: 481/643 → 950/174 once the kernel binds the enclosing function's type parameters per expression (kernel-class failures 470 → 1). No pass change; LEDGER §21. NEXT: the census work list in order (17 metamodel properties, 5 overload spellings, special-form routing, parser items, the IndexOutOfBounds typer bug), then generated derived bodies (Pair/List toString first).
+
 BATCH 147 LANDED (2026-09-08, strict first): the extension-registry chain walked program by program — 19 ledger rows
 (LEDGER_GRANULAR §20), the mechanism and vocabulary landed, the typing-surface-native → engine-program hand-off BUILT
 and SWITCHED OFF (`UserCallInliner.HAND_OFF_ON`) until the chain compiles end to end; no pass-count change, rosters

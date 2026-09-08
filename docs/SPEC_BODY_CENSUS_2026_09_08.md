@@ -79,3 +79,29 @@ type (an m3 metaclass we do not declare). Each is a parser or vocabulary row; no
 5. Parser: multiplicity literals, relation-type literals, class type variables, precise primitives with
    parameters, units.
 6. Then re-run; the list should be near zero, and the census becomes a pin.
+
+## 7. After the kernel rule (same day)
+
+Two kernel changes, both measured against channel B (unchanged: 314/13, 355, 137, 95, 204):
+
+1. **A variable already bound to a function type, meeting another function type, UNIFIES structurally**
+   instead of demanding equality (`InferenceKernel.bindOrCheckTypeVar`). The existing binding may
+   carry the enclosing function's own type and multiplicity parameters (`{->Z[y]}`), and real Pure
+   binds those per expression — `Z := Integer`, `y := 1` for THIS call. A genuinely different function
+   type still fails inside `unify` (the eval-wrong-arg spec holds).
+2. **Resolution follows variable chains** (`V := Z`, `Z := Integer`) with a cycle guard across the whole
+   resolution (`T := G<W>`, `W := G<T>` stays as-is) — `InferenceKernel.resolve` / `resolveMult`. Two
+   earlier attempts recursed on such cycles (StackOverflow in the census); the guard is a set of
+   variables being resolved.
+
+| | before | after |
+|---|---|---|
+| bodies typed OK | 481 | 950 |
+| bodies FAILED | 643 | 174 |
+| kernel-class failures | 470 | 1 |
+
+Remaining 174 by class: unknown-function 74 (`subTypeOf` 12, `generalizations` 11, `evaluate` 11,
+`genericTypeClass` 7, `stringToTDS` 5, `sourceInformation` 4, `canReactivateDynamically` 4,
+`openVariableValues` 3, `enumName` 3, `elementPath` 3, …), overload 35, unknown-property 30 (§3),
+unknown-type 6, other 30 (an `IndexOutOfBounds` in the typer ×7 — the `testCreateTempTable*` bodies,
+a bug; `eval` on a Property value ×3; `unknown enumeration` ×7; bare `PrimitiveType` ×4).

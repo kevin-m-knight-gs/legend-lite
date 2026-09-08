@@ -60,6 +60,10 @@ class ParserBoundaryArchTest {
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)
             "com/legend/tools/PreludeGeneratorTest.java",
+            // the typing CENSUS parses legend-pure's platform packages —
+            // the spec's own declaration files, the same provenance as the
+            // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)
+            "com/legend/tools/SpecBodyCensusTest.java",
             "com/legend/equivalence/Surfaces.java",
             // Phase 4 entry gate: channel B's front door IS a dialect
             // decision — the PCT sources are the M3 surface, parsed at

@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 148 / the system-prelude census + the kernel rule LANDED (2026-09-08)** — no pass change (DuckDB 108/2442, H2 565/1990); `SpecBodyCensusTest` types every Pure body in legend-pure's platform packages: 481/643 → 950/174 after the kernel binds the enclosing function's type parameters per expression (`InferenceKernel`); the 174 are the typing work list (SPEC_BODY_CENSUS §6–7); LEDGER_GRANULAR §21.
+
 Status: **batch 147 / Phase 5 strict first — mechanism + ledger LANDED, hand-off off (2026-09-08)** — no pass change (DuckDB 108/2442, H2 565/1990); 19 rows in LEDGER_GRANULAR §20; the engine function id generated (no regex decoder); native ownership; record-field lambdas by signature; 24 engine files as vocabulary; ~30 spec signatures. NEXT 148: function references as values, then the hand-off switch.
 
 Status: **batch 146 / importDataFlow LANDED (2026-09-08)** — testPksWithImportDataFlow flipped on both lanes (DuckDB 108/2442, H2 565/1990); the union's key threads are model facts (`ModelContext.unionKeyThreads`), the execute option derives its columns once and the resolver appends `coalesce(row.<thread>, default)` beside DriverPkAppend (design `docs/IMPORT_DATA_FLOW_DESIGN_2026_09_08.md`, ledger §19). NEXT (USER 2026-09-08, after batch 146): straight to Phase 5 — code and metamodel as data (docs/CODE_AS_DATA_HOMEWORK_2026_09_05.md, sized first, smallest witnessed slice); the two remaining real code legs (the mixed-mapping union key demand `testMixedMappingWithFilterInProject`, the TDG view slice `testAlloyTestDatGenWithQuotedColumnsForViews`) are DEFERRED, not dropped.

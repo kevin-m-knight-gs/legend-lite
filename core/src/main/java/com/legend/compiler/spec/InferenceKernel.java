@@ -570,6 +570,19 @@ public final class InferenceKernel {
                 b.bindType(v.name(), commonSupertype(existing, actual));
                 return;
             }
+            // A variable already bound to a FUNCTION TYPE meeting another function
+            // type UNIFIES structurally instead of demanding equality: the
+            // existing binding may carry the ENCLOSING function's own type and
+            // multiplicity parameters (the PCT harness shape `f:Function<{Function<
+            // {->Z[y]}>[1]->Z[y]}>`, then `$f->eval(|1)`), and real pure binds those
+            // per expression — Z := Integer, y := 1 for THIS call. A genuinely
+            // different function type still fails inside unify (the eval-wrong-arg
+            // spec). Typing census 2026-09-08: 605 of 643 rows were this.
+            if (existing instanceof Type.FunctionType ef && actual instanceof Type.FunctionType af
+                    && ef.params().size() == af.params().size()) {
+                unify(existing, actual, b);
+                return;
+            }
             if (!compatibleRebind(existing, actual)) {
                 // A RIGID/contravariant binding whose DECLARED type is an
                 // abstract value head accepts actuals UP pure's lattice —
@@ -809,13 +822,33 @@ public final class InferenceKernel {
      * {@code Relation<row>} to its bare row-struct (the value form, G-&alpha;) and
      * evaluates {@link Type.SchemaAlgebra}. Throws on an unbound variable.
      */
+    /** Variables whose bindings are being resolved right now (the cycle guard). */
+    private final java.util.Set<String> resolving = new java.util.HashSet<>();
+
     public Type resolve(Type t, Bindings b) {
         return switch (t) {
             // The unknown column type `?` of a colspec VALUE is not a solvable variable —
             // it passes through untouched (⊆/= replace it before it can reach an output schema).
             case Type.TypeVar v when isUnknown(v) -> t;
-            case Type.TypeVar v -> b.type(v.name()).orElseThrow(() ->
-                    new TypeInferenceException("unbound type variable " + v.name()));
+            // a variable bound to a type that itself carries variables (V := Z,
+            // Z := Integer — the enclosing function's parameters bound per call)
+            // resolves THROUGH the chain; a self-binding stops it
+            case Type.TypeVar v -> {
+                Type bound = b.type(v.name()).orElseThrow(() ->
+                        new TypeInferenceException("unbound type variable " + v.name()));
+                // CYCLE GUARD across the whole resolution (T := G<W>, W := G<T>):
+                // a variable met again while its own binding is being resolved
+                // stays as-is — no finite resolution exists
+                if (!resolving.add(v.name())) {
+                    yield t;
+                }
+                try {
+                    yield bound instanceof Type.TypeVar tv && tv.name().equals(v.name())
+                            ? bound : resolve(bound, b);
+                } finally {
+                    resolving.remove(v.name());
+                }
+            }
 
             // Relation<T> stays WRAPPED (the G-α erasure is deleted): T
             // resolves to the bound schema struct and the container
@@ -939,8 +972,16 @@ public final class InferenceKernel {
     /** Resolve a return multiplicity: a {@link Multiplicity.Var} is looked up, otherwise identity. */
     public Multiplicity resolveMult(Multiplicity m, Bindings b) {
         return switch (m) {
-            case Multiplicity.Var v -> b.mult(v.name()).orElseThrow(() ->
-                    new TypeInferenceException("unbound multiplicity variable " + v.name()));
+            case Multiplicity.Var v -> {
+                Multiplicity bound = b.mult(v.name()).orElseThrow(() ->
+                        new TypeInferenceException("unbound multiplicity variable " + v.name()));
+                java.util.Set<String> seen = new java.util.HashSet<>(java.util.List.of(v.name()));
+                while (bound instanceof Multiplicity.Var bv && seen.add(bv.name())
+                        && b.mult(bv.name()).isPresent()) {
+                    bound = b.mult(bv.name()).orElseThrow();
+                }
+                yield bound;
+            }
             case Multiplicity.Bounded ignored -> m;
         };
     }
