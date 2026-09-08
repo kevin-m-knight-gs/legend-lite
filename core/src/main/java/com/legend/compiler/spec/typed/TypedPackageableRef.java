@@ -20,4 +20,8 @@ public record TypedPackageableRef(String fullPath, ExprType info) implements Typ
         TypedSpec.expectChildren(kids, 0, "TypedPackageableRef");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedPackageableRef(fullPath, info);
+    }
 }

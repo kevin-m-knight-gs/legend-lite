@@ -111,6 +111,16 @@ public sealed interface TypedSpec permits
     TypedSpec withChildren(List<TypedSpec> children);
 
     /**
+     * Rebuild this node with {@code info} replacing {@link #info()}, every
+     * other field kept — the type-stamp inverse of {@code info()}. Mandatory
+     * like {@link #withChildren}. Its one consumer is GENERIC INSTANTIATION
+     * at the inlining seam ({@code UserCallInliner.instantiate}): a callee
+     * typed over its own type parameters leaves its body stamped with them,
+     * and the application resolves every such stamp under its bindings.
+     */
+    TypedSpec withInfo(ExprType info);
+
+    /**
      * The one-step structural rewrite every walker shares: apply {@code f} to
      * each child and reassemble through {@link #withChildren} — the variant's
      * own inverse, so a hand rebuild can never drop a field. Identity is

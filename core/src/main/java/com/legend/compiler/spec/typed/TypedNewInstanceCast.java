@@ -44,4 +44,8 @@ public record TypedNewInstanceCast(String classFqn, TypedSpec source,
         TypedSpec.expectChildren(kids, 1, "TypedNewInstanceCast");
         return new TypedNewInstanceCast(classFqn, kids.get(0), info, targetSetId);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedNewInstanceCast(classFqn, source, info, targetSetId);
+    }
 }

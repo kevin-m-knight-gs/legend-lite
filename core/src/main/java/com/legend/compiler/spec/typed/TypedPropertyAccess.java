@@ -25,4 +25,8 @@ public record TypedPropertyAccess(TypedSpec source, String property, ExprType in
         TypedSpec.expectChildren(kids, 1, "TypedPropertyAccess");
         return new TypedPropertyAccess(kids.get(0), property, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedPropertyAccess(source, property, info);
+    }
 }

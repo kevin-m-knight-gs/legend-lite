@@ -194,6 +194,11 @@ WITH one — is surfaced automatically.
   `Any`-carried string came back JSON-quoted (batch 147, `testPairCollectionToString`
   under the flip). A lowering bug with that test as its witness once
   `Pair.toString` is a generated body.
+  FIXED (batch 152): not a lowering bug — an inlined generic body kept its
+  type-variable stamps, so the lowering never saw `Any`; monomorphization
+  at the application now resolves every stamp and re-dispatches the
+  class's own toString (PRELUDE_MODULE_HOMEWORK §9.15). The Pair/List Java
+  arms in Scalars are deleted; `format` prints class slots through toString.
 
 ## 9. Batch 148, in order
 
@@ -247,6 +252,9 @@ decided in the homework's §9.12–§9.15: the bare-name collision winner is now
 claimant); a derived property the platform implements natively (`TDSRow`'s accessors) is left out of the typed class by
 `PlatformTypes.isPlatformOwnedDerivedProperty`; `Pair`/`List` `toString` ride that list TRANSITIONALLY until the Any-to-text
 rendering leg (§8's last bullet) — the next leg; `Compiler.compileAllBodies` is the module's own pass.
+**Batch 152 (same day):** the rendering leg landed — generic bodies monomorphize completely at the inlining seam
+(`TypedSpec.withInfo`, `UserCallInliner.instantiate` + re-dispatch), Scalars' Pair/List arms deleted, `format` slots
+print through `toString`, the spec body census PINNED shrink-only at 22 rows and running in gate 1.
 
 **Tenets and homework (added the same day):** `docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md` — T1 the prelude is what exists before
 any program (legend-pure platform + Java vocabulary + closure); T2 the graph is what programs declare or import by file (engine

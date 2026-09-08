@@ -586,18 +586,29 @@ public final class PlatformTypes {
             "getString", "getNullableString", "getNumber", "getInteger", "getFloat",
             "getDecimal", "getDate", "getDateTime", "getStrictDate", "getBoolean", "getEnum");
 
+    /** {@code meta::pure::functions::string::format}: its {@code %s} slots
+     * print an argument by the argument's own {@code toString()} — real
+     * pure's format calls toString on each value, so a CLASS-typed slot
+     * (a Pair, a List, a user class) types as {@code $arg->toString()} and
+     * reaches the class's own body (batch 152: the Pair/List Java arms in
+     * lowering/Scalars, ports of the spec bodies, are gone). */
+    public static final String FORMAT = "meta::pure::functions::string::format";
+
+    /** A value whose text form is its class's {@code toString()}: an
+     * instance of a class or a class carrier — never a primitive, an enum,
+     * {@code Any}/{@code Nil} (variant-carried scalars print as
+     * themselves), a variant, or a relation. */
+    public static boolean printsByOwnToString(Type t) {
+        return switch (t) {
+            case Type.ClassType c -> !isAny(c) && !isNil(c) && !isVariant(c)
+                    && Type.schemaView(c) == null;
+            case Type.GenericType g -> isPairCarrier(g) || isListCarrier(g);
+            default -> false;
+        };
+    }
+
     public static boolean isPlatformOwnedDerivedProperty(String ownerFqn, String name) {
-        return (TDS_ROW.equals(ownerFqn) && TDS_ROW_OWNED_ACCESSORS.contains(name))
-                // TRANSITIONAL (phase 1, PRELUDE_MODULE_HOMEWORK §9.15): the
-                // module now carries Pair.toString / List.toString as spec
-                // bodies, but lowering/Scalars' Java arms (isPairCarrier,
-                // isListCarrier) still render them — the bodies expose the
-                // Any-to-text rendering gap (channel B essential
-                // testPairCollectionToString: an Any-carried 'b' renders as
-                // "b"). The leg that fixes that rendering deletes the two
-                // arms AND these two entries (SYSTEM_PRELUDE_DESIGN §8).
-                || (PAIR.equals(ownerFqn) && "toString".equals(name))
-                || (LIST.equals(ownerFqn) && "toString".equals(name));
+        return TDS_ROW.equals(ownerFqn) && TDS_ROW_OWNED_ACCESSORS.contains(name);
     }
 
     public static boolean isPlatformOwnedFunction(String fqn) {

@@ -30,4 +30,8 @@ public record TypedWrite(TypedSpec source, Optional<TypedSpec> destination, Expr
                 destination.isPresent() ? java.util.Optional.of(kids.get(1))
                         : java.util.Optional.empty(), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedWrite(source, destination, info);
+    }
 }

@@ -63,4 +63,8 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         return new TypedNativeCall(callee, kids, info, pos);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedNativeCall(callee, args, info, pos);
+    }
 }

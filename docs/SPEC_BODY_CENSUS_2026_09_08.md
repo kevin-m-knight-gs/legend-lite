@@ -267,3 +267,9 @@ their spec file's imports; no printer was written (the homework's §0b rejected 
 | 1 | `RelationElementAccessorExtension$constraint$0` | a typer gap on the constraint's body |
 
 Phase 3 (T1/T2 demand cut) removes the engine-side owners of most of these from the prelude; what stays is the typing list.
+
+### 10.3 Pinned (batch 152)
+
+`SpecBodyCensusTest` asserts `failed <= 22` and `load walls <= 6` (shrink-only) and runs in gate 1: its root defaults to
+the reference checkout (`/Users/neemsandv/legend/legend-pure`) like the prelude generator, so the chain measures it on
+every batch. A new row is a regression to name; a burned row lowers the number.

@@ -54,4 +54,8 @@ public record TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
                 (TypedLambda) kids.get(3), prefix, frameName, info,
                 userCondition);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedJoin(left, right, kind, condition, prefix, frameName, info, userCondition);
+    }
 }

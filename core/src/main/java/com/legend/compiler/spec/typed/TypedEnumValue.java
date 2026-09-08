@@ -24,4 +24,8 @@ public record TypedEnumValue(String enumFqn, String value, ExprType info) implem
         TypedSpec.expectChildren(kids, 0, "TypedEnumValue");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedEnumValue(enumFqn, value, info);
+    }
 }

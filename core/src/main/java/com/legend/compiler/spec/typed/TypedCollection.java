@@ -38,4 +38,8 @@ public record TypedCollection(List<TypedSpec> elements, ExprType info,
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         return new TypedCollection(kids, info, rowCells);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCollection(elements, info, rowCells);
+    }
 }

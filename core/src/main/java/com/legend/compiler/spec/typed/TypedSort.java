@@ -50,4 +50,8 @@ public record TypedSort(TypedSpec source, List<TypedSortKey> keys,
         TypedSpec.expectChildren(kids, 1, "TypedSort");
         return new TypedSort(kids.get(0), keys, pureNullOrder, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSort(source, keys, pureNullOrder, info);
+    }
 }

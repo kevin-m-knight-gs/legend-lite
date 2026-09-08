@@ -29,4 +29,8 @@ public record TypedDistinct(TypedSpec source, List<String> columns, ExprType inf
         TypedSpec.expectChildren(kids, 1, "TypedDistinct");
         return new TypedDistinct(kids.get(0), columns, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedDistinct(source, columns, info);
+    }
 }

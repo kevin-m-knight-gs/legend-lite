@@ -57,4 +57,8 @@ public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         }
         return new TypedExtendAgg(kids.get(0), as, info, extentBoundary);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedExtendAgg(source, aggs, info, extentBoundary);
+    }
 }

@@ -23,4 +23,8 @@ public record TypedCTime(PureTimeLiteral value, ExprType info) implements TypedS
         TypedSpec.expectChildren(kids, 0, "TypedCTime");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCTime(value, info);
+    }
 }

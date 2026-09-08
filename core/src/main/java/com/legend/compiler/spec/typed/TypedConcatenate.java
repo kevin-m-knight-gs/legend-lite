@@ -24,4 +24,8 @@ public record TypedConcatenate(TypedSpec left, TypedSpec right, ExprType info) i
         TypedSpec.expectChildren(kids, 2, "TypedConcatenate");
         return new TypedConcatenate(kids.get(0), kids.get(1), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedConcatenate(left, right, info);
+    }
 }

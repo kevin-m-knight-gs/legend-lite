@@ -46,4 +46,8 @@ public record TypedJoinSlot(TypedSpec source, String alias, TypedSpec target,
         return new TypedJoinSlot(kids.get(0), alias, kids.get(1),
                 (TypedLambda) kids.get(2), frameName, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedJoinSlot(source, alias, target, condition, frameName, info);
+    }
 }

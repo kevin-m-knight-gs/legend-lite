@@ -373,8 +373,8 @@ public final class UserCallInliner {
                     widened = true;
                 }
             }
-            TypedSpec reduced = instantiateRoot(deepFoldInlined(
-                    reduceStatements(body, callEnv)), call.info());
+            TypedSpec reduced = instantiate(deepFoldInlined(
+                    reduceStatements(body, callEnv)), call, args);
             if (widened && com.legend.compiler.element.type.Type
                     .relationSchema(call.info().type())
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
@@ -402,13 +402,114 @@ public final class UserCallInliner {
         }
     }
 
-    /** GENERIC INSTANTIATION at the inlining seam: a callee typed over a
-     * type variable ({@code firstNotNull<T>}) leaves its body's root
-     * stamped {@code T}; the CALL SITE's info is that variable's
-     * instantiation (the typer bound it from the arguments), so the root
-     * carries the call's concrete type into the lowering. Only a
-     * type-variable-stamped root is re-stamped; a concrete one is the
-     * body's own truth. */
+    /**
+     * GENERIC INSTANTIATION at the inlining seam — monomorphization at the
+     * application (Phase 5 batch 147, row 15), applied to the WHOLE body:
+     * a callee typed over its own type parameters leaves every node of its
+     * body stamped with them ({@code $this.second : V} inside
+     * {@code Pair<U,V>.toString()}); the application binds them by unifying
+     * the declared parameter types against the argument types
+     * ({@code V := Any} for a {@code Pair<String, Any>} receiver) and every
+     * type-variable-stamped node resolves under those bindings, so the
+     * lowering never dispatches on a type variable (a stale {@code V} fell
+     * to toString's plain-cast arm and printed {@code <a, "b">} — batch 152,
+     * the module's Pair.toString body running for the first time). A stamp
+     * the bindings cannot resolve stays as the body's own (the lowering's
+     * boundary refuses it loudly). The root additionally takes the CALL
+     * SITE's type, the typer's own instantiation ({@link #instantiateRoot}).
+     */
+    private TypedSpec instantiate(TypedSpec reduced, TypedUserCall call,
+            List<TypedSpec> args) {
+        TypedSpec out = reduced;
+        com.legend.compiler.element.TypedFunction callee = call.callee();
+        if (!callee.typeParameters().isEmpty()) {
+            InferenceKernel kernel = new InferenceKernel(specs.ctx());
+            Bindings b = new Bindings();
+            for (int i = 0; i < callee.parameters().size() && i < args.size(); i++) {
+                try {
+                    kernel.unify(callee.parameters().get(i).type(),
+                            args.get(i).info().type(), b);
+                } catch (TypeInferenceException e) {
+                    // admitted by another of the resolver's rules (supertype
+                    // instantiation, relation widening): that binding stays
+                    // open and its stamps stay the body's own
+                }
+            }
+            if (!(call.info().type() instanceof com.legend.compiler.element.type.Type.TypeVar)) {
+                try {
+                    kernel.unify(callee.returnType(), call.info().type(), b);
+                } catch (TypeInferenceException e) {
+                    // same
+                }
+            }
+            out = redispatch(resolveStamps(out, kernel, b));
+        }
+        return instantiateRoot(out, call.info());
+    }
+
+    /**
+     * The derived-shadow rule at INSTANTIATION time: the typer routes a
+     * receiver's own qualified property before an Any-first native
+     * ({@code Typer.derivedShadow}) when it types a call — but inside a
+     * generic body the receiver was a type variable ({@code $this.second :
+     * V}), so {@code ->toString()} bound to the native. Once the
+     * application makes the receiver concrete (a nested {@code Pair}), the
+     * same rule applies: the native call becomes the class's own body,
+     * inlined in turn (testFormatPair's {@code <dog, <cat, mouse>>}).
+     */
+    private TypedSpec redispatch(TypedSpec n) {
+        TypedSpec walked = n.mapChildren(this::redispatch);
+        if (!(walked instanceof TypedNativeCall c) || c.args().isEmpty()
+                || c.callee().parameters().isEmpty()
+                || !com.legend.compiler.element.type.PlatformTypes.isAny(
+                        c.callee().parameters().get(0).type())) {
+            return walked;
+        }
+        TypedSpec recv = c.args().get(0);
+        String classFqn = recv.info().type() instanceof com.legend.compiler.element.type.Type.ClassType ct
+                ? ct.fqn()
+                : recv.info().type() instanceof com.legend.compiler.element.type.Type.GenericType g
+                        ? g.rawFqn() : null;
+        if (classFqn == null
+                || recv.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded rb
+                        && rb.isMany()) {
+            return walked;
+        }
+        String fn = c.callee().qualifiedName();
+        int cut = fn.lastIndexOf("::");
+        String simple = cut < 0 ? fn : fn.substring(cut + 2);
+        if (!(specs.ctx().findProperty(classFqn, simple).orElse(null)
+                        instanceof com.legend.compiler.element.Property.Derived d)
+                || d.parameters().size() != c.args().size() - 1) {
+            return walked;
+        }
+        for (com.legend.compiler.element.TypedFunction body
+                : specs.ctx().findFunction(d.bodyFunctionFqn())) {
+            if (body.parameters().size() == c.args().size()) {
+                return inlineCall(new TypedUserCall(body, c.args(), c.info()), Map.of());
+            }
+        }
+        return walked;
+    }
+
+    private static final Bindings NONE = new Bindings();
+
+    private static TypedSpec resolveStamps(TypedSpec n, InferenceKernel kernel, Bindings b) {
+        TypedSpec walked = n.mapChildren(k -> resolveStamps(k, kernel, b));
+        com.legend.compiler.element.type.Type t = walked.info().type();
+        // a stamp with no type variable is the body's own truth; one the
+        // application left partly open (a variable it never bound) stays too
+        if (!kernel.hasFreeTypeVars(t, NONE) || kernel.hasFreeTypeVars(t, b)) {
+            return walked;
+        }
+        com.legend.compiler.element.type.Type r = kernel.resolve(t, b);
+        return r.equals(t) ? walked
+                : walked.withInfo(new ExprType(r, walked.info().multiplicity()));
+    }
+
+    /** The ROOT's instantiation: a type-variable-stamped root takes the
+     * CALL SITE's info (the typer bound it from the arguments); a concrete
+     * one is the body's own truth. */
     private static TypedSpec instantiateRoot(TypedSpec reduced, ExprType callInfo) {
         if (!(reduced.info().type() instanceof com.legend.compiler.element.type.Type.TypeVar)
                 || callInfo.type() instanceof com.legend.compiler.element.type.Type.TypeVar) {

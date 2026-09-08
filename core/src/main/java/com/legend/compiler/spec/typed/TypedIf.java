@@ -28,4 +28,8 @@ public record TypedIf(TypedSpec condition, TypedSpec thenBranch,
                 elseBranch.isPresent() ? java.util.Optional.of(kids.get(2))
                         : java.util.Optional.empty(), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedIf(condition, thenBranch, elseBranch, info);
+    }
 }

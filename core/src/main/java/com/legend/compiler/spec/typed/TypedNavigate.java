@@ -95,4 +95,8 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
         return new TypedNavigate(kids.get(0), alias, tgt, pred, paired,
                 frameName, form, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedNavigate(source, alias, target, predicate, pairedPredicate, frameName, form, info);
+    }
 }

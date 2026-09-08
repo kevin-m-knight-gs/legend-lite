@@ -1464,6 +1464,15 @@ final class Typer {
             return autoMapped;
         }
         Application a = checkGeneric(af, env);
+        // format's %s slots print a CLASS-typed argument by its own
+        // toString() (real pure's format calls toString per value): rewrite
+        // those slots as `$arg->toString()` and type the call again — the
+        // receiver's own body runs (derivedShadow); the rewritten slots are
+        // Strings, so the second pass finds nothing to rewrite
+        AppliedFunction printed = CallShapes.formatSlotsByToString(af, a);
+        if (printed != null) {
+            return applyGeneric(printed, env);
+        }
         // MONOMORPHIZE AT THE APPLICATION: an executed call has its
         // arguments here; inside a stored lambda literal there are none
         // yet, so the call keeps its signature typing (the engine types
@@ -1507,7 +1516,13 @@ final class Typer {
                         && rb.isMany()) {
             return null;
         }
-        if (!(ctx.findProperty(classFqn, af.function()).orElse(null)
+        // by the function's SIMPLE name: a fully qualified spelling of the
+        // native (`->meta::pure::functions::string::toString()`, the PCT
+        // printer's form) names the same call and real pure routes the
+        // receiver's own toString() all the same (testPairToString, batch 152)
+        int cut = af.function().lastIndexOf("::");
+        String simple = cut < 0 ? af.function() : af.function().substring(cut + 2);
+        if (!(ctx.findProperty(classFqn, simple).orElse(null)
                         instanceof Property.Derived d)
                 || d.parameters().size() != af.parameters().size() - 1) {
             return null;

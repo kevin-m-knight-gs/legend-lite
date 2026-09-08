@@ -26,4 +26,8 @@ public record TypedCollectionRelation(TypedSpec value, String column, ExprType i
         TypedSpec.expectChildren(kids, 1, "TypedCollectionRelation");
         return new TypedCollectionRelation(kids.get(0), column, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCollectionRelation(value, column, info);
+    }
 }

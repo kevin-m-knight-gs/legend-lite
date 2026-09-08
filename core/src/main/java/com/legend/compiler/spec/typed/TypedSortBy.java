@@ -37,4 +37,8 @@ public record TypedSortBy(TypedSpec source, TypedLambda key, boolean ascending,
         TypedSpec.expectChildren(kids, 2, "TypedSortBy");
         return new TypedSortBy(kids.get(0), (TypedLambda) kids.get(1), ascending, keyAlias, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSortBy(source, key, ascending, keyAlias, info);
+    }
 }

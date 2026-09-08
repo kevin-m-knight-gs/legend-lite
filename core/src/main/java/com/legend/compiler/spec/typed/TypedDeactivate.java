@@ -39,4 +39,8 @@ public record TypedDeactivate(TypedSpec inner, ExprType declared,
         TypedSpec.expectChildren(kids, 1, "TypedDeactivate");
         return new TypedDeactivate(kids.get(0), declared, generic, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedDeactivate(inner, declared, generic, info);
+    }
 }

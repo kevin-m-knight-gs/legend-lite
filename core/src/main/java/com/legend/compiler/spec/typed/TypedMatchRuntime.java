@@ -83,4 +83,8 @@ public record TypedMatchRuntime(
                 extra.map(ignored -> kids.get(1)),
                 dynamicArms.map(ignored -> kids.get(dynAt)), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedMatchRuntime(input, arms, extraParam, extra, dynamicArms, info);
+    }
 }

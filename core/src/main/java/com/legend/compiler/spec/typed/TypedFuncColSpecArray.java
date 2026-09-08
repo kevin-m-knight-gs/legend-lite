@@ -32,4 +32,8 @@ public record TypedFuncColSpecArray(List<TypedFuncCol> cols, ExprType info) impl
         }
         return new TypedFuncColSpecArray(cs, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedFuncColSpecArray(cols, info);
+    }
 }

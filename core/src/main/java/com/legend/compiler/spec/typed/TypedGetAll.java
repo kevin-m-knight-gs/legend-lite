@@ -41,4 +41,8 @@ public record TypedGetAll(String classFqn, List<TypedSpec> milestoning,
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         return new TypedGetAll(classFqn, kids, versionSweep, forEachDate, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedGetAll(classFqn, milestoning, versionSweep, forEachDate, info);
+    }
 }

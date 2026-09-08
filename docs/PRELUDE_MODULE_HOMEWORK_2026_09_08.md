@@ -140,8 +140,9 @@ exists only because emission was still re-printing. Delete it; copy the declarat
 Phases, one batch each, lanes exact between them:
 1. **Mechanism — LANDED 2026-09-08 (batch 151; §9 carries every decision and the four findings).** Pass counts unchanged
    (DuckDB 2442/108/14/11, H2 1990/565/14/6, channel B 314/13, 355, 137, 95, 204; G1 4377); census 1128/3 → 1226/22 (§9.4).
-   Branch `wip/prelude-module` is superseded by this landing (never merged; delete at leisure). NEXT LEG, before phase 2: the
-   Any-to-text rendering (§9.15) so `Pair`/`List` `toString` run as bodies and Scalars' two Java arms go.
+   Branch `wip/prelude-module` is superseded by this landing (never merged; delete at leisure). The Any-to-text leg (§9.15)
+   LANDED as batch 152: `Pair`/`List` `toString` run as bodies, Scalars' two Java arms are gone, the census is pinned.
+   NEXT: phase 2 (below), then phase 3.
    As planned: `prelude.pure` written by the generator (verbatim declarations, per-file sections + imports), a small hand-written
    `Prelude.java` reader, the boot layer merging it beside the system metamodel (one hash, one cache), the resolver's bare-name
    fallback knowing its names, T4's drop rule, the pins widened (`headlineNativeClassesAreAllPresent`,
@@ -284,6 +285,21 @@ Decided while implementing (2026-09-08):
     platform-owned derived list with a TRANSITIONAL receipt. NEXT LEG (first after phase 1): fix the Any-to-text rendering
     (the variant carrier's `toString` of a scalar renders the scalar's text, never its JSON), delete the two arms and the
     two list entries, and let the bodies run — the design's original batch-148 item 3.
+    **LANDED (batch 152, 2026-09-08).** The cause was not the Any arm (it already strips JSON quoting) but MONOMORPHIZATION:
+    the module's `Pair<U,V>.toString()` body is typed once, generically, and `UserCallInliner` β-reduced it keeping every
+    node's stamp — `$this.second : V` reached the lowering as a type variable and `toString`'s fall-through cast printed
+    the JSON. Three rules, all at the inlining seam, each the design's "monomorphize at the application" (batch 147 row
+    15) made complete: (a) `TypedSpec.withInfo` (every node record) and `UserCallInliner.instantiate` — the application
+    binds the callee's type parameters by unifying declared parameter types against the argument types and every
+    type-variable stamp in the inlined body resolves under them (the old rule re-stamped the ROOT only); (b) RE-DISPATCH
+    — the derived-shadow rule applied once a receiver that was a type variable is concrete: an Any-first native call
+    whose receiver now has its own same-named derived property becomes that body, inlined in turn (`<dog, <cat, mouse>>`);
+    (c) the shadow keys on the function's SIMPLE name — the PCT printer spells `->meta::pure::functions::string::toString()`
+    and real pure routes the class's own toString all the same. And `format`'s `%s` slots print a class-typed argument
+    through its own `toString()` at TYPING (`CallShapes.formatSlotsByToString`, `PlatformTypes.printsByOwnToString`) —
+    real pure's format calls toString per value. Scalars' two Java arms and the format pre-print are DELETED; the two
+    transitional list entries are gone; `SpecBodyCensusTest` is PINNED shrink-only (22 rows, 6 load walls) and runs in
+    gate 1 (its root defaults to the reference checkout like the generator). Pass counts unchanged on every gate.
 
 ## 10. Glossary (terms that confused in discussion)
 

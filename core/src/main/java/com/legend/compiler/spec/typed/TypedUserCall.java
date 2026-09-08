@@ -28,4 +28,8 @@ public record TypedUserCall(TypedFunction callee, List<TypedSpec> args, ExprType
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         return new TypedUserCall(callee, kids, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedUserCall(callee, args, info);
+    }
 }

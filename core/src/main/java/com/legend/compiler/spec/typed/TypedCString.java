@@ -16,4 +16,8 @@ public record TypedCString(String value, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedCString");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCString(value, info);
+    }
 }

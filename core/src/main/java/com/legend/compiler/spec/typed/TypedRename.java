@@ -36,4 +36,8 @@ public record TypedRename(TypedSpec source, List<ColRename> renames, ExprType in
         TypedSpec.expectChildren(kids, 1, "TypedRename");
         return new TypedRename(kids.get(0), renames, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedRename(source, renames, info);
+    }
 }

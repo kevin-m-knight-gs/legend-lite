@@ -16,4 +16,8 @@ public record TypedCBoolean(boolean value, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedCBoolean");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCBoolean(value, info);
+    }
 }

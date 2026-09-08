@@ -26,4 +26,8 @@ public record TypedSortInfo(String column, boolean ascending, ExprType info) imp
         TypedSpec.expectChildren(kids, 0, "TypedSortInfo");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSortInfo(column, ascending, info);
+    }
 }

@@ -16,4 +16,8 @@ public record TypedVariable(String name, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedVariable");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedVariable(name, info);
+    }
 }

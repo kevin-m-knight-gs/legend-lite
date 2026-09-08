@@ -16,4 +16,8 @@ public record TypedCDecimal(java.math.BigDecimal value, ExprType info) implement
         TypedSpec.expectChildren(kids, 0, "TypedCDecimal");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCDecimal(value, info);
+    }
 }

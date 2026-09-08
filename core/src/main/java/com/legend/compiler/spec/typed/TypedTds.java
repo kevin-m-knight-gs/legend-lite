@@ -30,4 +30,8 @@ public record TypedTds(List<List<String>> rows, ExprType info) implements TypedS
         TypedSpec.expectChildren(kids, 0, "TypedTds");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedTds(rows, info);
+    }
 }

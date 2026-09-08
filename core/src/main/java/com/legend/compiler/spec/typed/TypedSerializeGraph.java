@@ -275,4 +275,8 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                 fqTypePath, ccs, removeNullKeys, removeEmptySets,
                 objectRefPrefix);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix);
+    }
 }

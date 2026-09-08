@@ -27,4 +27,8 @@ public record TypedColSpecArray(List<String> names, ExprType info) implements Ty
         TypedSpec.expectChildren(kids, 0, "TypedColSpecArray");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedColSpecArray(names, info);
+    }
 }

@@ -38,4 +38,8 @@ public record TypedTestDataGen(
         TypedSpec.expectChildren(kids, 0, "TypedTestDataGen");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedTestDataGen(params, flavor, info);
+    }
 }

@@ -43,4 +43,8 @@ public record TypedMilestonedAccess(TypedSpec source, String property,
         return new TypedMilestonedAccess(kids.get(0), property,
                 kids.subList(1, kids.size()), sweep, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedMilestonedAccess(source, property, dates, sweep, info);
+    }
 }

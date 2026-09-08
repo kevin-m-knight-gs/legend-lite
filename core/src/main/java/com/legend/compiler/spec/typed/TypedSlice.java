@@ -25,4 +25,8 @@ public record TypedSlice(TypedSpec source, TypedSpec start, TypedSpec stop, Expr
         TypedSpec.expectChildren(kids, 3, "TypedSlice");
         return new TypedSlice(kids.get(0), kids.get(1), kids.get(2), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSlice(source, start, stop, info);
+    }
 }

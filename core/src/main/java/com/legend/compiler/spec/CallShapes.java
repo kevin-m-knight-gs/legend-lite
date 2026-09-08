@@ -104,4 +104,47 @@ final class CallShapes {
         return null;
     }
 
+
+    /** {@code format(fmt, args)} with a CLASS-typed slot: the slot rewritten
+     * as {@code $arg->toString()} (PlatformTypes.FORMAT / printsByOwnToString);
+     * null when no slot needs it. */
+    static @com.legend.Nullable AppliedFunction formatSlotsByToString(AppliedFunction af,
+            Application a) {
+        if (!com.legend.compiler.element.type.PlatformTypes.FORMAT
+                .equals(a.chosen().qualifiedName())
+                || af.parameters().size() != 2 || a.args().size() != 2) {
+            return null;
+        }
+        com.legend.protocol.spec.ValueSpecification argsVs = af.parameters().get(1);
+        TypedSpec typedArgs = a.args().get(1);
+        List<com.legend.protocol.spec.ValueSpecification> srcElems;
+        List<TypedSpec> typedElems;
+        if (argsVs instanceof com.legend.protocol.spec.PureCollection pc
+                && typedArgs instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                && pc.values().size() == tc.elements().size()) {
+            srcElems = pc.values();
+            typedElems = tc.elements();
+        } else {
+            srcElems = List.of(argsVs);
+            typedElems = List.of(typedArgs);
+        }
+        List<com.legend.protocol.spec.ValueSpecification> out = new java.util.ArrayList<>(srcElems.size());
+        boolean changed = false;
+        for (int i = 0; i < srcElems.size(); i++) {
+            if (com.legend.compiler.element.type.PlatformTypes
+                    .printsByOwnToString(typedElems.get(i).info().type())) {
+                out.add(new AppliedFunction("toString", List.of(srcElems.get(i))));
+                changed = true;
+            } else {
+                out.add(srcElems.get(i));
+            }
+        }
+        if (!changed) {
+            return null;
+        }
+        com.legend.protocol.spec.ValueSpecification rewritten = argsVs instanceof com.legend.protocol.spec.PureCollection pc
+                ? new com.legend.protocol.spec.PureCollection(out, pc.pos()) : out.get(0);
+        return af.withParameters(List.of(af.parameters().get(0), rewritten));
+    }
+
 }

@@ -65,4 +65,8 @@ public record TypedFold(TypedSpec source, TypedLambda reducer, TypedSpec init,
         }
         return null;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedFold(source, reducer, init, strategy, info);
+    }
 }

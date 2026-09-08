@@ -40,4 +40,8 @@ public record TypedAsOfJoin(TypedSpec left, TypedSpec right, TypedLambda match,
                         ? java.util.Optional.of((TypedLambda) kids.get(3))
                         : java.util.Optional.empty(), prefix, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedAsOfJoin(left, right, match, condition, prefix, info);
+    }
 }

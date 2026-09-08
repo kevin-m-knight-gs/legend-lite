@@ -62,4 +62,8 @@ public record TypedJsonAccess(TypedSpec source, Op op,
         return new TypedJsonAccess(kids.get(0), op,
                 key == null ? null : kids.get(1), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedJsonAccess(source, op, key, info);
+    }
 }

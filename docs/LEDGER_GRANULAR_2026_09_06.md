@@ -845,3 +845,18 @@ unchanged on every gate; census 1128/3 → 1226/22.
 | 5 | G7 222 errors: `ModelPacker` read generic prelude classes as user classes | platform filter = catalog ∪ module | `pct/.../ModelPacker` |
 | 6 | `PureModelContextTest` ×2: a fixture bypassing the boot layer asked for `Month` | catalog enum as the witness (`DateTimeFormat`) | test |
 | 7 | `JavaEvalLedgerTest`: ModelPacker 267 > 266 code lines | one line | pin unchanged |
+
+## 25. Batch 152 — Pair/List toString as bodies: monomorphization completed at the inlining seam (2026-09-08)
+
+The §24 row-3 leg. The `<a, "b">` was not the Any arm (it strips JSON quoting) but a type-variable stamp reaching the
+lowering: `UserCallInliner` β-reduced the module's generic `Pair<U,V>.toString()` keeping every node's generic stamp
+(the old rule re-stamped the root only). Chain green, pass counts unchanged; census pinned.
+
+| # | what the gates named | decided | where |
+|---|---|---|---|
+| 1 | `<a, "b">`: `$this.second : V` reached `toString`'s fall-through cast | the application binds the callee's type parameters (unify formals against argument types) and every stamp resolves (`TypedSpec.withInfo` on all 75 node records; `UserCallInliner.instantiate`) | homework §9.15 |
+| 2 | `testPairToString` under the PCT harness printed the raw struct — the harness spells `->meta::pure::functions::string::toString()` | the derived shadow keys on the SIMPLE name | `Typer.derivedShadow` |
+| 3 | nested `<dog, {'first': cat…}>`: the inner toString was bound to the native while `V` was a variable | RE-DISPATCH after instantiation: an Any-first native whose receiver is now a class with its own same-named derived property becomes that body, inlined | `UserCallInliner.redispatch` |
+| 4 | `testFormatPair`/`testFormatList` once the arms went: printf showed the struct | `format`'s class-typed slots type as `$arg->toString()` (`CallShapes.formatSlotsByToString`, `PlatformTypes.printsByOwnToString`) | typer |
+| 5 | `ErrorShapeGuardrailTest`: a catch returning a value | pre-check `hasFreeTypeVars(t, bindings)` instead of catching the kernel's unbound-variable exception | inliner |
+| 6 | `CodeShapeGuardrailTest`: Typer 3538 > 3500 lines | the format rewrite lives in `CallShapes` | — |

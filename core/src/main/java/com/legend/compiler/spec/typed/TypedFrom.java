@@ -97,4 +97,8 @@ public record TypedFrom(TypedSpec source, ExecutionContext context,
         return new TypedFrom(kids.get(0), context.withMapping(m).withRuntime(r),
                 executedExtent, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedFrom(source, context, executedExtent, info);
+    }
 }

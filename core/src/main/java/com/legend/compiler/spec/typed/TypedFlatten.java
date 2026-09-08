@@ -26,4 +26,8 @@ public record TypedFlatten(TypedSpec source, String column, ExprType info) imple
         TypedSpec.expectChildren(kids, 1, "TypedFlatten");
         return new TypedFlatten(kids.get(0), column, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedFlatten(source, column, info);
+    }
 }

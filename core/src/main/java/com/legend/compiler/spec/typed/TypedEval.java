@@ -36,4 +36,8 @@ public record TypedEval(TypedSpec fn, List<TypedSpec> args, ExprType info) imple
         TypedSpec.expectChildren(kids, 1 + args.size(), "TypedEval");
         return new TypedEval(kids.get(0), kids.subList(1, kids.size()), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedEval(fn, args, info);
+    }
 }

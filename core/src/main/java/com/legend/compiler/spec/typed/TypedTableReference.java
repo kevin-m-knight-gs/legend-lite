@@ -38,4 +38,8 @@ public record TypedTableReference(String store, String table, ExprType info,
         TypedSpec.expectChildren(kids, 0, "TypedTableReference");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedTableReference(store, table, info, accessor);
+    }
 }

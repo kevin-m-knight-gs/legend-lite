@@ -21,4 +21,8 @@ public record TypedLet(String name, TypedSpec value, ExprType info) implements T
         TypedSpec.expectChildren(kids, 1, "TypedLet");
         return new TypedLet(name, kids.get(0), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedLet(name, value, info);
+    }
 }

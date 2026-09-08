@@ -26,4 +26,8 @@ public record TypedColSpec(String name, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedColSpec");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedColSpec(name, info);
+    }
 }

@@ -2151,19 +2151,8 @@ final class Scalars {
                     // is Any) — printf wants the raw values back, each
                     // substitution slot carries its own kind already.
                     for (int i = 0; i < arr.elements().size(); i++) {
-                        SqlExpr e = MixedEncoding.unwrapVariant(
-                                arr.elements().get(i));
-                        Type et = i < typedElems.size()
-                                ? typedElems.get(i).info().type() : null;
-                        // class-typed slots pre-print via the pure toString
-                        // (printf's %s would show the raw struct)
-                        if (et != null
-                                && (PlatformTypes.isPairCarrier(et)
-                                        || PlatformTypes
-                                                .isListCarrier(et))) {
-                            e = pureToString(et, e);
-                        }
-                        spread.add(e);
+                        spread.add(MixedEncoding.unwrapVariant(
+                                arr.elements().get(i)));
                     }
                 } else {
                     spread.add(argColl);
@@ -2678,29 +2667,10 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
                             PureSql.type(Type.Primitive.STRING)));
         }
-        if (PlatformTypes.isListCarrier(t)) {
-            // real anonymousCollections List.toString(): '[v1, v2, ...]'
-            Type et = t instanceof Type.GenericType g && !g.arguments().isEmpty()
-                    ? g.arguments().get(0)
-                    : new Type.ClassType(PlatformTypes.ANY);
-            SqlExpr elem = SqlExpr.Column.param("_ts", x);
-            return cat(new SqlExpr.StringLit("["),
-                    joinList(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, x,
-                            new SqlExpr.Lambda(List.of("_ts"), pureToString(et, elem)))),
-                    new SqlExpr.StringLit("]"));
-        }
-        if (PlatformTypes.isPairCarrier(t)) {
-            Type ft = ((Type.GenericType) t).arguments().get(0);
-            Type st = ((Type.GenericType) t).arguments().get(1);
-            return SqlExpr.Call.of(SqlFn.CONCAT,
-                    SqlExpr.Call.of(SqlFn.CONCAT,
-                            SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("<"),
-                                    pureToString(ft, new SqlExpr.StructGet(x, "first"))),
-                            new SqlExpr.StringLit(", ")),
-                    SqlExpr.Call.of(SqlFn.CONCAT,
-                            pureToString(st, new SqlExpr.StructGet(x, "second")),
-                            new SqlExpr.StringLit(">")));
-        }
+        // (the Pair / List toString Java arms — PORTS of anonymousCollections'
+        // Pair.toString() / List.toString() — are DELETED (batch 152): the
+        // prelude module carries the spec bodies and the typer's derived
+        // route runs them; SYSTEM_PRELUDE_DESIGN §1/§8)
         // a SINGLE-scalar-column relation in scalar position IS its cell
         // (the scalar-subquery collapse) — the cast is that cell's
         // toString and stays; anything wider is fabrication

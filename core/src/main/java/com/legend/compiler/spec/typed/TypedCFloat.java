@@ -20,4 +20,8 @@ public record TypedCFloat(double value,
         TypedSpec.expectChildren(kids, 0, "TypedCFloat");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCFloat(value, exact, info);
+    }
 }

@@ -60,4 +60,8 @@ public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<Typed
         }
         return new TypedPivot(kids.get(0), pivotColumns, vs, as, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedPivot(source, pivotColumns, values, aggs, info);
+    }
 }

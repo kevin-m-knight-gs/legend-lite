@@ -40,4 +40,8 @@ public record TypedExtend(TypedSpec source, List<TypedFuncCol> columns, ExprType
         }
         return new TypedExtend(kids.get(0), cs, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedExtend(source, columns, info);
+    }
 }

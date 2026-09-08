@@ -34,4 +34,8 @@ public record TypedCsvCensus(
         TypedSpec.expectChildren(kids, 0, "TypedCsvCensus");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCsvCensus(query, mappingFqn, info);
+    }
 }

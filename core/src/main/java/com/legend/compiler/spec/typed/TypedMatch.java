@@ -58,4 +58,8 @@ public record TypedMatch(TypedSpec input, String param, TypedSpec body,
                 : new TypedMatch(kids.get(0), param, kids.get(1), extraParam,
                         java.util.Optional.empty(), info, declaredInfo);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedMatch(input, param, body, extraParam, extra, info, declaredInfo);
+    }
 }

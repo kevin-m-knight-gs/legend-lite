@@ -23,4 +23,8 @@ public record TypedSourceUrl(String url, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedSourceUrl");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSourceUrl(url, info);
+    }
 }

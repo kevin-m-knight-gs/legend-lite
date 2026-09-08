@@ -26,4 +26,8 @@ public record TypedCDate(PureDateLiteral value, ExprType info) implements TypedS
         TypedSpec.expectChildren(kids, 0, "TypedCDate");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCDate(value, info);
+    }
 }

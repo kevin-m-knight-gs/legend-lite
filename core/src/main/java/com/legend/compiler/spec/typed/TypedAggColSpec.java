@@ -27,4 +27,8 @@ public record TypedAggColSpec(TypedAggCol col, ExprType info) implements TypedSp
                 (TypedLambda) kids.get(0), (TypedLambda) kids.get(1),
                 col.orderKey(), col.orderAsc()), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedAggColSpec(col, info);
+    }
 }

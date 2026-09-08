@@ -71,4 +71,8 @@ public record TypedLambda(List<String> parameters, List<TypedSpec> body, ExprTyp
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         return new TypedLambda(parameters, kids, info, quoted);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedLambda(parameters, body, info, quoted);
+    }
 }

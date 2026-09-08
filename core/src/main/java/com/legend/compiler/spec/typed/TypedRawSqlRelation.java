@@ -57,4 +57,8 @@ public record TypedRawSqlRelation(String sql, ExprType info)
                         com.legend.compiler.element.type.Type.RelationType rt
                 && rt.isLateBound() ? pa : null;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedRawSqlRelation(sql, info);
+    }
 }

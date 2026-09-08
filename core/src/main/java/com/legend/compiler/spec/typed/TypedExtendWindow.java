@@ -85,4 +85,8 @@ public record TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFu
         return new TypedExtendWindow(kids.get(0), (TypedOver) kids.get(1), cs, as, info,
                 extentBoundary);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedExtendWindow(source, window, columns, aggs, info, extentBoundary);
+    }
 }

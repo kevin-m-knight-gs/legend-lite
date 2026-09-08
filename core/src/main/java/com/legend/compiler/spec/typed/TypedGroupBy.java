@@ -71,4 +71,8 @@ public record TypedGroupBy(TypedSpec source, List<GroupKey> keys, List<TypedAggC
         TypedSpec.expectChildren(kids, i, "TypedGroupBy");
         return new TypedGroupBy(kids.get(0), ks, as, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedGroupBy(source, keys, aggs, info);
+    }
 }

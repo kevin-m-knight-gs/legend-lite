@@ -41,4 +41,8 @@ public record TypedGraphFetch(TypedSpec source, List<TypedGraphTree> tree, ExprT
         TypedSpec.expectChildren(kids, 1, "TypedGraphFetch");
         return new TypedGraphFetch(kids.get(0), tree, info, checked);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedGraphFetch(source, tree, info, checked);
+    }
 }

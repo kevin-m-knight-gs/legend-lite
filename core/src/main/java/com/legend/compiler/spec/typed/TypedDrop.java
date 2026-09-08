@@ -23,4 +23,8 @@ public record TypedDrop(TypedSpec source, TypedSpec count, ExprType info) implem
         TypedSpec.expectChildren(kids, 2, "TypedDrop");
         return new TypedDrop(kids.get(0), kids.get(1), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedDrop(source, count, info);
+    }
 }

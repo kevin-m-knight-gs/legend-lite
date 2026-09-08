@@ -35,4 +35,8 @@ public record TypedCast(TypedSpec source, Type target, ExprType info,
         TypedSpec.expectChildren(kids, 1, "TypedCast");
         return new TypedCast(kids.get(0), target, info, wire);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCast(source, target, info, wire);
+    }
 }

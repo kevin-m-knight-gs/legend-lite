@@ -24,4 +24,8 @@ public record TypedFuncColSpec(TypedFuncCol col, ExprType info) implements Typed
         return new TypedFuncColSpec(new TypedFuncCol(col.name(),
                 (TypedLambda) kids.get(0), col.documentation()), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedFuncColSpec(col, info);
+    }
 }

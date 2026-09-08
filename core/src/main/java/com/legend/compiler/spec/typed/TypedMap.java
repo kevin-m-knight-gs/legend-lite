@@ -45,4 +45,8 @@ public record TypedMap(TypedSpec source, TypedLambda mapper, ExprType info) impl
         }
         return null;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedMap(source, mapper, info);
+    }
 }

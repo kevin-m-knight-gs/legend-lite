@@ -75,4 +75,8 @@ public record TypedProject(TypedSpec source, List<TypedFuncCol> columns,
         }
         return new TypedProject(kids.get(0), cs, info, wireForm);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedProject(source, columns, info, wireForm);
+    }
 }

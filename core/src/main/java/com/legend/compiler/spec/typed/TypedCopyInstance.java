@@ -39,4 +39,8 @@ public record TypedCopyInstance(
         }
         return new TypedCopyInstance(kids.get(0), classFqn, os, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCopyInstance(source, classFqn, overrides, info);
+    }
 }

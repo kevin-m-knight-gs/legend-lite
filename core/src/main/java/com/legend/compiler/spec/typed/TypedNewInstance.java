@@ -37,4 +37,8 @@ public record TypedNewInstance(String classFqn, Map<String, TypedSpec> propertie
         }
         return new TypedNewInstance(classFqn, ps, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedNewInstance(classFqn, properties, info);
+    }
 }

@@ -35,4 +35,8 @@ public record TypedSerialize(TypedSpec source, List<TypedGraphTree> tree,
                 config.isPresent() ? java.util.Optional.of(kids.get(1))
                         : java.util.Optional.empty(), info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSerialize(source, tree, config, info);
+    }
 }

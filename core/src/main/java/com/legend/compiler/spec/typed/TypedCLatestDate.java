@@ -20,4 +20,8 @@ public record TypedCLatestDate(ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedCLatestDate");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCLatestDate(info);
+    }
 }

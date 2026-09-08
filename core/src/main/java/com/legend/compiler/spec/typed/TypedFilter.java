@@ -45,4 +45,8 @@ public record TypedFilter(TypedSpec source, TypedLambda predicate, ExprType info
         return new TypedFilter(kids.get(0), (TypedLambda) kids.get(1), info,
                 stamp);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedFilter(source, predicate, info, stamp);
+    }
 }

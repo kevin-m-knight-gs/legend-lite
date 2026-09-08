@@ -46,4 +46,8 @@ public record TypedAggregate(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         TypedSpec.expectChildren(kids, i, "TypedAggregate");
         return new TypedAggregate(kids.get(0), as, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedAggregate(source, aggs, info);
+    }
 }

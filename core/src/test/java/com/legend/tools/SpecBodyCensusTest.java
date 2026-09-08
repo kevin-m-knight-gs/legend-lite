@@ -36,9 +36,9 @@ import java.util.stream.Stream;
  * (missing vocabulary, typer gaps). Written to
  * {@code target/spec-body-census.txt}; a summary by reason prints.
  *
- * <p>Census only for now (report, no pin): the numbers decide the batch-148
- * order. It needs the pure checkout ({@code -Dlegend.pure.root}) and skips
- * without it.
+ * <p>PINNED shrink-only since batch 151 (22 rows, 6 load walls). It needs
+ * the pure checkout ({@code -Dlegend.pure.root}, defaulting to the reference
+ * checkout like the prelude generator) and skips without it.
  */
 class SpecBodyCensusTest {
 
@@ -56,8 +56,12 @@ class SpecBodyCensusTest {
     @Test
     @DisplayName("typing census: every Pure body in legend-pure's platform packages typed once, failures as rows")
     void census() throws IOException {
+        // the same literal default as the prelude generator: the reference
+        // checkout is the spec (memory: $HOME/legend is a STALE tag), and
+        // gate 1 runs without -D roots — with this default the census RUNS
+        // there and its shrink-only pin below is a standing gate
         Path pure = Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+                "/Users/neemsandv/legend/legend-pure"));
         Assumptions.assumeTrue(Files.isDirectory(pure.resolve(PLATFORM_ROOTS.get(0))),
                 "legend-pure checkout not present");
 
@@ -168,6 +172,19 @@ class SpecBodyCensusTest {
                 + " typedOK=" + ok.size() + " failed=" + failures.size()
                 + " nativesSkipped=" + natives);
         System.out.println("[spec-census] byReason=" + byReason);
+        // THE PIN (SYSTEM_PRELUDE_DESIGN §6: the typing work list trends to
+        // ZERO — shrink-only). 22 (batch 151, prelude-as-module phase 1):
+        // the 22 boot-body rows of SPEC_BODY_CENSUS §10 — engine-internal
+        // derived/constraint bodies that phase 3's demand cut moves out of
+        // the prelude, four vocabulary names, one closure-over-bodies row,
+        // one typer gap. A new row is a regression to name, never a bump
+        // without a written reason; a burned row lowers the number.
+        org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 22,
+                () -> "spec body typing census GREW: " + failures.size()
+                        + " failed rows > 22 pinned (shrink-only) — new rows:\n  "
+                        + String.join("\n  ", failures.keySet()));
+        org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 6,
+                () -> "spec body census load walls GREW: " + loadWalls);
     }
 
     /** A coarse reason class for the summary — the rows carry the full text. */

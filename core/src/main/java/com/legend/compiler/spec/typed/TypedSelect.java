@@ -29,4 +29,8 @@ public record TypedSelect(TypedSpec source, List<String> columns, ExprType info)
         TypedSpec.expectChildren(kids, 1, "TypedSelect");
         return new TypedSelect(kids.get(0), columns, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedSelect(source, columns, info);
+    }
 }

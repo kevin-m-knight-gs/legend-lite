@@ -38,4 +38,8 @@ public record TypedOver(List<String> partitions, List<TypedSort.TypedSortKey> so
         TypedSpec.expectChildren(kids, 0, "TypedOver");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedOver(partitions, sortKeys, frame, info);
+    }
 }

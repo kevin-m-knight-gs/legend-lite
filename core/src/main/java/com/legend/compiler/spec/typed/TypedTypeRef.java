@@ -27,4 +27,8 @@ public record TypedTypeRef(Type target, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedTypeRef");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedTypeRef(target, info);
+    }
 }

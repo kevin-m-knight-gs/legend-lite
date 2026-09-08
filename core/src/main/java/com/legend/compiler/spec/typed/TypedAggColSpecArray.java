@@ -37,4 +37,8 @@ public record TypedAggColSpecArray(List<TypedAggCol> cols, ExprType info) implem
         }
         return new TypedAggColSpecArray(cs, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedAggColSpecArray(cols, info);
+    }
 }

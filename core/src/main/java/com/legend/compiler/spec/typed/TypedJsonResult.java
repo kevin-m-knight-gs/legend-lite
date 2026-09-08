@@ -43,4 +43,8 @@ public record TypedJsonResult(TypedSpec chain, Kind kind,
         TypedSpec.expectChildren(kids, 1, "TypedJsonResult");
         return new TypedJsonResult(kids.get(0), kind, sql, info);
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedJsonResult(chain, kind, sql, info);
+    }
 }

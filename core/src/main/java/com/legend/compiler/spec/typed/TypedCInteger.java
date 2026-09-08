@@ -16,4 +16,8 @@ public record TypedCInteger(Number value, ExprType info) implements TypedSpec {
         TypedSpec.expectChildren(kids, 0, "TypedCInteger");
         return this;
     }
+    @Override
+    public TypedSpec withInfo(ExprType info) {
+        return new TypedCInteger(value, info);
+    }
 }
