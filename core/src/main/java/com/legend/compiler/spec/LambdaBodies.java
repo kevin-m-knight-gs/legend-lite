@@ -20,6 +20,17 @@ import java.util.List;
  * at the value, {@code assert(c, m); v} is {@code if(c, |v, |fail(m))}. */
 final class LambdaBodies {
 
+    /** The assert family as body GUARDS: FQN → how many leading arguments
+     * form the condition (the rest is the message). */
+    private static final java.util.Map<String, Integer> ASSERT_GUARDS = java.util.Map.of(
+            "meta::pure::functions::asserts::assert", 1,
+            "meta::pure::functions::asserts::assertTrue", 1,
+            "meta::pure::functions::asserts::assertFalse", 1,
+            "meta::pure::functions::asserts::assertEquals", 2,
+            "meta::pure::functions::asserts::assertNotEquals", 2,
+            "meta::pure::functions::asserts::assertEmpty", 1,
+            "meta::pure::functions::asserts::assertNotEmpty", 1);
+
     private LambdaBodies() {
     }
 
@@ -57,8 +68,15 @@ final class LambdaBodies {
         if (guarded != null) {
             return guarded;
         }
-        throw new TypeInferenceException(
-                "multi-statement lambda body with non-let, non-fail, non-assert statements");
+        // a leading EXPRESSION statement whose value is discarded (real pure
+        // sequences it: `if(..., |fail(..), |fail(..)); [];`) — TYPED, so
+        // its errors surface, then the rest is the value. Its effect is a
+        // run-time matter this one-expression view cannot carry: a body
+        // reached at the lowering with such a statement is the lowering's
+        // to refuse (SYSTEM_PRELUDE_DESIGN §5 — typing asks fit, not run).
+        t.synth(lam.body().get(0), scope);
+        return synthBody(t, new LambdaFunction(lam.parameters(),
+                lam.body().subList(1, lam.body().size())), scope);
     }
 
     /** {@code assert(cond, msg); rest} is {@code if(cond, |rest, |fail(msg))}
@@ -74,24 +92,45 @@ final class LambdaBodies {
         // RESOLVED dispatch: every candidate the name resolves to is the
         // asserts::assert native (never a spelling compare)
         List<TypedFunction> cands = t.functionCandidates(af);
-        if (cands.isEmpty() || !cands.stream().allMatch(f ->
-                f.qualifiedName().equals("meta::pure::functions::asserts::assert"))) {
+        if (cands.isEmpty()) {
             return null;
         }
-        TypedSpec cond = t.synth(af.parameters().get(0), scope);
+        String fqn = cands.get(0).qualifiedName();
+        if (!cands.stream().allMatch(f -> f.qualifiedName().equals(fqn))
+                || !ASSERT_GUARDS.containsKey(fqn)) {
+            return null;
+        }
+        // the guard's CONDITION and how many leading arguments it consumes
+        // (asserts.pure: each assertX(args, [message]) is assert(cond, message))
+        int condArgs = ASSERT_GUARDS.get(fqn);
+        if (af.parameters().size() < condArgs) {
+            return null;
+        }
+        List<ValueSpecification> condIn = af.parameters().subList(0, condArgs);
+        ValueSpecification condVs = switch (fqn.substring(fqn.lastIndexOf(':') + 1)) {
+            case "assert", "assertTrue" -> condIn.get(0);
+            case "assertFalse" -> new AppliedFunction("not", condIn);
+            case "assertEquals" -> new AppliedFunction("equal", condIn);
+            case "assertNotEquals" -> new AppliedFunction("not",
+                    List.of(new AppliedFunction("equal", condIn)));
+            case "assertEmpty" -> new AppliedFunction("isEmpty", condIn);
+            case "assertNotEmpty" -> new AppliedFunction("isNotEmpty", condIn);
+            default -> throw new IllegalStateException(fqn);
+        };
+        TypedSpec cond = t.synth(condVs, scope);
         ExprType str = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+        List<ValueSpecification> msgArgs = af.parameters().subList(condArgs, af.parameters().size());
         TypedSpec message;
-        if (af.parameters().size() == 1) {
+        if (msgArgs.isEmpty()) {
             message = new com.legend.compiler.spec.typed.TypedCString("Assert failed", str);
-        } else if (af.parameters().get(1) instanceof LambdaFunction thunk
+        } else if (msgArgs.get(0) instanceof LambdaFunction thunk
                 && thunk.parameters().isEmpty()) {
             message = synthBody(t, thunk, scope);
-        } else if (af.parameters().size() == 2) {
-            message = t.synth(af.parameters().get(1), scope);
+        } else if (msgArgs.size() == 1) {
+            message = t.synth(msgArgs.get(0), scope);
         } else {
             // assert(cond, format, args) — the formatted message
-            message = t.synth(new AppliedFunction("format",
-                    af.parameters().subList(1, af.parameters().size())), scope);
+            message = t.synth(new AppliedFunction("format", msgArgs), scope);
         }
         TypedSpec rest = synthBody(t, new LambdaFunction(lam.parameters(),
                 lam.body().subList(1, lam.body().size())), scope);

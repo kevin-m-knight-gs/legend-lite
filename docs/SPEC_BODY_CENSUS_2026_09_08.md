@@ -191,3 +191,53 @@ replacing the platform's `<T>(values:T[*])` spelling; `isEmpty(p:Any[*])` spec-e
 - Guards: `Typer.java` split — annotation resolution moved to `TypeAnnotations` (the type-parameter frame lives there); the native-catalog
   golden regenerated (−4 platform `<T>` arithmetic spellings, +36 spec natives); hand-declared class count 78 → 82; the identity-argument
   pin became "arguments over the class's own parameters" now that the kernel instantiates supertypes (`asSuper`, used by the unify arm too).
+
+## 9. Batch 150 — the work list burned from 36 to 3 (2026-09-08)
+
+Run: 261 files, **6 load walls** (the unit files parse: 8 → 6), **1128 typed / 3 failed**. USER: "let's burn it all to zero
+now" — units and the PCT harness included; nothing is a decided wall.
+
+### 9.1 What landed
+
+**Vocabulary:** the anonymous-map natives `get`/`replaceAll`/`getIfAbsentPutWithKey`/`getMapStats` (m3 essential/collection/
+anonymous/map); the PCT harness natives `executeTest`/`executePCTTest`/`loadPCTManifest` with their shapes `TestResult`/
+`PCTManifest`/`MapStats` generated into the prelude (the generator admits the spec's own `meta::pure::test::` namespace);
+`Database.joins/filters` (relational.pure); `SetImplementation.id : String[1]` (mapping.pure:56 — was `[0..1]`).
+
+**Units, whole:** `Measure` elements kept in the model (`ModelBuilder.measures`, `ModelContext.findMeasure`); the m3 `Measure`/`Unit`
+shapes; `newUnit`/`getUnitValue` natives (no SQL carrier: lowering walls); a measure named as a value is a `Measure`, `M~u` a `Unit`
+(the resolver qualifies the measure through the import tiers and re-attaches the unit); the unit LITERAL `5 RomanLength~Pes`
+(and `-310.72D RomanLength~Stadium`) parses as the engine grammar's unitInstanceLiteral, spelled as its constructor `newUnit(M~u, n)`
+(`TokenStreamCursor.unitPathEnd`); `RomanLength.canonicalUnit` reads the metaclass.
+
+**Packages as values:** a package index over the element FQNs (`ModelContext.isPackage`, `Root`); `elementToPath(meta::pure)` types.
+
+**Typer / kernel rules real pure has:**
+- a `match` no branch accepts statically is the RAISE typed at the branches' LUB (real pure's "Match failure" when the value arrives);
+- a `Nil` type ARGUMENT in a formal is the wildcard (`Property<Nil,Any|*>`); a RAW reference to a parameterized class is that class
+  over `Any` (re-binding and joining against any instantiation);
+- the linearization tie-break skips unrelated candidates and ranks an exact formal first;
+- a bare special-form name yields to the RECEIVER'S OWN function — the spec's `_this`-first-parameter convention
+  (`join(_this:Database[1], name:String[1])`), only for operator families with natives whose natives never take the receiver's class,
+  never over a type-annotation argument, and only when every other argument fits (`ReceiverOwnedFunctions`; two hijacks caught by the
+  DuckDB lane on the way: `tableToTDS(table:Table[1])` and `->cast(@ColumnType)`, 66 tests lost then recovered);
+- `eval`'s argument MULTIPLICITY is real pure's run-time check: a function reference or a function-typed value takes an argument whose
+  size misses the parameter's (eval.pure's testEvalWithCollectionWithOneElement passes `Integer[*]` into `Integer[1]`);
+- a lambda body keeps a discarded expression statement typed (`|[]->toOneMany(); 1;`); the assert FAMILY guards a body
+  (`assertEquals(a,b); rest` is `if(equal(a,b), |rest, |fail(msg))`, likewise assertTrue/False/Empty/NotEmpty/NotEquals);
+- a DOTTED copy key walks the navigation path (`^$p(address.name='x')`).
+
+**Diagnostics:** `-Dlegend.spec.trace=<name>` prints the failure's own stack; census rows name an overload by its parameter types.
+
+### 9.2 The 3 that remain
+
+| rows | what | owner |
+|---|---|---|
+| 2 | `TableAlias.relation` (relational.pure:211 — `relation(){$this.relationalElement->cast(@Relation)}:Relation[1]`) | DERIVED properties of generated shapes: the generator must emit them WITH bodies (§9.3 of the design) — a protocol-to-Pure printer over the RESOLVED declaration, so the body's names are the FQNs the prelude parses standalone |
+| 1 | `GraphFetchTree.propertyTrees` (a derived property called as a function) | same leg |
+
+### 9.3 Caught by the lanes, not the census
+
+- The first cut of the receiver-owned routing matched ANY model function whose first parameter accepted the receiver's class:
+  `tableToTDS(table:Table[1])` displaced the platform's special form (35 tests) and `->cast(@ColumnType)` reached the sqlDialectTranslation
+  `cast` helper (19 tests). Narrowed twice (§9.1); the `_this` convention is the spec's own marker for a class-owned function.

@@ -111,7 +111,8 @@ public class CorpusSweepTest {
     // spec's declaration files); the engine grammar has no variance slot
     // (its refusal: type/multiplicity parameters not authorized) —
     // PURE-DIALECT-generics family; the exact-engine surface is untouched.
-    private static final int MAX_PLATFORM_CATALOG = 1564;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
+    private static final int MAX_PLATFORM_CATALOG = 1601;   // 2026-09-08 units (census batch 150): +37 PURE-DIALECT-unit-instance rows (AbstractTestMeasure, AbstractTestToJson)
+    // was 1564;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
     // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
     // PCT test-file surface (236/236 now parses at LEGEND_PLATFORM):
     // tagged-value string concatenation, negative-year date literals,
@@ -732,6 +733,13 @@ public class CorpusSweepTest {
         // DIALECT-GAP — the engine names its own subset
         if (msg.contains("not authorized in Legend")) {
             return "PURE-DIALECT-generics";
+        }
+        // legend-pure's unit instance literal (5 RomanLength~Pes — the m3
+        // unit tests, the engine's toJson tests): the engine's grammar
+        // refuses it verbatim; the platform dialect reads it (census batch
+        // 150, units). The ENGINE dialect refuses with the same message.
+        if (msg.contains("Unit instance not supported")) {
+            return "PURE-DIALECT-unit-instance";
         }
         if (msg.matches("(?s).*The type \\{.*}.* is not sup.*")) {
             return "PURE-DIALECT-function-types";

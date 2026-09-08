@@ -132,6 +132,7 @@ public final class ModelBuilder {
             associationEndsByOwner;
     private final ArrayList<EnumDefinition>        enums         = new ArrayList<>();
     private final ArrayList<ProfileDefinition>     profiles      = new ArrayList<>();
+    private final ArrayList<com.legend.model.MeasureDefinition> measures = new ArrayList<>();
     private final ArrayList<DatabaseDefinition>    databases     = new ArrayList<>();
     // Legacy mapping surface trees — the cross-bake and MappingNormalizer read
     // these. Canonical binding tables — Phase F / dispatch read these. Both can
@@ -283,6 +284,8 @@ public final class ModelBuilder {
                         mb.internElement(registered, ed.qualifiedName()), ed);
                 case ProfileDefinition pd -> putAtId(mb.profiles,
                         mb.internElement(registered, pd.qualifiedName()), pd);
+                case com.legend.model.MeasureDefinition me -> putAtId(mb.measures,
+                        mb.internElement(registered, me.qualifiedName()), me);
                 case DatabaseDefinition db -> mb.ingestDatabase(registered, db);
                 default -> { /* phase 3 */ }
             }
@@ -827,6 +830,11 @@ public final class ModelBuilder {
         return Optional.ofNullable(idGet(profiles, symbols.resolveId(fqn)));
     }
 
+    /** O(1). Returns the {@code Measure} element at {@code fqn}, if any. */
+    public Optional<com.legend.model.MeasureDefinition> findMeasure(String fqn) {
+        return Optional.ofNullable(idGet(measures, symbols.resolveId(fqn)));
+    }
+
     /**
      * H5 SET-ID DISPATCH hint: the SOLE target set id that property
      * {@code head} routes to across the mapping closure's class-PM routes
@@ -1163,6 +1171,11 @@ public final class ModelBuilder {
     /** All {@link EnumDefinition}s in ingest order. */
     public Stream<EnumDefinition> enums() {
         return enums.stream().filter(Objects::nonNull);
+    }
+
+    /** All Measure elements in ingest order. */
+    public Stream<com.legend.model.MeasureDefinition> measures() {
+        return measures.stream().filter(Objects::nonNull);
     }
 
     /** All {@link RuntimeDefinition}s in ingest order. */

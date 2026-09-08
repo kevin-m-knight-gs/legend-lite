@@ -638,6 +638,15 @@ public final class SpecParser implements TokenStreamCursor {
                 pos++;
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
+                // -5 RomanLength~Pes: the sign belongs to the NUMBER of a unit
+                // literal (engine grammar: unitInstanceLiteral takes a signed number)
+                if ((peek() == TokenType.INTEGER || peek() == TokenType.FLOAT
+                        || peek() == TokenType.DECIMAL) && unitPathEnd(pos + 1) >= 0) {
+                    ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
+                            : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
+                    return unitLiteral(new AppliedFunction("minus", List.of(n),
+                            List.of(), spanOf(opTok, opTok), false, false, true));
+                }
                 return new AppliedFunction("minus", List.of(parseExpression()),
                         List.of(), spanOf(opTok, opTok), false, false, true);
             }
@@ -736,9 +745,9 @@ public final class SpecParser implements TokenStreamCursor {
         }
         TokenType t = peek();
         return switch (t) {
-            case INTEGER -> parseInteger();
-            case FLOAT -> parseFloat();
-            case DECIMAL -> parseDecimal();
+            case INTEGER -> unitLiteral(parseInteger());
+            case FLOAT -> unitLiteral(parseFloat());
+            case DECIMAL -> unitLiteral(parseDecimal());
             // a QUOTED NAME can start an expression when a call or path
             // follows — 'abs'($x) and 'pkg'::f are engine-legal (the
             // identifier rule admits quoted strings; Tier-3 residue,
@@ -815,84 +824,19 @@ public final class SpecParser implements TokenStreamCursor {
     // Numeric literals
     // -------------------------------------------------------------------
 
-    /**
-     * INTEGER token &rarr; {@link CInteger}. Narrows to {@link Long} when
-     * the value fits in 64 signed bits, else falls back to
-     * {@link BigInteger} so overflow is preserved exactly (matches the
-     * engine record contract).
-     */
     private CInteger parseInteger() {
-        String text = text();
-        int tok = pos;
-        pos++;
-        try {
-            return new CInteger(Long.parseLong(text), spanOf(tok, tok));
-        } catch (NumberFormatException overflow) {
-            if (dialect().refusesLiteExtensions()) {
-                // ENGINE surface only — the BigInteger widening is a
-                // DECLARED lite extension (PCT's own huge-literal tests
-                // and lite execution use it; G6 run 1081 caught the
-                // over-wide legendStrict gate)
-                throw TokenStreamCursor.throwAt(tokens, tok,
-                        "Unexpected token '" + text + "'");
-            }
-            return new CInteger(new BigInteger(text), spanOf(tok, tok));
-        }
+        int tok = pos++;
+        return NumberLiterals.integer(tokens.text(tok), spanOf(tok, tok), dialect(), tokens, tok);
     }
 
-    /**
-     * FLOAT token &rarr; a DIALECT-SPLIT literal (both sides
-     * oracle-verified 2026-08-12): the ENGINE/LITE surfaces build
-     * {@link CFloat} unconditionally, like {@code DomainParseTreeWalker}
-     * ({@code 1.0000000000000001} is float {@code 1.0} on the wire,
-     * probed — the old unconditional promotion was an engine-lite
-     * invention there, deep-audit 1f); LEGEND_PLATFORM keeps
-     * legend-pure's semantics, where the PCT reference
-     * ({@code testBigFloatAbs}) asserts the decimal-exact value, so a
-     * precision-losing literal promotes to {@link CDecimal}.
-     */
     private ValueSpecification parseFloat() {
-        String text = text();
-        int litTok = pos;
-        pos++;
-        // Strip optional 'f'/'F' suffix; Pure permits it on float literals
-        // but Java's Double.parseDouble does not.
-        if (!text.isEmpty()) {
-            char last = text.charAt(text.length() - 1);
-            if (last == 'f' || last == 'F') text = text.substring(0, text.length() - 1);
-        }
-        double d = Double.parseDouble(text);
-        if (!dialect().refusesLiteExtensions()) {
-            // PLATFORM and LITE: legend-pure EXECUTION semantics. B8
-            // (proved from the reference source): the interpreted
-            // runtime's Float primitive IS BigDecimal-backed
-            // (FloatCoreInstance extends PrimitiveCoreInstance<BigDecimal>;
-            // newFloatCoreInstance(String) parses the SOURCE TEXT), so a
-            // precision-losing literal keeps its digits AND its Float
-            // label. The old promotion to CDecimal made the TYPE lie to
-            // keep the VALUE — deleted. Only the byte-parity ENGINE wire
-            // builds the bare double, like DomainParseTreeWalker.
-            BigDecimal exact = new BigDecimal(text);
-            if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
-                return new CFloat(d, exact, spanOf(litTok, litTok));
-            }
-        }
-        return new CFloat(d, spanOf(litTok, litTok));
+        int tok = pos++;
+        return NumberLiterals.floating(tokens.text(tok), spanOf(tok, tok), dialect());
     }
 
-    /**
-     * DECIMAL token &rarr; {@link CDecimal}. The lexer admits both
-     * {@code 42d} (integer-shaped) and {@code 3.14d} (float-shaped)
-     * forms; both end with a {@code d}/{@code D} that {@link BigDecimal}
-     * does not accept, so it is stripped before parsing.
-     */
     private CDecimal parseDecimal() {
-        String text = text();
-        int litTok = pos;
-        pos++;
-        char last = text.charAt(text.length() - 1);
-        if (last == 'd' || last == 'D') text = text.substring(0, text.length() - 1);
-        return new CDecimal(new BigDecimal(text), text, spanOf(litTok, litTok));
+        int tok = pos++;
+        return NumberLiterals.decimal(tokens.text(tok), spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------
@@ -1186,6 +1130,22 @@ public final class SpecParser implements TokenStreamCursor {
      *       suffix).</li>
      * </ul>
      */
+    /** {@code 5 RomanLength~Pes}: a number followed by a unit path is the
+     * engine grammar's unitInstanceLiteral — spelled as its constructor,
+     * {@code newUnit(RomanLength~Pes, 5)} (m3 essential/lang/unit). */
+    private ValueSpecification unitLiteral(ValueSpecification number) {
+        if (unitPathEnd(pos) < 0) {
+            return number;
+        }
+        // legend-pure grammar only: the ENGINE's parser refuses unit
+        // instances (DomainParseTreeWalker — its exact message, for the
+        // rejection-parity pin)
+        if (dialect().refusesLiteExtensions()) {
+            throw TokenStreamCursor.throwAt(tokens, pos, "Unit instance not supported");
+        }
+        return new AppliedFunction("newUnit", List.of(parseQualifiedNameStart(), number));
+    }
+
     private ValueSpecification parseQualifiedNameStart() {
         int fqnStart = pos;
         String fqn = parseQualifiedName();

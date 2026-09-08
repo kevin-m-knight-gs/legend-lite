@@ -90,6 +90,12 @@ class OwnDialectCensusTest {
                                        // hosts may carry extension rows too
                                        // — invariant 2 allows either set)
                     java.util.Map.entry("AdversarialParityTest.java", 1),
+                    // 0 -> 1 (2026-09-08, REVIEWED, census batch 150): the
+                    // unit-instance probe (cNeg: `-5 Mass~kilogram`) — the
+                    // platform dialect now reads legend-pure's unit literal
+                    // (newUnit(M~u, n)); the engine grammar refuses it, so
+                    // the row is extension grammar by definition
+                    java.util.Map.entry("ProbeWireShapes.java", 1),
                     java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
                     // 2 -> 3 (2026-08-28, REVIEWED): the lambda-classifier
                     // witness (charter §4V) — the Function<{...}>-typed

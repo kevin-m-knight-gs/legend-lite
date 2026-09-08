@@ -97,6 +97,10 @@ final class CallShapes {
         if (ctx.findClass(fqn).isPresent()) {
             return "meta::pure::metamodel::type::Class";
         }
+        // a measure named as a value (RomanLength.canonicalUnit — m3 Measure)
+        if (ctx.findMeasure(fqn).isPresent()) {
+            return "meta::pure::metamodel::type::Measure";
+        }
         return null;
     }
 

@@ -65,6 +65,42 @@ public final class InferenceKernel {
      * (TypeClassifier), never a class navigation. */
     public static final String ENUM_METACLASS_FQN = "meta::pure::metamodel::type::Enum";
 
+    /** The parameterized-class arm of {@link #unify}: nominal on the raw
+     * class with the lattice; a subclass actual's arguments pair as the
+     * formal's raw class sees them (asSuper); a Nil formal argument is the
+     * wildcard. */
+    private void unifyGeneric(Type.GenericType g, Type formal, Type actual, Bindings b) {
+
+                // Nominal on the raw class, with the class lattice — a
+                // parameterized SUBCLASS actual conforms (m3's function
+                // carriers: LambdaFunction<{…}> flows into a
+                // FunctionDefinition<Any> formal), mirroring the ClassType
+                // arm's isSubtype rule.
+                if (!(actual instanceof Type.GenericType ag0
+                        && (ag0.rawFqn().equals(g.rawFqn())
+                                || ctx.isSubtype(ag0.rawFqn(), g.rawFqn())))) {
+                    throw fail(formal, actual);
+                }
+                // a SUBCLASS actual pairs arguments as the formal's raw class
+                // sees them: its declared supertypes instantiated (asSuper —
+                // Property<U,V|m> is AbstractProperty<{U[1]->V[m]}>), never
+                // positionally across unrelated parameter lists
+                Type.GenericType ag = ag0.rawFqn().equals(g.rawFqn()) ? ag0
+                        : asSuper(ag0, g.rawFqn()).filter(t -> t instanceof Type.GenericType)
+                                .map(t -> (Type.GenericType) t).orElse(ag0);
+                if (ag.arguments().size() != g.arguments().size()) {
+                    throw fail(formal, actual);
+                }
+                for (int i = 0; i < g.arguments().size(); i++) {
+                    // a Nil type ARGUMENT in the formal is real pure's
+                    // wildcard (Property<Nil,Any|*> takes any property)
+                    if (isNil(g.arguments().get(i))) {
+                        continue;
+                    }
+                    unify(g.arguments().get(i), ag.arguments().get(i), b);
+                }
+    }
+
     public void unify(Type formal, Type actual, Bindings b) {
         // Function<{...}> is the WRAPPED spelling of a bare FunctionType —
         // signatures use the wrapper, function VALUES carry a carrier
@@ -199,31 +235,7 @@ public final class InferenceKernel {
                     && !g.rawFqn().equals(RELATION_FQN)
                     && !Type.isRelation(actual) ->
                     unify(new Type.ClassType(g.rawFqn()), actual, b);
-            case Type.GenericType g -> {
-                // Nominal on the raw class, with the class lattice — a
-                // parameterized SUBCLASS actual conforms (m3's function
-                // carriers: LambdaFunction<{…}> flows into a
-                // FunctionDefinition<Any> formal), mirroring the ClassType
-                // arm's isSubtype rule.
-                if (!(actual instanceof Type.GenericType ag0
-                        && (ag0.rawFqn().equals(g.rawFqn())
-                                || ctx.isSubtype(ag0.rawFqn(), g.rawFqn())))) {
-                    throw fail(formal, actual);
-                }
-                // a SUBCLASS actual pairs arguments as the formal's raw class
-                // sees them: its declared supertypes instantiated (asSuper —
-                // Property<U,V|m> is AbstractProperty<{U[1]->V[m]}>), never
-                // positionally across unrelated parameter lists
-                Type.GenericType ag = ag0.rawFqn().equals(g.rawFqn()) ? ag0
-                        : asSuper(ag0, g.rawFqn()).filter(t -> t instanceof Type.GenericType)
-                                .map(t -> (Type.GenericType) t).orElse(ag0);
-                if (ag.arguments().size() != g.arguments().size()) {
-                    throw fail(formal, actual);
-                }
-                for (int i = 0; i < g.arguments().size(); i++) {
-                    unify(g.arguments().get(i), ag.arguments().get(i), b);
-                }
-            }
+            case Type.GenericType g -> unifyGeneric(g, formal, actual, b);
 
             // A bare STRUCT formal (a declared inline row/schema param,
             // or a colspec row): unify by columns against the actual's
@@ -1487,9 +1499,19 @@ public final class InferenceKernel {
         return FUNCTION_CARRIER_FQNS.contains(g.rawFqn());
     }
 
+    /** One side names the class RAW and the other parameterized, same class. */
+    private static boolean rawOfSameClass(Type a, Type b) {
+        return (a instanceof Type.ClassType c && b instanceof Type.GenericType g && g.rawFqn().equals(c.fqn()))
+                || (b instanceof Type.ClassType c2 && a instanceof Type.GenericType g2 && g2.rawFqn().equals(c2.fqn()));
+    }
+
     public Type commonSupertype(Type a, Type b) {
         if (a.equals(b)) {
             return a;
+        }
+        // raw vs parameterized, same class: the raw side is the class over Any
+        if (rawOfSameClass(a, b)) {
+            return a instanceof Type.GenericType ? a : b;
         }
         // Nil is the BOTTOM: the []-born branch joins to the other side
         // (if($x->isEmpty(), |[], |$enum->extractEnumValue(...)) : T[0..1])
@@ -1796,15 +1818,20 @@ public final class InferenceKernel {
                     continue;   // an exact formal (String against String) ranks 0
                 }
                 String actualRaw = nominalFqn(args.get(i).type());
-                if (actualRaw == null || !(formal instanceof Type.ClassType fc)) {
+                if (actualRaw == null) {
                     return null;
+                }
+                if (!(formal instanceof Type.ClassType fc)) {
+                    rank = Long.MAX_VALUE / 2;   // not a class formal: least specific
+                    continue;
                 }
                 if (fc.fqn().equals(actualRaw)) {
                     continue;
                 }
                 int at = ancestorsOf(actualRaw).indexOf(fc.fqn());
                 if (at < 0) {
-                    return null;
+                    rank = Long.MAX_VALUE / 2;   // accepts by some other rule: least specific
+                    continue;
                 }
                 rank += at + 1;
             }
@@ -1883,6 +1910,12 @@ public final class InferenceKernel {
     /** A re-bind is OK only if it matches, or either side is {@code Any} (the escape hatch). */
     private boolean compatibleRebind(Type existing, Type actual) {
         if (isAny(existing) || isAny(actual)) {
+            return true;
+        }
+        // a RAW reference to a parameterized class (EnumerationMapping) is
+        // that class over Any (real pure): it re-binds against any
+        // instantiation of the same raw class
+        if (rawOfSameClass(existing, actual)) {
             return true;
         }
         if (existing instanceof Type.Primitive || existing instanceof Type.PrecisionDecimal) {

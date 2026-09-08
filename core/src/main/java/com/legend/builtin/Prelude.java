@@ -50,7 +50,7 @@ public final class Prelude {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    /** 512 classes. */
+    /** 536 classes. */
     static final List<ClassDefinition> CLASSES = List.of(
             Pure.nativeClass("native Class meta::core::runtime::Connection { }"),
             Pure.nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }"),
@@ -272,6 +272,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::pure::functions::collection::AggregateValue<T, V, U> { mapFn: meta::pure::metamodel::function::FunctionDefinition<{T[1]->V[*]}>[1]; aggregateFn: meta::pure::metamodel::function::FunctionDefinition<{V[*]->U[0..1]}>[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::List<T> { <<equality.Key>> values: T[*]; }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::Map<U, V> { }"),
+            Pure.nativeClass("native Class meta::pure::functions::collection::MapStats { getIfAbsentCounter: meta::pure::metamodel::type::Integer[1]; size: meta::pure::metamodel::type::Integer[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::Pair<U, V> { <<equality.Key>> first: U[1]; <<equality.Key>> second: V[1]; }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::TreeNode { childrenData: meta::pure::functions::collection::TreeNode[*]; }"),
             Pure.nativeClass("native Class meta::pure::functions::collection::ValueHolder<T> { value: T[1]; }"),
@@ -407,6 +408,29 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::pure::tds::schema::SchemaState { columns: meta::pure::tds::TDSColumn[1..*]; }"),
             Pure.nativeClass("native Class meta::pure::tds::toRelation::TdsToRelationExtension { }"),
             Pure.nativeClass("native Class meta::pure::tds::toRelation::TdsToRelationExtension_V_X_X extends meta::pure::tds::toRelation::TdsToRelationExtension { transfers: meta::pure::metamodel::function::Function<{meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::AppliedFunction[1], meta::pure::extension::Extension[*]->meta::pure::functions::collection::Pair<meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>, meta::pure::metamodel::function::FunctionDefinition<{->meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::AppliedFunction[1]}>>[*]}>[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::assertion::EqualTo extends meta::pure::test::assertion::TestAssertion { expected: meta::pure::metamodel::type::Any[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::assertion::EqualToJson extends meta::pure::test::assertion::TestAssertion { expected: meta::pure::data::EmbeddedData[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::assertion::TestAssertion { id: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::CSVTestResult extends meta::pure::test::mft::TestResult { result: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::ExecuteResult<T> extends meta::pure::test::mft::TestResult { result: meta::pure::mapping::Result<T|*>[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::ExecutionResult { }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::ExpectedLineage { storeLineage: meta::pure::metamodel::type::String[*]; classLineage: meta::pure::metamodel::type::String[*]; reportLineage: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::IgnoreExecutionTest extends meta::pure::test::mft::IgnoreTest { }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::IgnoreTest extends meta::pure::test::mft::Test { reason: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::JSONResult extends meta::pure::test::mft::ExecutionResult { value: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::MFTAdapter { runtime: meta::pure::metamodel::function::Function<{meta::pure::test::mft::MFTMappingTest[1]->meta::core::runtime::Runtime[1]}>[1]; setup: meta::pure::metamodel::function::Function<{meta::pure::metamodel::function::Function<{->meta::pure::test::mft::MFTMappingTest[1]}>[1]->meta::pure::metamodel::type::Any[1]}>[0..1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::MFTEvaluator { eval: meta::pure::metamodel::function::Function<{meta::pure::test::mft::TestParameters[1]->meta::pure::test::mft::TestResult[1]}>[1]; assertion: meta::pure::metamodel::function::Function<{meta::pure::test::mft::TestResult[1], meta::pure::test::mft::TestParameters[1]->meta::pure::metamodel::type::Boolean[1]}>[0..1]; testParameters: meta::pure::metamodel::function::Function<{meta::pure::test::mft::MFTMappingTest[1], meta::core::runtime::Runtime[1]->meta::pure::test::mft::TestParameters[*]}>[1]; unsupportedFeatures: meta::pure::metamodel::function::Function<{->meta::pure::testCoverage::featureMatrix::FeatureSet[*]}>[0..1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::MFTMappingTest { setupData: meta::pure::test::mft::SetupData[*]; mapping: meta::pure::mapping::Mapping[1..*]; assertions: meta::pure::test::mft::Test[*]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::SetupData { }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::StringResult extends meta::pure::test::mft::TestResult { result: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::TDSResult extends meta::pure::test::mft::ExecutionResult { value: meta::pure::metamodel::type::String[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::Test { tests: meta::pure::metamodel::function::ConcreteFunctionDefinition<{->meta::pure::metamodel::function::FunctionDefinition<{->meta::pure::metamodel::type::Any[1]}>[1]}>[*]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::TestAssertion extends meta::pure::test::mft::Test { expectedExecutionResult: meta::pure::test::mft::ExecutionResult[0..1]; expectedLineageResult: meta::pure::test::mft::ExpectedLineage[0..1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::TestErrorAssertion extends meta::pure::test::mft::Test { expectedErrorMessage: meta::pure::metamodel::type::String[0..1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::TestParameters { expectedExecutionResult: meta::pure::metamodel::type::Any[0..1]; expectedErrorMessage: meta::pure::metamodel::type::String[0..1]; expectedLineageResult: meta::pure::test::mft::ExpectedLineage[0..1]; runtime: meta::core::runtime::Runtime[1]; mapping: meta::pure::mapping::Mapping[1]; test: meta::pure::metamodel::function::ConcreteFunctionDefinition<{->meta::pure::metamodel::function::FunctionDefinition<{->meta::pure::metamodel::type::Any[1]}>[1]}>[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::mft::TestResult { }"),
+            Pure.nativeClass("native Class meta::pure::test::pct::PCTManifest { adapter: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]; exclusions: meta::pure::functions::collection::Map<meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>, meta::pure::metamodel::type::String>[1]; }"),
+            Pure.nativeClass("native Class meta::pure::test::surveyor::TestResult { fqn: meta::pure::metamodel::type::String[1]; status: meta::pure::test::surveyor::TestStatus[1]; elapsed: meta::pure::metamodel::type::Integer[1]; message: meta::pure::metamodel::type::String[0..1]; }"),
             Pure.nativeClass("native Class meta::pure::testCoverage::featureMatrix::FeatureSet { name: meta::pure::metamodel::type::String[0..1]; features: meta::pure::metamodel::type::Any[*]; }"),
             Pure.nativeClass("native Class meta::pure::tools::DebugContext { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }"),
             Pure.nativeClass("native Class meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; propertyPath: meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil, meta::pure::metamodel::type::Any|*>[*]; type: meta::pure::metamodel::type::Type[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[0..1]; }"),
@@ -566,7 +590,7 @@ public final class Prelude {
             Pure.nativeClass("native Class meta::relational::testDataGeneration::TestDataGenResult { dataCsvString: meta::pure::metamodel::type::String[1]; relationTree: meta::pure::lineage::scanRelations::RelationTree[1]; sqls: meta::pure::metamodel::type::String[*]; }")
     );
 
-    /** 31 enums. */
+    /** 32 enums. */
     static final List<EnumDefinition> ENUMS = List.of(
             Pure.nativeEnum("Enum meta::external::query::sql::metamodel::ArithmeticType { ADD, SUBTRACT, MULTIPLY, DIVIDE, MODULUS, POWER }"),
             Pure.nativeEnum("Enum meta::external::query::sql::metamodel::BitwiseBinaryOperator { AND, OR, XOR }"),
@@ -595,6 +619,7 @@ public final class Prelude {
             Pure.nativeEnum("Enum meta::pure::functions::string::RegexpParameter { CASE_SENSITIVE, CASE_INSENSITIVE, MULTILINE, NON_NEWLINE_SENSITIVE }"),
             Pure.nativeEnum("Enum meta::pure::metamodel::constraint::EnforcementLevel { Error, Warn }"),
             Pure.nativeEnum("Enum meta::pure::tds::SortDirection { ASC, DESC }"),
+            Pure.nativeEnum("Enum meta::pure::test::surveyor::TestStatus { PASS, FAIL, ERROR, SKIP }"),
             Pure.nativeEnum("Enum meta::relational::functions::sqlQueryToString::GenerationSide { Select, Where }"),
             Pure.nativeEnum("Enum meta::relational::metamodel::FrameType { ROWS, RANGE }"),
             Pure.nativeEnum("Enum meta::relational::metamodel::FrameValueDirection { PRECEDING, FOLLOWING }"),

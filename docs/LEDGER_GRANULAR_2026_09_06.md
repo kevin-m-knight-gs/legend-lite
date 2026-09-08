@@ -812,3 +812,19 @@ Method: SpecBodyCensusTest after every change; channel B + both lanes before lan
 | 6 | lanes | 2442 → 2431 → 2442 | function-carrier properties have no layout slot; SystemMetamodel return type reverted |
 | 7 | lanes, second pass | DuckDB HUNG (liveArms exponential) / chB-std 204 → 187 | runtime-match arm withdrawn (7 rows stay, design row); PCT suppression back to by-name |
 | 8 | the hang (USER: "wall the post-processors until a design session") | DuckDB 110 s → 60 s | `ENGINE_MACHINERY_WALLS` (5 exact FQNs) + `UNROLL_BUDGET` 20,000 + the declared-ancestor index |
+
+## 23. Batch 150 — the census work list, 36 → 3; units and the PCT harness in (2026-09-08)
+
+USER: burn to zero, nothing decided away. Method as §22. SPEC_BODY_CENSUS §9 has the rows and the rules; §9.3 the lane-caught hijack.
+
+| # | bucket | before → after | rule |
+|---|---|---|---|
+| 1 | vocabulary | 9 → 0 | 7 spec natives + 3 harness shapes generated (the generator's `meta::pure::test::` admission); Database/SetImplementation spec-exact |
+| 2 | units | 4 → 0 | measures in the model; Measure/Unit shapes; unit literal = `newUnit(M~u, n)`; `M~u` resolved through the measure |
+| 3 | match no-branch | 7 → 0 | the raise typed at the LUB (real pure's Match failure) |
+| 4 | one-offs | 6 → 0 | Nil wildcard argument; raw-vs-parameterized; eval run-time multiplicity; tie-break ranks; SetImplementation.id[1] |
+| 5 | discarded statements / assert family / dotted copy keys / packages | 8 → 0 | see §9.1 |
+| 6 | special-form collisions | 2 → 0 | the receiver's own `_this` function wins over the bare operator family (`ReceiverOwnedFunctions`) |
+| 7 | lanes | 2442 → 2376 → 2442 | the routing hijacked tableToTDS and cast; narrowed to `_this` functions with natives that never take the class |
+| 8 | guards | — | unify's generic arm split; `NumberLiterals` out of SpecParser; class count 84; Measure/Unit/Database surfaces; catalog +8 |
+| — | REMAINING 3 | | derived-property bodies — the generator's printer leg (SYSTEM_PRELUDE_DESIGN §9.3) |

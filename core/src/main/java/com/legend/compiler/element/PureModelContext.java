@@ -165,6 +165,7 @@ public final class PureModelContext implements ModelContext {
         java.util.Set<String> out = new java.util.HashSet<>();
         model.classes().forEach(e -> out.add(e.qualifiedName()));
         model.enums().forEach(e -> out.add(e.qualifiedName()));
+        model.measures().forEach(e -> out.add(e.qualifiedName()));
         model.associations().forEach(e -> out.add(e.qualifiedName()));
         model.mappings().forEach(e -> out.add(e.qualifiedName()));
         model.legacyMappings().forEach(e -> out.add(e.qualifiedName()));
@@ -247,6 +248,32 @@ public final class PureModelContext implements ModelContext {
                 .map(m -> m.routedTargetSets().get(head))
                 .or(() -> model.routedTargetSetOf(mappingFqn, head));
     }
+
+    @Override
+    public java.util.Optional<com.legend.model.MeasureDefinition> findMeasure(String fqn) {
+        return model.findMeasure(fqn);
+    }
+
+    @Override
+    public boolean isPackage(String fqn) {
+        if (packages.isEmpty()) {
+            for (String el : elementFqns()) {
+                String[] segs = el.split("::");
+                StringBuilder prefix = new StringBuilder();
+                for (int i = 0; i < segs.length - 1; i++) {
+                    if (i > 0) {
+                        prefix.append("::");
+                    }
+                    prefix.append(segs[i]);
+                    packages.add(prefix.toString());
+                }
+            }
+        }
+        return packages.contains(fqn);
+    }
+
+    /** The package index — every proper prefix of an element FQN, built once. */
+    private final java.util.Set<String> packages = new java.util.HashSet<>();
 
     @Override
     public java.util.Optional<com.legend.model.ProfileDefinition> findProfile(String fqn) {

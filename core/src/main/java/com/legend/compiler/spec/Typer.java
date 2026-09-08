@@ -552,6 +552,15 @@ final class Typer {
         }
         Optional<CoreFn> core = CoreFn.of(af.function());
         if (core.isPresent()) {
+            // real pure resolves by TYPE: a model function of this name whose
+            // first parameter is the receiver's CLASS (Database.join(name),
+            // relational.pure) out-ranks the bare special form, which only
+            // ever meant relations, tables and class extents
+            TypedFunction owned = ReceiverOwnedFunctions.of(this, af, env);
+            if (owned != null) {
+                return applyGeneric(new AppliedFunction(owned.qualifiedName(),
+                        af.parameters()), env);
+            }
             return applyCore(core.get(),
                     aliasNormalized(core.get(), af), env);
         }
@@ -2342,8 +2351,10 @@ final class Typer {
                         ln.value(), val, val.info()));
                 continue;
             }
-            throw new TypeInferenceException("only trailing-expression lambda"
-                    + " bodies are supported (a non-let intermediate statement)");
+            // a non-let statement: typed and KEPT as a statement (real pure
+            // sequences it and discards the value — |[]->toOneMany(); 1;);
+            // whether SQL can sequence it is the lowering's question
+            typedStmts.add(synth(st, lambdaScope));
         }
         TypedSpec body = multiStatement ? synthBody(lam, lambdaScope)
                 : synth(lam.body().get(lam.body().size() - 1), lambdaScope);
@@ -2626,6 +2637,31 @@ final class Typer {
         if (ctx.findProfile(ref.fullPath()).isPresent()) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
                     new Type.ClassType(Pure.PROFILE.qualifiedName())));
+        }
+        // A MEASURE reference is a value of Measure; M~unit is a value of
+        // Unit (m3 Measure/Unit; the spec's unit tests: RomanLength~Pes)
+        if (ctx.findMeasure(ref.fullPath()).isPresent()) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(
+                    new Type.ClassType(Pure.MEASURE_METACLASS.qualifiedName())));
+        }
+        int tilde = ref.fullPath().indexOf('~');
+        if (tilde > 0) {
+            String measure = ref.fullPath().substring(0, tilde);
+            String unit = ref.fullPath().substring(tilde + 1);
+            var md = ctx.findMeasure(measure);
+            boolean known = md.isPresent() && (
+                    (md.get().canonicalUnit() != null && md.get().canonicalUnit().name().equals(unit))
+                    || md.get().nonCanonicalUnits().stream().anyMatch(u -> u.name().equals(unit)));
+            if (known) {
+                return new TypedPackageableRef(ref.fullPath(), ExprType.one(
+                        new Type.ClassType(Pure.UNIT_METACLASS.qualifiedName())));
+            }
+        }
+        // A PACKAGE reference is a value of Package (m3: Root and every
+        // proper prefix of an element's name — elementToPath(meta::pure))
+        if (ref.fullPath().equals("Root") || ctx.isPackage(ref.fullPath())) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(
+                    new Type.ClassType(Pure.PACKAGE_METACLASS.qualifiedName())));
         }
         // An execution-context element (runtime/connection) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.

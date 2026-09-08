@@ -135,7 +135,9 @@ class SpecBodyCensusTest {
                     natives++;
                     continue;
                 }
-                String id = fn.qualifiedName() + "/" + fn.parameters().size();
+                String id = fn.qualifiedName() + "(" + fn.parameters().stream()
+                        .map(p -> p.type().typeName() + p.multiplicity().text())
+                        .collect(java.util.stream.Collectors.joining(",")) + ")";
                 try {
                     specs.compile(fn);
                     ok.add(id);

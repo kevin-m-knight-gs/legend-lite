@@ -128,8 +128,19 @@ final class MatchChecker {
             }
         }
         if (selected == null) {
-            throw new TypeInferenceException("match: no branch matches input type '"
-                    + input.info().type().typeName() + input.info().multiplicity().text() + "'");
+            // real pure compiles it and fails when the value arrives
+            // ("Match failure", Match.java): the RAISE typed at the branches'
+            // LUB — the spec's testMatch*Fail bodies; lowering emits fail()
+            var fail = t.model().findFunction("meta::pure::functions::asserts::fail").stream()
+                    .filter(f -> f.parameters().size() == 1).findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("fail(message) is not registered"));
+            ExprType str = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+            return new com.legend.compiler.spec.typed.TypedNativeCall(fail, List.of(
+                    new com.legend.compiler.spec.typed.TypedCString("Match failure: "
+                            + input.info().type().typeName() + input.info().multiplicity().text()
+                            + " matches no branch", str)),
+                    new ExprType(java.util.Objects.requireNonNull(lub),
+                            java.util.Objects.requireNonNull(lubMult)));
         }
         return new TypedMatch(selected.input(), selected.param(), selected.body(),
                 selected.extraParam(), selected.extra(), selected.info(),

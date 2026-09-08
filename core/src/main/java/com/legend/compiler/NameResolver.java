@@ -1629,6 +1629,14 @@ public final class NameResolver {
                                     .toList(),
                             q.pos());
             case PackageableElementPtr ptr -> {
+                // a UNIT reference Measure~unit (m3): the MEASURE resolves
+                // through the import tiers, the unit part rides along
+                int tilde = ptr.fullPath().indexOf('~');
+                if (tilde > 0) {
+                    String base = resolveName(ptr.fullPath().substring(0, tilde), scope);
+                    String q = base + ptr.fullPath().substring(tilde);
+                    yield q.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(q);
+                }
                 String r = resolveName(ptr.fullPath(), scope);
                 // A BARE MANGLED function id in value position (leg 4:
                 // contains(x, comparator_A_1__A_1__Boolean_1_) — the

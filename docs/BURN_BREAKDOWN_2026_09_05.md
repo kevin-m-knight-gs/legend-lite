@@ -34,6 +34,8 @@ behind it is still TEXT.
 
 ### L1 Resolver: navigation shapes (15 tests)
 
+Status: **batch 150 / the census work list 36 → 3; units + PCT harness in (2026-09-08)** — no pass change (DuckDB 108/2442, H2 565/1990); `SpecBodyCensusTest` 1128 typed / 3 failed, load walls 6; the 3 = derived-property bodies (generator printer leg); LEDGER_GRANULAR §23.
+
 Status: **batch 149 / the census work list 174 → 36; engine post-processing machinery walled (2026-09-08)** — no pass change (DuckDB 108/2442, H2 565/1990); `SpecBodyCensusTest` 1090 typed / 36 failed, every remaining row owned (SPEC_BODY_CENSUS §8.2); LEDGER_GRANULAR §22; NEXT = burn the 36 to zero.
 
 Status: **batch 148 / the system-prelude census + the kernel rule LANDED (2026-09-08)** — no pass change (DuckDB 108/2442, H2 565/1990); `SpecBodyCensusTest` types every Pure body in legend-pure's platform packages: 481/643 → 950/174 after the kernel binds the enclosing function's type parameters per expression (`InferenceKernel`); the 174 are the typing work list (SPEC_BODY_CENSUS §6–7); LEDGER_GRANULAR §21.

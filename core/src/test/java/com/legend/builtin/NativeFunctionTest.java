@@ -609,7 +609,8 @@ class NativeFunctionTest {
         // +FunctionType, +NativeFunction — m3 bootstrap shapes the spec's
         // bodies cast to / instanceOf (tools/m3shape.py); the census's
         // functionType.pure load wall closed with FunctionType.
-        assertEquals(82, hand,
+        // 82 -> 84 (batch 150): +Measure, +Unit (m3.pure:783/:922 — the spec's unit tests)
+        assertEquals(84, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -839,7 +840,7 @@ class NativeFunctionTest {
                     List.of("values")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Database",
-                    List.of("schemas")),
+                    List.of("schemas", "joins", "filters")),
                     java.util.Map.entry(
                     "meta::relational::runtime::PostProcessor",
                     // relationalRuntime.pure:63-70 (stored props only —
@@ -1153,7 +1154,11 @@ class NativeFunctionTest {
                     java.util.Map.entry("meta::pure::metamodel::type::Enumeration", List.of("values")),
                     java.util.Map.entry("meta::pure::metamodel::type::PrimitiveType", List.of("extended")),
                     java.util.Map.entry("meta::pure::metamodel::type::FunctionType",
-                            List.of("parameters", "returnType", "returnMultiplicity")));
+                            List.of("parameters", "returnType", "returnMultiplicity")),
+                    java.util.Map.entry("meta::pure::metamodel::type::Measure",
+                            List.of("canonicalUnit", "nonCanonicalUnits")),
+                    java.util.Map.entry("meta::pure::metamodel::type::Unit",
+                            List.of("measure", "conversionFunction")));
 
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(

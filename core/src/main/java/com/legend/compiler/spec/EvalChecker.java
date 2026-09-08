@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
@@ -64,11 +65,38 @@ final class EvalChecker {
                 yield t.synth(new AppliedProperty(params.get(1), cs.name()), env);
             }
             // funcRef->eval(args…)  ==>  funcRef(args…)
-            case PackageableElementPtr ref -> t.synth(
-                    new AppliedFunction(ref.fullPath(), params.subList(1, params.size())), env);
+            case PackageableElementPtr ref -> referenceEval(t, ref, params.subList(1, params.size()), env);
             case LambdaFunction lam -> lambdaEval(t, lam, params.subList(1, params.size()), env);
             case ValueSpecification fn -> variableEval(t, fn, params.subList(1, params.size()), env);
         };
+    }
+
+    /** {@code funcRef->eval(args…)} is the call {@code funcRef(args…)}; an
+     * argument whose MULTIPLICITY misses the parameter's still types (real
+     * pure checks the size when the value arrives — eval.pure's
+     * testEvalWithCollectionWithOneElement passes Integer[*] into
+     * Integer[1]): the referenced function's declared multiplicities govern. */
+    private static TypedSpec referenceEval(Typer t, PackageableElementPtr ref,
+            List<ValueSpecification> rawArgs, Env env) {
+        try {
+            return t.synth(new AppliedFunction(ref.fullPath(), rawArgs), env);
+        } catch (TypeInferenceException e) {
+            List<TypedFunction> fns = t.functionCandidates(ref.fullPath()).stream()
+                    .filter(f -> f.parameters().size() == rawArgs.size()).toList();
+            if (fns.size() != 1) {
+                throw e;
+            }
+            TypedFunction fn = fns.get(0);
+            List<TypedSpec> args = new ArrayList<>(rawArgs.size());
+            Bindings b = new Bindings();
+            for (int i = 0; i < rawArgs.size(); i++) {
+                TypedSpec arg = t.synth(rawArgs.get(i), env);
+                t.kernel().unify(fn.parameters().get(i).type(), arg.info().type(), b);   // types must fit
+                args.add(arg);
+            }
+            return Typer.emitCall(fn, args, new ExprType(
+                    t.kernel().resolve(fn.returnType(), b), fn.returnMultiplicity()));
+        }
     }
 
     /** β-reduction: bind each parameter to its argument's type (declared type wins), check the body. */
@@ -160,8 +188,29 @@ final class EvalChecker {
             args.add(arg);
             argTypes.add(arg.info());
         }
-        InferenceKernel.Resolution r = t.kernel().resolveOverload(
-                t.model().findFunction(CoreFn.EVAL.parseName()), argTypes);
+        InferenceKernel.Resolution r;
+        try {
+            r = t.kernel().resolveOverload(
+                    t.model().findFunction(CoreFn.EVAL.parseName()), argTypes);
+        } catch (TypeInferenceException e) {
+            // real pure checks an eval argument's MULTIPLICITY when the value
+            // arrives (eval.pure testEvalWithCollectionWithOneElement passes
+            // Integer[*] into Integer[1]): the function's declared parameter
+            // multiplicities govern the typing; the run-time size check is
+            // the lowering's
+            var ft = t.kernel().functionTypeOf(declared).orElse(null);
+            if (ft == null || ft.params().size() != rawArgs.size()) {
+                throw e;
+            }
+            List<ExprType> declaredArgs = new ArrayList<>(argTypes.size());
+            declaredArgs.add(fnTyped.info());
+            for (int i = 0; i < args.size(); i++) {
+                declaredArgs.add(new ExprType(args.get(i).info().type(),
+                        ft.params().get(i).multiplicity()));
+            }
+            r = t.kernel().resolveOverload(
+                    t.model().findFunction(CoreFn.EVAL.parseName()), declaredArgs);
+        }
         return new TypedEval(fnTyped, args, r.output());
     }
 }

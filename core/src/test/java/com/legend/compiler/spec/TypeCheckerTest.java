@@ -663,9 +663,16 @@ class TypeCheckerTest {
     }
 
     @Test
-    void matchWithNoMatchingBranchFailsLoudly() {
-        assertThrows(TypeInferenceException.class,
-                () -> typeQuery("5->match([s:String[1]|$s])"));
+    void matchWithNoMatchingBranchIsTheRuntimeRaise() {
+        // real pure compiles a match no branch accepts and fails when the
+        // value arrives ("Match failure", Match.java) — typed as the RAISE
+        // at the branches' LUB, so the spec's testMatch*Fail bodies type
+        // (census batch 150); the lowering emits fail()
+        TypedSpec n = typeQuery("5->match([s:String[1]|$s])");
+        assertEquals(Type.Primitive.STRING, n.info().type());
+        assertTrue(n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && nc.callee().qualifiedName().equals("meta::pure::functions::asserts::fail"),
+                "a no-branch match is the fail() raise, got " + n.getClass().getSimpleName());
     }
 
     @Test

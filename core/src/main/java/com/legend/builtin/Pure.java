@@ -236,6 +236,9 @@ public final class Pure {
     public static final ClassDefinition DATA_TYPE = nativeClass("native Class meta::pure::metamodel::type::DataType extends meta::pure::metamodel::type::Type {}");
     public static final ClassDefinition PRIMITIVE_TYPE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::PrimitiveType extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { extended: meta::pure::metamodel::type::Boolean[0..1]; }");
     public static final ClassDefinition FUNCTION_TYPE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::FunctionType extends meta::pure::metamodel::type::Type { parameters: meta::pure::metamodel::valuespecification::VariableExpression[*]; returnType: meta::pure::metamodel::type::generics::GenericType[1]; returnMultiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; }");
+    // units (m3.pure:783 Measure, :922 Unit — tools/m3shape.py cannot read them: hand receipts)
+    public static final ClassDefinition MEASURE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Measure extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { canonicalUnit: meta::pure::metamodel::type::Unit[1]; nonCanonicalUnits: meta::pure::metamodel::type::Unit[*]; }");
+    public static final ClassDefinition UNIT_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Unit extends meta::pure::metamodel::type::DataType { measure: meta::pure::metamodel::type::Measure[1]; conversionFunction: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
     public static final ClassDefinition PACKAGE_METACLASS = nativeClass("native Class meta::pure::metamodel::Package extends meta::pure::metamodel::PackageableElement { children: meta::pure::metamodel::PackageableElement[*]; }");
     // m3 PackageableElement.package (legend-pure m3.pure): the owning
     // package — a constructed element names it (^Database(package = ::))
@@ -295,7 +298,7 @@ public final class Pure {
     // (real m3 puts both under PropertyOwnerImplementation). Their real
     // shapes are generated the day the store's element references become
     // m3 rows (docs/SESSION_HANDOFF_2026_09_02.md, batch 54 follow-ups).
-    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[1]; class: meta::pure::metamodel::type::Class[1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::mapping::Mapping[1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
+    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[1]; class: meta::pure::metamodel::type::Class[1]; id: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
     public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation { propertyMappings: meta::pure::mapping::PropertyMapping[*]; }");
     public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation {}");
     public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any { owner: meta::pure::mapping::PropertyMappingsImplementation[0..1]; targetSetImplementationId: meta::pure::metamodel::type::String[1]; sourceSetImplementationId: meta::pure::metamodel::type::String[1]; property: meta::pure::metamodel::function::property::Property[1]; }");
@@ -337,7 +340,7 @@ public final class Pure {
     // database REFERENCE is a value of this type (classReference), so the
     // corpus's testRuntime(db:Database[1]) overload family type-checks
     // real relational.pure: Database extends Store
-    public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database extends meta::pure::store::Store { schemas: meta::relational::metamodel::Schema[*]; }");
+    public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database extends meta::pure::store::Store { schemas: meta::relational::metamodel::Schema[*]; joins: meta::relational::metamodel::join::Join[*]; filters: meta::relational::metamodel::Filter[*]; }");
     // Real platform_dsl_mapping/grammar/mapping.pure:40 (extends
     // ValueTransformer<T> — parent flattened to Any until a witness
     // demands the transformer surface, the SetImplementation flatten
@@ -1276,6 +1279,16 @@ public final class Pure {
     // the path literal, over a metamodel ROW it is the row's key (D2).
     // ---- spec natives registered from the census (batch 149): reflection over the
     // live graph, evaluation, effects — no SQL meaning; each walls at the lowering ----
+    // the anonymous-map natives (m3 essential/collection/anonymous/map/*.pure) — reached by mapping.pure's association bodies
+    // units (m3 essential/lang/unit): a unit VALUE is a number stamped with its Unit — no SQL carrier yet, walls at the lowering
+    public static final NativeFunctionDefinition NEW_UNIT__2 = signature("native function meta::pure::functions::meta::newUnit(type:meta::pure::metamodel::type::Unit[1], value:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition GET_UNIT_VALUE__1 = signature("native function meta::pure::functions::meta::getUnitValue(unit:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Number[1];");
+    public static final NativeFunctionDefinition MAP_GET_MAP_STATS__1 = signature("native function meta::pure::functions::collection::getMapStats<U,V>(m:meta::pure::functions::collection::Map<U,V>[1]):meta::pure::functions::collection::MapStats[0..1];");
+    // the PCT harness natives (m3 test/pct, test/surveyor) — the spec's test runner; typed, never run here
+    public static final NativeFunctionDefinition PCT_EXECUTE_TEST__1 = signature("native function meta::pure::test::surveyor::executeTest(testFn:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1]):meta::pure::test::surveyor::TestResult[1];");
+    public static final NativeFunctionDefinition PCT_EXECUTE_PCT_TEST__3 = signature("native function meta::pure::test::surveyor::executePCTTest(testFn:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1], adapter:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1], exclusions:meta::pure::functions::collection::Map<meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>,meta::pure::metamodel::type::String>[1]):meta::pure::test::surveyor::TestResult[1];");
+    public static final NativeFunctionDefinition PCT_LOAD_MANIFEST__1 = signature("native function meta::pure::test::pct::loadPCTManifest(manifestPath:meta::pure::metamodel::type::String[1]):meta::pure::test::pct::PCTManifest[1];");    public static final NativeFunctionDefinition MAP_REPLACE_ALL__2 = signature("native function meta::pure::functions::collection::replaceAll<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], pairs:meta::pure::functions::collection::Pair<U,V>[*]):meta::pure::functions::collection::Map<U,V>[1];");
+    public static final NativeFunctionDefinition MAP_GET_IF_ABSENT_PUT_WITH_KEY__3 = signature("native function meta::pure::functions::collection::getIfAbsentPutWithKey<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], key:U[1], func:meta::pure::metamodel::function::Function<{U[1]->V[0..1]}>[1]):V[0..1];");
     public static final NativeFunctionDefinition ENUM_NAME__1 = signature("native function meta::pure::functions::meta::enumName<T>(enum:meta::pure::metamodel::type::Enumeration<T>[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition DROP_TEMP_TABLE__2 = signature("native function meta::relational::metamodel::execute::dropTempTable(tableName:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Nil[0];");
     // <<PCT.function>> spellings the by-name suppression rule drops (FunctionCompiler.addModelOverloads):

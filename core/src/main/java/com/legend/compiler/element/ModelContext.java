@@ -85,6 +85,15 @@ public interface ModelContext {
      */
     Optional<com.legend.model.MappingDefinition> findMapping(String fqn);
 
+    /** The Measure element at {@code fqn}, if the model declares one (a
+     * measure named as a value is an instance of the Measure metaclass; its
+     * units {@code M~u} are Unit values). */
+    Optional<com.legend.model.MeasureDefinition> findMeasure(String fqn);
+
+    /** Whether {@code fqn} names a PACKAGE — a proper prefix of some
+     * element's qualified name (m3: a Package value; never a text scan). */
+    boolean isPackage(String fqn);
+
     /** The profile at {@code fqn}, if the model declares one (a profile
      * named as a VALUE is an instance of the Profile metaclass). */
     Optional<com.legend.model.ProfileDefinition> findProfile(String fqn);

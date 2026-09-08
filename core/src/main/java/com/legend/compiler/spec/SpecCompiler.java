@@ -78,8 +78,8 @@ public final class SpecCompiler {
             // -Dlegend.spec.trace=<name fragment> prints WHO demanded the body
             String trace = System.getProperty("legend.spec.trace");
             if (trace != null && fn.qualifiedName().contains(trace)) {
-                new Exception("[spec] compile of " + fn.qualifiedName() + " failed: " + e.getMessage())
-                        .printStackTrace(System.err);
+                System.err.println("[spec] compile of " + fn.qualifiedName() + " failed: " + e.getMessage());
+                e.printStackTrace(System.err);
             }
             throw new TypeInferenceException(
                     "in function '" + fn.qualifiedName() + "': " + e.getMessage(), e);

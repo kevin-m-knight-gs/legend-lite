@@ -40,8 +40,7 @@ final class NewChecker {
         ni.properties().forEach(kb -> {
             String name = kb.key();
             com.legend.protocol.spec.KeyExpression key = kb.expression();
-            Property prop = t.model().findProperty(classFqn, name).orElseThrow(() ->
-                    new TypeInferenceException("class '" + classFqn + "' has no property '" + name + "'"));
+            Property prop = pathProperty(t, classFqn, name);
             // F17: '+=' APPENDS to the receiver's property (real pure's
             // copy-add semantics) — desugared HERE to
             // concatenate(receiver.prop, value), so downstream the
@@ -265,5 +264,22 @@ final class NewChecker {
         }
         return new TypedNewInstance(ni.className(), properties,
                 new ExprType(new Type.ClassType(ni.className()), Multiplicity.Bounded.ONE));
+    }
+
+    /** The property a copy key names — a DOTTED key walks the navigation
+     * path (real pure's deep copy: ^$p(address.name='x') sets the address's
+     * name), each hop through the previous property's class. */
+    private static Property pathProperty(Typer t, String classFqn, String name) {
+        String cls = classFqn;
+        Property prop = null;
+        for (String seg : name.split("\\.")) {
+            final String at = cls;
+            prop = t.model().findProperty(at, seg).orElseThrow(() ->
+                    new TypeInferenceException("class '" + at + "' has no property '" + seg + "'"));
+            Type pt = prop.type();
+            cls = pt instanceof Type.ClassType c ? c.fqn()
+                    : pt instanceof Type.GenericType g ? g.rawFqn() : cls;
+        }
+        return java.util.Objects.requireNonNull(prop);
     }
 }

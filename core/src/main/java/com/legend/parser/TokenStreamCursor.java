@@ -515,6 +515,22 @@ public interface TokenStreamCursor {
      *  ({@code a::b::c}). Stricter than {@link #isIdentifierToken}:
      *  quoted strings are <em>not</em> admissible as FQN segments &mdash;
      *  {@code foo::'bar'::baz} is not legal Pure in any position. */
+    /** The index of the {@code ~} that ends a unit path ({@code RomanLength~Pes})
+     * starting at token {@code i}, or -1 when no unit path starts there. */
+    default int unitPathEnd(int i) {
+        boolean sawName = false;
+        while (i < tokens().count() && isFqnSegmentToken(tokens().type(i))) {
+            sawName = true;
+            i++;
+            if (i < tokens().count() && tokens().type(i) == TokenType.PATH_SEPARATOR) {
+                i++;
+                continue;
+            }
+            break;
+        }
+        return sawName && i < tokens().count() && tokens().type(i) == TokenType.TILDE ? i : -1;
+    }
+
     default boolean isFqnSegmentToken(TokenType t) {
         // the engine's identifier rule admits many keywords but NOT the boolean
         // literals (they left IDENTIFIER_TOKENS 2026-08-12) or STRING

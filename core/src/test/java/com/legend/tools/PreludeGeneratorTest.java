@@ -251,7 +251,8 @@ class PreludeGeneratorTest {
                 while (r.find()) {
                     // a spec TEST MODEL (…::tests::Person) named in a harness
                     // comment or fixture is corpus input, never a platform shape
-                    if (index.containsKey(r.group()) && !r.group().matches(".*::tests?::.*")) {
+                    if (index.containsKey(r.group()) && (!r.group().matches(".*::tests?::.*")
+                            || r.group().startsWith("meta::pure::test::"))) {
                         javaDemand.add(r.group());
                     }
                 }
@@ -495,7 +496,10 @@ class PreludeGeneratorTest {
         // is corpus/library input, never a platform shape — the platform's
         // own test-support namespace (meta::pure::functions::test) stays
         return EXCLUDED_CLASSES.containsKey(fqn)
-                || (fqn.matches(".*::tests?::.*") && !fqn.startsWith("meta::pure::functions::test::"))
+                || (fqn.matches(".*::tests?::.*") && !fqn.startsWith("meta::pure::functions::test::")
+                        // the spec's PCT harness (meta::pure::test::pct / ::surveyor) — the natives
+                        // executeTest/executePCTTest/loadPCTManifest name its shapes (batch 150)
+                        && !fqn.startsWith("meta::pure::test::"))
                 || (EXCLUDED_PACKAGE_PREFIXES.stream().anyMatch(fqn::startsWith)
                         && !fqn.startsWith(PROTOCOL_TEMPLATE_M3));
     }
