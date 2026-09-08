@@ -1,7 +1,16 @@
-# BUILD — the every-branch build. gate.yml fires only on pushes to main and
-# on pull requests, so work on a topic branch gets no CI at all until it
-# opens a PR. This workflow runs on every branch push, and widens the
-# PLATFORM the build is proven on: linux/windows/macos x JDK 21/25.
+# BUILD — every branch, every pull request. gate.yml fires only on pushes
+# to main and on pull requests, so work on a topic branch got no CI at all
+# until it opened a PR. This workflow runs on every branch push AND on every
+# pull request, and widens the PLATFORM the build is proven on:
+# linux/windows/macos x JDK 21/25.
+#
+# BOTH triggers, and they are not redundant. `push` covers every branch,
+# including the ones that never open a PR. `pull_request` covers what a push
+# cannot reach: PRs from FORKS, whose branches never push to this repo. It
+# also builds a different TREE — the merge commit, the branch as it would
+# land on the base — where a push builds the branch tip. A same-repo PR
+# therefore runs twice, on two trees that can disagree; a base that moved
+# under a branch shows up in exactly one of them.
 #
 # SCOPE: the WHOLE reactor. No module filter, no -Dtest filter, nothing
 # excluded — which is the same principle the previous scope was reaching
@@ -91,9 +100,13 @@ name: build
 on:
   push:
     branches: ['**']
+  pull_request:
   workflow_dispatch:
 
-# Six jobs a push, so supersede the previous run on the same branch.
+# Six jobs a push, so supersede the previous run on the same ref. A branch
+# push and that branch's PR are DIFFERENT refs (refs/heads/x versus
+# refs/pull/N/merge) and so do not supersede one another — which is the
+# point above: they are building different trees.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
