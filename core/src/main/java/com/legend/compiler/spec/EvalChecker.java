@@ -134,7 +134,10 @@ final class EvalChecker {
         // a lambda-typed binding may carry the bare FunctionType — accept both.
         boolean functionTyped = declared instanceof Type.FunctionType
                 || (declared instanceof Type.GenericType g && g.arguments().size() == 1
-                        && g.arguments().get(0) instanceof Type.FunctionType);
+                        && g.arguments().get(0) instanceof Type.FunctionType)
+                // an m3 Function subclass value (a Property) — its
+                // instantiated supertype spells the function type
+                || t.kernel().functionTypeOf(declared).isPresent();
         // any function-typed EXPRESSION serves — a variable, or a CALL
         // RESULT (transformNonCached(), createTempTableStatement(...):
         // the index's eval-of-call-result rows); the kernel's

@@ -28,6 +28,7 @@ public record TypedClass(
         String qualifiedName,
         List<String> typeParameters,
         List<String> superClassFqns,
+        List<com.legend.compiler.element.type.Type> superTypes,
         List<Property> properties,
         List<TypedConstraint> constraints,
         boolean isNative) implements TypedNominal {
@@ -36,6 +37,7 @@ public record TypedClass(
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         typeParameters = typeParameters == null ? List.of() : List.copyOf(typeParameters);
         superClassFqns = superClassFqns == null ? List.of() : List.copyOf(superClassFqns);
+        superTypes = superTypes == null ? List.of() : List.copyOf(superTypes);
         properties = properties == null ? List.of() : List.copyOf(properties);
         constraints = constraints == null ? List.of() : List.copyOf(constraints);
     }

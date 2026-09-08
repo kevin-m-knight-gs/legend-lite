@@ -85,6 +85,10 @@ public interface ModelContext {
      */
     Optional<com.legend.model.MappingDefinition> findMapping(String fqn);
 
+    /** The profile at {@code fqn}, if the model declares one (a profile
+     * named as a VALUE is an instance of the Profile metaclass). */
+    Optional<com.legend.model.ProfileDefinition> findProfile(String fqn);
+
     /** H5 set-ID dispatch hint: the SOLE set id property {@code head}
      * routes to across the mapping closure — see
      * {@code ModelBuilder.routedTargetSetOf}. */

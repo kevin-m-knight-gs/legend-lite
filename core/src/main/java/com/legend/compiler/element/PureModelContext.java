@@ -249,6 +249,11 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.model.ProfileDefinition> findProfile(String fqn) {
+        return model.findProfile(fqn);
+    }
+
+    @Override
     public java.util.Optional<com.legend.model.MappingDefinition> findMapping(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findMapping(fqn);

@@ -142,6 +142,10 @@ public final class SpecCompiler {
      * inferred.
      */
     private CompiledFunction check(TypedFunction fn) {
+        return typer.inFunctionScope(fn, () -> checkBody(fn));
+    }
+
+    private CompiledFunction checkBody(TypedFunction fn) {
         List<ValueSpecification> body = fn.body().orElseThrow(() -> new TypeInferenceException(
                 "cannot type-check '" + fn.qualifiedName() + "': it has no body (native or dependency)"));
         if (body.isEmpty()) {

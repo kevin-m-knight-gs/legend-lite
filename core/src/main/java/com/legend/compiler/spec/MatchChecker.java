@@ -144,6 +144,7 @@ final class MatchChecker {
             Optional<TypedSpec> dynamicArms) {
         Type inputType = input.info().type();
         boolean narrows = false;
+        boolean someAccepts = false;
         for (LambdaFunction branch : branches) {
             if (branch.parameters().isEmpty()
                     || branch.parameters().get(0).type() == null) {
@@ -154,7 +155,15 @@ final class MatchChecker {
                     && !t.kernel().accepts(bt, inputType)) {
                 narrows = true;
             }
+            someAccepts |= t.kernel().accepts(bt, inputType);
         }
+        // a match NO branch accepts statically is real pure's runtime failure
+        // (the spec's testMatch*Fail bodies) — NOT routed to the runtime form
+        // here: UserCallInliner.liveArms rewrites every arm of a match with no
+        // live arm, and nested matches make that exponential (batch 149 hang,
+        // 9 minutes at 100% CPU in the DuckDB lane). Design row: a no-live-arm
+        // match is a RAISE node in the inliner; then this arm can return the
+        // runtime form. Until then the static path reports.
         if (!narrows && dynamicArms.isEmpty()) {
             return null;
         }

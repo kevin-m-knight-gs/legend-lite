@@ -92,6 +92,11 @@ final class CallShapes {
         if (ctx.findMapping(fqn).isPresent()) {
             return "meta::pure::mapping::Mapping";
         }
+        // a class named as a VALUE is an instance of the metaclass
+        // (m3.pure:213 — LA_Person.properties, the spec's evaluate tests)
+        if (ctx.findClass(fqn).isPresent()) {
+            return "meta::pure::metamodel::type::Class";
+        }
         return null;
     }
 

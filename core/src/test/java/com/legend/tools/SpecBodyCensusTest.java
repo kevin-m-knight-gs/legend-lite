@@ -141,7 +141,7 @@ class SpecBodyCensusTest {
                     ok.add(id);
                 } catch (RuntimeException e) {
                     String msg = first(e.getMessage());
-                    failures.put(id, e.getClass().getSimpleName() + " " + msg);
+                    failures.put(id, e.getClass().getSimpleName() + " " + msg + at(e));
                     bump(byReason, reasonClass(msg));
                 }
             }
@@ -192,6 +192,18 @@ class SpecBodyCensusTest {
         return "other";
     }
 
+    /** The first platform frame of a failure — WHERE the typer gave up
+     * (a report column; the message alone does not locate a typer bug). */
+    private static String at(RuntimeException e) {
+        for (StackTraceElement f : e.getStackTrace()) {
+            if (f.getClassName().startsWith("com.legend.")) {
+                return " @ " + f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1)
+                        + "." + f.getMethodName() + ":" + f.getLineNumber();
+            }
+        }
+        return "";
+    }
+
     private static void bump(Map<String, Integer> m, String k) {
         m.merge(k, 1, Integer::sum);
     }
@@ -202,6 +214,6 @@ class SpecBodyCensusTest {
         }
         int nl = s.indexOf('\n');
         String one = nl < 0 ? s : s.substring(0, nl);
-        return one.length() > 220 ? one.substring(0, 220) : one;
+        return one.length() > 600 ? one.substring(0, 600) : one;
     }
 }

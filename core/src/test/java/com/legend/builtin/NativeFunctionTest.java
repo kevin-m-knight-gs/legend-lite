@@ -605,7 +605,11 @@ class NativeFunctionTest {
         // owning-package value — ^Database(package = ::)) and +Testable
         // (m3.pure:3295, the service metamodel's supertype); both empty
         // shapes that grow by witness.
-        assertEquals(78, hand,
+        // 78 -> 82 (batch 149, 2026-09-08): +DataType, +PrimitiveType,
+        // +FunctionType, +NativeFunction — m3 bootstrap shapes the spec's
+        // bodies cast to / instanceOf (tools/m3shape.py); the census's
+        // functionType.pure load wall closed with FunctionType.
+        assertEquals(82, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -627,15 +631,21 @@ class NativeFunctionTest {
                 if (!(sup instanceof com.legend.protocol.TypeExpression.Generic g)) {
                     continue;
                 }
-                List<String> args = g.arguments().stream()
-                        .map(a -> a instanceof com.legend.protocol
-                                .TypeExpression.NameRef nr ? nr.name() : "<non-name>")
-                        .toList();
-                assertEquals(cd.typeParams(), args,
-                        cd.qualifiedName() + " extends " + g.name()
-                        + ": generalization arguments must be the class's own"
-                        + " type parameters, in order (positional-pairing"
-                        + " soundness — see kernel generic arms)");
+                // batch 149: the kernel instantiates supertypes by
+                // SUBSTITUTION (InferenceKernel.asSuper over
+                // TypedClass.superTypes), so a generalization may spell
+                // any argument over the class's OWN parameters
+                // (Property<U,V|m> extends AbstractProperty<{U[1]->V[m]}>,
+                // m3.pure). A NAME that is not one of them is still a
+                // foreign type sneaking into the lattice — refused.
+                for (com.legend.protocol.TypeExpression a : g.arguments()) {
+                    if (a instanceof com.legend.protocol.TypeExpression.NameRef nr) {
+                        assertTrue(cd.typeParams().contains(nr.name()),
+                                cd.qualifiedName() + " extends " + g.name()
+                                + ": generalization argument '" + nr.name()
+                                + "' is not one of the class's own type parameters");
+                    }
+                }
             }
         }
     }
@@ -917,7 +927,7 @@ class NativeFunctionTest {
                     // real mapping.pure:119-129 (group F burn): the property end
                     java.util.Map.entry(
                     "meta::pure::mapping::PropertyMapping",
-                    List.of("property")),
+                    List.of("owner", "targetSetImplementationId", "sourceSetImplementationId", "property")),
                     // the SQL datatype hierarchy (real relational.pure:392-520,
                     // group F burn): the sized / scaled kinds
                     java.util.Map.entry("meta::relational::metamodel::datatype::Varchar", List.of("size")),
@@ -1127,19 +1137,39 @@ class NativeFunctionTest {
                     List.of("name", "contravariant", "lowerBound", "upperBound"),
                     "meta::pure::metamodel::ModelElement", List.of("name"));
 
+    /** Batch 149 (the census work list): m3/relation/mapping shapes made
+     * spec-exact — each list is the spec's declaration order (relation.pure
+     * :17-50, m3.pure Package/Function/Enumeration/PrimitiveType/FunctionType). */
+    private static final java.util.Map<String, List<String>> M3_BOOTSTRAP_SURFACE_PROPERTIES_3 =
+            java.util.Map.ofEntries(
+                    java.util.Map.entry("meta::pure::metamodel::relation::ColSpec", List.of("name")),
+                    java.util.Map.entry("meta::pure::metamodel::relation::ColSpecArray", List.of("names")),
+                    java.util.Map.entry("meta::pure::metamodel::relation::FuncColSpec", List.of("name", "function")),
+                    java.util.Map.entry("meta::pure::metamodel::relation::FuncColSpecArray", List.of("funcSpecs")),
+                    java.util.Map.entry("meta::pure::metamodel::relation::AggColSpec", List.of("name", "map", "reduce")),
+                    java.util.Map.entry("meta::pure::metamodel::relation::AggColSpecArray", List.of("aggSpecs")),
+                    java.util.Map.entry("meta::pure::metamodel::Package", List.of("children")),
+                    java.util.Map.entry("meta::pure::metamodel::function::Function", List.of("functionName")),
+                    java.util.Map.entry("meta::pure::metamodel::type::Enumeration", List.of("values")),
+                    java.util.Map.entry("meta::pure::metamodel::type::PrimitiveType", List.of("extended")),
+                    java.util.Map.entry("meta::pure::metamodel::type::FunctionType",
+                            List.of("parameters", "returnType", "returnMultiplicity")));
+
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(
                     // real m3: name rides PackageableElement (the corpus
                     // constructs the empty sentinel ^Mapping(name = ''));
                     // classMappings (mapping.pure:26) — the metamodel
                     // store's witness (step 3, 2026-09-02)
-                    "meta::pure::mapping::Mapping", List.of("name", "classMappings", "enumerationMappings", "includes"),
+                    "meta::pure::mapping::Mapping", List.of("name", "classMappings", "associationMappings", "enumerationMappings", "includes"),
                     // m3 PackageableElement.package (tools/m3shape.py) — batch 57
                     "meta::pure::metamodel::PackageableElement", List.of("package"),
                     // real m3 Property (group F burn 2026-09-02): the
                     // property-mapping rows' property end — name only
+                    // batch 149: Property IS an AbstractProperty (m3) — genericType/
+                    // multiplicity/owner are inherited; name stays declared
                     "meta::pure::metamodel::function::property::Property",
-                    List.of("name", "genericType", "multiplicity", "owner"),
+                    List.of("name"),
                     // core/pure/tds/tds.pure:18-23
                     "meta::pure::tds::TabularDataSet", List.of("columns", "rows"),
                     // tds.pure:25-45
@@ -1212,10 +1242,14 @@ class NativeFunctionTest {
                 // witnessed reflection surface — real M3 inherits name
                 // from ModelElement; ONLY name, so every other read
                 // walls loudly (package stays a store column only)
-                assertEquals(List.of("name"),
+                // batch 149 (census): + properties / propertiesFromAssociations /
+                // qualifiedProperties (m3.pure:213) — the spec's own bodies read
+                // them ($class.properties->filter(...)); package is inherited now
+                // that Class extends PackageableElement
+                assertEquals(List.of("name", "properties", "propertiesFromAssociations",
+                                "qualifiedProperties"),
                         c.properties().stream().map(p -> p.name()).toList(),
-                        "the Class metaclass declares exactly name"
-                                + " (the metamodel-store reflection minimum)");
+                        "the Class metaclass declares name + the m3 property lists");
             } else if (c.qualifiedName().equals(
                     "meta::pure::metamodel::relation::Column")) {
                 // real M3 Column (m3.pure:3530): name is String[0..1]
@@ -1250,6 +1284,10 @@ class NativeFunctionTest {
                 assertEquals(PLAN_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
                         () -> c.qualifiedName() + " must match real legend-pure");
+            } else if (M3_BOOTSTRAP_SURFACE_PROPERTIES_3.containsKey(c.qualifiedName())) {
+                assertEquals(M3_BOOTSTRAP_SURFACE_PROPERTIES_3.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match the spec (batch 149 census)");
             } else if (M3_BOOTSTRAP_SURFACE_PROPERTIES_2.containsKey(c.qualifiedName())) {
                 assertEquals(M3_BOOTSTRAP_SURFACE_PROPERTIES_2.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
@@ -1331,11 +1369,12 @@ class NativeFunctionTest {
         assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::SortInfo").typeParams());
         assertEquals(List.of("F"), Pure.FUNCTION.typeParams());
         // Two-parameter generics.
-        assertEquals(List.of("F", "R"), Pure.FUNC_COL_SPEC.typeParams());
-        assertEquals(List.of("F", "R"), Pure.FUNC_COL_SPEC_ARRAY.typeParams());
+        // the spec's own parameter names (relation.pure:28-49, batch 149)
+        assertEquals(List.of("Z", "T"), Pure.FUNC_COL_SPEC.typeParams());
+        assertEquals(List.of("Z", "T"), Pure.FUNC_COL_SPEC_ARRAY.typeParams());
         // Three-parameter generics.
-        assertEquals(List.of("F", "U", "R"), Pure.AGG_COL_SPEC.typeParams());
-        assertEquals(List.of("F", "U", "R"), Pure.AGG_COL_SPEC_ARRAY.typeParams());
+        assertEquals(List.of("Z", "V", "T"), Pure.AGG_COL_SPEC.typeParams());
+        assertEquals(List.of("A", "B", "T"), Pure.AGG_COL_SPEC_ARRAY.typeParams());
     }
 
     @Test

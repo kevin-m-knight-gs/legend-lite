@@ -36,8 +36,14 @@ final class ClassCompiler {
         List<String> typeParams = cd.typeParams();
 
         List<String> superFqns = new ArrayList<>(cd.superClasses().size());
+        // the supertypes WITH their arguments over this class's own parameters
+        // (Property<U,V|m> extends AbstractProperty<{U[1]->V[m]}>): the kernel
+        // instantiates them per receiver (InferenceKernel.asSuper)
+        List<com.legend.compiler.element.type.Type> superTypes =
+                new ArrayList<>(cd.superClasses().size());
         for (TypeExpression sup : cd.superClasses()) {
             superFqns.add(TypeClassifier.headFqn(sup));
+            superTypes.add(classifier.classify(sup, typeParams));
         }
 
         List<Property> properties = new ArrayList<>();
@@ -91,7 +97,8 @@ final class ClassCompiler {
         }
 
         return new TypedClass(
-                cd.qualifiedName(), typeParams, superFqns, properties, constraints, cd.isNative());
+                cd.qualifiedName(), typeParams, superFqns, superTypes, properties, constraints,
+                cd.isNative());
     }
 
     /**

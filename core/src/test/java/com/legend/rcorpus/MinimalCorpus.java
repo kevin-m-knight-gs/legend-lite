@@ -526,6 +526,10 @@ public final class MinimalCorpus {
      * flows through it). */
     public Result run(TestCase t) throws SQLException {
         com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
+        if (System.getenv("LEGEND_LITE_PROGRESS") != null) {
+            // a hang diagnostic: the last name printed is the test that never returned
+            System.err.println("[corpus2] > " + t.fqn());
+        }
         try {
             return run0(t);
         } finally {

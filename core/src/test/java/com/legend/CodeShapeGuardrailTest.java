@@ -60,6 +60,11 @@ class CodeShapeGuardrailTest {
             // was a rationalization, exactly what this guardrail is for)
             // renderer nesting cursor: NAMED-frame (view) subselect depth —
             // same lifecycle as a parser cursor, scoped to one render()
+            // the inliner's UNROLL BUDGET spend (batch 149): a per-compile
+            // counter of call expansions inside a named budget object —
+            // same lifecycle as the inliner (the compile artifact); it
+            // exists so a program-sized tree walk walls instead of hanging
+            "UserCallInliner.spent",
             "EngineStyleH2.frameDepth",
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth

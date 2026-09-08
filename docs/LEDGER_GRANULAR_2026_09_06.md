@@ -797,3 +797,18 @@ Design: `docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md` (WORLD_MAP §8). Census: `Spe
 | — | MEASURED | census 481/643 → 950/174; kernel-class 470 → 1; channel B unchanged (314/13, 355, 137, 95, 204); DuckDB 2442/108/14/11 EXACT; H2 1990/565/14/6 EXACT | | landed |
 | 4 | gate 1 | `ParserBoundaryArchTest` (the census parses at LEGEND_PLATFORM) and `SkipCensusTest` (it skips without the pure checkout) | pins | both registered with their reasons |
 | 5 | the remaining 174 | unknown-function 74, overload 35, unknown-property 30, unknown-type 6, other 30 | vocabulary + 2 typer bugs | the ordered work list, SPEC_BODY_CENSUS §6–7; next: the 17 missing metamodel properties, then the five overload spellings |
+
+## 22. Batch 149 — the census work list, 174 → 36 (2026-09-08)
+
+Method: SpecBodyCensusTest after every change; channel B + both lanes before landing; every shape/native from the spec line it cites (SPEC_BODY_CENSUS §8.1). Rows: §8.2 there is the remaining list by owner; §8.3 the two lane-caught regressions and the fix rule for each.
+
+| # | bucket | before → after | rule that closed it |
+|---|---|---|---|
+| 1 | unknown-property | 30 → 5 | 15 hand shapes made spec-exact (ColSpec family, Mapping, PropertyMapping, Package, Function, Class, CFD, ModelElement→AnnotatedElement) |
+| 2 | `@T` casts in generic bodies | 11 → 0 | the enclosing function's type parameters are a frame; rigid in the kernel |
+| 3 | unknown-function | 74 → 6 | 22 spec natives registered spec-exact (reflection/effects: lowering walls); spec-exact `isEmpty`, collection arithmetic |
+| 4 | overload | 35 → 2 | PCT suppression stays by NAME (its three dropped spellings are natives); parameterized actuals vs class formals; linearization tie-break; supertype instantiation for property values |
+| 5 | other | 30 → 16 | Nil-bottom join; lambda classifier reads; unknown-schema row pick; extractEnumValue signature typing; relation-type argument literals; metaclass-instance properties; profiles as values |
+| 6 | lanes | 2442 → 2431 → 2442 | function-carrier properties have no layout slot; SystemMetamodel return type reverted |
+| 7 | lanes, second pass | DuckDB HUNG (liveArms exponential) / chB-std 204 → 187 | runtime-match arm withdrawn (7 rows stay, design row); PCT suppression back to by-name |
+| 8 | the hang (USER: "wall the post-processors until a design session") | DuckDB 110 s → 60 s | `ENGINE_MACHINERY_WALLS` (5 exact FQNs) + `UNROLL_BUDGET` 20,000 + the declared-ancestor index |

@@ -92,7 +92,7 @@ public final class InferenceKernel {
                 && !ctx.isSubtype(na2.rawFqn(), nf2.rawFqn())) {
             throw fail(formal, actual);
         }
-        Type fa = formalKeepsCarrier ? actual : unwrapFunction(actual);
+        Type fa = formalKeepsCarrier ? actual : unwrapFunctionValue(actual, ff);
         if (ff != formal || fa != actual) {
             unify(ff, fa, b);
             return;
@@ -205,10 +205,19 @@ public final class InferenceKernel {
                 // carriers: LambdaFunction<{…}> flows into a
                 // FunctionDefinition<Any> formal), mirroring the ClassType
                 // arm's isSubtype rule.
-                if (!(actual instanceof Type.GenericType ag
-                        && (ag.rawFqn().equals(g.rawFqn())
-                                || ctx.isSubtype(ag.rawFqn(), g.rawFqn()))
-                        && ag.arguments().size() == g.arguments().size())) {
+                if (!(actual instanceof Type.GenericType ag0
+                        && (ag0.rawFqn().equals(g.rawFqn())
+                                || ctx.isSubtype(ag0.rawFqn(), g.rawFqn())))) {
+                    throw fail(formal, actual);
+                }
+                // a SUBCLASS actual pairs arguments as the formal's raw class
+                // sees them: its declared supertypes instantiated (asSuper —
+                // Property<U,V|m> is AbstractProperty<{U[1]->V[m]}>), never
+                // positionally across unrelated parameter lists
+                Type.GenericType ag = ag0.rawFqn().equals(g.rawFqn()) ? ag0
+                        : asSuper(ag0, g.rawFqn()).filter(t -> t instanceof Type.GenericType)
+                                .map(t -> (Type.GenericType) t).orElse(ag0);
+                if (ag.arguments().size() != g.arguments().size()) {
                     throw fail(formal, actual);
                 }
                 for (int i = 0; i < g.arguments().size(); i++) {
@@ -825,6 +834,27 @@ public final class InferenceKernel {
     /** Variables whose bindings are being resolved right now (the cycle guard). */
     private final java.util.Set<String> resolving = new java.util.HashSet<>();
 
+    /** The ENCLOSING FUNCTION's declared type/multiplicity parameters, one
+     * frame per body being typed (Typer.inFunctionScope): inside the body
+     * they are RIGID — a call whose bindings never bind them resolves them
+     * to themselves ($comparator->eval($value, $x) in contains<Z>). */
+    private final java.util.ArrayDeque<java.util.Set<String>> rigidFrames =
+            new java.util.ArrayDeque<>();
+
+    /** Run {@code body} with {@code names} rigid. */
+    public <R> R withRigid(java.util.Collection<String> names, java.util.function.Supplier<R> body) {
+        rigidFrames.push(new java.util.HashSet<>(names));
+        try {
+            return body.get();
+        } finally {
+            rigidFrames.pop();
+        }
+    }
+
+    private boolean isRigid(String name) {
+        return !rigidFrames.isEmpty() && rigidFrames.peek().contains(name);
+    }
+
     public Type resolve(Type t, Bindings b) {
         return switch (t) {
             // The unknown column type `?` of a colspec VALUE is not a solvable variable —
@@ -834,6 +864,9 @@ public final class InferenceKernel {
             // Z := Integer — the enclosing function's parameters bound per call)
             // resolves THROUGH the chain; a self-binding stops it
             case Type.TypeVar v -> {
+                if (b.type(v.name()).isEmpty() && isRigid(v.name())) {
+                    yield t;    // the enclosing function's own parameter, unbound here: itself
+                }
                 Type bound = b.type(v.name()).orElseThrow(() ->
                         new TypeInferenceException("unbound type variable " + v.name()));
                 // CYCLE GUARD across the whole resolution (T := G<W>, W := G<T>):
@@ -1117,6 +1150,16 @@ public final class InferenceKernel {
                     if (byBottom.size() == 1) {
                         return resolveChosen(byBottom.get(0), args, name);
                     }
+                    // LINEARIZATION tie-break (real pure resolves a class's
+                    // generalizations in declaration order): among UNRELATED
+                    // class formals that all accept the argument, the one
+                    // nearest in the argument's supertype order wins —
+                    // elementToPath(Type) over (PackageableElement) for a
+                    // Class value (m3: Class extends Type, …, PackageableElement)
+                    TypedFunction nearest = nearestInLinearization(byBottom, args);
+                    if (nearest != null) {
+                        return resolveChosen(nearest, args, name);
+                    }
                     throw new TypeInferenceException("ambiguous overload of '" + name + "': "
                             + winners.size() + " candidates tie for the argument types ["
                             + winners.stream().map(w -> w.qualifiedName()
@@ -1243,7 +1286,7 @@ public final class InferenceKernel {
                 && !ctx.isSubtype(na2.rawFqn(), nf2.rawFqn())) {
             return -1;
         }
-        Type na = formalKeepsCarrier ? actual : unwrapFunction(actual);
+        Type na = formalKeepsCarrier ? actual : unwrapFunctionValue(actual, nf);
         if (nf != formal || na != actual) {
             return paramTypeScore(nf, na);
         }
@@ -1265,6 +1308,12 @@ public final class InferenceKernel {
                     when fc.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
                     && Type.isRelation(actual) -> 1;
             case Type.ClassType fc -> {
+                // a parameterized actual (Class<X>, Enumeration<E>) is
+                // nominally its raw class — the unify arm's rule
+                if (actual instanceof Type.GenericType ag) {
+                    yield ag.rawFqn().equals(fc.fqn()) ? 2
+                            : (ctx.isSubtype(ag.rawFqn(), fc.fqn()) ? 1 : -1);
+                }
                 if (!(actual instanceof Type.ClassType ac)) {
                     yield -1;
                 }
@@ -1442,6 +1491,14 @@ public final class InferenceKernel {
         if (a.equals(b)) {
             return a;
         }
+        // Nil is the BOTTOM: the []-born branch joins to the other side
+        // (if($x->isEmpty(), |[], |$enum->extractEnumValue(...)) : T[0..1])
+        if (isNil(a)) {
+            return b;
+        }
+        if (isNil(b)) {
+            return a;
+        }
         // Any is the TOP: its join with anything — a lambda's structural
         // type included — is Any (real pure findBestCommonGenericType;
         // the engine's function registry lists opaque and spelled
@@ -1607,6 +1664,100 @@ public final class InferenceKernel {
         return t;
     }
 
+    /** The ACTUAL side of a function-typed formal: a carrier unwraps as
+     * above, and an m3 Function subclass value unwraps through its
+     * instantiated supertype — only when the formal is structural, so a
+     * plain T formal still binds the nominal Property. */
+    private Type unwrapFunctionValue(Type actual, Type unwrappedFormal) {
+        Type t = unwrapFunction(actual);
+        if (t != actual || !(unwrappedFormal instanceof Type.FunctionType)) {
+            return t;
+        }
+        return deepUnwrapFunction(actual);
+    }
+
+    private Type deepUnwrapFunction(Type t) {
+        Type u = unwrapFunction(t);
+        if (u != t) {
+            return u;
+        }
+        // any OTHER Function subclass (m3: Property<U,V|m> ⊆ AbstractProperty
+        // <{U[1]->V[m]}> ⊆ Function) unwraps through its instantiated
+        // supertype — a property VALUE is a function value (eval, map)
+        String raw = t instanceof Type.GenericType g2 ? g2.rawFqn()
+                : t instanceof Type.ClassType c ? c.fqn() : null;
+        if (raw != null && !FUNCTION_CARRIER_FQNS.contains(raw)
+                && !raw.equals(com.legend.compiler.element.type.PlatformTypes.FUNCTION)
+                && ctx.isSubtype(raw, com.legend.compiler.element.type.PlatformTypes.FUNCTION)) {
+            Type asFn = asSuper(t, com.legend.compiler.element.type.PlatformTypes.FUNCTION)
+                    .orElse(null);
+            if (asFn instanceof Type.GenericType fg && fg.arguments().size() == 1
+                    && fg.arguments().get(0) instanceof Type.FunctionType inner) {
+                return inner;
+            }
+        }
+        return t;
+    }
+
+    /** The structural function type a value of {@code t} has, if it is a
+     * function value at all: a bare function type, a carrier around one, or
+     * an m3 Function subclass whose instantiated supertype spells one. */
+    public java.util.Optional<Type.FunctionType> functionTypeOf(Type t) {
+        return deepUnwrapFunction(t) instanceof Type.FunctionType ft
+                ? java.util.Optional.of(ft) : java.util.Optional.empty();
+    }
+
+    /**
+     * {@code t} viewed AS its supertype {@code superFqn}, arguments
+     * instantiated: the class's declared supertypes (TypedClass.superTypes,
+     * over its own parameters) resolved under the receiver's arguments,
+     * walked up until the target class. Parameters the receiver does not
+     * supply resolve to Any / [*]. Empty when {@code t} is not nominal or
+     * does not reach {@code superFqn}.
+     */
+    public java.util.Optional<Type> asSuper(Type t, String superFqn) {
+        String raw = t instanceof Type.GenericType g ? g.rawFqn()
+                : t instanceof Type.ClassType c ? c.fqn() : null;
+        if (raw == null) {
+            return java.util.Optional.empty();
+        }
+        if (raw.equals(superFqn)) {
+            return java.util.Optional.of(t);
+        }
+        var cls = ctx.findClass(raw).orElse(null);
+        if (cls == null) {
+            return java.util.Optional.empty();
+        }
+        Bindings b = new Bindings();
+        List<Type> targs = t instanceof Type.GenericType g ? g.arguments() : List.of();
+        List<Multiplicity> margs = t instanceof Type.GenericType g ? g.multArguments() : List.of();
+        int pi = 0;
+        for (String p : cls.typeParameters()) {
+            if (pi < targs.size()) {
+                b.bindType(p, targs.get(pi));
+            } else if (pi - targs.size() < margs.size()) {
+                b.bindMult(p, margs.get(pi - targs.size()));
+            } else {
+                b.bindType(p, anyType());
+                b.bindMult(p, Multiplicity.Bounded.ZERO_MANY);
+            }
+            pi++;
+        }
+        for (Type st : cls.superTypes()) {
+            Type inst;
+            try {
+                inst = resolve(st, b);
+            } catch (TypeInferenceException e) {
+                continue;   // a supertype spelled over something the receiver never binds
+            }
+            var up = asSuper(inst, superFqn);
+            if (up.isPresent()) {
+                return up;
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     /** The lattice FQN of a nominal type ({@code PrecisionDecimal -> Decimal}); {@code null} for non-nominal. */
     private static @com.legend.Nullable String nominalFqn(Type t) {
         return switch (t) {
@@ -1622,6 +1773,52 @@ public final class InferenceKernel {
     }
 
     /** Superclass FQNs of {@code fqn}, breadth-first (nearest ancestors first), walking the class lattice. */
+    /** The unique candidate whose class formals sit nearest in each
+     * argument's linearized supertype order; null when none is unique or
+     * a formal is not a plain class. */
+    private @com.legend.Nullable TypedFunction nearestInLinearization(
+            List<TypedFunction> cands, List<ExprType> args) {
+        TypedFunction best = null;
+        long bestRank = Long.MAX_VALUE;
+        boolean tie = false;
+        List<List<TypedParameter>> shapesSeen = new ArrayList<>();
+        for (TypedFunction c : cands) {
+            // a SAME-SHAPE duplicate (a module twin of a native) is the
+            // duplicate-signature tolerance's case: the first spelling stands
+            if (shapesSeen.contains(c.parameters())) {
+                continue;
+            }
+            shapesSeen.add(c.parameters());
+            long rank = 0;
+            for (int i = 0; i < args.size() && i < c.parameters().size(); i++) {
+                Type formal = c.parameters().get(i).type();
+                if (formal.equals(args.get(i).type())) {
+                    continue;   // an exact formal (String against String) ranks 0
+                }
+                String actualRaw = nominalFqn(args.get(i).type());
+                if (actualRaw == null || !(formal instanceof Type.ClassType fc)) {
+                    return null;
+                }
+                if (fc.fqn().equals(actualRaw)) {
+                    continue;
+                }
+                int at = ancestorsOf(actualRaw).indexOf(fc.fqn());
+                if (at < 0) {
+                    return null;
+                }
+                rank += at + 1;
+            }
+            if (rank < bestRank) {
+                bestRank = rank;
+                best = c;
+                tie = false;
+            } else if (rank == bestRank) {
+                tie = true;
+            }
+        }
+        return tie ? null : best;
+    }
+
     private List<String> ancestorsOf(String fqn) {
         List<String> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();

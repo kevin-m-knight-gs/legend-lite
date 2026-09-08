@@ -142,6 +142,17 @@ public final class ClassLayouts {
      * inherited position); two SUPERS declaring the same name with different
      * types is a genuine conflict — LOUD, never first-wins (audit).
      */
+    /** A nominal whose class is a {@code Function} subclass (m3: Property,
+     * QualifiedProperty, FunctionDefinition, …) is CODE like the bare
+     * function type — Class.properties: Property<T,Any|*>[*] has no slot
+     * (batch 149: the metaclass shapes gained their m3 properties). */
+    private static boolean isFunctionCarrier(ModelContext ctx, Type declared) {
+        String raw = declared instanceof Type.ClassType ct ? ct.fqn()
+                : declared instanceof Type.GenericType g ? g.rawFqn() : null;
+        return raw != null && !raw.equals(PlatformTypes.FUNCTION)
+                && ctx.isSubtype(raw, PlatformTypes.FUNCTION);
+    }
+
     private static void collect(ModelContext ctx, TypedClass cls, Map<String, Type> typeArgs,
                                 LinkedHashMap<String, Type.Column> out, boolean isSuper) {
         for (String superFqn : cls.superClassFqns()) {
@@ -154,7 +165,8 @@ public final class ClassLayouts {
             Type declared = substitute(stored.type(), typeArgs);
             if (declared instanceof Type.FunctionType
                     || (declared instanceof Type.GenericType g
-                            && g.rawFqn().equals(PlatformTypes.FUNCTION))) {
+                            && g.rawFqn().equals(PlatformTypes.FUNCTION))
+                    || isFunctionCarrier(ctx, declared)) {
                 // a FUNCTION-typed property is CODE, not data (the engine's
                 // Runtime.preprocessFunction hook, Function<{FunctionDefinition,
                 // Runtime -> FunctionDefinition}>): it has no SQL carrier and

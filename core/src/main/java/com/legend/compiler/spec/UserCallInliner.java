@@ -243,7 +243,55 @@ public final class UserCallInliner {
         return inlineCall(new TypedUserCall(programs.get(0), nc.args(), nc.info()), env);
     }
 
+    /** The UNROLL BUDGET: expansions one compile may perform before the
+     * program is declared too large to unroll. The inliner expands every
+     * live arm of every nested match; a program-sized tree walk (the
+     * engine's post-processors rewriting a SQL AST — 20 element kinds per
+     * match, walkers calling walkers) is exponential in that scheme and
+     * never a query. Sibling of the recursion-cycle guard: a loud wall
+     * naming the path, never a hang (batch 149, testDb2ColumnRename: ten
+     * minutes at 100% CPU once its post-processor typed). */
+    static final int UNROLL_BUDGET = 20_000;
+
+    /** The budget's spend, one per inliner (the compile artifact's lifetime). */
+    private static final class UnrollBudget {
+        private int spent;
+
+        boolean exceeded() {
+            return ++spent > UNROLL_BUDGET;
+        }
+    }
+
+    private final UnrollBudget budget = new UnrollBudget();
+
+    /** ENGINE MACHINERY the platform never unrolls (SYSTEM_PRELUDE_DESIGN §3,
+     * last row: "code that needs the engine's internals to produce a value
+     * is a wall, named and counted"). USER 2026-09-08: the engine's SQL
+     * post-processing is a COMPILER PASS here (post-processors-are-compiler-
+     * passes); its Pure implementation — the SQL printer and the
+     * PostProcessor registry properties — is walled whole until a design
+     * session decides how post-processors work on this platform. Exact
+     * FQNs; a reaching program fails at once, naming the wall. */
+    static final java.util.Set<String> ENGINE_MACHINERY_WALLS = java.util.Set.of(
+            "meta::relational::functions::sqlQueryToString::sqlQueryToString",
+            "meta::relational::runtime::PostProcessor$prop$planPostProcessorId",
+            "meta::relational::runtime::PostProcessor$prop$executionPostProcessorId",
+            "meta::relational::runtime::PostProcessors$prop$_sqlQueryPostProcessorId",
+            "meta::relational::runtime::PostProcessors$prop$sqlQueryPostProcessorId");
+
     private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
+        if (ENGINE_MACHINERY_WALLS.contains(call.callee().qualifiedName())) {
+            throw new NotImplementedException("engine machinery: '" + call.callee().qualifiedName()
+                    + "' is the engine's SQL post-processing implementation — a compiler pass on"
+                    + " this platform, walled pending the post-processor design session");
+        }
+        if (budget.exceeded()) {
+            List<String> path = new ArrayList<>(names);
+            java.util.Collections.reverse(path);
+            throw new NotImplementedException("unroll budget exceeded (" + UNROLL_BUDGET
+                    + " expansions): the program is a tree walk, not a query — "
+                    + call.callee().qualifiedName() + " via " + String.join(" -> ", path));
+        }
         List<TypedSpec> args = new ArrayList<>(call.args().size());
         for (TypedSpec a : call.args()) {
             args.add(rewrite(a, env));
@@ -453,10 +501,13 @@ public final class UserCallInliner {
                 // compiled subtype check over every model class would
                 // compile every class — including poisoned ones (a corpus
                 // protocol class naming an unloaded type), which is not this
-                // decision's business
-                for (String cls : ctx.elementFqns()) {
-                    if (declaredSubtype(ctx, cls, armType, new java.util.HashSet<>())
-                            && declaredSubtype(ctx, cls, ct.fqn(), new java.util.HashSet<>())) {
+                // decision's business. The declared-ancestor index is built
+                // ONCE per inliner: this scan runs per arm per rewrite, and
+                // walking every class's generalizations each time turned the
+                // post-processor bodies' nested matches into a 10-minute hang
+                // (batch 149, testDb2ColumnRename).
+                for (java.util.Set<String> anc : declaredAncestors(ctx).values()) {
+                    if (anc.contains(armType) && anc.contains(ct.fqn())) {
                         related = true;
                         break;
                     }
@@ -515,6 +566,41 @@ public final class UserCallInliner {
             String cls, String sup, java.util.Set<String> visited) {
         return ctx.isDeclaredSubtype(cls, sup);
     }
+
+    /** Every model element's DECLARED ancestors (itself included), built
+     * once per inliner — the model does not change while it inlines. */
+    private java.util.Map<String, java.util.Set<String>> declaredAncestors(
+            com.legend.compiler.element.ModelContext ctx) {
+        if (declaredAncestors.isEmpty()) {
+            java.util.Map<String, java.util.Set<String>> out = declaredAncestors;
+            for (String cls : ctx.elementFqns()) {
+                java.util.Set<String> anc = new java.util.HashSet<>();
+                java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+                work.add(cls);
+                while (!work.isEmpty()) {
+                    String c = work.poll();
+                    if (!anc.add(c)) {
+                        continue;
+                    }
+                    var cd = ctx.findClassDefinition(c);
+                    if (cd.isEmpty()) {
+                        continue;
+                    }
+                    for (com.legend.protocol.TypeExpression s : cd.get().superClasses()) {
+                        String name = s instanceof com.legend.protocol.TypeExpression.NameRef nr ? nr.name()
+                                : s instanceof com.legend.protocol.TypeExpression.Generic g ? g.name() : null;
+                        if (name != null) {
+                            work.add(name);
+                        }
+                    }
+                }
+                out.put(cls, anc);
+            }
+        }
+        return declaredAncestors;
+    }
+
+    private final java.util.Map<String, java.util.Set<String>> declaredAncestors = new java.util.HashMap<>();
 
     /** The literal-argument size of the innermost enclosing activation of
      * {@code key} (the stacks are pushed together). */

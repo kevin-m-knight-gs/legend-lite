@@ -105,3 +105,89 @@ Remaining 174 by class: unknown-function 74 (`subTypeOf` 12, `generalizations` 1
 `openVariableValues` 3, `enumName` 3, `elementPath` 3, …), overload 35, unknown-property 30 (§3),
 unknown-type 6, other 30 (an `IndexOutOfBounds` in the typer ×7 — the `testCreateTempTable*` bodies,
 a bug; `eval` on a Property value ×3; `unknown enumeration` ×7; bare `PrimitiveType` ×4).
+
+## 8. Batch 149 — the work list burned from 174 to 36 (2026-09-08)
+
+Run: 261 files, 8 load walls (the `FunctionType` metaclass now declared: 9 → 8), **1090 typed / 36 failed** (1126 bodies: the by-name PCT rule below drops 21 spec bodies whose native is the definition).
+Every change was measured against channel B (unchanged) and both corpus lanes (no pass change);
+two regressions were caught by the DuckDB lane mid-batch and fixed before landing (§8.3).
+
+### 8.1 What landed, by the design's placement table
+
+**Hand shapes made spec-exact** (`Pure.java`, the shapes the Java is coupled to — receipts are the m3/mapping lines):
+`ColSpec.name`, `ColSpecArray.names`, `FuncColSpec.name/function`, `FuncColSpecArray.funcSpecs`, `AggColSpec.name/map/reduce`,
+`AggColSpecArray.aggSpecs` (relation.pure:17–50, type parameters renamed to the spec's); `Mapping.associationMappings`;
+`PropertyMapping.owner/targetSetImplementationId/sourceSetImplementationId`; `Package.children`; `Function.functionName`;
+`Class.properties/propertiesFromAssociations/qualifiedProperties` and `Class extends Type, PackageableElement`;
+`ConcreteFunctionDefinition extends FunctionDefinition, PackageableFunction`; `ModelElement extends AnnotatedElement`
+(stereotypes/taggedValues on every element); `Property<U,V|m> extends AbstractProperty<{U[1]->V[m]}>` (a property VALUE is a
+function value); `Enumeration<E> extends DataType, PackageableElement { values }`; new m3 shapes `DataType`, `PrimitiveType`,
+`FunctionType`, `NativeFunction`.
+
+**Spec natives registered** (signature spec-exact; reflection/effects have no SQL meaning and wall at the lowering — the §6
+permanent list, to be pinned in §9.4): `evaluate`, `subTypeOf`, `generalizations`, `genericTypeClass`, `sourceInformation`,
+`canReactivateDynamically`, `openVariableValues`, `elementPath`, `enumName`, `elementToPath/3`, `pathToElement/2`,
+`lenientPathToElement/2`, `lastIndexOf/3`, `stringToTDS`, `dynamicNew` ×4 (getter-override overloads), `assertError(f, matcher)`,
+`dropTempTable`, `loadValuesToDbTable` ×2. Collection arithmetic is the spec's overload set (`minus/plus/times` over
+`Decimal[*]`/`Float[*]`/`Number[*]`, plus the runtime's `Integer[*]` — its engine id is referenced by the spec's own tests)
+replacing the platform's `<T>(values:T[*])` spelling; `isEmpty(p:Any[*])` spec-exact.
+
+**Typer / kernel rules** (each a rule real pure has, none a per-name arm):
+1. The enclosing function's type parameters are a FRAME (`Typer.inFunctionScope`): `cast(@T)` inside a generic body is the type
+   variable; in the kernel they are RIGID — a call whose bindings never bind them resolves them to themselves (`contains<Z>`).
+2. A class named as a value is `Class<ThatClass>`, so `Class<T>`'s properties bind `T` (`LA_Person.properties : Property<LA_Person,Any|*>[*]`).
+3. Supertype INSTANTIATION (`InferenceKernel.asSuper`): `TypedClass` carries its structured supertypes over its own parameters;
+   an m3 `Function` subclass value (a `Property`) unwraps to its function type when a formal is structural — eval / map of a property value.
+4. `Nil` is the bottom of the join (`if(…, |[], |…)`); a parameterized actual scores against a class formal by its raw class;
+   ties between UNRELATED class formals resolve by the argument's linearized supertype order (real pure's generalization order —
+   `elementToPath(Type)` over `(PackageableElement)` for a `Class` value), same-shape module twins of a native standing aside.
+5. [WITHDRAWN before landing — §8.3] a `match` no branch accepts statically as the runtime form.
+6. A `<<PCT.function>>` with a same-NAME native is suppressed — the native is the definition (chB-std's 204 depend on it: a signature-exact
+   rule let the spec's `average`/`median`/`max` bodies join and lost 17). PCT marks a PLATFORM function, so the spellings that rule drops
+   are registered natives: `pathToElement/1`, `elementToPath(Function<Any>)`, `extractEnumValue(enum, String[0..1])`.
+7. A property read on a lambda value reads its m3 classifier (`$f.expressionSequence`); `Any.classifierGenericType` is served on
+   parameterized receivers too; a relation-type literal in argument position (`@TDS<(a:String[1])>`) resolves column-wise;
+   `extractEnumValue` with a non-literal name types against its signature; a row pick over an unknown schema is not a cell index.
+8. Profiles are values of the `Profile` metaclass (`ModelContext.findProfile`).
+
+### 8.2 The 36 that remain, by owner
+
+| rows | what | owner |
+|---|---|---|
+| 7 | `match` bodies no branch accepts statically (`testMatch*Fail`) | real pure's runtime failure; the inliner's `liveArms` must emit a RAISE for a no-live-arm match before the typer can route these to the runtime form (§8.3) |
+| 1 | `elementToPath(Class<X>)` ties with the `Function<Any>` overload | the linearization tie-break needs the m3 `Function`/`Type` relation for a Class value — row |
+| 4 | units: `RomanLength` as a value ×3, `@Unit` | parser wall (§4: `newUnit`, `~Pes`) — units are unparsed |
+| 3 | a PACKAGE as a value (`meta`, `meta::pure::functions::meta`, `Root`) | vocabulary: a package index on the model (no startsWith) |
+| 3 | deep-copy key paths `^$p(address.name='x')` | parser/typer feature (keyed copy paths) |
+| 3 | `TableAlias.relation` ×2, `GraphFetchTree.propertyTrees` | DERIVED properties — the generator's derived-body leg (§9.3) |
+| 3 | `executeTest`, `executePCTTest`, `loadPCTManifest` | PCT harness natives over spec-only classes (`TestResult`, `PCTManifest`) — walls |
+| 3 | `replaceAll`, `getMapStats`, `getIfAbsentPutWithKey` | spec functions declared outside the nine platform roots |
+| 2 | a lambda body with a discarded expression statement (`|[]->toOneMany(); 1;`, `inlineEmbeddedProperty`) | typing should accept, lowering walls — `LambdaBodies` rule (design row) |
+| 2 | `meta::relational::metamodel::join/filter` bodies | special-form routing: `join`/`filter` claim bare names on any receiver (design row) |
+| 1 | `doSomething_Integer_1__Boolean_1_->eval(getInts())` — `[*]` into `[1]` | spec leniency on eval multiplicity — decision row |
+| 1 | `getProperty(...):Property<Nil,Any|*>` vs `Property<Any,Any>` | Nil as a universal type ARGUMENT — decision row |
+| 1 | `enumerationMappingByName` tie: the spec's body vs `SystemMetamodel`'s same-name view (return `EnumerationMapping` vs `<Any>`) | census-only (production never loads the spec file); `concatenate` of the two spellings in the spec body is the same fact |
+| 1 | `variant::navigation::get` structural | a variant overload spelling — later |
+
+### 8.3 Caught by the lanes, not the census
+
+- `Class.properties : Property<T,Any|*>[*]` entered the class LAYOUT (a `Class` value's SQL struct) → 9 tests lost (`no SQL type for
+  generic Property<…>`). Rule: a nominal whose class is a `Function` subclass is CODE like the bare function type — no slot
+  (`ClassLayouts.isFunctionCarrier`).
+- Making `SystemMetamodel.enumerationMappingByName` return `EnumerationMapping<Any>` (to dissolve the census tie) changed the
+  typed carrier the system views produce → 2 tests lost. Reverted; the tie stays a census-only row.
+- The first cut of the property-value unwrap applied to EVERY formal (a plain `T` bound the function type, not the Property):
+  2 system-mapping bodies broke inside the census — scoped to structural formals before any lane ran.
+- The runtime form for a `match` no branch accepts (rule 5) HUNG the DuckDB lane: `UserCallInliner.liveArms` returns EVERY arm of a
+  match with no live arm, and nested matches make the rewrite exponential (9 minutes at 100% CPU, one test). Withdrawn; the 7 rows stay.
+- The signature-exact PCT suppression (rule 6, first cut) lost 17 chB-std tests: the spec's `average`/`median`/`max`/`min`/`minBy`
+  bodies joined the overload set beside our natives and were inlined. Back to by-name; the three dropped spellings became natives.
+- The engine's SQL post-processing machinery is WALLED whole (USER 2026-09-08, until a design session): `UserCallInliner.ENGINE_MACHINERY_WALLS`
+  names the SQL printer (`sqlQueryToString`) and the four `PostProcessor`/`PostProcessors` registry properties by exact FQN; a program that
+  reaches one fails at once naming the wall. Post-processing on this platform is a compiler pass (post-processors-are-compiler-passes);
+  the 3 post-processor tests in the fail roster now fail in 2 s instead of unrolling the engine's SQL printer for minutes. The inliner also
+  gained an UNROLL BUDGET (20,000 expansions per compile — a loud wall, sibling of the recursion-cycle guard; 2,000 was too tight for two
+  passing toPostgresModel tests) and a one-time declared-ancestor index for its arm scan.
+- Guards: `Typer.java` split — annotation resolution moved to `TypeAnnotations` (the type-parameter frame lives there); the native-catalog
+  golden regenerated (−4 platform `<T>` arithmetic spellings, +36 spec natives); hand-declared class count 78 → 82; the identity-argument
+  pin became "arguments over the class's own parameters" now that the kernel instantiates supertypes (`asSuper`, used by the unify arm too).

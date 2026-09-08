@@ -93,9 +93,23 @@ final class Typer {
                 .map(c -> c.qualifiedName()).orElse(name);
     }
 
+    /** Type-annotation resolution (@T, @Pair<String,Integer>, @Relation<(…)>),
+     * with the enclosing function's type-parameter frame. */
+    private final TypeAnnotations annotations;
+
     Typer(ModelContext ctx, InferenceKernel kernel) {
         this.ctx = ctx;
         this.kernel = kernel;
+        this.annotations = new TypeAnnotations(ctx);
+    }
+
+    /** Type under {@code fn}'s type-parameter frame: its parameters resolve
+     * as type VARIABLES in annotations and are RIGID in the kernel. */
+    <R> R inFunctionScope(com.legend.compiler.element.TypedFunction fn,
+            java.util.function.Supplier<R> body) {
+        java.util.List<String> rigid = new ArrayList<>(fn.typeParameters());
+        rigid.addAll(fn.multiplicityParameters());
+        return annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid, body));
     }
 
     /** The model snapshot &mdash; the checkers' lookup surface. */
@@ -1137,6 +1151,9 @@ final class Typer {
             return null;
         }
         int k = ki.value().intValue();
+        if (prt.columns().isEmpty()) {
+            return null;    // schema unknown (executeInDb rows): the ordinary typing serves it
+        }
         if (k < 0 || k >= prt.columns().size()) {
             throw new IllegalStateException(
                     "The system is trying to get an element at offset " + k
@@ -1252,9 +1269,7 @@ final class Typer {
             return null;
         }
         if (!(af.parameters().get(1) instanceof CString nm)) {
-            throw new com.legend.error.NotImplementedException(
-                    "extractEnumValue with a non-literal name is not"
-                    + " supported yet");
+            return null;    // no fold: the registered signature types it; the lowering walls
         }
         var en = ctx.findEnum(et.fqn()).orElseThrow(() ->
                 new TypeInferenceException("unknown enumeration '"
@@ -2054,7 +2069,7 @@ final class Typer {
      * forms need the {@code …Array} classes. Value-argument scoring cannot see
      * this, since deferred slots are not yet typed.
      */
-    private static boolean deferredShapesMatch(TypedFunction c, List<ValueSpecification> raw) {
+    private boolean deferredShapesMatch(TypedFunction c, List<ValueSpecification> raw) {
         for (int i = 0; i < raw.size(); i++) {
             ValueSpecification p = raw.get(i);
             if (!deferredArg(p)) {
@@ -2104,10 +2119,13 @@ final class Typer {
                 || lf.parameters().stream().allMatch(pv -> pv.type() != null);
     }
 
-    private static boolean isFunctionTyped(Type t) {
+    private boolean isFunctionTyped(Type t) {
         return t instanceof Type.FunctionType
                 || (t instanceof Type.GenericType g && g.arguments().size() == 1
                         && g.arguments().get(0) instanceof Type.FunctionType)
+                // an m3 Function SUBCLASS value (Property<U,V|m>) is a
+                // function value: the kernel reads its instantiated supertype
+                || kernel.functionTypeOf(t).isPresent()
                 // FunctionDefinition<Any> etc: the whole carrier family is
                 // function-typed even when the argument is not spelled as
                 // a function type (E2E §4.4 cluster 2 — the kernel already
@@ -2602,6 +2620,13 @@ final class Typer {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
                     new Type.ClassType("meta::pure::mapping::Mapping")));
         }
+        // A PROFILE reference is a value of the Profile metaclass (real m3:
+        // meta::pure::metamodel::extension::Profile — the spec's test
+        // surveyor reads test.p_stereotypes)
+        if (ctx.findProfile(ref.fullPath()).isPresent()) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(
+                    new Type.ClassType(Pure.PROFILE.qualifiedName())));
+        }
         // An execution-context element (runtime/connection) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.
         if (ctx.isExecutionContextElement(ref.fullPath())) {
@@ -3085,6 +3110,10 @@ final class Typer {
             // an ENUM VALUE's name (real m3 Enum.name) — the SQL value of an enum IS its name
             case Type.EnumType ignored when ap.property().equals("name") ->
                     new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+            // a lambda VALUE's m3 classifier is LambdaFunction (⊆ FunctionDefinition):
+            // $f.expressionSequence reads the definition (spec reactivate tests)
+            case Type.FunctionType ignored when lambdaClassifierProperty(ap.property()) != null ->
+                    java.util.Objects.requireNonNull(lambdaClassifierProperty(ap.property()));
             default -> {
                 throw new TypeInferenceException("cannot access '" + ap.property()
                     + "' on " + source.info().type().typeName());
@@ -3118,10 +3147,29 @@ final class Typer {
      * ({@code values: T[m]}) instantiates at the receiver's argument —
      * a serialize execute's {@code Result<String|1>.values} types
      * {@code String[1]}, never {@code [*]}. */
+    /** A property of the lambda literal's m3 classifier (LambdaFunction ⊆
+     * FunctionDefinition): $f.expressionSequence; null when none. */
+    private @com.legend.Nullable ExprType lambdaClassifierProperty(String name) {
+        return ctx.findProperty(Pure.LAMBDA_FUNCTION.qualifiedName(), name)
+                .map(pd -> new ExprType(pd.type(), pd.multiplicity())).orElse(null);
+    }
+
     private ExprType genericReceiverProperty(Type.GenericType g,
             AppliedProperty ap) {
         var cls = ctx.findClass(g.rawFqn()).orElseThrow(() -> new TypeInferenceException(
                 "unknown class '" + g.rawFqn() + "'"));
+        // Any's served properties (the ClassType arm's rule) apply to every
+        // receiver — a parameterized one included (Function<Any>.classifierGenericType)
+        if (ap.property().equals("classifierGenericType")
+                && ctx.findProperty(g.rawFqn(), ap.property()).isEmpty()) {
+            return new ExprType(new Type.ClassType(Pure.GENERIC_TYPE_META.qualifiedName()),
+                    Multiplicity.Bounded.ZERO_ONE);
+        }
+        if (ap.property().equals("elementOverride")
+                && ctx.findProperty(g.rawFqn(), ap.property()).isEmpty()) {
+            return new ExprType(new Type.ClassType(Pure.ELEMENT_OVERRIDE.qualifiedName()),
+                    Multiplicity.Bounded.ZERO_ONE);
+        }
         Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->
                 new TypeInferenceException("class " + g.rawFqn()
                         + " has no property '" + ap.property() + "'"));
@@ -3199,14 +3247,23 @@ final class Typer {
         String elCls = ctx.findEnum(ev.fullPath()).isEmpty()
                 ? CallShapes.metamodelElementClass(ctx, ev.fullPath()) : null;
         if (elCls != null) {
+            String elFqn = elCls.equals(Pure.CLASS.qualifiedName())
+                    ? ctx.findClass(ev.fullPath()).orElseThrow().qualifiedName()
+                    : ev.fullPath();
+            Type elType = elCls.equals(Pure.CLASS.qualifiedName())
+                    ? new Type.GenericType(elCls, List.of(new Type.ClassType(elFqn)))
+                    : new Type.ClassType(elCls);
             var elRef = new com.legend.compiler.spec.typed
-                    .TypedPackageableRef(ev.fullPath(),
-                            ExprType.one(new Type.ClassType(elCls)));
-            var pd = ctx.findProperty(elCls, ev.value()).orElseThrow(
-                    () -> new TypeInferenceException("class " + elCls
-                            + " has no property '" + ev.value() + "'"));
-            return new TypedPropertyAccess(elRef, ev.value(),
-                    new ExprType(pd.type(), pd.multiplicity()));
+                    .TypedPackageableRef(elFqn, ExprType.one(elType));
+            // the property under the INSTANCE's arguments (Class<LA_Person>.properties
+            // is Property<LA_Person,Any|*>[*]) — the generic receiver rule
+            ExprType pt = elType instanceof Type.GenericType eg
+                    ? genericReceiverProperty(eg, new AppliedProperty(ev, ev.value()))
+                    : new ExprType(ctx.findProperty(elCls, ev.value()).orElseThrow(
+                            () -> new TypeInferenceException("class " + elCls
+                                    + " has no property '" + ev.value() + "'")).type(),
+                            ctx.findProperty(elCls, ev.value()).orElseThrow().multiplicity());
+            return new TypedPropertyAccess(elRef, ev.value(), pt);
         }
         var en = ctx.findEnum(ev.fullPath()).orElseThrow(() -> new TypeInferenceException(
                 "unknown enumeration '" + ev.fullPath() + "'"));
@@ -3231,117 +3288,11 @@ final class Typer {
     }
 
     private Type annotationType(TypeAnnotation ta) {
-        return switch (ta) {
-            case TypeAnnotation.Named n -> namedType(n.type());
-            // @Relation<(…)> is a TABLE target — pure's own spelling,
-            // kept WRAPPED (Row-vs-Relation: the G-α unwrap is deleted;
-            // cast(@Relation<(…)>) yields the wrapped type every
-            // relation op emits).
-            case TypeAnnotation.RelationShape rs ->
-                    Type.relation(relationShapeType(rs));
-            case TypeAnnotation.Wildcard ignored -> throw new TypeInferenceException(
-                    "the ? wildcard is only legal as a column type inside @Relation<(…)>");
-        };
+        return annotations.annotationType(ta);
     }
-
-    /**
-     * A named type reference used in a value position ({@code @Integer},
-     * {@code t:Person[1]|…} branch/parameter declarations). Names are FQN-resolved
-     * by NameResolver in the full pipeline; for primitive short names (the prelude)
-     * we fall back to the fixed primitive package, so direct query checking
-     * ({@code @Integer}) works without an import scope. Package-private: the
-     * checkers that read declared types ({@code match} branches, {@code eval}
-     * lambda params) resolve through this single point.
-     */
-    /** Strictness = EMPTY-PRESERVING composition over at least one $this
-     * read. The BANNED set is exactly the constructs that produce a
-     * NON-EMPTY value from an EMPTY input (conditionals, emptiness
-     * tests, reducers over possibly-empty collections); plain property
-     * chains, scalar natives and empty-preserving collection ops
-     * (filter/map/toOne/first...) propagate emptiness in SQL as null —
-     * pure's auto-map result. A literal-only body has no $this read and
-     * fails the sawThis requirement (the manufactured-constant case,
-     * audit 22a H2). Unknown node kinds are conservatively non-strict. */
-
-    /** bit 0 = saw a $this read; bit 1 = saw a non-strict construct. */
 
     Type namedType(TypeExpression te) {
-        // GENERIC annotations (@Pair<String, Integer>): the base resolves
-        // like a NameRef; arguments resolve recursively.
-        if (te instanceof TypeExpression.Generic g) {
-            Type base = namedType(new TypeExpression.NameRef(g.name()));
-            java.util.List<Type> args = g.arguments().stream()
-                    .map(this::namedType).toList();
-            String fqn = base instanceof Type.ClassType ct ? ct.fqn()
-                    : base instanceof Type.GenericType gt ? gt.rawFqn() : null;
-            if (fqn == null) {
-                throw new TypeInferenceException(
-                        "generic annotation over a non-class type: " + g.name());
-            }
-            return new Type.GenericType(fqn, args);
-        }
-        // FUNCTION-TYPE annotations (f:Function<{T[1]->R[*]}>[1] spelled
-        // structurally — domainManagement/tds postprocessor library
-        // params): same conversion TypeClassifier applies to signatures
-        if (te instanceof TypeExpression.FunctionType ft) {
-            java.util.List<com.legend.compiler.element.type.Type.Param> ps =
-                    new java.util.ArrayList<>(ft.parameters().size());
-            for (TypeExpression.TypedParameter tp : ft.parameters()) {
-                ps.add(new com.legend.compiler.element.type.Type.Param(
-                        namedType(tp.type()),
-                        com.legend.compiler.element.type.Multiplicity
-                                .from(tp.multiplicity())));
-            }
-            return new Type.FunctionType(ps,
-                    new com.legend.compiler.element.type.Type.Param(
-                            namedType(ft.result().type()),
-                            com.legend.compiler.element.type.Multiplicity
-                                    .from(ft.result().multiplicity())));
-        }
-        if (!(te instanceof TypeExpression.NameRef nr)) {
-            throw new TypeInferenceException(
-                    "unsupported type annotation form: " + te.getClass().getSimpleName());
-        }
-        String name = nr.name();
-        // The legacy TDS surface: a NOMINAL — the value level is the
-        // relation carrier (CastChecker treats cast(@TabularDataSet) over
-        // a relation as a schema-preserving assertion). The EXACT FQN wins
-        // outright; the BARE name is a fallback AFTER user types (audit
-        // 22b LOW: a model class named TabularDataSet must not be
-        // shadowed — prelude-fallback ordering).
-        if (com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
-                .equals(name)) {
-            return new Type.GenericType(
-                    com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET,
-                    List.of());
-        }
-        return ctx.findType(name)
-                .or(() -> "TabularDataSet".equals(name)
-                        ? Optional.of((Type) new Type.GenericType(
-                                com.legend.compiler.element.type.PlatformTypes
-                                        .TABULAR_DATA_SET, List.of()))
-                        : Optional.empty())
-                .or(() -> name.contains("::")
-                        ? Optional.empty()
-                        : ctx.findType("meta::pure::metamodel::type::" + name)
-                                .or(() -> ctx.findType(Pure.VARIANT_PKG + "::" + name)))
-                .orElseThrow(() -> new TypeInferenceException(
-                        "unknown type '" + name + "' in @" + name));
-    }
-
-    /** {@code @Relation<(name:Type[m], …)>}: each column resolves recursively; multiplicity defaults to [1]. */
-    private Type.RelationType relationShapeType(TypeAnnotation.RelationShape rs) {
-        List<Type.Column> cols = new ArrayList<>(rs.columns().size());
-        for (TypeAnnotation.RelationShape.Column c : rs.columns()) {
-            if (c.name() == null || c.type() instanceof TypeAnnotation.Wildcard) {
-                throw new TypeInferenceException(
-                        "wildcard columns in @Relation<(…)> are not implemented yet");
-            }
-            Multiplicity m = c.multiplicity() == null
-                    ? Multiplicity.Bounded.ONE : Multiplicity.from(c.multiplicity());
-            cols.add(new Type.Column(c.name(), annotationType(c.type()), m));
-        }
-        return new Type.RelationType(cols);
+        return annotations.namedType(te);
     }
 
     /** Date-literal precision: year/year-month = Date; a full day = StrictDate; any time part = DateTime. */
