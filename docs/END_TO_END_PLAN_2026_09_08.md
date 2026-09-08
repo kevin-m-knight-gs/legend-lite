@@ -163,6 +163,13 @@ ENGINE-MACHINERY 44 / CODE-AS-DATA 16 / other 15); D1+D2 landed, D4 STARTED (Fun
 scope; slices: 1 extension registry by need (5, designed) → 2 program as m3 data both directions (2 + the func column) →
 3 protocol types (2) → 4 class instances in value position (5, H4). Two user decisions owed before batch 147.
 
+BATCH 147 LANDED (2026-09-08, strict first): the extension-registry chain walked program by program — 19 ledger rows
+(LEDGER_GRANULAR §20), the mechanism and vocabulary landed, the typing-surface-native → engine-program hand-off BUILT
+and SWITCHED OFF (`UserCallInliner.HAND_OFF_ON`) until the chain compiles end to end; no pass-count change, rosters
+byte-identical. USER: no regex band-aids (the engine function id is now GENERATED, FunctionDescriptor verbatim); the
+row-18 chase reverted ("are we starting to hack?"). NEXT (batch 148): DESIGN function references as VALUES (row 18), then
+the switch, then rows 19–23 of the chain (CODE_AS_DATA_HOMEWORK §2).
+
 **Phase 4 — the TEXT referee leg** (v1 §3; the 9 unadjudicated TEXT rows are adjudicated, not
 assumed) and REVISIT decisions (v1 §4). **Phase 5 — code and metamodel as data** over the
 measured pool (ENGINE-MACHINERY 36 + CODE-AS-DATA 7; the engine's OWN compiler/router under test

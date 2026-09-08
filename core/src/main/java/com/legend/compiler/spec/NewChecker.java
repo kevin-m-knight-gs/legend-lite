@@ -139,7 +139,7 @@ final class NewChecker {
                 // the MAPPING, not the class (engine local-property
                 // semantics) — no class property to validate against; the
                 // value's own type stands (the normalizer emitted both)
-                properties.put(name, t.synth(key.value(), env));
+                properties.put(name, t.synthRecordField(key.value(), env));
                 return;
             }
             Property prop = t.model().findProperty(ni.className(), name)
@@ -154,7 +154,7 @@ final class NewChecker {
                             : java.util.Optional.empty())
                     .orElseThrow(() ->
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
-            TypedSpec value = t.synth(key.value(), env);
+            TypedSpec value = t.synthRecordField(key.value(), env);
             try {
                 t.kernel().unify(prop.type(), value.info().type(), new Bindings());   // value must conform
             } catch (TypeInferenceException e) {

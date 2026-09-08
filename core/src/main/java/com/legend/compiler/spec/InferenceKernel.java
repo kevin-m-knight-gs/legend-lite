@@ -557,6 +557,19 @@ public final class InferenceKernel {
                 b.bindType(v.name(), commonSupertype(existing, actual));
                 return;
             }
+            // The same covariance for SAME-RAW parameterized classes: real
+            // pure joins them ARG-WISE (Pair<Function<Any>, {->SchemaState}>
+            // meets Pair<{Table->TableTDS}, {->…}> in the engine's extension
+            // record — Phase 5 batch 147). Relation-schema containers stay
+            // loud below: a relation's identity is its columns.
+            if (existing instanceof Type.GenericType eg && actual instanceof Type.GenericType ag
+                    && eg.rawFqn().equals(ag.rawFqn())
+                    && eg.arguments().size() == ag.arguments().size()
+                    && !b.isRigid(v.name()) && !b.contravariant()
+                    && Type.schemaView(existing) == null && Type.schemaView(actual) == null) {
+                b.bindType(v.name(), commonSupertype(existing, actual));
+                return;
+            }
             if (!compatibleRebind(existing, actual)) {
                 // A RIGID/contravariant binding whose DECLARED type is an
                 // abstract value head accepts actuals UP pure's lattice —
@@ -1375,9 +1388,25 @@ public final class InferenceKernel {
      * (join &ne; unify: this language has subtyping, so branches meet at their
      * least upper bound, not at equality).
      */
+    /** The m3 function METACLASSES as a generic carrier — the nominal type
+     * every lambda literal conforms to. */
+    private static boolean isNominalFunctionCarrier(Type t) {
+        if (!(t instanceof Type.GenericType g)) {
+            return false;
+        }
+        return FUNCTION_CARRIER_FQNS.contains(g.rawFqn());
+    }
+
     public Type commonSupertype(Type a, Type b) {
         if (a.equals(b)) {
             return a;
+        }
+        // Any is the TOP: its join with anything — a lambda's structural
+        // type included — is Any (real pure findBestCommonGenericType;
+        // the engine's function registry lists opaque and spelled
+        // function values side by side, Phase 5 batch 147)
+        if ((isAny(a) || isAny(b))) {
+            return new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
         }
         // Same-raw schema-fragment containers (SortInfo<row>, ColSpec<row>, …): the LUB is the
         // container of the MERGED row — this is how [asc(~a), desc(~b)] becomes one
@@ -1405,6 +1434,17 @@ public final class InferenceKernel {
                 lub.add(commonSupertype(gpa.arguments().get(i), gpb.arguments().get(i)));
             }
             return new Type.GenericType(gpa.rawFqn(), lub);
+        }
+        // A lambda's STRUCTURAL type meets the NOMINAL function carrier
+        // (Function<Any>, FunctionDefinition<…>, LambdaFunction<…>): every
+        // lambda is a Function, so the LUB is the carrier (real pure:
+        // LambdaFunction ≤ FunctionDefinition ≤ Function — the engine's
+        // extension record concatenates such pairs; Phase 5 batch 147)
+        if (a instanceof Type.FunctionType && isNominalFunctionCarrier(b)) {
+            return b;
+        }
+        if (b instanceof Type.FunctionType && isNominalFunctionCarrier(a)) {
+            return a;
         }
         // FunctionType LUB (engine GenericType.findBestCommonGenericType,
         // the isFunction arm — match over function values): different

@@ -75,6 +75,8 @@ public final class UserCallInliner {
      * must stay a function expression). */
     private final ArrayDeque<TypedSpec> quotedFrames = new ArrayDeque<>();
     private final ArrayDeque<String> names = new ArrayDeque<>();
+    /** The typing-surface-native → engine-program hand-off (Phase 5 strict run). */
+    static final boolean HAND_OFF_ON = false;
     /** Lambda binders in scope at the CURRENT walk position (name → nesting
      * count) — passed to the hook so a query-level splice never captures a
      * lambda-bound variable spelled like an exec-let ({@code let r =
@@ -211,6 +213,34 @@ public final class UserCallInliner {
      * element's row, the structural readers consume the spelling. */
     private static boolean isStoreElementIdentity(String fqn, List<TypedSpec> args) {
         return com.legend.compiler.spec.typed.StoreElementIdentity.isIdentityCall(fqn, args);
+    }
+
+    /** A native that is a TYPING SURFACE only — no body, no evaluation —
+     * over a program the model spells under the SAME name (the engine's
+     * {@code relationalExtensions()}: registered so the extension argument
+     * types everywhere, never evaluated; the corpus loads its Pure body):
+     * consumed STRUCTURALLY (a field read over it), the program is compiler
+     * input and inlines like any user call, STRICTLY — every field, every
+     * let (Phase 5 batch 147, USER: strict first; each engine program the
+     * chain meets is a ledger row). Anything else returns {@code src}. */
+    private TypedSpec spelledProgramOr(TypedSpec src, Map<String, TypedSpec> env) {
+        // SWITCHED OFF for batch 147 (landed as mechanism + ledger): with the
+        // hand-off on, every test that passes a field of the extension record
+        // through platform Pure depends on the WHOLE record compiling, and the
+        // chain stops at ledger row 18 (function references as values — batch
+        // 148's design leg). Re-enabled when the chain compiles end to end.
+        if (!HAND_OFF_ON || !(src instanceof TypedNativeCall nc)) {
+            return src;
+        }
+        List<com.legend.compiler.element.TypedFunction> programs =
+                specs.ctx().findFunction(nc.callee().qualifiedName()).stream()
+                        .filter(f -> !f.isNative() && f.body().isPresent()
+                                && f.parameters().size() == nc.args().size())
+                        .toList();
+        if (programs.size() != 1) {
+            return src;
+        }
+        return inlineCall(new TypedUserCall(programs.get(0), nc.args(), nc.info()), env);
     }
 
     private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
@@ -651,7 +681,9 @@ public final class UserCallInliner {
                         : new com.legend.compiler.spec.typed.TypedIf(cond, then, els, i.info()));
             }
             case TypedMap m -> {
-                TypedSpec src = rewrite(m.source(), env);
+                // a [*]-returning typing-surface native read through an
+                // AUTO-MAP ($exts.routerExtensions()) hands off to its program
+                TypedSpec src = spelledProgramOr(rewrite(m.source(), env), env);
                 // a SPELLED collection (its elements may be any expression —
                 // lambdas, standing calls: β-substitution is exact for pure
                 // values) applies the mapper per element
@@ -889,7 +921,7 @@ public final class UserCallInliner {
             // pair($plan, $plan->planToString(...)), read through a query
             // let): the component itself; no pair value is ever built
             case com.legend.compiler.spec.typed.TypedPropertyAccess pa -> {
-                TypedSpec src = rewrite(pa.source(), env);
+                TypedSpec src = spelledProgramOr(rewrite(pa.source(), env), env);
                 if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall pc
                         && pc.args().size() == 2
                         && pc.callee().definition() != null
@@ -933,15 +965,23 @@ public final class UserCallInliner {
             // CALLS STAND, so the corpus's recursive getSchema/getTable
             // helpers never hit the recursion wall (the execute()-runtime
             // orchestration-position rule, one property deeper).
+            // The same rule for every CLOSURE a spelled record holds (Phase 5
+            // batch 147): a lambda stored as a field value is a VALUE — strict
+            // Pure evaluates the record's fields, not the lambda's body; the
+            // body compiles when the closure is APPLIED (the extension record's
+            // connectionEquality arms dispatch through eval; its execution
+            // hooks are never applied and must not wall the record)
             case com.legend.compiler.spec.typed.TypedNewInstance ni
-                    when ni.properties().keySet().stream().anyMatch(
+                    when ni.properties().entrySet().stream().anyMatch(pe ->
                             com.legend.compiler.element.type.PlatformTypes
-                                    ::isPostProcessorConfigProperty)
+                                    .isPostProcessorConfigProperty(pe.getKey())
+                                    || pe.getValue() instanceof TypedLambda)
                     && !configMode -> {
                 var props = new LinkedHashMap<String, TypedSpec>();
                 for (var pe : ni.properties().entrySet()) {
                     if (com.legend.compiler.element.type.PlatformTypes
-                            .isPostProcessorConfigProperty(pe.getKey())) {
+                            .isPostProcessorConfigProperty(pe.getKey())
+                            || pe.getValue() instanceof TypedLambda) {
                         configMode = true;
                         try {
                             props.put(pe.getKey(),
@@ -957,14 +997,16 @@ public final class UserCallInliner {
                         ni.classFqn(), props, ni.info());
             }
             case com.legend.compiler.spec.typed.TypedCopyInstance cpi
-                    when cpi.overrides().keySet().stream().anyMatch(
+                    when cpi.overrides().entrySet().stream().anyMatch(pe ->
                             com.legend.compiler.element.type.PlatformTypes
-                                    ::isPostProcessorConfigProperty)
+                                    .isPostProcessorConfigProperty(pe.getKey())
+                                    || pe.getValue() instanceof TypedLambda)
                     && !configMode -> {
                 var ovs = new LinkedHashMap<String, TypedSpec>();
                 for (var pe : cpi.overrides().entrySet()) {
                     if (com.legend.compiler.element.type.PlatformTypes
-                            .isPostProcessorConfigProperty(pe.getKey())) {
+                            .isPostProcessorConfigProperty(pe.getKey())
+                            || pe.getValue() instanceof TypedLambda) {
                         configMode = true;
                         try {
                             ovs.put(pe.getKey(),

@@ -1638,13 +1638,21 @@ public final class NameResolver {
                 // through the same import/own-package tiers and re-attach
                 // the tail; the Typer's function-reference eta-expansion
                 // consumes the qualified id.
+                // The base is found by CUTTING, not by decoding the tail:
+                // every "_" is a candidate cut, the longest base the
+                // import tiers resolve wins (the Typer then spells each
+                // declaration's engine id and keeps the exact match —
+                // SignatureMangle; Phase 5 batch 147)
                 if (r.equals(ptr.fullPath()) && !r.contains("::")) {
-                    String base = com.legend.compiler.spec.SignatureMangle
-                            .stripTail(r);
-                    if (base != null) {
+                    for (int i = r.length() - 1; i > 0; i--) {
+                        if (r.charAt(i) != '_') {
+                            continue;
+                        }
+                        String base = r.substring(0, i);
                         String rb = resolveName(base, scope);
                         if (!rb.equals(base)) {
-                            r = rb + r.substring(base.length());
+                            r = rb + r.substring(i);
+                            break;
                         }
                     }
                 }

@@ -167,6 +167,10 @@ public final class Pure {
     }
 
     // ---- Top of the hierarchy ----
+    // m3.pure declares Any.classifierGenericType: GenericType[0..1]; like
+    // elementOverride it is SERVED by the Typer, never declared here — Any's
+    // property-free shape is load-bearing for the struct/variant carrier
+    // (Phase 5 batch 147: declaring it lost 173 tests in one lane run)
     public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
     /** M3 ElementOverride (real package meta::pure::metamodel::type — the
      * hand copy had guessed ::extension until the generated prelude named
@@ -208,7 +212,10 @@ public final class Pure {
     // ValueSpecification[*]; SimpleFunctionExpression extends it)
     public static final ClassDefinition INSTANCE_VALUE_META = nativeClass("native Class meta::pure::metamodel::valuespecification::InstanceValue extends meta::pure::metamodel::valuespecification::ValueSpecification { values: meta::pure::metamodel::type::Any[*]; }");
     public static final ClassDefinition VARIABLE_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::VariableExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { name: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
+    // m3.pure: FunctionExpression.func : Function<Any>[1] — the callee as a value
+    // (the engine's router/store-contract hooks read $fe.func; Phase 5 batch 147 —
+    // the row carrier is slice 2a, docs/PHASE5_SIZING_2026_09_08.md)
+    public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { func: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]; functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
     public static final ClassDefinition SIMPLE_FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression {}");
     /** Real m3.pure Testable (tools/m3shape.py: extends Any; tests: Test[*]
      * — the tests end is not modeled, grows by witness): the service
@@ -333,7 +340,9 @@ public final class Pure {
     public static final ClassDefinition ENUMERATION_MAPPING = // (real mapping.pure:40 is EnumerationMapping<T>; the type parameter is
     // dropped here so the metamodel rows read it as a plain class hop — the
     // object-space spine keys on ClassType — and enum reads as the value, Any)
-    nativeClass("native Class meta::pure::mapping::EnumerationMapping extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<meta::pure::metamodel::type::Any>[1]; enumValueMappings: meta::pure::mapping::EnumValueMapping[*]; }");
+    // GENERIC as the spec declares it (mapping.pure:40 EnumerationMapping<T>;
+    // the engine casts @EnumerationMapping<Any>) — Phase 5 batch 147 ledger row 4
+    nativeClass("native Class meta::pure::mapping::EnumerationMapping<T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<T>[1]; enumValueMappings: meta::pure::mapping::EnumValueMapping[*]; }");
     // task #78 step-1 declarations (each cited to the REAL source; class
     // CONSTRAINTS are never ported — constraint evaluation is a separate
     // feature track, declarations only TYPE):
@@ -1223,7 +1232,7 @@ public final class Pure {
     public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     // REAL tds.pure:867 — the legacy window-subset groupBy; a store-handled function (pureToSQLQuery processObjectGroupByWithWindowSubSet), desugared by GroupByChecker.checkWindowSubset
-    public static final NativeFunctionDefinition GROUP_BY_WITH_WINDOW_SUBSET__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY__STRING_MANY__STRING_MANY = signature("native function meta::pure::tds::groupByWithWindowSubset<K,V,U>(set:K[*], functions:meta::pure::metamodel::function::Function<{K[1]->Any[*]}>[*], aggValues:meta::pure::functions::collection::AggregateValue<K,V,U>[*], ids:String[*], subSelectIds:String[*], subAggIds:String[*]):meta::pure::tds::TabularDataSet[1];");
+    public static final NativeFunctionDefinition GROUP_BY_WITH_WINDOW_SUBSET__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY__STRING_MANY__STRING_MANY = signature("native function meta::pure::tds::groupByWithWindowSubset<K,V,U>(set:K[*], functions:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggValues:meta::pure::functions::collection::AggregateValue<K,V,U>[*], ids:meta::pure::metamodel::type::String[*], subSelectIds:meta::pure::metamodel::type::String[*], subAggIds:meta::pure::metamodel::type::String[*]):meta::pure::tds::TabularDataSet[1];");
     // legend-pure collection/map/groupBy.pure:18 verbatim (batch 54:
     // toPostgresModel's converter registry groups its spelled pairs)
     public static final NativeFunctionDefinition GROUP_BY__X_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::groupBy<X,K>(set:X[*], f:meta::pure::metamodel::function::Function<{X[1]->K[1]}>[1]):meta::pure::functions::collection::Map<K,meta::pure::functions::collection::List<X>>[1];");
@@ -1365,13 +1374,40 @@ public final class Pure {
     // natives here, evaluated K-side over the compiled model)
     // (enumerationMappingByName / toDomainValue: Pure bodies over the
     // enumeration-mapping rows — SystemMetamodel)
-    // Real core/pure/extensions/extension.pure:46 — Extension's
-    // routerExtensions() QUALIFIED PROPERTY (availableStores ++
-    // availableFeatures cast to RouterExtension), registered as a
-    // receiver-first native (the tds getString idiom). Registration
-    // deepens the census wall from 'unknown function' to the honest
-    // downstream refusal — no evaluation is added here.
-    public static final NativeFunctionDefinition ROUTER_EXTENSIONS = signature("native function meta::pure::extension::routerExtensions(_this:meta::pure::extension::Extension[1]):meta::pure::router::extension::RouterExtension[*];");
+    // PHASE 5 batch 147 — STRICT RUN of the extension-registry chain (USER
+    // 2026-09-08, path A): the standing closures of the engine's extension
+    // record TYPE against these signatures; none has a body here (loud at
+    // evaluation). Spec spellings: relational execute.pure (createTempTable),
+    // essential/meta/reactivate.pure:18, essential/meta/type/_subTypeOf.pure:18,
+    // platform_dsl_mapping/functions_Mapping.pure:110 (resolveStore — a Pure
+    // function in the spec over MappingInclude.storeSubstitutions, a fact the
+    // metamodel rows do not carry yet: ledger row, kind C).
+    public static final NativeFunctionDefinition CREATE_TEMP_TABLE__STRING_1__COLUMN_MANY__FN_1__CONN_1 = signature("native function meta::relational::metamodel::execute::createTempTable(tableName:meta::pure::metamodel::type::String[1], cols:meta::relational::metamodel::Column[*], sql:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1]->meta::pure::metamodel::type::String[1]}>[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Nil[0];");
+    public static final NativeFunctionDefinition CREATE_TEMP_TABLE__STRING_1__COLUMN_MANY__FN_1__BOOLEAN_1__CONN_1 = signature("native function meta::relational::metamodel::execute::createTempTable(tableName:meta::pure::metamodel::type::String[1], cols:meta::relational::metamodel::Column[*], sql:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1]->meta::pure::metamodel::type::String[1]}>[1], relyOnFinallyForCleanup:meta::pure::metamodel::type::Boolean[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Nil[0];");
+    public static final NativeFunctionDefinition REACTIVATE__VS_1__MAP_1 = signature("native function meta::pure::functions::meta::reactivate(vs:meta::pure::metamodel::valuespecification::ValueSpecification[1], vars:meta::pure::functions::collection::Map<meta::pure::metamodel::type::String, meta::pure::functions::collection::List<meta::pure::metamodel::type::Any>>[1]):meta::pure::metamodel::type::Any[*];");
+    public static final NativeFunctionDefinition REACTIVATE__VS_1 = signature("native function meta::pure::functions::meta::reactivate(vs:meta::pure::metamodel::valuespecification::ValueSpecification[1]):meta::pure::metamodel::type::Any[*];");
+    // testedBy (testExtension.pure:135 — a stdlib-namespace file the platform never loads): the extension record's testExtension_testedBy hook folds through it
+    public static final NativeFunctionDefinition TESTED_BY__ANY_1__RESULT_1__EXT_MANY = signature("native function meta::pure::functions::test::testedBy(pe:meta::pure::metamodel::type::Any[1], soFar:meta::pure::functions::test::TestedByResult[1], extensions:meta::pure::extension::Extension[*]):meta::pure::functions::test::TestedByResult[1];");
+    public static final NativeFunctionDefinition SUB_TYPE_OF__TYPE_1__TYPE_1 = signature("native function meta::pure::functions::meta::_subTypeOf(subType:meta::pure::metamodel::type::Type[1], superType:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition RESOLVE_STORE__MAPPING_1__STORE_1 = signature("native function meta::pure::mapping::resolveStore(_this:meta::pure::mapping::Mapping[1], store:meta::pure::store::Store[1]):meta::pure::store::Store[1];");
+    // THE ENGINE'S PURE→SQL REGISTRY (pureToSQLQuery.pure getSupportedFunctions, 427 function
+    // references by engine id) names these stdlib functions the platform lacked — registered
+    // as typing surfaces with the spec's signatures (Phase 5 batch 147, ledger row 18)
+    public static final NativeFunctionDefinition CORE_CURRENT_USER_ID__STRING_1 = signature("native function meta::core::runtime::currentUserId():meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition PAGINATED__T_MANY__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::collection::paginated<T>(set:T[*], pageNumber:meta::pure::metamodel::type::Integer[1], pageSize:meta::pure::metamodel::type::Integer[1]):T[*];");
+    public static final NativeFunctionDefinition UNION__T_MANY__T_MANY = signature("native function meta::pure::functions::collection::union<T>(set1:T[*], set2:T[*]):T[*];");
+    public static final NativeFunctionDefinition CONVERT_TIME_ZONE__DATETIME_1__STRING_1__STRING_1 = signature("native function meta::pure::functions::date::convertTimeZone(date:meta::pure::metamodel::type::DateTime[1], timezone:meta::pure::metamodel::type::String[1], format:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition WHEN_SUB_TYPE__ANY_1__T_1 = signature("native function meta::pure::functions::lang::whenSubType<T>(source:meta::pure::metamodel::type::Any[1], object:T[1]):T[0..1];");
+    public static final NativeFunctionDefinition WHEN_SUB_TYPE__ANY_01__T_1 = signature("native function meta::pure::functions::lang::whenSubType<T>(source:meta::pure::metamodel::type::Any[0..1], object:T[1]):T[0..1];");
+    public static final NativeFunctionDefinition WHEN_SUB_TYPE__ANY_MANY__T_1 = signature("native function meta::pure::functions::lang::whenSubType<T>(source:meta::pure::metamodel::type::Any[*], object:T[1]):T[*];");
+    public static final NativeFunctionDefinition STRING_PLUS__STRING_MANY = signature("native function meta::pure::functions::string::plus(strings:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition IS_ALPHA_NUMERIC__STRING_1 = signature("native function meta::pure::functions::string::isAlphaNumeric(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition VARIANT_TO_JSON__VARIANT_1 = signature("native function meta::pure::functions::variant::convert::toJson(variant:meta::pure::metamodel::variant::Variant[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition MUTATION_SAVE__T_MANY__TREE_1__MAPPING_1__RUNTIME_1 = signature("native function meta::pure::mutation::save<T>(values:T[*], rootGraphFetchTree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], mapping:meta::pure::mapping::Mapping[1], runtime:meta::pure::runtime::PackageableRuntime[1]):T[*];");
+    // routerExtensions() (extension.pure:46-49) is a PLATFORM Pure function
+    // (SystemMetamodel source: the engine's qualified-property body
+    // verbatim) — Phase 5 batch 147, strict first; the signature-only
+    // native is gone so the read reaches the engine's program.
     // Real extension.pure:129 — moduleExtension(module) QUALIFIED PROPERTY
     // ($this.moduleExtensions->filter(f|$f.module == $module)->first()),
     // registered like routerExtensions (a signature; the body is a view
@@ -1530,10 +1566,13 @@ public final class Pure {
     // still types.
     public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::extension::Extension[*];");
 
-    // setUpDataSQLsV2: the engine's CSV-seed SQL generator (module-
+    // setUpDataSQLsV2 / setUpDataSQLs: spelled with the SPEC's exact signatures
+    // (toDDL.pure:198, helperFunctions.pure:186/209) so the engine's own copies are
+    // same-shape shadows the kernel tie-break resolves to the native (batch 147)
+    // — the engine's CSV-seed SQL generator (module-
     // external to the corpus) — K-dispatched via CsvSeed; dbConfig types
     // as Any and is never evaluated (the ambient-connection doctrine).
-    public static final NativeFunctionDefinition SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLsV2(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[1], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLsV2(data:meta::pure::metamodel::type::String[1], db:meta::relational::metamodel::Database[*], dbConfig:meta::relational::functions::sqlQueryToString::DbConfig[1]):meta::pure::metamodel::type::String[*];");
 
     // plain setUpDataSQLs (deprecated engine spelling, the
     // testDataGeneration family's assert/reload route) — PLATFORM-OWNED:
@@ -1543,9 +1582,9 @@ public final class Pure {
     // Same CsvSeed K-arm as V2.
     // the RECORDS overload (helperFunctions.pure:193 — parsed CSV lines
     // as List<String> cells); the K-arm renders the same statement list
-    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(records:meta::pure::functions::collection::List<meta::pure::metamodel::type::String>[*], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(records:meta::pure::functions::collection::List<meta::pure::metamodel::type::String>[*], db:meta::relational::metamodel::Database[*], dbConfig:meta::relational::functions::sqlQueryToString::DbConfig[1]):meta::pure::metamodel::type::String[*];");
     public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY = signature("native function meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*];");
-    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(data:meta::pure::metamodel::type::String[1], db:meta::relational::metamodel::Database[*], dbConfig:meta::relational::functions::sqlQueryToString::DbConfig[1]):meta::pure::metamodel::type::String[*];");
 
     // executionPlan + planToString (#47): PLATFORM-OWNED plan surface —
     // the corpus's own definitions walk the plan METAMODEL (M3
@@ -1607,10 +1646,19 @@ public final class Pure {
     public static final NativeFunctionDefinition EXECUTION_PLAN__2 = signature("native function meta::pure::executionPlan::executionPlan(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
     public static final NativeFunctionDefinition EXECUTION_PLAN__3 = signature("native function meta::pure::executionPlan::executionPlan(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], context:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
 
-    // createDbConfig: the corpus's own definitions return the DbConfig
-    // metamodel class (unknown here, signature-broken) — typing-only.
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1__STRING_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1], dbTimeZone:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Any[1];");
+    // createDbConfig: typing-only surfaces returning the spec's DbConfig
+    // (sqlQueryToString.pure:241-256; the prelude generator carries the shape —
+    // Phase 5 batch 147: the extension record's hooks read $dbConfig.dbExtension).
+    // the SPEC's exact overloads (sqlQueryToString.pure:241-256): same shape as the engine's own
+    // definitions, so the kernel's same-shape tie-break resolves to the native (batch 147, row 19)
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__DBTYPE_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::relational::runtime::DatabaseType[1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__DBTYPE_1__STRING_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::relational::runtime::DatabaseType[1], dbTimeZone:meta::pure::metamodel::type::String[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__CONN_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dc:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__DBTYPE_1__STRING_01__BOOLEAN_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::relational::runtime::DatabaseType[1], dbTimeZone:meta::pure::metamodel::type::String[0..1], quoteIdentifiers:meta::pure::metamodel::type::Boolean[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1__STRING_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1], dbTimeZone:meta::pure::metamodel::type::String[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
+    // the 3-arg overload (sqlQueryToString.pure:256 — dbType, dbTimeZone, quoteIdentifiers): the extension record's plan-execution hook calls it (Phase 5 batch 147 ledger)
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1__STRING_01__BOOLEAN_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1], dbTimeZone:meta::pure::metamodel::type::String[0..1], quoteIdentifiers:meta::pure::metamodel::type::Boolean[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
 
     // toSQLString: ordinary pure in the real engine (plan-generation
     // internals) — a K-native here: the query lambda lowers through the

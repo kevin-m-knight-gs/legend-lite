@@ -1019,8 +1019,9 @@ class NativeFunctionTest {
                     List.of("expressionSequence")),
                     // group H (2026-09-03): the expression tree as rows — real
                     // m3 shapes (m3.pure bootstrap: FunctionExpression :1955)
+                    // + func (batch 147): m3.pure FunctionExpression.func : Function<Any>[1]
                     java.util.Map.entry("meta::pure::metamodel::valuespecification::FunctionExpression",
-                    List.of("functionName", "parametersValues")),
+                    List.of("func", "functionName", "parametersValues")),
                     java.util.Map.entry("meta::pure::metamodel::valuespecification::InstanceValue",
                     List.of("values")),
                     java.util.Map.entry("meta::pure::metamodel::valuespecification::VariableExpression",

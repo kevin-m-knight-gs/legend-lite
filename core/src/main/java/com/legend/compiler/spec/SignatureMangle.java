@@ -3,77 +3,127 @@
 
 package com.legend.compiler.spec;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.legend.model.Function;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * THE engine signature-mangle grammar — one implementation (text-surgery
- * audit §1.1 #4: three demanglers with three grammars each fired on lookup
- * miss and could silently redirect {@code compute_Step_2_()} to a different
- * existing {@code compute()}).
- *
- * <p>Shape: {@code base(_Type_mult)+_} — segments of {@code _Type_mult}
- * (mult: digits, {@code MANY}, or {@code $a_b$} ranges) with a MANDATORY
- * trailing underscore; requiring it keeps ordinary snake-case names
- * ({@code transform_step_3}) from falsely demangling. A demangle is only
- * VALID against a candidate whose arity matches the tail's parameter count
- * (segments minus the return) — callers must filter by {@link #tailArity}
- * and treat no-arity-match as no-match, never fall back to the raw strip.
+ * THE engine function id, GENERATED from a declaration — never parsed
+ * back out of a string. Real pure identifies an overload by the id its
+ * {@code FunctionDescriptor} spells (legend-pure m3 navigation/function/
+ * FunctionDescriptor.java:196–232): the qualified name, then one
+ * {@code _Type_mult_} segment per parameter and one for the return type,
+ * where a type is its raw simple name and a multiplicity is {@code 1}
+ * (exact), {@code MANY} ({@code *}), {@code $lo_MANY$} ({@code lo..*}),
+ * {@code $lo_hi$} (a range) or the multiplicity PARAMETER's own name
+ * ({@code sortBy<T,U|m>(col:T[m], …)} is {@code sortBy_T_m__…}). A
+ * reference such as {@code sortBy_T_m__Function_$0_1$__T_m_} resolves by
+ * spelling each declaration under a prefix of it (the base as the reference
+ * spells it, bare or qualified, plus the declaration's tail) and keeping the
+ * EXACT match — a spelling this platform cannot reproduce is a miss, loud at
+ * the caller, never a redirect (text-surgery audit §1.1 #4; the previous
+ * regex decoder guessed the grammar and missed every multiplicity
+ * parameter, Phase 5 batch 147).
  */
 public final class SignatureMangle {
 
     private SignatureMangle() {
     }
 
-    private static final Pattern MANGLED_TAIL = Pattern
-            .compile("(?:_?_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$))+_$");
-
-    /** The mangled tail's start index in {@code name}, or -1 when the name
-     *  carries no signature tail. */
-    public static int tailStart(String name) {
-        Matcher m = MANGLED_TAIL.matcher(name);
-        return m.find() ? m.start() : -1;
+    /** The signature TAIL of {@code def} — its engine id without the qualified
+     * name (a reference spells the base as its author did, bare or
+     * qualified; the tail is what the declaration contributes). */
+    public static String tail(Function def) {
+        return mangle(def).substring(def.qualifiedName().length());
     }
 
-    /** The base name with the signature tail stripped; {@code null} when
-     *  there is no tail. */
-    public static @com.legend.Nullable String stripTail(String name) {
-        int at = tailStart(name);
-        return at < 0 ? null : name.substring(0, at);
+    /** The engine id of {@code def}. */
+    public static String mangle(Function def) {
+        StringBuilder id = new StringBuilder(def.qualifiedName());
+        if (def.parameters().isEmpty()) {
+            id.append('_');
+        }
+        for (var p : def.parameters()) {
+            segment(id, p.type(), p.multiplicity());
+        }
+        segment(id, def.returnType(), def.returnMultiplicity());
+        return id.toString();
     }
 
-    /** Parameter count the tail encodes: one {@code _Type_mult} segment per
-     *  parameter plus one for the return type. */
-    public static int tailArity(String name) {
-        int at = tailStart(name);
-        if (at < 0) {
-            return -1;
-        }
-        Matcher seg = Pattern.compile("_?_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$)")
-                .matcher(name.substring(at, name.length() - 1));
-        int n = 0;
-        while (seg.find()) {
-            n++;
-        }
-        return n - 1;
+    private static void segment(StringBuilder id, TypeExpression type, Multiplicity mult) {
+        id.append('_').append(typeId(type)).append('_').append(multId(mult)).append('_');
     }
 
-    /** The RETURN type's simple name from the tail's LAST segment, or null.
-     *  The arity filter alone cannot reject every accidental spelling —
-     *  {@code compute_Step_2_} parses as a plausible zero-param mangle of
-     *  {@code compute} returning {@code Step[2]} — so callers holding typed
-     *  candidates must also require the return-type name to round-trip. */
-    public static @com.legend.Nullable String tailReturnTypeName(String name) {
-        int at = tailStart(name);
-        if (at < 0) {
-            return null;
+    /** The raw simple name — a type parameter is its own name; a function
+     * or relation type is its m3 metaclass. */
+    private static String typeId(TypeExpression t) {
+        String q = switch (t) {
+            case TypeExpression.NameRef n -> n.name();
+            case TypeExpression.Generic g -> g.name();
+            case TypeExpression.FunctionType f -> "Function";
+            case TypeExpression.RelationType r -> "Relation";
+            case TypeExpression.SchemaAlgebra s -> "Relation";
+        };
+        int cut = q.lastIndexOf("::");
+        return cut < 0 ? q : q.substring(cut + 2);
+    }
+
+    private static String multId(Multiplicity m) {
+        return switch (m) {
+            case Multiplicity.Parameter p -> p.name();
+            case Multiplicity.Concrete c -> {
+                if (c.upperBound() == null) {
+                    yield c.lowerBound() == 0 ? "MANY" : "$" + c.lowerBound() + "_MANY$";
+                }
+                int upper = c.upperBound();
+                yield c.lowerBound() == upper ? Integer.toString(upper)
+                        : "$" + c.lowerBound() + "_" + upper + "$";
+            }
+        };
+    }
+
+    /** The outcome of resolving a reference: the declarations whose engine
+     * id is exactly {@code ref}, and whether SOME declaration exists under a
+     * prefix of it (a base this platform spells differently — the caller
+     * decides what an opaque reference to it means). */
+    public record Resolution<F>(List<F> exact, boolean baseExists) {
+    }
+
+    /**
+     * Resolve a possibly-mangled reference against declarations looked up
+     * by base name: every {@code _} in the reference's last segment is a
+     * candidate cut, {@code lookup} returns the declarations under that
+     * base, {@code def} their parser definition. A plain (unmangled) name
+     * resolves through the same loop at its full length.
+     */
+    public static <F> Resolution<F> resolve(String ref,
+            java.util.function.Function<String, List<F>> lookup,
+            java.util.function.Function<F, com.legend.model.@com.legend.Nullable Function> def) {
+        int from = Math.max(ref.lastIndexOf("::") + 2, 0);
+        boolean baseExists = false;
+        for (int i = ref.length() - 1; i > from; i--) {
+            if (ref.charAt(i) != '_') {
+                continue;
+            }
+            List<F> cands = lookup.apply(ref.substring(0, i));
+            if (cands.isEmpty()) {
+                continue;
+            }
+            baseExists = true;
+            List<F> exact = new ArrayList<>();
+            for (F c : cands) {
+                Function d = def.apply(c);
+                if (d != null && ref.equals(ref.substring(0, i) + tail(d))) {
+                    exact.add(c);
+                }
+            }
+            if (!exact.isEmpty()) {
+                return new Resolution<>(exact, true);
+            }
         }
-        Matcher seg = Pattern.compile("_?_([A-Za-z][A-Za-z0-9]*)_(?:\\d+|MANY|\\$[^$]*\\$)")
-                .matcher(name.substring(at, name.length() - 1));
-        String last = null;
-        while (seg.find()) {
-            last = seg.group(1);
-        }
-        return last;
+        return new Resolution<>(List.of(), baseExists);
     }
 }

@@ -508,6 +508,34 @@ final class Typer {
             // not Enumeration-shaped: the generic path types it against
             // the registered signature (loud on mismatch)
         }
+        // REAL PURE ROUTES THE RECEIVER'S OWN QUALIFIED PROPERTY FIRST — before
+        // a special form of the same name ($schema.join($other) is
+        // SchemaState.join, never tds::join; FunctionExpressionProcessor's
+        // ordering). Decided from the receiver's KNOWN type — a bound
+        // variable, so the common path types nothing twice (Phase 5 batch
+        // 147: the engine's schema-resolution hook).
+        ExprType rt = !af.parameters().isEmpty() && af.parameters().get(0) instanceof Variable rv
+                ? env.lookup(rv.name()).orElse(null) : null;
+        if (rt != null) {
+            String rcls = rt.type() instanceof Type.ClassType ct ? ct.fqn()
+                    : rt.type() instanceof Type.GenericType g ? g.rawFqn() : null;
+            // the call may already carry an import-resolved FQN (meta::pure::tds::join):
+            // the property is looked up by its simple name
+            int sep = af.function().lastIndexOf("::");
+            String simple = sep < 0 ? af.function() : af.function().substring(sep + 2);
+            if (rcls != null
+                    && ctx.findProperty(rcls, simple).orElse(null)
+                            instanceof Property.Derived d
+                    && d.parameters().size() == af.parameters().size() - 1
+                    && rt.multiplicity() instanceof Multiplicity.Bounded rb && !rb.isMany()) {
+                java.util.List<ValueSpecification> qargs = new ArrayList<>(af.parameters());
+                if (rb.lower() != 1) {
+                    qargs.set(0, new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
+                            List.of(qargs.get(0))));
+                }
+                return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(), qargs), env);
+            }
+        }
         Optional<CoreFn> core = CoreFn.of(af.function());
         if (core.isPresent()) {
             return applyCore(core.get(),
@@ -531,7 +559,11 @@ final class Typer {
         // PARAMETERIZED qualified property: $p.synonymByType(X) routes to the
         // externalized body function <owner>$prop$<name>(this, args...) and
         // β-inlines with every other user call — never shadows a real function
-        if (!af.parameters().isEmpty() && functionCandidates(af).isEmpty()) {
+        // OF THIS ARITY (a same-name function family elsewhere — tds::join
+        // beside SchemaState.join(other) — does not hide the receiver's
+        // property: real pure routes the property first; Phase 5 batch 147)
+        if (!af.parameters().isEmpty() && functionCandidates(af).stream()
+                .noneMatch(f -> f.parameters().size() == af.parameters().size())) {
             TypedSpec recv = synth(af.parameters().get(0), env);
             String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
                     : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;
@@ -1408,7 +1440,11 @@ final class Typer {
             return autoMapped;
         }
         Application a = checkGeneric(af, env);
-        if (requiresNormalization(a.chosen())) {
+        // MONOMORPHIZE AT THE APPLICATION: an executed call has its
+        // arguments here; inside a stored lambda literal there are none
+        // yet, so the call keeps its signature typing (the engine types
+        // a closure body by signatures too; it pastes nothing)
+        if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
             return inlineNormalized(af, a.chosen(), env);
         }
         TypedSpec shadow = derivedShadow(af, a, env);
@@ -1565,6 +1601,28 @@ final class Typer {
     }
 
     private final java.util.ArrayDeque<String> normalizing = new java.util.ArrayDeque<>();
+    /** A record FIELD's value: a lambda literal there is STORED — it has no
+     * application at this site (a let-bound lambda the same body applies
+     * does, and keeps the eager paste: the TDS-extension programs rely on
+     * it — measured, batch 147). */
+    TypedSpec synthRecordField(ValueSpecification v, Env env) {
+        if (!(v instanceof LambdaFunction lf)) {
+            return synth(v, env);
+        }
+        storedLambdas.push(lf);
+        try {
+            return synth(v, env);
+        } finally {
+            storedLambdas.pop();
+        }
+    }
+
+    /** The RECORD-FIELD lambda literals enclosing the current position (an
+     * explicit frame stack, like {@code normalizing}). Monomorphization
+     * needs an application: inside such a literal a schema-dependent helper
+     * call is typed by its signature and pasted only when the closure is
+     * applied (Phase 5 batch 147, row 15). */
+    private final java.util.ArrayDeque<LambdaFunction> storedLambdas = new java.util.ArrayDeque<>();
 
     private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, Env env) {
         String key = chosen.signatureKey();
@@ -2458,40 +2516,10 @@ final class Typer {
         if (!found.isEmpty()) {
             return found;
         }
-        String base = SignatureMangle.stripTail(name);
-        if (base != null) {
-            // ARITY-VALIDATED: the tail encodes the parameter count, and a
-            // demangle that lands on a different-arity function is a
-            // MISS, not a redirect (compute_Step_2_ must never call
-            // compute() — text-surgery audit §1.1 #4)
-            int arity = SignatureMangle.tailArity(name);
-            String ret = SignatureMangle.tailReturnTypeName(name);
-            // the mangled tail spells the return type's RAW simple name
-            // (pkTestBare__Relation_1_ names a Relation<Any>[1] function) —
-            // compare exactly against the raw name, never a suffix of the
-            // parameterized typeName spelling (which ends in the arguments)
-            return ctx.findFunction(base).stream()
-                    .filter(f -> f.parameters().size() == arity
-                            && ret != null
-                            && rawSimpleName(f.returnType()).equals(ret))
-                    .toList();
-        }
-        return found;
-    }
-
-    /** The RAW type's simple name — the spelling engine signature
-     * mangling uses for a return type (type arguments never appear). */
-    private static String rawSimpleName(Type t) {
-        String q = switch (t) {
-            case Type.GenericType g -> g.rawFqn();
-            case Type.ClassType c -> c.fqn();
-            case Type.EnumType e -> e.fqn();
-            case Type.Primitive p -> p.qualifiedName();
-            case Type.PrecisionDecimal pd -> pd.basePrimitive().qualifiedName();
-            default -> t.typeName();
-        };
-        int cut = q.lastIndexOf("::");
-        return cut < 0 ? q : q.substring(cut + 2);
+        // a MANGLED engine id names ONE overload: the declarations under a
+        // prefix of it are SPELLED and the exact match kept (a spelling this
+        // platform cannot reproduce is a miss, never a redirect)
+        return SignatureMangle.resolve(name, ctx::findFunction, TypedFunction::definition).exact();
     }
 
     /**
@@ -2583,6 +2611,14 @@ final class Typer {
         // ETA-EXPANDS: the reference becomes the lambda calling it — one
         // uniform function-value story, no new node kind. Only an
         // UNAMBIGUOUS (single-overload) target expands.
+        // m3's PACKAGEABLE MULTIPLICITY constants (m3.pure:1411 — PureOne,
+        // PureZero, ZeroOne, ZeroMany, OneMany) are instance VALUES of
+        // Multiplicity[1], spelled from the spec (Phase 5 batch 147: the
+        // engine's plan-execution hooks compare against them)
+        var constant = PlatformConstants.multiplicity(ref.fullPath());
+        if (constant.isPresent()) {
+            return constant.get();
+        }
         List<TypedFunction> fns = functionCandidates(ref.fullPath());
         // a MANGLED id names ONE overload — the signature tail's segment
         // count disambiguates. The handling runs for ZERO candidates too
@@ -2590,23 +2626,18 @@ final class Typer {
         // fallback dead — a mangled id naming a function this platform
         // spells differently, e.g. the TDS groupBy the checker desugars
         // at call sites, must still reference as an opaque Function).
-        int arity = SignatureMangle.tailArity(ref.fullPath());
-        if (arity >= 0 && fns.size() != 1) {
-            List<TypedFunction> byArity = fns.stream()
-                    .filter(f2 -> f2.parameters().size() == arity)
-                    .toList();
-            if (byArity.size() == 1) {
-                fns = byArity;
-            } else {
+        if (fns.size() != 1) {
+            var res = SignatureMangle.resolve(ref.fullPath(), ctx::findFunction,
+                    TypedFunction::definition);
+            if (res.exact().size() == 1) {
+                fns = res.exact();
+            } else if (res.baseExists()) {
                 // BASE-EXISTS is the safety property: a misspelled or
                 // absent base still fails the lookup and throws below.
-                String base = SignatureMangle.stripTail(ref.fullPath());
-                if (base != null && !ctx.findFunction(base).isEmpty()) {
-                    return new TypedPackageableRef(ref.fullPath(),
-                            ExprType.one(new Type.GenericType(
-                                    "meta::pure::metamodel::function::Function",
-                                    List.of(InferenceKernel.anyType()))));
-                }
+                return new TypedPackageableRef(ref.fullPath(),
+                        ExprType.one(new Type.GenericType(
+                                "meta::pure::metamodel::function::Function",
+                                List.of(InferenceKernel.anyType()))));
             }
         }
         if (fns.size() == 1) {
@@ -3012,6 +3043,15 @@ final class Typer {
                                         .qualifiedName()),
                                 Multiplicity.Bounded.ZERO_ONE);
                     }
+                    // the same for Any.classifierGenericType (m3.pure: GenericType
+                    // [0..1]; the engine's plan-execution hooks read it) — served
+                    // here, never declared on Any (Phase 5 batch 147 ledger row 1)
+                    if (ap.property().equals("classifierGenericType")) {
+                        yield new ExprType(new Type.ClassType(
+                                com.legend.builtin.Pure.GENERIC_TYPE_META
+                                        .qualifiedName()),
+                                Multiplicity.Bounded.ZERO_ONE);
+                    }
                     throw new TypeInferenceException("class " + ct.fqn()
                             + " has no property '" + ap.property() + "'");
                 }
@@ -3051,7 +3091,8 @@ final class Typer {
             }
         };
         Multiplicity mult = compose(source.info().multiplicity(), member.multiplicity());
-        if (ap.property().equals("elementOverride")   // M3: never
+        if ((ap.property().equals("elementOverride")   // M3: never
+                || ap.property().equals("classifierGenericType"))
                 && source.info().type() instanceof Type.ClassType) {
             return new com.legend.compiler.spec.typed.TypedCollection(
                     List.of(), new ExprType(member.type(),

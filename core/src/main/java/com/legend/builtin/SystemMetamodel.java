@@ -1045,6 +1045,11 @@ public final class SystemMetamodel {
                 $_this->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).effectivePropertyMappings
             }
 
+            function meta::pure::mapping::_propertyMappingsByPropertyName(i:meta::pure::mapping::PropertyMappingsImplementation[1], s:String[1]):meta::pure::mapping::PropertyMapping[*]
+            {
+                $i->meta::pure::mapping::allPropertyMappings()->filter(pm|$pm.property.name == $s)
+            }
+
             function meta::pure::mapping::propertyMappingsByPropertyName(_this:meta::pure::mapping::PropertyMappingsImplementation[1], s:String[1]):meta::pure::mapping::PropertyMapping[*]
             {
                 $_this->meta::pure::mapping::allPropertyMappings()->filter(pm|$pm.property.name == $s)
@@ -1087,13 +1092,17 @@ public final class SystemMetamodel {
                 ])
             }
 
-            function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*]
+            function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::extension::Extension[*]):meta::pure::executionPlan::ExecutionNode[*]
             {
                 $node.subtree.node
             }
             function meta::pure::functions::meta::getLowerBound(multiplicity:meta::pure::metamodel::multiplicity::Multiplicity[1]):Integer[1]
             {
                 $multiplicity.lowerBound->toOne().value->toOne()
+            }
+            function meta::pure::extension::routerExtensions(_this:meta::pure::extension::Extension[1]):meta::pure::router::extension::RouterExtension[*]
+            {
+                $_this.availableStores->concatenate($_this.availableFeatures)->cast(@meta::pure::router::extension::RouterExtension)
             }
             function meta::relational::functions::pureToSqlQuery::expressionSequenceReturnsAtLeastToOneDataType(v:meta::pure::metamodel::valuespecification::ValueSpecification[1]):Boolean[1]
             {
@@ -1110,6 +1119,10 @@ public final class SystemMetamodel {
             function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[1]
             {
                 $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))->joinStrings('', '\n', '\n')
+            }
+            function meta::pure::mapping::classMappings(_this:meta::pure::mapping::Mapping[1]):meta::pure::mapping::SetImplementation[*]
+            {
+                $_this.visibility->sortBy(v|$v.includeRank).visible.classMappings
             }
             function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {

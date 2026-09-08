@@ -61,9 +61,12 @@ class PreludeGeneratorTest {
 
     /** Packages whose shapes are not (yet) generated — each line a decision. */
     private static final List<String> EXCLUDED_PACKAGE_PREFIXES = List.of(
-            // protocol-version payload classes (nine copies of the same eight
-            // mapping shapes, meta::protocols::pure::v1_2x_0::…): admitted in a
-            // later slice with their own witness
+            // VERSIONED protocol payload classes (nine copies of the same
+            // shapes, meta::protocols::pure::v1_2x_0::…). The one TEMPLATE copy
+            // the engine's own programs name — meta::protocols::pure::vX_X_X::
+            // metamodel::m3 (the relational extension's tdsToRelation adapter
+            // types its transfers over the template AppliedFunction) — is
+            // admitted; see excluded() (Phase 5 batch 147, strict first)
             "meta::protocols::",
             // m3 path classes: `Path<-U,V|m> extends Function<{U[1]->V[m]}>`
             // generalizes with a NON-identity argument, which the kernel's
@@ -72,10 +75,9 @@ class PreludeGeneratorTest {
             // gap to lift before these shapes can be data
             "meta::pure::metamodel::path::");
     /** Individual declarations left out, each with its reason. */
-    private static final Map<String, String> EXCLUDED_CLASSES = Map.of(
-            // names a versioned protocol class (meta::protocols::pure::vX_X_X
-            // AppliedFunction) — the protocol packages are excluded wholesale
-            "meta::pure::tds::toRelation::TdsToRelationExtension_V_X_X", "protocol-version adapter");
+    private static final Map<String, String> EXCLUDED_CLASSES = Map.of();
+    /** The protocol TEMPLATE package admitted out of the versioned exclusion. */
+    private static final String PROTOCOL_TEMPLATE_M3 = "meta::protocols::pure::vX_X_X::metamodel::m3::";
 
 
     @Test
@@ -494,7 +496,8 @@ class PreludeGeneratorTest {
         // own test-support namespace (meta::pure::functions::test) stays
         return EXCLUDED_CLASSES.containsKey(fqn)
                 || (fqn.matches(".*::tests?::.*") && !fqn.startsWith("meta::pure::functions::test::"))
-                || EXCLUDED_PACKAGE_PREFIXES.stream().anyMatch(fqn::startsWith);
+                || (EXCLUDED_PACKAGE_PREFIXES.stream().anyMatch(fqn::startsWith)
+                        && !fqn.startsWith(PROTOCOL_TEMPLATE_M3));
     }
 
     /** A declaration header, stereotypes/tags and line breaks tolerated

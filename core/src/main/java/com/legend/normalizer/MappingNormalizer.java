@@ -1212,14 +1212,8 @@ public final class MappingNormalizer {
             // the MANGLED spelling f__Relation_1_ encodes the signature in
             // the name — ONE grammar (SignatureMangle), and only zero-param
             // functions can satisfy a ~func ref's single-segment tail
-            String base = com.legend.compiler.spec.SignatureMangle.stripTail(ref);
-            if (base != null) {
-                int arity = com.legend.compiler.spec.SignatureMangle.tailArity(ref);
-                fns = model.findFunction(base).stream()
-                        .filter(f -> f instanceof FunctionDefinition fd
-                                && fd.parameters().size() == arity)
-                        .toList();
-            }
+            fns = com.legend.compiler.spec.SignatureMangle
+                    .resolve(ref, model::findFunction, f -> f).exact();
         }
         if (fns.size() != 1
                 || !(fns.get(0) instanceof FunctionDefinition fn)) {
