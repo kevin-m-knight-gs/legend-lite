@@ -172,9 +172,18 @@ jobs:
       # plugin that no test phase reaches. -DskipTests still COMPILES the
       # test sources (unlike -Dmaven.test.skip), so a test-tree compile error
       # in any module surfaces here, before any suite has run.
+      # QUOTE the -D. GitHub runs `run:` in pwsh on the windows legs, and
+      # PowerShell ends a parameter token at the first `.`, so a bare
+      # -Dmaven.compiler.maxmem=2048m reaches maven as TWO arguments and the
+      # second is read as a phase: "Unknown lifecycle phase
+      # '.compiler.maxmem=2048m'". Measured here - `cmd /c echo` prints back
+      # `-Dmaven .compiler.maxmem=2048m` unquoted and the whole flag quoted.
+      # Every other -D in this file is one word (-DskipTests, -DreuseForks),
+      # which is why this is the first one to trip it. Quotes are inert in
+      # bash, so the same line is right on all six legs.
       - name: compile + install (null gate, guardrails, shade)
         id: build
-        run: mvn -B -e clean install -DskipTests -Dmaven.compiler.maxmem=2048m
+        run: mvn -B -e clean install -DskipTests "-Dmaven.compiler.maxmem=2048m"
 
       - name: core suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
