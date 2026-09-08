@@ -173,3 +173,12 @@ program met compiles or gets its row. Passes if the chain closes; otherwise the 
 the deliverable. Then slice 2 (the program as m3 data, both directions), slice 3, slice 4.
 
 Decided 2026-09-08: strict first (no by-need); D5 open, decided program by program.
+
+## 6. Reclassified 2026-09-08 (docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md §8)
+
+The five `testConnectionEquality*` tests are ENGINE-MACHINERY: their subject is
+the engine's plug-in registry, engine internals by the deletion test. CODE-AS-DATA
+is the remaining 11 (the program as m3 data ×2, protocol types ×2, plan kinds ×2,
+class instances in value position ×5). Slice 1 (extension registry by need) is
+withdrawn; batch 148 is the system-prelude leg (§9 there).
+

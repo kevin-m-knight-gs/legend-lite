@@ -166,3 +166,38 @@ tenet violation, not an optimization.
   replaced by the conditional-membership and shape residuals and deleted.
 * `testConvertJoinTreeNode` and `testConvertSelectSQLQuery` recurse over the
   mapping's join-tree ROWS: rule-6 residue (tier 2) until a second witness.
+
+## 8. Amendment 2026-09-08 — the system prelude, two lists, diagnostics
+
+Decided with the user after batch 147; the full text with sizes and receipts is
+`docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md`. Two rules join §5, and rule 2 is
+amended:
+
+7. **A native signature without a lowering rule may not exist.** A spec
+   `native function` is `Pure.java` + one SQL lowering, or a NAMED row in the
+   permanent lowering list (reflection over the live graph, run-time function
+   values, effects, IO) that `NativeCatalogGovernanceTest` pins shrink-only.
+   Registering a signature "so engine code can type" is the violation batch 147
+   made visible (about thirty phantom natives); each becomes a generated body,
+   a real lowering, or is deleted.
+8. **An engine file is admitted as a program library only if every function in
+   it passes the deletion test as a program.** A file mixing programs with the
+   engine's internals is not admitted whole; tests whose SUBJECT is the
+   internals are walls. No laziness, no partial evaluation of a record, no
+   phantom vocabulary to slip past a wall.
+
+Rule 2 amended: **the prelude is system code that looks and acts like user
+code.** Shapes AND their derived-property bodies AND the spec's Pure-bodied
+functions are GENERATED from the spec with receipts, compiled by the same
+compiler as a user query (`SystemMetamodel` is already this for the platform's
+own views). The spec draws the native/program line: `native function` → rule 7;
+`function` with a body / a derived property → a program. The Java `toString`
+arms for `Pair` and `List` in `lowering/Scalars.java` are ports of such bodies
+and are deleted when the bodies land.
+
+Compile is three stages (load, type, lower-and-run); a failure belongs to
+exactly one. The typing work list trends to zero (missing vocabulary, typer
+gaps); the lowering list is the permanent boundary. Diagnostics report the
+lowering list at compile time as rows on the compile artifact (WARNING = typed
+but reaches a native with no SQL meaning), non-blocking.
+
