@@ -4,6 +4,63 @@ Status: HOMEWORK, written after batch 150 and one aborted afternoon of implement
 `Prelude.java`, `PreludeGeneratorTest`, or the boot layer. Companion: `docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md` §10 (the decision),
 `docs/HAND_SHAPE_DIVERGENCE_2026_09_08.md` (the 84 hand shapes), `docs/PRELUDE_MODULE_CENSUS_2026_09_08.tsv` (one row per declaration).
 
+## 0. The road here (2026-09-08, in order — each link is where the detail lives)
+
+1. **Batch 148** (29d1e9789): the system-prelude DESIGN (`SYSTEM_PRELUDE_DESIGN` §1–9: the prelude is generated system Pure; native = signature +
+   lowering or a named wall; function/derived = a program) and the first CENSUS of every Pure body in legend-pure's platform packages —
+   481 typed / 643 failed; one kernel rule (a function's own type parameters rigid inside its body) explained 605 → fixed: 950 / 174.
+2. **Batch 149** (9a72c7089): 174 → 36 — fifteen hand shapes and 36 natives spec-exact, supertype instantiation in the kernel
+   (`asSuper`), rigid type-parameter frames. Two lane-caught regressions (class LAYOUT picking up `Class.properties`; a system view's
+   carrier). A ten-minute HANG once the engine's post-processor programs typed: USER walled that machinery by name pending a design
+   session; the inliner got an unroll budget (20,000) and an ancestor index. `SPEC_BODY_CENSUS` §8, `LEDGER_GRANULAR` §22.
+3. **Batch 150** (1555b13ce): 36 → 3 — units whole, packages as values, the PCT harness, the receiver-owned `_this` routing (narrowed
+   twice after it hijacked `tableToTDS` and `cast`: 66 tests lost then recovered; a stash bisect against HEAD then per-file), eval's
+   run-time multiplicity, no-branch match as the raise. `SPEC_BODY_CENSUS` §9, `LEDGER_GRANULAR` §23.
+4. **The last 3 rows** are derived properties of generated shapes → USER: "why two ways to do derived properties?" → this document.
+5. **The hand-shape sweep** (338baeb98, `HAND_SHAPE_DIVERGENCE`): 84 hand shapes in `Pure.java`, 48 exact, 30 real divergences by
+   kind and cause; the plan that makes them dissolve on migration.
+6. **The module attempt** (branch `wip/prelude-module`): five probe cycles before this homework — stopped by the clean-sheet rule.
+
+## 0a. Questions asked on the way and the answers (the user's words in quotes)
+
+- "What is the 17 vs the 174?" — two units: 174 was BODIES that fail to type (one row each); 17 was distinct DEFINITIONS (missing
+  properties) behind one bucket — fixing one definition clears several rows. The census's rows are bodies; its work list groups them by
+  the definition to add.
+- "Why do we have two different ways to do derived properties?" — §1. User classes: the normalizer lifts them. Catalog classes: an
+  on-demand lift in `FunctionCompiler`, because the catalog bypasses the pipeline. A seam, not a design.
+- "Why do we have things in Pure.java that are more than native signatures?" — 84 hand shapes, all spec shapes typed in by witness
+  before the generator existed; only the bootstrap handful Java constructs before a model exists has a reason to stay
+  (`HAND_SHAPE_DIVERGENCE` §3–4).
+- "Why would anything diverge from the real spec?" — three causes: written by witness (not decisions), a platform limitation of the
+  day (`Any`'s layout, `Column<T,X|z>` before multiplicity parameters — both gone or one rule away), and the system store's row shape
+  (the only platform reason; two store legs). Every divergence carries a receipt and a leg; none is permanent.
+- "What is the tenet that pulls something into the prelude vs reads from the graph?" — §2 T1–T5.
+- "What does unknown or graph-owned mean?" — §10 glossary.
+- "Why would the corpus also define the function?" — §3.
+- "Am I making a mistake forcing the prelude through this?" — §0b: the alternative (a printer) was considered and rejected.
+- "What does mechanism-only as its own batch mean?" — one unit of work ending with the chain green and a commit that changes HOW the
+  prelude is loaded and nothing about WHAT is in it — so if the lanes move, the cause is the container, not a shape (the day's
+  receiver-routing bisect is the lesson: never two changes in one bisect).
+
+## 0b. The alternative considered and rejected: a protocol-to-Pure printer
+
+Keep the catalog; write a printer over the ~30 protocol record kinds so the generator can emit derived bodies FQN-qualified. Lands the
+last 3 rows in a day. Rejected because it leaves two lift paths, leaves 84 hand shapes in a container that bypasses the pipeline, and
+the next divergence gets fixed by editing a Java string again — a local patch on a structural seam. The module removes a mechanism;
+the printer adds one. USER: "I want to do the right architectural thing — I don't mind it taking longer to get to the right place."
+
+## 0c. END STATE (what "done" looks like)
+
+- `Pure.java` = native function signatures + `Pure.Lite` + the bootstrap handful (what Java constructs before a model exists), each
+  hand shape with a receipt naming the Java that needs it. Nothing else declared by hand.
+- `prelude.pure` = legend-pure's platform packages + the platform's Java vocabulary + closure, copied VERBATIM from the spec with
+  imports, generated and pinned; compiled through the user pipeline as the boot layer. Constraints, derived properties, stereotypes:
+  all present, all lifted like a user class's.
+- The engine's classes live in the graph, admitted by file under rule 8; prelude and graph name sets are disjoint (T4 list at zero).
+- `FunctionCompiler`'s on-demand derived lift deleted; `TypeClassifier.classDef`'s catalog-first order gone with it.
+- The census types every spec body (0 failures) and every derived/constraint body the prelude carries; `tools/shape_sweep.py` and the
+  declaration census are shrink-only pins; every divergence from the spec is a receipt with a leg, never a silent hand edit.
+
 ## 1. The question that started it
 
 USER: "Why do we have two different ways to do derived properties? Why doesn't everything go through the user pipeline?"
@@ -145,3 +202,17 @@ lanes / guards / chain: docs/GATES.md and memory (harness-iteration-speed); LEGE
    fine in phase 1; phase 2 migrates them.
 6. **Performance.** ~450 more boot elements normalized once per process; per graph, indexing only. Measure the first compile in the
    lane log (the 2026-09-02 budget entry method) and record it.
+
+## 10. Glossary (terms that confused in discussion)
+
+- **catalog** — `Pure.java`'s static index of native signatures and hand-declared classes, built at Java class-load; never resolved
+  or normalized; today also holds the generated prelude via `Prelude.load()`.
+- **boot layer** — the system Pure compiled ONCE per process through the user pipeline and joined into every graph
+  (`Compiler.bootLayer`); today `SystemMetamodel.source()`, after phase 1 also `prelude.pure`.
+- **graph** — one compile's own elements: a corpus test's model (the engine tree's non-test elements + the test), a user's model.
+- **graph-owned / corpus-defined** — a class the loaded engine tree declares itself (`corpusDefined` in the generator); each test
+  compiles it as part of its own model.
+- **unknown** — a name no spec file declares as a class or enum anywhere in the indexed roots; nothing to generate.
+- **demand** — why a shape is wanted: `java` (a `src/main/java` file names its FQN), `corpus` (a corpus/library file names it),
+  `closure` (a wanted declaration names it).
+- **T4 receipt list** — the prelude classes a graph also declares; the prelude wins transitionally; the list burns to zero in phase 3.
