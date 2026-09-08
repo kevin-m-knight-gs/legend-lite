@@ -101,3 +101,47 @@ names. Stopped; this document is the design. The WIP is parked on `wip/prelude-m
 `Prelude.java` as a reader of `prelude.pure`; `Compiler.bootLayer`/`bootFqns`/`withoutPreludeShadows`; the resolver's
 `platformTypeFqns()`; the removal of `Prelude.load()` from `Pure.java`; the two widened pins; the census mode. What does NOT: every
 re-printing/slicing helper (`derivedText`, `constraintsText`, `escapingReference`, the omitted list) — replaced by verbatim copy.
+
+## 8. Wiring map for phase 1 (file → what changes; the branch shows a first cut of each)
+
+| where | today | phase 1 |
+|---|---|---|
+| `PreludeGeneratorTest.generate()` | prints `Pure.nativeClass("…")` Java lines; `OUT = src/main/java/…/Prelude.java`; `printClass` re-prints stored properties FQN-qualified and DROPS derived properties, constraints, non-Key stereotypes | writes `OUT = src/main/resources/com/legend/builtin/prelude.pure`: header comment, one `###Pure` section per spec file (the file's `import …;` lines, from `importsOf(text)`), then each wanted declaration's text VERBATIM (`declarationText(source, offset)` already slices it; keep the whole thing), enums as today. Round-trip: the whole module parses (`ElementParser.parse(text, LEGEND_PLATFORM).elements().size() == classes + enums`). Parity test compares to the resource; `-Dprelude.generate=1` writes it. Keep `-Dprelude.census=1`. |
+| `Prelude.java` | generated Java with `CLASSES`/`ENUMS` lists registered into the catalog via `Prelude.load()` | HAND-WRITTEN reader: `source()` (resource), `parsedModel()` (parsed once, LEGEND_PLATFORM), `elements()`, `elementFqns()`, `classFqns()`, `enumFqns()`, `cls(fqn)`, `enumOf(fqn)` (the last two keep `NativeFunctionTest`'s existing calls working) |
+| `Pure.java` static block `Prelude.load()` | registers the prelude into the catalog index | deleted; comment points at §10 |
+| `Compiler.bootLayer()` | normalizes `SystemMetamodel.elements()` once (content-addressed by its source hash) | merges `SystemMetamodel.elements()` + `Prelude.parsedModel().elements()` into ONE `ParsedModel` carrying the prelude's `elementOffsets/elementImports/elementSources` (the section imports resolve the derived bodies); hash = both sources |
+| `Compiler` lines 231 and 336 (`resolveAlongside(parsed, SystemMetamodel.elementFqns(), …)`) | the graph resolves against the system metamodel's names | against `bootFqns()` = system ∪ prelude |
+| `Compiler.normalizeWithSystem` | `SystemMetamodel.withoutSystemShadows(resolved)` | also `withoutPreludeShadows` first: a graph CLASS or ENUM whose FQN is a prelude class/enum is dropped (T4, prelude wins; the census's spec files and the corpus tree's 61 copies) |
+| `NameResolver` `preludeTypes()`, `preludeCollisions()`, `knownFqns()`, `resolveQuery()`, `querycope()` | built from `Pure.nativeClassFqns()` + `nativeEnumFqns()` | from `platformTypeFqns()` = catalog ∪ `Prelude.classFqns()` ∪ `Prelude.enumFqns()` |
+| `TypeClassifier.classDef` (catalog first, then model) and the other catalog askers (`UnionSynthesis` ×3, `MappingNormalizer.classDef`, `RequiredNullableCensus`, `PureModelContext` classifier instances, `FunctionCompiler`'s derived lift) | find prelude classes in the catalog | unchanged code: prelude classes are now MODEL elements (boot layer), so the model branch finds them; `Pure.findNativeClass` returns only hand shapes |
+| `NativeFunctionTest.headlineNativeClassesAreAllPresent`, `everyTypePositionFqnInNativeSignaturesResolvesToCatalog` | universe = `Pure.allNativeClasses()/Enums()` | universe = catalog ∪ `Prelude.classFqns()/enumFqns()` |
+| `PreludeGeneratorTest.excluded()` / the closure loop | the `.*::tests?::.*` rule keeps spec test packages out; the closure skips `excluded(ref)` and `corpusDefined` | keep TODAY'S demand for phase 1; the closure admits a referenced type when the spec declares it and it is not a DECIDED exclusion (`SqlFunction.tests : SqlFunctionTest[*]` names a tests:: class — part of the shape); a corpus-tree class the closure needs is admitted and listed (T4 receipt) |
+
+Commands (always with the literal roots):
+```
+mvn -q -o test -pl core -Dtest=PreludeGeneratorTest -Dsurefire.excludedGroups= -Dprelude.generate=1 -Dlegend.engine.root=/Users/neemsandv/legend/legend-engine -Dlegend.pure.root=/Users/neemsandv/legend/legend-pure
+mvn -q -o test -pl core -Dtest=PreludeGeneratorTest -Dsurefire.excludedGroups= -Dprelude.census=1   (same roots)  → target/prelude-census.tsv
+mvn -q -o test -pl core -Dtest=SpecBodyCensusTest -Dsurefire.excludedGroups= (same roots)              → target/spec-body-census.txt
+lanes / guards / chain: docs/GATES.md and memory (harness-iteration-speed); LEGEND_LITE_PROGRESS=1 names a hanging corpus test
+```
+
+## 9. Open checks (found while probing; not decided — decide in phase 1, write the answer here)
+
+1. **`native` or not.** Spec declarations are `Class …`; copied verbatim they are ordinary classes in the boot layer, not `native Class`.
+   Who reads `isNative()` on a CLASS: `FromProtocol`, `ClassCompiler`, `NameResolver`, `ModelNormalizer` (pass-through) and
+   `Pure.nativeClass` (catalog only). Expected: nothing depends on it for prelude classes — verify by grep before deciding; if the
+   pins (`everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface`) reach module classes, they are catalog pins and
+   must scope to the catalog.
+2. **Stereotypes and profiles in verbatim text.** Spec classes carry `<<doc.doc>>`, `{doc.doc = '…'}`, `<<equality.Key>>`,
+   `<<meta::pure::profiles::…>>`. The census parses these files, so the parser accepts them; the equality-key filter in `printClass`
+   (Key only) goes away with re-printing — check `ClassLayouts`/equality consumers read the stereotype by profile+name, not by the
+   printed spelling.
+3. **Dialect.** `SystemMetamodel` parses as LEGEND_LITE; the prelude as LEGEND_PLATFORM (legend-pure grammar: `|m` parameters,
+   `Function<{…}>`). One boot `ParsedModel` from two dialects is fine (elements, not text, are merged) — confirm the resolver's
+   per-element import scopes survive the merge (`elementImports` keyed by FQN).
+4. **The 136 derived + 16 constraint bodies now TYPE.** The census's typing list will show whatever they cannot type; those are new,
+   honest rows (§5). Do not hide them behind an exclusion.
+5. **`SetImplementation`/`Mapping` are HAND shapes with system-store rows; prelude classes referencing them resolve to the catalog** —
+   fine in phase 1; phase 2 migrates them.
+6. **Performance.** ~450 more boot elements normalized once per process; per graph, indexing only. Measure the first compile in the
+   lane log (the 2026-09-02 budget entry method) and record it.
