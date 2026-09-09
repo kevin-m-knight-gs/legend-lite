@@ -557,7 +557,7 @@ public final class PureModelContext implements ModelContext {
         } else if (com.legend.builtin.Pure.MAPPING_METACLASS.qualifiedName()
                 .equals(classifierFqn)) {
             fqns = model.mappings().map(m -> m.qualifiedName());
-        } else if (com.legend.builtin.Pure.DATABASE_METACLASS.qualifiedName()
+        } else if (com.legend.compiler.element.type.PlatformTypes.DATABASE
                 .equals(classifierFqn)) {
             // the store extent (metamodel-store tables seed from it)
             fqns = model.databases().map(d -> d.qualifiedName());

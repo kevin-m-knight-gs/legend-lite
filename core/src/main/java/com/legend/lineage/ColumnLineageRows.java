@@ -34,8 +34,7 @@ public final class ColumnLineageRows {
         List<DatabaseDefinition> dbs = mappingDatabases(ctx, mappingFqn);
         List<DatabaseDefinition> all = new ArrayList<>();
         for (String f : java.util.Objects.requireNonNullElse(
-                ctx.classifierInstances(com.legend.builtin.Pure.DATABASE_METACLASS
-                        .qualifiedName()), List.<String>of())) {
+                ctx.classifierInstances(com.legend.compiler.element.type.PlatformTypes.DATABASE), List.<String>of())) {
             ctx.findDatabase(f).ifPresent(all::add);
         }
         List<List<String>> rows = new ArrayList<>();

@@ -947,3 +947,12 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 1 | m3's Any carries two reflection properties; declaring them once cost 173 tests (batch 147) | `ClassLayouts.isReflectionCarrier`: no slot for GenericType/ElementOverride-typed properties; Any migrated; hand 22 → 21 | ClassLayouts, Pure.java |
 | 2 | five fixtures built contexts without the boot layer and lost `Any` | the front door | InferenceKernelTest, SpecCompilerTest, PhaseHCensusTest, ClassSourceTest, PureModelContextTest |
 | 3 | USER: the last 8 — tables mirror the model, or mapping? | MAPPING: tables stay, classes from the spec, the system metamodel's mapping bridges; a table changes only for a missing fact | HAND_SHAPE_DIVERGENCE §4 step 4 |
+
+## 37. Batch 164 — mapping leg A part 1: Database; Column parked with its design (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | `Database` migrated; nine name-only sites | `PlatformTypes.DATABASE`; hand 21 → 20; no pass change | Pure.java |
+| 2 | census 19 → 20: the implicit inheritance union for `Relation` threads join-mapped `columns` as a scalar | FINDING (UnionSynthesis); not probed further | COLUMN_OWNER_LOWERING_LEG |
+| 3 | explicit `Relation[rel]` mapping: census clean, five `scanColumns` tests lost — `->cast(@Table)` on a navigated `rel` instance loses the owner alias | THE LEG: cast re-root of a navigation target across sets over one hierarchy table = a kind predicate on the same row; designed, its own batch after leg B | COLUMN_OWNER_LOWERING_LEG |
+| 4 | three cycles reached | Column back by hand with the receipt; the mapping edits reverted | Pure.java, SystemMetamodel |

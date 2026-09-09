@@ -416,7 +416,7 @@ public final class MetamodelSeeds {
     /** Every view of every store (the {@code tables} schema rule). */
     private static List<List<String>> views(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+        for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
@@ -458,7 +458,7 @@ public final class MetamodelSeeds {
         // keyed by (db, schema, table, column): a schema's table also sits
         // in the flat list under 'default' — the schema wins
         java.util.Map<List<String>, List<String>> rows = new java.util.LinkedHashMap<>();
-        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+        for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
@@ -508,7 +508,7 @@ public final class MetamodelSeeds {
                     base == null ? null : com.legend.compiler.element.RelationalOpRows
                             .tableId(cm.get(4), base[0], base[1])));
         }
-        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+        for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
@@ -590,7 +590,7 @@ public final class MetamodelSeeds {
         // keyed: the definition lists a schema's tables under the schema
         // AND in the flat table list — the schema wins
         java.util.Map<List<String>, List<String>> rows = new java.util.LinkedHashMap<>();
-        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+        for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
@@ -615,7 +615,7 @@ public final class MetamodelSeeds {
     /** Every store as a row (the Database metaclass extent). */
     private static List<List<String>> databases(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+        for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             int cut = dbFqn.lastIndexOf("::");
             rows.add(List.of(dbFqn, cut < 0 ? dbFqn : dbFqn.substring(cut + 2)));
         }
@@ -628,7 +628,7 @@ public final class MetamodelSeeds {
      * not make a default schema). */
     private static List<List<String>> schemas(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        for (String dbFqn : extent(ctx, Pure.DATABASE_METACLASS.qualifiedName())) {
+        for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;

@@ -100,9 +100,18 @@ go when the shapes migrate).
    same as pure/engine and use mapping to map between the two"; ratified after weighing a table refactor (both work; the tables
    were shaped by the lanes — one table per hierarchy for H2, batches 9–10 — and a spec change must ripple to the mapping text
    only, never to the tables and the Java seeds; a table changes only when a FACT is missing, never for shape).
-   **Leg A — `Column`, `Database`** (hand 21 → 19): `Column.owner : Relation[0..1]` — the mapping's target for `owner` becomes
-   `Relation`, whose rows the relational-element table already holds (kind column: Table/View); `Database`'s `SetBasedStore` /
-   `AnnotatedElement` supertypes are unmapped.
+   **Leg A — `Column`, `Database`** (hand 21 → 20, batch 164): `Database` LANDED (its `SetBasedStore` / `AnnotatedElement`
+   supertypes unmapped; every Java site name-only, `PlatformTypes.DATABASE`). `Column` PARKED after three cycles — the
+   handoff: with `owner : Relation[0..1]`, (1) the implicit inheritance union the platform synthesizes for the unmapped
+   declared class `Relation` (batch 140's rule; members Table and View) threaded the join-mapped `columns` as a SCALAR
+   ("expected RelationalOperationElement, got String") — a UnionSynthesis edge for a class-typed property mapped by join on
+   one member and absent on the other, real for users too; mapping `View.columns` did not change it; (2) an EXPLICIT
+   `Relation[rel]` class mapping over the same table (filter Table-or-View, `columns` by the Table join) removed the union
+   and typed the census clean, but the LINEAGE lowering then lost five `scanColumns` tests on both lanes ("extend/project
+   columns [u_map__value] reference names unresolvable … ref='column_owner'"): the owner navigation whose target is the
+   abstract set does not resolve its owner column. That is a lowering leg with five witnesses (`testAssociationMapping`,
+   `testEmbeddedMapping`, `testQualifier`, `testSubType`, `testView`), to be designed, not probed: how a navigation to a
+   set mapped over a kind-filtered hierarchy table binds its owner column in the lineage rows.
    **Leg B — `Mapping`, `SetImplementation`, `PropertyMappingsImplementation`, `InstanceSetImplementation`, `PropertyMapping`,
    `EnumValueMapping`** (hand 19 → 13): the spec's `PropertyOwnerImplementation { id; superSetImplementationId; parent }` with
    `SetImplementation` and `PropertyMappingsImplementation` beside it and `InstanceSetImplementation` inheriting both — every

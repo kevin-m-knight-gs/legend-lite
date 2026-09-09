@@ -649,7 +649,11 @@ class NativeFunctionTest {
         // out of every instance layout; the Typer's two served arms stay for
         // receivers that do not spell `extends Any`. What is left by hand: the
         // 13 primitives (the bootstrap floor) and the 8 store-coupled shapes.
-        assertEquals(21, hand,
+        // 21 -> 20 (batch 164, mapping leg A, part 1): Database — the spec's shape
+        // from relational.pure (SetBasedStore / AnnotatedElement supertypes),
+        // tables and mapping unchanged. Column stays by hand with a receipt:
+        // owner : Relation needs a lowering leg (scanColumns, 5 witnesses).
+        assertEquals(20, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 

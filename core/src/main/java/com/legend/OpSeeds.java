@@ -256,7 +256,7 @@ final class OpSeeds {
     }
 
     private List<String> dbs() {
-        List<String> fqns = ctx.classifierInstances(Pure.DATABASE_METACLASS.qualifiedName());
+        List<String> fqns = ctx.classifierInstances(com.legend.compiler.element.type.PlatformTypes.DATABASE);
         return fqns == null ? List.of() : fqns;
     }
 }

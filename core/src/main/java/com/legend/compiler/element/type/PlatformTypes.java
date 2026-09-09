@@ -95,6 +95,9 @@ public final class PlatformTypes {
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
     public static final String TDS_ROW = "meta::pure::tds::TDSRow";
+    /** The relational store metaclass (relational.pure:29) — a prelude module class
+     * since batch 164 (leg A of the mapping legs); the seeds and the extents name it here. */
+    public static final String DATABASE = "meta::relational::metamodel::Database";
     /** m3 metaclasses — prelude module classes since batch 161 (phase 2 family 4);
      * every Java site names them here, definitions come from the boot layer. */
     public static final String ELEMENT_OVERRIDE = "meta::pure::metamodel::type::ElementOverride";

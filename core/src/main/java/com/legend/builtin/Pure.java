@@ -166,6 +166,16 @@ public final class Pure {
         return cls;
     }
 
+    /** relational.pure:214 — Column's spec shape says {@code owner : Relation[0..1]};
+     * this hand copy keeps {@code owner : Table[0..1]} because the lineage lowering
+     * (scanColumns) cannot yet resolve an owner navigation whose target is the
+     * abstract Relation set (batch 164: 5 corpus tests lost through an explicit
+     * Relation class mapping; through the implicit inheritance union the
+     * synthesized body threaded the join-mapped {@code columns} as a scalar).
+     * A LOWERING leg with those five tests as witnesses; the receipt is
+     * HAND_SHAPE_DIVERGENCE §4 step 4 leg A. */
+    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; nullable: meta::pure::metamodel::type::Boolean[0..1]; owner: meta::relational::metamodel::relation::Table[0..1]; }");
+
     // ---- Top of the hierarchy ----
     // (Any is a prelude MODULE class since batch 163, printed from m3.pure
     // with its two reflection properties; ClassLayouts.isReflectionCarrier
@@ -246,7 +256,6 @@ public final class Pure {
     public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation { propertyMappings: meta::pure::mapping::PropertyMapping[*]; }");
     public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation {}");
     public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any { owner: meta::pure::mapping::PropertyMappingsImplementation[0..1]; targetSetImplementationId: meta::pure::metamodel::type::String[1]; sourceSetImplementationId: meta::pure::metamodel::type::String[1]; property: meta::pure::metamodel::function::property::Property[1]; }");
-    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; nullable: meta::pure::metamodel::type::Boolean[0..1]; owner: meta::relational::metamodel::relation::Table[0..1]; }");
     public static final ClassDefinition ENUM_VALUE_MAPPING = nativeClass("native Class meta::pure::mapping::EnumValueMapping extends meta::pure::metamodel::type::Any { enum: meta::pure::metamodel::type::String[1]; sourceValues: meta::pure::metamodel::type::String[*]; }");
     // ---- Numeric tower ----
     public static final ClassDefinition NUMBER  = nativeClass("native Class meta::pure::metamodel::type::Number  extends meta::pure::metamodel::type::Any {}");
@@ -281,7 +290,6 @@ public final class Pure {
     // database REFERENCE is a value of this type (classReference), so the
     // corpus's testRuntime(db:Database[1]) overload family type-checks
     // real relational.pure: Database extends Store
-    public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database extends meta::pure::store::Store { schemas: meta::relational::metamodel::Schema[*]; joins: meta::relational::metamodel::join::Join[*]; filters: meta::relational::metamodel::Filter[*]; }");
     // Real platform_dsl_mapping/grammar/mapping.pure:40 (extends
     // ValueTransformer<T> — parent flattened to Any until a witness
     // demands the transformer surface, the SetImplementation flatten
