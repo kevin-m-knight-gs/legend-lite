@@ -58,7 +58,30 @@ class EagerCorpusCompileProbe {
             String fqn = k.contains("(") ? k.substring(0, k.indexOf('(')) : k;
             bySource.merge(corpus.elementSources().getOrDefault(fqn, "?"), 1, Integer::sum);
         }
+        // THE FAMILIES (COMPILE_EVERYTHING_HOMEWORK §10.5, the last step): a
+        // failing NON-TEST body is either the engine's machinery loaded because
+        // it shares a source tree with the tests — walled BY FAMILY with its
+        // reason, never carried broken — or the RESIDUE: ours to fix, named by
+        // file. Test bodies are the roster's (they run; the roster pins them).
+        Map<String, Integer> families = new TreeMap<>();
+        Map<String, Integer> residueBySource = new TreeMap<>();
+        List<String> residue = new ArrayList<>();
+        for (var e : walls.entrySet()) {
+            String k = e.getKey(); String fqn = k.contains("(") ? k.substring(0, k.indexOf('(')) : k;
+            String fam = family(fqn, corpus.elementSources().getOrDefault(fqn, "?"));
+            families.merge(fam, 1, Integer::sum);
+            if (fam.startsWith("RESIDUE")) {
+                residue.add(k + " :: " + e.getValue().replace('\n', ' '));
+                residueBySource.merge(corpus.elementSources().getOrDefault(fqn, "?"), 1, Integer::sum);
+            }
+        }
         List<String> out = new ArrayList<>();
+        out.add("# families: " + families);
+        out.add("# RESIDUE (non-test, outside the walled families) = " + residue.size()
+                + " by source: " + residueBySource.entrySet().stream()
+                        .sorted((x, y) -> y.getValue() - x.getValue()).toList());
+        Files.createDirectories(Path.of("target"));
+        Files.write(Path.of("target/eager-residue.txt"), residue);
         out.add("# by source (failed/total): " + bySource.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .map(e -> e.getKey() + "=" + e.getValue() + "/" + bodiesBySource.getOrDefault(e.getKey(), 0))
@@ -139,6 +162,52 @@ class EagerCorpusCompileProbe {
         for (String l : out) if (l.startsWith("# WORLD 2")) System.out.println(l);
     }
 
+
+    /** The wall FAMILIES — engine machinery the corpus loads only because it
+     * shares a source tree with the tests; each with the reason it is the
+     * engine's implementation of a concern the platform serves itself or
+     * does not serve. A TEST body is the roster's. Anything else is RESIDUE. */
+    /** WALLS BY FILE — the corpus source files (core_relational, by path
+     * fragment) that are the engine's own machinery, loaded only because they
+     * share the tree with the tests; each with the reason it is the engine's
+     * implementation of a concern the platform serves itself or does not
+     * serve. The list is the receipt; a file leaves it with a witness. */
+    static final java.util.LinkedHashMap<String, String> WALLED_FILES = new java.util.LinkedHashMap<>();
+    static {
+        WALLED_FILES.put("/protocols/pure/", "the engine's JSON protocol serializers, one copy per protocol version — the platform speaks its own protocol");
+        WALLED_FILES.put("/pureToSQLQuery/", "the engine's Pure-to-SQL compiler — the platform's compiler is the implementation");
+        WALLED_FILES.put("/sqlQueryToString/", "the engine's SQL printer, DDL and dialect tables — the platform's dialects are the implementation");
+        WALLED_FILES.put("/sqlDialectTranslation/", "the engine's SQL dialect translation — the platform's dialects");
+        WALLED_FILES.put("relationalMappingExecution.pure", "the engine's mapping execution — the platform's resolver is the implementation");
+        WALLED_FILES.put("/transform/", "the engine's Pure-to-SQL transform passes — compiler passes on this platform");
+        WALLED_FILES.put("/milestoning/milestoning.pure", "the engine's milestoning transformation — the platform's temporal frame (compiler) is the implementation");
+        WALLED_FILES.put("/graphFetch/", "the engine's graph-fetch execution machinery — the platform's graph emission is the implementation");
+        WALLED_FILES.put("/validation/", "the engine's constraint-validation runners — not served");
+        WALLED_FILES.put("/autogeneration/", "relational-to-Pure model autogeneration — not served");
+        WALLED_FILES.put("/testDataGeneration/", "the engine's test-data generator — the driver seeds through the platform");
+        WALLED_FILES.put("/contract/storeContract.pure", "the engine's store-contract hooks — the platform's own store contract");
+        WALLED_FILES.put("/mft/", "the engine's mapping-feature-test harness — the PCT lane's world");
+        WALLED_FILES.put("/mutation/", "relational mutation (write) machinery — not served");
+        WALLED_FILES.put("/extensions/grammarSerializerExtension.pure", "the engine's grammar serializer extension — the platform prints its own grammar");
+        WALLED_FILES.put("/executionPlan/", "the engine's execution-plan machinery — the platform plans itself");
+        WALLED_FILES.put("/runtime/", "the engine's runtime and connection machinery (post-processors: a design session pending)");
+    }
+
+    static String family(String fqn, String source) {
+        if (fqn.matches(".*::tests?::.*")) {
+            return "TEST bodies (the roster runs them; not this probe's concern)";
+        }
+        String path = "/" + source;   // corpus names are relative to core_relational/relational
+        for (var w : WALLED_FILES.entrySet()) {
+            if (path.contains(w.getKey())) {
+                return "WALLED " + w.getKey() + " — " + w.getValue();
+            }
+        }
+        if (fqn.startsWith("meta::protocols::")) {
+            return "WALLED /protocols/pure/ — the engine's JSON protocol serializers (attributed by package)";
+        }
+        return "RESIDUE (ours: a typer gap, a fixture file never admitted, or a file to wall by name)";
+    }
 
     static String reasonClass(String msg) {
         if (msg.contains("unknown function")) return "unknown-function";

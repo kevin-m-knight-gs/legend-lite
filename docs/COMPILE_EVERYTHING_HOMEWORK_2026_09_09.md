@@ -202,3 +202,20 @@ failures outside the walled families (~75 today, in milestoning / relationalGrap
 relationalMappingExecution and a few others). Test bodies (362) are the roster's. 6 = the harness plan's existing legs
 worked from that number; no further measurement programs (USER 2026-09-09: "this feels like never-ending chasing" —
 the finish line is by construction: only shrinking counters remain). Chain time: 6m10s (batch 171).
+
+## 11. The finish line (batch 172, 2026-09-09)
+
+The program ends here by construction: every remaining counter only shrinks, and nothing is left unmeasured.
+
+| counter | value | where it is pinned / listed |
+|---|---|---|
+| boot census: prelude bodies that do not type at boot | 19, every row in a bucket with a reason (B1–B4; 7 printer bodies walled by design) | `SpecBodyCensusTest` (shrink-only) |
+| eager corpus compile: bodies failing | 1,504 of 9,173 | `EagerCorpusCompileProbe` (a tool, run by name; ungated by USER decision) |
+| of which walled BY FILE (engine machinery sharing the tests' source tree) | 1,080 across 17 path fragments, each with its reason | `EagerCorpusCompileProbe.WALLED_FILES` |
+| of which test bodies (the roster's) | 361 | the corpus rosters (DuckDB 108 / H2 565 failing tests, pinned exact) |
+| THE RESIDUE: non-test bodies outside the walls — ours | **63 in 15 files**: testTdsToRelation 12, helperFunctions 10, tdsExtension 10, boot bodies 7, scanColumns 5, domainManagement 4, shared-3 3, eight files with 1–2 | `target/eager-residue.txt`, one line per body with its error |
+
+What was decided along the way (§10.3) stands. What is NOT here: no new census, no new world, no new bucket. The
+next work is the harness plan's existing legs, taken from the residue's files largest-first, each with the eager
+report as its before/after. The gate question (make the residue a shrink-only pin in gate 1) is the user's, on this
+number; the probe already prints it.

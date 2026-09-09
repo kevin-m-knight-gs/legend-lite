@@ -1025,3 +1025,12 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 2 | the http types absent from the module | Java demand (the signature names them) admitted `URL`, `HTTPMethod`, `HTTPResponse` — the generator's rule, no hand step | prelude.pure |
 | 3 | eager 1,537 → 1,504 | 33 first-error bodies closed; the rest stop at their next error | probe |
 | 4 | USER: "this feels like never-ending chasing" | the finish line: one more batch (family classification with reasons; the non-test residue outside walled families pinned shrink-only, ~75 bodies); everything after is the harness plan's existing legs | homework §10.5 |
+
+## 45. Batch 172 — step 5: walls by file; the residue named (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | 1,504 failing bodies, by package first (158 residue) then by FILE | the file is the wall's unit: `WALLED_FILES`, 17 fragments with reasons; residue 63 in 15 files | EagerCorpusCompileProbe |
+| 2 | the path match missed most files (corpus names are root-relative) | normalized (`"/" + source`) | probe |
+| 3 | HarnessDiscipline sort-site count 16 → 19 (report sorts) | listed | HarnessDisciplineTest |
+| 4 | the finish line | boot census 19 (walled, reasons) + residue 63 (by file) + the roster; the probe ungated by user decision; no further measurement programs | homework §11 |
