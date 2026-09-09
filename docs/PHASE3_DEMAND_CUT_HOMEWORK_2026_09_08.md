@@ -9,8 +9,9 @@ or bring in BY FILE) first. Decide §4 before code.
 Today the generator puts a class into the prelude for two reasons: the platform's Java uses it, or the corpus names it. The
 second reason is the one T2 forbids. Phase 3 keeps only the first. The 253 engine classes the corpus alone names, and the
 71 the closure pulled in behind them, leave `prelude.pure`; the corpus tests still need them, so they enter the corpus tests'
-GRAPH the way any program's library does — by file. The prelude that remains is legend-pure's platform packages plus the 59
-engine-declared interface classes the platform's Java constructs, reads, or names in a native signature, plus their closure.
+GRAPH the way any program's library does — by file. The prelude that remains is legend-pure's platform packages plus the
+engine-declared interface classes the platform's Java constructs or names (a native signature, the system metamodel), plus
+their closure — fewer than the 59 first counted (§2).
 
 ## 2. Measured (2026-09-08, from `docs/PRELUDE_MODULE_CENSUS_2026_09_08.tsv` and a Java-use scan)
 
@@ -42,9 +43,10 @@ The declaration files are trivially admissible. The mixed files are the decision
 
 ## 3. Mechanics (what changes where)
 
-1. **Generator (`PreludeGeneratorTest`)**: demand = Java use only — Pure.java signatures, the system metamodel's source, FQN
-   literals in `src/main/java` CODE (comment lines excluded); the corpus and library scan is deleted from the generator; the
-   closure is unchanged (declarations only, §9a). `-Dprelude.census=1` shows the new prelude (expected ≈ 143 + closure).
+1. **Generator (`PreludeGeneratorTest`)**: demand = Pure.java native signatures + the system metamodel's source + the explicit
+   constructed-vocabulary list in `PlatformTypes` (each entry a receipt naming the constructing site); the text scan of
+   `src/main/java` and the corpus / library scan are deleted from the generator; the closure is unchanged (declarations only,
+   §9a). `-Dprelude.census=1` shows the new prelude.
 2. **Corpus loader (`Corpus`)**: the 64 files enter the corpus tests' graph by name. HOW is §4 D1.
 3. **`Compiler.withoutPreludeShadows`**: unchanged; its receipt list shrinks to the platform-vocabulary classes the engine tree
    also declares (§4 D2).
@@ -53,14 +55,17 @@ The declaration files are trivially admissible. The mixed files are the decision
 5. **Pins**: `PreludeGeneratorTest` parity, the census pin (shrink-only 22), the hand-class count, `PlatformTypesDriftTest` —
    all re-pinned to the measured numbers, each with the reason.
 
-Slices, lanes EXACT between them: **3a** the generator's demand rule and the census of what leaves (no loader change: the
-prelude shrinks only after 3b admits). **3b** admissions by file family — the declaration files first (SQL protocol, protocol
-template, plan/router/service metamodels), then the mixed files one family at a time. **3c** the census re-measured and the
+Slices, lanes EXACT between them: **3a** the vocabulary list and the generator computing BOTH demands, reporting the
+difference in census mode — `prelude.pure` unchanged (a smaller prelude before the graph admits the classes would break
+every test that needs them). **3b** per file family — the family's files admitted (declarations only) AND dropped
+from the prelude in the same batch, the declaration files first (SQL protocol, protocol template, plan/router/service
+metamodels), then the mixed files one family at a time. **3c** the census re-measured and the
 receipts re-listed.
 
 ## 4. Decisions (yours)
 
-**D1 — How a class in a MIXED engine file enters the graph.** Three ways:
+**D1 — How a class in a MIXED engine file enters the graph. USER 2026-09-08: "Agree on class/enum for engine references" —
+(i) RATIFIED.** Three ways were:
 
 - (i) **Declarations-only admission.** A named file contributes its classes and enums; its functions do not enter. Receipt:
   the corpus needs the SHAPES (it constructs and reads them); the functions beside them are the engine's own machinery —
@@ -94,3 +99,17 @@ The 324 classes are parsed from the same spec text either way; a class moving fr
 container, not its shape. Movement, if any, comes from (a) a lite test naming one of the 324 bare (batch 153 made that an
 error already, so none should), (b) `TypeClassifier.classDef`'s catalog-first order — irrelevant, they were never catalog —
 and (c) under D1 (ii) only, engine functions joining overload sets. Under (i) the prediction is pass counts unchanged.
+
+## 6. Landed
+
+**Batch 154 (phase 3a + 3b-1, 2026-09-08): the vocabulary list and legend-pure's platform packages WHOLE.** `PlatformTypes.
+CONSTRUCTED_VOCABULARY` (nine entries, each a receipt naming the constructing site; `constructedVocabulary()` for the generator).
+The generator's closure walk is a reusable `Spec.close(seed)`; census mode computes the T1 demand beside today's and writes
+`target/prelude-t1-diff.tsv`. MEASURED before the widening: today 569, T1 357 — keep 316, leave 253 (every corpus-only engine
+class, the dispatch-only ones among them), enter 41 (legend-pure platform classes never demanded). LANDED: the 41 enter —
+`prelude.pure` 569 → 610 declarations (577 classes, 33 enums); one m3 bootstrap hand shape added (`ValueSpecificationContext`,
+m3.pure:1804 — three platform mapping/store contexts extend it; hand count 84 → 85); pass counts UNCHANGED on every gate
+(DuckDB 2442/108/14/11, H2 1990/565/14/6, channel B 314/13, 355, 137, 95, 204, PCT 1110/0), census pin 22 unchanged (the 41
+carry no body that fails). USER on D1: "the most simple thing that makes sense and still sticks to our tenets" — declarations-only
+admission, one small loader mechanism; D2 agreed. NEXT: batch 155 = phase 3b-2, the engine cut: the 253 leave the prelude and
+their 64 files enter the corpus graph by name, declarations only.

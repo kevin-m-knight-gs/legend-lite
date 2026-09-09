@@ -205,6 +205,13 @@ public final class Pure {
     public static final ClassDefinition MULTIPLICITY_VALUE_META = nativeClass("native Class meta::pure::metamodel::multiplicity::MultiplicityValue { value: meta::pure::metamodel::type::Integer[0..1]; }");
     // real m3 ValueSpecification.properties[genericType, multiplicity]
     public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; }");
+    /** m3.pure:1804 (tools/m3shape.py) — the supertype of the mapping and
+     * store contexts (`PropertyMappingValueSpecificationContext`,
+     * `AggregateSpecificationValueSpecificationContext`,
+     * `StoreValueSpecificationContext`) that legend-pure's platform
+     * packages declare; an m3 BOOTSTRAP shape the generator cannot read
+     * (batch 154, the platform packages whole). */
+    public static final ClassDefinition VALUE_SPECIFICATION_CONTEXT_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecificationContext { offset: meta::pure::metamodel::type::Integer[1]; }");
     // the expression-tree node kinds (real m3.pure: InstanceValue.values
     // Any[*]; VariableExpression.name String[1]; FunctionExpression
     // :1955 — func Function<Any>[1] (not modeled: a function reference

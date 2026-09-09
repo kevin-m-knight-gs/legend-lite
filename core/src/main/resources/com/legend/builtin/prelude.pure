@@ -117,6 +117,13 @@ Class meta::pure::functions::date::Duration
     unit:DurationUnit[1];
 }
 
+Class meta::pure::functions::date::Time
+{
+   hours:Integer[1];
+   minutes:Integer[1];
+   seconds:Integer[1];
+}
+
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/creation/dynamicNew.pure
@@ -173,6 +180,33 @@ Enum meta::pure::test::surveyor::TestStatus
     FAIL,
     ERROR,
     SKIP
+}
+
+Class meta::pure::test::surveyor::TestReport
+{
+    results       : meta::pure::test::surveyor::TestResult[*];
+    totalElapsed  : Integer[1];    // milliseconds - sum of individual test elapsed times
+    passCount     : Integer[1];
+    failCount     : Integer[1];
+    errorCount    : Integer[1];
+    skipCount     : Integer[1];
+}
+
+Class meta::pure::test::surveyor::TestGroup
+{
+    pkg     : Package[1];
+    before  : ConcreteFunctionDefinition<Any>[*];
+    tests   : ConcreteFunctionDefinition<Any>[*];
+    after   : ConcreteFunctionDefinition<Any>[*];
+    subGroups : meta::pure::test::surveyor::TestGroup[*];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/executionPlan.pure
+Class meta::pure::executionPlan::PlanVariablePlaceHolder
+{
+    name : String[1];
 }
 
 
@@ -262,6 +296,10 @@ Class meta::pure::milestoning::BusinessDateMilestoning extends DateMilestoning
    thru : Date[1];
 }
 
+Class meta::pure::milestoning::BiTemporalMilestoning extends ProcessingDateMilestoning, BusinessDateMilestoning
+{
+}
+
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/routing.pure
@@ -274,11 +312,133 @@ Class meta::pure::router::RoutedValueSpecification extends ValueSpecification
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/service.pure
+Class meta::pure::service::ServiceResult<T|m>
+{
+   value : T[m];
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/tools.pure
 Class meta::pure::tools::DebugContext
 {
    debug : Boolean[1];
    space : String[1];
+}
+
+
+###Pure
+// legend-pure/legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources/platform_dsl_diagram/diagram.pure
+import meta::pure::profiles::*;
+import meta::pure::diagram::*;
+Class meta::pure::diagram::DiagramNode
+{
+    <<equality.Key>> id: String[1];
+}
+
+Class meta::pure::diagram::Visibility
+{
+   visibleStereotype: Boolean[1];
+}
+
+Class meta::pure::diagram::AttributeVisibility extends Visibility
+{
+   visibleTypes: Boolean[1];
+}
+
+Class meta::pure::diagram::TypeVisibility extends Visibility
+{
+   visibleAttributeCompartment: Boolean[1];
+}
+
+Class meta::pure::diagram::AssociationVisibility extends Visibility
+{
+   visibleName : Boolean[1];
+}
+
+Class meta::pure::diagram::Rendering
+{
+   //todo: This is in the format #FFCCBB, remodel
+   color : String[1];
+   lineWidth : Float[1];
+}
+
+Class meta::pure::diagram::Point
+{
+   <<equality.Key>> x : Float[1];
+   <<equality.Key>> y : Float[1];
+}
+
+Enum meta::pure::diagram::LineStyle
+{
+   SIMPLE,
+   RIGHT_ANGLE
+}
+
+Class meta::pure::diagram::Geometry
+{
+}
+
+Class meta::pure::diagram::RectangleGeometry extends Geometry
+{
+   width : Float[1];
+   height : Float[1];
+}
+
+Class meta::pure::diagram::LineGeometry extends Geometry
+{
+   style : LineStyle[1];
+   points : Point[*];
+}
+
+Class meta::pure::diagram::AbstractPathView extends DiagramNode
+{
+   geometry : LineGeometry[1];
+   rendering : Rendering[1];
+   source : TypeView[1];
+   target : TypeView[1];
+   label : String[1];
+}
+
+Class meta::pure::diagram::PropertyView extends AbstractPathView
+{
+    property : AbstractProperty<Any>[1];
+    visibility : AssociationVisibility[1];
+    view : AssociationPropertyView[1];
+}
+
+Class meta::pure::diagram::AssociationPropertyView
+{
+   propertyLocation : Point[1];
+   multiplicityLocation : Point[1];
+}
+
+Class meta::pure::diagram::AssociationView extends AbstractPathView
+{
+   association : Association[1];
+   visibility : AssociationVisibility[1];
+   sourcePropertyView : AssociationPropertyView[1];
+   targetPropertyView : AssociationPropertyView[1];
+}
+
+Class meta::pure::diagram::GeneralizationView extends AbstractPathView
+{
+}
+
+Class meta::pure::diagram::TypeView extends DiagramNode
+{
+   type : Type[1];
+   typeVisibility : TypeVisibility[1];
+   attributeVisibility : AttributeVisibility[1];
+   rendering : Rendering[1];
+   position : Point[1];
+   rectangleGeometry : RectangleGeometry[1];
+}
+
+Class meta::pure::diagram::Diagram extends PackageableElement
+{
+   rectangleGeometry : RectangleGeometry[1];
 }
 
 
@@ -348,6 +508,13 @@ Class meta::pure::mapping::ValueTransformer<T>
  //   toSourceValues(domainValue: Any[1]) { $domainValue; }:Any[*];
 }
 
+Class meta::pure::mapping::PropertyOwnerImplementation
+{
+    id : String[1];
+    superSetImplementationId: String[0..1];
+    parent : Mapping[1];
+}
+
 Class meta::pure::mapping::EmbeddedSetImplementation extends InstanceSetImplementation, PropertyMapping
 {
 
@@ -378,6 +545,16 @@ Class meta::pure::mapping::OperationSetImplementation extends meta::pure::mappin
 {
     parameters : SetImplementationContainer[*];
     operation : Function<{OperationSetImplementation[1] -> SetImplementation[*]}>[1];
+}
+
+Class meta::pure::mapping::MergeOperationSetImplementation extends meta::pure::mapping::OperationSetImplementation
+{
+    validationFunction : LambdaFunction<Any>[1];
+}
+
+Class meta::pure::mapping::PropertyMappingValueSpecificationContext extends ValueSpecificationContext
+{
+    propertyMapping : PropertyMapping[1];
 }
 
 Class meta::pure::mapping::MappingClass<T> extends Class<T>
@@ -414,9 +591,17 @@ Class meta::external::store::model::PurePropertyMapping extends PropertyMapping
     explodeProperty : Boolean[0..1];
 }
 
+Class meta::pure::mapping::xStore::XStoreAssociationImplementation extends AssociationImplementation
+{
+}
+
 Class meta::pure::mapping::xStore::XStorePropertyMapping extends PropertyMapping
 {
     crossExpression : LambdaFunction<{Nil[1],Nil[1]->Boolean[1]}>[1];
+}
+
+Class meta::pure::mapping::modelJoin::ModelJoinAssociationImplementation extends AssociationImplementation
+{
 }
 
 Class meta::pure::mapping::modelJoin::ModelJoinPropertyMapping extends PropertyMapping
@@ -459,6 +644,11 @@ Class meta::pure::mapping::aggregationAware::AggregationFunctionSpecification
     aggregateFn: LambdaFunction<Any>[1];
 }
 
+Class meta::pure::mapping::aggregationAware::AggregateSpecificationValueSpecificationContext extends ValueSpecificationContext
+{
+    aggregateSetImplementation: InstanceSetImplementation[1];
+}
+
 Class meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation extends InstanceSetImplementation
 {
   relationFunction: FunctionDefinition<{->Relation<Any>[1]}>[1];
@@ -481,6 +671,11 @@ Class meta::pure::mapping::relation::EmbeddedRelationFunctionSetImplementation e
 import meta::pure::mapping::*;
 Class meta::pure::mapping::Activity
 {
+}
+
+Class meta::pure::mapping::RoutingActivity extends meta::pure::mapping::Activity
+{
+   routingTimeInNanoSecond : Integer[0..1];
 }
 
 
@@ -520,6 +715,11 @@ Class meta::pure::store::Store extends PackageableElement
     includes : Store[*];
 }
 
+Class meta::pure::store::set::SetBasedStore extends meta::pure::store::Store
+{
+    namespaces : Namespace[*];
+}
+
 Class meta::pure::store::set::Namespace
 {
     relations : SetRelation[*];
@@ -532,6 +732,11 @@ Class meta::pure::store::set::SetRelation
 
 Class meta::pure::store::set::SetColumn
 {
+}
+
+Class meta::pure::metamodel::valuespecification::StoreValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext
+{
+   store: meta::pure::store::Store[1];
 }
 
 Class meta::pure::store::RelationStoreAccessor<T> extends meta::pure::metamodel::relation::RelationElementAccessor<T>
@@ -547,6 +752,10 @@ import meta::pure::metamodel::relation::*;
 Class meta::pure::metamodel::relation::TDS<T> extends meta::pure::metamodel::relation::Relation<T> // T is of RelationType kind
 {
     csv : String[1];
+}
+
+Class meta::pure::metamodel::relation::TDSRelationAccessor<T> extends meta::pure::metamodel::relation::RelationElementAccessor<T> // sourceElement is of type TDS<T>
+{
 }
 
 
@@ -820,6 +1029,10 @@ Class meta::relational::metamodel::relation::TdsSelectSqlQuery extends SelectSQL
 {
 }
 
+Class meta::relational::metamodel::relation::TableTds extends RelationalTds
+{
+}
+
 Class meta::relational::metamodel::relation::SemiStructuredArrayFlatten extends Relation
 {
    navigation : RelationalOperationElement[1];
@@ -865,6 +1078,14 @@ Class meta::relational::metamodel::operation::JoinStrings extends Operation
     prefix:RelationalOperationElement[0..1];
     separator:RelationalOperationElement[0..1];
     suffix:RelationalOperationElement[0..1];
+}
+
+Class meta::relational::metamodel::operation::ArithmeticOperation extends Operation
+{
+}
+
+Class meta::relational::metamodel::operation::VariableArithmeticOperation extends ArithmeticOperation, VariableArityOperation
+{
 }
 
 Class meta::relational::metamodel::operation::SemiStructuredObjectNavigation extends Operation
@@ -937,6 +1158,18 @@ Class meta::relational::metamodel::datatype::TinyInt extends meta::relational::m
 }
 
 Class meta::relational::metamodel::datatype::Integer extends meta::relational::metamodel::datatype::CoreDataType
+{
+}
+
+Class meta::relational::metamodel::datatype::UnsignedBigInt extends meta::relational::metamodel::datatype::CoreDataType
+{
+}
+
+Class meta::relational::metamodel::datatype::UnsignedInt extends meta::relational::metamodel::datatype::CoreDataType
+{
+}
+
+Class meta::relational::metamodel::datatype::UnsignedTinyInt extends meta::relational::metamodel::datatype::CoreDataType
 {
 }
 
@@ -1016,6 +1249,12 @@ Class meta::relational::metamodel::datatype::Object extends meta::relational::me
 }
 
 Class meta::relational::metamodel::datatype::SemiStructured extends meta::relational::metamodel::datatype::CoreDataType
+{
+}
+
+Class
+{doc.doc = 'SingleStore JSON type'}
+meta::relational::metamodel::datatype::Json extends meta::relational::metamodel::datatype::CoreDataType
 {
 }
 
@@ -5416,7 +5655,7 @@ Class meta::legend::service::metamodel::PostValidationAssertion<T|m>
   assertion: Function<{T[m]->Boolean[1]}>[1];
 }
 
-// 537 classes, 32 enums.
+// 577 classes, 33 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::external::store::relational::runtime::RelationalDatabaseConnection

@@ -870,3 +870,12 @@ tier is gone; the core import group gained the engine's three additions. One lit
 |---|---|---|---|
 | 1 | `testLegacyTdsJoinWithLetBoundJoinType`: `unknown enumeration 'JoinType'` — a sectionless query, bare enum | qualified in the test (the engine would refuse it too) | test |
 | 2 | our core group was m3.pure's exactly; the engine's has `metamodel::relation`, `metamodel::variant`, `precisePrimitives` too | added with the receipt (`CompileContext.META_IMPORTS`) — the corpus spells `Relation<(…)>` bare on their strength | `NameResolver.CORE_IMPORTS` |
+
+## 27. Batch 154 — phase 3a + 3b-1: the vocabulary list, the T1 census, legend-pure whole (2026-09-08)
+
+| # | what was measured / named | decided | where |
+|---|---|---|---|
+| 1 | "34 in code" overstated: the ratified test is construct / signature / system metamodel — ~14 of the 59 are dispatch or read only | not vocabulary; they leave with the 253 in 3b-2; Java demand = an explicit receipt list (`PlatformTypes.CONSTRUCTED_VOCABULARY`), never a text scan | PHASE3 homework §2 |
+| 2 | T1 demand vs today: 357 vs 569 — keep 316, leave 253, enter 41 | the 41 enter now (3b-1), the 253 leave in 3b-2 with declarations-only admission (D1, USER: simplest thing) | generator census `prelude-t1-diff.tsv` |
+| 3 | widening exposed three platform classes extending m3's `ValueSpecificationContext` (bootstrap graph, unreadable by the generator) | hand shape with receipt, count pin 84 → 85 | `Pure.VALUE_SPECIFICATION_CONTEXT_META` |
+| 4 | lite's `###Connection` compiles to its own `ConnectionDefinition`, post-processor values are program-built | the connection family is graph material, not vocabulary (D2-adjacent "TO CHECK" closed) | homework §2 |

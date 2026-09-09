@@ -195,11 +195,12 @@ class PreludeGeneratorTest {
         }
         String systemText = com.legend.builtin.SystemMetamodel.source();
         texts.add(systemText);
+        Set<String> systemDemand = new LinkedHashSet<>();   // what the system metamodel's source names
         {
             for (String src : texts) {
                 // the system layer is PLATFORM demand: what it names must exist
                 // without the corpus (a corpus-defined shape is generated too)
-                Set<String> sink = src == systemText ? javaDemand : demand;
+                Set<String> sink = src == systemText ? systemDemand : demand;
                 List<String> imports = new ArrayList<>();
                 for (String line : src.split("\n")) {
                     Matcher d = DECL.matcher(line);
@@ -269,6 +270,7 @@ class PreludeGeneratorTest {
                 }
             }
         }
+        javaDemand.addAll(systemDemand);
         // owned = the HAND-declared natives (read from Pure.java's SOURCE, so
         // the generator never depends on the module it writes), the system
         // layer and the corpus's own definitions
@@ -278,18 +280,14 @@ class PreludeGeneratorTest {
         owned.addAll(corpusDefined);
 
         // 3. parse + resolve the defining files, closing over referenced types
-        Map<String, PackageableElement> resolved = new LinkedHashMap<>();
-        Map<String, String> declText = new LinkedHashMap<>();   // fqn -> the declaration's VERBATIM text
-        Map<String, String> fileOf = new LinkedHashMap<>();     // fqn -> the spec file (absolute)
-        Map<String, Integer> offsetOf = new LinkedHashMap<>();  // fqn -> its offset in that file
-        Map<String, ImportScope> scopeOf = new LinkedHashMap<>();   // fqn -> its section's imports
-        Set<String> pulledFromCorpus = new LinkedHashSet<>();   // corpus-tree classes the closure needed (T4)
-        Set<Path> parsedFiles = new LinkedHashSet<>();
-        Map<String, TokenStream> tokensOf = new LinkedHashMap<>();  // source name -> its tokens
-        Set<String> want = new LinkedHashSet<>();
+        // (Spec.close: the closure walk, reusable — the T1 demand below runs it too)
+        Set<String> knownFqns = new LinkedHashSet<>(index.keySet());
+        knownFqns.addAll(owned);
+        Spec spec = new Spec(index, platformOwned, corpusDefined, knownFqns);
+        Set<String> todaySeed = new LinkedHashSet<>();
         for (String fqn : demand) {
             if (!owned.contains(fqn) && !excluded(fqn)) {
-                want.add(fqn);
+                todaySeed.add(fqn);
             }
         }
         // what the PLATFORM names must exist without the corpus: a library
@@ -299,93 +297,32 @@ class PreludeGeneratorTest {
         for (String fqn : javaDemand) {
             if (!handDeclaredFqns().contains(fqn) && !excluded(fqn)
                     && !com.legend.builtin.SystemMetamodel.elementFqns().contains(fqn)) {
-                want.add(fqn);
-                if (corpusDefined.contains(fqn)) {
-                    pulledFromCorpus.add(fqn);
-                }
+                todaySeed.add(fqn);
             }
         }
-        Set<String> knownFqns = new LinkedHashSet<>(index.keySet());
-        knownFqns.addAll(owned);
-        boolean grew = true;
-        while (grew) {
-            grew = false;
-            List<Compiler.ModelSource> sources = new ArrayList<>();
-            for (String fqn : new ArrayList<>(want)) {
-                Path f = index.get(fqn);
-                if (f != null && parsedFiles.add(f)) {
-                    sources.add(new Compiler.ModelSource(f.toString(),
-                            Files.readString(f, StandardCharsets.UTF_8)));
-                }
-            }
-            if (!sources.isEmpty()) {
-                List<String> parseWalls = new ArrayList<>();
-                ParsedModel parsed = Compiler.parseSources(sources,
-                        (name, err) -> parseWalls.add(name + " => " + err),
-                        Dialect.LEGEND_PLATFORM).model();
-                if (!parseWalls.isEmpty()) {
-                    throw new IllegalStateException("prelude generator: spec files that do not"
-                            + " parse (a parser gap to fix, never a hand copy): " + parseWalls);
-                }
-                Map<String, String> walls = new LinkedHashMap<>();
-                ParsedModel r = NameResolver.resolveAlongside(parsed, knownFqns, walls);
-                // a pulled FILE also carries functions (never emitted): only a
-                // wanted class/enum that fails to resolve is a generator error
-                Map<String, String> shapeWalls = new LinkedHashMap<>();
-                walls.forEach((fqn, msg) -> {
-                    if (want.contains(fqn)) {
-                        shapeWalls.put(fqn, msg);
-                    }
-                });
-                if (!shapeWalls.isEmpty()) {
-                    throw new IllegalStateException("prelude generator: unresolved names in"
-                            + " wanted declarations: " + shapeWalls);
-                }
-                for (PackageableElement el : r.elements()) {
-                    if (el instanceof ClassDefinition || el instanceof EnumDefinition) {
-                        resolved.putIfAbsent(el.qualifiedName(), el);
-                        String srcName = parsed.elementSources().get(el.qualifiedName());
-                        Integer off = parsed.elementOffsets().get(el.qualifiedName());
-                        if (srcName != null && off != null && !declText.containsKey(el.qualifiedName())) {
-                            for (Compiler.ModelSource ms : sources) {
-                                if (ms.name().equals(srcName)) {
-                                    TokenStream ts = tokensOf.computeIfAbsent(srcName,
-                                            k -> Lexer.tokenize(ms.text()));
-                                    declText.put(el.qualifiedName(), declarationText(ts, ms.text(), off,
-                                            el instanceof EnumDefinition));
-                                    fileOf.put(el.qualifiedName(), srcName);
-                                    offsetOf.put(el.qualifiedName(), off);
-                                    scopeOf.put(el.qualifiedName(), parsed.elementImports()
-                                            .getOrDefault(el.qualifiedName(), ImportScope.empty()));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            // CLOSURE (HOMEWORK §9.9): every type a wanted declaration names —
-            // supertypes, stored and derived property types, derived parameter
-            // types — is part of that shape's graph and is admitted when the
-            // spec declares it and it is not a DECIDED exclusion; the
-            // spec-test-package rule governs DEMAND only (the engine's
-            // SqlFunction.tests : SqlFunctionTest[*] names a tests:: class).
-            // PLATFORM ownership (hand + system) stops the walk; a corpus-tree
-            // class is admitted and listed (T4 receipt — the graph's copy yields)
-            for (String fqn : new ArrayList<>(want)) {
-                PackageableElement el = resolved.get(fqn);
-                if (el instanceof ClassDefinition cd) {
-                    for (String ref : referencedFqns(cd)) {
-                        if (!platformOwned.contains(ref) && !excludedByDecision(ref)
-                                && index.containsKey(ref) && want.add(ref)) {
-                            if (corpusDefined.contains(ref)) {
-                                pulledFromCorpus.add(ref);
-                            }
-                            grew = true;
-                        }
-                    }
-                }
+        // T1's FIRST CLAUSE (PHASE3_DEMAND_CUT_HOMEWORK, batch 154 = phase 3b-1):
+        // legend-pure's platform packages are the prelude WHOLE — every class
+        // and enum under the nine platform roots (minus the decided exclusions
+        // and the spec's test packages), demanded or not. The engine side is
+        // still today's demand until 3b-2 cuts it.
+        List<Path> platformRoots = new ArrayList<>();
+        for (String r : SpecBodyCensusTest.PLATFORM_ROOTS) {
+            platformRoots.add(pure.resolve(r));
+        }
+        for (Map.Entry<String, Path> e : index.entrySet()) {
+            boolean platform = platformRoots.stream().anyMatch(e.getValue()::startsWith);
+            if (platform && !owned.contains(e.getKey()) && !excluded(e.getKey())) {
+                todaySeed.add(e.getKey());
             }
         }
+        Closure today = spec.close(todaySeed);
+        Set<String> want = today.want();
+        Set<String> pulledFromCorpus = today.pulledFromCorpus();
+        Map<String, PackageableElement> resolved = spec.resolved;
+        Map<String, String> declText = spec.declText;
+        Map<String, String> fileOf = spec.fileOf;
+        Map<String, Integer> offsetOf = spec.offsetOf;
+        Map<String, ImportScope> scopeOf = spec.scopeOf;
         for (String fqn : want) {
             if (!resolved.containsKey(fqn)) {
                 throw new IllegalStateException("prelude generator: '" + fqn
@@ -395,46 +332,66 @@ class PreludeGeneratorTest {
                 throw new IllegalStateException("prelude generator: no declaration text for '" + fqn + "'");
             }
         }
-        // CLOSURE COMPLETENESS (T5 — the module is a closed library the boot
-        // layer checks eagerly): every type a generated declaration names must
-        // be owned by the platform, generated, a primitive, or one of the
-        // class's own type parameters — a bare or dangling name here is a
-        // generator gap or an exclusion to widen, never an omitted class
-        java.util.SortedMap<String, String> dangling = new TreeMap<>();
-        for (String fqn : want) {
-            if (resolved.get(fqn) instanceof ClassDefinition cd) {
-                Set<String> names = new LinkedHashSet<>();
-                for (TypeExpression t : cd.superClasses()) {
-                    collectAll(t, names);
+        checkClosed(want, resolved, platformOwned, corpusDefined, index);
+
+        // THE T1 DEMAND (PHASE3_DEMAND_CUT_HOMEWORK, phase 3a — reported, not yet
+        // emitted): legend-pure's platform packages whole + the platform's
+        // vocabulary (native signatures, the system metamodel's source, the
+        // classes Java constructs) + closure. Census mode writes the diff
+        // against today's demand: target/prelude-t1-diff.tsv (keep / leave / enter)
+        if ("1".equals(System.getProperty("prelude.census"))) {
+            Set<String> t1Seed = new LinkedHashSet<>();
+            for (Map.Entry<String, Path> e : index.entrySet()) {
+                boolean platform = platformRoots.stream().anyMatch(e.getValue()::startsWith);
+                if (platform && !owned.contains(e.getKey()) && !excluded(e.getKey())) {
+                    t1Seed.add(e.getKey());
                 }
-                for (ClassDefinition.PropertyDefinition p : cd.properties()) {
-                    collectAll(p.type(), names);
-                }
-                for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
-                    collectAll(dp.type(), names);
-                    for (ParameterDefinition pd : dp.parameters()) {
-                        collectAll(pd.type(), names);
-                    }
-                }
-                for (String n : names) {
-                    boolean ok = cd.typeParams().contains(n) || n.equals("?")
-                            || n.startsWith("meta::pure::metamodel::type::")
-                            || platformOwned.contains(n) || want.contains(n);
-                    if (!ok) {
-                        dangling.put(fqn + " -> " + n, excludedByDecision(n) ? "excluded package"
-                                : index.containsKey(n) ? "indexed but not closed"
-                                : corpusDefined.contains(n) ? "graph-owned, not indexed"
-                                : "unresolved/bare name");
+            }
+            Set<String> vocabulary = new LinkedHashSet<>();
+            for (String line : Files.readString(Path.of("src/main/java/com/legend/builtin/Pure.java"),
+                    StandardCharsets.UTF_8).split("\n")) {
+                if (line.contains("signature(\"")) {
+                    Matcher r = FQN_TOKEN.matcher(line);
+                    while (r.find()) {
+                        vocabulary.add(r.group());
                     }
                 }
             }
-        }
-        if (!dangling.isEmpty()) {
-            throw new IllegalStateException("prelude generator: dangling type references in"
-                    + " generated declarations (widen the closure, lift an exclusion, or exclude the"
-                    + " referencing class):\n  " + dangling.entrySet().stream()
-                            .map(e -> e.getKey() + " [" + e.getValue() + "]")
-                            .collect(java.util.stream.Collectors.joining("\n  ")));
+            vocabulary.addAll(systemDemand);
+            vocabulary.addAll(com.legend.compiler.element.type.PlatformTypes.constructedVocabulary());
+            for (String fqn : vocabulary) {
+                if (index.containsKey(fqn) && !handDeclaredFqns().contains(fqn) && !excluded(fqn)
+                        && !com.legend.builtin.SystemMetamodel.elementFqns().contains(fqn)) {
+                    t1Seed.add(fqn);
+                }
+            }
+            Closure t1 = spec.close(t1Seed);
+            List<String> rows = new ArrayList<>();
+            rows.add("fqn\tstatus\tsource\tfile");
+            int keep = 0;
+            int leave = 0;
+            int enter = 0;
+            Set<String> all = new TreeSet<>(want);
+            all.addAll(t1.want());
+            for (String fqn : all) {
+                String status = want.contains(fqn) && t1.want().contains(fqn) ? "keep"
+                        : want.contains(fqn) ? "leave" : "enter";
+                if (status.equals("keep")) {
+                    keep++;
+                } else if (status.equals("leave")) {
+                    leave++;
+                } else {
+                    enter++;
+                }
+                String file = relative(fileOf.get(fqn), engine, pure);
+                String source = file.startsWith("legend-pure/") ? "legend-pure" : "legend-engine";
+                rows.add(String.join("\t", fqn, status, source, file));
+            }
+            Files.createDirectories(Path.of("target"));
+            Files.write(Path.of("target/prelude-t1-diff.tsv"), rows);
+            System.out.println("[prelude-t1] today=" + want.size() + " t1=" + t1.want().size()
+                    + " keep=" + keep + " leave=" + leave + " enter=" + enter
+                    + " -> target/prelude-t1-diff.tsv");
         }
 
         // THE CENSUS (-Dprelude.census=1, HOMEWORK §4): one row per wanted
@@ -538,6 +495,173 @@ class PreludeGeneratorTest {
                     + "; missing " + missing + ", extra " + extra);
         }
         return module;
+    }
+
+    /** One closure walk's result. */
+    record Closure(Set<String> want, Set<String> pulledFromCorpus) {
+    }
+
+    /**
+     * The spec as parsed on demand: files parsed once and cached across
+     * closure walks; {@link #close} takes a SEED of wanted FQNs and returns
+     * it closed over every type the wanted declarations name (HOMEWORK
+     * §9.9 — declarations only, never bodies, §9a).
+     */
+    static final class Spec {
+        final Map<String, Path> index;
+        final Set<String> platformOwned;
+        final Set<String> corpusDefined;
+        final Set<String> knownFqns;
+        final Map<String, PackageableElement> resolved = new LinkedHashMap<>();
+        final Map<String, String> declText = new LinkedHashMap<>();
+        final Map<String, String> fileOf = new LinkedHashMap<>();
+        final Map<String, Integer> offsetOf = new LinkedHashMap<>();
+        final Map<String, ImportScope> scopeOf = new LinkedHashMap<>();
+        final Set<Path> parsedFiles = new LinkedHashSet<>();
+        final Map<String, TokenStream> tokensOf = new LinkedHashMap<>();
+
+        Spec(Map<String, Path> index, Set<String> platformOwned, Set<String> corpusDefined,
+                Set<String> knownFqns) {
+            this.index = index;
+            this.platformOwned = platformOwned;
+            this.corpusDefined = corpusDefined;
+            this.knownFqns = knownFqns;
+        }
+
+        Closure close(Set<String> seed) throws IOException {
+            Set<String> want = new LinkedHashSet<>(seed);
+            Set<String> pulledFromCorpus = new LinkedHashSet<>();
+            for (String fqn : seed) {
+                if (corpusDefined.contains(fqn)) {
+                    pulledFromCorpus.add(fqn);
+                }
+            }
+            boolean grew = true;
+            while (grew) {
+                grew = false;
+                List<Compiler.ModelSource> sources = new ArrayList<>();
+                for (String fqn : new ArrayList<>(want)) {
+                    Path f = index.get(fqn);
+                    if (f != null && parsedFiles.add(f)) {
+                        sources.add(new Compiler.ModelSource(f.toString(),
+                                Files.readString(f, StandardCharsets.UTF_8)));
+                    }
+                }
+                if (!sources.isEmpty()) {
+                    List<String> parseWalls = new ArrayList<>();
+                    ParsedModel parsed = Compiler.parseSources(sources,
+                            (name, err) -> parseWalls.add(name + " => " + err),
+                            Dialect.LEGEND_PLATFORM).model();
+                    if (!parseWalls.isEmpty()) {
+                        throw new IllegalStateException("prelude generator: spec files that do not"
+                                + " parse (a parser gap to fix, never a hand copy): " + parseWalls);
+                    }
+                    Map<String, String> walls = new LinkedHashMap<>();
+                    ParsedModel r = NameResolver.resolveAlongside(parsed, knownFqns, walls);
+                    // a pulled FILE also carries functions (never emitted): only a
+                    // wanted class/enum that fails to resolve is a generator error
+                    Map<String, String> shapeWalls = new LinkedHashMap<>();
+                    walls.forEach((fqn, msg) -> {
+                        if (want.contains(fqn)) {
+                            shapeWalls.put(fqn, msg);
+                        }
+                    });
+                    if (!shapeWalls.isEmpty()) {
+                        throw new IllegalStateException("prelude generator: unresolved names in"
+                                + " wanted declarations: " + shapeWalls);
+                    }
+                    for (PackageableElement el : r.elements()) {
+                        if (el instanceof ClassDefinition || el instanceof EnumDefinition) {
+                            resolved.putIfAbsent(el.qualifiedName(), el);
+                            String srcName = parsed.elementSources().get(el.qualifiedName());
+                            Integer off = parsed.elementOffsets().get(el.qualifiedName());
+                            if (srcName != null && off != null && !declText.containsKey(el.qualifiedName())) {
+                                for (Compiler.ModelSource ms : sources) {
+                                    if (ms.name().equals(srcName)) {
+                                        TokenStream ts = tokensOf.computeIfAbsent(srcName,
+                                                k -> Lexer.tokenize(ms.text()));
+                                        declText.put(el.qualifiedName(), declarationText(ts, ms.text(), off,
+                                                el instanceof EnumDefinition));
+                                        fileOf.put(el.qualifiedName(), srcName);
+                                        offsetOf.put(el.qualifiedName(), off);
+                                        scopeOf.put(el.qualifiedName(), parsed.elementImports()
+                                                .getOrDefault(el.qualifiedName(), ImportScope.empty()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // CLOSURE (HOMEWORK §9.9): every type a wanted declaration names —
+                // supertypes, stored and derived property types, derived parameter
+                // types — is part of that shape's graph and is admitted when the
+                // spec declares it and it is not a DECIDED exclusion; the
+                // spec-test-package rule governs DEMAND only (the engine's
+                // SqlFunction.tests : SqlFunctionTest[*] names a tests:: class).
+                // PLATFORM ownership (hand + system) stops the walk; a corpus-tree
+                // class is admitted and listed (T4 receipt — the graph's copy yields)
+                for (String fqn : new ArrayList<>(want)) {
+                    PackageableElement el = resolved.get(fqn);
+                    if (el instanceof ClassDefinition cd) {
+                        for (String ref : referencedFqns(cd)) {
+                            if (!platformOwned.contains(ref) && !excludedByDecision(ref)
+                                    && index.containsKey(ref) && want.add(ref)) {
+                                if (corpusDefined.contains(ref)) {
+                                    pulledFromCorpus.add(ref);
+                                }
+                                grew = true;
+                            }
+                        }
+                    }
+                }
+            }
+            return new Closure(want, pulledFromCorpus);
+        }
+    }
+
+    /** CLOSURE COMPLETENESS (T5 — the module is a closed library the boot
+     * layer checks eagerly): every type a generated declaration names must
+     * be owned by the platform, generated, a primitive, or one of the
+     * class's own type parameters — a bare or dangling name here is a
+     * generator gap or an exclusion to widen, never an omitted class. */
+    static void checkClosed(Set<String> want, Map<String, PackageableElement> resolved,
+            Set<String> platformOwned, Set<String> corpusDefined, Map<String, Path> index) {
+        java.util.SortedMap<String, String> dangling = new TreeMap<>();
+        for (String fqn : want) {
+            if (resolved.get(fqn) instanceof ClassDefinition cd) {
+                Set<String> names = new LinkedHashSet<>();
+                for (TypeExpression t : cd.superClasses()) {
+                    collectAll(t, names);
+                }
+                for (ClassDefinition.PropertyDefinition p : cd.properties()) {
+                    collectAll(p.type(), names);
+                }
+                for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
+                    collectAll(dp.type(), names);
+                    for (ParameterDefinition pd : dp.parameters()) {
+                        collectAll(pd.type(), names);
+                    }
+                }
+                for (String n : names) {
+                    boolean ok = cd.typeParams().contains(n) || n.equals("?")
+                            || n.startsWith("meta::pure::metamodel::type::")
+                            || platformOwned.contains(n) || want.contains(n);
+                    if (!ok) {
+                        dangling.put(fqn + " -> " + n, excludedByDecision(n) ? "excluded package"
+                                : index.containsKey(n) ? "indexed but not closed"
+                                : corpusDefined.contains(n) ? "graph-owned, not indexed"
+                                : "unresolved/bare name");
+                    }
+                }
+            }
+        }
+        if (!dangling.isEmpty()) {
+            throw new IllegalStateException("prelude generator: dangling type references in"
+                    + " generated declarations (widen the closure, lift an exclusion, or exclude the"
+                    + " referencing class):\n  " + dangling.entrySet().stream()
+                            .map(e -> e.getKey() + " [" + e.getValue() + "]")
+                            .collect(java.util.stream.Collectors.joining("\n  ")));
+        }
     }
 
     /**

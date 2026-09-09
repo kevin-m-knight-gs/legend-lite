@@ -612,7 +612,10 @@ class NativeFunctionTest {
         // bodies cast to / instanceOf (tools/m3shape.py); the census's
         // functionType.pure load wall closed with FunctionType.
         // 82 -> 84 (batch 150): +Measure, +Unit (m3.pure:783/:922 — the spec's unit tests)
-        assertEquals(84, hand,
+        // 84 -> 85 (batch 154, phase 3b-1 — legend-pure's platform packages
+        // WHOLE): +ValueSpecificationContext (m3.pure:1804), the supertype
+        // three platform mapping/store context classes extend
+        assertEquals(85, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -1145,6 +1148,10 @@ class NativeFunctionTest {
      * :17-50, m3.pure Package/Function/Enumeration/PrimitiveType/FunctionType). */
     private static final java.util.Map<String, List<String>> M3_BOOTSTRAP_SURFACE_PROPERTIES_3 =
             java.util.Map.ofEntries(
+                    // batch 154 (phase 3b-1): m3.pure:1804, the supertype of the
+                    // platform's mapping/store value-specification contexts
+                    java.util.Map.entry("meta::pure::metamodel::valuespecification::ValueSpecificationContext",
+                            List.of("offset")),
                     java.util.Map.entry("meta::pure::metamodel::relation::ColSpec", List.of("name")),
                     java.util.Map.entry("meta::pure::metamodel::relation::ColSpecArray", List.of("names")),
                     java.util.Map.entry("meta::pure::metamodel::relation::FuncColSpec", List.of("name", "function")),
