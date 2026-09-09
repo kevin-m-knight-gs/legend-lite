@@ -15,7 +15,20 @@ name: gates
 on:
   push:
     branches: [main]
+    # Prose cannot change a gate's verdict, and the chain costs ~6 runner
+    # minutes per lane — a documentation commit must not spend them. The
+    # scoreboard is deliberately NOT ignored: gate 4 rewrites
+    # docs/RELATIONAL_CORPUS.md, so a hand edit to it IS a claim about a
+    # gate's result and gets checked like any other.
+    paths-ignore:
+      - "**/*.md"
+      - "!docs/RELATIONAL_CORPUS.md"
+      - progress*.txt
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "!docs/RELATIONAL_CORPUS.md"
+      - progress*.txt
   workflow_dispatch:
     inputs:
       gates:
