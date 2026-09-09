@@ -34,24 +34,30 @@ final class QuantileOrder extends SqlRewriter {
         return e;
     }
 
+    /** An ASCENDING percentile reaches the dialect with NO order key at
+     * all (the standard's default), so the empty-order form is in scope
+     * too — it is exactly the form the continuous arm must re-spell. */
     private static boolean ordered(SqlAgg.Reducer r) {
         return (r.fn() == SqlAgg.Fn.QUANTILE_CONT
                     || r.fn() == SqlAgg.Fn.QUANTILE_DISC)
-                && r.orderBy().size() == 1 && r.args().size() == 2;
+                && r.orderBy().size() <= 1 && r.args().size() == 2;
     }
 
     private static SqlExpr encode(SqlAgg.Reducer r) {
-        SqlSelect.SortKey key = r.orderBy().get(0);
         SqlExpr value = r.args().get(0);
         SqlExpr p = r.args().get(1);
-        if (key.ascending()) {
-            return new SqlAgg.Reducer(r.fn(), r.args(), r.distinct(), List.of());
+        boolean ascending = r.orderBy().isEmpty()
+                || r.orderBy().get(0).ascending();
+        if (ascending) {
+            return r.fn() == SqlAgg.Fn.QUANTILE_CONT
+                    ? interpolate(value, p, r.distinct())
+                    : new SqlAgg.Reducer(r.fn(), r.args(), r.distinct(),
+                            List.of());
         }
         if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
             return SqlExpr.Call.of(SqlFn.NEGATE,
-                    new SqlAgg.Reducer(SqlAgg.Fn.QUANTILE_CONT,
-                            List.of(SqlExpr.Call.of(SqlFn.NEGATE, value), p),
-                            r.distinct(), List.of()));
+                    interpolate(SqlExpr.Call.of(SqlFn.NEGATE, value), p,
+                            r.distinct()));
         }
         return SqlExpr.Call.of(SqlFn.LIST_GET,
                 SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
@@ -64,6 +70,72 @@ final class QuantileOrder extends SqlRewriter {
                                                 List.of(value), r.distinct(),
                                                 List.of()))),
                         SqlType.Scalar.BIGINT));
+    }
+
+    /**
+     * The CONTINUOUS percentile, interpolated HERE rather than handed to
+     * DuckDB's {@code quantile_cont}.
+     *
+     * <p>MEASURED 2026-09-09 (the CI leg's one finding): DuckDB's own
+     * {@code percentile_cont}/{@code quantile_cont} is NOT
+     * architecture-stable. Over the corpus's Firm C quantities
+     * (22,27,38,44,45) at p=0.9 it returns 44.600000000000001421 on
+     * arm64 and 44.599999999999994316 on x86_64 — one ULP apart, from
+     * ONE binary (the v1.4.4 universal build, both slices, same data,
+     * reproduced locally under Rosetta). It is not the thread count and
+     * not the spelling; it is the compiled interpolation path, an FMA
+     * contraction on arm64 that x86-64's baseline does not have. Plain
+     * SQL arithmetic is bit-identical on both slices — {@code 44.0 +
+     * 0.6*(45.0-44.0)} agrees to the last bit — so spelling the
+     * interpolation OURSELVES removes the divergence at its source
+     * instead of relocating it into an arch-conditional emission or an
+     * arch-conditional roster (both of which just move the conditional
+     * and leave two environments disagreeing by design).
+     *
+     * <p>It is also MORE accurate, not merely more stable: the value
+     * both slices now produce is the correctly-rounded double for the
+     * engine golden 44.6, which DuckDB's x86-64 build misses.
+     *
+     * <p>The SQL-standard definition, over the ascending non-null
+     * values with {@code idx = p*(n-1)}:
+     * {@code lo + (idx - floor(idx)) * (hi - lo)}, where lo and hi are
+     * the elements at {@code floor(idx)} and {@code ceil(idx)}.
+     * {@code count} counts the non-nulls and {@code list_sort} sorts
+     * nulls LAST (verified), so the non-nulls occupy 1..n of the sorted
+     * list and {@code list_extract}'s 1-based index is {@code i+1} —
+     * the same pair of facts the discrete arm below already rides.
+     *
+     * <p>Cost, measured on 2M rows over 1,000 groups: 40ms → 125ms for
+     * the whole aggregate. Correctness over an aggregate that is rarely
+     * a plan's bottleneck.
+     */
+    private static SqlExpr interpolate(SqlExpr value, SqlExpr p,
+            boolean distinct) {
+        SqlExpr sorted = SqlExpr.Call.of(SqlFn.LIST_SORT,
+                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(value),
+                        distinct, List.of()));
+        SqlExpr n = new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(value),
+                distinct, List.of());
+        // idx = p * (n - 1), the 0-based position in the sorted values
+        SqlExpr idx = SqlExpr.Call.of(SqlFn.TIMES, p,
+                SqlExpr.Call.of(SqlFn.MINUS, n, new SqlExpr.IntLit(1)));
+        SqlExpr floorIdx = SqlExpr.Call.of(SqlFn.FLOOR, idx);
+        SqlExpr lo = at(sorted, floorIdx);
+        SqlExpr hi = at(sorted, SqlExpr.Call.of(SqlFn.CEILING, idx));
+        // lo + (idx - floor(idx)) * (hi - lo)
+        return SqlExpr.Call.of(SqlFn.PLUS, lo,
+                SqlExpr.Call.of(SqlFn.TIMES,
+                        SqlExpr.Call.of(SqlFn.MINUS, idx, floorIdx),
+                        SqlExpr.Call.of(SqlFn.MINUS, hi, lo)));
+    }
+
+    /** The sorted list's element at a 0-based position (list_extract is
+     * 1-based, and the position arrives as a floor/ceil DOUBLE). */
+    private static SqlExpr at(SqlExpr sorted, SqlExpr zeroBased) {
+        return SqlExpr.Call.of(SqlFn.LIST_GET, sorted,
+                SqlExpr.Call.of(SqlFn.PLUS,
+                        new SqlExpr.Cast(zeroBased, SqlType.Scalar.BIGINT),
+                        new SqlExpr.IntLit(1)));
     }
 
     /** Every reducer inside the encoding takes the window's spec (the
