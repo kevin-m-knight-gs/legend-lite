@@ -62,8 +62,8 @@ final class InlineSnippets {
         }
         try (Stream<Path> s = Files.walk(root)) {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> f.toString().contains("/src/test/"))
-                    .filter(f -> !f.toString().contains("/target/"))
+                    .filter(f -> Corpus.slashed(f).contains("/src/test/"))
+                    .filter(f -> !Corpus.slashed(f).contains("/target/"))
                     .sorted().toList()) {
                 try {
                     out.add(new FileRuns(root.relativize(p).toString(),
@@ -90,8 +90,8 @@ final class InlineSnippets {
         if (Files.isDirectory(root)) {
             try (Stream<Path> s = Files.walk(root)) {
                 s.filter(p -> p.toString().endsWith(".java"))
-                        .filter(p -> p.toString().contains("/src/test/"))
-                        .filter(p -> !p.toString().contains("/target/"))
+                        .filter(p -> Corpus.slashed(p).contains("/src/test/"))
+                        .filter(p -> !Corpus.slashed(p).contains("/target/"))
                         .sorted()
                         .forEach(javaFiles::add);
             } catch (IOException e) {

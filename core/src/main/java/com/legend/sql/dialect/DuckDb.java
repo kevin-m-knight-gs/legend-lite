@@ -205,7 +205,16 @@ public final class DuckDb extends AnsiSqlRenderer {
             return "SELECT unnest(CAST(" + stringLit(content) + " AS JSON[])) AS data";
         }
         if (url.startsWith("file:")) {
-            String path = java.net.URI.create(url).getPath();
+            // Path.of(URI), NOT URI.getPath(): a file: URI's PATH component is
+            // "/D:/data/x.json" on Windows, which is not a filesystem path at
+            // all — DuckDB reports "No files found that match the pattern" and
+            // every file:-backed JSON source is unreadable there. Path.of
+            // resolves the URI through the filesystem provider, giving
+            // D:\data\x.json on Windows and /data/x.json on POSIX. Forward
+            // slashes then keep the SQL literal free of backslashes; Windows
+            // accepts them everywhere. (Windows CI, 2026-09-09.)
+            String path = java.nio.file.Path.of(java.net.URI.create(url))
+                    .toString().replace('\\', '/');
             return "SELECT json AS data FROM read_json_objects(" + stringLit(path) + ")";
         }
         throw new IllegalStateException("unsupported sourceUrl scheme: " + url);

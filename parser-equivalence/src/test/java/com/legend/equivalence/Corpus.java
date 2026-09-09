@@ -39,6 +39,19 @@ public final class Corpus {
     public record Source(String id, String text, String tier) {
     }
 
+    /**
+     * A path rendered with '/' separators, ALWAYS.
+     *
+     * <p>{@code Path.toString} uses the PLATFORM separator, so every
+     * {@code contains("/src/test/")}-style filter in this module matches
+     * nothing on Windows — the walk silently yields an empty roster and the
+     * census or ratchet reads as a clean sweep rather than a broken one. Route
+     * every path-shape test through here (Windows CI, 2026-09-09).
+     */
+    static String slashed(Path p) {
+        return p.toString().replace('\\', '/');
+    }
+
     /** Every {@code .pure} under a root, excluding build output. */
     private static List<Path> pureFiles(Path root) {
         return filesWith(root, ".pure");
@@ -50,7 +63,7 @@ public final class Corpus {
         }
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(ext))
-                    .filter(p -> !p.toString().contains("/target/"))
+                    .filter(p -> !slashed(p).contains("/target/"))
                     .sorted()
                     .toList();
         } catch (IOException e) {

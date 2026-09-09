@@ -221,7 +221,13 @@ class   CarrierPurityRatchetTest {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
-                        String path = f.toString();
+                        // '/' ALWAYS: Path.toString uses the platform
+                        // separator, so on Windows every one of these
+                        // contains() checks is false, the guard scans ZERO
+                        // files, and its floor trips for a reason that has
+                        // nothing to do with carrier purity (Windows CI,
+                        // 2026-09-09).
+                        String path = f.toString().replace('\\', '/');
                         return (path.contains("/lowering/")
                                 || path.contains("/resolver/")
                                 || path.contains("/plan/"))

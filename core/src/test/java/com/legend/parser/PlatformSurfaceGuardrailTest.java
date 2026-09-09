@@ -67,7 +67,11 @@ class PlatformSurfaceGuardrailTest {
                             throw new java.io.UncheckedIOException(e);
                         }
                     })
-                    .map(p -> root.relativize(p).toString())
+                    // '/' ALWAYS: the whitelist holds forward-slash paths, so
+                    // on Windows (com\legend\...) NOTHING matches and every
+                    // legitimate caller reads as a new offender (Windows CI,
+                    // 2026-09-09).
+                    .map(p -> root.relativize(p).toString().replace('\\', '/'))
                     .filter(p -> !WHITELIST.contains(p))
                     .toList();
         }

@@ -109,7 +109,11 @@ class LegacyReachbackCensusTest {
                     String src = stripComments(Files.readString(f));
                     int n = count(src);
                     if (n > 0) {
-                        found.put(f.normalize().toString()
+                        // '/' ALWAYS: the census keys are compared against a
+                        // committed doc written with forward slashes, so on
+                        // Windows every key differs and the census reads as
+                        // pure GROWTH (Windows CI, 2026-09-09).
+                        found.put(f.normalize().toString().replace('\\', '/')
                                 .replaceFirst("^\\.\\./", ""), n);
                     }
                 }

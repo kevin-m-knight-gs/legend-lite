@@ -134,8 +134,8 @@ class SurfaceCensusTest {
                 java.nio.file.Path.of(engineRoot))) {
             for (var g4 : (Iterable<java.nio.file.Path>) walk
                     .filter(f -> f.toString().endsWith("Grammar.g4"))
-                    .filter(f -> !f.toString().contains("/target/")
-                            && !f.toString().contains("/test/"))::iterator) {
+                    .filter(f -> !Corpus.slashed(f).contains("/target/")
+                            && !Corpus.slashed(f).contains("/test/"))::iterator) {
                 var m = rule.matcher(java.nio.file.Files.readString(g4));
                 while (m.find()) {
                     if (!snap.contains(m.group(1))) {

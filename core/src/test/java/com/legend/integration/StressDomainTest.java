@@ -3,6 +3,7 @@ package com.legend.integration;
 import org.junit.jupiter.api.*;
 
 import java.io.*;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.sql.*;
@@ -34,11 +35,14 @@ class StressDomainTest {
     }
 
     /** Load all .pure files from the stress/ resource directory, sorted by name. */
-    private String loadStressModel() throws IOException {
+    private String loadStressModel() throws IOException, URISyntaxException {
         var stressUrl = getClass().getClassLoader().getResource("stress");
         assertNotNull(stressUrl, "stress/ resource directory not found on classpath");
 
-        Path stressDir = Path.of(stressUrl.getPath());
+        // Path.of(URI), NOT getPath(): a file: URL's path component is
+        // "/D:/…" on Windows, which Path.of rejects outright ("Illegal char
+        // <:> at index 3"). Path.of(URI) is correct on every platform.
+        Path stressDir = Path.of(stressUrl.toURI());
         List<Path> pureFiles;
         try (var stream = Files.list(stressDir)) {
             pureFiles = stream

@@ -167,8 +167,12 @@ final class CensusWorlds {
         }
         Pattern nat = Pattern.compile("native function\\s+(?:<<[^>]*>>\\s*)?(?:\\{[^}]*\\}\\s*)?[A-Za-z0-9_:]*::([A-Za-z0-9_]+)\\s*[<(]");
         try (java.util.stream.Stream<Path> walk = Files.walk(engineRoot)) {
+            // '/' ALWAYS: Path.toString uses the platform separator, so on
+            // Windows this filter matches NOTHING and the census silently
+            // reports an empty world (Windows CI, 2026-09-09).
             for (Path f : walk.filter(x -> x.toString().endsWith(".pure")
-                    && x.toString().contains("/src/main/resources/")).toList()) {
+                    && x.toString().replace('\\', '/')
+                            .contains("/src/main/resources/")).toList()) {
                 Matcher m = nat.matcher(Files.readString(f, StandardCharsets.UTF_8));
                 while (m.find()) {
                     out.add(m.group(1));
