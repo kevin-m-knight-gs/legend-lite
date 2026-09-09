@@ -586,42 +586,6 @@ public final class PlatformTypes {
             "getString", "getNullableString", "getNumber", "getInteger", "getFloat",
             "getDecimal", "getDate", "getDateTime", "getStrictDate", "getBoolean", "getEnum");
 
-    /**
-     * THE CONSTRUCTED VOCABULARY (PHASE3_DEMAND_CUT_HOMEWORK §2, T1 by USE):
-     * the classes and enums whose VALUES the platform's own Java builds —
-     * typed instances, enum values, checker outputs. Each entry is a
-     * receipt naming the constructing site. With the native signatures and
-     * the system metamodel's source this list IS the platform's demand on
-     * the prelude generator; a class Java merely compares against a
-     * constant, or reads out of a value a program built, is not here and
-     * lives in the graph. Provenance-blind: legend-pure entries are prelude
-     * anyway (T1's first clause), listed because the list is "what Java
-     * constructs", nothing else.
-     */
-    private static final java.util.Map<String, String> CONSTRUCTED_VOCABULARY = java.util.Map.ofEntries(
-            java.util.Map.entry("meta::json::JSONArray",
-                    "JsonChecker builds JSON arrays (toVariant of the elements, annotated JSONArray)"),
-            java.util.Map.entry("meta::json::JSONKeyValue", "JsonChecker builds key-value nodes as typed instances"),
-            java.util.Map.entry("meta::relational::metamodel::data::RelationalCSVData",
-                    "CsvCensusChecker: TypedNewInstance(DATA_FQN) — the platform's CSV census result"),
-            java.util.Map.entry("meta::relational::metamodel::data::RelationalCSVTable",
-                    "CsvCensusChecker: TypedNewInstance(TABLE_FQN) per table"),
-            java.util.Map.entry("meta::relational::testDataGeneration::TestDataGenResult",
-                    "GenerateTestDataChecker: the typed result of generateTestData"),
-            java.util.Map.entry("meta::pure::functions::relation::JoinKind",
-                    "JoinChecker / Lowerer / AssociationJoins / Pipelines: new EnumValue(JoinKind, …)"),
-            java.util.Map.entry("meta::pure::metamodel::relation::Column",
-                    "ColumnsChecker: TypedNewInstance(COLUMN_FQN) — columns() as Column instances"),
-            java.util.Map.entry("meta::pure::functions::date::DurationUnit",
-                    "RelOpTranslator builds new EnumValue(DurationUnit, …) for the relational date operations"),
-            java.util.Map.entry("meta::pure::functions::hash::HashType",
-                    "RelOpTranslator builds new EnumValue(HashType, …) for the digest operations"));
-
-    /** The FQNs of {@link #CONSTRUCTED_VOCABULARY}, for the prelude generator. */
-    public static java.util.Set<String> constructedVocabulary() {
-        return CONSTRUCTED_VOCABULARY.keySet();
-    }
-
     /** {@code meta::pure::functions::string::format}: its {@code %s} slots
      * print an argument by the argument's own {@code toString()} — real
      * pure's format calls toString on each value, so a CLASS-typed slot

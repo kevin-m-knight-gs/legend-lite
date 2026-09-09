@@ -259,24 +259,31 @@ class PreludeGeneratorTest {
                 }
             }
         }
-        // JAVA demand = the platform's VOCABULARY: the native SIGNATURES in
-        // Pure.java, the classes Java CONSTRUCTS (an explicit receipt list — a
-        // text scan cannot tell "constructs" from "compares"), the system
-        // metamodel's source (below)
-        for (String line : Files.readString(Path.of("src/main/java/com/legend/builtin/Pure.java"),
-                StandardCharsets.UTF_8).split("\n")) {
-            if (line.contains("signature(\"")) {
-                Matcher r = FQN_TOKEN.matcher(line);
-                while (r.find()) {
-                    if (index.containsKey(r.group())) {
-                        javaDemand.add(r.group());
+        // JAVA demand = the platform's VOCABULARY, by the MECHANICAL rule (USER
+        // 2026-09-08, after phase 3: "just take everything instead of the
+        // declared-vs-used whitelist"): every spec class or enum the platform's
+        // own Java NAMES in code — a native signature, a constructed instance, a
+        // dispatch constant alike; comment lines never count. If our Java has
+        // the name in it, the platform depends on the class existing; the
+        // receipt is a grep. (A curated "constructed" list lived one batch, 154.)
+        try (Stream<Path> s = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : s.filter(p -> p.toString().endsWith(".java")
+                    && !p.getFileName().toString().equals("Prelude.java")).sorted().toList()) {
+                for (String line : Files.readString(f, StandardCharsets.UTF_8).split("\n")) {
+                    String code = line.strip();
+                    if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) {
+                        continue;
+                    }
+                    Matcher r = FQN_TOKEN.matcher(code);
+                    while (r.find()) {
+                        // a spec TEST MODEL (…::tests::Person) named in a harness
+                        // fixture is corpus input, never a platform shape
+                        if (index.containsKey(r.group()) && (!r.group().matches(".*::tests?::.*")
+                                || r.group().startsWith("meta::pure::test::"))) {
+                            javaDemand.add(r.group());
+                        }
                     }
                 }
-            }
-        }
-        for (String fqn : com.legend.compiler.element.type.PlatformTypes.constructedVocabulary()) {
-            if (index.containsKey(fqn)) {
-                javaDemand.add(fqn);
             }
         }
         javaDemand.addAll(systemDemand);
@@ -297,9 +304,8 @@ class PreludeGeneratorTest {
         // batch 155 = phase 3b-2): (1) legend-pure's platform packages WHOLE —
         // every class and enum under the nine platform roots, minus the decided
         // exclusions and the spec's test packages, demanded or not; (2) the
-        // platform's VOCABULARY — what its Java constructs (the receipt list
-        // PlatformTypes.CONSTRUCTED_VOCABULARY), names in a native signature,
-        // or names in the system metamodel's source; (3) the closure of those
+        // platform's VOCABULARY — every spec class or enum its Java NAMES in
+        // code, plus what the system metamodel's source names; (3) the closure of those
         // declarations. "The corpus names it" is no reason (T2): an engine
         // class a program needs enters that program's graph by file
         // (Corpus.SHAPE_FILES). A vocabulary class the corpus tree also
@@ -339,66 +345,6 @@ class PreludeGeneratorTest {
             }
         }
         checkClosed(want, resolved, platformOwned, corpusDefined, index);
-
-        // THE T1 DEMAND (PHASE3_DEMAND_CUT_HOMEWORK, phase 3a — reported, not yet
-        // emitted): legend-pure's platform packages whole + the platform's
-        // vocabulary (native signatures, the system metamodel's source, the
-        // classes Java constructs) + closure. Census mode writes the diff
-        // against today's demand: target/prelude-t1-diff.tsv (keep / leave / enter)
-        if ("1".equals(System.getProperty("prelude.census"))) {
-            Set<String> t1Seed = new LinkedHashSet<>();
-            for (Map.Entry<String, Path> e : index.entrySet()) {
-                boolean platform = platformRoots.stream().anyMatch(e.getValue()::startsWith);
-                if (platform && !owned.contains(e.getKey()) && !excluded(e.getKey())) {
-                    t1Seed.add(e.getKey());
-                }
-            }
-            Set<String> vocabulary = new LinkedHashSet<>();
-            for (String line : Files.readString(Path.of("src/main/java/com/legend/builtin/Pure.java"),
-                    StandardCharsets.UTF_8).split("\n")) {
-                if (line.contains("signature(\"")) {
-                    Matcher r = FQN_TOKEN.matcher(line);
-                    while (r.find()) {
-                        vocabulary.add(r.group());
-                    }
-                }
-            }
-            vocabulary.addAll(systemDemand);
-            vocabulary.addAll(com.legend.compiler.element.type.PlatformTypes.constructedVocabulary());
-            for (String fqn : vocabulary) {
-                if (index.containsKey(fqn) && !handDeclaredFqns().contains(fqn) && !excluded(fqn)
-                        && !com.legend.builtin.SystemMetamodel.elementFqns().contains(fqn)) {
-                    t1Seed.add(fqn);
-                }
-            }
-            Closure t1 = spec.close(t1Seed);
-            List<String> rows = new ArrayList<>();
-            rows.add("fqn\tstatus\tsource\tfile");
-            int keep = 0;
-            int leave = 0;
-            int enter = 0;
-            Set<String> all = new TreeSet<>(want);
-            all.addAll(t1.want());
-            for (String fqn : all) {
-                String status = want.contains(fqn) && t1.want().contains(fqn) ? "keep"
-                        : want.contains(fqn) ? "leave" : "enter";
-                if (status.equals("keep")) {
-                    keep++;
-                } else if (status.equals("leave")) {
-                    leave++;
-                } else {
-                    enter++;
-                }
-                String file = relative(fileOf.get(fqn), engine, pure);
-                String source = file.startsWith("legend-pure/") ? "legend-pure" : "legend-engine";
-                rows.add(String.join("\t", fqn, status, source, file));
-            }
-            Files.createDirectories(Path.of("target"));
-            Files.write(Path.of("target/prelude-t1-diff.tsv"), rows);
-            System.out.println("[prelude-t1] today=" + want.size() + " t1=" + t1.want().size()
-                    + " keep=" + keep + " leave=" + leave + " enter=" + enter
-                    + " -> target/prelude-t1-diff.tsv");
-        }
 
         // THE CENSUS (-Dprelude.census=1, HOMEWORK §4): one row per wanted
         // declaration — where it comes from, who demands it, what the module

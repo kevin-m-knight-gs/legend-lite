@@ -887,3 +887,9 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 1 | prelude 610 → 357 with the corpus scan gone; every gate unchanged | the demand cut is a container change by construction: the same spec text, parsed into the graph instead of the boot layer | `Corpus.SHAPE_FILES`, `MinimalCorpus.withShapes` |
 | 2 | `NameResolverTest`: the sql-protocol `Table` no longer a platform class | unresolved under its wildcard — the engine's answer for a class only a program declares | test |
 | 3 | census 22 → 19; T4 receipts 61 → 119 | the 19 are vocabulary-class bodies (owners unchanged); the 119 are D2's stable list | SPEC_BODY_CENSUS §10.4, PHASE3 homework §6 |
+
+## 29. Batch 156 — the vocabulary rule simplified (2026-09-08)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | USER: "just take everything instead of the declared-vs-used whitelist" | Java demand = every spec class the platform's Java names in code (comments excluded); the curated constructed list (154) and the T1 diff census (155) deleted; prelude 357 → 373; no pass change | generator, PlatformTypes |

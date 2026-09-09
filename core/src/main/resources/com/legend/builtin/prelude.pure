@@ -2243,6 +2243,43 @@ Class meta::pure::mapping::StoreQuery
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure
+import meta::pure::metamodel::treepath::*;
+import meta::pure::extension::*;
+import meta::pure::dataQuality::*;
+import meta::pure::graphFetch::*;
+import meta::pure::graphFetch::routing::*;
+import meta::pure::graphFetch::execution::*;
+import meta::pure::graphFetch::executionPlan::*;
+import meta::pure::executionPlan::toString::*;
+import meta::pure::executionPlan::*;
+import meta::pure::mapping::modelToModel::chain::*;
+import meta::pure::mapping::modelToModel::inMemory::*;
+import meta::external::store::model::*;
+import meta::pure::mapping::modelToModel::graphFetch::executionPlan::*;
+import meta::core::runtime::*;
+import meta::pure::router::store::metamodel::*;
+import meta::pure::router::store::metamodel::clustering::*;
+import meta::pure::mapping::*;
+import meta::pure::executionPlan::engine::java::*;
+import meta::json::*;
+Class meta::external::store::model::PureModelConnection extends Connection
+{
+}
+
+Class meta::external::store::model::JsonModelConnection extends PureModelConnection
+{
+   class: Class<Any>[1];
+   url  : String[1];
+}
+
+Class meta::external::store::model::ModelChainConnection extends Connection
+{
+   mappings : Mapping[*];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/model/modelUnit.pure
 import meta::pure::model::unit::*;
 Class meta::pure::model::unit::ModelUnit
@@ -2653,6 +2690,28 @@ Class meta::pure::tds::TDSRow
 
 }
 
+Class meta::pure::tds::ColumnSpecification<T>
+{
+   name : String[1];
+   documentation : String[0..1];
+}
+
+Class  {doc.doc = 'Normal Project column, also used for extending a TDS'}
+meta::pure::tds::BasicColumnSpecification<T> extends meta::pure::tds::ColumnSpecification<T>
+{
+   func : Function<{T[1]->Any[*]}>[1];
+}
+
+Class meta::pure::tds::OlapOperation<T>
+{
+  //superclass for all operations
+}
+
+Class meta::pure::tds::TdsOlapRank<T> extends meta::pure::tds::OlapOperation<T>
+{
+   func:FunctionDefinition<{T[*]->Map<Any,Integer>[1]}>[1];
+}
+
 
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/tds/tdsSchema.pure
@@ -2809,9 +2868,24 @@ Class meta::json::JSONElement
 {
 }
 
+Class meta::json::JSONBoolean extends JSONElement
+{
+    <<equality.Key>> value : Boolean[1];
+}
+
 Class meta::json::JSONString extends JSONElement
 {
     <<equality.Key>> value : String[1];
+}
+
+Class meta::json::JSONNumber extends JSONElement
+{
+    <<equality.Key>> value : Number[1];
+}
+
+Class meta::json::JSONNull extends JSONElement
+{
+    <<equality.Key>> value : Nil[0];
 }
 
 Class meta::json::JSONArray extends JSONElement
@@ -3258,9 +3332,49 @@ import meta::pure::alloy::connections::alloy::specification::*;
 import meta::pure::alloy::connections::alloy::authentication::*;
 Class <<typemodifiers.abstract>> meta::pure::alloy::connections::PostProcessor {}
 
+Class meta::pure::alloy::connections::Mapper extends meta::relational::runtime::PostProcessorParameter {
+   from: String[1];
+   to: String[1];
+}
+
+Class meta::pure::alloy::connections::MapperPostProcessor extends PostProcessor
+{
+   mappers: Mapper[*];
+}
+
 Class meta::pure::alloy::connections::RelationalMapperPostProcessor extends PostProcessor
 {
   relationalMappers: RelationalMapper[*];
+}
+
+Class <<typemodifiers.abstract>> meta::pure::alloy::connections::SchemaNameMapper extends Mapper {}
+
+Class <<typemodifiers.abstract>> meta::pure::alloy::connections::TableNameMapper extends Mapper {
+   schema: meta::pure::alloy::connections::SchemaNameMapper[1];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/executionContext/executionContext.pure
+import meta::pure::executionPlan::*;
+import meta::relational::metamodel::relation::*;
+import meta::pure::store::*;
+import meta::core::runtime::*;
+import meta::relational::metamodel::*;
+import meta::external::store::relational::runtime::*;
+import meta::relational::runtime::*;
+import meta::relational::metamodel::execute::*;
+import meta::relational::functions::typeInference::*;
+Class meta::relational::runtime::RelationalExecutionContext extends meta::pure::runtime::ExecutionContext
+{
+   addDriverTablePkForProject : Boolean[0..1];
+   insertDriverTablePkInTempTable : String[0..1];
+   useTempTableAsDriver : String[0..1];
+   preserveJoinOrder:Boolean[0..1];
+   importDataFlow : Boolean[0..1];
+   importDataFlowAddFks : Boolean[0..1];
+   importDataFlowFksByTable : Map<Relation, List<Column>>[0..1];
+   importDataFlowImplementationCount : Integer[0..1];
 }
 
 
@@ -3665,6 +3779,13 @@ Class meta::relational::testDataGeneration::TestDataGenResult
    sqls : String[*];
 }
 
+Class meta::relational::testDataGeneration::TemporalMilestoningDates
+{
+   businessDate: Date[0..1];
+   processingDate: Date[0..1];
+   snapshotDate: Date[0..1];
+}
+
 
 ###Pure
 // legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/toSQLString.pure
@@ -3704,7 +3825,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 343 classes, 14 enums.
+// 359 classes, 14 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime
@@ -3719,14 +3840,24 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::external::format::shared::transformation::GenerationConfiguration
 //   meta::external::format::shared::transformation::fromPure::ModelToSchemaConfiguration
 //   meta::external::format::shared::transformation::toPure::SchemaToModelConfiguration
+//   meta::external::store::model::JsonModelConnection
+//   meta::external::store::model::ModelChainConnection
+//   meta::external::store::model::PureModelConnection
 //   meta::external::store::relational::runtime::RelationalDatabaseConnection
 //   meta::json::JSONArray
+//   meta::json::JSONBoolean
 //   meta::json::JSONElement
 //   meta::json::JSONKeyValue
+//   meta::json::JSONNull
+//   meta::json::JSONNumber
 //   meta::json::JSONObject
 //   meta::json::JSONString
+//   meta::pure::alloy::connections::Mapper
+//   meta::pure::alloy::connections::MapperPostProcessor
 //   meta::pure::alloy::connections::PostProcessor
 //   meta::pure::alloy::connections::RelationalMapperPostProcessor
+//   meta::pure::alloy::connections::SchemaNameMapper
+//   meta::pure::alloy::connections::TableNameMapper
 //   meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy
 //   meta::pure::alloy::connections::alloy::specification::DatasourceSpecification
 //   meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification
@@ -3775,9 +3906,12 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::router::routing::RoutingState
 //   meta::pure::runtime::PackageableRuntime
 //   meta::pure::store::StoreContract
+//   meta::pure::tds::ColumnSpecification
+//   meta::pure::tds::OlapOperation
 //   meta::pure::tds::TDSColumn
 //   meta::pure::tds::TDSRow
 //   meta::pure::tds::TabularDataSet
+//   meta::pure::tds::TdsOlapRank
 //   meta::pure::tds::schema::SchemaState
 //   meta::pure::tds::toRelation::TdsToRelationExtension
 //   meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder
@@ -3823,6 +3957,8 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::relational::metamodel::data::RelationalCSVData
 //   meta::relational::metamodel::data::RelationalCSVTable
 //   meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor
+//   meta::relational::runtime::RelationalExecutionContext
 //   meta::relational::testDataGeneration::RowIdentifier
 //   meta::relational::testDataGeneration::TableRowIdentifiers
+//   meta::relational::testDataGeneration::TemporalMilestoningDates
 //   meta::relational::testDataGeneration::TestDataGenResult

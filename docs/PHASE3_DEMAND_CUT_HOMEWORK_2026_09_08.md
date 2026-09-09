@@ -129,3 +129,14 @@ D2 named — vocabulary classes the graph also declares (the corpus tree and, no
 nodes, `DbConfig`, the JSON tree…); pinned only by the parity test for now. One unit test moved (`NameResolverTest`: the
 sql-protocol `Table` is graph material, so under its wildcard the bare name is unresolved). Phase 3 is complete; NEXT: phase 2
 (the hand shapes out of `Pure.java`), then the 19 rows as vocabulary.
+
+**Batch 156 (2026-09-08): the vocabulary rule simplified — "just take everything".** USER, after phase 3: "did we
+over-engineer? … for the 59 should we just take everything instead of the declared-vs-used whitelist" — yes. The curated
+`PlatformTypes.CONSTRUCTED_VOCABULARY` (nine receipts, one batch old) is DELETED; Java demand is the MECHANICAL rule: every
+spec class or enum the platform's Java NAMES in a code line (comment lines never count) — signature, constructed instance,
+dispatch constant alike; the receipt is a grep. The generator's T1 diff census (permanently keep-all since 155) is deleted
+too. `prelude.pure` 357 → 373 (359 classes, 14 enums: the ~14 dispatch-only classes and their closure return). Pass counts
+UNCHANGED on every gate; census 19. How to think about it (USER's question, answered): `Pure.java` = what the RUNTIME
+implements (native signatures + the bootstrap handful Java needs before any source is read); `prelude.pure` = what the
+LANGUAGE declares (every platform class/enum, verbatim, generated — legend-pure's platform packages whole + every engine class
+our Java names + closure); the graph = what PROGRAMS declare (by file: programs whole, shapes declarations-only).
