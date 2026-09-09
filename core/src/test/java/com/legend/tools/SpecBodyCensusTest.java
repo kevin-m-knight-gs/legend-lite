@@ -85,11 +85,21 @@ class SpecBodyCensusTest {
         List<String> loadWalls = new ArrayList<>();
         ModelContext ctx = null;
         int fileCount = sources.size();
+        // the spec's NATIVE names (simple) — the running-world pass buckets
+        // an unknown function by the spec's marking (native vs program)
+        java.util.Set<String> specNativeNames = new java.util.HashSet<>();
         for (int round = 0; round < 400 && ctx == null; round++) {
             List<String> parseWalls = new ArrayList<>();
             Compiler.ParsedModule module = Compiler.parseSources(sources,
                     (name, err) -> parseWalls.add(name + ": PARSE " + first(err)),
                     com.legend.parser.Dialect.LEGEND_PLATFORM);
+            specNativeNames.clear();
+            for (PackageableElement e : module.model().elements()) {
+                if (e instanceof com.legend.model.NativeFunctionDefinition n) {
+                    String q = n.qualifiedName();
+                    specNativeNames.add(q.substring(q.lastIndexOf(':') + 1));
+                }
+            }
             // the spec's native declarations are the SPEC of natives the
             // registry defines — the registry is the definition; they drop
             List<PackageableElement> kept = module.model().elements().stream()
@@ -153,6 +163,16 @@ class SpecBodyCensusTest {
             }
         }
 
+        // 2b. THE RUNNING WORLD (COMPILE_EVERYTHING_HOMEWORK §6): every
+        // failing body of a prelude class from an ENGINE file re-typed in
+        // the world it runs in (boot + platform packages + its own spec
+        // file + the corpus's library files), then bucketed by the spec's
+        // marking. A measurement: no arm, no registration.
+        Path engineRoot = Path.of(System.getProperty("legend.engine.root",
+                "/Users/neemsandv/legend/legend-engine"));
+        CensusWorlds.Report worlds = CensusWorlds.run(sources, failures,
+                specNativeNames, engineRoot);
+
         // 3. REPORT
         List<String> out = new ArrayList<>();
         out.add("# spec body typing census — " + java.time.LocalDate.now());
@@ -166,6 +186,13 @@ class SpecBodyCensusTest {
         out.add("");
         out.add("## typing failures");
         failures.forEach((k, v) -> out.add(k + " :: " + v));
+        out.add("");
+        out.add("## running-world pass (COMPILE_EVERYTHING_HOMEWORK §6) — buckets: " + worlds.buckets());
+        out.add("## running-world walls: " + worlds.worldWalls());
+        for (CensusWorlds.Row r : worlds.rows()) {
+            out.add(r.bucket() + " | " + r.id() + " | " + r.detail()
+                    + (r.runningMessage() == null ? "" : " | running: " + r.runningMessage()));
+        }
         Files.createDirectories(Path.of("target"));
         Files.write(Path.of("target/spec-body-census.txt"), out);
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
@@ -189,6 +216,26 @@ class SpecBodyCensusTest {
                         + String.join("\n  ", failures.keySet()));
         org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 6,
                 () -> "spec body census load walls GREW: " + loadWalls);
+        System.out.println("[spec-census] runningWorld buckets=" + worlds.buckets()
+                + " walls=" + worlds.worldWalls().size());
+        // THE BUCKET PINS (COMPILE_EVERYTHING_HOMEWORK §3, §6 — shrink-only,
+        // measured batch 168): B1 natives the registry lacks; B2 program
+        // functions in no loaded world (the census's world is wrong, or a
+        // file no program loads — D2); B3 walled by user decision (the SQL
+        // printer, D1); B4 typer/normalizer gaps. TYPED-IN-RUNNING-WORLD
+        // rows are closed rows, not failures.
+        java.util.Map<String, Integer> pins = java.util.Map.of(
+                "B1-NATIVE-UNREGISTERED", 1,
+                "B2-PROGRAM-NOT-LOADED", 5,
+                "B2b-NAME-FROZEN-AT-BOOT", 5,
+                "B3-WALLED-BY-DECISION", 7,
+                "B4-TYPER-GAP", 1);
+        for (var pin : pins.entrySet()) {
+            int n = worlds.buckets().getOrDefault(pin.getKey(), 0);
+            org.junit.jupiter.api.Assertions.assertTrue(n <= pin.getValue(),
+                    () -> "census bucket " + pin.getKey() + " GREW: " + n + " > "
+                            + pin.getValue() + " pinned (shrink-only)");
+        }
     }
 
     /** A coarse reason class for the summary — the rows carry the full text. */
@@ -231,7 +278,7 @@ class SpecBodyCensusTest {
         m.merge(k, 1, Integer::sum);
     }
 
-    private static String first(String s) {
+    static String first(String s) {
         if (s == null) {
             return "";
         }

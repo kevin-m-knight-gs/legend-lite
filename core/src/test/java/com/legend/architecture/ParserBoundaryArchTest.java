@@ -68,6 +68,10 @@ class ParserBoundaryArchTest {
             // the spec's own declaration files, the same provenance as the
             // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)
             "com/legend/tools/SpecBodyCensusTest.java",
+            // the census's RUNNING-WORLD pass parses the engine files a module
+            // body runs against (its own spec file, the corpus's library
+            // files) — COMPILE_EVERYTHING_HOMEWORK §6, batch 168
+            "com/legend/tools/CensusWorlds.java",
             "com/legend/equivalence/Surfaces.java",
             // Phase 4 entry gate: channel B's front door IS a dialect
             // decision — the PCT sources are the M3 surface, parsed at

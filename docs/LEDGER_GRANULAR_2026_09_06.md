@@ -985,3 +985,13 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 1 | step 5 | the exact-set pin (hand == Type.Primitive by name); `tools/shape_sweep.py` deleted; the catalog derived-property lift deleted | NativeFunctionTest, FunctionCompiler |
 | 2 | the 19 census rows | D4 stands: honest receipt, shrink-only — the five "unknown functions" are engine PROGRAMS (functions with bodies), never natives; they enter when a program imports their files | SPEC_BODY_CENSUS §10.4 |
 | 3 | what remains | outside this program: the END_TO_END plan's harness close-out (phases 3–6: the named legs, the referee, code-as-data, single-shot); the six parser load walls | END_TO_END_PLAN |
+
+## 41. Batch 168 — compile-everything step 1: the census by running world (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | the 19 measured where they run | B1 1 / B2 5 / B2b 5 / B3 7 / B4 1; the boot pin (19) stays as the boot fact | SpecBodyCensusTest, CensusWorlds |
+| 2 | five rows whose function IS defined in the running world and still unknown | FINDING: option B has no mechanism — module bodies' names freeze at boot; step 1b = re-resolve those bodies at graph build (`resolveAlongside`'s mirror) | NameResolver, Compiler |
+| 3 | `mutateAdd` bucketed B2 at first | it is an ENGINE native (core_functions_unclassified), not legend-pure: the marking index scans the engine tree | CensusWorlds.engineNativeNames |
+| 4 | "B2 == 0 always" (homework §6) | wrong: a file no program loads is a real row (D2); pinned 5 | homework |
+| 5 | USER: "where did you use dialect? revert if in compiler" | only the test helper parses spec files (the census's own call); nothing under src/main touched; registered in ParserBoundaryArchTest with its reason | — |

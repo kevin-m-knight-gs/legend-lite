@@ -66,8 +66,19 @@ Every failing body lands in exactly one bucket; each bucket is a shrink-only pin
 | 1 | `SchemaState.olap` | inliner: non-let intermediate statements | B4 | a normalizer leg (the census row is the witness) |
 | 7 | `DbConfig` ×5, `DynaFunctionToSql.toSql`, `SQLResult.toSQLString` | the SQL printer (`sqlQueryToString`, `DynaFunctionRegistry`, `getLiteralProcessorForType`…) | B3 | the post-processor session (§8) |
 
-Nineteen rows: 1 in B1, 11 in B2, 1 in B4, 7 in B3 (one row counts twice by name; the pin counts rows). The number
-"19" stops existing after §6: it becomes B1 0, B2 0 or a B4 list, B3 7 until §8, B4 ≥ 1.
+MEASURED (batch 168, the census by running world): **B1 1** (`mutateAdd` — an ENGINE-declared native), **B2 5**
+(`removeAll` ×3, `containsAll`, `forgivingPathToElement`: collectionExtension.pure / metaExtension.pure are in no loaded
+world, the corpus's included — D2), **B2b 5** (`createSchemaState` ×3, `checkSuperType` ×2: DEFINED in the running world
+and still unknown — the FINDING below), **B3 7**, **B4 1**. The boot-world number (19) stays as the boot fact.
+
+**FINDING (batch 168): "bodies resolve where they run" has no mechanism.** `NameResolver` resolves a body's names against
+the names KNOWN when it runs; the module's bodies are resolved once, at boot, before any program's files exist; an
+unresolvable bare name passes through and fails at typing in every later world. So a module body can never see a
+program function, however the world is built. Bucket **B2b NAME-FROZEN-AT-BOOT** names this. The leg — **step 1b, a
+Compiler leg**: the boot resolution records each module body whose bare names passed through, with its section import
+scope; `Compiler.buildModel` re-resolves exactly those bodies alongside the graph's names (the mirror image of
+`NameResolver.resolveAlongside`, which resolves a graph alongside the boot names) and swaps them into the merged model.
+Witness: the census's running-world pass, B2b 5 → 0 (or a named B4).
 
 ## 5. The other fronts under "compile everything" (owned by no program today)
 
@@ -89,8 +100,9 @@ bodies are typed in the BOOT world. Change: type each module body in the world i
    by section import. The census records, per row, the world it was typed in.
 2. For a module class from LEGEND-PURE, the world = boot + the platform packages (today's world).
 3. A row that fails in its running world is real: B1 (a native by marking — register), B4 (typer gap), or B3 (walled).
-4. The report prints one line per bucket, and the pin is per bucket, shrink-only: `B1 <= n1`, `B2 == 0` (a B2 row
-   means the census's world is wrong, never a receipt), `B3 <= 7`, `B4 <= n4`, `B5 <= 6`, `B6 <= 135`.
+4. The report prints one line per bucket, and the pin is per bucket, shrink-only. LANDED batch 168 with the pins
+   `B1 <= 1`, `B2 <= 5`, `B2b <= 5`, `B3 <= 7`, `B4 <= 1` (B5 = the load-wall pin 6; B6 not yet measured). CORRECTED:
+   "B2 == 0 always" was wrong — a B2 row is a file no program loads (D2 decides), never the census's fault.
 
 This is a census change, not a platform change: no Java arm, no registration, no reshaping. It is the same principle
 as "bodies resolve where they run" applied to the measurement.
@@ -99,6 +111,7 @@ as "bodies resolve where they run" applied to the measurement.
 
 1. **The census by running world + the buckets** (§6): one batch; expected 19 → B1 1 / B2 0 / B3 7 / B4 ≥1 (the
    B2 rows either type or move to B4 with a named gap). No pass-count change.
+1b. **Re-resolve module bodies at graph build** (B2b → 0): the Compiler leg the finding names; witness = the census.
 2. **`mutateAdd` registered as a named wall** (B1 → 0): a Pure.java line; the ledger names it.
 3. **The 13 corpus "unknown function" names classified by marking**: a table in this document (§5) with each name's
    spec declaration; then B1 legs (register + lower or wall) and B2 files (admit by file to the corpus's LIBRARY_FILES
