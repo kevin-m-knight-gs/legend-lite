@@ -84,6 +84,11 @@ go when the shapes migrate).
    exactly the kinds A–D divergences above (28 identical, 25 differing only by them). Remaining by hand: 74 = 53 m3 shapes
    (migrate by family now that the reader exists — the bootstrap floor is measured as each family goes) + 13 primitives
    (`PrimitiveType` instances, the Java `Type.Primitive` enum's keys) + the 6 store-coupled + `Column`/`Database`.
+   **Families 2 + 3 LANDED (batches 159–160):** 43 more m3 shapes migrated (extension/relationship/constraint/testable/
+   reference, the function and property families, the expression-tree and multiplicity row classes, Type, Nil, relation
+   Column/RelationElementAccessor) — hand count 74 → 31; one platform gap surfaced and fixed on the way (the mapping calculus
+   followed only plain supertypes: `TypeExpression.rawClassName`). Left: family 4 (8 name-only metaclasses), `Class`, `Any`
+   (layout rule first), the 13 primitives (the floor), the 6 store-coupled + Column/Database (store legs).
    The original plan: m3 valuespecification/function/type families,
    mapping, relational, plan/runtime, tds. Migration = delete the hand line, let the generator emit the spec declaration. Kinds
    A–D dissolve on migration by construction. `Pure.java` keeps native signatures, `Lite`, and the BOOTSTRAP handful.

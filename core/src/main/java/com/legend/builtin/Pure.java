@@ -177,13 +177,11 @@ public final class Pure {
      * the real one, 2026-09-04): the Typer serves {@code Any.elementOverride}
      * reads as this type and folds them EMPTY (never installed here). */
     public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::type::ElementOverride extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
     // ModelElement; letFn's removeDuplicates over classes needs it)
     // real m3.pure Type (tools/m3shape.py): name[0..1] + the generalization
     // ends — pureToSQLQuery's buildUniqueName reads `$u->type()->toOne().name`
-    public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; generalizations: meta::pure::metamodel::relationship::Generalization[*]; specializations: meta::pure::metamodel::relationship::Generalization[*]; }");
     /** Real M3 GenericType — {@code $x->genericType().rawType} reflection
      * (inheritance testGetAll: per-instance member class over a union). */
     // real m3.pure GenericType / TypeParameter (tools/m3shape.py, 2026-09-04)
@@ -195,22 +193,15 @@ public final class Pure {
     // upperBound: MultiplicityValue[1] }, MultiplicityValue { value:
     // Integer[0..1] } (an unbounded upper bound has no value) — group H
     // burn 2026-09-03: the expression rows carry their multiplicity
-    public static final ClassDefinition MULTIPLICITY_META = nativeClass("native Class meta::pure::metamodel::multiplicity::Multiplicity { lowerBound: meta::pure::metamodel::multiplicity::MultiplicityValue[1]; upperBound: meta::pure::metamodel::multiplicity::MultiplicityValue[1]; }");
-    public static final ClassDefinition MULTIPLICITY_VALUE_META = nativeClass("native Class meta::pure::metamodel::multiplicity::MultiplicityValue { value: meta::pure::metamodel::type::Integer[0..1]; }");
     // real m3 ValueSpecification.properties[genericType, multiplicity]
-    public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; }");
     // the expression-tree node kinds (real m3.pure: InstanceValue.values
     // Any[*]; VariableExpression.name String[1]; FunctionExpression
     // :1955 — func Function<Any>[1] (not modeled: a function reference
     // is not a row yet), functionName String[0..1], parametersValues
     // ValueSpecification[*]; SimpleFunctionExpression extends it)
-    public static final ClassDefinition INSTANCE_VALUE_META = nativeClass("native Class meta::pure::metamodel::valuespecification::InstanceValue extends meta::pure::metamodel::valuespecification::ValueSpecification { values: meta::pure::metamodel::type::Any[*]; }");
-    public static final ClassDefinition VARIABLE_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::VariableExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { name: meta::pure::metamodel::type::String[1]; }");
     // m3.pure: FunctionExpression.func : Function<Any>[1] — the callee as a value
     // (the engine's router/store-contract hooks read $fe.func; Phase 5 batch 147 —
     // the row carrier is slice 2a, docs/PHASE5_SIZING_2026_09_08.md)
-    public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { func: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]; functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
-    public static final ClassDefinition SIMPLE_FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression {}");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     // real m3.pure ModelElement carries name: String[0..1] (tools/m3shape.py) —
     // every generated PackageableElement (Database, Schema, Mapping…) reads it
@@ -221,14 +212,12 @@ public final class Pure {
      * (^Database(package = ::)). */
     // m3 bootstrap shapes (tools/m3shape.py DataType PrimitiveType FunctionType): the
     // spec's instanceOf/cast targets and the FunctionType metaclass
-    public static final ClassDefinition PRIMITIVE_TYPE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::PrimitiveType extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { extended: meta::pure::metamodel::type::Boolean[0..1]; }");
     // units (m3.pure:783 Measure, :922 Unit — tools/m3shape.py cannot read them: hand receipts)
     public static final ClassDefinition MEASURE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Measure extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { canonicalUnit: meta::pure::metamodel::type::Unit[1]; nonCanonicalUnits: meta::pure::metamodel::type::Unit[*]; }");
     public static final ClassDefinition UNIT_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Unit extends meta::pure::metamodel::type::DataType { measure: meta::pure::metamodel::type::Measure[1]; conversionFunction: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
     public static final ClassDefinition PACKAGE_METACLASS = nativeClass("native Class meta::pure::metamodel::Package extends meta::pure::metamodel::PackageableElement { children: meta::pure::metamodel::PackageableElement[*]; }");
     // m3 PackageableElement.package (legend-pure m3.pure): the owning
     // package — a constructed element names it (^Database(package = ::))
-    public static final ClassDefinition PACKAGEABLE_ELEMENT = nativeClass("native Class meta::pure::metamodel::PackageableElement extends meta::pure::metamodel::ModelElement { package: meta::pure::metamodel::Package[0..1]; }");
     // Real m3 Property<U,T|m> (AbstractProperty -> Function -> Packageable
     // Element; name from ModelElement) — the generic arguments and the
     // function surface are not modeled; ONE property, name, which the
@@ -242,7 +231,6 @@ public final class Pure {
     // (the AbstractProperty ends genericType/multiplicity/owner are copied
     // DOWN here for the same reason — toPostgresModel's getVariableType
     // reads $p.genericType.rawType)
-    public static final ClassDefinition PROPERTY_METACLASS = nativeClass("native Class meta::pure::metamodel::function::property::Property<U,V|m> extends meta::pure::metamodel::function::property::AbstractProperty<{U[1]->V[m]}>, meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[1]; }");
     // M3 BOOTSTRAP shapes (2026-09-04, option S): the language's own
     // metamodel is declared in legend-pure's platform/pure/grammar/m3.pure as
     // a GRAPH (^Root.children[…] instances), not in class syntax, so the
@@ -251,7 +239,6 @@ public final class Pure {
     // generated library declarations name; each shape
     // is extracted verbatim by tools/m3shape.py (receipt) — run it with the
     // simple names to re-derive.
-    public static final ClassDefinition RELATION_ELEMENT_ACCESSOR = nativeClass("native Class meta::pure::metamodel::relation::RelationElementAccessor<T> extends meta::pure::metamodel::Referenceable, meta::pure::metamodel::relation::Relation<T> { sourceElementContainer: meta::pure::metamodel::PackageableElement[0..1]; sourceElement: meta::pure::metamodel::type::Any[1]; }");
 
     // SYSTEM-STORE-COUPLED shapes (kept by hand, 2026-09-04 — option S
     // receipt): the metamodel-as-relations store represents element
@@ -329,15 +316,12 @@ public final class Pure {
     public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; associationMappings: meta::pure::mapping::AssociationImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; includes: meta::pure::mapping::MappingInclude[*]; }");
 
     // ---- Function carrier (parameterized over a function-type token) ----
-    public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any { functionName: meta::pure::metamodel::type::String[0..1]; }");
     // The m3 definition hierarchy under it (real pure: LambdaFunction<F>
     // extends FunctionDefinition<F> extends Function<F>) — corpus code
     // annotates with these (LambdaFunction<{->TabularDataSet[1]}>), and
     // the kernel's unwrapFunction treats all carriers as wrapper
     // spellings of the bare FunctionType.
     // real m3 (legend-pure m3.pure graph): FunctionDefinition.expressionSequence : ValueSpecification[1..*]
-    public static final ClassDefinition FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::FunctionDefinition<F> extends meta::pure::metamodel::function::Function<F> { expressionSequence: meta::pure::metamodel::valuespecification::ValueSpecification[1..*]; }");
-    public static final ClassDefinition CONCRETE_FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::ConcreteFunctionDefinition<F> extends meta::pure::metamodel::function::FunctionDefinition<F>, meta::pure::metamodel::function::PackageableFunction<F> {}");
     public static final ClassDefinition LAMBDA_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::LambdaFunction<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
 
     // ---- Metaclass ----
@@ -352,7 +336,6 @@ public final class Pure {
     // the m3 relation COLUMN metaclass (columns() reflection — the
     // witnessed surface is .name; real m3 Column<T,X|z>'s multiplicity
     // param drops per the ratified single-divergence convention)
-    public static final ClassDefinition RELATION_COLUMN = nativeClass("native Class meta::pure::metamodel::relation::Column<T,X> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[0..1]; }");
     // The enumeration metaclass (real m3: Class Enumeration<T> extends Type) —
     // a bare enumeration reference (STR_GeographicEntityType->toString()) is a
     // value of this type.

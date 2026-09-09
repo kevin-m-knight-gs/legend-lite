@@ -17,10 +17,10 @@ class PlatformTypesDriftTest {
     @Test
     void constantsMatchThePreludeDeclarations() {
         assertEquals(Pure.ANY.qualifiedName(), PlatformTypes.ANY);
-        assertEquals(Pure.NIL.qualifiedName(), PlatformTypes.NIL);
+        assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.NIL));
         assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.VARIANT));
         assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.LIST));
         assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.PAIR));
-        assertEquals(Pure.FUNCTION.qualifiedName(), PlatformTypes.FUNCTION);
+        assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.FUNCTION));
     }
 }

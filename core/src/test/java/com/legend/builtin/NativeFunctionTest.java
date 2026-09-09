@@ -138,7 +138,7 @@ class NativeFunctionTest {
     void filterRelation_pinShape() {
         // filter<T>(Relation<T>[1], Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1]
         TypeExpression relationOfT = tg(Pure.RELATION, nr("T"));
-        TypeExpression filterFn = tg(Pure.FUNCTION, new FunctionType(
+        TypeExpression filterFn = tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNCTION), new FunctionType(
                 List.of(tp(nr("T"), Multiplicity.exactly(1))),
                 tp(nr(Pure.BOOLEAN), Multiplicity.exactly(1))));
         var expected = new NativeFunctionDefinition(
@@ -219,7 +219,7 @@ class NativeFunctionTest {
     void ifWithEmptyArgFunctionType_pinShape() {
         // Real legend-pure: if<T|m>(Boolean[1], Function<{->T[m]}>[1], Function<{->T[m]}>[1]): T[m]
         // Exercises the empty-parameter-list function-type grammar `{->T[m]}` with a multiplicity var.
-        TypeExpression thunkOfT = tg(Pure.FUNCTION, new FunctionType(
+        TypeExpression thunkOfT = tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNCTION), new FunctionType(
                 List.of(),
                 tp(nr("T"), Multiplicity.parameter("m"))));
         var expected = new NativeFunctionDefinition(
@@ -628,7 +628,12 @@ class NativeFunctionTest {
         // function-family abstractions PackageableFunction / NativeFunction /
         // FunctionType / AbstractProperty / QualifiedProperty) now printed
         // from m3.pure by the generator's reader
-        assertEquals(48, hand,
+        // 48 -> 31 (batch 160, phase 2 family 3): the value-specification and
+        // multiplicity families (the system store's expression-tree row
+        // classes), Function/FunctionDefinition/ConcreteFunctionDefinition,
+        // Property, PackageableElement, PrimitiveType, Type, Nil, relation
+        // Column/RelationElementAccessor — printed from m3.pure by the reader
+        assertEquals(31, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -1390,7 +1395,8 @@ class NativeFunctionTest {
         assertEquals(List.of("T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY).typeParams());
         assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::_Window").typeParams());
         assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::SortInfo").typeParams());
-        assertEquals(List.of("F"), Pure.FUNCTION.typeParams());
+        // m3 spells Function<T> (the hand copy said <F> — kind A, dissolved in batch 160)
+        assertEquals(List.of("T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNCTION).typeParams());
         // Two-parameter generics.
         // the spec's own parameter names (relation.pure:28-49, batch 149)
         assertEquals(List.of("Z", "T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC).typeParams());
@@ -1406,7 +1412,8 @@ class NativeFunctionTest {
         // parameters. Pinning this catches accidental drift where a
         // declaration grows an unintended <T>.
         for (ClassDefinition c : List.of(
-                Pure.ANY, Pure.TYPE, Pure.NIL,
+                Pure.ANY, Prelude.cls("meta::pure::metamodel::type::Type"),
+                Prelude.cls(com.legend.compiler.element.type.PlatformTypes.NIL),
                 Pure.NUMBER, Pure.INTEGER, Pure.FLOAT, Pure.DECIMAL,
                 Pure.STRING, Pure.BOOLEAN, Pure.BYTE,
                 Pure.DATE, Pure.STRICT_DATE, Pure.DATE_TIME,

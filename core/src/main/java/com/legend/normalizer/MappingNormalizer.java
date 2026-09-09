@@ -1637,8 +1637,8 @@ public final class MappingNormalizer {
             }
         }
         for (TypeExpression sup : cd.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr
-                    && isBitemporalClass(nr.name(), model, visited)) {
+            String superFqn = TypeExpression.rawClassName(sup);
+            if (superFqn != null && isBitemporalClass(superFqn, model, visited)) {
                 return true;
             }
         }
@@ -1663,8 +1663,8 @@ public final class MappingNormalizer {
             }
         }
         for (TypeExpression sup : cd.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr
-                    && isTemporalClass(nr.name(), model, visited)) {
+            String superFqn = TypeExpression.rawClassName(sup);
+            if (superFqn != null && isTemporalClass(superFqn, model, visited)) {
                 return true;
             }
         }
@@ -3444,9 +3444,10 @@ public final class MappingNormalizer {
             if (p.name().equals(propName)) return p;
         }
         for (TypeExpression sup : cd.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr) {
+            String superFqn = TypeExpression.rawClassName(sup);
+            if (superFqn != null) {
                 ClassDefinition.PropertyDefinition inherited = findPropertyDefDeep(
-                        classDef(model, nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#10 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name())), propName, model, visited);
+                        classDef(model, superFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#10 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + superFqn)), propName, model, visited);
                 if (inherited != null) return inherited;
             }
         }
@@ -3493,8 +3494,9 @@ public final class MappingNormalizer {
                 .orElse(null);
         if (assoc != null) return assoc;
         for (TypeExpression sup : cd.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr) {
-                ClassDefinition superCd = classDef(model, nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#11 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name()));
+            String superFqn = TypeExpression.rawClassName(sup);
+            if (superFqn != null) {
+                ClassDefinition superCd = classDef(model, superFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#11 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + superFqn));
                 TypeExpression inherited = findPropertyTypeDeep(superCd, propName, model, visited);
                 if (inherited != null) return inherited;
             }

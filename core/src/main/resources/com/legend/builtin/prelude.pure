@@ -272,6 +272,8 @@ Class meta::pure::metamodel::type::generics::TypeParameter extends meta::pure::m
 
 Class meta::pure::metamodel::type::generics::InferredGenericType extends meta::pure::metamodel::type::generics::GenericType { }
 
+Class meta::pure::metamodel::PackageableElement extends meta::pure::metamodel::ModelElement, meta::pure::metamodel::Referenceable { package: meta::pure::metamodel::Package[0..1]; }
+
 Class meta::pure::metamodel::Referenceable extends meta::pure::metamodel::type::Any { referenceUsages: meta::pure::metamodel::ReferenceUsage[*]; }
 
 Class meta::pure::metamodel::ReferenceUsage extends meta::pure::metamodel::type::Any { owner: meta::pure::metamodel::type::Any[1]; propertyName: meta::pure::metamodel::type::String[1]; offset: meta::pure::metamodel::type::Integer[1]; }
@@ -288,9 +290,15 @@ Class meta::pure::metamodel::extension::AnnotatedElement extends meta::pure::met
 
 Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::extension::AnnotatedElement { name: meta::pure::metamodel::type::String[0..1]; }
 
+Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[0..1]; generalizations: meta::pure::metamodel::relationship::Generalization[*]; specializations: meta::pure::metamodel::relationship::Generalization[*]; }
+
 Class meta::pure::metamodel::type::DataType extends meta::pure::metamodel::type::Type { }
 
+Class meta::pure::metamodel::type::PrimitiveType extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement, meta::pure::metamodel::extension::ElementWithConstraints { extended: meta::pure::metamodel::type::Boolean[0..1]; typeVariables: meta::pure::metamodel::valuespecification::VariableExpression[*]; }
+
 Class meta::pure::metamodel::type::Enum extends meta::pure::metamodel::extension::AnnotatedElement { name: meta::pure::metamodel::type::String[1]; }
+
+Class meta::pure::metamodel::type::Nil extends meta::pure::metamodel::type::Any { }
 
 Class meta::pure::metamodel::type::GetterOverride extends meta::pure::metamodel::type::ElementOverride { getterOverrideToOne: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1], meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|0..1>[1]->meta::pure::metamodel::type::Any[0..1]}>[0..1]; getterOverrideToMany: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1], meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|*>[1]->meta::pure::metamodel::type::Any[*]}>[0..1]; hiddenPayload: meta::pure::metamodel::type::Any[0..1]; }
 
@@ -298,17 +306,29 @@ Class meta::pure::metamodel::type::ConstraintsOverride extends meta::pure::metam
 
 Class meta::pure::metamodel::type::ConstraintsGetterOverride extends meta::pure::metamodel::type::GetterOverride, meta::pure::metamodel::type::ConstraintsOverride { }
 
+Class meta::pure::metamodel::multiplicity::Multiplicity extends meta::pure::metamodel::type::Any { lowerBound: meta::pure::metamodel::multiplicity::MultiplicityValue[0..1]; upperBound: meta::pure::metamodel::multiplicity::MultiplicityValue[0..1]; multiplicityParameter: meta::pure::metamodel::type::String[0..1]; }
+
+Class meta::pure::metamodel::multiplicity::MultiplicityValue extends meta::pure::metamodel::type::Any { value: meta::pure::metamodel::type::Integer[0..1]; }
+
 Class meta::pure::metamodel::multiplicity::PackageableMultiplicity extends meta::pure::metamodel::multiplicity::Multiplicity, meta::pure::metamodel::PackageableElement { }
 
 Class meta::pure::metamodel::relationship::Generalization extends meta::pure::metamodel::type::Any { specific: meta::pure::metamodel::type::Type[1]; general: meta::pure::metamodel::type::generics::GenericType[1]; }
+
+Class meta::pure::metamodel::function::property::Property<U,V|m> extends meta::pure::metamodel::function::property::AbstractProperty<{U[1]->V[m]}> { aggregation: meta::pure::metamodel::function::property::AggregationKind[1]; defaultValue: meta::pure::metamodel::function::property::DefaultValue[0..1]; }
 
 Class meta::pure::metamodel::import::ImportGroup extends meta::pure::metamodel::PackageableElement { imports: meta::pure::metamodel::import::Import[*]; }
 
 Class meta::pure::metamodel::import::Import extends meta::pure::metamodel::type::Any { path: meta::pure::metamodel::type::String[1]; }
 
+Class meta::pure::metamodel::valuespecification::ValueSpecification extends meta::pure::metamodel::type::Any { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; usageContext: meta::pure::metamodel::valuespecification::ValueSpecificationContext[0..1]; }
+
 Class meta::pure::metamodel::valuespecification::Expression extends meta::pure::metamodel::valuespecification::ValueSpecification { }
 
 Class meta::pure::metamodel::valuespecification::NonExecutableValueSpecification extends meta::pure::metamodel::valuespecification::ValueSpecification { values: meta::pure::metamodel::type::Any[*]; }
+
+Class meta::pure::metamodel::valuespecification::VariableExpression extends meta::pure::metamodel::valuespecification::Expression { name: meta::pure::metamodel::type::String[1]; functionTypeOwner: meta::pure::metamodel::type::FunctionType[0..1]; }
+
+Class meta::pure::metamodel::valuespecification::InstanceValue extends meta::pure::metamodel::valuespecification::ValueSpecification { values: meta::pure::metamodel::type::Any[*]; }
 
 Class meta::pure::metamodel::valuespecification::ValueSpecificationContext extends meta::pure::metamodel::type::Any { offset: meta::pure::metamodel::type::Integer[1]; }
 
@@ -322,7 +342,15 @@ Class meta::pure::metamodel::valuespecification::ParameterValueSpecificationCont
 
 Class meta::pure::metamodel::valuespecification::KeyValueValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext { functionExpression: meta::pure::metamodel::valuespecification::FunctionExpression[1]; }
 
+Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::Expression { func: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]; importGroup: meta::pure::metamodel::import::ImportGroup[1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; functionName: meta::pure::metamodel::type::String[0..1]; propertyName: meta::pure::metamodel::valuespecification::InstanceValue[0..1]; qualifiedPropertyName: meta::pure::metamodel::valuespecification::InstanceValue[0..1]; originalMilestonedProperty: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; originalMilestonedPropertyParametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; resolvedTypeParameters: meta::pure::metamodel::type::generics::GenericType[*]; resolvedMultiplicityParameters: meta::pure::metamodel::multiplicity::Multiplicity[*]; }
+
+Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression { }
+
+Class meta::pure::metamodel::function::Function<T> extends meta::pure::metamodel::Referenceable { name: meta::pure::metamodel::type::String[0..1]; functionName: meta::pure::metamodel::type::String[0..1]; applications: meta::pure::metamodel::valuespecification::FunctionExpression[*]; }
+
 Class meta::pure::metamodel::function::PackageableFunction<K> extends meta::pure::metamodel::PackageableElement, meta::pure::metamodel::function::Function<K> { preConstraints: meta::pure::metamodel::constraint::Constraint[*]; postConstraints: meta::pure::metamodel::constraint::Constraint[*]; }
+
+Class meta::pure::metamodel::function::FunctionDefinition<T> extends meta::pure::metamodel::function::Function<T> { expressionSequence: meta::pure::metamodel::valuespecification::ValueSpecification[1..*]; }
 
 Class meta::pure::metamodel::function::NativeFunction<K> extends meta::pure::metamodel::function::PackageableFunction<K> { }
 
@@ -331,6 +359,8 @@ Class meta::pure::metamodel::type::FunctionType extends meta::pure::metamodel::t
 Class meta::pure::metamodel::function::property::AbstractProperty<T> extends meta::pure::metamodel::function::Function<T>, meta::pure::metamodel::ModelElement { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; owner: meta::pure::metamodel::PropertyOwner[1]; }
 
 Class meta::pure::metamodel::function::property::QualifiedProperty<T> extends meta::pure::metamodel::function::property::AbstractProperty<T>, meta::pure::metamodel::function::FunctionDefinition<T> { id: meta::pure::metamodel::type::String[1]; }
+
+Class meta::pure::metamodel::function::ConcreteFunctionDefinition<T> extends meta::pure::metamodel::function::FunctionDefinition<T>, meta::pure::metamodel::function::PackageableFunction<T>, meta::pure::metamodel::testable::Testable { }
 
 Class meta::pure::metamodel::import::ImportStub extends meta::pure::metamodel::type::Any { importGroup: meta::pure::metamodel::import::ImportGroup[1]; idOrPath: meta::pure::metamodel::type::String[1]; resolvedNode: meta::pure::metamodel::type::Any[0..1]; }
 
@@ -387,6 +417,10 @@ Enum meta::pure::metamodel::relation::GenericTypeOperationType { Union, Differen
 Class meta::pure::metamodel::relation::GenericTypeOperation extends meta::pure::metamodel::type::generics::GenericType { left: meta::pure::metamodel::type::generics::GenericType[1]; right: meta::pure::metamodel::type::generics::GenericType[1]; type: meta::pure::metamodel::relation::GenericTypeOperationType[1]; }
 
 Class meta::pure::metamodel::relation::RelationType<T> extends meta::pure::metamodel::type::Type, meta::pure::metamodel::Referenceable { columns: meta::pure::metamodel::relation::Column<T,meta::pure::metamodel::type::Any|*>[*]; }
+
+Class meta::pure::metamodel::relation::RelationElementAccessor<T> extends meta::pure::metamodel::relation::Relation<T>, meta::pure::metamodel::Referenceable { sourceElementContainer: meta::pure::metamodel::PackageableElement[0..1]; sourceElement: meta::pure::metamodel::type::Any[1]; }
+
+Class meta::pure::metamodel::relation::Column<U,V|m> extends meta::pure::metamodel::function::Function<{U[1]->V[m]}>, meta::pure::metamodel::extension::AnnotatedElement { nameWildCard: meta::pure::metamodel::type::Boolean[1]; }
 
 
 ###Pure
@@ -4027,7 +4061,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 428 classes, 16 enums.
+// 445 classes, 16 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime

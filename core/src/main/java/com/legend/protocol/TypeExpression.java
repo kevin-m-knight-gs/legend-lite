@@ -241,4 +241,18 @@ public sealed interface TypeExpression {
     static TypeExpression nameRef(String name) {
         return new NameRef(name);
     }
+
+    /** The CLASS a supertype expression generalizes to, plain or
+     * parameterized: {@code Function<T>} and {@code AbstractProperty<{U[1]->V[m]}>}
+     * generalize to those classes exactly as a bare name does; a function
+     * or relation type generalizes to no class ({@code null}). (Batch 160:
+     * m3's Property inherits {@code name} through two parameterized
+     * supertypes — every ancestor walk follows this, never only NameRef.) */
+    static @com.legend.Nullable String rawClassName(TypeExpression sup) {
+        return switch (sup) {
+            case NameRef nr -> nr.name();
+            case Generic g -> g.name();
+            default -> null;
+        };
+    }
 }

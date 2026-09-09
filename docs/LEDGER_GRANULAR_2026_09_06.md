@@ -917,3 +917,11 @@ tier is gone; the core import group gained the engine's three additions. One lit
 |---|---|---|---|
 | 1 | 26 m3 hand shapes with no store rows and one Java reference | deleted; printed from m3 by the reader; hand 74 → 48; prelude 418 → 444; no pass change | Pure.java, PlatformTypes.PROFILE |
 | 2 | USER: the hand pre-pass duplicates the chain; the foreground chain blocks work | targeted pins → allgates ONCE in the background; read-only work meanwhile | memory |
+
+## 33. Batch 160 — phase 2 family 3; the mapping calculus follows parameterized supertypes (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | `MetamodelQueryFunctionsTest`: `Property.name` "not declared" once `Property` came from m3 (`extends AbstractProperty<{…}>` → `Function<T>` → `name`) | the four ancestor walks follow a parameterized supertype by its raw class — `TypeExpression.rawClassName` | MappingNormalizer, TypeExpression |
+| 2 | 17 m3 shapes incl. the expression-tree row classes | migrated; hand 48 → 31; prelude 428 → 445; no pass change | Pure.java |
+| 3 | MappingNormalizer 3519 > 3510 with the helper inline | the helper is a type-expression fact; lives on `TypeExpression` | — |

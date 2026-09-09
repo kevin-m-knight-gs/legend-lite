@@ -682,10 +682,12 @@ class PreludeGeneratorTest {
                     parts.add(m.group(1));
                 }
                 if (parts.isEmpty()) {
-                    // a PRIMITIVE is spelled by its root name (Integer, String):
-                    // the m3 primitive types live in meta::pure::metamodel::type
+                    // m3's ROOT-declared names (no @package): the primitive types
+                    // live in meta::pure::metamodel::type; Package at the
+                    // metamodel root — the same rule the provenance check uses
                     return HAND_CARRIERS.containsKey("meta::pure::metamodel::type::" + text)
-                            ? "meta::pure::metamodel::type::" + text : text;
+                            ? "meta::pure::metamodel::type::" + text
+                            : "meta::pure::metamodel::" + text;
                 }
                 return String.join("::", parts);
             }
