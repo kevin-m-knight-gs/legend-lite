@@ -122,8 +122,18 @@ if want 1; then
 fi
 
 if want 2; then
-  g "GATE2 core install"
-  mvn ${OFF[@]+"${OFF[@]}"} -pl core install -DskipTests > "$OUT/g2.out" 2>&1
+  g "GATE2 core install (the ROOT POM TOO: -pl .,core)"
+  # `-pl core` alone installs legend-lite-core and NOT its parent
+  # org.finos.legend:legend-lite:pom. The pct module builds standalone
+  # (`cd pct && mvn ...`), so it resolves that parent from the repository —
+  # and on a machine whose ~/.m2 never saw a full `mvn install`, gates 6, 7
+  # and 9 die in dependency collection before a single test runs
+  # ("Could not find artifact org.finos.legend:legend-lite:pom"). It has
+  # always been latent here; every local ~/.m2 had the parent from some
+  # earlier full install, and CI's cold repository is what exposed it
+  # (2026-09-09, first real CI run). Gate 8 was never affected: `-am`
+  # already pulls the parent into its reactor.
+  mvn ${OFF[@]+"${OFF[@]}"} -pl .,core install -DskipTests > "$OUT/g2.out" 2>&1
   rec 2 $?
 fi
 
