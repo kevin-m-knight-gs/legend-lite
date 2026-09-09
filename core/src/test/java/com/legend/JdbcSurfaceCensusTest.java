@@ -294,6 +294,12 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/integration/CorpusDifferentialTest.java",
             "core/src/test/java/com/legend/integration/DuckDBIntegrationTest.java",
             "core/src/test/java/com/legend/integration/DuckDBStructSyntaxTest.java",
+            // batch 166 witness (UnionSynthesis finding A): the fixture's
+            // tables and rows are loaded through the test's own JDBC
+            // connection, exactly as ComputedProjectIntegrationTest does;
+            // the query under test reaches the database only through the
+            // platform (QueryService)
+            "core/src/test/java/com/legend/integration/UnionJoinMappedPropertyTest.java",
             "core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java",
             "core/src/test/java/com/legend/integration/EnumIntegrationTest.java",
             "core/src/test/java/com/legend/integration/ExecutionResultIntegrationTest.java",

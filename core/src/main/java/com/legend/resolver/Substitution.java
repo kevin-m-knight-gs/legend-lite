@@ -99,7 +99,28 @@ final class Substitution {
                       @com.legend.Nullable TypedFunction inCallee,
                       @com.legend.Nullable TypedFunction andCallee,
                       @com.legend.Nullable TypedFunction orCallee,
-                      @com.legend.Nullable TypedFunction failCallee) {
+                      @com.legend.Nullable TypedFunction failCallee,
+                      /** the model's SUBTYPE relation (child, parent) — a cast
+                       * over a navigated read is the identity when the routed
+                       * rows' class conforms (Column leg, batch 166); null =
+                       * exact-class only (nested / association registries) */
+                      java.util.function.@com.legend.Nullable BiPredicate<String, String> conforms) {
+
+        Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
+                   Map<String, ExistsSub> existsSubs,
+                   Map<TypedSpec, AggRead> aggReads,
+                   Map<TypedSpec, InQueryRead> inQueryReads,
+                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.Nullable TypedFunction equalCallee,
+                   List<String> pkColumns,
+                   @com.legend.Nullable TypedFunction inCallee,
+                   @com.legend.Nullable TypedFunction andCallee,
+                   @com.legend.Nullable TypedFunction orCallee,
+                   @com.legend.Nullable TypedFunction failCallee) {
+            this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
+                    isNotEmptyCallee, equalCallee, pkColumns, inCallee,
+                    andCallee, orCallee, failCallee, null);
+        }
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
@@ -2139,6 +2160,36 @@ final class Substitution {
      * {@code n} is none of them (the walk continues). */
     private @com.legend.Nullable TypedSpec typeDispatchArms(TypedSpec n) {
         return switch (n) {
+            // $p.slot(.sub…)->cast(@T).prop — a cast over a NAVIGATED read:
+            // the navigated rows are the ROUTED set's (owner[tbl] under the
+            // spec's Relation-declared Column.owner: Table rows), so the
+            // cast to the class the store types them as is the identity and
+            // the read is the path's leaf (the Column leg, batch 166 —
+            // scanColumns' $t.column.owner->cast(@Table).name). Any other
+            // target over a navigated read stays loud until a witness
+            // demands it.
+            case TypedPropertyAccess pa
+                    when pa.source() instanceof TypedCast hc
+                    && !(hc.source() instanceof TypedVariable)
+                    && pathOf(hc.source(), target.userVar()) != null
+                    && Type.asClassType(hc.target()) instanceof Type.ClassType hct -> {
+                Type.ClassType navigated = Type.asClassType(
+                        rewrite(hc.source()).info().type());
+                boolean identity = navigated != null
+                        && (navigated.fqn().equals(hct.fqn())
+                                || (target.regs().conforms() != null
+                                        && target.regs().conforms().test(navigated.fqn(), hct.fqn())));
+                if (!identity) {
+                    throw new NotImplementedException("->cast(@" + hct.fqn()
+                            + ") over the navigation '" + String.join(".",
+                                    java.util.Objects.requireNonNull(
+                                            pathOf(hc.source(), target.userVar())))
+                            + "' (rows of " + (navigated == null ? "?" : navigated.fqn())
+                            + "): only the identity cast to the routed set's"
+                            + " class lowers today");
+                }
+                yield rewrite(new TypedPropertyAccess(hc.source(), pa.property(), pa.info()));
+            }
             // $p->cast(@Sub).prop
             case TypedPropertyAccess pa
                     when pa.source() instanceof TypedCast hc

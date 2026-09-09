@@ -125,6 +125,7 @@ go when the shapes migrate).
    `set_implementations` table needed no subclass mappings (the mapping calculus walks both parents). What the spec's
    shapes did demand was in the RESOLVER: cross-casts (`totalMembershipCast`) and parameterized class values read raw
    (`Type.asClassType`, all 108 sites) — GATES.md batch 165, ledger §38. Hand 20 → 13 (12 primitives + `Column`).
+   Column LANDED batch 166 (the lowering leg dissolved: a typer name clash and a cast-over-navigation arm — GATES.md batch 166).
    After both: `Pure.java` = native signatures + `Lite` + the 13 primitives. Phase 2 complete.
 5. **The pin**: `tools/shape_sweep.py` becomes a governance test — every hand shape exact, or on a shrink-only list with its receipt.
 

@@ -166,15 +166,6 @@ public final class Pure {
         return cls;
     }
 
-    /** relational.pure:214 — Column's spec shape says {@code owner : Relation[0..1]};
-     * this hand copy keeps {@code owner : Table[0..1]} because the lineage lowering
-     * (scanColumns) cannot yet resolve an owner navigation whose target is the
-     * abstract Relation set (batch 164: 5 corpus tests lost through an explicit
-     * Relation class mapping; through the implicit inheritance union the
-     * synthesized body threaded the join-mapped {@code columns} as a scalar).
-     * A LOWERING leg with those five tests as witnesses; the receipt is
-     * HAND_SHAPE_DIVERGENCE §4 step 4 leg A. */
-    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; nullable: meta::pure::metamodel::type::Boolean[0..1]; owner: meta::relational::metamodel::relation::Table[0..1]; }");
 
     // ---- Top of the hierarchy ----
     // (Any is a prelude MODULE class since batch 163, printed from m3.pure

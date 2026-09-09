@@ -3449,7 +3449,7 @@ public final class StoreResolver {
                         RelationalRootForm.primaryKeyColumns(cs.classFqn(),
                                 m.pipeline(), cs.mappingFqn(), ctx),
                         callees.in(), callees.bool("and"), callees.bool("or"),
-                        callees.fail()),
+                        callees.fail(), ctx::isSubtype),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
                         temporal.headTemporalDates(), temporal.root(),
                         temporal.forEachDateColumn()),

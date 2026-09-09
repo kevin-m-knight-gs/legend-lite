@@ -967,3 +967,13 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 4 | G1: `$cm.class == ext::A` and `.property.name` — `Class<Any>`, `Property<Nil,Any|*>` are GenericType | first two local patches (identity arm, auto-map hops, cast-by-route), then G4/G5 lost three enumeration tests on `EnumerationMapping<Any>`: measured 108 sites → ONE mechanism `Type.asClassType`/`classFqn` + `PlatformTypes.isValueCarrier`, all sites rewritten | Type, PlatformTypes, resolver/* |
 | 5 | G6: PCT letFn — a `Class<X>` reference at a chain root became an element ROW (key string returned) | D3 kept: `trackedElementClass` reads the bare metaclass type only (receipt); identity equality reads the Class row explicitly | ElementReferences, ChainNormalizer |
 | 6 | lesson | measure the site census BEFORE the second local patch; ask how the PLATFORM types a spec type before mapping it | — |
+
+## 39. Batch 166 — the Column leg: two findings dissolved on contact with their witnesses (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | finding A reproduced ONLY with the property named `columns` (the witness passed as `ref`, `refs`) | the typer's TDS reflection (`.columns` = column-name list) applied to every row; on a bare ROW a declared column wins, a TABLE keeps reflection | Typer → TdsSurfaceReads, UnionJoinMappedPropertyTest |
+| 2 | the "same-table inheritance for filtered members" design | already how the union works (`mergedScan`: OR of member filters, member-gated if-chains); design withdrawn | COLUMN_OWNER_LOWERING_LEG |
+| 3 | `->cast(@Table)` / `->cast(@NamedRelation)` over the navigated `column.owner` | a cast over a navigated path is the identity when the routed rows' class conforms; `Registries.conforms` carries the model's subtype relation (StoreResolver only) | Substitution, StoreResolver |
+| 4 | Typer over its caps; a new JDBC surface | extraction; conscious registration | CodeShape, JdbcSurfaceCensusTest |
+| 5 | lesson | reproduce the witness in the USER shape before designing — both batch-164 designs (re-root, same-table extension) were unnecessary; the root causes were two unrelated seams | — |

@@ -662,7 +662,11 @@ class NativeFunctionTest {
         // enum_value_mappings row (self-join) serves EnumValueMapping.enum.
         // What is left by hand: the 12 primitives (the bootstrap floor) and
         // Column (owner : Relation waits on its lowering leg).
-        assertEquals(13, hand,
+        // 13 -> 12 (batch 166, the Column leg): Column — the spec's shape
+        // (relational.pure: owner : Relation[0..1]); the system mapping keeps
+        // owner[tbl]. What is left by hand: the 12 primitives, the bootstrap
+        // floor (Type.Primitive's keys; the SQL type wall).
+        assertEquals(12, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 

@@ -2859,7 +2859,7 @@ final class Typer {
      * BOUNDARY RESOLVER (RawGridSchema) substitutes them against the
      * stamped schema, and reaching the Lowerer instead is a loud wall,
      * never a silent guess. Null = not such a read. */
-    private static @com.legend.Nullable TypedSpec lateBoundGridMarker(
+    static @com.legend.Nullable TypedSpec lateBoundGridMarker(
             TypedSpec source, AppliedProperty ap, Type.RelationType rt2) {
         if (!rt2.isLateBound()) {
             return null;
@@ -2893,7 +2893,7 @@ final class Typer {
      * from accessProperty (G1 method-length seam): the row-var CELLS
      * read, the RELATION-CELLS flatten (TypedMap synthesis), and the
      * identity arms for picks/class shapes. */
-    private TypedSpec tdsValuesRead(TypedSpec source, Type.RelationType rt2) {
+    TypedSpec tdsValuesRead(TypedSpec source, Type.RelationType rt2) {
             // On a ROW VARIABLE (bare struct, at-most-one stamp — a
             // lambda's in-scope row): TDSRow.values = the row's
             // CELLS in column order, statically enumerable per-cell
@@ -2992,41 +2992,10 @@ final class Typer {
         }
         Type.RelationType rt2 = Type.schemaView(source.info().type());
         if (rt2 != null) {
-            // TDS surface over relation values (engine TabularDataSet)
-            // and over ROW values (bare struct — Row-vs-Relation):
-            // .rows IS the relation viewed as its row collection; bare
-            // .columns is the column-name collection (assertSize targets)
-            if (ap.property().equals("rows") && Type.isRelation(source.info().type())) {
-                // .rows IS the row collection — typed AS one (engine:
-                // TDSRow[*]; Row-vs-Relation: bare struct, many stamp —
-                // Type.relationValued reads it back). The node SURVIVES
-                // as a MARKER: the statement executor's result frame must
-                // tell `$r.values.rows->at(k)` (a REAL row index) from
-                // `$r.values->at(k)` (the Result envelope, k=0 only) —
-                // erasing here made the two spellings collide (audit
-                // 19d B2). The K-side splice hook erases the marker after
-                // disambiguation.
-                return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                        source, "rows", new ExprType(rt2,
-                                Multiplicity.Bounded.ZERO_MANY));
-            }
-            TypedSpec lateBound = lateBoundGridMarker(source, ap, rt2);
-            if (lateBound != null) {
-                return lateBound;
-            }
-            if (ap.property().equals("values")) {
-                return tdsValuesRead(source, rt2);
-            }
-            if (ap.property().equals("columns")) {
-                return ColumnsMetaFold.columnsMeta(rt2, false);
-            }
-            // the ResultSet surface's name collection over a DECLARED
-            // schema (§4bZ-U leg 4): a fetchDb/executeInDb grid with
-            // compile-time columns answers .columnNames statically —
-            // the same literal collection the late-bound marker path
-            // resolves at the boundary for probe-stamped grids
-            if (ap.property().equals("columnNames")) {
-                return ColumnsMetaFold.columnsMeta(rt2, false);
+            // the TDS surface over tables and rows (TdsSurfaceReads)
+            TypedSpec surface = TdsSurfaceReads.read(this, source, ap, rt2);
+            if (surface != null) {
+                return surface;
             }
         }
         // a zero-arg DERIVED read IS a call of its externalized body —

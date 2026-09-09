@@ -50,3 +50,9 @@ Pure.java; `Database` landed (batch 164, part 1).
 - OWED, its own fix with its own witness (a user mapping of the shape): finding A — the synthesized inclusive union
   threads a class-typed property mapped by JOIN on one member and unmapped on another as a scalar. The fix lives in
   UnionSynthesis (an unmapped member contributes NULL of the property's carrier, as for scalars), never in mapping text.
+
+## CLOSED — batch 166 (2026-09-09)
+Neither the cast re-root nor the same-table extension was the fix. Finding A was the typer's TDS reflection typing any
+row's `.columns` as the column-name list (the lifted navigate slot is named `columns`); the five scanColumns tests
+needed a substitution arm for a cast over a NAVIGATED read (identity when the routed rows' class conforms). `Column` is
+the spec's shape; `owner[tbl]` unchanged. GATES.md batch 166, ledger §39, witness `UnionJoinMappedPropertyTest`.
