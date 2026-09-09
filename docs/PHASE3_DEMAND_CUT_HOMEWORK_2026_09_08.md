@@ -113,3 +113,19 @@ m3.pure:1804 — three platform mapping/store contexts extend it; hand count 84 
 carry no body that fails). USER on D1: "the most simple thing that makes sense and still sticks to our tenets" — declarations-only
 admission, one small loader mechanism; D2 agreed. NEXT: batch 155 = phase 3b-2, the engine cut: the 253 leave the prelude and
 their 64 files enter the corpus graph by name, declarations only.
+
+**Batch 155 (phase 3b-2, 2026-09-08): the engine cut.** The generator's demand is T1 alone — legend-pure's platform packages
+whole + the vocabulary (native signatures, the system metamodel's source, `PlatformTypes.CONSTRUCTED_VOCABULARY`) + closure;
+the corpus and library text scan and the `src/main/java` scan are gone from the generator (the corpus tree, the program
+libraries and the shape files are read only for the T4 receipts). `prelude.pure` 610 → **357 declarations (343 classes, 14
+enums)**. The 253 leaving classes' 64 engine files are `Corpus.SHAPE_FILES`; `MinimalCorpus.withShapes` parses each and merges
+its classes and enums into the corpus graph (first definition wins; each element keeps its section's imports; functions never
+enter) — D1 as ratified, one mechanism of ~40 lines. Pass counts UNCHANGED on every gate (DuckDB 2442/108/14/11, H2
+1990/565/14/6, channel B 314/13, 355, 137, 95, 204, PCT 1110/0; G1 4377). Census **22 → 19**: `Service`'s constraint,
+`MultiExecutionContext.allContexts` and `RelationElementAccessorExtension`'s constraint left with their classes; the 19 that
+remain are bodies of classes that ARE vocabulary (`DbConfig`/`SQLResult` by signature, `SchemaState`/`Extension`/the
+external-format descriptors by closure) — vocabulary work, not prelude leakage. T4 receipts: 61 → **119**, the stable list
+D2 named — vocabulary classes the graph also declares (the corpus tree and, now, the shape files: `SQLExecutionNode`, the plan
+nodes, `DbConfig`, the JSON tree…); pinned only by the parity test for now. One unit test moved (`NameResolverTest`: the
+sql-protocol `Table` is graph material, so under its wildcard the bare name is unresolved). Phase 3 is complete; NEXT: phase 2
+(the hand shapes out of `Pure.java`), then the 19 rows as vocabulary.

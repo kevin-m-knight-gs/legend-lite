@@ -147,11 +147,13 @@ class NameResolverTest {
 
     @Test
     void preludeCollisionDisambiguatesThroughFileWildcards() {
-        // 'Table' is claimed by TWO prelude classes (metamodel::relation
-        // vs the sql protocol); the type-import map keeps one arbitrarily
-        // — the FILE's wildcard imports must pick among the colliders
-        // (getTable in the corpus's toDDL.pure returned the sql-protocol
-        // Table before this rule). Prelude still shadows user elements.
+        // A bare name is what the FILE's wildcard imports make visible —
+        // and nothing else (batch 153: no fallback tier). 'Table' under the
+        // relational wildcard is the platform's relational Table; under the
+        // sql-protocol wildcard it is UNRESOLVED, because the sql-protocol
+        // Table is graph material since batch 155 (a corpus program's shape,
+        // Corpus.SHAPE_FILES), not a platform class — a program declaring it
+        // resolves it in its own graph, as the engine does.
         var cd = simpleClass("model::T1", List.of(),
                 List.of(prop("t", nameRef("Table"))));
         var rel = (ClassDefinition) NameResolver.resolve(new ParsedModel(
@@ -164,8 +166,7 @@ class NameResolverTest {
                 List.of(cd), new ImportScope.Builder()
                 .add("meta::external::query::sql::metamodel::*").build()))
                 .elements().get(0);
-        assertEquals(nameRef("meta::external::query::sql::metamodel::Table"),
-                sql.properties().get(0).type());
+        assertEquals(nameRef("Table"), sql.properties().get(0).type());
     }
 
     @Test

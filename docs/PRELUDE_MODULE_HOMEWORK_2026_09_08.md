@@ -158,8 +158,10 @@ Phases, one batch each, lanes exact between them:
    Java + corpus) so the only variable is the container. Expected: pass counts unchanged; census 3 → 0 for the derived rows, plus
    whatever the 136 derived / 16 constraint bodies surface.
 2. **Migrate the 84 hand shapes** out of `Pure.java` a family at a time (HAND_SHAPE_DIVERGENCE §4).
-3. **Re-scope demand to T1/T2**: drop "corpus names it"; the 253 engine classes become `LIBRARY_FILES` admissions by file under
-   rule 8; T4's receipt list burns to zero. The lanes decide the pace.
+3. **Re-scope demand to T1/T2 — LANDED as batches 154 + 155 (2026-09-08, `PHASE3_DEMAND_CUT_HOMEWORK`).** Demand = T1 alone;
+   legend-pure's platform packages whole (+41); the 253 corpus-only engine classes left for `Corpus.SHAPE_FILES` (declarations
+   only, D1); prelude 569 → 357. T4's receipt list does NOT burn to zero (D2): it is the stable list of vocabulary classes the
+   graph's own files also declare (119), pinned shrink-only by parity. Pass counts unchanged; census 22 → 19.
 4. **The bootstrap handful** and the store-shaped divergences (HAND_SHAPE_DIVERGENCE §4 steps 3–4).
 5. `tools/shape_sweep.py` and the census as pins; `FunctionCompiler`'s on-demand lift deleted.
 

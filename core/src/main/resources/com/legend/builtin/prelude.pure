@@ -1556,61 +1556,6 @@ Class <<typemodifiers.abstract>> meta::external::store::relational::runtime::Rel
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/external/format/json/fromJSON.pure
-import meta::json::*;
-import meta::pure::functions::meta::*;
-Class meta::json::ExtendedJSONDeserializationConfig extends meta::json::JSONDeserializationConfig
-{
-   nullReplacementInArray : Any[0..1];
-   replaceInvalidEnumValueCharacters:Boolean[0..1];
-   forceEnumValuesToUpperCase:Boolean[0..1];
-
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/external/format/json/toJSON.pure
-import meta::pure::functions::cipher::*;
-import meta::pure::graphFetch::routing::*;
-import meta::pure::graphFetch::*;
-import meta::pure::metamodel::constraint::*;
-import meta::pure::metamodel::treepath::*;
-import meta::pure::metamodel::serialization::json::*;
-import meta::pure::mapping::*;
-import meta::json::*;
-import meta::json::tojson::*;
-import meta::json::stream::*;
-Class meta::json::Config
-{
-   includeType:Boolean[1];
-   includeEnumType : Boolean[1];
-   removePropertiesWithNullValues:Boolean[1];
-   removePropertiesWithEmptySets:Boolean[1];
-   typeString:String[1];
-   fullyQualifiedTypePath:Boolean[1];
-   cipher() {$this.cipherSecret->isNotEmpty()} :Boolean[1];
-   cipherSecret:String[0..1];
-   cipherStereotypes: Stereotype[*];
-   decipher() {$this.decipherSecret->isNotEmpty()} :Boolean[1];
-   decipherSecret:String[0..1];
-   decipherStereotypes: Stereotype[*];
-   fullyRespectGraphFetchTree : Boolean[1];
-}
-
-Class meta::json::JSONState
-{
-   lambdas : Function<{Nil[1],JSONState[1]->JSONElement[1]}>[1..*];
-   config : Config[1];
-   currentDepth : Integer[1];
-   propertyPathTree:PropertyPathTreeNode[0..1];
-   graphFetchTrees:GraphFetchTree[*];
-   parents : Any[*];
-   cipher : Boolean[1];
-   decipher: Boolean[1];
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/binding.pure
 import meta::external::format::shared::binding::*;
 import meta::external::format::shared::metamodel::*;
@@ -1626,41 +1571,9 @@ Class meta::external::format::shared::binding::Binding extends PackageableElemen
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/mapping.pure
-import meta::external::format::shared::binding::*;
-import meta::pure::mapping::*;
-Class meta::external::format::shared::binding::BindingTransformer<T> extends ValueTransformer<T>
-{
-   binding : Binding[1];
-   class   : Class<T>[1];
-
-   toDomainValue(sourceValue: Any[1]) { fail('Only supported in store execution flow!') }: Any[1];
-   toSourceValues(domainValue: Any[1]) { fail('Only supported in store execution flow!') }: Any[*];
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/validation.pure
 Class <<typemodifiers.abstract>> meta::external::format::shared::binding::validation::BindingDetail
 {
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/executionPlan/model.pure
-import meta::external::format::shared::*;
-import meta::external::format::shared::binding::*;
-import meta::external::format::shared::executionPlan::*;
-import meta::external::format::shared::metamodel::*;
-import meta::pure::executionPlan::*;
-import meta::pure::graphFetch::*;
-Class meta::external::format::shared::executionPlan::ExternalFormatExternalizeExecutionNode extends ExecutionNode
-{
-  binding : Binding[1];
-  checked : Boolean[1];
-  tree    : RootGraphFetchTree<Any>[1];
-
-  config  : ExternalFormatExternalizeConfig[0..1];
 }
 
 
@@ -1799,28 +1712,6 @@ Class meta::external::format::shared::transformation::fromPure::ModelToSchemaCon
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/constraints/constraintsExtension.pure
-import meta::pure::router::store::platform::*;
-import meta::pure::constraints::functions::util::*;
-import meta::pure::constraints::functions::*;
-import meta::pure::metamodel::constraint::*;
-import meta::json::*;
-Enum meta::pure::metamodel::constraint::EnforcementLevel
-{
-   Error, Warn
-}
-
-Class meta::pure::metamodel::constraint::ConstraintContextInformation<T>
-{
-   class: Class<T>[1];
-   constraint: Constraint[1];
-   enforcementLevel: EnforcementLevel[1];
-   message: String[0..1];
-   messageFunction: FunctionDefinition<{T[1]->String[1]}>[0..1];
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/collectionExtension.pure
 Class meta::pure::functions::collection::AggregateValue<T,V,U>
 {
@@ -1913,24 +1804,6 @@ Class meta::pure::executionPlan::ResultType
    genericType : GenericType[1];
 }
 
-Class meta::pure::executionPlan::ClassResultType extends ResultType
-{
-   setImplementations : SetImplementation[*];
-}
-
-Class meta::pure::executionPlan::VoidResultType extends ResultType
-{
-}
-
-Class meta::pure::executionPlan::TDSResultType extends ResultType
-{
-   tdsColumns : TDSColumn[*];
-}
-
-Class meta::pure::executionPlan::DataTypeResultType extends ResultType
-{
-}
-
 Class meta::pure::executionPlan::ExecutionPlan
 {
    func : FunctionDefinition<Any>[1];
@@ -1974,43 +1847,8 @@ Class meta::pure::executionPlan::SequenceExecutionNode extends meta::pure::execu
 {
 }
 
-Class meta::pure::executionPlan::MultiResultSequenceExecutionNode extends meta::pure::executionPlan::ExecutionNode
-{
-}
-
-Class meta::pure::executionPlan::PureExpressionPlatformExecutionNode extends meta::pure::executionPlan::ExecutionNode
-{
-   expression : ValueSpecification[1];
-}
-
-Class meta::pure::executionPlan::FreeMarkerConditionalExecutionNode extends meta::pure::executionPlan::ExecutionNode
-[
-   $this.freeMarkerBooleanExpression->startsWith('${(') && $this.freeMarkerBooleanExpression->endsWith(')?c}')
-]
-{
-   freeMarkerBooleanExpression   : String[1];
-   trueBlock                     : ExecutionNode[1];
-   falseBlock                    : ExecutionNode[0..1];
-}
-
 Class meta::pure::executionPlan::PlatformImplementation
 {
-}
-
-Class meta::pure::executionPlan::AllocationExecutionNode extends meta::pure::executionPlan::ExecutionNode
-{
-   varName : String[1];
-   realizeInMemory : Boolean[0..1];
-}
-
-Class meta::pure::executionPlan::ConstantExecutionNode extends meta::pure::executionPlan::ExecutionNode
-{
-   values : Any[*];
-}
-
-Class meta::pure::executionPlan::ErrorExecutionNode extends meta::pure::executionPlan::ExecutionNode
-{
-   message : String[1];
 }
 
 Class meta::pure::executionPlan::FunctionParametersValidationNode extends meta::pure::executionPlan::ExecutionNode
@@ -2034,20 +1872,6 @@ Class meta::pure::executionPlan::FunctionParameter
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlanFeature.pure
-import meta::pure::executionPlan::*;
-import meta::pure::router::routing::*;
-import meta::pure::extension::*;
-import meta::pure::executionPlan::featureFlag::*;
-Enum  meta::pure::executionPlan::features::Feature
-{
-    PUSH_DOWN_ENUM_TRANSFORM,
-    VARIANT_TYPE_AS_INPUT,
-    LEGACY_SQL_NULL_UNSAFE_EQUALS
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan_generation.pure
 import meta::pure::metamodel::relation::*;
 import meta::pure::extension::*;
@@ -2062,29 +1886,8 @@ Class meta::pure::executionPlan::ExecutionOption
 {
 }
 
-Class meta::pure::executionPlan::MultiExecutionContext extends meta::pure::runtime::ExecutionContext
-{
-    <<equality.Key>> childExecutionContext:meta::pure::runtime::ExecutionContext[*];
-    allContexts()  {$this.childExecutionContext->map(e |if($e->instanceOf(MultiExecutionContext),
-                                                              | $e->concatenate($e->cast(@MultiExecutionContext)->collectionMultiExecutionContexts([])),
-                                                              |$e)
-                                                        );  
-                       }:meta::pure::runtime::ExecutionContext[*];
-}
-
-Class meta::pure::executionPlan::ExecutionOptionContext extends MultiExecutionContext
-{
-   <<equality.Key>> executionOptions : ExecutionOption[*];
-}
-
 Class meta::pure::executionPlan::PlanVarPlaceHolder extends meta::pure::executionPlan::FunctionParameter
 {
-}
-
-Class meta::pure::executionPlan::PlanSetPlaceHolder
-{
-    name : String[1];
-    tdsColumns: TDSColumn[*];
 }
 
 
@@ -2344,37 +2147,6 @@ import meta::pure::mapping::xStore::*;
 import meta::core::runtime::*;
 import meta::pure::router::metamodel::*;
 import meta::pure::router::utils::*;
-Class <<typemodifiers.abstract>> meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode extends ExecutionNode
-{
-   graphFetchTree               : ClusteredGraphFetchTree[1];
-   children                     : GlobalGraphFetchExecutionNode[*];
-   localGraphFetchExecutionNode : LocalGraphFetchExecutionNode[1];
-   parentIndex                  : Integer[0..1];
-   enableConstraints            : Boolean[0..1];
-   checked                      : Boolean[0..1];
-   localTreeIndices             : Integer[*];
-   dependencyIndices            : Integer[*];
-}
-
-Class meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode extends GlobalGraphFetchExecutionNode
-{
-   store                        : meta::pure::store::Store[1];
-   xStorePropertyMapping        : meta::pure::mapping::xStore::XStorePropertyMapping[0..1];
-   xStorePropertyFetchDetails   : XStorePropertyFetchDetails[0..1];
-}
-
-Class meta::pure::graphFetch::executionPlan::XStorePropertyFetchDetails
-{
-   supportsCaching         : Boolean[1];
-   propertyPath            : String[1];
-   sourceMappingId         : String[1];
-   sourceSetId             : String[1];
-   targetMappingId         : String[1];
-   targetSetId             : String[1];
-   targetPropertiesOrdered : String[*];
-   subTree                 : String[1];
-}
-
 Class meta::pure::graphFetch::executionPlan::LocalGraphFetchExecutionNode extends ExecutionNode
 {
    nodeIndex      : Integer[1];
@@ -2461,101 +2233,12 @@ import meta::pure::mapping::aggregationAware::*;
 import meta::external::store::model::*;
 import meta::pure::store::*;
 import meta::core::runtime::*;
-Class meta::pure::mapping::StaticMappingInstanceData
-{
-   mapping : Mapping[1];
-   runtime : Runtime[1];
-   systemMapping : StoreContract[1];
-   setImplementation : InstanceSetImplementation[0..1];
-   exeCtx:meta::pure::runtime::ExecutionContext[1];
-   debug :DebugContext[1];
-   extensions : meta::pure::extension::Extension[*];
-}
-
-Class meta::pure::mapping::MappingInstanceData
-{
-   static : StaticMappingInstanceData[1];
-   mappingPropertyValues : KeyValue[*];
-}
-
 Class meta::pure::mapping::StoreQuery
 {
     vs : ValueSpecification[1];
     inScopeVars : Map<String, List<Any>>[1];
     store : Store[1];
     //sets : Pair<String, List<Any>>[*]; //inputs to either cross store ( query )
-}
-
-Class meta::pure::mapping::TabularDataSetImplementation extends TabularDataSet
-{
-  store : 	meta::pure::store::Store[1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure
-import meta::pure::metamodel::treepath::*;
-import meta::pure::extension::*;
-import meta::pure::dataQuality::*;
-import meta::pure::graphFetch::*;
-import meta::pure::graphFetch::routing::*;
-import meta::pure::graphFetch::execution::*;
-import meta::pure::graphFetch::executionPlan::*;
-import meta::pure::executionPlan::toString::*;
-import meta::pure::executionPlan::*;
-import meta::pure::mapping::modelToModel::chain::*;
-import meta::pure::mapping::modelToModel::inMemory::*;
-import meta::external::store::model::*;
-import meta::pure::mapping::modelToModel::graphFetch::executionPlan::*;
-import meta::core::runtime::*;
-import meta::pure::router::store::metamodel::*;
-import meta::pure::router::store::metamodel::clustering::*;
-import meta::pure::mapping::*;
-import meta::pure::executionPlan::engine::java::*;
-import meta::json::*;
-Class meta::external::store::model::ModelStore extends meta::pure::store::Store
-{
-  toString(){'ModelStore'}:String[1];
-}
-
-Class meta::external::store::model::PureModelConnection extends Connection
-{
-}
-
-Class meta::external::store::model::ModelConnection extends PureModelConnection
-{
-   instances : Map<Class<Any>, List<Any>>[1];
-}
-
-Class meta::external::store::model::JsonModelConnection extends PureModelConnection
-{
-   class: Class<Any>[1];
-   url  : String[1];
-}
-
-Class meta::external::store::model::ModelChainConnection extends Connection
-{
-   mappings : Mapping[*];
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/relationFunctionMapping.pure
-import meta::pure::mapping::*;
-import meta::pure::mapping::relation::*;
-import meta::pure::metamodel::function::*;
-import meta::pure::metamodel::valuespecification::*;
-import meta::pure::metamodel::relation::*;
-import meta::pure::store::*;
-import meta::pure::router::metamodel::clustering::*;
-import meta::pure::functions::relation::*;
-import meta::pure::extension::*;
-Class meta::pure::mapping::relation::RelationElementAccessorExtension extends ModuleExtension
-[
-   $this.module == meta::pure::mapping::relation::relationElementAccessorModuleExtensionName()
-]
-{
-   instancePrimaryKeyResolver : Function<{InstanceValue[1], Extension[*]->String[*]}>[1];
 }
 
 
@@ -2584,227 +2267,6 @@ Class meta::pure::model::unit::ModelUnit
    functionExcludes()    { $this.excludesByClassifier(ConcreteFunctionDefinition)->cast(@ConcreteFunctionDefinition<Any>) }: ConcreteFunctionDefinition<Any>[*];
    profileIncludes()     { $this.includesByClassifier(Profile)->cast(@Profile)                                            }: Profile[*];
    profileExcludes()     { $this.excludesByClassifier(Profile)->cast(@Profile)                                            }: Profile[*];
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/core/_extra.pure
-Class meta::protocols::pure::vX_X_X::metamodel::m3::SourceInformation
-{
-    sourceId : String[1];
-    mainLine: Integer[1];
-    mainColumn: Integer[1];
-    startLine: Integer[1];
-    startColumn: Integer[1];
-    endLine: Integer[1];
-    endColumn: Integer[1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::PackageableElementPtr extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   fullPath : String[1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::PackageableType extends meta::protocols::pure::vX_X_X::metamodel::m3::type::Type, meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::PackageableElementPtr
-{
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::classInstance::ClassInstance extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   type : String[1];
-   value : Any[1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::datatype::primitive::CString extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   value : String[1];
-}
-
-Class <<typemodifiers.abstract>> meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::datatype::primitive::CDate extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/core/m3.pure
-Class meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElement
-{
-  _type : String[1];
-  <<equality.Key>> name : String[1];
-  <<equality.Key>> package : String[0..1];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::extension::AnnotatedElement
-{
-   stereotypes : meta::protocols::pure::vX_X_X::metamodel::m3::extension::StereotypePtr[*];
-   taggedValues : meta::protocols::pure::vX_X_X::metamodel::m3::extension::TaggedValue[*];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::extension::StereotypePtr
-{
-   profile : String[1];
-   value : String[1];
-   profileSourceInformation: SourceInformation[0..1];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::extension::TagPtr
-{
-   profile : String[1];
-   value : String[1];
-   profileSourceInformation: SourceInformation[0..1];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::function::property::PropertyPtr
-{
-   class : String[1];
-   property : String[1];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::extension::TaggedValue
-{
-   tag : meta::protocols::pure::vX_X_X::metamodel::m3::extension::TagPtr[1];
-   value : String[1];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::constraint::Constraint
-{
-   name               : String[1];
-   functionDefinition : meta::protocols::pure::vX_X_X::metamodel::m3::function::LambdaFunction[1];
-   externalId         : String[0..1];
-   enforcementLevel   : String[0..1];
-   sourceInformation  : SourceInformation[0..1];
-   messageFunction    : meta::protocols::pure::vX_X_X::metamodel::m3::function::LambdaFunction[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::type::Class extends meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElement, meta::protocols::pure::vX_X_X::metamodel::m3::extension::AnnotatedElement
-{
-   superTypes : String[*];
-   constraints : meta::protocols::pure::vX_X_X::metamodel::m3::constraint::Constraint[*];
-   properties : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property[*];
-   qualifiedProperties : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::QualifiedProperty[*];
-   originalMilestonedProperties : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property[*];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::relationship::Association extends meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElement, meta::protocols::pure::vX_X_X::metamodel::m3::extension::AnnotatedElement
-{
-   properties : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property[*];
-   qualifiedProperties : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::QualifiedProperty[*];
-   originalMilestonedProperties : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property[*];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::function::property::Property extends meta::protocols::pure::vX_X_X::metamodel::m3::extension::AnnotatedElement
-{
-   defaultValue : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::DefaultValue[0..1];
-   aggregation : meta::protocols::pure::vX_X_X::metamodel::m3::function::property::AggregationKind[0..1];
-   name : String[1];
-   multiplicity : meta::protocols::pure::vX_X_X::metamodel::m3::multiplicity::Multiplicity[1];
-   genericType : meta::protocols::pure::vX_X_X::metamodel::m3::type::generics::GenericType[1];
-   propertyTypeSourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::function::property::QualifiedProperty extends meta::protocols::pure::vX_X_X::metamodel::m3::extension::AnnotatedElement
-{
-   name : String[1];
-   parameters : meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::Variable[*];
-   returnGenericType : meta::protocols::pure::vX_X_X::metamodel::m3::type::generics::GenericType[1];
-   returnMultiplicity : meta::protocols::pure::vX_X_X::metamodel::m3::multiplicity::Multiplicity[1];
-   body : meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification[*];
-}
-
-Enum meta::protocols::pure::vX_X_X::metamodel::m3::function::property::AggregationKind
-{
-    NONE,
-    SHARED,
-    COMPOSITE
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::multiplicity::Multiplicity
-{
-   <<equality.Key>> lowerBound : Integer[0..1];
-   <<equality.Key>> upperBound : Integer[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::function::property::DefaultValue
-{
-   value :  meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification[1];
-   sourceInformation : SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::type::Type
-{
-  _type : String[1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::type::generics::GenericType
-{
-    rawType : meta::protocols::pure::vX_X_X::metamodel::m3::type::Type[1];
-    typeArguments : meta::protocols::pure::vX_X_X::metamodel::m3::type::generics::GenericType[*];
-    multiplicityArguments : meta::protocols::pure::vX_X_X::metamodel::m3::multiplicity::Multiplicity[*];
-    typeVariableValues : meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification[*];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   _type : String[1];
-   sourceInformation: SourceInformation[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::Variable extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   name : String[1];
-   supportsStream : Boolean[0..1];
-   // To Remove
-   multiplicity : meta::protocols::pure::vX_X_X::metamodel::m3::multiplicity::Multiplicity[0..1];
-   genericType : meta::protocols::pure::vX_X_X::metamodel::m3::type::generics::GenericType[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::FunctionApplication extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   parameters : meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification[*];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::AppliedFunction extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::FunctionApplication
-{
-   function : String[1];
-   fControl : String[0..1];
-}
-
-Class meta::protocols::pure::vX_X_X::metamodel::m3::function::LambdaFunction extends meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification
-{
-   parameters : meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::Variable[*];
-   body : meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::ValueSpecification[*];
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/pureModelContextData.pure
-Class meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElementPointer
-{
-    type : meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElementType[0..1];
-    path : String[1];
-}
-
-Enum meta::protocols::pure::vX_X_X::metamodel::m3::PackageableElementType
-{
-   CLASS,
-   PACKAGE,
-   STORE,
-   MAPPING,
-   SERVICE,
-   CACHE,
-   PIPELINE,
-   FLATTEN,
-   DIAGRAM,
-   DATASTORESPEC,
-   UNIT,
-   MEASURE,
-   FUNCTION
 }
 
 
@@ -2912,16 +2374,6 @@ Class <<typemodifiers.abstract>> meta::pure::router::metamodel::ExtendedRoutedVa
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/platform/metamodel.pure
-import meta::pure::router::clustering::*;
-import meta::pure::router::metamodel::*;
-import meta::pure::router::metamodel::clustering::*;
-Class meta::pure::router::platform::metamodel::clustering::PlatformClusteredValueSpecification extends ClusteredValueSpecification
-{
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/routing/router_routing.pure
 import meta::pure::functions::relation::variant::*;
 import meta::pure::metamodel::relation::*;
@@ -2962,80 +2414,6 @@ Class meta::pure::router::routing::PropertyMap
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/builder.pure
-import meta::pure::metamodel::serialization::grammar::*;
-import meta::pure::router::metamodel::clustering::*;
-import meta::pure::runtime::*;
-import meta::pure::mapping::modelJoin::*;
-import meta::pure::metamodel::relation::*;
-import meta::pure::mapping::*;
-import meta::pure::metamodel::path::*;
-import meta::pure::router::store::metamodel::*;
-import meta::pure::router::store::routing::*;
-import meta::pure::router::operations::*;
-import meta::pure::router::printer::*;
-import meta::pure::router::routing::*;
-import meta::pure::router::utils::*;
-import meta::core::runtime::*;
-import meta::pure::milestoning::*;
-import meta::pure::graphFetch::execution::*;
-import meta::pure::mapping::modelToModel::inMemory::*;
-Class meta::pure::router::store::routing::Void extends ValueSpecification
-{
-
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/cluster.pure
-import meta::pure::router::routing::*;
-import meta::pure::mutation::*;
-import meta::pure::router::metamodel::*;
-import meta::pure::mapping::*;
-import meta::pure::mapping::xStore::*;
-import meta::pure::mapping::relation::*;
-import meta::pure::metamodel::path::*;
-import meta::pure::metamodel::serialization::grammar::*;
-import meta::pure::router::analytics::*;
-import meta::pure::router::clustering::*;
-import meta::pure::router::metamodel::clustering::*;
-import meta::pure::router::platform::metamodel::clustering::*;
-import meta::pure::router::printer::*;
-import meta::pure::router::store::clustering::*;
-import meta::pure::router::store::metamodel::*;
-import meta::pure::router::store::metamodel::clustering::*;
-import meta::pure::router::utils::*;
-import meta::core::runtime::*;
-import meta::pure::store::*;
-import meta::pure::metamodel::relation::*;
-Class meta::pure::router::clustering::CrossSetImplementation extends InstanceSetImplementation
-{
-   targetStore : Store[1];
-   varName     : String[1];
-}
-
-Class meta::pure::router::clustering::CrossSetImplementationPropertyMapping extends PropertyMapping
-{
-   sourcePropertyMapping: PropertyMapping[1];
-}
-
-Class meta::pure::router::clustering::CrossSetImplementationPrimtivePropertyMapping extends CrossSetImplementationPropertyMapping
-{
-   propertyPlaceHolder: String[1];
-}
-
-Class meta::pure::router::clustering::CrossSetImplementationComplexPropertyMapping extends CrossSetImplementationPropertyMapping
-{
-   crossExperssionPropertyPairs: Pair<Property<Nil,Any|*>, Property<Nil,Any|*>>[*];
-}
-
-Class meta::pure::router::clustering::CrossSetImplementationReverseComplexPropertyMapping extends CrossSetImplementationComplexPropertyMapping
-{
-   targetSet: SetImplementation[1];
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/metamodel.pure
 import meta::pure::graphFetch::*;
 import meta::pure::graphFetch::routing::*;
@@ -3049,107 +2427,12 @@ Class meta::pure::graphFetch::routing::RoutedGraphFetchTree extends GraphFetchTr
    constraintsExclusions: String[*];
 }
 
-Class meta::pure::graphFetch::routing::RoutedRootGraphFetchTree<T> extends RoutedGraphFetchTree, RootGraphFetchTree<T>
-{
-}
-
-Class meta::pure::graphFetch::routing::RoutedPropertyGraphFetchTree extends RoutedGraphFetchTree, PropertyGraphFetchTree
-{
-   propertyMapping : PropertyMapping[*];
-   isXStoreDependentPrimitiveQualifier : Boolean[0..1];
-}
-
 Class meta::pure::graphFetch::routing::StoreMappingClusteredGraphFetchTree extends ClusteredGraphFetchTree
 {
    s        : StoreContract[1];
    store    : Store[1];
    runtime  : Runtime[0..1];
    mapping  : Mapping[0..1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/metamodel.pure
-import meta::pure::mapping::*;
-import meta::pure::router::clustering::*;
-import meta::pure::router::metamodel::*;
-import meta::pure::router::metamodel::clustering::*;
-import meta::pure::router::routing::*;
-import meta::pure::router::store::metamodel::*;
-import meta::pure::router::store::metamodel::clustering::*;
-import meta::core::runtime::*;
-import meta::pure::store::*;
-Class meta::pure::router::store::metamodel::StoreRoutedValueSpecification extends ExtendedRoutedValueSpecification
-{
-   store              : Store[0..1];        //TODO: To be made mandatory in subsequent commits
-   runtime            : Runtime[1];
-}
-
-Class meta::pure::router::store::metamodel::StoreMappingRoutedValueSpecification extends StoreRoutedValueSpecification
-{
-   mapping            : Mapping[1];
-   processedChainSets : SetImplementation[*];
-   sets               : SetImplementation[*];
-   propertyMapping    : PropertyMapping[*];
-}
-
-Class meta::pure::router::store::metamodel::PermutationSet
-{
-   id : Integer[1];
-   sets : SetImplementation[*];
-}
-
-Class meta::pure::router::store::metamodel::StoreRoutingStrategy extends RoutingStrategy
-{
-   store       : Store[0..1];
-   runtime     : Runtime[1];
-}
-
-Class meta::pure::router::store::metamodel::StoreMappingRoutingStrategy extends StoreRoutingStrategy
-{
-   mapping     : Mapping[1];
-   sets        : PermutationSet[*];
-   setsByDepth : Map<String,PermutationSet>[1];
-   toChooseSet : SetImplementation[0..1];
-
-   classMappingsByClass:Map<Class<Any>,List<SetImplementation>>[1];         //TODO: Move to mapping
-
-   classMappingsForClass(class:Class<Any>[1])
-   {
-      $this.classMappingsByClass->get($class)->map(l | $l.values)
-   }:SetImplementation[*];
-}
-
-Class meta::pure::router::store::metamodel::clustering::StoreClusteredValueSpecification extends ClusteredValueSpecification
-{
-   s          : StoreContract[1];
-   store      : Store[1];
-   runtime    : Runtime[0..1];
-}
-
-Class meta::pure::router::store::metamodel::clustering::StoreMappingClusteredValueSpecification extends StoreClusteredValueSpecification
-{
-   mapping    : Mapping[1];
-}
-
-Class meta::pure::router::TDSRoutedValueSpecification extends RoutedValueSpecification
-{
-   id:String[1];
-   runtime:Runtime[1];
-   mapping:Mapping[0..1];
-   store:meta::pure::store::Store[1];
-   executionContext:meta::pure::runtime::ExecutionContext[1];
-}
-
-Class meta::pure::router::NoSetRoutedValueSpecification extends RoutedValueSpecification
-{
-}
-
-Class meta::pure::router::FunctionRoutedValueSpecification extends RoutedValueSpecification
-{
-   propertyMap : PropertyMap[0..1];
-   builtPropertyMap : Map<String, SetImplementation>[0..1];
-   originalFunction : FunctionDefinition<Any>[1];
 }
 
 
@@ -3170,11 +2453,6 @@ Class meta::pure::runtime::PackageableRuntime extends PackageableElement
    runtimeValue: meta::core::runtime::EngineRuntime[1];
 }
 
-Class meta::pure::runtime::PackageableConnection extends PackageableElement
-{
-   connectionValue: meta::core::runtime::Connection[1];
-}
-
 
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/serialization/toPureGrammar.pure
@@ -3186,23 +2464,11 @@ import meta::pure::metamodel::relation::*;
 import meta::pure::mapping::*;
 import meta::pure::metamodel::serialization::grammar::*;
 import meta::pure::metamodel::section::*;
-Class meta::pure::metamodel::serialization::grammar::Configuration
-{
-  fullPath : Boolean[1];
-  extensions : meta::pure::metamodel::serialization::grammar::GrammarExtension[*];
-}
-
 Class meta::pure::metamodel::serialization::grammar::GrammarExtension
 {
   extraConnectionHandlers : Function<{Nil[0..1]->String[1]}>[*];
   extraInstanceValueHandlers : Function<{Nil[0..1]->String[1]}>[*];
   extraPackageableElementHandlers : Function<{Nil[1]->String[1]}>[*];
-}
-
-Class meta::pure::metamodel::serialization::grammar::GContext
-{
-  space : String[1];
-  parentFunction : Function<Any>[0..1];
 }
 
 
@@ -3272,11 +2538,6 @@ import meta::protocols::pure::vX_X_X::metamodel::valueSpecification::raw::*;
 import meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::classInstance::*;
 import meta::protocols::pure::vX_X_X::metamodel::m3::valuespecification::constant::datatype::primitive::*;
 Class meta::pure::tds::toRelation::TdsToRelationExtension {}
-
-Class meta::pure::tds::toRelation::TdsToRelationExtension_V_X_X extends TdsToRelationExtension {
-
-  transfers: Function<{AppliedFunction[1], Extension[*] -> meta::pure::functions::collection::Pair<Function<Any>, FunctionDefinition<{->AppliedFunction[1]}>>[*]}>[1];
-}
 
 
 ###Pure
@@ -3390,81 +2651,6 @@ Class meta::pure::tds::TDSRow
       $this.values->at($col.offset->toOne())->toOne();
    } : Any[1];
 
-}
-
-Class meta::pure::tds::AggregateValue<T,U>
-{
-   name : String[1];
-   mapFn : FunctionDefinition<{TDSRow[1]->T[0..1]}>[1];
-   aggregateFn : FunctionDefinition<{T[*]->U[0..1]}>[1];
-}
-
-Class meta::pure::tds::ColumnSpecification<T>
-{
-   name : String[1];
-   documentation : String[0..1];
-}
-
-Class  {doc.doc = 'Normal Project column, also used for extending a TDS'}
-meta::pure::tds::BasicColumnSpecification<T> extends meta::pure::tds::ColumnSpecification<T>
-{
-   func : Function<{T[1]->Any[*]}>[1];
-}
-
-Enum meta::pure::tds::SortDirection
-{
-    ASC, DESC
-}
-
-Class meta::pure::tds::SortInformation
-{
-   column : String[1];
-   direction : SortDirection[1];
-}
-
-Class meta::pure::tds::ColumnSort<T>
-{
-   column:Function<{T[1]->Any[1]}>[1];
-   direction:SortDirection[1];
-}
-
-Class meta::pure::tds::Window<T>
-{
-   partition:Function<{T[1]->Any[1]}>[*];
-}
-
-Class meta::pure::tds::OlapOperation<T>
-{
-  //superclass for all operations
-}
-
-Class meta::pure::tds::OlapAggregation<T> extends OlapOperation<T>
-{
-   mapFn : FunctionDefinition<{T[1]->Number[1]}>[1];
-   aggregateFn : FunctionDefinition<{Number[*]->Number[0..1]}>[1];
-}
-
-Class meta::pure::tds::OlapRank<T> extends OlapOperation<T>
-{
-   rankFn: FunctionDefinition<{T[*]->Map<Any,Integer>[1]}>[1];
-}
-
-Class meta::pure::tds::WindowColumnSpecification<T> extends ColumnSpecification<T>
-{
-   window:Window<T>[0..1];
-   sortInfo: ColumnSort<T>[0..1];
-   func: meta::pure::tds::OlapOperation<T>[1];
-}
-
-Class meta::pure::tds::TdsOlapAggregation<T> extends meta::pure::tds::OlapOperation<T>
-{
-   colName : String[1] ;
-   func: FunctionDefinition<{Number[*]->Number[0..1]}>[1];
-}
-
-Class meta::pure::tds::TdsOlapRank<T> extends meta::pure::tds::OlapOperation<T>
-{
-   func:FunctionDefinition<{T[*]->Map<Any,Integer>[1]}>[1];
 }
 
 
@@ -3599,177 +2785,6 @@ Class meta::pure::tds::schema::SchemaState[
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/mft.pure
-import meta::pure::graphFetch::execution::*;
-import meta::pure::graphFetch::*;
-import meta::pure::extension::*;
-import meta::relational::runtime::*;
-import meta::pure::extension::configuration::*;
-import meta::pure::runtime::*;
-import meta::pure::testCoverage::featureMatrix::*;
-import meta::pure::mft::tests::collection::*;
-import meta::core::runtime::*;
-import meta::pure::mapping::*;
-import meta::pure::test::mft::*;
-import meta::pure::mft::*;
-Class  meta::pure::test::mft::MFTAdapter
-{
-  runtime:Function<{MFTMappingTest[1]->Runtime[1]}>[1];
-  setup:Function<{Function<{->MFTMappingTest[1]}>[1]->Any[1]}>[0..1];
-    
-}
-
-Class  meta::pure::test::mft::MFTEvaluator  //Lineage or execute for each store type
-{
-  eval: Function<{TestParameters[1]->TestResult[1]}>[1];
-  assertion: Function<{TestResult[1],TestParameters[1]->Boolean[1]}>[0..1];
-  testParameters: Function<{MFTMappingTest[1],Runtime[1] ->TestParameters[*]}>[1];
-  unsupportedFeatures: Function<{->FeatureSet[*]}>[0..1];
-}
-
-Class meta::pure::test::mft::TestResult
-{
-}
-
-Class meta::pure::test::mft::ExpectedLineage
-{
-    storeLineage:String[*];
-    classLineage:String[*];
-    reportLineage:String[1];
-}
-
-Class meta::pure::test::mft::ExecuteResult<T> extends meta::pure::test::mft::TestResult
-{
-  result:meta::pure::mapping::Result<T|*>[1];
-  
-}
-
-Class meta::pure::test::mft::StringResult extends meta::pure::test::mft::TestResult
-{
-  result:String[1];
-}
-
-Class meta::pure::test::mft::CSVTestResult extends meta::pure::test::mft::TestResult
-{
-  result:String[1];
-}
-
-Class  meta::pure::test::mft::SetupData
-{
-}
-
-Class  meta::pure::test::mft::MFTMappingTest
-{
-   setupData:SetupData[*];
-   mapping:meta::pure::mapping::Mapping[1..*];
-   assertions:meta::pure::test::mft::Test[*];
-
-}
-
-Class  meta::pure::test::mft::Test
-{
-  tests:ConcreteFunctionDefinition<{->FunctionDefinition<{->Any[1]}>[1]}>[*]  ;
-
-}
-
-Class  meta::pure::test::mft::TDSResult extends ExecutionResult
-{
-  value:String[1];
-}
-
-Class  meta::pure::test::mft::JSONResult extends  ExecutionResult
-{
-  value:String[1];
-}
-
-Class  meta::pure::test::mft::ExecutionResult
-{
-}
-
-Class  meta::pure::test::mft::TestAssertion extends meta::pure::test::mft::Test
-
-{
-  expectedExecutionResult:ExecutionResult[0..1];
-  expectedLineageResult:ExpectedLineage[0..1];
-}
-
-Class  meta::pure::test::mft::TestErrorAssertion extends meta::pure::test::mft::Test
-{
-  expectedErrorMessage:String[0..1];
-}
-
-Class  meta::pure::test::mft::IgnoreTest extends meta::pure::test::mft::Test
-{
-  reason:String[1];
-}
-
-Class  meta::pure::test::mft::IgnoreExecutionTest extends meta::pure::test::mft::IgnoreTest
-{
-}
-
-Class  meta::pure::test::mft::TestParameters
-{
-  expectedExecutionResult:Any[0..1];
-  expectedErrorMessage : String[0..1];
-  expectedLineageResult:ExpectedLineage[0..1];
-  runtime:meta::core::runtime::Runtime[1];
-  mapping:meta::pure::mapping::Mapping[1];
-  test:ConcreteFunctionDefinition<{->FunctionDefinition<{->Any[1]}>[1]}>[1];
-
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/testCoverage/testCoverageModel.pure
-import meta::json::*;
-import meta::alloy::metadataServer::*;
-import meta::pure::extension::*;
-import meta::pure::testCoverage::featureMatrix::*;
-Class meta::pure::testCoverage::featureMatrix::FeatureSet
-[$this.features->map(f|$f->instanceOf(Profile) || $f->instanceOf(Stereotype) || $f->instanceOf(FeatureSet ))->and() ]
-{
-  name:String[0..1];
-  features:Any[*];  //profile or stereotype or FeatureSet
-
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/testable.pure
-import meta::pure::data::*;
-import meta::pure::test::*;
-import meta::pure::metamodel::testable::*;
-import meta::pure::test::assertion::*;
-import meta::pure::test::result::*;
-Class <<typemodifiers.abstract>> meta::pure::test::assertion::TestAssertion
-{
-    id          : String[1]; 
-}
-
-Class meta::pure::test::assertion::EqualTo extends TestAssertion
-{
-    expected    : Any[1];
-}
-
-Class meta::pure::test::assertion::EqualToJson extends TestAssertion
-{
-    expected    : EmbeddedData[1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/treepath/treePath.pure
-import meta::pure::metamodel::treepath::*;
-Class meta::pure::metamodel::treepath::PropertyPathTreeNode extends meta::pure::functions::collection::TreeNode{
-   property : AbstractProperty<Any>[0..1];
-   
-   children(){
-      $this.childrenData->cast(@PropertyPathTreeNode)
-   }:PropertyPathTreeNode[*];
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/store/aggregationAware/aggregationAware.pure
 import meta::pure::executionPlan::*;
 import meta::pure::extension::*;
@@ -3781,10 +2796,6 @@ import meta::core::runtime::*;
 import meta::pure::mapping::*;
 import meta::pure::router::metamodel::*;
 import meta::pure::router::metamodel::clustering::*;
-Class meta::pure::mapping::aggregationAware::AggregationAwareStore extends meta::pure::store::Store
-{
-}
-
 Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity
 {
    rewrittenQuery: String[1];
@@ -3798,24 +2809,9 @@ Class meta::json::JSONElement
 {
 }
 
-Class meta::json::JSONBoolean extends JSONElement
-{
-    <<equality.Key>> value : Boolean[1];
-}
-
 Class meta::json::JSONString extends JSONElement
 {
     <<equality.Key>> value : String[1];
-}
-
-Class meta::json::JSONNumber extends JSONElement
-{
-    <<equality.Key>> value : Number[1];
-}
-
-Class meta::json::JSONNull extends JSONElement
-{
-    <<equality.Key>> value : Nil[0];
 }
 
 Class meta::json::JSONArray extends JSONElement
@@ -3832,19 +2828,6 @@ Class meta::json::JSONKeyValue
 {
     <<equality.Key>> key : JSONString[1];
     <<equality.Key>> value : JSONElement[1];
-}
-
-Class meta::json::JSONConfig
-{
-    typeKeyName : String[1];
-    typeLookup : Pair<String,String>[*];
-}
-
-Class meta::json::JSONDeserializationConfig extends JSONConfig
-{
-    retainTypeField: Boolean[0..1];
-    failOnUnknownProperties : Boolean[1];
-    constraintsHandler: ConstraintsOverride[0..1];
 }
 
 
@@ -3883,32 +2866,6 @@ Class meta::pure::functions::math::mathUtility::RowMapper<T,U>
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/io/http/executeHTTPRaw.pure
-import meta::pure::functions::io::http::*;
-Class meta::pure::functions::io::http::URL
-{
-    scheme: URLScheme[0..1];
-    host : String[1];
-    port : Integer[1];
-    path : String[1];
-}
-
-Enum meta::pure::functions::io::http::URLScheme
-{
-    http,
-    https
-}
-
-Enum meta::pure::functions::io::http::HTTPMethod
-{
-    GET,
-    PUT,
-    POST,
-    DELETE
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/string/regex/regexpParameter.pure
 Enum meta::pure::functions::string::RegexpParameter
 {
@@ -3916,562 +2873,6 @@ Enum meta::pure::functions::string::RegexpParameter
    CASE_INSENSITIVE, // Enables case-insensitive matching
    MULTILINE, // Enables multi-line mode (that is, meta-characters ^ and $ mark the beginning and end of any line of the subject). By default, multi-line mode is disabled (that is, ^ and $ mark the beginning and end of the entire subject)
    NON_NEWLINE_SENSITIVE // Enables the POSIX wildcard character . to match \n. By default, wildcard character matching is disabled
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-pure/src/main/resources/core_relational_duckdb/relational/connection/metamodel.pure
-Class meta::pure::alloy::connections::alloy::specification::DuckDBDatasourceSpecification extends meta::pure::alloy::connections::alloy::specification::DatasourceSpecification
-{
-    <<equality.Key>> path:String[0..1];
-    <<equality.Key>> testDataSetupCsv:String[0..1];
-    <<equality.Key>> testDataSetupSqls:String[*];
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure/src/main/resources/core_external_store_relational_postgres_sql_model_extensions/metamodel_extensions.pure
-import meta::external::query::sql::metamodel::*;
-import meta::external::query::sql::metamodel::extension::*;
-Class meta::external::query::sql::metamodel::extension::TablePlaceholder extends meta::external::query::sql::metamodel::Relation
-{
-  <<equality.Key>> name: String[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::DecimalLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: Decimal[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::DateLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: StrictDate[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::TimestampLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: DateTime[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::PartialDateLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: Date[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::ExistsPredicate extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> query: TableSubquery[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::BitwiseNotExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> expression: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::AllColumnsReference extends meta::external::query::sql::metamodel::Expression
-{
-}
-
-Class meta::external::query::sql::metamodel::extension::InClauseVariablePlaceholder extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> name : String[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::VariablePlaceholder extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> name : String[1];
-  <<equality.Key>> type: String[1];
-  <<equality.Key>> isEnum: Boolean[1];
-  <<equality.Key>> multiplicityLowerBound: Integer[0..1];
-  <<equality.Key>> multiplicityUpperBound: Integer[0..1];
-}
-
-Class meta::external::query::sql::metamodel::extension::FreeMarkerOperation extends meta::external::query::sql::metamodel::Expression
-{
-  template: String[1];
-  parameters: meta::external::query::sql::metamodel::Expression[*];
-}
-
-Class meta::external::query::sql::metamodel::extension::AsOfJoin extends meta::external::query::sql::metamodel::Join
-{
-}
-
-Class meta::external::query::sql::metamodel::extension::LateralJoin extends meta::external::query::sql::metamodel::Join
-{
-}
-
-Class meta::external::query::sql::metamodel::extension::PivotedRelation extends meta::external::query::sql::metamodel::Relation
-{
-  relation: meta::external::query::sql::metamodel::Relation[1];
-  pivotColumns: meta::external::query::sql::metamodel::Expression[*];
-  aggColumns: meta::external::query::sql::metamodel::Expression[*];
-}
-
-Class meta::external::query::sql::metamodel::extension::SemiStructuredArrayFlatten extends meta::external::query::sql::metamodel::Relation
-{
-  navigation: meta::external::query::sql::metamodel::Expression[1];
-  baseTable: meta::external::query::sql::metamodel::Relation[1];
-  baseColumn: String[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::SemiStructuredArrayFlattenOutput extends meta::external::query::sql::metamodel::Expression
-{
-  flattenedRelation: AliasedRelation[1];
-  returnType: String[0..1];
-}
-
-Class meta::external::query::sql::metamodel::extension::SemiStructuredObjectNavigation extends meta::external::query::sql::metamodel::Expression
-{
-  operand: meta::external::query::sql::metamodel::Expression[1];
-  returnType: String[0..1];
-  avoidCastIfPrimitive: Boolean[0..1];
-}
-
-Class meta::external::query::sql::metamodel::extension::SemiStructuredPropertyAccess extends SemiStructuredObjectNavigation
-{
-  property: meta::external::query::sql::metamodel::Expression[1];
-  index: meta::external::query::sql::metamodel::Expression[0..1];
-}
-
-Class meta::external::query::sql::metamodel::extension::SemiStructuredArrayElementAccess extends SemiStructuredObjectNavigation
-{
-  index: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::extension::ExtractFromSemiStructured extends meta::external::query::sql::metamodel::Expression
-{
-  baseExpression: meta::external::query::sql::metamodel::Expression[1];
-  pathNavigation: String[1];
-  parsedPathNavigation: String[*];
-  returnType: String[1];
-}
-
-Enum meta::external::query::sql::metamodel::extension::TemporalUnit
-{
-  YEAR,
-  MONTH,
-  WEEK,
-  DAY,
-  HOUR,
-  MINUTE,
-  SECOND,
-  MILLISECOND,
-  MICROSECOND
-}
-
-Class meta::external::query::sql::metamodel::extension::ExtendedQuerySpecification extends meta::external::query::sql::metamodel::QuerySpecification
-{
-  <<equality.Key>> qualify: meta::external::query::sql::metamodel::Expression[0..1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-pure/src/main/resources/core_external_store_relational_postgres_sql_model/metamodel.pure
-import meta::meta::external::query::sql::metamodel::*;
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::Node
-{
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::Statement extends meta::external::query::sql::metamodel::Node
-{
-}
-
-Class meta::external::query::sql::metamodel::Query extends meta::external::query::sql::metamodel::Statement
-{
-  <<equality.Key>> queryBody: meta::external::query::sql::metamodel::QueryBody[1];
-}
-
-Class meta::external::query::sql::metamodel::WithQuery extends meta::external::query::sql::metamodel::Node
-{
-  <<equality.Key>> name: String[1];
-  <<equality.Key>> columns: String[*];
-  <<equality.Key>> query: meta::external::query::sql::metamodel::Query[1];
-}
-
-Class meta::external::query::sql::metamodel::With extends meta::external::query::sql::metamodel::Statement
-{
-  <<equality.Key>> withQueries: meta::external::query::sql::metamodel::WithQuery[*];
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::Relation extends meta::external::query::sql::metamodel::Node
-{
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::QueryBody extends meta::external::query::sql::metamodel::Relation
-{
-}
-
-Class meta::external::query::sql::metamodel::TableSubquery extends meta::external::query::sql::metamodel::QueryBody
-{
-  <<equality.Key>> query: meta::external::query::sql::metamodel::Query[1];
-}
-
-Class meta::external::query::sql::metamodel::SubqueryExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> query: meta::external::query::sql::metamodel::Query[1];
-}
-
-Class meta::external::query::sql::metamodel::QueryWithScope extends meta::external::query::sql::metamodel::QueryBody
-{
-  <<equality.Key>> with: meta::external::query::sql::metamodel::With[0..1];
-  <<equality.Key>> queryBody: meta::external::query::sql::metamodel::QueryBody[1];
-}
-
-Class meta::external::query::sql::metamodel::QuerySpecification extends meta::external::query::sql::metamodel::QueryBody
-{
-  <<equality.Key>> select: meta::external::query::sql::metamodel::Select[1];
-  <<equality.Key>> from: meta::external::query::sql::metamodel::Relation[*];
-  <<equality.Key>> where: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> groupBy: meta::external::query::sql::metamodel::Expression[*];
-  <<equality.Key>> having: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> orderBy: meta::external::query::sql::metamodel::SortItem[*];
-  <<equality.Key>> limit: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> offset: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> windows: meta::external::query::sql::metamodel::NamedWindow[*];
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::SetOperation extends meta::external::query::sql::metamodel::QueryBody
-{
-  <<equality.Key>> left: meta::external::query::sql::metamodel::Relation[1];
-  <<equality.Key>> right: meta::external::query::sql::metamodel::Relation[1];
-  <<equality.Key>> distinct: Boolean[1] = false;
-  <<equality.Key>> orderBy: meta::external::query::sql::metamodel::SortItem[*];
-  <<equality.Key>> limit: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> offset: meta::external::query::sql::metamodel::Expression[0..1];
-}
-
-Class meta::external::query::sql::metamodel::AliasedRelation extends meta::external::query::sql::metamodel::Relation
-{
-  <<equality.Key>> relation:meta::external::query::sql::metamodel::Relation[1];
-  <<equality.Key>> alias: String[1];
-  <<equality.Key>> columnNames: String[*];
-}
-
-Class meta::external::query::sql::metamodel::Union extends meta::external::query::sql::metamodel::SetOperation
-{
-}
-
-Class meta::external::query::sql::metamodel::Select extends meta::external::query::sql::metamodel::Node
-{
-  <<equality.Key>> distinct: Boolean[1] = false;
-  <<equality.Key>> selectItems: meta::external::query::sql::metamodel::SelectItem[*];
-}
-
-Class meta::external::query::sql::metamodel::SelectItem extends meta::external::query::sql::metamodel::Node
-{
-}
-
-Class meta::external::query::sql::metamodel::AllColumns extends meta::external::query::sql::metamodel::SelectItem
-{
-  <<equality.Key>> prefix: String[0..1];
-}
-
-Class meta::external::query::sql::metamodel::SingleColumn extends meta::external::query::sql::metamodel::SelectItem
-{
-  <<equality.Key>> alias: String[0..1];
-  <<equality.Key>> expression: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::Table extends meta::external::query::sql::metamodel::QueryBody
-{
-  <<equality.Key>> name: meta::external::query::sql::metamodel::QualifiedName[1];
-}
-
-Class meta::external::query::sql::metamodel::TableFunction extends meta::external::query::sql::metamodel::QueryBody
-{
-  <<equality.Key>> functionCall: meta::external::query::sql::metamodel::FunctionCall[1];
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::Expression extends meta::external::query::sql::metamodel::Node
-{
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::Literal extends meta::external::query::sql::metamodel::Expression
-{
-}
-
-Class meta::external::query::sql::metamodel::BooleanLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: Boolean[1];
-}
-
-Class meta::external::query::sql::metamodel::DoubleLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: Float[1];
-}
-
-Class meta::external::query::sql::metamodel::IntegerLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: Integer[1];
-}
-
-Class meta::external::query::sql::metamodel::StringLiteral extends meta::external::query::sql::metamodel::Literal
-{
-  <<equality.Key>> value: String[1];
-  <<equality.Key>> quoted: Boolean[0..1];
-}
-
-Class meta::external::query::sql::metamodel::NullLiteral extends meta::external::query::sql::metamodel::Literal
-{
-}
-
-Class meta::external::query::sql::metamodel::SortItem extends meta::external::query::sql::metamodel::Node
-{
-  <<equality.Key>> sortKey: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> ordering: meta::external::query::sql::metamodel::SortItemOrdering[1];
-  <<equality.Key>> nullOrdering: meta::external::query::sql::metamodel::SortItemNullOrdering[1];
-}
-
-Class meta::external::query::sql::metamodel::ComparisonExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> left: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> right: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> operator: meta::external::query::sql::metamodel::ComparisonOperator[1];
-}
-
-Class meta::external::query::sql::metamodel::LogicalBinaryExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> type: meta::external::query::sql::metamodel::LogicalBinaryType[1];
-  <<equality.Key>> left: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> right: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::NotExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::ArithmeticExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> type: meta::external::query::sql::metamodel::ArithmeticType[1];
-  <<equality.Key>> left: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> right: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::NegativeExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::IsNullPredicate extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::IsNotNullPredicate extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::FunctionCall extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> name: meta::external::query::sql::metamodel::QualifiedName[1];
-  <<equality.Key>> distinct: Boolean[1] = false;
-  <<equality.Key>> arguments: meta::external::query::sql::metamodel::Expression[*];
-  <<equality.Key>> filter: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> window: meta::external::query::sql::metamodel::Window[0..1];
-  <<equality.Key>> group: meta::external::query::sql::metamodel::Group[0..1];
-  <<equality.Key>> orderBy: meta::external::query::sql::metamodel::SortItem[*];
-}
-
-Class meta::external::query::sql::metamodel::SearchedCaseExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> whenClauses: meta::external::query::sql::metamodel::WhenClause[*];
-  <<equality.Key>> defaultValue: meta::external::query::sql::metamodel::Expression[0..1];
-}
-
-Class meta::external::query::sql::metamodel::WhenClause extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> operand: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> result: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::Trim extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> characters: meta::external::query::sql::metamodel::Expression[0..1 ];
-  <<equality.Key>> mode: meta::external::query::sql::metamodel::TrimMode[1];
-}
-
-Class meta::external::query::sql::metamodel::Join extends meta::external::query::sql::metamodel::Relation
-{
-  <<equality.Key>> type: meta::external::query::sql::metamodel::JoinType[1];
-  <<equality.Key>> left: meta::external::query::sql::metamodel::Relation[1];
-  <<equality.Key>> right: meta::external::query::sql::metamodel::Relation[1];
-  <<equality.Key>> criteria: meta::external::query::sql::metamodel::JoinCriteria[0..1];
-}
-
-Class <<typemodifiers.abstract>> meta::external::query::sql::metamodel::JoinCriteria
-{
-}
-
-Class meta::external::query::sql::metamodel::JoinOn extends meta::external::query::sql::metamodel::JoinCriteria
-{
-  <<equality.Key>> expression: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::Cast extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> expression: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> type: meta::external::query::sql::metamodel::ColumnType[1];
-}
-
-Class meta::external::query::sql::metamodel::ColumnType extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> name: String[1];
-  <<equality.Key>> parameters: Integer[*];
-}
-
-Class meta::external::query::sql::metamodel::QualifiedName
-{
-  <<equality.Key>> parts: String[*];
-}
-
-Class meta::external::query::sql::metamodel::QualifiedNameReference extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> name: meta::external::query::sql::metamodel::QualifiedName[1];
-}
-
-Class meta::external::query::sql::metamodel::InListExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> values: meta::external::query::sql::metamodel::Expression[*];
-}
-
-Class meta::external::query::sql::metamodel::InPredicate extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> valueList: meta::external::query::sql::metamodel::Expression[1];
-}
-
-Class meta::external::query::sql::metamodel::BitwiseBinaryExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> left: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> right: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> operator: meta::external::query::sql::metamodel::BitwiseBinaryOperator[1];
-}
-
-Class meta::external::query::sql::metamodel::BitwiseShiftExpression extends meta::external::query::sql::metamodel::Expression
-{
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> shift: meta::external::query::sql::metamodel::Expression[1];
-  <<equality.Key>> direction: meta::external::query::sql::metamodel::BitwiseShiftDirection[1];
-}
-
-Enum meta::external::query::sql::metamodel::BitwiseShiftDirection
-{
-  LEFT,
-  RIGHT
-}
-
-Enum meta::external::query::sql::metamodel::BitwiseBinaryOperator
-{
-  AND,
-  OR,
-  XOR
-}
-
-Class meta::external::query::sql::metamodel::Group extends meta::external::query::sql::metamodel::Statement
-{
-  <<equality.Key>> orderBy: meta::external::query::sql::metamodel::SortItem[1];
-}
-
-Class meta::external::query::sql::metamodel::Window extends meta::external::query::sql::metamodel::Statement
-{
-  <<equality.Key>> windowRef: String[0..1];
-  <<equality.Key>> partitions: meta::external::query::sql::metamodel::Expression[*];
-  <<equality.Key>> orderBy: meta::external::query::sql::metamodel::SortItem[*];
-  <<equality.Key>> windowFrame: meta::external::query::sql::metamodel::WindowFrame[0..1];
-}
-
-Class meta::external::query::sql::metamodel::NamedWindow extends meta::external::query::sql::metamodel::Node
-{
-  <<equality.Key>> name: String[1];
-  <<equality.Key>> window: meta::external::query::sql::metamodel::Window[1];
-}
-
-Class meta::external::query::sql::metamodel::WindowFrame extends meta::external::query::sql::metamodel::Node
-{
-  <<equality.Key>> mode: meta::external::query::sql::metamodel::WindowFrameMode[1];
-  <<equality.Key>> start: meta::external::query::sql::metamodel::FrameBound[1];
-  <<equality.Key>> end: meta::external::query::sql::metamodel::FrameBound[0..1];
-}
-
-Enum meta::external::query::sql::metamodel::WindowFrameMode {
-  RANGE, ROWS
-}
-
-Enum meta::external::query::sql::metamodel::FrameBoundType {
-  UNBOUNDED_PRECEDING, PRECEDING, CURRENT_ROW, FOLLOWING, UNBOUNDED_FOLLOWING
-}
-
-Class meta::external::query::sql::metamodel::FrameBound extends meta::external::query::sql::metamodel::Node
-{
-  <<equality.Key>> type: meta::external::query::sql::metamodel::FrameBoundType[1];
-  <<equality.Key>> value: meta::external::query::sql::metamodel::Expression[0..1];
-  <<equality.Key>> durationUnit: meta::external::query::sql::metamodel::StringLiteral[0..1];
-}
-
-Enum meta::external::query::sql::metamodel::TrimMode
-{
-  LEADING, TRAILING, BOTH
-}
-
-Enum meta::external::query::sql::metamodel::JoinType
-{
-  CROSS,
-  INNER, 
-  LEFT, 
-  RIGHT, 
-  FULL
-}
-
-Enum meta::external::query::sql::metamodel::LogicalBinaryType
-{
-  AND,
-  OR
-}
-
-Enum meta::external::query::sql::metamodel::ArithmeticType
-{
-  ADD,
-  SUBTRACT,
-  MULTIPLY,
-  DIVIDE,
-  MODULUS,
-  POWER
-}
-
-Enum meta::external::query::sql::metamodel::SortItemOrdering
-{
-  ASCENDING,
-  DESCENDING
-}
-
-Enum meta::external::query::sql::metamodel::SortItemNullOrdering
-{
-  FIRST,
-  LAST,
-  UNDEFINED
-}
-
-Enum meta::external::query::sql::metamodel::ComparisonOperator
-{
-  EQUAL,
-  NOT_EQUAL,
-  LESS_THAN,
-  LESS_THAN_OR_EQUAL,
-  GREATER_THAN,
-  GREATER_THAN_OR_EQUAL,
-  IS_DISTINCT_FROM,
-  IS_NOT_DISTINCT_FROM,
-  REGEX_MATCH,
-  REGEX_MATCH_CI,
-  REGEX_NO_MATCH,
-  REGEX_NO_MATCH_CI,
-  LIKE,
-  ILIKE,
-  NOT_LIKE,
-  NOT_ILIKE
 }
 
 
@@ -4808,13 +3209,6 @@ Class <<typemodifiers.abstract>> meta::pure::alloy::connections::alloy::authenti
 {
 }
 
-Class
-{doc.doc = 'Authentication using a middle tier user/password'}
-meta::pure::alloy::connections::alloy::authentication::MiddleTierUserNamePasswordAuthenticationStrategy extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy
-{
-   <<equality.Key>> {doc.doc = 'Username/pasword vault reference'} vaultReference: String[1];
-}
-
 
 ###Pure
 // legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/connection.pure
@@ -4864,49 +3258,9 @@ import meta::pure::alloy::connections::alloy::specification::*;
 import meta::pure::alloy::connections::alloy::authentication::*;
 Class <<typemodifiers.abstract>> meta::pure::alloy::connections::PostProcessor {}
 
-Class meta::pure::alloy::connections::Mapper extends meta::relational::runtime::PostProcessorParameter {
-   from: String[1];
-   to: String[1];
-}
-
-Class meta::pure::alloy::connections::MapperPostProcessor extends PostProcessor
-{
-   mappers: Mapper[*];
-}
-
 Class meta::pure::alloy::connections::RelationalMapperPostProcessor extends PostProcessor
 {
   relationalMappers: RelationalMapper[*];
-}
-
-Class <<typemodifiers.abstract>> meta::pure::alloy::connections::SchemaNameMapper extends Mapper {}
-
-Class <<typemodifiers.abstract>> meta::pure::alloy::connections::TableNameMapper extends Mapper {
-   schema: meta::pure::alloy::connections::SchemaNameMapper[1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/executionContext/executionContext.pure
-import meta::pure::executionPlan::*;
-import meta::relational::metamodel::relation::*;
-import meta::pure::store::*;
-import meta::core::runtime::*;
-import meta::relational::metamodel::*;
-import meta::external::store::relational::runtime::*;
-import meta::relational::runtime::*;
-import meta::relational::metamodel::execute::*;
-import meta::relational::functions::typeInference::*;
-Class meta::relational::runtime::RelationalExecutionContext extends meta::pure::runtime::ExecutionContext
-{
-   addDriverTablePkForProject : Boolean[0..1];
-   insertDriverTablePkInTempTable : String[0..1];
-   useTempTableAsDriver : String[0..1];
-   preserveJoinOrder:Boolean[0..1];
-   importDataFlow : Boolean[0..1];
-   importDataFlowAddFks : Boolean[0..1];
-   importDataFlowFksByTable : Map<Relation, List<Column>>[0..1];
-   importDataFlowImplementationCount : Integer[0..1];
 }
 
 
@@ -5311,13 +3665,6 @@ Class meta::relational::testDataGeneration::TestDataGenResult
    sqls : String[*];
 }
 
-Class meta::relational::testDataGeneration::TemporalMilestoningDates
-{
-   businessDate: Date[0..1];
-   processingDate: Date[0..1];
-   snapshotDate: Date[0..1];
-}
-
 
 ###Pure
 // legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/toSQLString.pure
@@ -5357,320 +3704,82 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/functionRegistry/functionRegistry.pure
-import meta::external::store::relational::sqlDialectTranslation::functionRegistry::extensionFunctions::string::*;
-import meta::external::store::relational::sqlDialectTranslation::functionRegistry::postgresNativeFunctions::string::*;
-import meta::external::query::sql::metamodel::*;
-import meta::external::store::relational::sqlDialectTranslation::*;
-import meta::external::store::relational::sqlDialectTranslation::tests::utils::*;
-import meta::external::store::relational::sqlDialectTranslation::utils::*;
-import meta::external::store::relational::sqlDialectTranslation::functionRegistry::*;
-import meta::external::store::relational::sqlDialectTranslation::sqlTyping::sqlTypes::*;
-Class <<typemodifiers.abstract>> meta::external::store::relational::sqlDialectTranslation::functionRegistry::SqlFunction
-{
-  name: String[*];
-  variations: SqlFunctionVariation[1..*];
-  tests: SqlFunctionTest[1..*];
-  documentation: String[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::functionRegistry::SqlFunctionVariation
-{
-  parameterTypes: Class<SqlType>[*];
-  returnType: Class<SqlType>[1];
-  documentation: String[0..1];
-
-  identifier() {
-    $this.parameterTypes->map(t | $t.name)->joinStrings('(', ', ', '):') + $this.returnType.name->toOne()
-  }: String[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::functionRegistry::SqlFunctionTest
-{
-  setupData: TestSetupData[*];
-  query: Node[1];
-  result: Any[*];
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/sqlDialect.pure
-import meta::external::query::sql::metamodel::extension::*;
-import meta::external::store::relational::sqlDialectTranslation::functionRegistry::*;
-import meta::external::query::sql::metamodel::*;
-import meta::external::store::relational::sqlDialectTranslation::*;
-import meta::external::store::relational::sqlDialectTranslation::defaults::*;
-import meta::external::store::relational::sqlDialectTranslation::sqlTyping::typeInference::*;
-import meta::external::store::relational::sqlDialectTranslation::utils::*;
-Class meta::external::store::relational::sqlDialectTranslation::SqlDialect
-{
-  dbType: String[1];
-  identifierQuoteConfig: QuoteConfiguration[1];
-  literalQuoteConfig: QuoteConfiguration[1];
-  nodeProcessors: Map<Class<Node>, NodeProcessor<Node>>[1];
-  identifierProcessor: IdentifierProcessor[1];
-  expressionPrecedenceComparator: ExpressionPrecedenceComparator[1];
-  keywords: String[*];
-  functionProcessorMap: Map<Class<SqlFunction>, FunctionProcessor>[0..1];
-  variablePlaceholderPrefixSuffixMap: Map<String, Pair<String, String>>[1];
-  isBooleanAliasForTinyInt: Boolean[1] = false;
-  // For testing
-  initSqlStatementsForTests: String[*];
-  expectedSqlDialectTestErrors: Map<String, String>[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::NodeProcessor<T> // T extends Node
-{
-  nodeType: Class<T>[1];
-  processFunction: Function<{SqlDialect[1], T[1], SqlDialectTranslationState[1], SqlDialectTranslationConfig[1] -> String[1]}>[1];
-  selfDelimiting: Function<{T[1] -> Boolean[1]}>[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::FunctionProcessor
-{
-  processFunction: Function<{SqlDialect[1], FunctionCall[1], SqlDialectTranslationState[1], SqlDialectTranslationConfig[1] -> String[1]}>[1];
-  selfDelimiting: Function<{FunctionCall[1] -> Boolean[1]}>[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::IdentifierProcessor
-{
-  processFunction: Function<{SqlDialect[1], String[1], Boolean[1], SqlDialectTranslationState[1], SqlDialectTranslationConfig[1] -> String[1]}>[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::ExpressionPrecedenceComparator
-{
-  // Precedence is currently used to delimit child expressions with parentheses if the parent expression is of higher precedence
-  findOperatorType: Function<{meta::external::query::sql::metamodel::Expression[1] -> String[1]}>[1];
-  operatorPrecedence: Map<String, Integer>[1];
-
-
-  // Returns
-  //   1 id e1 expression has higher precedence than e2 expression
-  //   0 id e1 expression has same precedence than e2 expression
-  //   -1 id e1 expression has lower precedence than e2 expression
-
-  compare(e1: meta::external::query::sql::metamodel::Expression[1], e2: meta::external::query::sql::metamodel::Expression[1])
-  {
-    let priority1 = $this.operatorPrecedence->get($this.findOperatorType->eval($e1))->toOne();
-    let priority2 = $this.operatorPrecedence->get($this.findOperatorType->eval($e2))->toOne();
-    if (
-      [
-        pair(| $priority1 < $priority2, | 1),
-        pair(| $priority1 == $priority2, | 0)
-      ],
-      | -1
-    );
-  }: Integer[1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::QuoteConfiguration
-{
-  start: String[1];
-  end: String[1];
-  escape: String[1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/sqlDialectTranslator.pure
-import meta::external::query::sql::metamodel::*;
-import meta::external::store::relational::sqlDialectTranslation::*;
-import meta::external::store::relational::sqlDialectTranslation::functionRegistry::*;
-import meta::external::store::relational::sqlDialectTranslation::sqlTyping::typeInference::*;
-import meta::pure::extension::*;
-Class meta::external::store::relational::sqlDialectTranslation::SqlDialectTranslationConfig
-{
-  dbConfig: DbConfig[1];
-  formatConfig: FormatConfig[1]; 
-  functionRegistry: Map<Class<SqlFunction>, SqlFunction>[1];
-  extraNodeProcessors: Map<Class<Node>, NodeProcessor<Node>>[0..1];
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::DbConfig
-{
-  dbType: String[1];
-  dbTimeZone: String[0..1];
-  quoteIdentifiers: Boolean[1] = false;
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::FormatConfig
-{
-  pretty: Boolean[1] = false;
-  indent: String[1] = '  ';
-  lineSeparator: String[1] = '\n';
-  upperCaseKeywords: Boolean[1] = false;
-}
-
-Class meta::external::store::relational::sqlDialectTranslation::SqlDialectTranslationState
-{
-  level: Integer[1] = 0;
-
-  {doc.doc = 'Returns right level indentation for next line if pretty format configured, else space'}
-  separator(offsetIndex: Integer[1], config: SqlDialectTranslationConfig[1]) {
-    if ($config.formatConfig.pretty,
-        | $config.formatConfig.lineSeparator + repeat($config.formatConfig.indent, $this.level + $offsetIndex)->joinStrings(),
-        | ' '
-    )
-  }: String[1];
-
-  {doc.doc = 'Returns right level indentation for next line if pretty format configured, else empty string'}
-  separatorIfPretty(offsetIndex: Integer[1], config: SqlDialectTranslationConfig[1]) {
-    if ($config.formatConfig.pretty,
-        | $config.formatConfig.lineSeparator + repeat($config.formatConfig.indent, $this.level + $offsetIndex)->joinStrings(),
-        | ''
-    )
-  }: String[1];
-
-  nestedFreeMarkerOperation: Boolean[1] = false;
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/sqlTyping/sqlTypes.pure
-import meta::external::query::sql::metamodel::*;
-import meta::external::store::relational::sqlDialectTranslation::*;
-import meta::external::store::relational::sqlDialectTranslation::sqlTyping::sqlTypes::*;
-Class <<typemodifiers.abstract>> meta::external::store::relational::sqlDialectTranslation::sqlTyping::sqlTypes::SqlType {}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/utils.pure
-import meta::relational::metamodel::*;
-import meta::external::query::sql::metamodel::*;
-import meta::external::store::relational::sqlDialectTranslation::*;
-import meta::external::store::relational::sqlDialectTranslation::defaults::*;
-import meta::external::store::relational::sqlDialectTranslation::utils::*;
-import meta::external::query::sql::metamodel::extension::*;
-Class meta::external::store::relational::sqlDialectTranslation::tests::utils::TestSetupData
-{
-  tableName: String[1];
-  columns: Pair<String, String>[1..*];
-  data: List<meta::external::query::sql::metamodel::Literal>[1..*];
-  useTempTable: Boolean[1] = true;
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlPlanning-pure/src/main/resources/core_external_store_relational_sql_planning/sqlPlanner.pure
-import meta::external::store::relational::sqlPlanning::ruleBasedTransformation::*;
-import meta::external::query::sql::metamodel::*;
-import meta::external::store::relational::sqlPlanning::*;
-import meta::pure::extension::*;
-Class meta::external::store::relational::sqlPlanning::SqlPlanningConfig
-{
-  dbType : String[1];
-}
-
-
-###Pure
-// legend-engine/legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/src/main/resources/core_service/service/metamodel.pure
-import meta::legend::service::metamodel::*;
-import meta::pure::executionPlan::*;
-import meta::pure::mapping::*;
-import meta::core::runtime::*;
-Class meta::legend::service::metamodel::Service extends PackageableElement, meta::pure::metamodel::testable::Testable
-[
-
-   executionAndTestTypesMatch: if($this.execution->instanceOf(meta::legend::service::metamodel::PureMultiExecution),
-                                  |assert($this.test->isEmpty() || ($this.test->isNotEmpty() && $this.test->toOne()->instanceOf(MultiExecutionTest)),'Service with multiple executions requires a MultiExecution test'),
-                                  |if($this.execution->instanceOf(meta::legend::service::metamodel::PureSingleExecution),
-                                      |assert($this.test->isEmpty() || ($this.test->isNotEmpty() && $this.test->toOne()->instanceOf(SingleExecutionTest)),'Service with a single execution requires a SingleExecution test'),
-                                      |true)
-                                  ),
-
-   patternMustStartWithBackslash: $this.pattern->startsWith('/'),
-
-   mcpServerIsValidIdentifierIfExists: if($this.mcpServer->isEmpty(), |true, |$this.mcpServer->toOne()->matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))
-]
-{
-   pattern : String[1];
-   <<doc.deprecated>> owners : String[*];
-   ownership: Ownership[0..1];
-   autoActivateUpdates : Boolean[1];
-   title: String[0..1];
-   documentation : String[1];
-   execution : Execution[1];
-   tags: ServiceTag[*];
-   postValidations: PostValidation<Any|*>[*];
-   mcpServer: String[0..1];
-
-   <<doc.deprecated>> test: Test[0..1];
-}
-
-Class <<typemodifiers.abstract>> meta::legend::service::metamodel::Ownership
-{
-
-}
-
-Class meta::legend::service::metamodel::ServiceTag
-{
-   name: String[1];
-   value: String[1];
-}
-
-Class meta::legend::service::metamodel::Execution
-{
-}
-
-Class meta::legend::service::metamodel::PureExecution extends Execution
-{
-   func : FunctionDefinition<Any>[1];
-}
-
-Class meta::legend::service::metamodel::PureSingleExecution extends PureExecution
-{
-   mapping : Mapping[0..1];
-   runtime : Runtime[0..1];
-   executionOptions : ExecutionOption[*];
-}
-
-Class <<doc.deprecated>> meta::legend::service::metamodel::Test
-{
-}
-
-Class <<doc.deprecated>> meta::legend::service::metamodel::SingleExecutionTest extends Test
-{
-   data : String[1];
-   asserts : TestContainer[1..*];
-}
-
-Class <<doc.deprecated>> meta::legend::service::metamodel::TestContainer
-{
-   parametersValues : Any[*];
-   assert:FunctionDefinition<{Result<Any|*>[1]->Boolean[1]}>[1];
-}
-
-Class meta::legend::service::metamodel::PostValidation<T|m>
-{
-  description: String[1];
-  parameters: Function<Any>[*];
-  assertions: meta::legend::service::metamodel::PostValidationAssertion<T|m>[1..*];
-}
-
-Class meta::legend::service::metamodel::PostValidationAssertion<T|m>
-{
-  id: String[1];
-  assertion: Function<{T[m]->Boolean[1]}>[1];
-}
-
-// 577 classes, 33 enums.
+// 343 classes, 14 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
+//   meta::core::runtime::EngineRuntime
+//   meta::external::format::shared::ExternalFormatContract
+//   meta::external::format::shared::ExternalFormatExternalizeConfig
+//   meta::external::format::shared::ExternalFormatFromPureDescriptor
+//   meta::external::format::shared::ExternalFormatInternalizeConfig
+//   meta::external::format::shared::ExternalFormatToPureDescriptor
+//   meta::external::format::shared::binding::Binding
+//   meta::external::format::shared::binding::validation::BindingDetail
+//   meta::external::format::shared::metamodel::SchemaSet
+//   meta::external::format::shared::transformation::GenerationConfiguration
+//   meta::external::format::shared::transformation::fromPure::ModelToSchemaConfiguration
+//   meta::external::format::shared::transformation::toPure::SchemaToModelConfiguration
 //   meta::external::store::relational::runtime::RelationalDatabaseConnection
-//   meta::external::store::relational::sqlDialectTranslation::tests::utils::TestSetupData
-//   meta::pure::alloy::connections::Mapper
-//   meta::pure::alloy::connections::MapperPostProcessor
+//   meta::json::JSONArray
+//   meta::json::JSONElement
+//   meta::json::JSONKeyValue
+//   meta::json::JSONObject
+//   meta::json::JSONString
 //   meta::pure::alloy::connections::PostProcessor
 //   meta::pure::alloy::connections::RelationalMapperPostProcessor
-//   meta::pure::alloy::connections::SchemaNameMapper
-//   meta::pure::alloy::connections::TableNameMapper
 //   meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy
 //   meta::pure::alloy::connections::alloy::specification::DatasourceSpecification
 //   meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification
+//   meta::pure::data::EmbeddedData
+//   meta::pure::dataQuality::Checked
+//   meta::pure::dataQuality::Defect
+//   meta::pure::dataQuality::EnforcementLevel
+//   meta::pure::dataQuality::RelativePathNode
+//   meta::pure::dataQuality::RuleType
+//   meta::pure::executionPlan::ExecutionNode
+//   meta::pure::executionPlan::ExecutionOption
+//   meta::pure::executionPlan::ExecutionPlan
+//   meta::pure::executionPlan::FunctionParameter
+//   meta::pure::executionPlan::FunctionParametersValidationNode
+//   meta::pure::executionPlan::ParameterValidationContext
+//   meta::pure::executionPlan::PlanVarPlaceHolder
+//   meta::pure::executionPlan::PlatformImplementation
+//   meta::pure::executionPlan::ResultType
+//   meta::pure::executionPlan::SequenceExecutionNode
+//   meta::pure::executionPlan::VariableInput
+//   meta::pure::executionPlan::extension::ExecutionPlanExtension
+//   meta::pure::executionPlan::platformBinding::PlatformBinding
+//   meta::pure::executionPlan::platformBinding::PlatformBindingConfig
+//   meta::pure::executionPlan::platformBinding::PlatformBindingExtension
+//   meta::pure::extension::Extension
+//   meta::pure::extension::FeatureExtension
+//   meta::pure::extension::ModuleExtension
+//   meta::pure::extension::SerializerExtension
+//   meta::pure::functions::test::TestedByResult
+//   meta::pure::graphFetch::executionPlan::LocalGraphFetchExecutionNode
+//   meta::pure::graphFetch::executionPlan::StoreMappingCrossLocalGraphFetchExecutionNodeGenerationInput
+//   meta::pure::graphFetch::executionPlan::StoreMappingLocalGraphFetchExecutionNodeGenerationInput
+//   meta::pure::graphFetch::routing::ClusteredGraphFetchTree
+//   meta::pure::graphFetch::routing::RoutedGraphFetchTree
+//   meta::pure::graphFetch::routing::StoreMappingClusteredGraphFetchTree
 //   meta::pure::lineage::scanColumns::ColumnWithContext
 //   meta::pure::lineage::scanRelations::RelationTree
+//   meta::pure::mapping::StoreQuery
+//   meta::pure::mapping::aggregationAware::AggregationAwareActivity
+//   meta::pure::metamodel::serialization::grammar::GrammarExtension
+//   meta::pure::model::unit::ModelUnit
+//   meta::pure::router::metamodel::ExtendedRoutedValueSpecification
+//   meta::pure::router::metamodel::RoutingStrategy
+//   meta::pure::router::metamodel::clustering::ClusteredValueSpecification
+//   meta::pure::router::routing::PropertyMap
+//   meta::pure::router::routing::RoutingState
+//   meta::pure::runtime::PackageableRuntime
+//   meta::pure::store::StoreContract
+//   meta::pure::tds::TDSColumn
+//   meta::pure::tds::TDSRow
+//   meta::pure::tds::TabularDataSet
+//   meta::pure::tds::schema::SchemaState
+//   meta::pure::tds::toRelation::TdsToRelationExtension
 //   meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder
 //   meta::relational::functions::sqlQueryToString::Config
 //   meta::relational::functions::sqlQueryToString::DbConfig
@@ -5714,8 +3823,6 @@ Class meta::legend::service::metamodel::PostValidationAssertion<T|m>
 //   meta::relational::metamodel::data::RelationalCSVData
 //   meta::relational::metamodel::data::RelationalCSVTable
 //   meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor
-//   meta::relational::runtime::RelationalExecutionContext
 //   meta::relational::testDataGeneration::RowIdentifier
 //   meta::relational::testDataGeneration::TableRowIdentifiers
-//   meta::relational::testDataGeneration::TemporalMilestoningDates
 //   meta::relational::testDataGeneration::TestDataGenResult

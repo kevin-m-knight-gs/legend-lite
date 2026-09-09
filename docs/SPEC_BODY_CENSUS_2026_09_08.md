@@ -273,3 +273,12 @@ Phase 3 (T1/T2 demand cut) removes the engine-side owners of most of these from 
 `SpecBodyCensusTest` asserts `failed <= 22` and `load walls <= 6` (shrink-only) and runs in gate 1: its root defaults to
 the reference checkout (`/Users/neemsandv/legend/legend-pure`) like the prelude generator, so the chain measures it on
 every batch. A new row is a regression to name; a burned row lowers the number.
+
+### 10.4 Batch 155 — 22 → 19 after the demand cut
+
+Three rows left the prelude with their classes (`Service$constraint$executionAndTestTypesMatch`,
+`MultiExecutionContext$prop$allContexts`, `RelationElementAccessorExtension$constraint$0` — graph material now, walls there
+if reached). The 19 that remain are bodies of VOCABULARY classes: `SchemaState` ×8 (closure), `DbConfig` ×5 /
+`DynaFunctionToSql` / `SQLResult` (signatures; the walled SQL printer), `Extension` ×2 (the system metamodel), the two
+external-format descriptors' constraints (closure). Owners unchanged (§10.2): `removeAll`/`containsAll`/`createSchemaState`,
+`checkSuperType`, `forgivingPathToElement`/`mutateAdd`, the printer's walls. Pin: 19.

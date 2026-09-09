@@ -879,3 +879,11 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 2 | T1 demand vs today: 357 vs 569 — keep 316, leave 253, enter 41 | the 41 enter now (3b-1), the 253 leave in 3b-2 with declarations-only admission (D1, USER: simplest thing) | generator census `prelude-t1-diff.tsv` |
 | 3 | widening exposed three platform classes extending m3's `ValueSpecificationContext` (bootstrap graph, unreadable by the generator) | hand shape with receipt, count pin 84 → 85 | `Pure.VALUE_SPECIFICATION_CONTEXT_META` |
 | 4 | lite's `###Connection` compiles to its own `ConnectionDefinition`, post-processor values are program-built | the connection family is graph material, not vocabulary (D2-adjacent "TO CHECK" closed) | homework §2 |
+
+## 28. Batch 155 — phase 3b-2, the engine cut (2026-09-08)
+
+| # | what the gates named | decided | where |
+|---|---|---|---|
+| 1 | prelude 610 → 357 with the corpus scan gone; every gate unchanged | the demand cut is a container change by construction: the same spec text, parsed into the graph instead of the boot layer | `Corpus.SHAPE_FILES`, `MinimalCorpus.withShapes` |
+| 2 | `NameResolverTest`: the sql-protocol `Table` no longer a platform class | unresolved under its wildcard — the engine's answer for a class only a program declares | test |
+| 3 | census 22 → 19; T4 receipts 61 → 119 | the 19 are vocabulary-class bodies (owners unchanged); the 119 are D2's stable list | SPEC_BODY_CENSUS §10.4, PHASE3 homework §6 |

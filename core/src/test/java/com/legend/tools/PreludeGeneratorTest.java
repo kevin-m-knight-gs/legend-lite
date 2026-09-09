@@ -174,33 +174,38 @@ class PreludeGeneratorTest {
                     + " carrier): " + unprovenanced);
         }
 
-        // 2. what the corpus defines itself, and what it names
+        // 2. what the GRAPH declares itself (the corpus tree, the program
+        // libraries, the shape files) — for the T4 receipts only: a vocabulary
+        // class the graph also declares is listed at the foot of the module
         Set<String> corpusDefined = new LinkedHashSet<>();
-        Set<String> demand = new LinkedHashSet<>();
         Set<String> javaDemand = new LinkedHashSet<>();
         List<Path> scanned = new ArrayList<>();
         try (Stream<Path> s = Files.walk(corpus)) {
             scanned.addAll(s.filter(p -> p.toString().endsWith(".pure")).sorted().toList());
         }
-        // the admitted PROGRAM libraries (Corpus.LIBRARY_FILES) are corpus
-        // input too: their signatures are eager, so their shapes are demand
         scanned.addAll(com.legend.rcorpus.Corpus.LIBRARY_FILES);
-        // the SYSTEM LAYER's own Pure text (SystemMetamodel: the metamodel
-        // store's classes, mappings and views) names library shapes bare
-        // through its imports (SQLExecutionNode.resultColumns:
-        // SQLResultColumn[*]) — scanned like a corpus file
-        List<String> texts = new ArrayList<>();
+        scanned.addAll(com.legend.rcorpus.Corpus.SHAPE_FILES);
         for (Path f : scanned) {
-            texts.add(Files.readString(f, StandardCharsets.UTF_8));
+            if (!Files.isRegularFile(f)) {
+                continue;
+            }
+            for (String line : Files.readString(f, StandardCharsets.UTF_8).split("\n")) {
+                Matcher d = DECL.matcher(line);
+                if (d.find()) {
+                    corpusDefined.add(d.group(2));
+                }
+            }
         }
+        // the SYSTEM LAYER's own Pure text (SystemMetamodel: the metamodel
+        // store's classes, mappings and views) names vocabulary bare through
+        // its imports (SQLExecutionNode.resultColumns: SQLResultColumn[*])
+        List<String> texts = new ArrayList<>();
         String systemText = com.legend.builtin.SystemMetamodel.source();
         texts.add(systemText);
         Set<String> systemDemand = new LinkedHashSet<>();   // what the system metamodel's source names
         {
             for (String src : texts) {
-                // the system layer is PLATFORM demand: what it names must exist
-                // without the corpus (a corpus-defined shape is generated too)
-                Set<String> sink = src == systemText ? systemDemand : demand;
+                Set<String> sink = systemDemand;
                 List<String> imports = new ArrayList<>();
                 for (String line : src.split("\n")) {
                     Matcher d = DECL.matcher(line);
@@ -254,20 +259,24 @@ class PreludeGeneratorTest {
                 }
             }
         }
-        // JAVA demand: every spec FQN the platform's own sources name — the
-        // native SIGNATURES and remaining hand declarations in Pure.java, and
-        // the FQN literals the compiler/resolver/lowering code dispatches on
-        try (Stream<Path> s = Files.walk(Path.of("src/main/java"))) {
-            for (Path f : s.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
-                Matcher r = FQN_TOKEN.matcher(Files.readString(f, StandardCharsets.UTF_8));
+        // JAVA demand = the platform's VOCABULARY: the native SIGNATURES in
+        // Pure.java, the classes Java CONSTRUCTS (an explicit receipt list — a
+        // text scan cannot tell "constructs" from "compares"), the system
+        // metamodel's source (below)
+        for (String line : Files.readString(Path.of("src/main/java/com/legend/builtin/Pure.java"),
+                StandardCharsets.UTF_8).split("\n")) {
+            if (line.contains("signature(\"")) {
+                Matcher r = FQN_TOKEN.matcher(line);
                 while (r.find()) {
-                    // a spec TEST MODEL (…::tests::Person) named in a harness
-                    // comment or fixture is corpus input, never a platform shape
-                    if (index.containsKey(r.group()) && (!r.group().matches(".*::tests?::.*")
-                            || r.group().startsWith("meta::pure::test::"))) {
+                    if (index.containsKey(r.group())) {
                         javaDemand.add(r.group());
                     }
                 }
+            }
+        }
+        for (String fqn : com.legend.compiler.element.type.PlatformTypes.constructedVocabulary()) {
+            if (index.containsKey(fqn)) {
+                javaDemand.add(fqn);
             }
         }
         javaDemand.addAll(systemDemand);
@@ -284,27 +293,24 @@ class PreludeGeneratorTest {
         Set<String> knownFqns = new LinkedHashSet<>(index.keySet());
         knownFqns.addAll(owned);
         Spec spec = new Spec(index, platformOwned, corpusDefined, knownFqns);
+        // THE DEMAND IS T1 (PRELUDE_MODULE_HOMEWORK §2, PHASE3_DEMAND_CUT_HOMEWORK;
+        // batch 155 = phase 3b-2): (1) legend-pure's platform packages WHOLE —
+        // every class and enum under the nine platform roots, minus the decided
+        // exclusions and the spec's test packages, demanded or not; (2) the
+        // platform's VOCABULARY — what its Java constructs (the receipt list
+        // PlatformTypes.CONSTRUCTED_VOCABULARY), names in a native signature,
+        // or names in the system metamodel's source; (3) the closure of those
+        // declarations. "The corpus names it" is no reason (T2): an engine
+        // class a program needs enters that program's graph by file
+        // (Corpus.SHAPE_FILES). A vocabulary class the corpus tree also
+        // declares is generated all the same — the graph's copy yields (T4).
         Set<String> todaySeed = new LinkedHashSet<>();
-        for (String fqn : demand) {
-            if (!owned.contains(fqn) && !excluded(fqn)) {
-                todaySeed.add(fqn);
-            }
-        }
-        // what the PLATFORM names must exist without the corpus: a library
-        // class that happens to be defined inside the corpus tree
-        // (scanRelations::RelationTree, TestDataGenResult) is generated all
-        // the same — the graph's own copy yields (T4)
         for (String fqn : javaDemand) {
             if (!handDeclaredFqns().contains(fqn) && !excluded(fqn)
                     && !com.legend.builtin.SystemMetamodel.elementFqns().contains(fqn)) {
                 todaySeed.add(fqn);
             }
         }
-        // T1's FIRST CLAUSE (PHASE3_DEMAND_CUT_HOMEWORK, batch 154 = phase 3b-1):
-        // legend-pure's platform packages are the prelude WHOLE — every class
-        // and enum under the nine platform roots (minus the decided exclusions
-        // and the spec's test packages), demanded or not. The engine side is
-        // still today's demand until 3b-2 cuts it.
         List<Path> platformRoots = new ArrayList<>();
         for (String r : SpecBodyCensusTest.PLATFORM_ROOTS) {
             platformRoots.add(pure.resolve(r));
@@ -405,7 +411,7 @@ class PreludeGeneratorTest {
                 String file = relative(fileOf.get(fqn), engine, pure);
                 String source = file.startsWith("legend-pure/") ? "legend-pure"
                         : file.startsWith("legend-engine/") ? "legend-engine" : "?";
-                String dem = javaDemand.contains(fqn) ? "java" : demand.contains(fqn) ? "corpus" : "closure";
+                String dem = javaDemand.contains(fqn) ? "java" : todaySeed.contains(fqn) ? "platform" : "closure";
                 if (el instanceof ClassDefinition cd) {
                     long defaults = cd.properties().stream().filter(ClassDefinition.PropertyDefinition::hasDefault).count();
                     rows.add(String.join("\t", fqn, source, dem, String.valueOf(corpusDefined.contains(fqn)),

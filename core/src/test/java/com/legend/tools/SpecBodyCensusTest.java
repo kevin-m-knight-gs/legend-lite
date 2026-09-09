@@ -36,7 +36,7 @@ import java.util.stream.Stream;
  * (missing vocabulary, typer gaps). Written to
  * {@code target/spec-body-census.txt}; a summary by reason prints.
  *
- * <p>PINNED shrink-only since batch 151 (22 rows, 6 load walls). It needs
+ * <p>PINNED shrink-only since batch 151 (22 rows, 6 load walls; 19 since batch 155). It needs
  * the pure checkout ({@code -Dlegend.pure.root}, defaulting to the reference
  * checkout like the prelude generator) and skips without it.
  */
@@ -179,9 +179,13 @@ class SpecBodyCensusTest {
         // the prelude, four vocabulary names, one closure-over-bodies row,
         // one typer gap. A new row is a regression to name, never a bump
         // without a written reason; a burned row lowers the number.
-        org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 22,
+        // 22 -> 19 (batch 155, phase 3b-2): three engine-class bodies left the
+        // prelude with their classes (the demand cut); the rest of the engine
+        // rows stay while their classes are vocabulary (DbConfig by signature,
+        // SchemaState by closure) — SPEC_BODY_CENSUS §10.4
+        org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 19,
                 () -> "spec body typing census GREW: " + failures.size()
-                        + " failed rows > 22 pinned (shrink-only) — new rows:\n  "
+                        + " failed rows > 19 pinned (shrink-only) — new rows:\n  "
                         + String.join("\n  ", failures.keySet()));
         org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 6,
                 () -> "spec body census load walls GREW: " + loadWalls);

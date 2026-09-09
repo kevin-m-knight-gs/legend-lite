@@ -144,6 +144,8 @@ public final class MinimalCorpus {
     private final List<String> libraryWalls = new ArrayList<>();
     /** Elements defined by library sources (model only, never tests). */
     private final Set<String> libraryElements = new LinkedHashSet<>();
+    /** The classes and enums admitted from {@link Corpus#SHAPE_FILES}. */
+    private final Set<String> shapeElements = new LinkedHashSet<>();
 
     public List<String> libraryWalls() {
         return List.copyOf(libraryWalls);
@@ -215,6 +217,13 @@ public final class MinimalCorpus {
             throw new IllegalStateException("corpus duplicate elements: "
                     + parsed.duplicateElements());
         }
+        // SHAPE files (Corpus.SHAPE_FILES, batch 155): each named engine
+        // file's CLASSES AND ENUMS join the graph — its functions do not.
+        // A shape the corpus tree already declares keeps the corpus's own
+        // (first definition wins, as parseSources does); a shape the prelude
+        // declares yields to the prelude later (Compiler.withoutPreludeShadows,
+        // the T4 receipt list). Each element keeps its section's imports.
+        parsed = withShapes(parsed);
         Compiler.BuiltModule built = Compiler.buildModule(parsed.model());
         Map<String, String> dbBindings = new LinkedHashMap<>();
         for (PackageableElement el : parsed.model().elements()) {
@@ -255,6 +264,55 @@ public final class MinimalCorpus {
                 }
             }
         }
+    }
+
+    /** {@code parsed} plus the classes and enums of every SHAPE file. */
+    private Compiler.ParsedModule withShapes(Compiler.ParsedModule parsed) throws IOException {
+        Set<String> declared = new LinkedHashSet<>();
+        for (PackageableElement el : parsed.model().elements()) {
+            declared.add(el.qualifiedName());
+        }
+        List<PackageableElement> elements = new ArrayList<>(parsed.model().elements());
+        Map<String, Integer> offsets = new LinkedHashMap<>(parsed.model().elementOffsets());
+        Map<String, ImportScope> imports = new LinkedHashMap<>(parsed.model().elementImports());
+        Map<String, String> sources = new LinkedHashMap<>(parsed.model().elementSources());
+        for (Path f : Corpus.SHAPE_FILES) {
+            if (!Files.isRegularFile(f)) {
+                continue;
+            }
+            String name = "shape/" + f.getFileName();
+            List<String> walls = new ArrayList<>();
+            Compiler.ParsedModule one = Compiler.parseSources(
+                    List.of(new Compiler.ModelSource(name, Files.readString(f))),
+                    (n, err) -> walls.add(err), com.legend.parser.Dialect.LEGEND_PLATFORM);
+            if (!walls.isEmpty()) {
+                libraryWalls.add(f.getFileName() + " => " + walls.get(0));
+                continue;
+            }
+            for (PackageableElement el : one.model().elements()) {
+                boolean shape = el instanceof com.legend.model.ClassDefinition
+                        || el instanceof com.legend.model.EnumDefinition;
+                if (!shape || !declared.add(el.qualifiedName())) {
+                    continue;
+                }
+                elements.add(el);
+                Integer off = one.model().elementOffsets().get(el.qualifiedName());
+                if (off != null) {
+                    offsets.put(el.qualifiedName(), off);
+                }
+                ImportScope scope = one.model().elementImports().get(el.qualifiedName());
+                if (scope != null) {
+                    imports.put(el.qualifiedName(), scope);
+                }
+                sources.put(el.qualifiedName(), name);
+                shapeElements.add(el.qualifiedName());
+            }
+        }
+        Map<String, String> texts = new LinkedHashMap<>(parsed.sourceTexts());
+        return new Compiler.ParsedModule(
+                new com.legend.model.ParsedModel(elements, parsed.model().imports(), null,
+                        offsets, imports, sources, parsed.model().unclaimedSections()),
+                parsed.duplicateElements(), texts);
     }
 
     private static List<Compiler.ModelSource> sharedSources() throws IOException {
