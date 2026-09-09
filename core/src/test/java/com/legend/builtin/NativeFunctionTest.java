@@ -621,7 +621,14 @@ class NativeFunctionTest {
         // tds.pure / result.pure / functions.pure verbatim) — every Java site
         // names them by PlatformTypes constants; the definitions come from
         // the boot layer (HAND_SHAPE_DIVERGENCE §4 step 2)
-        assertEquals(74, hand,
+        // 74 -> 48 (batch 159, phase 2 family 2): twenty-six m3 shapes with no
+        // store rows and no Java reference (the extension, relationship,
+        // constraint, testable and reference families; DataType, ModelElement,
+        // PropertyOwner, TypeParameter, Enum, ValueSpecificationContext; the
+        // function-family abstractions PackageableFunction / NativeFunction /
+        // FunctionType / AbstractProperty / QualifiedProperty) now printed
+        // from m3.pure by the generator's reader
+        assertEquals(48, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 

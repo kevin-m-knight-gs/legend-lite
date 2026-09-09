@@ -2655,7 +2655,7 @@ final class Typer {
         // surveyor reads test.p_stereotypes)
         if (ctx.findProfile(ref.fullPath()).isPresent()) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
-                    new Type.ClassType(Pure.PROFILE.qualifiedName())));
+                    new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.PROFILE)));
         }
         // A MEASURE reference is a value of Measure; M~unit is a value of
         // Unit (m3 Measure/Unit; the spec's unit tests: RomanLength~Pes)

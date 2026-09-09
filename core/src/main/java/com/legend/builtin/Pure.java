@@ -184,12 +184,10 @@ public final class Pure {
     // real m3.pure Type (tools/m3shape.py): name[0..1] + the generalization
     // ends — pureToSQLQuery's buildUniqueName reads `$u->type()->toOne().name`
     public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; generalizations: meta::pure::metamodel::relationship::Generalization[*]; specializations: meta::pure::metamodel::relationship::Generalization[*]; }");
-    public static final ClassDefinition GENERALIZATION = nativeClass("native Class meta::pure::metamodel::relationship::Generalization extends meta::pure::metamodel::type::Any { specific: meta::pure::metamodel::type::Type[1]; general: meta::pure::metamodel::type::generics::GenericType[1]; }");
     /** Real M3 GenericType — {@code $x->genericType().rawType} reflection
      * (inheritance testGetAll: per-instance member class over a union). */
     // real m3.pure GenericType / TypeParameter (tools/m3shape.py, 2026-09-04)
     public static final ClassDefinition GENERIC_TYPE_META = nativeClass("native Class meta::pure::metamodel::type::generics::GenericType extends meta::pure::metamodel::Referenceable { rawType: meta::pure::metamodel::type::Type[0..1]; typeParameter: meta::pure::metamodel::type::generics::TypeParameter[0..1]; typeVariableValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; typeArguments: meta::pure::metamodel::type::generics::GenericType[*]; multiplicityArguments: meta::pure::metamodel::multiplicity::Multiplicity[*]; }");
-    public static final ClassDefinition TYPE_PARAMETER_META = nativeClass("native Class meta::pure::metamodel::type::generics::TypeParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; contravariant: meta::pure::metamodel::type::Boolean[0..1]; lowerBound: meta::pure::metamodel::type::generics::GenericType[0..1]; upperBound: meta::pure::metamodel::type::generics::GenericType[0..1]; }");
     // leg 3b (dossier D3): the MINIMUM reflection surface — genericType
     // only, so every other ValueSpecification read walls at ordinary
     // property resolution instead of fabricating
@@ -201,13 +199,6 @@ public final class Pure {
     public static final ClassDefinition MULTIPLICITY_VALUE_META = nativeClass("native Class meta::pure::metamodel::multiplicity::MultiplicityValue { value: meta::pure::metamodel::type::Integer[0..1]; }");
     // real m3 ValueSpecification.properties[genericType, multiplicity]
     public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; }");
-    /** m3.pure:1804 (tools/m3shape.py) — the supertype of the mapping and
-     * store contexts (`PropertyMappingValueSpecificationContext`,
-     * `AggregateSpecificationValueSpecificationContext`,
-     * `StoreValueSpecificationContext`) that legend-pure's platform
-     * packages declare; an m3 BOOTSTRAP shape the generator cannot read
-     * (batch 154, the platform packages whole). */
-    public static final ClassDefinition VALUE_SPECIFICATION_CONTEXT_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecificationContext { offset: meta::pure::metamodel::type::Integer[1]; }");
     // the expression-tree node kinds (real m3.pure: InstanceValue.values
     // Any[*]; VariableExpression.name String[1]; FunctionExpression
     // :1955 — func Function<Any>[1] (not modeled: a function reference
@@ -220,15 +211,9 @@ public final class Pure {
     // the row carrier is slice 2a, docs/PHASE5_SIZING_2026_09_08.md)
     public static final ClassDefinition FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::FunctionExpression extends meta::pure::metamodel::valuespecification::ValueSpecification { func: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]; functionName: meta::pure::metamodel::type::String[0..1]; parametersValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; }");
     public static final ClassDefinition SIMPLE_FUNCTION_EXPRESSION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::SimpleFunctionExpression extends meta::pure::metamodel::valuespecification::FunctionExpression {}");
-    /** Real m3.pure Testable (tools/m3shape.py: extends Any; tests: Test[*]
-     * — the tests end is not modeled, grows by witness): the service
-     * metamodel's supertype (core_service Service extends PackageableElement,
-     * Testable), so the generated Service resolves. */
-    public static final ClassDefinition TESTABLE = nativeClass("native Class meta::pure::metamodel::testable::Testable extends meta::pure::metamodel::type::Any {}");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     // real m3.pure ModelElement carries name: String[0..1] (tools/m3shape.py) —
     // every generated PackageableElement (Database, Schema, Mapping…) reads it
-    public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::extension::AnnotatedElement { name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real m3.pure PackageableElement (extends ModelElement, Referenceable; the
      * package property grows by witness) — the elementToPath domain. */
     /** Real m3.pure Package (m3.pure:1469 — extends PackageableElement;
@@ -236,9 +221,7 @@ public final class Pure {
      * (^Database(package = ::)). */
     // m3 bootstrap shapes (tools/m3shape.py DataType PrimitiveType FunctionType): the
     // spec's instanceOf/cast targets and the FunctionType metaclass
-    public static final ClassDefinition DATA_TYPE = nativeClass("native Class meta::pure::metamodel::type::DataType extends meta::pure::metamodel::type::Type {}");
     public static final ClassDefinition PRIMITIVE_TYPE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::PrimitiveType extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { extended: meta::pure::metamodel::type::Boolean[0..1]; }");
-    public static final ClassDefinition FUNCTION_TYPE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::FunctionType extends meta::pure::metamodel::type::Type { parameters: meta::pure::metamodel::valuespecification::VariableExpression[*]; returnType: meta::pure::metamodel::type::generics::GenericType[1]; returnMultiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; }");
     // units (m3.pure:783 Measure, :922 Unit — tools/m3shape.py cannot read them: hand receipts)
     public static final ClassDefinition MEASURE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Measure extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { canonicalUnit: meta::pure::metamodel::type::Unit[1]; nonCanonicalUnits: meta::pure::metamodel::type::Unit[*]; }");
     public static final ClassDefinition UNIT_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Unit extends meta::pure::metamodel::type::DataType { measure: meta::pure::metamodel::type::Measure[1]; conversionFunction: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
@@ -268,24 +251,6 @@ public final class Pure {
     // generated library declarations name; each shape
     // is extracted verbatim by tools/m3shape.py (receipt) — run it with the
     // simple names to re-derive.
-    public static final ClassDefinition PROPERTY_OWNER = nativeClass("native Class meta::pure::metamodel::PropertyOwner extends meta::pure::metamodel::PackageableElement {}");
-    public static final ClassDefinition ABSTRACT_PROPERTY = nativeClass("native Class meta::pure::metamodel::function::property::AbstractProperty<T> extends meta::pure::metamodel::function::Function<T>, meta::pure::metamodel::ModelElement { genericType: meta::pure::metamodel::type::generics::GenericType[1]; multiplicity: meta::pure::metamodel::multiplicity::Multiplicity[1]; owner: meta::pure::metamodel::PropertyOwner[1]; }");
-    public static final ClassDefinition QUALIFIED_PROPERTY = nativeClass("native Class meta::pure::metamodel::function::property::QualifiedProperty<T> extends meta::pure::metamodel::function::property::AbstractProperty<T>, meta::pure::metamodel::function::FunctionDefinition<T> { id: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition ASSOCIATION_META = nativeClass("native Class meta::pure::metamodel::relationship::Association extends meta::pure::metamodel::PropertyOwner { properties: meta::pure::metamodel::function::property::Property[0..2]; originalMilestonedProperties: meta::pure::metamodel::function::property::Property[0..2]; qualifiedProperties: meta::pure::metamodel::function::property::QualifiedProperty<meta::pure::metamodel::type::Any>[*]; }");
-    public static final ClassDefinition CONSTRAINT_META = nativeClass("native Class meta::pure::metamodel::constraint::Constraint extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; owner: meta::pure::metamodel::type::String[0..1]; externalId: meta::pure::metamodel::type::String[0..1]; functionDefinition: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1]; enforcementLevel: meta::pure::metamodel::type::String[0..1]; messageFunction: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
-    public static final ClassDefinition CONSTRAINTS_OVERRIDE = nativeClass("native Class meta::pure::metamodel::type::ConstraintsOverride extends meta::pure::metamodel::type::ElementOverride { constraintsManager: meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[0..1]; }");
-    public static final ClassDefinition REFERENCE_USAGE = nativeClass("native Class meta::pure::metamodel::ReferenceUsage extends meta::pure::metamodel::type::Any { owner: meta::pure::metamodel::type::Any[1]; propertyName: meta::pure::metamodel::type::String[1]; offset: meta::pure::metamodel::type::Integer[1]; }");
-    public static final ClassDefinition REFERENCEABLE = nativeClass("native Class meta::pure::metamodel::Referenceable extends meta::pure::metamodel::type::Any { referenceUsages: meta::pure::metamodel::ReferenceUsage[*]; }");
-    public static final ClassDefinition PACKAGEABLE_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::PackageableFunction<K> extends meta::pure::metamodel::PackageableElement, meta::pure::metamodel::function::Function<K> { preConstraints: meta::pure::metamodel::constraint::Constraint[*]; postConstraints: meta::pure::metamodel::constraint::Constraint[*]; }");
-    public static final ClassDefinition ANNOTATION = nativeClass("native Class meta::pure::metamodel::extension::Annotation extends meta::pure::metamodel::type::Any { profile: meta::pure::metamodel::extension::Profile[1]; value: meta::pure::metamodel::type::String[1]; modelElements: meta::pure::metamodel::extension::AnnotatedElement[*]; }");
-    public static final ClassDefinition STEREOTYPE = nativeClass("native Class meta::pure::metamodel::extension::Stereotype extends meta::pure::metamodel::extension::Annotation {}");
-    public static final ClassDefinition TAG = nativeClass("native Class meta::pure::metamodel::extension::Tag extends meta::pure::metamodel::extension::Annotation {}");
-    public static final ClassDefinition TAGGED_VALUE = nativeClass("native Class meta::pure::metamodel::extension::TaggedValue extends meta::pure::metamodel::type::Any { tag: meta::pure::metamodel::extension::Tag[1]; value: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition PROFILE = nativeClass("native Class meta::pure::metamodel::extension::Profile extends meta::pure::metamodel::PackageableElement { p_stereotypes: meta::pure::metamodel::extension::Stereotype[*]; p_tags: meta::pure::metamodel::extension::Tag[*]; }");
-    public static final ClassDefinition ELEMENT_WITH_STEREOTYPES = nativeClass("native Class meta::pure::metamodel::extension::ElementWithStereotypes extends meta::pure::metamodel::type::Any { stereotypes: meta::pure::metamodel::extension::Stereotype[*]; }");
-    public static final ClassDefinition ELEMENT_WITH_TAGGED_VALUES = nativeClass("native Class meta::pure::metamodel::extension::ElementWithTaggedValues extends meta::pure::metamodel::type::Any { taggedValues: meta::pure::metamodel::extension::TaggedValue[*]; }");
-    public static final ClassDefinition ANNOTATED_ELEMENT = nativeClass("native Class meta::pure::metamodel::extension::AnnotatedElement extends meta::pure::metamodel::extension::ElementWithStereotypes, meta::pure::metamodel::extension::ElementWithTaggedValues {}");
-    public static final ClassDefinition ENUM_META = nativeClass("native Class meta::pure::metamodel::type::Enum extends meta::pure::metamodel::extension::AnnotatedElement { name: meta::pure::metamodel::type::String[1]; }");
     public static final ClassDefinition RELATION_ELEMENT_ACCESSOR = nativeClass("native Class meta::pure::metamodel::relation::RelationElementAccessor<T> extends meta::pure::metamodel::Referenceable, meta::pure::metamodel::relation::Relation<T> { sourceElementContainer: meta::pure::metamodel::PackageableElement[0..1]; sourceElement: meta::pure::metamodel::type::Any[1]; }");
 
     // SYSTEM-STORE-COUPLED shapes (kept by hand, 2026-09-04 — option S
@@ -373,7 +338,6 @@ public final class Pure {
     // real m3 (legend-pure m3.pure graph): FunctionDefinition.expressionSequence : ValueSpecification[1..*]
     public static final ClassDefinition FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::FunctionDefinition<F> extends meta::pure::metamodel::function::Function<F> { expressionSequence: meta::pure::metamodel::valuespecification::ValueSpecification[1..*]; }");
     public static final ClassDefinition CONCRETE_FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::ConcreteFunctionDefinition<F> extends meta::pure::metamodel::function::FunctionDefinition<F>, meta::pure::metamodel::function::PackageableFunction<F> {}");
-    public static final ClassDefinition NATIVE_FUNCTION_METACLASS = nativeClass("native Class meta::pure::metamodel::function::NativeFunction<K> extends meta::pure::metamodel::function::PackageableFunction<K> {}");
     public static final ClassDefinition LAMBDA_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::LambdaFunction<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
 
     // ---- Metaclass ----

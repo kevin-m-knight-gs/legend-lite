@@ -910,3 +910,10 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 2 | the print vs the 53 hand m3 shapes: 28 identical, 25 differ exactly by kinds A–D | the reader is faithful; the hand copies can leave family by family | HAND_SHAPE_DIVERGENCE §4 |
 | 3 | 32 m3 classes + 2 enums entered under T1-whole; prelude 384 → 418; no pass change | — | prelude.pure |
 | 4 | `SkipCensusTest` refused a new assumption-skip in the reader's test | the reference root is a hard default; assert, never assume | test |
+
+## 32. Batch 159 — phase 2 family 2 (2026-09-09)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | 26 m3 hand shapes with no store rows and one Java reference | deleted; printed from m3 by the reader; hand 74 → 48; prelude 418 → 444; no pass change | Pure.java, PlatformTypes.PROFILE |
+| 2 | USER: the hand pre-pass duplicates the chain; the foreground chain blocks work | targeted pins → allgates ONCE in the background; read-only work meanwhile | memory |

@@ -95,6 +95,8 @@ public final class PlatformTypes {
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
     public static final String TDS_ROW = "meta::pure::tds::TDSRow";
+    /** The m3 Profile metaclass (a prelude module class since batch 159). */
+    public static final String PROFILE = "meta::pure::metamodel::extension::Profile";
 
     /** The relation-algebra column-specification family (legend-pure
      * relation.pure:17-50) — prelude module classes since batch 157; the
