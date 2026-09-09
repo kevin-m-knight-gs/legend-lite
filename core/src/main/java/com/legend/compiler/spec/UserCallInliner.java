@@ -272,18 +272,14 @@ public final class UserCallInliner {
      * PostProcessor registry properties — is walled whole until a design
      * session decides how post-processors work on this platform. Exact
      * FQNs; a reaching program fails at once, naming the wall. */
-    static final java.util.Set<String> ENGINE_MACHINERY_WALLS = java.util.Set.of(
-            "meta::relational::functions::sqlQueryToString::sqlQueryToString",
-            "meta::relational::runtime::PostProcessor$prop$planPostProcessorId",
-            "meta::relational::runtime::PostProcessor$prop$executionPostProcessorId",
-            "meta::relational::runtime::PostProcessors$prop$_sqlQueryPostProcessorId",
-            "meta::relational::runtime::PostProcessors$prop$sqlQueryPostProcessorId");
+    // (the five original entries and every walled prelude body now live in
+    // WalledBodies.REASONS — ONE list with reasons, batch 173)
 
     private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
-        if (ENGINE_MACHINERY_WALLS.contains(call.callee().qualifiedName())) {
-            throw new NotImplementedException("engine machinery: '" + call.callee().qualifiedName()
-                    + "' is the engine's SQL post-processing implementation — a compiler pass on"
-                    + " this platform, walled pending the post-processor design session");
+        String wall = WalledBodies.reason(call.callee().qualifiedName());
+        if (wall != null) {
+            throw new NotImplementedException("walled body '" + call.callee().qualifiedName()
+                    + "': " + wall);
         }
         if (budget.exceeded()) {
             List<String> path = new ArrayList<>(names);

@@ -219,3 +219,21 @@ What was decided along the way (§10.3) stands. What is NOT here: no new census,
 next work is the harness plan's existing legs, taken from the residue's files largest-first, each with the eager
 report as its before/after. The gate question (make the residue a shrink-only pin in gate 1) is the user's, on this
 number; the probe already prints it.
+
+## 12. The 19, row by row (batch 173, 2026-09-09) — and the boot census made strict
+
+| rows | body | what | decision | end state |
+|---|---|---|---|---|
+| 1 | `Extension.serializerExtension` | called `mutateAdd` | native registered (batch 171) | TYPES |
+| 1 | `SQLResult.toSQLString` | the printer's entry | already HIJACKED: `toSQL(...).toSQLString(...)` is our compiler's native | body walled |
+| 6 | `DbConfig` ×5, `DynaFunctionToSql.toSql` | the printer's per-node callbacks | no caller outside the printer's own driver; a direct caller → a leg | walled |
+| 8 | `SchemaState` ×8 (incl. `olap`) | plan-time schema inference | walled; HIJACK at the entry `resolveSchema(query, ext) : TDSColumn[*]` = the typer's columns — witness `resolveSchemaTest` (its helper file `tds/schema/tests` unloaded) — NEXT leg | walled; entry hijacked next |
+| 1 | `Extension.fetchSerializerExtension` | serializer-registry lookup | called only from the engine's own extension.pure | walled |
+| 2 | the two descriptor constraints | `checkSuperType` → `getAllClassGeneralisations` | the helper lives in corefunctions/metaExtension.pure — refused by the 2026-08-28 ruling; compile only if that ruling is revisited | walled |
+
+Mechanism: `WalledBodies.REASONS` (one list, reasons), `SpecCompiler.compile` refuses a walled body before typing,
+`UserCallInliner` raises the named wall on reach. Census pins: unwalled == 0 (STRICT), walled <= 22 (the 18 rows +
+the four PostProcessor registry properties). "The whole prelude compiles" now means: every declaration resolves, every
+library function types, every body types or is refused with a written reason; the remaining hole is the six spec files
+the parser cannot read (§5 B5) — the NEXT leg, in this order on purpose: the strict pin makes every newly parsed
+declaration or body red on arrival.

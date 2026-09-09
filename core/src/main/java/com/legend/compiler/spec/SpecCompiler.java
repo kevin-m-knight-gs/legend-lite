@@ -68,6 +68,12 @@ public final class SpecCompiler {
         if (cached != null) {
             return cached;
         }
+        // a WALLED body (WalledBodies): never typed — the wall, named
+        String wall = WalledBodies.reason(fn.qualifiedName());
+        if (wall != null) {
+            throw new com.legend.error.NotImplementedException("walled body '"
+                    + fn.qualifiedName() + "': " + wall);
+        }
         CompiledFunction cf;
         try {
             cf = check(fn);   // flat: check() never re-enters compile()

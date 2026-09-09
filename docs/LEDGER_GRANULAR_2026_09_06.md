@@ -1034,3 +1034,14 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 2 | the path match missed most files (corpus names are root-relative) | normalized (`"/" + source`) | probe |
 | 3 | HarnessDiscipline sort-site count 16 → 19 (report sorts) | listed | HarnessDisciplineTest |
 | 4 | the finish line | boot census 19 (walled, reasons) + residue 63 (by file) + the roster; the probe ungated by user decision; no further measurement programs | homework §11 |
+
+## 46. Batch 173 — the boot census strict: WalledBodies (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | the 19 unchanged after steps 1–5 (USER) | the ratified wall mechanism had not been built; built: one list with reasons, consulted at compile and at inlining; unwalled == 0 pinned | WalledBodies, SpecCompiler, UserCallInliner, SpecBodyCensusTest |
+| 2 | walled 22 not 18 | the four PostProcessor registry properties (the inliner's original walls) are refused before typing now too | pin 22 |
+| 3 | group A hijack? | `SQLResult.toSQLString` already is; the six callbacks have no caller outside the printer — wall, leg on a direct caller | — |
+| 4 | group B hijack? | at the entry: `resolveSchema` = the typer's columns; witness `resolveSchemaTest` (helper file unloaded) — NEXT leg | — |
+| 5 | group D compile? | its helper is in the refused stdlib-extension files (08-28 ruling) — walled, reason names the ruling | WalledBodies |
+| 6 | order | boot strict first, parser gaps next (USER: "either way we should do both") | — |

@@ -133,6 +133,7 @@ public class SpecBodyCensusTest {
         SpecCompiler specs = new SpecCompiler(ctx);
         List<String> ok = new ArrayList<>();
         Map<String, String> failures = new TreeMap<>();
+        Map<String, String> walled = new TreeMap<>();   // WalledBodies: refused by decision, with a reason
         Map<String, Integer> byReason = new TreeMap<>();
         int natives = 0;
         for (String fqn : new java.util.TreeSet<>(ctx.functionFqns())) {
@@ -157,6 +158,11 @@ public class SpecBodyCensusTest {
                     ok.add(id);
                 } catch (RuntimeException e) {
                     String msg = first(e.getMessage());
+                    if (e instanceof com.legend.error.NotImplementedException
+                            && String.valueOf(e.getMessage()).startsWith("walled body '")) {
+                        walled.put(id, msg);   // WalledBodies: refused by decision
+                        continue;
+                    }
                     failures.put(id, e.getClass().getSimpleName() + " " + msg + at(e));
                     bump(byReason, reasonClass(msg));
                 }
@@ -184,7 +190,10 @@ public class SpecBodyCensusTest {
         out.add("## load walls");
         out.addAll(loadWalls);
         out.add("");
-        out.add("## typing failures");
+        out.add("## WALLED bodies (WalledBodies.REASONS — by decision, never typed): " + walled.size());
+        walled.forEach((k, v) -> out.add("WALLED | " + k + " | " + v));
+        out.add("");
+        out.add("## typing failures (UNWALLED — must be zero)");
         failures.forEach((k, v) -> out.add(k + " :: " + v));
         out.add("");
         out.add("## running-world pass (COMPILE_EVERYTHING_HOMEWORK §6) — buckets: " + worlds.buckets());
@@ -196,7 +205,7 @@ public class SpecBodyCensusTest {
         Files.createDirectories(Path.of("target"));
         Files.write(Path.of("target/spec-body-census.txt"), out);
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
-                + " typedOK=" + ok.size() + " failed=" + failures.size()
+                + " typedOK=" + ok.size() + " walled=" + walled.size() + " failed(UNWALLED)=" + failures.size()
                 + " nativesSkipped=" + natives);
         System.out.println("[spec-census] byReason=" + byReason);
         // THE PIN (SYSTEM_PRELUDE_DESIGN §6: the typing work list trends to
@@ -210,10 +219,21 @@ public class SpecBodyCensusTest {
         // prelude with their classes (the demand cut); the rest of the engine
         // rows stay while their classes are vocabulary (DbConfig by signature,
         // SchemaState by closure) — SPEC_BODY_CENSUS §10.4
-        org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 19,
-                () -> "spec body typing census GREW: " + failures.size()
-                        + " failed rows > 19 pinned (shrink-only) — new rows:\n  "
+        // THE STRICT PIN (batch 173, COMPILE_EVERYTHING_HOMEWORK §11 — USER:
+        // "not okay for things not to compile at boot"): every prelude body
+        // TYPES at boot, or is on WalledBodies with its reason. Unwalled
+        // failures are ZERO; the walled list is shrink-only by count (22
+        // rows on 2026-09-09: the census's 18 over 17 FQNs + the four
+        // PostProcessor registry properties the inliner already walled;
+        // an entry leaves with a witness).
+        org.junit.jupiter.api.Assertions.assertTrue(failures.isEmpty(),
+                () -> "spec body typing census: " + failures.size()
+                        + " UNWALLED boot failures (must be zero) —\n  "
                         + String.join("\n  ", failures.keySet()));
+        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 22,
+                () -> "spec body census WALLED rows GREW: " + walled.size()
+                        + " > 22 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
+                        + String.join("\n  ", walled.keySet()));
         org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 6,
                 () -> "spec body census load walls GREW: " + loadWalls);
         System.out.println("[spec-census] runningWorld buckets=" + worlds.buckets()
