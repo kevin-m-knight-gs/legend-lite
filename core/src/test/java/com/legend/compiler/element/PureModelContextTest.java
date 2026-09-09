@@ -301,8 +301,10 @@ class PureModelContextTest {
                 com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS);
         assertTrue(extent.contains("model::Person") && extent.contains("model::Address"),
                 () -> "user classes missing from the Class extent");
-        assertTrue(extent.contains(Pure.CLASS.qualifiedName())
-                        && extent.contains(Pure.ANY.qualifiedName()),
+        // a CATALOG class: this fixture bypasses the boot layer, so the
+        // generated module's classes (Class itself, since batch 162) are not
+        // in its extent — Any is the catalog witness (see findTypeClassifiesEveryKind)
+        assertTrue(extent.contains(Pure.ANY.qualifiedName()),
                 () -> "native classes missing from the Class extent");
         assertEquals(extent.stream().sorted().toList(), extent,
                 "deterministic order: sorted by FQN");

@@ -2621,7 +2621,7 @@ final class Typer {
             // the simple-name fallback must not leak downstream (the H
             // resolver's mapping bindings are FQN-keyed).
             String fqn = cls.get().qualifiedName();
-            Type classOf = new Type.GenericType(Pure.CLASS.qualifiedName(),
+            Type classOf = new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS,
                     List.of(new Type.ClassType(fqn)));
             return new TypedPackageableRef(fqn, ExprType.one(classOf));
         }
@@ -3300,10 +3300,10 @@ final class Typer {
         String elCls = ctx.findEnum(ev.fullPath()).isEmpty()
                 ? CallShapes.metamodelElementClass(ctx, ev.fullPath()) : null;
         if (elCls != null) {
-            String elFqn = elCls.equals(Pure.CLASS.qualifiedName())
+            String elFqn = elCls.equals(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     ? ctx.findClass(ev.fullPath()).orElseThrow().qualifiedName()
                     : ev.fullPath();
-            Type elType = elCls.equals(Pure.CLASS.qualifiedName())
+            Type elType = elCls.equals(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     ? new Type.GenericType(elCls, List.of(new Type.ClassType(elFqn)))
                     : new Type.ClassType(elCls);
             var elRef = new com.legend.compiler.spec.typed

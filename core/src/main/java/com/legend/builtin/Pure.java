@@ -321,7 +321,6 @@ public final class Pure {
     // properties — the metamodel-store leg's witnessed reflection
     // surface (METAMODEL_STORE_HANDOFF.md §4, 2026-08-28). `package`
     // stays a store COLUMN only until a witness reads the property.
-    public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type, meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[1]; properties: meta::pure::metamodel::function::property::Property<T,meta::pure::metamodel::type::Any|*>[*]; propertiesFromAssociations: meta::pure::metamodel::function::property::Property<T,meta::pure::metamodel::type::Any|*>[*]; qualifiedProperties: meta::pure::metamodel::function::property::QualifiedProperty[*]; }");
     // the m3 relation COLUMN metaclass (columns() reflection — the
     // witnessed surface is .name; real m3 Column<T,X|z>'s multiplicity
     // param drops per the ratified single-divergence convention)

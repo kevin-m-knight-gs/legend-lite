@@ -268,6 +268,8 @@ Class meta::pure::functions::relation::_Window<T>
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure — PRINTED from the M3 instance graph by the generator's reader (no class syntax to copy): stored properties, supertypes, type and multiplicity parameters; m3's qualified properties are not carried
+Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type, meta::pure::metamodel::PropertyOwner, meta::pure::metamodel::extension::ElementWithConstraints, meta::pure::metamodel::PackageableElement, meta::pure::metamodel::testable::Testable { properties: meta::pure::metamodel::function::property::Property<T,meta::pure::metamodel::type::Any|*>[*]; originalMilestonedProperties: meta::pure::metamodel::function::property::Property<T,meta::pure::metamodel::type::Any|*>[*]; propertiesFromAssociations: meta::pure::metamodel::function::property::Property<T,meta::pure::metamodel::type::Any|*>[*]; qualifiedProperties: meta::pure::metamodel::function::property::QualifiedProperty<meta::pure::metamodel::type::Any>[*]; qualifiedPropertiesFromAssociations: meta::pure::metamodel::function::property::QualifiedProperty<meta::pure::metamodel::type::Any>[*]; typeParameters: meta::pure::metamodel::type::generics::TypeParameter[*]; typeVariables: meta::pure::metamodel::valuespecification::VariableExpression[*]; multiplicityParameters: meta::pure::metamodel::valuespecification::InstanceValue[*]; }
+
 Class meta::pure::metamodel::type::generics::TypeParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; contravariant: meta::pure::metamodel::type::Boolean[0..1]; lowerBound: meta::pure::metamodel::type::generics::GenericType[0..1]; upperBound: meta::pure::metamodel::type::generics::GenericType[0..1]; }
 
 Class meta::pure::metamodel::type::generics::GenericType extends meta::pure::metamodel::Referenceable { rawType: meta::pure::metamodel::type::Type[0..1]; typeParameter: meta::pure::metamodel::type::generics::TypeParameter[0..1]; typeVariableValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; typeArguments: meta::pure::metamodel::type::generics::GenericType[*]; multiplicityArguments: meta::pure::metamodel::multiplicity::Multiplicity[*]; }
@@ -4077,7 +4079,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 453 classes, 16 enums.
+// 454 classes, 16 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime

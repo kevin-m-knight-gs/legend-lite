@@ -639,7 +639,12 @@ class NativeFunctionTest {
         // left by hand: Any (its layout rule first), Class (store rows), the
         // 13 primitives (the bootstrap floor), the six store-coupled shapes,
         // Column and Database (the store legs).
-        assertEquals(23, hand,
+        // 23 -> 22 (batch 162, phase 2 family 5): Class<T> — m3's shape with its
+        // five reflection properties (typeParameters, typeVariables,
+        // multiplicityParameters, originalMilestonedProperties,
+        // qualifiedPropertiesFromAssociations) and its five supertypes; the
+        // system store's Class rows (metamodel.classes) type against it
+        assertEquals(22, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 

@@ -932,3 +932,10 @@ tier is gone; the core import group gained the engine's three additions. One lit
 |---|---|---|---|
 | 1 | 8 metaclasses, every Java use name-only | migrated; `PlatformTypes` constants; hand 31 → 23; prelude 445 → 453; no pass change | Pure.java, PlatformTypes |
 | 2 | USER: a background chain then an `until` wait | never poll a background chain; end the turn, the notification returns | memory |
+
+## 35. Batch 162 — phase 2 family 5: Class (2026-09-09)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | `Class<T>` with five supertypes and five new properties; the store's `metamodel.classes` rows type against it | migrated; hand 23 → 22; prelude 454; no pass change | Pure.java |
+| 2 | a boot-layer-bypassing fixture asserted `Class` in the catalog extent | `Any` is the catalog witness | PureModelContextTest |
