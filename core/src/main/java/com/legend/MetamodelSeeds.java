@@ -39,7 +39,7 @@ public final class MetamodelSeeds {
             case "classes" -> classes(extent(ctx,
                     com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS));
             case "mappings" -> mappings(extent(ctx,
-                    Pure.MAPPING_METACLASS.qualifiedName()));
+                    com.legend.compiler.element.type.PlatformTypes.MAPPING));
             case "mapping_includes_closure" -> includesClosure(ctx);
             case "mapping_includes" -> includes(ctx);
             case "class_mappings" -> classMappings(ctx);
@@ -142,7 +142,7 @@ public final class MetamodelSeeds {
      * declaration order — the closure above is the visibility relation. */
     private static List<List<String>> includes(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+        for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
             MappingDefinition md = ctx.findMapping(fqn).orElse(null);
             if (md == null) {
                 continue;
@@ -158,7 +158,7 @@ public final class MetamodelSeeds {
 
     private static List<List<String>> includesClosure(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+        for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
             List<String> order = new ArrayList<>();
             visitIncludes(ctx, fqn, order, new LinkedHashSet<>());
             for (int i = 0; i < order.size(); i++) {
@@ -210,7 +210,7 @@ public final class MetamodelSeeds {
      * its value name). */
     private static List<List<String>> enumerationMappings(ModelContext ctx, int level) {
         List<List<String>> rows = new ArrayList<>();
-        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+        for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
             MappingDefinition md = ctx.findMapping(fqn).orElse(null);
             if (md == null) {
                 continue;
@@ -243,7 +243,7 @@ public final class MetamodelSeeds {
 
     private static List<List<String>> classMappings(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+        for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
             MappingDefinition md = ctx.findMapping(fqn).orElse(null);
             if (md == null) {
                 continue;
@@ -286,7 +286,7 @@ public final class MetamodelSeeds {
 
     private static List<SetRow> relationalSets(ModelContext ctx) {
         List<SetRow> out = new ArrayList<>();
-        for (String fqn : extent(ctx, Pure.MAPPING_METACLASS.qualifiedName())) {
+        for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
             MappingDefinition md = ctx.findMapping(fqn).orElse(null);
             if (md == null) {
                 continue;

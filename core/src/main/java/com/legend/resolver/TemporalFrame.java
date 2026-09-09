@@ -2665,7 +2665,7 @@ final class TemporalFrame {
                 // ONLY the GENERATED property on a temporal receiver — an
                 // ordinary user property legally named businessDate must
                 // not be rewritten (audit 10)
-                && pa.source().info().type()
+                && Type.asClassType(pa.source().info().type())
                         instanceof Type.ClassType rc
                 && temporalStrategy(rc.fqn()) != null
                 ) {

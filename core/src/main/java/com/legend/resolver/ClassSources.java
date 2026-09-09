@@ -252,7 +252,7 @@ public final class ClassSources {
                         + classFqn + "' unknown to the model"));
         List<Type.Column> cols = new ArrayList<>();
         for (var p : cls.properties()) {
-            if (!(p.type() instanceof Type.ClassType)) {
+            if (!(Type.asClassType(p.type()) instanceof Type.ClassType)) {
                 cols.add(new Type.Column(p.name(), p.type(), p.multiplicity()));
             }
         }
@@ -581,7 +581,7 @@ public final class ClassSources {
         var ccls = ctx.findClass(childClassFqn).orElseThrow();
         List<Type.Column> cCols = new ArrayList<>();
         for (var p : ccls.properties()) {
-            if (!(p.type() instanceof Type.ClassType)) {
+            if (!(Type.asClassType(p.type()) instanceof Type.ClassType)) {
                 cCols.add(new Type.Column(p.name(), p.type(),
                         p.multiplicity()));
             }
@@ -788,7 +788,7 @@ public final class ClassSources {
             // this same mapping (memo + cycle guard ride along), then
             // substitute every $src.prop read with the upstream's binding —
             // the composed table sits over the upstream's own pipeline.
-            if (pipeline.info().type() instanceof Type.ClassType src) {
+            if (Type.asClassType(pipeline.info().type()) instanceof Type.ClassType src) {
                 return composeModelToModel(mappingFqn, classFqn, binding,
                         pipeline, mapper, ctor, src, upstreamMapping, contextKey);
             }
@@ -901,7 +901,7 @@ public final class ClassSources {
                         && spa.source() instanceof TypedVariable spv
                         && spv.name().equals(sub.rowVar())
                         && subNavSteps.containsKey(spa.property())
-                        && inner.info().type() instanceof Type.ClassType) {
+                        && Type.asClassType(inner.info().type()) instanceof Type.ClassType) {
                     var st = subNavSteps.get(spa.property());
                     java.util.Set<String> siblings =
                             new java.util.LinkedHashSet<>(subSlots);

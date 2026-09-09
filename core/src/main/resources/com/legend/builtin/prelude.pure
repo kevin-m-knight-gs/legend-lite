@@ -724,10 +724,32 @@ import meta::pure::mapping::aggregationAware::*;
 import meta::pure::mapping::relation::*;
 import meta::pure::metamodel::testable::*;
 import meta::pure::metamodel::relation::*;
+Class meta::pure::mapping::Mapping extends PackageableElement, Testable
+{
+    includes : MappingInclude[*];
+    classMappings : SetImplementation[*];
+    enumerationMappings : EnumerationMapping<Any>[*];
+    associationMappings : AssociationImplementation[*];
+}
+
 Class meta::pure::mapping::ValueTransformer<T>
 {
  //   toDomainValue(sourceValue: Any[1]) { $sourceValue; }:Any[1];
  //   toSourceValues(domainValue: Any[1]) { $domainValue; }:Any[*];
+}
+
+Class meta::pure::mapping::EnumerationMapping<T> extends meta::pure::mapping::ValueTransformer<T>
+{
+    name : String[1];
+    parent : Mapping[1];
+    enumeration : Enumeration<T>[1];
+    enumValueMappings: EnumValueMapping[*];
+}
+
+Class meta::pure::mapping::EnumValueMapping
+{
+   enum : Enum[1];
+   sourceValues : Any[*];
 }
 
 Class meta::pure::mapping::PropertyOwnerImplementation
@@ -735,6 +757,24 @@ Class meta::pure::mapping::PropertyOwnerImplementation
     id : String[1];
     superSetImplementationId: String[0..1];
     parent : Mapping[1];
+}
+
+Class meta::pure::mapping::SetImplementation extends PropertyOwnerImplementation
+{
+    root : Boolean[1];
+    class : Class<Any>[1];
+}
+
+Class meta::pure::mapping::PropertyMappingsImplementation extends PropertyOwnerImplementation
+{
+    stores : meta::pure::store::Store[*];
+    propertyMappings : PropertyMapping[*];
+}
+
+Class meta::pure::mapping::InstanceSetImplementation extends SetImplementation, PropertyMappingsImplementation
+{
+    mappingClass : MappingClass<Any>[0..1];
+    aggregateSpecification: AggregateSpecification[0..1];
 }
 
 Class meta::pure::mapping::EmbeddedSetImplementation extends InstanceSetImplementation, PropertyMapping
@@ -772,6 +812,18 @@ Class meta::pure::mapping::OperationSetImplementation extends meta::pure::mappin
 Class meta::pure::mapping::MergeOperationSetImplementation extends meta::pure::mapping::OperationSetImplementation
 {
     validationFunction : LambdaFunction<Any>[1];
+}
+
+Class meta::pure::mapping::PropertyMapping
+{
+    owner : PropertyMappingsImplementation[0..1];
+    targetSetImplementationId : String[1];
+    sourceSetImplementationId : String[1];
+    property : Property<Nil,Any|*>[1];
+    localMappingProperty : Boolean[0..1];
+    localMappingPropertyType : Type[0..1];
+    localMappingPropertyMultiplicity : Multiplicity[0..1];
+    store : meta::pure::store::Store[0..1];
 }
 
 Class meta::pure::mapping::PropertyMappingValueSpecificationContext extends ValueSpecificationContext
@@ -4088,7 +4140,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 456 classes, 16 enums.
+// 463 classes, 16 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime

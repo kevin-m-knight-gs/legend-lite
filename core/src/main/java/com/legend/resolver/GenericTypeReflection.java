@@ -43,7 +43,7 @@ final class GenericTypeReflection {
                 && gt.callee().qualifiedName().equals(
                         "meta::pure::functions::meta::genericType")
                 && !gt.args().isEmpty()
-                && gt.args().get(0).info().type() instanceof Type.ClassType;
+                && Type.asClassType(gt.args().get(0).info().type()) instanceof Type.ClassType;
     }
 
     /** Resolve the chain and wrap it with the raw-type projection; a BARE

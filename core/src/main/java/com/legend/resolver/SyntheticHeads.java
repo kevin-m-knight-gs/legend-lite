@@ -377,7 +377,7 @@ final class SyntheticHeads {
         readVarNames(body, free);
         free.removeAll(pred.parameters());
         if (!free.equals(Set.of(bottom))
-                || !(first.info().type() instanceof Type.ClassType ct)) {
+                || !(Type.asClassType(first.info().type()) instanceof Type.ClassType ct)) {
             return null;
         }
         Set<List<String>> outer = new LinkedHashSet<>();
@@ -623,7 +623,7 @@ final class SyntheticHeads {
                         .TypedVariable mv
                 && mv.name().equals(tm.mapper().parameters().get(0))
                 && filterBehindToOne(tm.source()) instanceof TypedFilter
-                && tm.source().info().type() instanceof Type.ClassType) {
+                && Type.asClassType(tm.source().info().type()) instanceof Type.ClassType) {
             return liftFilteredHeads(new TypedPropertyAccess(
                     tm.source(), mb.property(), tm.info()), enabled, fc);
         }
@@ -635,7 +635,7 @@ final class SyntheticHeads {
         if (enabled && n instanceof TypedSortBy sb0
                 && sb0.source() instanceof TypedFilter fs
                 && fs.predicate().parameters().size() == 1
-                && fs.info().type() instanceof Type.ClassType
+                && Type.asClassType(fs.info().type()) instanceof Type.ClassType
                 && isLiftableNav(fs.source())) {
             TypedSpec head0 = liftFilteredHeads(fs.source(), true);
             TypedSpec renamed0;
@@ -678,7 +678,7 @@ final class SyntheticHeads {
                 && n instanceof TypedPropertyAccess pa
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f
                 && f.predicate().parameters().size() == 1
-                && f.info().type()
+                && Type.asClassType(f.info().type())
                         instanceof Type.ClassType
                 && isLiftableNav(f.source())) {
             return liftFilteredReadArm(pa, f, fc);
@@ -693,7 +693,7 @@ final class SyntheticHeads {
                 && tm2.mapper().parameters().size() == 1
                 && tm2.source() instanceof TypedFilter f0
                 && f0.predicate().parameters().size() == 1
-                && f0.info().type() instanceof Type.ClassType
+                && Type.asClassType(f0.info().type()) instanceof Type.ClassType
                 && isLiftableNav(f0.source())
                 && !(tm2.info().multiplicity()
                         instanceof com.legend.compiler.element.type
@@ -762,7 +762,7 @@ final class SyntheticHeads {
                 // every scan (temporal specs, slot demand, the CASE-WHEN
                 // instance read) sees the instance's own paths
                 if (enabled && f.source() instanceof TypedVariable iv
-                        && iv.info().type() instanceof Type.ClassType
+                        && Type.asClassType(iv.info().type()) instanceof Type.ClassType
                         && iv.info().multiplicity() instanceof Multiplicity.Bounded ib
                         && Integer.valueOf(1).equals(ib.upper())
                         && p0.parameters().size() == 1) {
@@ -842,7 +842,7 @@ final class SyntheticHeads {
             // ON clause (registerAssociationJoins hop>0 + associationJoin's
             // andCorrelatedIntoCondition)
             case TypedMap m -> {
-                boolean classMapper = enabled && m.source().info().type()
+                boolean classMapper = enabled && Type.asClassType(m.source().info().type())
                         instanceof Type.ClassType
                         && m.mapper().parameters().size() == 1;
                 if (classMapper) {
@@ -959,12 +959,13 @@ final class SyntheticHeads {
                 || !Anchors.isStaticAt(at)
                 || !(at.args().get(0) instanceof TypedPropertyAccess nav)
                 || !isLiftableNav(nav)
-                || !(nav.info().type() instanceof Type.ClassType)
+                || !(Type.asClassType(nav.info().type()) instanceof Type.ClassType)
                 || !(nav.info().multiplicity() instanceof Multiplicity.Bounded nb) || !nb.isMany()) {
             return null;
         }
         int k = (int) ((com.legend.compiler.spec.typed.TypedCInteger) at.args().get(1)).value().longValue();
-        Type headType = castTo instanceof Type.ClassType ? castTo : nav.info().type();
+        Type headType = castTo != null && Type.asClassType(castTo) instanceof Type.ClassType
+                ? castTo : nav.info().type();
         TypedSpec renamed = new TypedPropertyAccess(nav.source(),
                 parkPositional(nav.property(), k),
                 new ExprType(headType, Multiplicity.Bounded.ZERO_ONE));
@@ -1002,7 +1003,7 @@ final class SyntheticHeads {
         if (hops.isEmpty()
                 || !(cur instanceof TypedFilter f)
                 || !(f.source() instanceof TypedVariable iv)
-                || !(iv.info().type() instanceof Type.ClassType)
+                || !(Type.asClassType(iv.info().type()) instanceof Type.ClassType)
                 || !(iv.info().multiplicity() instanceof Multiplicity.Bounded ib
                         && Integer.valueOf(1).equals(ib.upper()))
                 || f.predicate().parameters().size() != 1
@@ -1049,10 +1050,10 @@ final class SyntheticHeads {
         } else {
             return null;
         }
-        if (!(inner.source().info().type() instanceof Type.ClassType)
+        if (!(Type.asClassType(inner.source().info().type()) instanceof Type.ClassType)
                 || inner.mapper().parameters().size() != 1
                 || inner.mapper().body().size() != 1
-                || !(inner.mapper().body().get(0).info().type() instanceof Type.ClassType)) {
+                || !(Type.asClassType(inner.mapper().body().get(0).info().type()) instanceof Type.ClassType)) {
             return null;
         }
         TypedSpec f = inner.mapper().body().get(0);
@@ -1166,7 +1167,7 @@ final class SyntheticHeads {
                 || !CorrelatedSubselects.isAggregate(agg)
                 || !(agg.args().get(0) instanceof TypedFilter fa)
                 || fa.predicate().parameters().size() != 1
-                || !(fa.info().type() instanceof Type.ClassType)
+                || !(Type.asClassType(fa.info().type()) instanceof Type.ClassType)
                 || !isLiftableNav(fa.source())
                 || (fa.info().multiplicity()
                         instanceof Multiplicity.Bounded ab
@@ -1273,7 +1274,7 @@ final class SyntheticHeads {
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f
                 && f.predicate().parameters().size() == 1
                 && f.predicate().body().size() == 1
-                && f.info().type() instanceof Type.ClassType
+                && Type.asClassType(f.info().type()) instanceof Type.ClassType
                 && isLiftableNav(f.source())
                 && mapper.parameters().get(0).equals(bottomVarOf(f.source()))) {
             // a `->toOne()`/`->first()` NARROWED read keeps the row-dropping
@@ -1331,14 +1332,14 @@ final class SyntheticHeads {
             }
             if (s instanceof TypedFilter f
                     && f.predicate().parameters().size() == 1
-                    && f.info().type() instanceof Type.ClassType
+                    && Type.asClassType(f.info().type()) instanceof Type.ClassType
                     && isLiftableNav(f.source())
                     && predClosedOverParam(f.predicate())) {
                 nav = f.source();
                 pred = f.predicate();
             } else if ((s instanceof TypedPropertyAccess
                     || s instanceof TypedMilestonedAccess)
-                    && s.info().type() instanceof Type.ClassType
+                    && Type.asClassType(s.info().type()) instanceof Type.ClassType
                     && isLiftableNav(s)) {
                 nav = s;
                 pred = null;
@@ -1452,7 +1453,7 @@ final class SyntheticHeads {
             TypedSpec n) {
         if (n instanceof TypedPropertyAccess paM
                 && paM.source() instanceof TypedMap mw
-                && mw.source().info().type() instanceof Type.ClassType
+                && Type.asClassType(mw.source().info().type()) instanceof Type.ClassType
                 && mw.source().info().multiplicity()
                         instanceof Multiplicity.Bounded mwb
                 && Integer.valueOf(1).equals(mwb.upper())
@@ -1481,7 +1482,7 @@ final class SyntheticHeads {
         }
         if (pa2.source() instanceof TypedNativeCall cc
                 && isConcatCall(cc)
-                && cc.info().type() instanceof Type.ClassType
+                && Type.asClassType(cc.info().type()) instanceof Type.ClassType
                 && !(pa2.info().multiplicity()
                         instanceof Multiplicity.Bounded b2
                         && Integer.valueOf(1).equals(b2.upper()))) {
@@ -1501,7 +1502,7 @@ final class SyntheticHeads {
         // exactly as the filtered-nav lift erases it.
         TypedSpec bare = filterBehindToOne(pa2.source());
         if (bare instanceof TypedNativeCall cc2 && isConcatCall(cc2)
-                && cc2.info().type() instanceof Type.ClassType leafClass) {
+                && Type.asClassType(cc2.info().type()) instanceof Type.ClassType leafClass) {
             return liftUnionHead(cc2, leafClass, pa2);
         }
         return null;
@@ -1543,7 +1544,7 @@ final class SyntheticHeads {
         TypedVariable bottom = null;
         for (TypedSpec s0 : streams) {
             TypedSpec s = filterBehindToOne(s0);
-            if (!(s.info().type() instanceof Type.ClassType)) {
+            if (!(Type.asClassType(s.info().type()) instanceof Type.ClassType)) {
                 return null;
             }
             List<String> path = new java.util.ArrayList<>();
@@ -1634,7 +1635,7 @@ final class SyntheticHeads {
                 && filterBehindToOne(ex.args().get(0)) instanceof TypedFilter fx
                 && fx.predicate().parameters().size() == 1
                 && fx.predicate().body().size() == 1
-                && fx.info().type() instanceof Type.ClassType
+                && Type.asClassType(fx.info().type()) instanceof Type.ClassType
                 && ex.args().get(1) instanceof TypedLambda exp
                 && exp.parameters().size() == 1
                 && exp.body().size() == 1) {
@@ -1675,7 +1676,7 @@ final class SyntheticHeads {
             return canonNavChain(u);
         }
         if (s instanceof TypedMap m && m.source() instanceof TypedVariable v
-                && m.source().info().type() instanceof Type.ClassType
+                && Type.asClassType(m.source().info().type()) instanceof Type.ClassType
                 && m.source().info().multiplicity()
                         instanceof Multiplicity.Bounded mb
                 && Integer.valueOf(1).equals(mb.upper())

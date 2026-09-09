@@ -956,3 +956,14 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 2 | census 19 → 20: the implicit inheritance union for `Relation` threads join-mapped `columns` as a scalar | FINDING (UnionSynthesis); not probed further | COLUMN_OWNER_LOWERING_LEG |
 | 3 | explicit `Relation[rel]` mapping: census clean, five `scanColumns` tests lost — `->cast(@Table)` on a navigated `rel` instance loses the owner alias | THE LEG: cast re-root of a navigation target across sets over one hierarchy table = a kind predicate on the same row; designed, its own batch after leg B | COLUMN_OWNER_LOWERING_LEG |
 | 4 | three cycles reached | Column back by hand with the receipt; the mapping edits reverted | Pure.java, SystemMetamodel |
+
+## 38. Batch 165 — mapping leg B: the mapping family; parameterized classes read raw in the resolver (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | USER: "are we changing the physical table layout because of a platform bug?" | NO — legs A/B/Column change no table; leg B changed no mapping text either; the Column leg is a platform fix (same-table inheritance for filtered members); UnionSynthesis finding A is an OWED bug leg with its own witness, never routed around | COLUMN_OWNER_LOWERING_LEG |
+| 2 | `EnumValueMapping.enum : Enum[1]` from a String column | the kernel's Enum-metaclass rule already accepts the name carrier; the `Enum` set + self-join (first try) was WRONG — `Enum` is a value kind on this platform (TypeClassifier); the census caught it (`MetamodelMapping$class$Enum`) | SystemMetamodel unchanged |
+| 3 | G1: `->cast(@PropertyMappingsImplementation)` over a `SetImplementation` row — siblings in the spec | `totalMembershipCast`: upcast total by declaration; cross-cast decided by the mapped members like a downcast | ElementReferences |
+| 4 | G1: `$cm.class == ext::A` and `.property.name` — `Class<Any>`, `Property<Nil,Any|*>` are GenericType | first two local patches (identity arm, auto-map hops, cast-by-route), then G4/G5 lost three enumeration tests on `EnumerationMapping<Any>`: measured 108 sites → ONE mechanism `Type.asClassType`/`classFqn` + `PlatformTypes.isValueCarrier`, all sites rewritten | Type, PlatformTypes, resolver/* |
+| 5 | G6: PCT letFn — a `Class<X>` reference at a chain root became an element ROW (key string returned) | D3 kept: `trackedElementClass` reads the bare metaclass type only (receipt); identity equality reads the Class row explicitly | ElementReferences, ChainNormalizer |
+| 6 | lesson | measure the site census BEFORE the second local patch; ask how the PLATFORM types a spec type before mapping it | — |

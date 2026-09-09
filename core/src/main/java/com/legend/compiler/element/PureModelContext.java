@@ -554,7 +554,7 @@ public final class PureModelContext implements ModelContext {
         } else if ("meta::pure::metamodel::relationship::Association"
                 .equals(classifierFqn)) {
             fqns = model.associations().map(a -> a.qualifiedName());
-        } else if (com.legend.builtin.Pure.MAPPING_METACLASS.qualifiedName()
+        } else if (com.legend.compiler.element.type.PlatformTypes.MAPPING
                 .equals(classifierFqn)) {
             fqns = model.mappings().map(m -> m.qualifiedName());
         } else if (com.legend.compiler.element.type.PlatformTypes.DATABASE

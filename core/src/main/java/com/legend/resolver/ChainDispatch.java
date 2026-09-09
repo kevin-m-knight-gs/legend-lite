@@ -83,7 +83,7 @@ final class ChainDispatch {
 
     /** Whether the match has ROW-returning arms (a class-typed body). */
     static boolean rowArms(TypedMatchRuntime mr) {
-        return mr.arms().stream().anyMatch(a -> a.body().info().type()
+        return mr.arms().stream().anyMatch(a -> Type.asClassType(a.body().info().type())
                 instanceof Type.ClassType);
     }
 
@@ -143,7 +143,7 @@ final class ChainDispatch {
             return chainMatchAsUnion(mr, sourceClass.apply(mr.input()));
         }
         if (r instanceof TypedMap m && objectSpace.test(m.source())
-                && m.mapper().functionType().result().type() instanceof Type.ClassType
+                && Type.asClassType(m.mapper().functionType().result().type()) instanceof Type.ClassType
                 && m.mapper().body().size() == 1
                 && m.mapper().body().get(0) instanceof TypedMatchRuntime bm
                 && rowArms(bm)) {

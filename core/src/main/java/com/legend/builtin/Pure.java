@@ -239,24 +239,6 @@ public final class Pure {
     // is extracted verbatim by tools/m3shape.py (receipt) — run it with the
     // simple names to re-derive.
 
-    // SYSTEM-STORE-COUPLED shapes (kept by hand, 2026-09-04 — option S
-    // receipt): the metamodel-as-relations store represents element
-    // references as ROWS keyed by fqn (class_mappings.mapped_class_fqn →
-    // classes, property_mappings → properties, enum_value_mappings.enum_value
-    // as the value's NAME) and its mapping (SystemMetamodel) types those ends
-    // as the raw row classes: SetImplementation.class: Class[1] (real m3
-    // Class<Any>), PropertyMapping.property: Property[1] (real
-    // Property<Nil,Any|*>), Column.owner: Table[0..1] (real Relation[0..1]),
-    // EnumValueMapping.enum: String[1] (real Enum[1]); the set-implementation
-    // chain keeps PropertyMappingsImplementation under SetImplementation
-    // (real m3 puts both under PropertyOwnerImplementation). Their real
-    // shapes are generated the day the store's element references become
-    // m3 rows (docs/SESSION_HANDOFF_2026_09_02.md, batch 54 follow-ups).
-    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[1]; class: meta::pure::metamodel::type::Class[1]; id: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
-    public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation { propertyMappings: meta::pure::mapping::PropertyMapping[*]; }");
-    public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation {}");
-    public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any { owner: meta::pure::mapping::PropertyMappingsImplementation[0..1]; targetSetImplementationId: meta::pure::metamodel::type::String[1]; sourceSetImplementationId: meta::pure::metamodel::type::String[1]; property: meta::pure::metamodel::function::property::Property[1]; }");
-    public static final ClassDefinition ENUM_VALUE_MAPPING = nativeClass("native Class meta::pure::mapping::EnumValueMapping extends meta::pure::metamodel::type::Any { enum: meta::pure::metamodel::type::String[1]; sourceValues: meta::pure::metamodel::type::String[*]; }");
     // ---- Numeric tower ----
     public static final ClassDefinition NUMBER  = nativeClass("native Class meta::pure::metamodel::type::Number  extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition INTEGER = nativeClass("native Class meta::pure::metamodel::type::Integer extends meta::pure::metamodel::type::Number {}");
@@ -283,33 +265,6 @@ public final class Pure {
 
 
 
-    // scalar properties as REAL relationalRuntime.pure declares them (the
-    // Function-typed post-processor properties are omitted until demanded);
-    // the corpus's testDatabaseConnection(...) constructs these
-    // the store METACLASS (real: extends meta::pure::store::Store) — a
-    // database REFERENCE is a value of this type (classReference), so the
-    // corpus's testRuntime(db:Database[1]) overload family type-checks
-    // real relational.pure: Database extends Store
-    // Real platform_dsl_mapping/grammar/mapping.pure:40 (extends
-    // ValueTransformer<T> — parent flattened to Any until a witness
-    // demands the transformer surface, the SetImplementation flatten
-    // precedent; enumValueMappings omitted until demanded).
-    public static final ClassDefinition ENUMERATION_MAPPING = // (real mapping.pure:40 is EnumerationMapping<T>; the type parameter is
-    // dropped here so the metamodel rows read it as a plain class hop — the
-    // object-space spine keys on ClassType — and enum reads as the value, Any)
-    // GENERIC as the spec declares it (mapping.pure:40 EnumerationMapping<T>;
-    // the engine casts @EnumerationMapping<Any>) — Phase 5 batch 147 ledger row 4
-    nativeClass("native Class meta::pure::mapping::EnumerationMapping<T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<T>[1]; enumValueMappings: meta::pure::mapping::EnumValueMapping[*]; }");
-    // task #78 step-1 declarations (each cited to the REAL source; class
-    // CONSTRAINTS are never ported — constraint evaluation is a separate
-    // feature track, declarations only TYPE):
-    /** Real platform_dsl_mapping/grammar/mapping.pure:26 (extends PackageableElement, Testable — ModelElement analog). The mapping METACLASS: a mapping reference is a value of this type. */
-    // name rides PackageableElement in real m3 (grammar/mapping.pure:26 —
-    // Mapping extends PackageableElement); the corpus constructs the
-    // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
-    // classMappings: SetImplementation[*] — real platform_dsl_mapping/grammar/
-    // mapping.pure:26, grown by the metamodel-store witness.
-    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; associationMappings: meta::pure::mapping::AssociationImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; includes: meta::pure::mapping::MappingInclude[*]; }");
 
     // ---- Function carrier (parameterized over a function-type token) ----
     // The m3 definition hierarchy under it (real pure: LambdaFunction<F>

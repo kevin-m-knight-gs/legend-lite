@@ -105,7 +105,7 @@ final class GraphEmission {
                 inner = c.args().get(0);
             }
             if (inner instanceof TypedNewInstance
-                    || inner.info().type()
+                    || Type.asClassType(inner.info().type())
                             instanceof Type.ClassType) {
                 continue;
             }
@@ -909,7 +909,7 @@ final class GraphEmission {
             if (inner instanceof TypedPropertyAccess pa
                     && pa.source() instanceof TypedVariable v
                     && v.name().equals(cs.rowVar())
-                    && v.info().type() instanceof Type.ClassType srcCls
+                    && Type.asClassType(v.info().type()) instanceof Type.ClassType srcCls
                     && ctx.findAssociationOf(srcCls.fqn(), pa.property()).isPresent()) {
                 return m2mAssocChild(cs, node, srcCls.fqn(), pa.property(),
                         context, parentRowVar, parentRowType);
@@ -922,7 +922,7 @@ final class GraphEmission {
                     .TypedMilestonedAccess ma0
                     && ma0.source() instanceof TypedVariable mv0
                     && mv0.name().equals(cs.rowVar())
-                    && mv0.info().type() instanceof Type.ClassType mSrc) {
+                    && Type.asClassType(mv0.info().type()) instanceof Type.ClassType mSrc) {
                 // the TREE NODE's own temporal spec (synonymsMilestoned(
                 // %date){…}) WINDOWS the child and beats the binding's
                 // sweep — the mapping populates all versions, the fetch
@@ -965,7 +965,7 @@ final class GraphEmission {
             // route A, whole-$src edit).
             if (inner instanceof TypedVariable wv
                     && wv.name().equals(cs.rowVar())
-                    && wv.info().type() instanceof Type.ClassType wSrc
+                    && Type.asClassType(wv.info().type()) instanceof Type.ClassType wSrc
                     && srcCast != null) {
                 return wholeSrcChild(cs, node, srcCast, wSrc.fqn(), context,
                         parentPipeline);
@@ -1094,7 +1094,7 @@ final class GraphEmission {
                         + node.property() + "' is not a property of '"
                         + ownerClassFqn + "'"));
         String childClass = castClassFqn != null ? castClassFqn
-                : prop.type() instanceof Type.ClassType cc
+                : Type.asClassType(prop.type()) instanceof Type.ClassType cc
                         ? cc.fqn() : null;
         if (childClass == null) {
             throw new IllegalStateException("resolver bug: navigate-slot graph child '"
@@ -1198,11 +1198,11 @@ final class GraphEmission {
                     && inner instanceof TypedPropertyAccess pdt
                     && pdt.source() instanceof TypedVariable pvt
                     && pvt.name().equals(cs.rowVar())
-                    && pdt.info().type() instanceof Type.ClassType pdc
+                    && Type.asClassType(pdt.info().type()) instanceof Type.ClassType pdc
                     && com.legend.compiler.element.Temporal.strategyOf(
                             ctx, pdc.fqn()) == null
                     && ctx.findProperty(cs.classFqn(), node.property())
-                            .map(pp -> pp.type()
+                            .map(pp -> Type.asClassType(pp.type())
                                     instanceof Type.ClassType tcc
                                     && com.legend.compiler.element.Temporal
                                             .strategyOf(ctx, tcc.fqn())
@@ -1267,7 +1267,7 @@ final class GraphEmission {
         boolean toMany = node.sweep() || !(prop.multiplicity()
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
-        if (!(prop.type() instanceof Type.ClassType childCls)) {
+        if (!(Type.asClassType(prop.type()) instanceof Type.ClassType childCls)) {
             throw new IllegalStateException("resolver bug: M2M graph child '"
                     + node.property() + "' is not class-typed");
         }
@@ -1401,7 +1401,7 @@ final class GraphEmission {
                 && ctx.findProperty(cs.classFqn(), node.property())
                         .map(p -> !(p instanceof com.legend.compiler
                                 .element.Property.Derived)
-                                && p.type() instanceof Type.ClassType)
+                                && Type.asClassType(p.type()) instanceof Type.ClassType)
                         .orElse(false);
     }
 
@@ -1412,7 +1412,7 @@ final class GraphEmission {
             implicitLeaves(ClassSource cs, TypedGraphTree node,
                     StoreResolver.Context context) {
         var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
-        if (p == null || !(p.type() instanceof Type.ClassType ct)) {
+        if (p == null || !(Type.asClassType(p.type()) instanceof Type.ClassType ct)) {
             return null;
         }
         var cls = ctx.findClass(ct.fqn()).orElse(null);
@@ -1448,7 +1448,7 @@ final class GraphEmission {
     private boolean isDerivedClassProp(ClassSource cs, TypedGraphTree node) {
         return ctx.findProperty(cs.classFqn(), node.property()).orElse(null)
                 instanceof com.legend.compiler.element.Property.Derived d
-                && d.type() instanceof Type.ClassType
+                && Type.asClassType(d.type()) instanceof Type.ClassType
                 && d.parameters().size() == node.args().size();
     }
 
@@ -1475,7 +1475,7 @@ final class GraphEmission {
         // CHAINED two-hop body ($this.h1[->filter(p)].h2->toOne() — the
         // qualifier-inside-qualifier shape after nested-call inlining)
         if (hop instanceof TypedPropertyAccess hp2
-                && hp2.info().type() instanceof Type.ClassType) {
+                && Type.asClassType(hp2.info().type()) instanceof Type.ClassType) {
             TypedSpec chSrc = unwrapToOneFirst(hp2.source());
             TypedLambda midPred = null;
             if (chSrc instanceof TypedFilter chF
@@ -1487,7 +1487,7 @@ final class GraphEmission {
             if (chSrc instanceof TypedPropertyAccess hp1
                     && hp1.source() instanceof TypedVariable chV
                     && chV.name().equals(thisVar)
-                    && hp1.info().type() instanceof Type.ClassType) {
+                    && Type.asClassType(hp1.info().type()) instanceof Type.ClassType) {
                 var chained = chainedDerivedChild(cs, node, context,
                         parentRowVar, parentRowType, hp1.property(),
                         midPred, hp2.property(), d, thisVar);
@@ -1894,7 +1894,7 @@ final class GraphEmission {
 
     private @com.legend.Nullable String mixedChildClassOf(String clsFqn, String prop) {
         var p = ctx.findProperty(clsFqn, prop).orElse(null);
-        if (p != null && p.type() instanceof Type.ClassType ct) {
+        if (p != null && Type.asClassType(p.type()) instanceof Type.ClassType ct) {
             return ct.fqn();
         }
         return ctx.findAssociationOf(clsFqn, prop)
@@ -1905,7 +1905,7 @@ final class GraphEmission {
 
     private boolean mixedChildToMany(String clsFqn, String prop) {
         var p = ctx.findProperty(clsFqn, prop).orElse(null);
-        if (p != null && p.type() instanceof Type.ClassType) {
+        if (p != null && Type.asClassType(p.type()) instanceof Type.ClassType) {
             return !(p.multiplicity() instanceof com.legend.compiler.element
                     .type.Multiplicity.Bounded mb && mb.isToOne());
         }
@@ -1977,7 +1977,7 @@ final class GraphEmission {
                         + "' is not mapped in mapping '" + cs.mappingFqn()
                         + "'", cast.classFqn());
             }
-            if (e == null || e.info().type() instanceof Type.ClassType) {
+            if (e == null || Type.asClassType(e.info().type()) instanceof Type.ClassType) {
                 nested.add(graphChild(child, c, context, cs.rowVar(), rowT,
                         parentPipeline));
                 continue;
@@ -2039,7 +2039,7 @@ final class GraphEmission {
                 .orElseThrow(() -> new IllegalStateException(
                         "resolver bug: graph child '" + node.property()
                         + "' is not a property of '" + ownerFqn + "'"));
-        String childClass = prop.type() instanceof Type.ClassType cc
+        String childClass = Type.asClassType(prop.type()) instanceof Type.ClassType cc
                 ? cc.fqn() : ownerFqn;
         List<TypedGraphTree> want = node.children().isEmpty()
                 ? ctor.properties().keySet().stream()
@@ -2064,7 +2064,7 @@ final class GraphEmission {
                 TypedSpec fb = hr == null ? null
                         : hr.target().bindings().get(c.property());
                 if (fb != null
-                        && !(fb.info().type() instanceof Type.ClassType)) {
+                        && !(Type.asClassType(fb.info().type()) instanceof Type.ClassType)) {
                     var hr2 = java.util.Objects.requireNonNull(hr, "hr");
                     e = scalarLeafSubquery(hr2.rel(), hr2.target().rowVar(),
                             hr2.targetRow(), c.property(), fb);
@@ -2139,7 +2139,7 @@ final class GraphEmission {
                         context, parentPipeline, null));
                 continue;
             }
-            if (ei.info().type() instanceof Type.ClassType) {
+            if (Type.asClassType(ei.info().type()) instanceof Type.ClassType) {
                 // JOIN property INSIDE the embedded ctor (firm(employees:
                 // @firmEmployees)): the embedded node shares the PARENT's
                 // row, so the slot child correlates against the parent —
@@ -2341,7 +2341,7 @@ final class GraphEmission {
         }
         TypedSpec leafBind = hr.target().bindings().get(leaf.property());
         if (leafBind == null
-                || leafBind.info().type() instanceof Type.ClassType) {
+                || Type.asClassType(leafBind.info().type()) instanceof Type.ClassType) {
             return null;
         }
         var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
@@ -2392,7 +2392,7 @@ final class GraphEmission {
             String rowVar) {
         TypedSpec b = unwrapToOneFirst(n);
         if (!(b instanceof TypedPropertyAccess leaf)
-                || leaf.info().type() instanceof Type.ClassType) {
+                || Type.asClassType(leaf.info().type()) instanceof Type.ClassType) {
             return null;
         }
         TypedSpec cur = unwrapToOneFirst(leaf.source());
@@ -2401,12 +2401,12 @@ final class GraphEmission {
         while (true) {
             switch (cur) {
                 case TypedPropertyAccess pa -> {
-                    classHop |= pa.info().type() instanceof Type.ClassType;
+                    classHop |= Type.asClassType(pa.info().type()) instanceof Type.ClassType;
                     head = pa.property();
                     cur = unwrapToOneFirst(pa.source());
                 }
                 case com.legend.compiler.spec.typed.TypedMilestonedAccess ma -> {
-                    classHop |= ma.info().type() instanceof Type.ClassType;
+                    classHop |= Type.asClassType(ma.info().type()) instanceof Type.ClassType;
                     head = ma.property();
                     cur = unwrapToOneFirst(ma.source());
                 }
@@ -2464,7 +2464,7 @@ final class GraphEmission {
         if (hop instanceof TypedPropertyAccess hpa
                 && hpa.source() instanceof TypedVariable hv
                 && hv.name().equals(thisVar)
-                && hpa.info().type() instanceof Type.ClassType) {
+                && Type.asClassType(hpa.info().type()) instanceof Type.ClassType) {
             headProp = hpa.property();
         } else if (hop instanceof com.legend.compiler.spec.typed
                         .TypedMilestonedAccess hma
@@ -2738,7 +2738,7 @@ final class GraphEmission {
         Type.RelationType targetRow = hr.targetRow();
         TypedSpec leafBind = target.bindings().get(leaf.property());
         if (leafBind == null
-                || leafBind.info().type() instanceof Type.ClassType) {
+                || Type.asClassType(leafBind.info().type()) instanceof Type.ClassType) {
             return null;
         }
         TypedSpec rel = hr.rel();
@@ -2886,7 +2886,7 @@ final class GraphEmission {
                     .TypedNewInstance eni) {
                 TypedSpec lb = eni.properties().get(epa.property());
                 if (lb != null
-                        && !(lb.info().type() instanceof Type.ClassType)) {
+                        && !(Type.asClassType(lb.info().type()) instanceof Type.ClassType)) {
                     return lb;
                 }
             }
@@ -2895,7 +2895,7 @@ final class GraphEmission {
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(thisVar)) {
             TypedSpec b = bindings.get(pa.property());
-            if (b == null || b.info().type() instanceof Type.ClassType) {
+            if (b == null || Type.asClassType(b.info().type()) instanceof Type.ClassType) {
                 throw new NotImplementedException("derived graph leaf '"
                         + prop + "' reads '" + pa.property() + "' which is "
                         + (b == null ? "not a stored binding"

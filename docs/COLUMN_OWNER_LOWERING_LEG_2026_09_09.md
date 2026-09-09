@@ -35,3 +35,18 @@ Fallback if the two sets do NOT share a table (a user mapping): a join by primar
 ## Order
 Its own batch, after leg B (the mapping family does not touch this). Until then Column stays by hand with the receipt in
 Pure.java; `Database` landed (batch 164, part 1).
+
+## Homework addendum (batch 165, 2026-09-09)
+- `UnionSynthesis.sharedInheritanceTable` returns null when ANY member carries a `~filter` — `Table[tbl]` and `View[vw]`
+  both do (`ElTable`/`ElView`), so the implicit Inheritance op for `Relation` never takes the SAME-TABLE path
+  (`synthSameTableInheritance`): it builds the member UNION, which is exactly where finding A bites.
+- The cast gate (`ChainDispatch.castGateFilter`) is `instanceOf` per row: on a union row the member witness; on a
+  same-table source it is the member's FILTER predicate on the same row — the "kind predicate" of the design.
+- DESIGN REFINED: extend the same-table path to FILTERED members — parent extent = the shared table with the OR of the
+  members' filters (a `Relation` row is a Table or a View row); a cast to a member = that member's filter on the SAME
+  alias (no re-root, no key join; `CastReRoot` stays for the different-table case). Base props hoist as today when mapped
+  identically. `owner[tbl]` on Column then needs no change: `owner` targets the `Relation` inheritance op whose same-table
+  source is the relational_elements alias the navigation already joined.
+- OWED, its own fix with its own witness (a user mapping of the shape): finding A — the synthesized inclusive union
+  threads a class-typed property mapped by JOIN on one member and unmapped on another as a scalar. The fix lives in
+  UnionSynthesis (an unmapped member contributes NULL of the property's carrier, as for scalars), never in mapping text.

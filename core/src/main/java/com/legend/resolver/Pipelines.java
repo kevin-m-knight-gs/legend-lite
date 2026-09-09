@@ -1724,7 +1724,7 @@ public final class Pipelines {
                         nc.callee().signatureKey());
         if (!empt || nc.args().size() != 1
                 || !objectSpace.test(nc.args().get(0))
-                || !(nc.args().get(0).info().type()
+                || !(Type.asClassType(nc.args().get(0).info().type())
                         instanceof Type.ClassType ct)) {
             return nc;
         }
@@ -1784,21 +1784,24 @@ public final class Pipelines {
     }
 
     static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
-        if (pa.info().type() instanceof Type.ClassType
+        // class-typed = bare or parameterized class (Type.classFqn: the
+        // spec's PropertyMapping.property is Property<Nil,Any|*>)
+        if (Type.classFqn(pa.info().type()) != null
                 || Type.schemaView(pa.info().type()) != null) {
             return null;
         }
         List<TypedPropertyAccess> hops = new ArrayList<>();
         TypedSpec base = pa;
         while (base instanceof TypedPropertyAccess p
-                && p.source().info().type() instanceof Type.ClassType) {
+                && Type.classFqn(p.source().info().type()) != null) {
             hops.add(0, p);
             base = p.source();
         }
         if (hops.isEmpty() || base instanceof TypedPropertyAccess
-                || !(base.info().type() instanceof Type.ClassType ct)) {
+                || Type.classFqn(base.info().type()) == null) {
             return null;
         }
+        Type ct = base.info().type();
         String v = "v_amr";
         TypedSpec body = new TypedVariable(v,
                 new ExprType(ct, Multiplicity.Bounded.ONE));

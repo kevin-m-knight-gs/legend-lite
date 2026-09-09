@@ -77,7 +77,7 @@ final class ConstructedRowForm {
             Set<TypedSpec> out) {
         if (n instanceof TypedNativeCall c && c.args().size() == 1
                 && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
-                && c.info().type() instanceof Type.ClassType
+                && Type.asClassType(c.info().type()) instanceof Type.ClassType
                 && objectSpace.test(c.args().get(0))) {
             out.add(n);
             return;

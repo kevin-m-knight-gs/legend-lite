@@ -212,20 +212,22 @@ final class Anchors {
             // lambda) — its statements are rows (FunctionBodyRows)
             case TypedPropertyAccess pa when functionBodyRead(pa) -> true;
             // a CLASS-typed property HOP over an object-space chain IS
-            // object space (the auto-map flatten re-roots at its target)
+            // object space (the auto-map flatten re-roots at its target);
+            // class-typed = bare or PARAMETERIZED class (Type.classFqn —
+            // the spec's Mapping.enumerationMappings is EnumerationMapping<Any>)
             case TypedPropertyAccess pa
-                    when pa.info().type() instanceof Type.ClassType ->
+                    when Type.classFqn(pa.info().type()) != null ->
                     spaceOf(pa.source()) == Space.OBJECT;
             // ->map with a CLASS-result mapper stays in object space
             case TypedMap m
-                    when m.mapper().functionType().result()
-                            .type() instanceof Type.ClassType ->
+                    when Type.classFqn(m.mapper().functionType().result()
+                            .type()) != null ->
                     spaceOf(m.source()) == Space.OBJECT;
             case TypedFrom fr -> spaceOf(fr.source()) == Space.OBJECT;
             // ->cast(@Sub) in chain position re-types the chain (the
             // total-membership rule, StoreResolver.collectOpChain)
             case com.legend.compiler.spec.typed.TypedCast c
-                    when c.target() instanceof Type.ClassType ->
+                    when Type.classFqn(c.target()) != null ->
                     spaceOf(c.source()) == Space.OBJECT;
             case TypedFilter f -> spaceOf(f.source()) == Space.OBJECT;
             case TypedLimit l -> spaceOf(l.source()) == Space.OBJECT;

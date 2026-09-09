@@ -225,7 +225,7 @@ final class UnionHeads {
             Map<String, Substitution.SubNav> subNavs) {
         TypedSpec b = requireLeaf(target.bindings().get(leaf), target.classFqn(),
                 null, leaf);
-        if (Pipelines.unwrapToOne(b).info().type() instanceof Type.ClassType
+        if (Type.asClassType(Pipelines.unwrapToOne(b).info().type()) instanceof Type.ClassType
                 || Pipelines.unwrapToOne(b) instanceof TypedNewInstance) {
             throw new NotImplementedException("concatenated navigation leaf '"
                     + leaf + "' of '" + target.classFqn()

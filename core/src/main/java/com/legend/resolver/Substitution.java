@@ -857,11 +857,11 @@ final class Substitution {
                 && sc.callee().qualifiedName()
                         .equals("meta::pure::functions::lang::subType")
                 && !sc.args().isEmpty()
-                && sc.info().type() instanceof Type.ClassType sct) {
+                && Type.asClassType(sc.info().type()) instanceof Type.ClassType sct) {
             // IDENTITY cast (subType(@Product) over a Product-typed nav —
             // the engine's context-propagation spelling): transparent,
             // the plain property path serves it (no stc dispatch)
-            boolean identity = sc.args().get(0).info().type()
+            boolean identity = Type.asClassType(sc.args().get(0).info().type())
                     instanceof Type.ClassType argCt
                     && argCt.fqn().equals(sct.fqn());
             String comp = identity ? pa0.property()
@@ -945,7 +945,7 @@ final class Substitution {
                     && "meta::pure::functions::collection::concatenate"
                             .equals(cnc.callee().qualifiedName())
                     && cnc.args().size() == 2
-                    && cnc.info().type() instanceof Type.ClassType
+                    && Type.asClassType(cnc.info().type()) instanceof Type.ClassType
                     && target.regs().orCallee() != null
                     && target.regs().andCallee() != null) {
                 List<ExistsSub> subs = new ArrayList<>();
@@ -1442,7 +1442,7 @@ final class Substitution {
     private boolean listValueMap(TypedMap m) {
         return m.mapper().parameters().size() == 1
                 && !Type.isRelation(m.source().info().type())
-                && !(m.source().info().type() instanceof Type.ClassType)
+                && !(Type.asClassType(m.source().info().type()) instanceof Type.ClassType)
                 && m.source().info().multiplicity() instanceof
                         com.legend.compiler.element.type.Multiplicity.Bounded mb
                 && mb.isMany()
@@ -1547,7 +1547,7 @@ final class Substitution {
                     inner = c1.args().get(0);
                 }
                 if (inner instanceof TypedNewInstance
-                        || inner.info().type()
+                        || Type.asClassType(inner.info().type())
                                 instanceof Type.ClassType) {
                     throw new NotImplementedException("class-typed property '$"
                             + target.userVar() + "." + prop + "' used as a whole"
@@ -2144,7 +2144,7 @@ final class Substitution {
                     when pa.source() instanceof TypedCast hc
                     && hc.source() instanceof TypedVariable hv
                     && hv.name().equals(target.userVar())
-                    && hc.target() instanceof Type.ClassType hct ->
+                    && Type.asClassType(hc.target()) instanceof Type.ClassType hct ->
                     castLeafRead(hct.fqn(), hc.source(), pa);
             // $p->match([s:Sub[1]|…, …]) — value arms
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr
@@ -2182,7 +2182,7 @@ final class Substitution {
     static @com.legend.Nullable String typeTargetFqn(TypedSpec typeArg) {
         return switch (typeArg) {
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
-                    tr.target() instanceof Type.ClassType c ? c.fqn() : null;
+                    Type.asClassType(tr.target()) instanceof Type.ClassType c ? c.fqn() : null;
             case com.legend.compiler.spec.typed.TypedPackageableRef pr ->
                     pr.fullPath();
             default -> null;
@@ -2281,7 +2281,7 @@ final class Substitution {
         List<TypedSpec> bodies = new ArrayList<>();
         TypedSpec elseArm = null;
         for (var arm : mr.arms()) {
-            if (arm.body().info().type() instanceof Type.ClassType
+            if (Type.asClassType(arm.body().info().type()) instanceof Type.ClassType
                     || Type.isRelation(arm.body().info().type())) {
                 throw new NotImplementedException("match arm '" + arm.typeFqn()
                         + "' over a mapped row returns rows — only VALUE arms"
@@ -3044,7 +3044,7 @@ final class Substitution {
     private boolean unliftedFilteredRead(TypedPropertyAccess pa) {
         TypedSpec src = pa.source();
         while (src instanceof TypedPropertyAccess hp
-                && hp.info().type() instanceof Type.ClassType) {
+                && Type.asClassType(hp.info().type()) instanceof Type.ClassType) {
             src = hp.source();
         }
         boolean sawWrapper = false;
@@ -3081,7 +3081,7 @@ final class Substitution {
                 || nc.args().isEmpty()
                 || !(nc.args().get(0) instanceof TypedVariable v)
                 || !v.name().equals(target.userVar())
-                || !(nc.info().type() instanceof Type.ClassType ct)) {
+                || !(Type.asClassType(nc.info().type()) instanceof Type.ClassType ct)) {
             return null;
         }
         if (!target.assocs().containsKey(SUBTYPE_KEY + ct.fqn())) {

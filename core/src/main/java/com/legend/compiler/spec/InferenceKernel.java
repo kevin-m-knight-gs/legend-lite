@@ -1670,11 +1670,7 @@ public final class InferenceKernel {
      * Function&lt;T&gt;; each is a wrapper spelling of the bare
      * FunctionType it carries. */
     static final java.util.Set<String> FUNCTION_CARRIER_FQNS =
-            java.util.Set.of(
-                    com.legend.compiler.element.type.PlatformTypes.FUNCTION,
-                    com.legend.compiler.element.type.PlatformTypes.FUNCTION_DEFINITION,
-                    com.legend.compiler.element.type.PlatformTypes.LAMBDA_FUNCTION,
-                    com.legend.compiler.element.type.PlatformTypes.CONCRETE_FUNCTION_DEFINITION);
+            com.legend.compiler.element.type.PlatformTypes.FUNCTION_CARRIERS;
 
     private static Type unwrapFunction(Type t) {
         if (t instanceof Type.GenericType g

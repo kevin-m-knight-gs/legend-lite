@@ -385,6 +385,35 @@ public sealed interface Type permits
                 && g.arguments().size() == 1;
     }
 
+    /** The CLASS a value of type {@code t} is an instance of: a
+     * {@link ClassType}'s fqn, or a PARAMETERIZED class's raw fqn — the
+     * spec declares its metaclass-typed properties generic
+     * ({@code SetImplementation.class : Class<Any>[1]},
+     * {@code PropertyMapping.property : Property<Nil,Any|*>[1]}, mapping
+     * leg B) and such a value IS a row of the raw class, exactly as a bare
+     * {@code Class[1]} was. Null for every other type, the two carrier
+     * families included: a {@code Relation<T>} is a table, a function
+     * carrier is a lambda — neither is a row. */
+    static @com.legend.Nullable String classFqn(Type t) {
+        return switch (t) {
+            case ClassType c -> c.fqn();
+            case GenericType g when !isRelation(g)
+                    && !com.legend.compiler.element.type.PlatformTypes.isValueCarrier(g)
+                    -> g.rawFqn();
+            default -> null;
+        };
+    }
+
+    /** {@link #classFqn} as a {@link ClassType}: the bare type itself, a
+     * parameterized class RAW — THE store resolver's reading of a value's
+     * type ("is this a row, and of which class"): the resolver works on
+     * raw classes, type arguments are the kernel's business. Null when
+     * the value is not a row (see classFqn). */
+    static @com.legend.Nullable ClassType asClassType(Type t) {
+        String fqn = classFqn(t);
+        return fqn == null ? null : t instanceof ClassType c ? c : new ClassType(fqn);
+    }
+
     /** The schema of a TABLE type ({@code Relation<schema>}), or null if
      * {@code t} is not a resolved table type. THE "is this a table?"
      * reader — a bare {@link RelationType} is a schema/row, never a

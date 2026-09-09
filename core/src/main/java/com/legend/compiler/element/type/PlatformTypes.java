@@ -95,6 +95,17 @@ public final class PlatformTypes {
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
     public static final String TDS_ROW = "meta::pure::tds::TDSRow";
+    /** The mapping METACLASS (platform_dsl_mapping mapping.pure:26) — a prelude
+     * module class since batch 165 (mapping leg B); Java names it, the boot
+     * layer defines it. */
+    public static final String MAPPING = "meta::pure::mapping::Mapping";
+    /** The function-carrier nominals of real pure's m3 hierarchy —
+     * LambdaFunction&lt;T&gt; extends FunctionDefinition&lt;T&gt; extends
+     * Function&lt;T&gt;; each is a wrapper spelling of the bare FunctionType
+     * it carries (InferenceKernel unwraps them; Type.classFqn excludes
+     * them — a carrier value is a lambda, never a row). */
+    public static final java.util.Set<String> FUNCTION_CARRIERS = java.util.Set.of(
+            FUNCTION, FUNCTION_DEFINITION, LAMBDA_FUNCTION, CONCRETE_FUNCTION_DEFINITION);
     /** The relational store metaclass (relational.pure:29) — a prelude module class
      * since batch 164 (leg A of the mapping legs); the seeds and the extents name it here. */
     public static final String DATABASE = "meta::relational::metamodel::Database";
@@ -781,6 +792,26 @@ public final class PlatformTypes {
                 && g.rawFqn().equals("meta::pure::functions::collection::Map")
                 && g.arguments().size() == 2;
     }
+
+    /** A PARAMETERIZED platform VALUE carrier — a struct the lowering
+     * carries (Pair/List/Map), a plan handle (Result&lt;T|m&gt;), a
+     * variant, a column specification, a function carrier: never a row
+     * the store serves. Type.classFqn excludes these; every OTHER
+     * parameterized class (Class&lt;Any&gt;, Property&lt;Nil,Any|*&gt;,
+     * EnumerationMapping&lt;Any&gt; — the spec's metaclass-typed
+     * properties, mapping leg B) is a row of its raw class. */
+    public static boolean isValueCarrier(Type t) {
+        if (!(t instanceof Type.GenericType g)) {
+            return false;
+        }
+        return isPairCarrier(t) || isListCarrier(t) || isMapCarrier(t)
+                || FUNCTION_CARRIERS.contains(g.rawFqn())
+                || VALUE_CARRIER_FQNS.contains(g.rawFqn());
+    }
+
+    private static final java.util.Set<String> VALUE_CARRIER_FQNS = java.util.Set.of(
+            RESULT, VARIANT, COL_SPEC, COL_SPEC_ARRAY, FUNC_COL_SPEC, FUNC_COL_SPEC_ARRAY,
+            AGG_COL_SPEC, AGG_COL_SPEC_ARRAY);
 
     /** The {@code Function<{…}>} value carrier (parameterized form). */
     public static boolean isFunctionCarrier(Type t) {

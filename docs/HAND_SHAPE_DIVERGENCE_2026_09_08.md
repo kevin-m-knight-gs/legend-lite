@@ -120,6 +120,11 @@ go when the shapes migrate).
    enum-name column and `enum` a join to it; `sourceValues : Any[*]` — the text column conformed to the platform's `Any`
    carrier AT THE MAPPING (conform-by-emission), never the class narrowed; `Mapping`'s `Testable` / `EnumerationMapping<Any>` /
    duplicated `name` dissolve; unmapped new properties stay unmapped (a read walls).
+   LANDED batch 165 (2026-09-09), with corrections to the plan above: NO mapping text changed — `enum: enum_value` already
+   conforms (the kernel's Enum-metaclass rule; an `Enum` SET is wrong, `Enum` is a value kind on this platform) and the
+   `set_implementations` table needed no subclass mappings (the mapping calculus walks both parents). What the spec's
+   shapes did demand was in the RESOLVER: cross-casts (`totalMembershipCast`) and parameterized class values read raw
+   (`Type.asClassType`, all 108 sites) — GATES.md batch 165, ledger §38. Hand 20 → 13 (12 primitives + `Column`).
    After both: `Pure.java` = native signatures + `Lite` + the 13 primitives. Phase 2 complete.
 5. **The pin**: `tools/shape_sweep.py` becomes a governance test — every hand shape exact, or on a shrink-only list with its receipt.
 

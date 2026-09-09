@@ -672,8 +672,8 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
                     ExprType.one(fnT))};
         }
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1
-                && !(m.mapper().functionType().result()
-                        .type() instanceof Type.ClassType)) {
+                && !(Type.asClassType(m.mapper().functionType().result()
+                        .type()) instanceof Type.ClassType)) {
             return new Object[] {m.source(), m.mapper()};
         }
         // bare $vals.prop / $vals.hop.prop spelling (scalar read over a
@@ -683,12 +683,12 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         // the hop chain over the row variable (zip($vals.address.name,
         // zip($vals.firstName, $vals.lastName)) shares ONE root).
         if (n instanceof TypedPropertyAccess pa
-                && !(pa.info().type() instanceof Type.ClassType)
-                && pa.source().info().type() instanceof Type.ClassType) {
+                && !(Type.asClassType(pa.info().type()) instanceof Type.ClassType)
+                && Type.asClassType(pa.source().info().type()) instanceof Type.ClassType) {
             java.util.List<TypedPropertyAccess> hops = new java.util.ArrayList<>();
             TypedSpec root = pa;
             while (root instanceof TypedPropertyAccess h
-                    && h.source().info().type() instanceof Type.ClassType) {
+                    && Type.asClassType(h.source().info().type()) instanceof Type.ClassType) {
                 hops.add(0, h);
                 root = h.source();
             }
@@ -2019,7 +2019,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         .equals("meta::pure::functions::lang::subType")
                 && !nc.args().isEmpty()
                 && nc.args().get(0) instanceof TypedVariable
-                && nc.info().type() instanceof Type.ClassType ct) {
+                && Type.asClassType(nc.info().type()) instanceof Type.ClassType ct) {
             out.add(ct.fqn());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr
@@ -2043,8 +2043,8 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         // subtype table — harness burn-down leg 1)
         if (n instanceof com.legend.compiler.spec.typed.TypedCast tc
                 && (tc.source() instanceof TypedVariable
-                        || tc.source().info().type() instanceof Type.ClassType)
-                && tc.target() instanceof Type.ClassType cct) {
+                        || Type.asClassType(tc.source().info().type()) instanceof Type.ClassType)
+                && Type.asClassType(tc.target()) instanceof Type.ClassType cct) {
             out.add(cct.fqn());
         }
         for (TypedSpec c : n.children()) {
@@ -2079,8 +2079,8 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 && msc.callee().qualifiedName()
                         .equals("meta::pure::functions::lang::subType")
                 && !msc.args().isEmpty()
-                && msc.info().type() instanceof Type.ClassType msct
-                && msc.args().get(0).info().type()
+                && Type.asClassType(msc.info().type()) instanceof Type.ClassType msct
+                && Type.asClassType(msc.args().get(0).info().type())
                         instanceof Type.ClassType mnavCt) {
             ClassSource mt = castTarget(mappingOf, mnavCt);
             String mwKey = com.legend.model.ClassMapping.subTypeColumn(
@@ -2115,8 +2115,8 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 && sc0.callee().qualifiedName()
                         .equals("meta::pure::functions::lang::subType")
                 && !sc0.args().isEmpty()
-                && sc0.info().type() instanceof Type.ClassType sct0
-                && sc0.args().get(0).info().type()
+                && Type.asClassType(sc0.info().type()) instanceof Type.ClassType sct0
+                && Type.asClassType(sc0.args().get(0).info().type())
                         instanceof Type.ClassType navCt0) {
             ClassSource t0 = castTarget(mappingOf, navCt0);
             String wKey0 = com.legend.model.ClassMapping.subTypeColumn(
@@ -2139,8 +2139,8 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 || !sc.callee().qualifiedName()
                         .equals("meta::pure::functions::lang::subType")
                 || sc.args().isEmpty()
-                || !(sc.info().type() instanceof Type.ClassType sct)
-                || !(sc.args().get(0).info().type()
+                || !(Type.asClassType(sc.info().type()) instanceof Type.ClassType sct)
+                || !(Type.asClassType(sc.args().get(0).info().type())
                         instanceof Type.ClassType navCt)) {
             // NOTE multiplicity is NOT gated: a TO-ONE cast over a
             // partial-membership target needs the same per-cast routed
@@ -2154,7 +2154,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         // the cast reads through the ctor drill / SUBTYPE_KEY machinery
         // (inline-embedded golden: $x.vehicleOwner->subType(@Person).name)
         if (sc.args().get(0) instanceof TypedPropertyAccess ha
-                && ha.source().info().type() instanceof Type.ClassType ownCt) {
+                && Type.asClassType(ha.source().info().type()) instanceof Type.ClassType ownCt) {
             String om;
             try {
                 om = mappingOf.apply(ownCt.fqn());
@@ -2354,7 +2354,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // is the same ORDER metadata as above.
             if (nc.args().get(0) instanceof TypedMap tmap
                     && tmap.mapper().parameters().size() == 1
-                    && !(tmap.mapper().functionType().result().type()
+                    && !(Type.asClassType(tmap.mapper().functionType().result().type())
                             instanceof Type.ClassType)) {
                 TypedSpec mapSrc = tmap.source();
                 TypedLambda mOrder = null;
@@ -2703,7 +2703,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             }
             return null;
         }
-        if (!(cur.info().type() instanceof Type.ClassType)) {
+        if (!(Type.asClassType(cur.info().type()) instanceof Type.ClassType)) {
             return null;
         }
         String v = "_agm";

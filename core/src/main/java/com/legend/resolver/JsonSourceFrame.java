@@ -195,7 +195,7 @@ final class JsonSourceFrame {
         for (var p : cls.properties()) {
             // Variant IS a column carrier; other class-typed properties
             // contribute nothing (reads through them keep their own walls)
-            if (p.type() instanceof Type.ClassType ct
+            if (Type.asClassType(p.type()) instanceof Type.ClassType ct
                     && !PlatformTypes.isVariant(ct)) {
                 continue;
             }

@@ -447,7 +447,7 @@ public final class StoreResolver {
             case TypedMap m when m.source() instanceof TypedFrom fr0 && classConcatOf(fr0.source()) != null ->
                     ClassConcatenates.mapOverExecuted(m, fr0,
                             java.util.Objects.requireNonNull(classConcatOf(fr0.source())), x -> resolveNode(x, context));
-            case TypedNativeCall c when classConcatOf(c) != null && c.info().type() instanceof Type.ClassType ->
+            case TypedNativeCall c when classConcatOf(c) != null && Type.asClassType(c.info().type()) instanceof Type.ClassType ->
                     ClassConcatenates.terminal(c, resolveNode(c.args().get(0), context), resolveNode(c.args().get(1), context));
             // ->map(o|$o.nav->match([...])) — a SCALAR map whose body is a
             // match over a navigation off the parameter: the flatten IS
@@ -463,8 +463,8 @@ public final class StoreResolver {
             // map over a SCALAR read of an object chain: the mapper COMPOSES
             // over the read — map(chain, x | f($x.prop)) — served below
             case TypedMap m when m.source() instanceof TypedPropertyAccess pa
-                    && !(pa.info().type() instanceof Type.ClassType) && objectSpace(pa.source())
-                    && pa.source().info().type() instanceof Type.ClassType ec && m.mapper().parameters().size() == 1 ->
+                    && !(Type.asClassType(pa.info().type()) instanceof Type.ClassType) && objectSpace(pa.source())
+                    && Type.asClassType(pa.source().info().type()) instanceof Type.ClassType ec && m.mapper().parameters().size() == 1 ->
                     resolveNode(Pipelines.composeScalarReadMap(specs, m, pa, ec), context);
             case TypedMap m when objectSpace(m.source()) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
@@ -473,14 +473,14 @@ public final class StoreResolver {
             }
             case TypedFilter f
                     when anchored(f.source())
-                    && !(f.source().info().type() instanceof Type.ClassType)
+                    && !(Type.asClassType(f.source().info().type()) instanceof Type.ClassType)
                     && !Type.isRelation(f.source().info().type())
                     && f.source() instanceof TypedPropertyAccess ->
                     foldScalarHopFilter(f, context);
             case TypedSpec te when Anchors.tdsErase(te) != null ->
                     resolveNode(java.util.Objects.requireNonNull(Anchors.tdsErase(te)), context);
             case TypedPropertyAccess pa when objectSpace(pa.source())
-                    && !(pa.info().type() instanceof Type.ClassType) ->
+                    && !(Type.asClassType(pa.info().type()) instanceof Type.ClassType) ->
                     scalarReadAsProject(pa, context);
             // Class-source groupBy (tds::groupBy cl:C[*] overload; the legacy
             // 4-arg form desugars into it): a relation-shaping TERMINAL like
@@ -736,7 +736,7 @@ public final class StoreResolver {
         // only the CLASS-RESULT shapes (bare class root, class-result
         // maps), where no consuming lambda exists.
         while (src instanceof TypedPropertyAccess hp
-                && hp.info().type() instanceof Type.ClassType) {
+                && Type.asClassType(hp.info().type()) instanceof Type.ClassType) {
             path.addFirst(hp);
             src = hp.source();
         }
@@ -771,7 +771,7 @@ public final class StoreResolver {
         // [*] (a witness-gated cast read stamps its carrier from it)
         ExprType leafInfo = pa.info();
         if (toOnePath && pa.info().multiplicity().isMany()
-                && read.info().type() instanceof Type.ClassType lc) {
+                && Type.asClassType(read.info().type()) instanceof Type.ClassType lc) {
             leafInfo = ctx.findProperty(lc.fqn(), pa.property())
                     .map(pr -> new ExprType(pa.info().type(), pr.multiplicity()))
                     .orElse(pa.info());
@@ -1207,7 +1207,7 @@ public final class StoreResolver {
 
     private static Type sourceClassType(TypedSpec chain) {
         Type t = chain.info().type();
-        if (!(t instanceof Type.ClassType)) {
+        if (!(Type.asClassType(t) instanceof Type.ClassType)) {
             throw new IllegalStateException("resolver bug: object-space chain typed "
                     + t.typeName());
         }
@@ -2192,7 +2192,7 @@ public final class StoreResolver {
             // class — property mappings override the association
             var hprop = ctx.findProperty(cs.classFqn(),
                     SyntheticHeads.realHead(head)).orElse(null);
-            if (hprop != null && hprop.type() instanceof Type.ClassType hct
+            if (hprop != null && Type.asClassType(hprop.type()) instanceof Type.ClassType hct
                     && !sources.binds(cs.mappingFqn(), hct.fqn())) {
                 continue;
             }
@@ -2610,8 +2610,8 @@ public final class StoreResolver {
             // is a re-typing; a partial-membership cast needs the witness
             // filter (step 2 serves it on the instance variable).
             if (cur instanceof TypedCast tc
-                    && tc.target() instanceof Type.ClassType tct
-                    && tc.source().info().type() instanceof Type.ClassType sct) {
+                    && Type.asClassType(tc.target()) instanceof Type.ClassType tct
+                    && Type.asClassType(tc.source().info().type()) instanceof Type.ClassType sct) {
                 if (!tct.fqn().equals(sct.fqn())
                         && !elements().castTotalByRoute(chainContext, tc.source(), tct.fqn())
                         && !elements().totalMembershipCast(chainContext, sct.fqn(), tct.fqn())) {
@@ -2685,8 +2685,8 @@ public final class StoreResolver {
             // flatten IS the mapper body with the source spliced for the
             // param (flatten composition is associative) — keep walking.
             if (cur instanceof TypedMap cm
-                    && cm.mapper().functionType().result()
-                            .type() instanceof Type.ClassType) {
+                    && Type.asClassType(cm.mapper().functionType().result()
+                            .type()) instanceof Type.ClassType) {
                 cur = Pipelines.substituteParam(specs, cm.mapper(), cm.source());
                 continue;
             }
@@ -2694,8 +2694,8 @@ public final class StoreResolver {
             // chain re-roots at the target over the JOIN. EMBEDDED hops
             // never reach here (the funnel's embedded dispatch owns them).
             if (cur instanceof TypedPropertyAccess hp
-                    && hp.info().type() instanceof Type.ClassType
-                    && (hp.source().info().type() instanceof Type.ClassType
+                    && Type.asClassType(hp.info().type()) instanceof Type.ClassType
+                    && (Type.asClassType(hp.source().info().type()) instanceof Type.ClassType
                             // a function VALUE's body read (the lambda's type
                             // is the generic FunctionDefinition<F>)
                             || Anchors.functionBodyRead(hp)

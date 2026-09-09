@@ -653,7 +653,16 @@ class NativeFunctionTest {
         // from relational.pure (SetBasedStore / AnnotatedElement supertypes),
         // tables and mapping unchanged. Column stays by hand with a receipt:
         // owner : Relation needs a lowering leg (scanColumns, 5 witnesses).
-        assertEquals(20, hand,
+        // 20 -> 13 (batch 165, mapping leg B): Mapping, EnumerationMapping<T>,
+        // SetImplementation, PropertyMappingsImplementation,
+        // InstanceSetImplementation, PropertyMapping, EnumValueMapping — the
+        // spec's hierarchy (PropertyOwnerImplementation at the root, two
+        // parents on InstanceSetImplementation) verbatim; the system
+        // metamodel's MAPPING bends to the tables: an Enum set over the
+        // enum_value_mappings row (self-join) serves EnumValueMapping.enum.
+        // What is left by hand: the 12 primitives (the bootstrap floor) and
+        // Column (owner : Relation waits on its lowering leg).
+        assertEquals(13, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 

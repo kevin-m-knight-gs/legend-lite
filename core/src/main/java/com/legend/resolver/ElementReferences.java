@@ -63,6 +63,12 @@ final class ElementReferences {
      * element (a seeded extent AND a row: a Database reference is a value
      * today — no rows); else null. */
     @com.legend.Nullable String trackedElementClass(TypedPackageableRef pr) {
+        // BARE metaclass type only: a CLASS reference is typed Class<X>
+        // (Typer.classReference) and stays a VALUE at a chain root
+        // (PCT letFn: TestClass->removeDuplicates() returns the element,
+        // never its Class row's key); identity equality reads its Class
+        // row explicitly (ChainNormalizer.identityEquality). The one site
+        // where Type.asClassType's raw reading does not apply — receipt.
         return pr.info().type() instanceof Type.ClassType ct
                 && ctx.classifierInstances(ct.fqn()) != null
                 && sources.binds(com.legend.builtin.SystemMetamodel.MAPPING_FQN,
@@ -121,17 +127,18 @@ final class ElementReferences {
      * not a routed class-typed hop (the extent rule decides then). */
     boolean castTotalByRoute(StoreResolver.Context context, TypedSpec source,
             String target) {
-        if (!(source instanceof TypedPropertyAccess hp)
-                || !(hp.source().info().type() instanceof Type.ClassType oc)) {
+        String oc = source instanceof TypedPropertyAccess hp
+                ? Type.classFqn(hp.source().info().type()) : null;
+        if (!(source instanceof TypedPropertyAccess hp) || oc == null) {
             return false;
         }
         String mappingFqn;
         try {
-            mappingFqn = dispatch.apply(context, oc.fqn());
+            mappingFqn = dispatch.apply(context, oc);
         } catch (MappingResolutionException e) {
             return false;
         }
-        String routed = ctx.routedTargetClass(mappingFqn, oc.fqn(), hp.property());
+        String routed = ctx.routedTargetClass(mappingFqn, oc, hp.property());
         return routed != null && ctx.isSubtype(routed, target);
     }
 
@@ -140,9 +147,14 @@ final class ElementReferences {
      * else an INHERITANCE op's mapped subclasses (includes closed). */
     boolean totalMembershipCast(StoreResolver.Context context, String srcClass,
             String target) {
-        if (!ctx.isSubtype(target, srcClass)) {
-            return false;
+        if (ctx.isSubtype(srcClass, target)) {
+            return true;   // an upcast: every row conforms by declaration
         }
+        // a DOWNCAST or a CROSS-cast (pure: any class the run-time type
+        // conforms to — SetImplementation->cast(@PropertyMappingsImplementation),
+        // siblings under PropertyOwnerImplementation that
+        // InstanceSetImplementation joins; mapping leg B): the mapped
+        // members decide, exactly as for a downcast
         String mappingFqn;
         try {
             mappingFqn = dispatch.apply(context, srcClass);

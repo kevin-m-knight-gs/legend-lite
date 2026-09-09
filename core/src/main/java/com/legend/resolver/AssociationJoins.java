@@ -1045,7 +1045,7 @@ final class AssociationJoins {
     boolean toOneClassProp(String clsFqn, String prop) {
         return clsFqn != null && ctx.findProperty(clsFqn,
                 SyntheticHeads.realHead(prop))
-                .map(p2 -> p2.type() instanceof Type.ClassType
+                .map(p2 -> Type.asClassType(p2.type()) instanceof Type.ClassType
                         && p2.multiplicity() instanceof
                                 com.legend.compiler.element.type
                                         .Multiplicity.Bounded bb
@@ -1062,7 +1062,7 @@ final class AssociationJoins {
         }
         String real = SyntheticHeads.realHead(prop);
         var pr = ctx.findProperty(clsFqn, real).orElse(null);
-        if (pr != null && pr.type() instanceof Type.ClassType ct) {
+        if (pr != null && Type.asClassType(pr.type()) instanceof Type.ClassType ct) {
             return ct.fqn();
         }
         return ctx.findAssociationOf(clsFqn, real)
@@ -1612,7 +1612,7 @@ final class AssociationJoins {
                 java.util.Set.of());
         TypedSpec leafBind = aj.target().bindings().get(leafProp);
         if (leafBind == null
-                || leafBind.info().type() instanceof Type.ClassType) {
+                || Type.asClassType(leafBind.info().type()) instanceof Type.ClassType) {
             throw new NotImplementedException("XStore condition read '$"
                     + parentParam + "." + hopProp + "."
                     + leafProp + "' has no scalar binding on the"
@@ -1805,7 +1805,7 @@ final class AssociationJoins {
             Map<String, String> parentCopySlotPrefixes,
             Map<String, Substitution.SubNav> parentCopySubNavs,
             String rowVar, Type.RelationType rowType) {
-        String paramClass = pred.functionType().params().get(0).type()
+        String paramClass = Type.asClassType(pred.functionType().params().get(0).type())
                         instanceof Type.ClassType pc
                 ? pc.fqn() : target.classFqn();
         return corrPredOnJoinedRowCore(pred, parent, target, targetPrefix,

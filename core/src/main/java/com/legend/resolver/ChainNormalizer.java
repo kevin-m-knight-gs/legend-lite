@@ -104,9 +104,13 @@ final class ChainNormalizer {
     private static @com.legend.Nullable TypedSpec identityEquality(TypedNativeCall eq,
             TypedSpec row, TypedSpec ref, ModelContext ctx,
             Function<TypedPackageableRef, java.util.Optional<String>> trackedElementClass) {
+        // the row read's class: bare or parameterized (the spec's
+        // SetImplementation.class is Class<Any> — Type.classFqn)
+        String rowCls = row instanceof TypedPropertyAccess rpa
+                ? Type.classFqn(rpa.info().type()) : null;
         if (!(ref instanceof TypedPackageableRef pr)
                 || !(row instanceof TypedPropertyAccess pa)
-                || !(pa.info().type() instanceof Type.ClassType rowCls)) {
+                || rowCls == null) {
             return null;
         }
         String refCls = trackedElementClass.apply(pr).orElse(null);
@@ -117,8 +121,8 @@ final class ChainNormalizer {
                 && ctx.classifierInstances(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS) != null) {
             refCls = com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS;
         }
-        if (refCls == null || !(ctx.isSubtype(refCls, rowCls.fqn())
-                || ctx.isSubtype(rowCls.fqn(), refCls))) {
+        if (refCls == null || !(ctx.isSubtype(refCls, rowCls)
+                || ctx.isSubtype(rowCls, refCls))) {
             return null;
         }
         // the navigation's FOREIGN-KEY IDENTITY pseudo-binding (registered

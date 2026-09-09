@@ -103,7 +103,7 @@ final class SubQueryLift {
             }
             break;
         }
-        return peeled && cur.info().type() instanceof Type.ClassType
+        return peeled && Type.asClassType(cur.info().type()) instanceof Type.ClassType
                 ? cur : null;
     }
 
@@ -166,7 +166,7 @@ final class SubQueryLift {
             StoreResolver.Context context, ModelContext ctx,
             SpecCompiler specs, Map<String, TypedSpec> letBindings) {
         if (!(datesArg instanceof TypedPropertyAccess pa)
-                || !(pa.source().info().type() instanceof Type.ClassType ct)) {
+                || !(Type.asClassType(pa.source().info().type()) instanceof Type.ClassType ct)) {
             throw new com.legend.error.NotImplementedException(
                     "getAllForEachDate dates argument shape "
                     + datesArg.getClass().getSimpleName()
