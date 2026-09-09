@@ -47,13 +47,29 @@ which cannot make this mistake.
 
 Three ways this chain reports success without having checked anything:
 
-1. **CI enforces gates 1, 2 and 4 only — and gate 4 skips.**
-   `.github/workflows/gate.yml` runs `core clean test`, `core install`, and
-   `engine test -Dtest=RelationalCorpusRunner`. It does **not** check out
-   legend-engine, so `Corpus.available()` is false,
-   `RelationalCorpusRunner.java:55` skips via `Assumptions`, and JUnit reports
-   success. **Gates 3, 5, 6, 7 and 8 never run in CI at all.** A green CI badge
-   means the core suite passed.
+1. **CI runs the whole chain since 2026-09-09 — through `tools/allgates.sh`
+   itself.** `.github/workflows/gate.yml` runs gate 1 first (fail-fast), then
+   gates 4, 5, 6, 7, 9 and 8 as parallel jobs (`GATES=2,<n>` each; gate 8 is
+   `-am`). The oracle checkouts are cloned at the commits pinned in
+   `tools/oracle-pins.env` (`.github/actions/gate-env`), so a green badge
+   means the same nine gates the local chain runs, against the same spec.
+   The diagnostics battery (`tools/diagnostics.sh`) has its own triggered
+   workflow, `diagnostics.yml`, on its three triggers. **Before 2026-09-09**
+   CI ran gate 1 alone on a bare runner, and even that was misreported: the
+   core suite reads the spec checkouts (prelude generator, typing census)
+   through `/Users/...` literal defaults, so on the runner one test failed
+   outright and one assume-skipped.
+
+   **The oracle roots now have one precedence, everywhere** (root `pom.xml`
+   forwards `legend.engine.root` / `legend.pure.root` to every test JVM):
+   `-Dlegend.engine.root=…` on the command line beats the
+   `LEGEND_ENGINE_ROOT` environment variable beats `$HOME/legend/legend-engine`.
+   So the "exported env var, hand-run mvn, silently read the default" trap
+   described above is closed — export the two vars in your shell profile
+   and every entry point reads the same checkouts. `tools/oracle-roots.sh`
+   (sourced by both scripts) additionally FAILS when a checkout is missing or
+   sits on a commit other than the pin (`ORACLE_PIN_CHECK=0` for a deliberate
+   pin-bump session).
 2. **`tools/allgates.sh` has no `set -e` and always exits 0.** It echoes
    `G<n>_EXIT=` lines into `$GATES_LOG` (default `/tmp/gates.log`). Pass/fail
    must be read by eye — the script's own exit code tells you nothing.
@@ -874,3 +890,45 @@ real pipeline entry and fails if the parsing count drops — the named-failure
 version of the 2026-08-04 `~src` pull that silently collapsed gate 4 to
 2/2567. A new message bucket in `target/section-sentinel-report.txt` IS the
 drift.
+
+## CI leg, 2026-09-09 — the chain runs on GitHub Actions, through this script
+
+`.github/workflows/gate.yml` runs **`tools/allgates.sh` itself**, not a
+reimplementation of it: gate 1 alone first (fail-fast, the same rule as the
+local chain), then gates 4, 5, 6, 7, 9, 8 as parallel jobs, `GATES=2,<n>` each
+(gate 8 uses `-am`, so it needs no install). Gate policy — the G7 ceilings, the
+G8 rename-goes-red roster, the skipped-is-not-a-pass detector, the tree
+tripwire — therefore has exactly one home. **Never encode a gate in YAML.**
+
+The oracle checkouts are cloned by `.github/actions/gate-env` at the commits
+pinned in `tools/oracle-pins.env`, shallow and by SHA, into
+`$GITHUB_WORKSPACE/oracles/legend-{engine,pure}` — the same sibling layout as a
+developer's `~/legend`. `tools/oracle-roots.sh` (sourced by both scripts) then
+FAILS the run when a checkout is missing **or sits on a different commit**;
+`ORACLE_PIN_CHECK=0` downgrades the drift check for a deliberate pin bump.
+
+**Three real defects the CI envelope surfaced**, all invisible on a laptop:
+
+1. **`"${OFF[@]}"` under `set -u` aborted the script whenever `MVN_OFFLINE=0`**
+   — i.e. on every CI run, since CI must resolve against a cold `~/.m2`. Bash
+   3.2 treats an empty array as unbound. The idiom is `${OFF[@]+"${OFF[@]}"}`,
+   which gate 8's `SFLAG` already used.
+2. **Six `/Users/neemsandv/...` literal defaults** in core's test sources
+   (prelude generator, spec-body census, eager-compile probe). Gate 1 also now
+   receives `$R1 $R2`: it reads the spec checkouts, so on a bare runner one
+   test failed outright and one assume-skipped. The root pom now owns the
+   precedence — `-D` > `LEGEND_*_ROOT` env > `${user.home}/legend/...` — and
+   forwards both roots to every test JVM via surefire.
+3. **Gate 6 died with `OutOfMemoryError` in the Pure graph loader at 3 GB and
+   again at 4 GB.** Cause, measured with GC logs: each PCT suite's Pure graph
+   is a **2.0–2.8 GB live set** and a suite does not release it, so five suites
+   sharing one fork stacked past 8 GB. It passes locally only because a 32 GB
+   laptop hands the fork ~8 GB by default — the gate was one suite away from
+   being red on any smaller machine. Fix in `pct/pom.xml`: `reuseForks=false`,
+   one JVM per suite. Green at 4 GB, 1110/1110, **+13s (83s → 96s)** — the
+   right trade for a lane that was silently sized to one developer's RAM.
+
+CI pins `JAVA_TOOL_OPTIONS=-Xmx4g` (it caps the Maven JVM too, where the Pure
+PAR generation plugin peaks around 2.5 GB). **Validate any chain change under
+that same cap locally before pushing** — `JAVA_TOOL_OPTIONS=-Xmx4g
+MVN_OFFLINE=0 tools/allgates.sh` — or the runner finds what the laptop hides.

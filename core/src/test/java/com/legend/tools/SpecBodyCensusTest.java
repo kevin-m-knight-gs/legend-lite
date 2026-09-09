@@ -56,12 +56,13 @@ public class SpecBodyCensusTest {
     @Test
     @DisplayName("typing census: every Pure body in legend-pure's platform packages typed once, failures as rows")
     void census() throws IOException {
-        // the same literal default as the prelude generator: the reference
-        // checkout is the spec (memory: $HOME/legend is a STALE tag), and
-        // gate 1 runs without -D roots — with this default the census RUNS
-        // there and its shrink-only pin below is a standing gate
+        // the same default as the prelude generator: the root pom forwards
+        // legend.pure.root to every test JVM (-D / LEGEND_PURE_ROOT / the
+        // ${user.home} default), and gate 1 passes the resolved roots — so
+        // the census RUNS there and its shrink-only pin below is a standing
+        // gate; the literal is only the IDE fallback
         Path pure = Path.of(System.getProperty("legend.pure.root",
-                "/Users/neemsandv/legend/legend-pure"));
+                System.getProperty("user.home") + "/legend/legend-pure"));
         Assumptions.assumeTrue(Files.isDirectory(pure.resolve(PLATFORM_ROOTS.get(0))),
                 "legend-pure checkout not present");
 
@@ -175,7 +176,7 @@ public class SpecBodyCensusTest {
         // file + the corpus's library files), then bucketed by the spec's
         // marking. A measurement: no arm, no registration.
         Path engineRoot = Path.of(System.getProperty("legend.engine.root",
-                "/Users/neemsandv/legend/legend-engine"));
+                System.getProperty("user.home") + "/legend/legend-engine"));
         CensusWorlds.Report worlds = CensusWorlds.run(sources, failures,
                 specNativeNames, engineRoot);
 

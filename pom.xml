@@ -37,7 +37,49 @@
         <sqlite.version>3.47.1.0</sqlite.version>
         <junit.version>5.11.3</junit.version>
         <archunit.version>1.3.0</archunit.version>
+
+        <!-- THE ORACLE ROOTS: the legend-engine / legend-pure source
+             checkouts the tests read as the spec (corpus, PCT channel B,
+             parser parity, the prelude generator, the typing census).
+             Forwarded to every test JVM as the legend.engine.root /
+             legend.pure.root SYSTEM PROPERTIES (surefire config below), so
+             the precedence is the same for tools/allgates.sh, a hand mvn
+             and CI:
+                 -Dlegend.engine.root=...          (command line)
+               > LEGEND_ENGINE_ROOT=...             (environment; profile below)
+               > ${user.home}/legend/legend-engine  (this default)
+             The commits those checkouts must sit on are pinned in
+             tools/oracle-pins.env. -->
+        <legend.engine.root>${user.home}/legend/legend-engine</legend.engine.root>
+        <legend.pure.root>${user.home}/legend/legend-pure</legend.pure.root>
     </properties>
+
+    <profiles>
+        <!-- env -> property, one profile per variable (Maven activates a
+             profile on ONE property; each var is honoured independently). -->
+        <profile>
+            <id>oracle-engine-root-from-env</id>
+            <activation>
+                <property>
+                    <name>env.LEGEND_ENGINE_ROOT</name>
+                </property>
+            </activation>
+            <properties>
+                <legend.engine.root>${env.LEGEND_ENGINE_ROOT}</legend.engine.root>
+            </properties>
+        </profile>
+        <profile>
+            <id>oracle-pure-root-from-env</id>
+            <activation>
+                <property>
+                    <name>env.LEGEND_PURE_ROOT</name>
+                </property>
+            </activation>
+            <properties>
+                <legend.pure.root>${env.LEGEND_PURE_ROOT}</legend.pure.root>
+            </properties>
+        </profile>
+    </profiles>
 
     <dependencyManagement>
         <dependencies>
@@ -109,6 +151,12 @@
                          engine's. -->
                     <configuration>
                         <argLine>-Duser.timezone=GMT</argLine>
+                        <!-- the oracle roots (properties above) reach every
+                             test JVM in every module through here -->
+                        <systemPropertyVariables>
+                            <legend.engine.root>${legend.engine.root}</legend.engine.root>
+                            <legend.pure.root>${legend.pure.root}</legend.pure.root>
+                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
                 <plugin>

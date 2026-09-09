@@ -1,32 +1,126 @@
-# CI GATE — HONEST SCOPE (multiplicity audit s6): this workflow runs the
-# core suite (NullAway null gate + guardrails on a cold compile) ONLY.
-# The corpus sweep and the PCT suites need the local oracle checkouts
-# (legend-engine / legend-pure) and CANNOT run here — the standing full
-# gate is LOCAL: tools/allgates.sh with LEGEND_ENGINE_ROOT/
-# LEGEND_PURE_ROOT at the baselined checkouts. The old third step
-# invoked the corpus runner knowing it would assume-skip on a bare
-# runner — a vacuously green step claiming coverage it never had.
-name: gate
+# THE STANDING GATE CHAIN, IN CI — the same nine gates as tools/allgates.sh
+# (docs/GATES.md), run BY that script so the gate logic (rosters, ceilings,
+# skip detection, the tree tripwire) has exactly one home.
+#
+# Shape: gate 1 (core suite) runs first and FAILS FAST — a red core jar makes
+# every later gate noise. The remaining gates then run as parallel jobs, one
+# per lane, each self-sufficient (GATES=2,<n> installs core into the job's
+# own ~/.m2 first; gate 8 builds core in-reactor with -am). Locally the chain
+# is sequential because concurrent JVMs get killed on a laptop; here each
+# lane owns a runner.
+#
+# The oracle checkouts (legend-engine / legend-pure) are cloned at the
+# commits pinned in tools/oracle-pins.env by .github/actions/gate-env.
+name: gates
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      gates:
+        description: "Comma-separated gate numbers to run (empty = all). Gate 1 always runs."
+        default: ""
+        type: string
+
+concurrency:
+  group: gates-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI has a cold ~/.m2 and must resolve; the script defaults to -o for
+  # local hygiene
+  MVN_OFFLINE: "0"
+  # Maven 3.9 reads MAVEN_ARGS: batch mode, no transfer progress spam
+  MAVEN_ARGS: -B -ntp
+  # The forked test JVMs default to 1/4 of the runner's RAM (4 GB on the
+  # 16 GB public runner, 1.75 GB on the 7 GB private one). Pin the heap so
+  # the lanes behave the same on either; the local chain is validated under
+  # this same cap before a bump lands. MEASURED 2026-09-09: corpus and
+  # parser lanes fit in 3 GB; a PCT suite's live set is 2.0-2.8 GB (pct/pom
+  # forks one JVM per suite for exactly this reason) and the Pure PAR
+  # generation plugin peaks at ~2.5 GB INSIDE the Maven JVM, which this
+  # variable also caps. 4 GB covers every JVM in the chain.
+  JAVA_TOOL_OPTIONS: -Xmx4g
 
 jobs:
-  gate:
+  core:
+    name: gate 1 core suite
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: 25
-          cache: maven
-      - name: core (null gate + suite; clean is load-bearing)
-        run: mvn -B -pl core clean test
-      - name: install core
-        run: mvn -B -pl core install -DskipTests
-      - name: corpus + PCT NOT RUN here (oracle checkouts absent)
-        run: echo "::warning ::Corpus sweep and PCT are NOT run in CI - they require the local legend-engine/legend-pure oracle checkouts. The standing full gate is tools/allgates.sh run locally against the baselined roots."
+          path: legend-lite
+      - uses: ./legend-lite/.github/actions/gate-env
+      - name: run gate 1
+        working-directory: legend-lite
+        run: GATES=1 GATES_LOG="$RUNNER_TEMP/gates.log" tools/allgates.sh
+      - name: gate log to summary
+        if: always()
+        working-directory: legend-lite
+        run: |
+          { echo '### gate 1'; echo '```'; cat "$RUNNER_TEMP/gates.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # on RED the script copies the failing surefire output beside the log
+          # so the assertion is in the artifact, not just "exit 1"
+          for f in "$RUNNER_TEMP"/gates.g*.out; do
+            [ -f "$f" ] && { echo "::group::$(basename "$f") (tail)"; tail -200 "$f"; echo '::endgroup::'; }
+          done; true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-1-core
+          path: ${{ runner.temp }}/gates*
+          if-no-files-found: ignore
 
+  lanes:
+    name: ${{ matrix.lane.name }}
+    needs: core
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      # collect-all semantics, like the local chain: every lane reports
+      fail-fast: false
+      matrix:
+        lane:
+          - { name: "gate 4 DuckDB corpus",            gate: 4, gates: "2,4" }
+          - { name: "gate 5 H2 corpus",                gate: 5, gates: "2,5" }
+          - { name: "gate 6 PCT DuckDB",               gate: 6, gates: "2,6" }
+          - { name: "gate 7 PCT H2 relation",          gate: 7, gates: "2,7" }
+          - { name: "gate 9 Channel B dual-verdict",   gate: 9, gates: "2,9" }
+          - { name: "gate 8 parser equivalence",       gate: 8, gates: "8"   }
+    # workflow_dispatch with a gate list runs only those lanes
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.gates == '' || contains(format(',{0},', inputs.gates), format(',{0},', matrix.lane.gate)) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: legend-lite
+      - uses: ./legend-lite/.github/actions/gate-env
+      - name: run ${{ matrix.lane.name }}
+        working-directory: legend-lite
+        run: GATES="${{ matrix.lane.gates }}" GATES_LOG="$RUNNER_TEMP/gates.log" tools/allgates.sh
+      - name: gate log to summary
+        if: always()
+        working-directory: legend-lite
+        run: |
+          { echo '### ${{ matrix.lane.name }}'; echo '```'; cat "$RUNNER_TEMP/gates.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          for f in "$RUNNER_TEMP"/gates.g*.out; do
+            [ -f "$f" ] && { echo "::group::$(basename "$f") (tail)"; tail -200 "$f"; echo '::endgroup::'; }
+          done; true
+      - name: scoreboard drift (gate 4 rewrites docs/RELATIONAL_CORPUS.md in place)
+        if: always()
+        working-directory: legend-lite
+        run: |
+          if ! git diff --quiet -- docs/RELATIONAL_CORPUS.md; then
+            echo "::warning file=docs/RELATIONAL_CORPUS.md::the committed scoreboard differs from this run's — regenerate locally (gate 4) and commit it with the change"
+            { echo '#### scoreboard drift'; echo '```diff'; git diff -- docs/RELATIONAL_CORPUS.md | head -200; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-${{ matrix.lane.gate }}
+          path: |
+            ${{ runner.temp }}/gates*
+            legend-lite/parser-equivalence/target/*-report.txt
+            legend-lite/docs/RELATIONAL_CORPUS.md
+          if-no-files-found: ignore

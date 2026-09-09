@@ -229,6 +229,15 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <useSystemClassLoader>false</useSystemClassLoader>
+                    <!-- ONE JVM PER SUITE (measured 2026-09-09, CI leg): each
+                         PCT suite's Pure graph is a 2.0-2.8 GB live set and the
+                         suites do not release it between classes, so sharing a
+                         fork stacked them past 8 GB — gate 6 passed locally
+                         only because a 32 GB laptop hands the fork 8 GB by
+                         default, and died with OutOfMemoryError in the graph
+                         loader at 3 GB and 4 GB. Fresh fork per class: green at
+                         4 GB, 1110/1110, +13s (83s -> 96s). -->
+                    <reuseForks>false</reuseForks>
                     <!-- PCT failures FAIL the build: known divergences are
                          LEDGERED as expectedFailures pins (reference-adapter
                          parity), never swallowed here. -->

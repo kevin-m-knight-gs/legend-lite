@@ -19,12 +19,11 @@
 #   LEGEND_ENGINE_ROOT=... LEGEND_PURE_ROOT=... tools/diagnostics.sh
 set -u
 cd "$(dirname "$0")/.."
-ROOT_ENGINE=${LEGEND_ENGINE_ROOT:-$HOME/legend/legend-engine}
-ROOT_PURE=${LEGEND_PURE_ROOT:-$HOME/legend/legend-pure}
-R1="-Dlegend.engine.root=$ROOT_ENGINE"
-R2="-Dlegend.pure.root=$ROOT_PURE"
-[ -d "$ROOT_ENGINE" ] || { echo "MISSING legend-engine checkout: $ROOT_ENGINE"; exit 1; }
-[ -d "$ROOT_PURE" ]   || { echo "MISSING legend-pure checkout: $ROOT_PURE"; exit 1; }
+# roots + pin check shared with allgates.sh (sets ROOT_ENGINE/ROOT_PURE/R1/R2).
+# Trigger 2 is the pin bump itself: run with ORACLE_PIN_CHECK=0 while the
+# checkouts are ahead of tools/oracle-pins.env, then commit the new pins.
+. tools/oracle-roots.sh
+oracle_roots_check || exit 1
 
 CLASSES='ParseSpeedBenchmarkTest,CorpusCensusTest,GrammarKeywordCensusTest,ProtocolRosterCensusTest,PmcdReachabilityCensusTest,GrammarCoverageCensusTest,MigrationSizingTest'
 

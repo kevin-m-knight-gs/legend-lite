@@ -1,0 +1,56 @@
+# THE DIAGNOSTICS BATTERY — triggered, not scheduled (tools/diagnostics.sh,
+# user ruling 2026-08-26). Its inputs are pinned constants between pin
+# changes, so it runs only when one of them moves:
+#   1. corpus manifest / fixture tier            -> parser-equivalence/**
+#   2. oracle-pin bump                            -> tools/oracle-pins.env
+#   3. parser, protocol, or census code           -> the parser-side packages
+# plus on demand (workflow_dispatch).
+name: diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/oracle-pins.env
+      - tools/diagnostics.sh
+      - parser-equivalence/**
+      - core/src/main/java/com/legend/parser/**
+      - core/src/main/java/com/legend/lexer/**
+      - core/src/main/java/com/legend/protocol/**
+  pull_request:
+    paths:
+      - tools/oracle-pins.env
+      - tools/diagnostics.sh
+      - parser-equivalence/**
+      - core/src/main/java/com/legend/parser/**
+      - core/src/main/java/com/legend/lexer/**
+      - core/src/main/java/com/legend/protocol/**
+  workflow_dispatch:
+
+concurrency:
+  group: diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAVEN_ARGS: -B -ntp
+  # same envelope as gate.yml (measured there)
+  JAVA_TOOL_OPTIONS: -Xmx4g
+
+jobs:
+  diagnostics:
+    name: diagnostics battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: legend-lite
+      - uses: ./legend-lite/.github/actions/gate-env
+      - name: run the battery
+        working-directory: legend-lite
+        run: tools/diagnostics.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostics-reports
+          path: legend-lite/parser-equivalence/target/*.txt
+          if-no-files-found: ignore

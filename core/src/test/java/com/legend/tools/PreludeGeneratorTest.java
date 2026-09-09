@@ -115,10 +115,13 @@ class PreludeGeneratorTest {
     // ------------------------------------------------------------------
 
     static String generate() throws IOException {
+        // the roots arrive as system properties from the root pom (surefire
+        // forwards -D / LEGEND_*_ROOT / the ${user.home} default); the
+        // literal here is only the IDE fallback
         Path engine = Path.of(System.getProperty("legend.engine.root",
-                "/Users/neemsandv/legend/legend-engine"));
+                System.getProperty("user.home") + "/legend/legend-engine"));
         Path pure = Path.of(System.getProperty("legend.pure.root",
-                "/Users/neemsandv/legend/legend-pure"));
+                System.getProperty("user.home") + "/legend/legend-pure"));
         List<Path> roots = List.of(
                 engine.resolve("legend-engine-xts-relationalStore"),
                 engine.resolve("legend-engine-core/legend-engine-core-pure"),
@@ -1116,7 +1119,8 @@ class PreludeGeneratorTest {
     @Test
     @DisplayName("m3 reader: every class of m3.pure prints as a declaration (-Dprelude.m3=1 lists them)")
     void m3ReaderPrintsEveryClass() throws IOException {
-        Path pure = Path.of(System.getProperty("legend.pure.root", "/Users/neemsandv/legend/legend-pure"));
+        Path pure = Path.of(System.getProperty("legend.pure.root",
+                System.getProperty("user.home") + "/legend/legend-pure"));
         Path m3 = pure.resolve("legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure");
         // never an assumption-skip (SkipCensusTest): the reference checkout is
         // this test class's hard default, exactly as preludeIsCurrent's

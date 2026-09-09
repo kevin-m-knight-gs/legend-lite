@@ -9,19 +9,23 @@
 #   LEGEND_PURE_ROOT=~/legend/legend-pure \
 #   caffeinate -dims tools/allgates.sh
 #
+# CI runs THIS SCRIPT too (.github/workflows/gate.yml): one job per gate,
+# GATES=<n> each, against the legend-engine / legend-pure commits pinned in
+# tools/oracle-pins.env. The gate logic lives here and nowhere else.
+#
 # Optional: MVN_SETTINGS=<settings.xml> adds -s to the OFFLINE-friendly gates
 # (1-3, 8). Gates 4-5 always run plain mvn — the corpus h2-exec backend resolves
 # artifacts at runtime. Run under caffeinate: a ~900s gate with near-zero CPU
 # means the machine slept mid-run, not a real regression.
 set -u
 cd "$(dirname "$0")/.."
-ROOT_ENGINE=${LEGEND_ENGINE_ROOT:-$HOME/legend/legend-engine}
-ROOT_PURE=${LEGEND_PURE_ROOT:-$HOME/legend/legend-pure}
-R1="-Dlegend.engine.root=$ROOT_ENGINE"
-R2="-Dlegend.pure.root=$ROOT_PURE"
-# the roots decide every corpus denominator — name them first, so a run on a
-# stale fallback checkout (an unexported LEGEND_*_ROOT, batch 174) is visible
-echo "roots: engine=$ROOT_ENGINE pure=$ROOT_PURE"
+# the roots decide every corpus denominator — resolved and CHECKED first
+# (presence + pin drift), so a run on a stale fallback checkout (an
+# unexported LEGEND_*_ROOT, batch 174) stops here instead of re-pinning
+# scoreboards against the wrong spec. tools/oracle-roots.sh sets
+# ROOT_ENGINE / ROOT_PURE / R1 / R2.
+. tools/oracle-roots.sh
+oracle_roots_check || { echo "ALLGATES_DONE — FAILED: oracle roots (see above)" >&2; exit 1; }
 SFLAG=()
 [ -n "${MVN_SETTINGS:-}" ] && SFLAG=(-s "$MVN_SETTINGS")
 # Offline by default (local hygiene: skips remote metadata checks). CI has a
@@ -97,7 +101,11 @@ TREE0=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
 if want 1; then
   g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
   g "       so a warm target/ silently no-ops the null gate)"
-  mvn "${OFF[@]}" -pl core clean test > "$OUT/g1.out" 2>&1
+  # $R1/$R2 here too: the suite reads the spec checkouts (PreludeGeneratorTest
+  # regenerates prelude.pure from them; SpecBodyCensusTest's typing census is a
+  # shrink-only pin over legend-pure). They used to fall back to a literal
+  # /Users/... default, so a bare runner failed or assume-skipped them.
+  mvn ${OFF[@]+"${OFF[@]}"} -pl core clean test "$R1" "$R2" > "$OUT/g1.out" 2>&1
   G1_EXIT=$?
   rec 1 $G1_EXIT; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
   # G1 FAILS FAST (user directive 2026-08-29): the core suite is the
@@ -115,7 +123,7 @@ fi
 
 if want 2; then
   g "GATE2 core install"
-  mvn "${OFF[@]}" -pl core install -DskipTests > "$OUT/g2.out" 2>&1
+  mvn ${OFF[@]+"${OFF[@]}"} -pl core install -DskipTests > "$OUT/g2.out" 2>&1
   rec 2 $?
 fi
 
@@ -164,7 +172,7 @@ if want 6; then
   # 287, 2026-08-19). The Channel B suites are EXCLUDED here (2026-09-02
   # homework: G6 and G9 executed the same five classes on the same
   # inputs — ~13s of duplicate work per chain); G9 is their one run.
-  ( cd pct && mvn "${OFF[@]}" clean test -Dtest='!ChannelB*' "$R1" "$R2" ) > "$OUT/g6.out" 2>&1
+  ( cd pct && mvn ${OFF[@]+"${OFF[@]}"} clean test -Dtest='!ChannelB*' "$R1" "$R2" ) > "$OUT/g6.out" 2>&1
   rec 6 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g6.out" | tail -1 >> "$L"
 fi
 
@@ -174,7 +182,7 @@ fi
 G7_MIN_RUN=348; G7_MAX_FAIL=1; G7_MAX_ERR=22
 if want 7; then
   g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"
-  ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn "${OFF[@]}" test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 "$R1" "$R2" ) > "$OUT/g7.out" 2>&1
+  ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn ${OFF[@]+"${OFF[@]}"} test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 "$R1" "$R2" ) > "$OUT/g7.out" 2>&1
   # Anchor on the SUITE line, not `tail -1`. Surefire prints a trailing
   # "Tests run: 1, Failures: 0, Errors: 1" summarising failing CLASSES, and
   # taking the last match picks that instead of the 348-test result — which
@@ -207,7 +215,7 @@ if want 9; then
   # the stale $HOME checkout and fakes a discovery regression (V11
   # trap, recorded 2026-08-22). Added as a gate because the X-slice
   # pushed with these pins unvalidated: the suites were in no gate.
-  ( cd pct && mvn "${OFF[@]}" test -Dtest='ChannelB*' "$R1" "$R2" ) > "$OUT/g9.out" 2>&1
+  ( cd pct && mvn ${OFF[@]+"${OFF[@]}"} test -Dtest='ChannelB*' "$R1" "$R2" ) > "$OUT/g9.out" 2>&1
   G9_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" "$OUT/g9.out" | tail -1)
   G9=1
   if [[ "$G9_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
