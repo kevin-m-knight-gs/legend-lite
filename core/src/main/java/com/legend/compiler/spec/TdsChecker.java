@@ -178,7 +178,7 @@ final class TdsChecker {
             case "Date" -> Type.Primitive.DATE;
             case "DateTime" -> Type.Primitive.DATE_TIME;
             case "Variant", "meta::pure::metamodel::variant::Variant" ->
-                    new Type.ClassType(Pure.VARIANT.qualifiedName());
+                    new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.VARIANT);
             // FQN-spelled primitives (meta::pure::precisePrimitives::Int)
             // resolve through the one primitive FQN table — same aliases the
             // type annotations (@Int) use.
@@ -248,7 +248,7 @@ final class TdsChecker {
                     || (v.startsWith("{") && v.endsWith("}")))
                     && isValidJson(v)) {
                 return new Type.ClassType(
-                        com.legend.builtin.Pure.VARIANT.qualifiedName());
+                        com.legend.compiler.element.type.PlatformTypes.VARIANT);
             }
             return Type.Primitive.STRING;
         }

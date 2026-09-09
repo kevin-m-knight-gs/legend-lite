@@ -72,7 +72,13 @@ go when the shapes migrate).
    properties are emitted verbatim and the normalizer lifts them like a user class's. This closes the last 3 census rows
    (`TableAlias.relation`, `GraphFetchTree.propertyTrees`), makes the printer unnecessary, and retires the on-demand lift in
    `FunctionCompiler` once no catalog class has a derived property. Pair/List `toString` ride it; Scalars' Java arms go.
-2. **Migrate the 84 out of `Pure.java` a family at a time**, the lanes watching: m3 valuespecification/function/type families,
+2. **Migrate the 84 out of `Pure.java` a family at a time** — IN PROGRESS. Census 2026-09-08 (batch 157): of 85 hand shapes,
+   65 are m3.pure BOOTSTRAP declarations (the generator cannot read m3.pure — a generator leg: read the m3 graph as
+   `tools/m3shape.py` does), 17 are declared in legend-pure `.pure` files, 2 in engine files. Family 1 LANDED (batch 157):
+   the ColSpec six, `Variant`, `Rows`, `TDSNull`, `Result`, `RelationalActivity` — hand lines deleted, every Java site names
+   them by `PlatformTypes` constants, definitions read from the module; kinds A/B for them dissolved by construction; hand
+   count 85 → 74; no pass change. Left in the file-declared group: the six store-coupled shapes (step 4) and `Column`/`Database`.
+   The original plan: m3 valuespecification/function/type families,
    mapping, relational, plan/runtime, tds. Migration = delete the hand line, let the generator emit the spec declaration. Kinds
    A–D dissolve on migration by construction. `Pure.java` keeps native signatures, `Lite`, and the BOOTSTRAP handful.
 3. **The bootstrap handful** (what Java constructs before a model exists: the primitives — a Java enum —, `Any`, `Class<T>`,

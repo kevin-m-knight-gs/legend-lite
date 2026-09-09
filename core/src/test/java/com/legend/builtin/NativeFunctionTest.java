@@ -203,10 +203,10 @@ class NativeFunctionTest {
                                 tg(Pure.RELATION, nr("T")),
                                 Multiplicity.exactly(1)),
                         new ParameterDefinition("old",
-                                tg(Pure.COL_SPEC, zEqQK_subT),
+                                tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC), zEqQK_subT),
                                 Multiplicity.exactly(1)),
                         new ParameterDefinition("new",
-                                tg(Pure.COL_SPEC, vEqQK),
+                                tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC), vEqQK),
                                 Multiplicity.exactly(1))),
                 tg(Pure.RELATION, tMinusZPlusV),
                 Multiplicity.exactly(1),
@@ -264,7 +264,7 @@ class NativeFunctionTest {
                         tp(tg(Prelude.cls("meta::pure::functions::relation::_Window"), nr("T")), Multiplicity.exactly(1)),
                         tp(nr("T"), Multiplicity.exactly(1))),
                 tp(nr(Pure.ANY), Multiplicity.range(0, 1)));
-        assertEquals(tg(Pure.FUNC_COL_SPEC, innerFn, nr("R")),
+        assertEquals(tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC), innerFn, nr("R")),
                 def.parameters().get(2).type());
         // Return type Relation<T+R> = Generic(Relation, [SchemaAlgebra(T, UNION, R)]).
         assertEquals(tg(Pure.RELATION, sa(nr("T"), Op.UNION, nr("R"))),
@@ -615,7 +615,13 @@ class NativeFunctionTest {
         // 84 -> 85 (batch 154, phase 3b-1 — legend-pure's platform packages
         // WHOLE): +ValueSpecificationContext (m3.pure:1804), the supertype
         // three platform mapping/store context classes extend
-        assertEquals(85, hand,
+        // 85 -> 74 (batch 157, phase 2 family 1): the ColSpec family (6),
+        // Variant, Rows, TDSNull, Result, RelationalActivity MIGRATED to the
+        // generated prelude module (relation.pure / variant.pure / rows.pure /
+        // tds.pure / result.pure / functions.pure verbatim) — every Java site
+        // names them by PlatformTypes constants; the definitions come from
+        // the boot layer (HAND_SHAPE_DIVERGENCE §4 step 2)
+        assertEquals(74, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -1373,18 +1379,18 @@ class NativeFunctionTest {
     void parameterizedNativeClassesCarryTypeParameters() {
         // Single-parameter generics.
         assertEquals(List.of("T"), Pure.RELATION.typeParams());
-        assertEquals(List.of("T"), Pure.COL_SPEC.typeParams());
-        assertEquals(List.of("T"), Pure.COL_SPEC_ARRAY.typeParams());
+        assertEquals(List.of("T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC).typeParams());
+        assertEquals(List.of("T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY).typeParams());
         assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::_Window").typeParams());
         assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::SortInfo").typeParams());
         assertEquals(List.of("F"), Pure.FUNCTION.typeParams());
         // Two-parameter generics.
         // the spec's own parameter names (relation.pure:28-49, batch 149)
-        assertEquals(List.of("Z", "T"), Pure.FUNC_COL_SPEC.typeParams());
-        assertEquals(List.of("Z", "T"), Pure.FUNC_COL_SPEC_ARRAY.typeParams());
+        assertEquals(List.of("Z", "T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC).typeParams());
+        assertEquals(List.of("Z", "T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC_ARRAY).typeParams());
         // Three-parameter generics.
-        assertEquals(List.of("Z", "V", "T"), Pure.AGG_COL_SPEC.typeParams());
-        assertEquals(List.of("A", "B", "T"), Pure.AGG_COL_SPEC_ARRAY.typeParams());
+        assertEquals(List.of("Z", "V", "T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC).typeParams());
+        assertEquals(List.of("A", "B", "T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC_ARRAY).typeParams());
     }
 
     @Test

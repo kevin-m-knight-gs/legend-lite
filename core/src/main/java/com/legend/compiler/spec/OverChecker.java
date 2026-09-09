@@ -48,7 +48,7 @@ final class OverChecker {
     /** A checked {@code Rows}/{@code _Range}/{@code _RangeInterval} frame value (the signature admits it in last position). */
     private static boolean isFrame(TypedSpec arg) {
         return arg.info().type() instanceof Type.ClassType ct
-                && (ct.fqn().equals(Pure.ROWS.qualifiedName())
+                && (ct.fqn().equals(com.legend.compiler.element.type.PlatformTypes.ROWS)
                         || ct.fqn().equals("meta::pure::functions::relation::_Range")
                         || ct.fqn().equals("meta::pure::functions::relation::_RangeInterval"));
     }

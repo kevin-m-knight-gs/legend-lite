@@ -41,8 +41,9 @@ class TdsNullTypingPinTest {
 
     private static List<TypedSpec> bodyOf(String model, String fnFqn) {
         ParsedModel p = com.legend.testing.Own.model(model);
-        PureModelContext c = PureModelContext.from(
-                new NormalizedModel(p.elements(), p.imports()));
+        // the FRONT DOOR: resolved, normalized, with the boot layer — TDSNull
+        // is a prelude MODULE class since batch 157, visible only through it
+        PureModelContext c = (PureModelContext) com.legend.Compiler.buildModel(p);
         List<TypedFunction> fns = c.findFunction(fnFqn);
         assertEquals(1, fns.size(), fnFqn + " should have exactly one overload");
         return new SpecCompiler(c).compile(fns.get(0)).body();

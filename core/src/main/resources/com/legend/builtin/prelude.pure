@@ -302,6 +302,43 @@ Class meta::pure::milestoning::BiTemporalMilestoning extends ProcessingDateMiles
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/relation.pure
+import meta::pure::metamodel::relation::*;
+Class meta::pure::metamodel::relation::ColSpec<T> // Where T is of type RelationType
+{
+    name : String[1];
+}
+
+Class meta::pure::metamodel::relation::ColSpecArray<T> // Where T is of type RelationType
+{
+    names : String[*];
+}
+
+Class meta::pure::metamodel::relation::FuncColSpec<Z,T> // Where T is of type RelationType
+{
+    name : String[1];
+    function : Function<Z>[1];
+}
+
+Class meta::pure::metamodel::relation::FuncColSpecArray<Z,T> // Where T is of type RelationType
+{
+    funcSpecs : meta::pure::metamodel::relation::FuncColSpec<Z,Any>[*];
+}
+
+Class meta::pure::metamodel::relation::AggColSpec<Z,V,T> // Where T is of type RelationType
+{
+    name : String[1];
+    map : Function<Z>[1];
+    reduce : Function<V>[1];
+}
+
+Class meta::pure::metamodel::relation::AggColSpecArray<A,B,T> // Where T is of type RelationType
+{
+  aggSpecs : AggColSpec<A,B,Any>[*];
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/routing.pure
 import meta::pure::router::*;
 import meta::pure::test::pct::*;
@@ -325,6 +362,14 @@ Class meta::pure::tools::DebugContext
 {
    debug : Boolean[1];
    space : String[1];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/variant/variant.pure
+Class meta::pure::metamodel::variant::Variant
+{
+
 }
 
 
@@ -669,6 +714,12 @@ Class meta::pure::mapping::relation::EmbeddedRelationFunctionSetImplementation e
 ###Pure
 // legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/result.pure
 import meta::pure::mapping::*;
+Class meta::pure::mapping::Result<T|m>
+{
+   values:T[m];
+   activities:Activity[*];
+}
+
 Class meta::pure::mapping::Activity
 {
 }
@@ -786,6 +837,17 @@ Class meta::relational::metamodel::execute::Row
     values : Any[*];
     parent : ResultSet[1];
     value(name:String[1]){$this.values->at($this.parent.columnNames->indexOf($name));}:Any[1];
+}
+
+Class meta::relational::mapping::RelationalActivity extends meta::pure::mapping::Activity
+{
+   sql : String[1];
+   comment : String[0..1];
+   executionTimeInNanoSecond : Integer[0..1];
+   sqlGenerationTimeInNanoSecond : Integer[0..1];
+   connectionAcquisitionTimeInNanoSecond : Integer[0..1];
+   executionPlanInformation : String[0..1];
+   dataSource : meta::relational::runtime::DataSource[0..1];
 }
 
 
@@ -2690,6 +2752,15 @@ Class meta::pure::tds::TDSRow
 
 }
 
+Class meta::pure::tds::TDSNull
+{
+   //Used to make sure  that two TDSNull instances are equal
+   <<equality.Key>> key:Nil[0];
+   toString(){
+      'TDSNull'
+   }:String[1];
+}
+
 Class meta::pure::tds::ColumnSpecification<T>
 {
    name : String[1];
@@ -2913,6 +2984,14 @@ Class meta::pure::functions::relation::_Range extends Frame
 }
 
 Class meta::pure::functions::relation::_RangeInterval extends Frame
+{
+}
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/olap/frame/rows.pure
+import meta::pure::test::pct::*;
+Class meta::pure::functions::relation::Rows extends Frame
 {
 }
 
@@ -3825,7 +3904,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 359 classes, 14 enums.
+// 370 classes, 14 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime
@@ -3909,6 +3988,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::tds::ColumnSpecification
 //   meta::pure::tds::OlapOperation
 //   meta::pure::tds::TDSColumn
+//   meta::pure::tds::TDSNull
 //   meta::pure::tds::TDSRow
 //   meta::pure::tds::TabularDataSet
 //   meta::pure::tds::TdsOlapRank

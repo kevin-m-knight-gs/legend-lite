@@ -202,7 +202,7 @@ final class StoreCompiler {
             // Semi-structured (JSON) columns are Variant — the get()/to(@Type)
             // navigation surface (engine GetChecker's source shape).
             case RelationalDataType.SemiStructured s ->
-                    new Type.ClassType(Pure.VARIANT.qualifiedName());
+                    new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.VARIANT);
             case RelationalDataType.Array a -> throw unsupportedColumnType(dt);
             case RelationalDataType.Object_ o -> throw unsupportedColumnType(dt);
         };

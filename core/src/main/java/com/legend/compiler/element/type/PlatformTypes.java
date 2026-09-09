@@ -96,6 +96,20 @@ public final class PlatformTypes {
 
     public static final String TDS_ROW = "meta::pure::tds::TDSRow";
 
+    /** The relation-algebra column-specification family (legend-pure
+     * relation.pure:17-50) — prelude module classes since batch 157; the
+     * Typer names them here and reads their definitions from the model. */
+    public static final String COL_SPEC = "meta::pure::metamodel::relation::ColSpec";
+    public static final String COL_SPEC_ARRAY = "meta::pure::metamodel::relation::ColSpecArray";
+    public static final String FUNC_COL_SPEC = "meta::pure::metamodel::relation::FuncColSpec";
+    public static final String FUNC_COL_SPEC_ARRAY = "meta::pure::metamodel::relation::FuncColSpecArray";
+    public static final String AGG_COL_SPEC = "meta::pure::metamodel::relation::AggColSpec";
+    public static final String AGG_COL_SPEC_ARRAY = "meta::pure::metamodel::relation::AggColSpecArray";
+    /** {@code over(...)}'s row-frame marker class (engine rows.pure). */
+    public static final String ROWS = "meta::pure::functions::relation::Rows";
+    /** The mapping execution result envelope (legend-pure result.pure). */
+    public static final String RESULT = "meta::pure::mapping::Result";
+
     /** The {@code TDS<T>} relation class (tds.pure:17) — a relation
      * literal's own type; {@code csv: String[1]} (tds.pure:19) is its text. */
     public static final String TDS_RELATION_CLASS = "meta::pure::metamodel::relation::TDS";

@@ -177,10 +177,6 @@ public final class Pure {
      * the real one, 2026-09-04): the Typer serves {@code Any.elementOverride}
      * reads as this type and folds them EMPTY (never installed here). */
     public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::type::ElementOverride extends meta::pure::metamodel::type::Any {}");
-    // the TDS null-cell TYPE (engine tds.pure:127) — the VALUE stays the
-    // one sqlNull() funnel (Typer's TDSNull arms); the class exists so
-    // match arms (n:TDSNull[1] — toCSVString) TYPE against it
-    public static final ClassDefinition TDS_NULL = nativeClass("native Class meta::pure::tds::TDSNull {}");
     public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
@@ -330,13 +326,11 @@ public final class Pure {
     public static final ClassDefinition STRICT_TIME = nativeClass("native Class meta::pure::metamodel::type::StrictTime  extends meta::pure::metamodel::type::Any {}");
 
     // ---- Relation algebra (parameterized) ----
+    // (the ColSpec family — ColSpec/FuncColSpec/AggColSpec and their
+    // Array forms — moved to the generated prelude module in batch 157,
+    // phase 2 family 1: relation.pure verbatim, the Typer names them by
+    // PlatformTypes constants and reads their definitions from the model)
     public static final ClassDefinition RELATION             = nativeClass("native Class meta::pure::metamodel::relation::Relation<T>         extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition COL_SPEC             = nativeClass("native Class meta::pure::metamodel::relation::ColSpec<T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition COL_SPEC_ARRAY       = nativeClass("native Class meta::pure::metamodel::relation::ColSpecArray<T> extends meta::pure::metamodel::type::Any { names: meta::pure::metamodel::type::String[*]; }");
-    public static final ClassDefinition FUNC_COL_SPEC        = nativeClass("native Class meta::pure::metamodel::relation::FuncColSpec<Z,T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; function: meta::pure::metamodel::function::Function<Z>[1]; }");
-    public static final ClassDefinition FUNC_COL_SPEC_ARRAY  = nativeClass("native Class meta::pure::metamodel::relation::FuncColSpecArray<Z,T> extends meta::pure::metamodel::type::Any { funcSpecs: meta::pure::metamodel::relation::FuncColSpec<Z,meta::pure::metamodel::type::Any>[*]; }");
-    public static final ClassDefinition AGG_COL_SPEC         = nativeClass("native Class meta::pure::metamodel::relation::AggColSpec<Z,V,T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; map: meta::pure::metamodel::function::Function<Z>[1]; reduce: meta::pure::metamodel::function::Function<V>[1]; }");
-    public static final ClassDefinition AGG_COL_SPEC_ARRAY   = nativeClass("native Class meta::pure::metamodel::relation::AggColSpecArray<A,B,T> extends meta::pure::metamodel::type::Any { aggSpecs: meta::pure::metamodel::relation::AggColSpec<A,B,meta::pure::metamodel::type::Any>[*]; }");
 
 
 
@@ -368,7 +362,6 @@ public final class Pure {
     // classMappings: SetImplementation[*] — real platform_dsl_mapping/grammar/
     // mapping.pure:26, grown by the metamodel-store witness.
     public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; associationMappings: meta::pure::mapping::AssociationImplementation[*]; enumerationMappings: meta::pure::mapping::EnumerationMapping[*]; includes: meta::pure::mapping::MappingInclude[*]; }");
-    public static final ClassDefinition RELATIONAL_ACTIVITY = nativeClass("native Class meta::relational::mapping::RelationalActivity extends meta::pure::mapping::Activity { sql: meta::pure::metamodel::type::String[1]; comment: meta::pure::metamodel::type::String[0..1]; executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; sqlGenerationTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; dataSource: meta::relational::runtime::DataSource[0..1]; }");
 
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any { functionName: meta::pure::metamodel::type::String[0..1]; }");
@@ -401,14 +394,11 @@ public final class Pure {
     // value of this type.
     public static final ClassDefinition ENUMERATION = nativeClass("native Class meta::pure::metamodel::type::Enumeration<T> extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { values: T[1..*]; }");
 
-    // ---- Variant (semi-structured value carrier) ----
-    public static final ClassDefinition VARIANT = nativeClass("native Class meta::pure::metamodel::variant::Variant extends meta::pure::metamodel::type::Any {}");
 
 
 
 
 
-    public static final ClassDefinition ROWS                  = nativeClass("native Class meta::pure::functions::relation::Rows                 extends meta::pure::functions::relation::Frame {}");
 
     // ================================================================
     // Native enum catalog.
@@ -1537,11 +1527,7 @@ public final class Pure {
     // surface. Result is a TYPING surface + orchestration handle — reads
     // over it rewrite into SQL-bound queries (no interpreter, tenet #1);
     // the K arm lands in B2b. mapping/runtime/extensions type as Any.
-    // NOTE: real pure spells Result<T|m> with values:T[m]; class-level
-    // multiplicity params are the task-#50 parse gap (the corpus's OWN
-    // Result<T|m> spelling darkens the postprocessor family the same
-    // way). T[*] is safe meanwhile — consumers normalize multiplicity.
-    public static final ClassDefinition RESULT = nativeClass("native Class meta::pure::mapping::Result<T|m> extends meta::pure::metamodel::type::Any { values: T[m]; activities: meta::pure::mapping::Activity[*]; }");
+    // (Result<T|m> itself is a prelude module class since batch 157.)
     public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
     // AUDIT R8 CUTOVER (2026-08-28): meta::pure::mapping::execute was an
     // INVENTED FQN (nowhere in the engine or legend-pure checkouts —

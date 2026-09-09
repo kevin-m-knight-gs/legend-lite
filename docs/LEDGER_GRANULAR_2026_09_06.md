@@ -893,3 +893,11 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | # | what | decided | where |
 |---|---|---|---|
 | 1 | USER: "just take everything instead of the declared-vs-used whitelist" | Java demand = every spec class the platform's Java names in code (comments excluded); the curated constructed list (154) and the T1 diff census (155) deleted; prelude 357 → 373; no pass change | generator, PlatformTypes |
+
+## 30. Batch 157 — phase 2 family 1 (2026-09-08)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | 85 hand shapes: 65 m3.pure bootstrap (generator-unreadable), 17 legend-pure files, 2 engine files; family-1 Java uses are name-only | eleven migrated (ColSpec ×6, Variant, Rows, TDSNull, Result, RelationalActivity); FQN constants in PlatformTypes; hand 85 → 74; prelude 373 → 384 | Pure.java, PlatformTypes, nine Java sites |
+| 2 | `TdsNullTypingPinTest` built a context without the boot layer | the front door (`Compiler.buildModel`) | test |
+| 3 | the 65 m3 shapes | a generator leg: read the m3 graph (`tools/m3shape.py`'s rule) and emit them into the module; the bootstrap floor is then measured | next |

@@ -69,7 +69,7 @@ final class FlattenChecker {
         List<Type.Column> cols = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
             cols.add(c.name().equals(cs.name())
-                    ? new Type.Column(c.name(), new Type.ClassType(Pure.VARIANT.qualifiedName()), c.multiplicity())
+                    ? new Type.Column(c.name(), new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.VARIANT), c.multiplicity())
                     : c);
         }
         return new TypedFlatten(source, cs.name(),

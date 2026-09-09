@@ -359,7 +359,7 @@ final class Anchors {
                 && vals.property().equals("values")
                 && vals.source().info().type()
                         instanceof com.legend.compiler.element.type.Type.GenericType rg
-                && com.legend.builtin.Pure.RESULT.qualifiedName().equals(rg.rawFqn())) {
+                && com.legend.compiler.element.type.PlatformTypes.RESULT.equals(rg.rawFqn())) {
             return vals;
         }
         return com.legend.compiler.element.type.Type.isRelation(cur.info().type())

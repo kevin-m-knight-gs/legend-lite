@@ -34,7 +34,7 @@ final class SourceUrlChecker {
                 List.of(ExprType.one(Type.Primitive.STRING)));
 
         Type.RelationType schema = new Type.RelationType(List.of(new Type.Column(
-                "data", new Type.ClassType(Pure.VARIANT.qualifiedName()), Multiplicity.Bounded.ONE)));
+                "data", new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.VARIANT), Multiplicity.Bounded.ONE)));
         return new TypedSourceUrl(url.value(),
                 new ExprType(Type.relation(schema), sig.output().multiplicity()));
     }

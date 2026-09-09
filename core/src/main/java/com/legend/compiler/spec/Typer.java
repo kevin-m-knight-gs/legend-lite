@@ -2001,7 +2001,7 @@ final class Typer {
                                     els.get(0).info().type(),
                                     new Multiplicity.Bounded(els.size(), els.size())));
                 } else if (genericRawIs(chosen.parameters().get(i).type(),
-                        Pure.COL_SPEC_ARRAY)) {
+                        com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY)) {
                     // an empty colspec array chosen against a PLAIN
                     // ColSpecArray param types as an ordinary value (it
                     // deferred only because its flavor was parameter-
@@ -2119,14 +2119,14 @@ final class Typer {
                                         && selfTypable(plf)) -> true;
                 case PureCollection ignored -> isFunctionTyped(t);
                 case ColSpec cs -> genericRawIs(t,
-                        cs.function2() != null ? Pure.AGG_COL_SPEC : Pure.FUNC_COL_SPEC);
+                        cs.function2() != null ? com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC : com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC);
                 case ColSpecArray arr when arr.colSpecs().isEmpty() ->
-                        genericRawIs(t, Pure.COL_SPEC_ARRAY)
-                                || genericRawIs(t, Pure.FUNC_COL_SPEC_ARRAY)
-                                || genericRawIs(t, Pure.AGG_COL_SPEC_ARRAY);
+                        genericRawIs(t, com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY)
+                                || genericRawIs(t, com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC_ARRAY)
+                                || genericRawIs(t, com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC_ARRAY);
                 case ColSpecArray arr -> genericRawIs(t,
                         arr.colSpecs().stream().anyMatch(x -> x.function2() != null)
-                                ? Pure.AGG_COL_SPEC_ARRAY : Pure.FUNC_COL_SPEC_ARRAY);
+                                ? com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC_ARRAY : com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC_ARRAY);
                 default -> true;
             };
             if (!ok) {
@@ -2160,7 +2160,11 @@ final class Typer {
     }
 
     private static boolean genericRawIs(Type t, com.legend.model.ClassDefinition def) {
-        return t instanceof Type.GenericType g && g.rawFqn().equals(def.qualifiedName());
+        return genericRawIs(t, def.qualifiedName());
+    }
+
+    private static boolean genericRawIs(Type t, String rawFqn) {
+        return t instanceof Type.GenericType g && g.rawFqn().equals(rawFqn);
     }
 
     /** A function-carrier formal whose argument is NOMINAL, not a structural
@@ -2463,7 +2467,7 @@ final class Typer {
             throw new TypeInferenceException("expected a mapped column-spec parameter, got "
                     + formal.typeName());
         }
-        if (genericRawIs(formal, Pure.AGG_COL_SPEC) || genericRawIs(formal, Pure.AGG_COL_SPEC_ARRAY)) {
+        if (genericRawIs(formal, com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC) || genericRawIs(formal, com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC_ARRAY)) {
             return typeAggColSpec(vs, g, b, env);
         }
         Type.FunctionType f = extractFunctionType(g.arguments().get(0));
@@ -3432,7 +3436,7 @@ final class Typer {
         }
         Type row = new Type.RelationType(List.of(unknownColumn(cs.name())));
         return new TypedColSpec(cs.name(),
-                ExprType.one(new Type.GenericType(Pure.COL_SPEC.qualifiedName(), List.of(row))));
+                ExprType.one(new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.COL_SPEC, List.of(row))));
     }
 
     /** A bare {@code ~[a,b]}: a first-class {@code ColSpecArray<(a:?, b:?)>[1]} value. */
@@ -3441,7 +3445,7 @@ final class Typer {
         // is the whole-relation aggregate (the engine's empty-key grouping).
         if (arr.colSpecs().isEmpty()) {
             return new TypedColSpecArray(List.of(),
-                    ExprType.one(new Type.GenericType(Pure.COL_SPEC_ARRAY.qualifiedName(),
+                    ExprType.one(new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY,
                             List.of(new Type.RelationType(List.of())))));
         }
         List<Type.Column> cols = new ArrayList<>(arr.colSpecs().size());
@@ -3459,7 +3463,7 @@ final class Typer {
         }
         Type row = new Type.RelationType(cols);
         return new TypedColSpecArray(names,
-                ExprType.one(new Type.GenericType(Pure.COL_SPEC_ARRAY.qualifiedName(), List.of(row))));
+                ExprType.one(new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY, List.of(row))));
     }
 
     /** A column of a colspec VALUE: named, with the unknown type {@code ?} until ⊆/= solves it. */

@@ -18,7 +18,7 @@ class PlatformTypesDriftTest {
     void constantsMatchThePreludeDeclarations() {
         assertEquals(Pure.ANY.qualifiedName(), PlatformTypes.ANY);
         assertEquals(Pure.NIL.qualifiedName(), PlatformTypes.NIL);
-        assertEquals(Pure.VARIANT.qualifiedName(), PlatformTypes.VARIANT);
+        assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.VARIANT));
         assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.LIST));
         assertTrue(com.legend.builtin.Prelude.classFqns().contains(PlatformTypes.PAIR));
         assertEquals(Pure.FUNCTION.qualifiedName(), PlatformTypes.FUNCTION);

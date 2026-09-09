@@ -151,7 +151,7 @@ final class JsonSourceFrame {
                 new IllegalStateException("resolver bug: JSON-sourced class '"
                         + classFqn + "' unknown to the model"));
         Type variant = new Type.ClassType(
-                com.legend.builtin.Pure.VARIANT.qualifiedName());
+                com.legend.compiler.element.type.PlatformTypes.VARIANT);
         var one = Multiplicity.Bounded.ONE;
         var zeroOne = Multiplicity.Bounded.ZERO_ONE;
         // one Variant cell per row: the object's RAW TEXT, quote-wrapped

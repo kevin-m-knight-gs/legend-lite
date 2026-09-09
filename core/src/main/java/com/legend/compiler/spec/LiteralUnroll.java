@@ -414,7 +414,7 @@ final class LiteralUnroll {
      * or the bare reference's {@code sqlNull()} funnel (Typer). */
     private static boolean isTdsNullCarrier(TypedSpec s) {
         return (s instanceof TypedNewInstance ni
-                        && ni.classFqn().equals(Pure.TDS_NULL.qualifiedName()))
+                        && ni.classFqn().equals(com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN))
                 || (s instanceof TypedNativeCall c && c.args().isEmpty() && is(c, "sqlNull"));
     }
 
