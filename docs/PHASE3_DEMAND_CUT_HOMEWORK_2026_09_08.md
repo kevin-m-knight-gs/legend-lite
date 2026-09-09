@@ -14,16 +14,22 @@ engine-declared interface classes the platform's Java constructs, reads, or name
 
 ## 2. Measured (2026-09-08, from `docs/PRELUDE_MODULE_CENSUS_2026_09_08.tsv` and a Java-use scan)
 
-**The 59 Java-demanded engine classes — every one is real use, none is a comment mention:**
+**The 59 Java-demanded engine classes — CORRECTED after the user's pushback ("usage is not itself a reason").** A first
+scan counted any FQN in Java code; re-reading every site by the ratified test (construct / native signature / system
+metamodel — a comparison against a constant, or a read of a field of a value a PROGRAM built, is NOT use):
 
-| use | classes |
-|---|---|
-| named in a native signature (Pure.java) | 29 (13 signature only, 12 signature + code, 3 signature + system metamodel, 1 all three) |
-| constructed / read / dispatched in Java code | 34 |
-| named by the system metamodel's Pure source | 15 |
+| kind of use | classes | verdict |
+|---|---|---|
+| named in a native signature | 29 | vocabulary |
+| named by the system metamodel's Pure source (and not above) | ~12 | vocabulary |
+| CONSTRUCTED by Java as the platform's own output (`new EnumValue("…JoinKind", …)`, `TypedNewInstance(RelationalCSVTable…)`, the JSON checker's key-value / array nodes, the desugar's default `RelationalExecutionContext`) and not above | ~8 | vocabulary |
+| dispatch-only or read-only (`TdsOlapRank`, `BasicColumnSpecification`, `ColumnSpecification`, `TDSColumn`, the connection post-processors and mappers, `JsonModelConnection`, `ModelChainConnection`, the H2 datasource specification, the JSON leaf kinds) | ~14 | NOT vocabulary — leave for the graph unless the closure of a vocabulary declaration names them (`TDSColumn` ← `TDSRow`) |
+| TO CHECK in 3a: `RelationalDatabaseConnection` and the datasource / post-processor classes — lite's OWN grammar (`###Connection`) compiles into instances of them; if the platform's grammar produces the value, the platform constructs it | ~6 | decided by the check |
 
-So the "tighten Java demand to construct / read / signature" step changes nothing today; it becomes the generator's rule
-(comments and Javadoc are excluded from the scan) so that it stays true.
+**Mechanism consequence.** A text scan of `src/main/java` cannot tell "constructs" from "compares". Phase 3a replaces it: the
+generator's Java demand = Pure.java native signatures + the system metamodel's source + an EXPLICIT list in `PlatformTypes`
+of the classes Java constructs, each entry a receipt naming the site (read from source, as `handDeclaredFqns` reads
+Pure.java). The list is the vocabulary; the review is the test.
 
 **The 324 classes that leave (253 corpus-demanded + 71 closure) come from 64 engine files.** Two kinds:
 
