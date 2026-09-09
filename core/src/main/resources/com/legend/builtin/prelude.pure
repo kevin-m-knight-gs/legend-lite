@@ -137,6 +137,52 @@ Class meta::pure::functions::lang::KeyValue
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/getUpperBound.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getUpperBound(multiplicity:Multiplicity[1]):Integer[1]
+{
+    $multiplicity.upperBound->toOne().value->toOne()
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/hasToOneUpperBound.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::hasToOneUpperBound(multiplicity:Multiplicity[1]):Boolean[1]
+{
+    $multiplicity->hasUpperBound() && eq($multiplicity->getUpperBound(), 1)
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/hasUpperBound.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::hasUpperBound(multiplicity:Multiplicity[1]):Boolean[1]
+{
+    let upperBound = $multiplicity.upperBound;
+    !$upperBound->isEmpty() && !$upperBound->toOne().value->isEmpty() && $upperBound->toOne().value != -1;
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/isToMany.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToMany(m:Multiplicity[1]):Boolean[1]
+{
+   !$m->hasUpperBound() || ($m->getUpperBound() > 1);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/isToOne.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToOne(multiplicity:Multiplicity[1]):Boolean[1]
+{
+    hasToOneUpperBound($multiplicity) && eq($multiplicity->getLowerBound(), 1)
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/source/sourceInformation.pure
 import meta::pure::functions::meta::tests::sourceInformation::*;
 import meta::pure::test::pct::*;
@@ -153,8 +199,160 @@ Class meta::pure::functions::meta::SourceInformation
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/class.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::class<T>(any:T[*]):Class<T>[1]
+{
+    $any->genericType()->genericTypeClass()->cast(@Class<T>);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/properties.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::properties(genericType:GenericType[1]):Property<Nil,Any|*>[*]
+{
+    // TODO use this once problems with compiled execution are fixed
+//    $genericType.rawType->toOne()->generalizations()->map(cls | $cls->cast(@Class<Any>).properties->concatenate($cls->cast(@Class<Any>).propertiesFromAssociations))
+
+    let theClass = $genericType.rawType->toOne()->cast(@Class<Any>);
+    let result = ^List<Property<Nil,Any|*>>(values = $theClass.properties);
+    let resultWithAssoProps = ^$result(values += $theClass.propertiesFromAssociations);
+    ^$resultWithAssoProps(values += $theClass.generalizations->map(generalization | properties($generalization.general))).values;
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/function/functionType.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::functionType(f:Function<Any>[1]):FunctionType[1]
+{
+   assert($f->instanceOf(FunctionDefinition) || $f->instanceOf(NativeFunction), | 'functionType is not supported yet for this subtype of function '+$f->type()->id());
+   $f.classifierGenericType->toOne().typeArguments->at(0).rawType->toOne()->cast(@FunctionType);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/getAllTypeGeneralisations.pure
+import meta::pure::test::pct::*;
+function
+    <<PCT.function, PCT.platformOnly>>
+    {doc.doc = 'Get all generalisations of a type'}
+    meta::pure::functions::meta::getAllTypeGeneralisations(class:Type[1]):Type[*]
+{
+   let generalisations = $class.generalizations->map(g | $g.general->cast(@GenericType).rawType->toOne()->getAllTypeGeneralisations());
+   $class->concatenate($generalisations);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/assertIsNot.pure
+import meta::pure::functions::asserts::*;
+function meta::pure::functions::asserts::assertIsNot(notExpected:Any[1], actual:Any[1]):Boolean[1]
+{
+    assertIsNot($notExpected, $actual, 'Should not be identical to: %r', [$actual]);
+}
+
+function meta::pure::functions::asserts::assertIsNot(notExpected:Any[1], actual:Any[1], message:String[1]):Boolean[1]
+{
+    assert(!is($notExpected, $actual), $message);
+}
+
+function meta::pure::functions::asserts::assertIsNot(notExpected:Any[1], actual:Any[1], formatString:String[1], formatArgs:Any[*]):Boolean[1]
+{
+    assert(!is($notExpected, $actual), $formatString, $formatArgs);
+}
+
+function meta::pure::functions::asserts::assertIsNot(notExpected:Any[1], actual:Any[1], message:Function<{->String[1]}>[1]):Boolean[1]
+{
+    assert(!is($notExpected, $actual), $message);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/assertNotContains.pure
+function meta::pure::functions::asserts::assertNotContains(collection:Any[*], value:Any[1]):Boolean[1]
+{
+    assertNotContains($collection, $value, | format('%s should not contain %r', [$collection->map(v | $v->toRepresentation())->joinStrings('[', ', ', ']'), $value]));
+}
+
+function meta::pure::functions::asserts::assertNotContains(collection:Any[*], value:Any[1], message:String[1]):Boolean[1]
+{
+    assert(!$collection->contains($value), $message);
+}
+
+function meta::pure::functions::asserts::assertNotContains(collection:Any[*], value:Any[1], formatString:String[1], formatArgs:Any[*]):Boolean[1]
+{
+    assert(!$collection->contains($value), $formatString, $formatArgs);
+}
+
+function meta::pure::functions::asserts::assertNotContains(collection:Any[*], value:Any[1], message:Function<{->String[1]}>[1]):Boolean[1]
+{
+    assert(!$collection->contains($value), $message);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/assertNotSize.pure
+function meta::pure::functions::asserts::assertNotSize(collection:Any[*], size:Integer[1]):Boolean[1]
+{
+    assertNotSize($collection, $size, | format('size should not equal: %s', [$size]));
+}
+
+function meta::pure::functions::asserts::assertNotSize(collection:Any[*], size:Integer[1], message:String[1]):Boolean[1]
+{
+    assertNotEq($size, $collection->size(), $message);
+}
+
+function meta::pure::functions::asserts::assertNotSize(collection:Any[*], size:Integer[1], formatString:String[1], formatArgs:Any[*]):Boolean[1]
+{
+    assertNotEq($size, $collection->size(), $formatString, $formatArgs);
+}
+
+function meta::pure::functions::asserts::assertNotSize(collection:Any[*], size:Integer[1], message:Function<{->String[1]}>[1]):Boolean[1]
+{
+    assertNotEq($size, $collection->size(), $message);
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/assetNotEq.pure
+function meta::pure::functions::asserts::assertNotEq(notExpected:Any[1], actual:Any[1]):Boolean[1]
+{
+    assertNotEq($notExpected, $actual, '%r should not equal %r', [$notExpected, $actual]);
+}
+
+function meta::pure::functions::asserts::assertNotEq(notExpected:Any[1], actual:Any[1], message:String[1]):Boolean[1]
+{
+    assert(!eq($notExpected, $actual), $message);
+}
+
+function meta::pure::functions::asserts::assertNotEq(notExpected:Any[1], actual:Any[1], formatString:String[1], formatArgs:Any[*]):Boolean[1]
+{
+    assert(!eq($notExpected, $actual), $formatString, $formatArgs);
+}
+
+function meta::pure::functions::asserts::assertNotEq(notExpected:Any[1], actual:Any[1], message:Function<{->String[1]}>[1]):Boolean[1]
+{
+    assert(!eq($notExpected, $actual), $message);
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/pct_core.pure
 import meta::pure::test::pct::*;
+function
+    <<PCT.adapter>>
+    {
+        PCT.adapterName='In-Memory'
+    }
+    meta::pure::test::pct::testAdapterForInMemoryExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
+{
+  $f->eval();
+}
+
 Class meta::pure::test::pct::PCTManifest
 {
     adapter    : Function<Any>[1];                 // resolved adapter function
@@ -192,6 +390,132 @@ Class meta::pure::test::surveyor::TestReport
     skipCount     : Integer[1];
 }
 
+function meta::pure::test::surveyor::runTests(pkg:PackageableElement[1], filter:String[1]): TestReport[1]
+{
+    // todo print timestamp and elapsed time when we port now/today to the core platform
+    // todo find a more performant way to navigate and collect...
+    println('Discovering tests in "%s" with filter "%s"'->format([$pkg->elementToPath(), $filter]));
+
+    // first discover test cases to execute
+    let tests = $pkg->getTestFunctions($filter);
+    // navigate up to the packages to find any before or after on the non-included packages
+    let allRelevantPkgs = $tests->map(t | $t.package->toOne()->meta::pure::test::surveyor::getUpstreamPackages())->removeDuplicates();
+    let rootGroup = meta::pure::test::surveyor::buildTestGroup(::, $allRelevantPkgs, $tests);
+    let flatExecutionPlan = $rootGroup->toOne()->meta::pure::test::surveyor::flattenTestGroup();
+
+    println('Discovered %d functions to execute!'->format($flatExecutionPlan->size()));
+
+    let results = $flatExecutionPlan->map(t |
+         executeTest($t->cast(@Function<{->Any[*]}>))
+    );
+
+    // Total elapsed is the sum of all individual test times
+    let totalElapsed = $results->map(r | $r.elapsed)->plus();
+
+    let passCount = $results->filter(r | $r.status == TestStatus.PASS)->size();
+    let failCount = $results->filter(r | $r.status == TestStatus.FAIL)->size();
+    let errorCount = $results->filter(r | $r.status == TestStatus.ERROR)->size();
+    let skipCount = $results->filter(r | $r.status == TestStatus.SKIP)->size();
+
+    let summary = '\nSurveyor Suite completed\n' +
+                  '  Tests   : ' + $results->size()->toString() + '\n' +
+                  '  Passed  : ' + $passCount->toString() + '\n' +
+                  '  Failed  : ' + $failCount->toString() + '\n' +
+                  '  Errors  : ' + $errorCount->toString() + '\n' +
+                  '  Skipped : ' + $skipCount->toString() + '\n' +
+                  '  Time    : ' + $totalElapsed->toString() + 'ms\n';
+
+    println($summary);
+
+    ^TestReport(
+        results = $results,
+        totalElapsed = $totalElapsed,
+        passCount = $passCount,
+        failCount = $failCount,
+        errorCount = $errorCount,
+        skipCount = $skipCount
+    );
+}
+
+function meta::pure::test::surveyor::runTestsFromPath(path:String[1], filter:String[1]):TestReport[1]
+{
+    // pathToElement returns PackageableElement[1] — 'Root' resolves to the root package (::)
+    $path->pathToElement()->runTests($filter);
+}
+
+function meta::pure::test::surveyor::runPCTTests(pkg:PackageableElement[1], filter:String[1], adapter:Function<Any>[1], exclusions:Map<Function<Any>,String>[1]): TestReport[1]
+{
+    println('Discovering PCT tests in "%s" with filter "%s"...'->
+            format([$pkg->elementToPath(), $filter]));
+
+    let tests = $pkg->getPCTTestFunctions($filter);
+
+    println('Discovered %d PCT tests to execute!'->
+            format($tests->size()));
+
+    let results = $tests->map(t |
+         executePCTTest($t->cast(@Function<Any>), $adapter, $exclusions)
+    );
+
+    let totalElapsed = $results->map(r | $r.elapsed)->plus();
+
+    let passCount = $results->filter(r | $r.status == TestStatus.PASS)->size();
+    let failCount = $results->filter(r | $r.status == TestStatus.FAIL)->size();
+    let errorCount = $results->filter(r | $r.status == TestStatus.ERROR)->size();
+    let skipCount = $results->filter(r | $r.status == TestStatus.SKIP)->size();
+
+    let summary = '\nSurveyor PCT Suite completed\n' +
+                  '  Tests   : ' + $results->size()->toString() + '\n' +
+                  '  Passed  : ' + $passCount->toString() + '\n' +
+                  '  Failed  : ' + $failCount->toString() + '\n' +
+                  '  Errors  : ' + $errorCount->toString() + '\n' +
+                  '  Skipped : ' + $skipCount->toString() + '\n' +
+                  '  Time    : ' + $totalElapsed->toString() + 'ms\n';
+
+    println($summary);
+
+    ^TestReport(
+        results = $results,
+        totalElapsed = $totalElapsed,
+        passCount = $passCount,
+        failCount = $failCount,
+        errorCount = $errorCount,
+        skipCount = $skipCount
+    );
+}
+
+function meta::pure::test::surveyor::runPCTTestsFromPath(path:String[1], filter:String[1], manifestPath:String[1]):TestReport[1]
+{
+    let manifest = loadPCTManifest($manifestPath);
+    $path->pathToElement()->runPCTTests($filter, $manifest.adapter, $manifest.exclusions);
+}
+
+function meta::pure::test::surveyor::getTestFunctions(pkg:PackageableElement[1], filter:String[1]):ConcreteFunctionDefinition<Any>[*]
+{
+   $pkg->match([
+      p : Package[1] | $p.children->map(pc | $pc->getTestFunctions($filter)),
+      f : ConcreteFunctionDefinition<Any>[1] | if($f.stereotypes->exists(s | $s.value == 'Test' && $s.profile == meta::pure::profiles::test)
+                                                  && ($filter == '' || $f->sourceInformation()->filter(s | $s.source->startsWith($filter))->isNotEmpty()),
+                                                  | $f,
+                                                  | []
+                                               ),
+      a : Any[1]                             | []
+   ])
+}
+
+function meta::pure::test::surveyor::getPCTTestFunctions(pkg:PackageableElement[1], filter:String[1]):ConcreteFunctionDefinition<Any>[*]
+{
+   $pkg->match([
+      p : Package[1] | $p.children->map(pc | $pc->getPCTTestFunctions($filter)),
+      f : ConcreteFunctionDefinition<Any>[1] | if($f.stereotypes->exists(s | $s.value == 'test' && $s.profile == meta::pure::test::pct::PCT)
+                                                  && ($filter == '' || $f->sourceInformation()->filter(s | $s.source->startsWith($filter))->isNotEmpty()),
+                                                  | $f,
+                                                  | []
+                                               ),
+      a : Any[1]                             | []
+   ])
+}
+
 Class meta::pure::test::surveyor::TestGroup
 {
     pkg     : Package[1];
@@ -201,12 +525,275 @@ Class meta::pure::test::surveyor::TestGroup
     subGroups : meta::pure::test::surveyor::TestGroup[*];
 }
 
+function meta::pure::test::surveyor::getUpstreamPackages(p:Package[1]):Package[*]
+{
+    $p->concatenate($p.package->map(p|$p->meta::pure::test::surveyor::getUpstreamPackages()))
+}
+
+function meta::pure::test::surveyor::buildTestGroup(pkg:Package[1], allRelevantPkgs:Package[*], allTests:ConcreteFunctionDefinition<Any>[*]): TestGroup[1]
+{
+      let expectedBefores = $pkg.children->filter(c | $c->instanceOf(ConcreteFunctionDefinition))->cast(@ConcreteFunctionDefinition<Any>)->filter(f | $f.stereotypes->exists(s | $s.value == 'BeforePackage' && $s.profile == meta::pure::profiles::test));
+      let expectedAfters = $pkg.children->filter(c | $c->instanceOf(ConcreteFunctionDefinition))->cast(@ConcreteFunctionDefinition<Any>)->filter(f | $f.stereotypes->exists(s | $s.value == 'AfterPackage' && $s.profile == meta::pure::profiles::test));
+      let rawTests = $allTests->filter(t | $t.package == $pkg);
+      let subGroups = $pkg.children->filter(c | $c->instanceOf(Package))->cast(@Package)->map(p | $p->meta::pure::test::surveyor::buildTestGroup($allRelevantPkgs, $allTests));
+
+      ^meta::pure::test::surveyor::TestGroup(
+          pkg = $pkg,
+          before = $expectedBefores,
+          tests = $rawTests,
+          after = $expectedAfters,
+          subGroups = $subGroups
+      );
+}
+
+function meta::pure::test::surveyor::flattenTestGroup(tg:meta::pure::test::surveyor::TestGroup[1]):ConcreteFunctionDefinition<Any>[*]
+{
+    $tg.before
+       ->concatenate($tg.subGroups->map(sg | $sg->meta::pure::test::surveyor::flattenTestGroup()))
+       ->concatenate($tg.tests)
+       ->concatenate($tg.after)
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tools/debug/debug.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::tools::debug():DebugContext[1]
+{
+   ^DebugContext(debug=true, space='');
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tools/debug/indent.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::tools::indent(d:DebugContext[1]):DebugContext[1]
+{
+   ^$d(space = $d.space+'   ');
+}
+
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/executionPlan.pure
 Class meta::pure::executionPlan::PlanVariablePlaceHolder
 {
     name : String[1];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/aggColSpec.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed columns containing a name, a map function and a reduce function',
+        PCT.grammarDoc='~propName : x|$x.val : y|$y->sum()',
+        PCT.grammarCharacters='~::'
+    }
+    meta::pure::functions::relation::aggColSpec<U,V,K,T>(map:Function<{U[1]->V[0..1]}>[1], reduce:Function<{V[*]->K[0..1]}>[1], s:String[1], cl:T[1]):AggColSpec<{U[1]->V[0..1]}, {V[*]->K[0..1]}, T>[1]
+{
+    ^AggColSpec<{U[1]->V[0..1]}, {V[*]->K[0..1]}, T>
+    (
+        name = $s,
+        map = $map,
+        reduce = $reduce
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/aggColSpec2.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed columns containing a name, a map function and a reduce function',
+        PCT.grammarDoc='~propName : {p,f,r|$r.val} : y|$y->sum()',
+        PCT.grammarCharacters='~::'
+    }
+    meta::pure::functions::relation::aggColSpec2<U,V,K,T>(map:Function<{Relation<U>[1], _Window<U>[1], U[1]->V[0..1]}>[1], reduce:Function<{V[*]->K[0..1]}>[1], s:String[1], cl:T[1]):AggColSpec<{Relation<U>[1], _Window<U>[1], U[1]->V[0..1]}, {V[*]->K[0..1]}, T>[1]
+{
+    ^AggColSpec<{Relation<U>[1], _Window<U>[1], U[1]->V[0..1]}, {V[*]->K[0..1]}, T>
+    (
+        name = $s,
+        map = $map,
+        reduce = $reduce
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/aggColSpecArray.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column array, each containing a name, a map function and a reduce function',
+        PCT.grammarDoc='~[propName : x|$x.val : y|$y->sum(), other : x|$x.otherP : y|$y->avg()]',
+        PCT.grammarCharacters='~[::,::]'
+    }
+    meta::pure::functions::relation::aggColSpecArray<U,V,K,T,P>(map:AggColSpec<{U[1]->V[0..1]}, {V[*]->K[0..1]}, T>[*], cl:P[1]):AggColSpecArray<{U[1]->Any[0..1]},{Nil[*]->Any[0..1]},P>[1]
+{
+  ^AggColSpecArray<{U[1]->Any[0..1]},{Nil[*]->Any[0..1]},P>
+  (
+    aggSpecs = $map
+  )
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/aggColSpecArray2.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column array, each containing a name, a map function and a reduce function',
+        PCT.grammarDoc='~[propName : {p,f,r|$r.val} : y|$y->sum(), other : p,f,r|$r.otherP : y|$y->avg()]',
+        PCT.grammarCharacters='~[::,::]'
+    }
+    meta::pure::functions::relation::aggColSpecArray2<U,V,K,T,P>(map:AggColSpec<{Relation<U>[1], _Window<U>[1], U[1]->V[0..1]}, {V[*]->K[0..1]}, T>[*], cl:P[1]):AggColSpecArray<{Relation<U>[1], _Window<U>[1], U[1]->Any[0..1]},{Nil[*]->Any[0..1]},P>[1]
+{
+  ^AggColSpecArray<{Relation<U>[1], _Window<U>[1], U[1]->Any[0..1]},{Nil[*]->Any[0..1]},P>
+  (
+    aggSpecs = $map
+  )
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/col.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column containing a name',
+        PCT.grammarDoc='~col',
+        PCT.grammarCharacters='~'
+    }
+    meta::pure::functions::relation::colSpec<T>(s:String[1], cl:T[1]):ColSpec<T>[1]
+{
+    ^ColSpec<T>
+    (
+        name = $s
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/colArray.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column array, each containing a name',
+        PCT.grammarDoc='~[col, other]',
+        PCT.grammarCharacters='~[,]'
+    }
+    meta::pure::functions::relation::colSpecArray<T>(s:String[*], cl:T[1]):ColSpecArray<T>[1]
+{
+    ^ColSpecArray<T>
+    (
+        names = $s
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/funcColSpec.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column containing a name and a function',
+        PCT.grammarDoc='~col : x|$x.val+3',
+        PCT.grammarCharacters='~:'
+    }
+    meta::pure::functions::relation::funcColSpec<U,T>(f:Function<{U[1]->Any[*]}>[1], s:String[1], cl:T[1]):FuncColSpec<{U[1]->Any[1]}, T>[1]
+{
+    ^FuncColSpec<{U[1]->Any[1]}, T>
+    (
+        name = $s,
+        function = $f
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/funcColSpec2.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column containing a name and a function with 2 parameters',
+        PCT.grammarDoc='~col : {p,f,r|$r.val+3}',
+        PCT.grammarCharacters='~:'
+    }
+    meta::pure::functions::relation::funcColSpec2<U,T>(f:Function<{Relation<U>[1], _Window<U>[1], U[1]->Any[*]}>[1], s:String[1], cl:T[1]):FuncColSpec<{Relation<U>[1], _Window<U>[1], U[1]->Any[1]}, T>[1]
+{
+    ^FuncColSpec<{Relation<U>[1], _Window<U>[1], U[1]->Any[1]}, T>
+    (
+        name = $s,
+        function = $f
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/funcColSpecArray.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column array, each containing a name and a function',
+        PCT.grammarDoc='~[col : x|$x.val+3, other : t|$t.ww+4]',
+        PCT.grammarCharacters='~[:,:]'
+    }
+    meta::pure::functions::relation::funcColSpecArray<U,T,P>(funcSpecs:FuncColSpec<{U[1]->Any[*]}, T>[*], cl:P[1]):FuncColSpecArray<{U[1]->Any[*]}, P>[1]
+{
+    ^FuncColSpecArray<{U[1]->Any[*]}, P>
+    (
+        funcSpecs = $funcSpecs
+    );
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/funcColSpecArray2.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+function
+    <<functionType.NormalizeRequiredFunction,
+    PCT.function>>
+    {
+        doc.doc='Create a Relation typed column array, each containing a name and a function',
+        PCT.grammarDoc='~[col : {p,f,r|$r.val+3}, other : {p,f,r|$r.ww+4}]',
+        PCT.grammarCharacters='~[:,:]'
+    }
+    meta::pure::functions::relation::funcColSpecArray2<U,T,P>(funcSpecs:FuncColSpec<{Relation<U>[1], _Window<U>[1], U[1]->Any[*]}, T>[*], cl:P[1]):FuncColSpecArray<{Relation<U>[1], _Window<U>[1], U[1]->Any[*]}, P>[1]
+{
+    ^FuncColSpecArray<{Relation<U>[1], _Window<U>[1], U[1]->Any[*]}, P>
+    (
+        funcSpecs = $funcSpecs
+    );
 }
 
 
@@ -714,6 +1301,161 @@ Class meta::pure::graphFetch::PropertyGraphFetchTree extends GraphFetchTree
 
 
 ###Pure
+// legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/functions_EnumerationMapping.pure
+import meta::pure::mapping::*;
+import meta::pure::store::*;
+function meta::pure::mapping::toSourceValues<T>(_this:meta::pure::mapping::EnumerationMapping<T>[1], domainValue: Any[1]):Any[*]
+{
+    let enumValueMapping = $_this.enumValueMappings->filter( m | $m.enum == $domainValue );
+    assertEquals(1, $enumValueMapping->size(), 'The system can\'t find source values in the enumMapping \''+$_this.name+'\' for the enum \''+$_this.enumeration->enumName()+ '.' +$domainValue->toString()+'\'');
+    $enumValueMapping->toOne().sourceValues;
+}
+
+
+###Pure
+// legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/functions_Mapping.pure
+import meta::pure::mapping::*;
+import meta::pure::store::*;
+import meta::pure::mapping::aggregationAware::*;
+function meta::pure::mapping::__classMappingByClass(mapping:Mapping[1], class:Class<Any>[1]):SetImplementation[*]
+{
+   let rootClassMappings = $mapping->rootClassMappingByClass($class);
+
+   let embeddedSets = $mapping->classMappings()->map(cm | $cm->match([
+         p:PropertyMappingsImplementation[1] |$p->allPropertyMappings()->map(p | $p->findEmbeddedMappingsByClass($class)),
+         a:SetImplementation[1]| []
+         ]));
+
+   $rootClassMappings->concatenate($embeddedSets);
+}
+
+function <<access.private>> meta::pure::mapping::findEmbeddedMappingsByClass(propertyMapping: PropertyMapping[1], class:Class<Any>[1]):SetImplementation[*]
+{
+
+   $propertyMapping->match([
+      s:InstanceSetImplementation[1] | let nested = $s->allPropertyMappings()->map(p | $p->findEmbeddedMappingsByClass($class));
+                               if ($s.class == $class, | [$s]->concatenate($nested); , | $nested);,
+      a:PropertyMapping[1] | []
+   ]);
+}
+
+function meta::pure::mapping::_classMappingByIdRecursive(_this:Mapping[1], id:String[*]):SetImplementation[*]
+{
+    let result = $_this.includes->map(i | $i.included)
+                               ->map(m | $m->_classMappingByIdRecursive($id))
+                               ->concatenate($_this.classMappings->filter(cm|$cm.id == $id))
+                               ->removeDuplicates();
+}
+
+function meta::pure::mapping::_associationPropertyMappingsByIdRecursive(_this:Mapping[1], id:String[1]):PropertyMapping[*]
+{
+    let result = $_this.includes->map(i | $i.included)
+                               ->map(m | $m->_associationPropertyMappingsByIdRecursive($id))
+                               ->concatenate($_this.associationMappings->map(a|$a->allPropertyMappings())->filter(pm | $pm.sourceSetImplementationId == $id));
+}
+
+function meta::pure::mapping::_allClassMappingsRecursive(_this:Mapping[1]):SetImplementation[*]
+{
+   $_this.includes.included->map(m | $m->_allClassMappingsRecursive())->concatenate($_this.classMappings);
+}
+
+function meta::pure::mapping::_allAssociationMappingsRecursive(_this:Mapping[1]):AssociationImplementation[*]
+{
+   $_this.includes.included->map(m | $m->_allAssociationMappingsRecursive())->concatenate($_this.associationMappings);
+}
+
+function meta::pure::mapping::findSubstituteStore(_this:Mapping[1], store:Store[1]):Store[0..1]
+{
+    $_this.includes->fold({inc:MappingInclude[1], sub:Store[0..1] | if($sub->isEmpty(), |$inc->findSubstituteStore($store), |$sub)}, [])
+}
+
+function meta::pure::mapping::allSuperSetImplementationIds(_this:Mapping[1], id : String[1]):String[*]
+{
+    let setImplementation = $_this->classMappingById($id);
+    $id->concatenate(if ($setImplementation->isEmpty() || $setImplementation.superSetImplementationId->isEmpty(),
+                         | [],
+                         | $_this->allSuperSetImplementationIds($setImplementation.superSetImplementationId->toOne())));
+}
+
+function <<access.private>> meta::pure::mapping::addAssociationMappingsIfRequired(classMapping:SetImplementation[1], associationPropertyMappingsById:Map<String,List<PropertyMapping>>[1]):SetImplementation[1]
+{
+    if ($classMapping->instanceOf(InstanceSetImplementation),
+        | let assocProperties = $associationPropertyMappingsById->get($classMapping.id);
+          if ($assocProperties->isEmpty(),
+              | $classMapping,
+              | let pmr = $classMapping->cast(@InstanceSetImplementation);
+                ^$pmr(propertyMappings=$pmr.propertyMappings->concatenate($assocProperties.values));
+          );,
+        | $classMapping
+    );
+}
+
+function meta::pure::mapping::findSubstituteStore(_this:MappingInclude[1], store:Store[1]):Store[0..1]
+{
+    let includedSub = $_this.included->findSubstituteStore($store);
+    if ($includedSub->isEmpty(),
+        | $_this.storeSubstitutions->filter(s | $store == $s.original)->first()->map(s | $s.substitute),
+        | let sub = $_this.storeSubstitutions->filter(s | $includedSub == $s.original);
+          if ($sub->isEmpty(),
+              | $includedSub,
+              | $sub->first()->map(s | $s.substitute));
+       );
+}
+
+
+###Pure
+// legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/functions_PropertyMappingsImplementation.pure
+import meta::pure::mapping::*;
+import meta::pure::store::*;
+import meta::pure::mapping::aggregationAware::*;
+function meta::pure::mapping::inlineEmbeddedProperty(_this:InlineEmbeddedSetImplementation[1], propertyName:String[1]):PropertyMapping[*]
+{
+    if ($_this.owner->isEmpty()
+             ,| []
+             ,| let propertyMappings = $_this.owner->toOne()->propertyMappingsByPropertyName($_this.property.name->toOne())->filter(pm | !$pm->instanceOf(EmbeddedSetImplementation));
+                  if ($propertyMappings->isEmpty()
+                  ,| let cm = $_this.parent->_classMappingByIdRecursive($_this.inlineSetImplementationId);
+                     let result = $cm->cast(@InstanceSetImplementation)->map(x|$x->propertyMappingsByPropertyName($propertyName));
+                     assertEquals(1, $result->size(), 'Inline embedded mapping for property '+ $propertyName+ ' has more than one root mapping is, not supported yet! : ' + $result.sourceSetImplementationId->joinStrings(','));
+                     let from =  $result->at(0);
+                     ^$from(owner = $_this.owner, sourceSetImplementationId = $_this.sourceSetImplementationId);
+                  ,|  $propertyMappings);
+    )
+}
+
+function meta::pure::mapping::propertyMappingByPropertyNameAndTargetId(_this:PropertyMappingsImplementation[1], s:String[1], targetId:String[1]):PropertyMapping[0..1]
+{
+    $_this->allPropertyMappings()->filter(pm|$pm.property.name == $s && $pm.targetSetImplementationId == $targetId)->first()
+}
+
+function meta::pure::mapping::propertyMappingByPropertyNameAndTargetIdWithInlineResolution(i:InstanceSetImplementation[1], s:String[1], targetId:String[1]):meta::pure::mapping::PropertyMapping[0..1]
+{
+   //In the case of ->subType() routing will identify the root class mapping for the target type, in this instance the property mapping needs to be resolved by the inlineSetImplementationId
+   let resolvedPropertyMappings = $i->allPropertyMappings()->fold({pm, a| let matchByTargetId = if($pm.property.name == $s && $pm.targetSetImplementationId == $targetId,|list($pm->concatenate($a.first.values)),|$a.first);
+
+                                                                         let matchByInlineId = $pm->match([i:InlineEmbeddedSetImplementation[1] | if($i.property.name == $s && $targetId == $i.inlineSetImplementationId,|list($i->concatenate($a.second.values)),|$a.second),
+                                                                                                                           p:PropertyMapping[1] | $a.second]);
+
+                                                                         pair($matchByTargetId, $matchByInlineId);
+                                                                 }, pair(list([]),list([]))->cast(@Pair<List<PropertyMapping>,List<PropertyMapping>>));
+   $resolvedPropertyMappings.first.values->first()->concatenate($resolvedPropertyMappings.second.values->first())->first();
+}
+
+
+###Pure
+// legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/functions_PurePropertyMapping.pure
+import meta::pure::mapping::*;
+import meta::pure::store::*;
+function meta::pure::mapping::valueTransform(_this:meta::external::store::model::PurePropertyMapping[1], sourceValue:Any[1]):Any[1]
+{
+    if ($_this.transformer->isEmpty(),
+        | $sourceValue,
+        | $_this.transformer->toOne()->cast(@EnumerationMapping<Any>)->toDomainValue($sourceValue)
+    )
+}
+
+
+###Pure
 // legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure
 import meta::pure::mapping::*;
 import meta::core::runtime::*;
@@ -1036,6 +1778,137 @@ Class meta::pure::metamodel::relation::TDS<T> extends meta::pure::metamodel::rel
 
 Class meta::pure::metamodel::relation::TDSRelationAccessor<T> extends meta::pure::metamodel::relation::RelationElementAccessor<T> // sourceElement is of type TDS<T>
 {
+}
+
+
+###Pure
+// legend-pure/legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/functions.pure
+import meta::relational::metamodel::execute::*;
+import meta::relational::runtime::*;
+import meta::external::store::relational::runtime::*;
+import meta::relational::metamodel::relation::*;
+import meta::relational::metamodel::*;
+import meta::relational::metamodel::datatype::*;
+import meta::relational::mapping::*;
+import meta::relational::metamodel::*;
+import meta::relational::metamodel::join::*;
+import meta::pure::mapping::*;
+function meta::relational::metamodel::datatype::dataTypeToCompatiblePureType(type: meta::relational::metamodel::datatype::DataType[1]):Type[1]
+{
+    $type->match([
+        i : meta::relational::metamodel::datatype::Integer[1] | Integer,
+        f : meta::relational::metamodel::datatype::Float[1] | Float,
+        v : meta::relational::metamodel::datatype::Varchar[1] | String,
+        c : meta::relational::metamodel::datatype::Char[1] | String,
+        d : meta::relational::metamodel::datatype::Decimal[1] | Float,
+        t : meta::relational::metamodel::datatype::Timestamp[1] | DateTime,
+        d : meta::relational::metamodel::datatype::Date[1] | StrictDate,
+        b : meta::relational::metamodel::datatype::BigInt[1] | Integer,
+        s : meta::relational::metamodel::datatype::SmallInt[1] | Integer,
+        s : meta::relational::metamodel::datatype::TinyInt[1] | Integer,
+        d : meta::relational::metamodel::datatype::Double[1] | Float,
+        n : meta::relational::metamodel::datatype::Numeric[1] | Float,
+        d : meta::relational::metamodel::datatype::Distinct[1] | String,
+        o : meta::relational::metamodel::datatype::Other[1] | String,
+        b : meta::relational::metamodel::datatype::Bit[1] | Boolean,
+        r : meta::relational::metamodel::datatype::Real[1] | Float,
+        s : meta::relational::metamodel::datatype::SemiStructured[1] | meta::pure::metamodel::variant::Variant,
+        j : meta::relational::metamodel::datatype::Json[1] | meta::pure::metamodel::variant::Variant,
+        d : meta::relational::metamodel::datatype::DbSpecificDataType[1] | $d.coreDataType->dataTypeToCompatiblePureType()
+    ]);
+}
+
+function meta::relational::metamodel::datatype::pureTypeForDbColumn(column : meta::relational::metamodel::Column[1]):Type[1]
+{
+    $column.type->dataTypeToCompatiblePureType();
+}
+
+function meta::relational::mapping::resolveFilter(_this:RootRelationalInstanceSetImplementation[1]):FilterMapping[0..1]
+{
+    if ($_this.filter->isEmpty(),
+        | let superMapping = $_this->superMapping()->cast(@RootRelationalInstanceSetImplementation);
+          if ($superMapping->isEmpty(),
+              | [],
+              | $superMapping->map(x|$x->resolveFilter())
+          );,
+        | $_this.filter
+    );
+}
+
+function meta::relational::mapping::resolveGroupBy(_this:RootRelationalInstanceSetImplementation[1]):GroupByMapping[0..1]
+{
+    if ($_this.groupBy->isEmpty(),
+        | let superMapping = $_this->superMapping()->cast(@RootRelationalInstanceSetImplementation);
+          if ($superMapping->isEmpty(),
+              | [],
+              | $superMapping->map(x|$x->resolveGroupBy())
+          );,
+        | $_this.groupBy
+    );
+}
+
+function meta::relational::mapping::resolveDistinct(_this:RootRelationalInstanceSetImplementation[1]):Boolean[0..1]
+{
+    if ($_this.distinct == true,
+        | true,
+        | let superMapping = $_this->superMapping()->cast(@RootRelationalInstanceSetImplementation);
+          if ($superMapping->isEmpty(),
+              | false,
+              | $superMapping->map(x|$x->resolveDistinct())
+          );
+    );
+}
+
+function meta::relational::mapping::resolveUserDefinedPrimaryKey(_this:RootRelationalInstanceSetImplementation[1]):Boolean[1]
+{
+    if ($_this.userDefinedPrimaryKey == true,
+        | true,
+        | let superMapping = $_this->superMapping()->cast(@RootRelationalInstanceSetImplementation);
+          if ($superMapping->isEmpty(),
+              | false,
+              | $superMapping->toOne()->resolveUserDefinedPrimaryKey()
+          );
+    );
+}
+
+function meta::relational::mapping::transform(_this:meta::relational::mapping::RelationalPropertyMapping[1], sourceValue: Any[1]): Any[1]
+{
+    if($_this.transformer->isEmpty(),
+        | $sourceValue ,
+        | $_this.transformer->toOne()->cast(@EnumerationMapping<Any> )->toDomainValue($sourceValue)
+    );
+}
+
+function meta::relational::metamodel::isTemporaryTable(_this:Table[1]):Boolean[1]
+{
+    !$_this.temporaryTable->isEmpty() && $_this.temporaryTable->toOne()
+}
+
+function meta::relational::metamodel::mainRelation(_this:RelationalMappingSpecification[1]):Relation[1]
+{
+    $_this.mainTableAlias.relation
+}
+
+function meta::relational::metamodel::otherTableFromAlias(_this:Join[1], tableAlias:TableAlias[1]):TableAlias[0..1]
+{
+    let aliasesByTableAliasName  = $_this.aliases->filter(t | ($t.first.name == $tableAlias.name));
+    let aliases = if($aliasesByTableAliasName->size() > 1,|filterBySchemaName($aliasesByTableAliasName, $tableAlias.relationalElement->cast(@NamedRelation));, |$aliasesByTableAliasName);
+    if ($aliases->isEmpty(), | [], | $aliases->at(0).second);
+}
+
+function meta::relational::metamodel::otherTable(_this:Join[1], namedRelation:NamedRelation[1]):TableAlias[0..1]
+{
+    let aliasesByTableName = $_this.aliases->filter(t | $t.first.relation->cast(@NamedRelation).name == $namedRelation.name);
+    let aliases = if($aliasesByTableName->size() > 1,|filterBySchemaName($aliasesByTableName, $namedRelation);, |$aliasesByTableName);
+    if ($aliases->isEmpty(), | [], | $aliases->at(0).second);
+}
+
+function meta::relational::metamodel::filterBySchemaName(aliases:Pair<TableAlias, TableAlias>[*], namedRelation:NamedRelation[1]):Pair<TableAlias, TableAlias>[*]
+{
+    $namedRelation->match([
+                        t:Table[1]|$aliases->filter(p|$p.first.relation()->instanceOf(Table) && $t->cast(@Table).schema.name == $p.first.relation()->cast(@Table).schema.name),
+                        v:View[1]|$aliases->filter(p|$p.first.relation()->instanceOf(View) && $v->cast(@View).schema.name == $p.first.relation()->cast(@View).schema.name)
+    ]);
 }
 
 
@@ -4148,7 +5021,81 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 464 classes, 16 enums.
+// 464 classes, 16 enums, 74 functions (legend-pure's platform library, bodied and non-test;6 files unparsed, the census's load walls).
+// PLATFORM-OWNED NAMES — library functions whose name the platform implements (a registered
+// native or an operator special form: the native IS the definition, Pure.java); not carried:
+//   meta::pure::functions::asserts::assert
+//   meta::pure::functions::asserts::assertContains
+//   meta::pure::functions::asserts::assertEmpty
+//   meta::pure::functions::asserts::assertEq
+//   meta::pure::functions::asserts::assertEqWithinTolerance
+//   meta::pure::functions::asserts::assertEquals
+//   meta::pure::functions::asserts::assertError
+//   meta::pure::functions::asserts::assertFalse
+//   meta::pure::functions::asserts::assertInstanceOf
+//   meta::pure::functions::asserts::assertIs
+//   meta::pure::functions::asserts::assertNotEmpty
+//   meta::pure::functions::asserts::assertNotEquals
+//   meta::pure::functions::asserts::assertSameElements
+//   meta::pure::functions::asserts::assertSize
+//   meta::pure::functions::asserts::fail
+//   meta::pure::functions::boolean::greaterThan
+//   meta::pure::functions::boolean::greaterThanEqual
+//   meta::pure::functions::boolean::lessThan
+//   meta::pure::functions::boolean::lessThanEqual
+//   meta::pure::functions::collection::contains
+//   meta::pure::functions::collection::head
+//   meta::pure::functions::collection::isEmpty
+//   meta::pure::functions::collection::isNotEmpty
+//   meta::pure::functions::collection::list
+//   meta::pure::functions::collection::pair
+//   meta::pure::functions::collection::range
+//   meta::pure::functions::collection::removeDuplicates
+//   meta::pure::functions::collection::removeDuplicatesBy
+//   meta::pure::functions::collection::sort
+//   meta::pure::functions::io::print
+//   meta::pure::functions::io::println
+//   meta::pure::functions::lang::extractEnumValue
+//   meta::pure::functions::lang::if
+//   meta::pure::functions::meta::_subTypeOf
+//   meta::pure::functions::meta::elementToPath
+//   meta::pure::functions::meta::getHiddenPayload
+//   meta::pure::functions::meta::lenientPathToElement
+//   meta::pure::functions::meta::pathToElement
+//   meta::pure::functions::meta::reactivate
+//   meta::pure::functions::meta::type
+//   meta::pure::functions::relation::unbounded
+//   meta::pure::functions::string::joinStrings
+//   meta::pure::functions::string::lastIndexOf
+//   meta::pure::functions::string::plus
+//   meta::pure::functions::string::toRepresentation
+//   meta::pure::mapping::resolveStore
+//   meta::pure::metamodel::relation::newTDSRelationAccessor
+//   meta::pure::tools::noDebug
+//   meta::relational::metamodel::filter
+//   meta::relational::metamodel::join
+// SYSTEM-OWNED FUNCTIONS — library functions the system metamodel implements over its
+// rows (SystemMetamodel.java); the platform's versions stand, the spec's bodies are not carried:
+//   meta::pure::functions::meta::getLowerBound
+//   meta::pure::mapping::_classMappingByClass
+//   meta::pure::mapping::_propertyMappingsByPropertyName
+//   meta::pure::mapping::allPropertyMappings
+//   meta::pure::mapping::classMappingById
+//   meta::pure::mapping::classMappings
+//   meta::pure::mapping::enumerationMappingByName
+//   meta::pure::mapping::propertyMappingsByPropertyName
+//   meta::pure::mapping::rootClassMappingByClass
+//   meta::pure::mapping::superMapping
+//   meta::pure::mapping::toDomainValue
+//   meta::relational::mapping::resolvePrimaryKey
+//   meta::relational::metamodel::childByJoinName
+//   meta::relational::metamodel::children
+//   meta::relational::metamodel::column
+//   meta::relational::metamodel::datatype::dataTypeToSqlText
+//   meta::relational::metamodel::mainTable
+//   meta::relational::metamodel::schema
+//   meta::relational::metamodel::table
+//   meta::relational::metamodel::view
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime

@@ -113,6 +113,10 @@ class HarnessDisciplineTest {
             Map.entry("MinimalCorpus.java", 4),
             // the timing ledger: the slowest tests DISPLAYED, no comparison
             Map.entry("MinimalCorpusTest.java", 1),
+            // the eager corpus compile PROBE (COMPILE_EVERYTHING_HOMEWORK §10, run
+            // by name, not a gate): sorted REPORT lines — failures by reason,
+            // package, source file, name — a display, never a verdict
+            Map.entry("EagerCorpusCompileProbe.java", 16),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             Map.entry("DuckWorkspaces.java", 1),

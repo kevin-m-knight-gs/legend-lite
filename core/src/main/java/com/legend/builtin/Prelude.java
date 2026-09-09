@@ -68,6 +68,14 @@ public final class Prelude {
             PARSED.elements().stream()
                     .filter(e -> e instanceof EnumDefinition).map(PackageableElement::qualifiedName)
                     .collect(Collectors.toCollection(() -> new LinkedHashSet<String>())));
+    /** The platform library's FUNCTIONS (legend-pure's platform packages, bodied,
+     * non-test — batch 169): graph copies yield to them (Compiler.withoutPreludeShadows),
+     * the system metamodel's own row-reading twins win over them (Compiler.bootLayer). */
+    private static final Set<String> FUNCTION_FQNS = Collections.unmodifiableSet(
+            PARSED.elements().stream()
+                    .filter(e -> e instanceof com.legend.model.FunctionDefinition)
+                    .map(PackageableElement::qualifiedName)
+                    .collect(Collectors.toCollection(() -> new LinkedHashSet<String>())));
     private static final Set<String> ELEMENT_FQNS = Collections.unmodifiableSet(
             PARSED.elements().stream()
                     .map(PackageableElement::qualifiedName)
@@ -94,6 +102,10 @@ public final class Prelude {
 
     public static Set<String> classFqns() {
         return CLASS_FQNS;
+    }
+
+    public static Set<String> functionFqns() {
+        return FUNCTION_FQNS;
     }
 
     public static Set<String> enumFqns() {

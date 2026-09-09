@@ -72,6 +72,10 @@ class ParserBoundaryArchTest {
             // body runs against (its own spec file, the corpus's library
             // files) — COMPILE_EVERYTHING_HOMEWORK §6, batch 168
             "com/legend/tools/CensusWorlds.java",
+            // the EAGER corpus compile probe (COMPILE_EVERYTHING_HOMEWORK §10) parses
+            // the corpus world plus legend-pure's platform packages to measure what
+            // closes — a measurement run by name, not a gate (batch 169)
+            "com/legend/rcorpus/EagerCorpusCompileProbe.java",
             "com/legend/equivalence/Surfaces.java",
             // Phase 4 entry gate: channel B's front door IS a dialect
             // decision — the PCT sources are the M3 surface, parsed at

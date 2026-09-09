@@ -40,9 +40,9 @@ import java.util.stream.Stream;
  * the pure checkout ({@code -Dlegend.pure.root}, defaulting to the reference
  * checkout like the prelude generator) and skips without it.
  */
-class SpecBodyCensusTest {
+public class SpecBodyCensusTest {
 
-    static final List<String> PLATFORM_ROOTS = List.of(
+    public static final List<String> PLATFORM_ROOTS = List.of(
             "legend-pure-core/legend-pure-m3-core/src/main/resources/platform",
             "legend-pure-core/legend-pure-m3-precisePrimitives/src/main/resources/platform_precise_primitives",
             "legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources/platform_dsl_diagram",

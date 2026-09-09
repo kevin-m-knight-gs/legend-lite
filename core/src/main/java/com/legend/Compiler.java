@@ -254,7 +254,12 @@ public final class Compiler {
         String source = com.legend.builtin.SystemMetamodel.source() + "\n"
                 + com.legend.builtin.Prelude.source();
         return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source), () -> {
-            ParsedModel pre = com.legend.builtin.Prelude.parsedModel();
+            // the system metamodel's own row-reading twins of platform
+            // functions (classMappingById, mainTable, …) are the platform's
+            // implementations — they win over the library's copies exactly
+            // as they win over a graph's (batch 169)
+            ParsedModel pre = com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                    com.legend.builtin.Prelude.parsedModel());
             List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
                     com.legend.builtin.SystemMetamodel.elements());
             elements.addAll(pre.elements());
@@ -294,7 +299,12 @@ public final class Compiler {
             boolean shadow = (el instanceof com.legend.model.ClassDefinition
                     && com.legend.builtin.Prelude.classFqns().contains(el.qualifiedName()))
                     || (el instanceof com.legend.model.EnumDefinition
-                    && com.legend.builtin.Prelude.enumFqns().contains(el.qualifiedName()));
+                    && com.legend.builtin.Prelude.enumFqns().contains(el.qualifiedName()))
+                    // the platform library's FUNCTIONS too (batch 169): a graph copy
+                    // of a legend-pure function (the census's sources, a corpus
+                    // tree's twin) yields to the module's, by name
+                    || (el instanceof com.legend.model.FunctionDefinition
+                    && com.legend.builtin.Prelude.functionFqns().contains(el.qualifiedName()));
             if (!shadow) {
                 kept.add(el);
             }

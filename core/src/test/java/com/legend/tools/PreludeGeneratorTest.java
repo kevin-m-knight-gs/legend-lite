@@ -4,6 +4,8 @@
 package com.legend.tools;
 
 import com.legend.Compiler;
+import com.legend.lexer.TokenType;
+import com.legend.protocol.Protocol;
 import com.legend.compiler.NameResolver;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
@@ -344,6 +346,49 @@ class PreludeGeneratorTest {
         Map<String, PackageableElement> resolved = spec.resolved;
         Map<String, String> declText = spec.declText;
         Map<String, String> fileOf = spec.fileOf;
+        // THE PLATFORM LIBRARY'S FUNCTIONS (COMPILE_EVERYTHING_HOMEWORK §10,
+        // USER 2026-09-09: legend-pure's platform packages WHOLE — classes AND
+        // functions; the eager corpus compile found the platform's own bodied
+        // functions existing in no runtime world): every bodied, non-test
+        // function of the platform roots, VERBATIM under its section's
+        // imports. Natives stay the registry's (`native function` skipped);
+        // test functions are the PCT lane's programs, not the library.
+        List<String> functionWalls = new ArrayList<>();
+        List<PlatformFunction> platformFunctions = new ArrayList<>();
+        // the system metamodel's own row-reading versions of a library
+        // function (classMappingById, allPropertyMappings, mainTable, …) are
+        // the platform's implementation of that NAME, every overload: the
+        // library's copies stay out, listed at the module's foot
+        Set<String> systemOwnedFunctions = new TreeSet<>();
+        // a NAME the platform implements — a registered native (isEmpty, sort,
+        // contains, …) or an operator special form (join, filter, project,
+        // …) — is the platform's definition outright (batch 147 row 19: the
+        // native IS the definition; the operator forms have no signature to
+        // tie-break on): the library's bodies under that name stay out,
+        // else a bare call in a program resolves to the library's FQN through
+        // the core imports and bypasses the platform's form (batch 169:
+        // legend-pure's meta::pure::tds::join captured the corpus's bare
+        // join calls from the built-in join)
+        Set<String> platformOwnedNames = new TreeSet<>();
+        for (PlatformFunction pf : platformFunctions(platformRoots, functionWalls)) {
+            if (com.legend.builtin.SystemMetamodel.elementFqns().contains(pf.fqn())) {
+                systemOwnedFunctions.add(pf.fqn());
+                continue;
+            }
+            String simple = pf.fqn().substring(pf.fqn().lastIndexOf(':') + 1);
+            if (!com.legend.builtin.Pure.nativeFunctionsAt(simple).isEmpty()
+                    || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
+                platformOwnedNames.add(pf.fqn());
+                continue;
+            }
+            platformFunctions.add(pf);
+        }
+        for (PlatformFunction pf : platformFunctions) {
+            declText.put(pf.key(), pf.text());
+            fileOf.put(pf.key(), pf.file());
+            spec.offsetOf.put(pf.key(), pf.offset());
+            spec.scopeOf.put(pf.key(), new ImportScope(pf.wildcards()));
+        }
         Map<String, Integer> offsetOf = spec.offsetOf;
         Map<String, ImportScope> scopeOf = spec.scopeOf;
         for (String fqn : want) {
@@ -407,7 +452,11 @@ class PreludeGeneratorTest {
         // ###Pure sections with different imports; each element keeps its own)
         Map<String, List<String>> bySection = new TreeMap<>();
         Map<String, ImportScope> sectionScope = new LinkedHashMap<>();
-        for (String fqn : want) {
+        List<String> emitted = new ArrayList<>(want);
+        for (PlatformFunction pf : platformFunctions) {
+            emitted.add(pf.key());
+        }
+        for (String fqn : emitted) {
             String file = relative(fileOf.get(fqn), engine, pure);
             ImportScope scope = scopeOf.get(fqn);
             String tier = file.startsWith("legend-pure/") ? "0" : "1";
@@ -417,6 +466,7 @@ class PreludeGeneratorTest {
         }
         int classes = 0;
         int enums = 0;
+        int functions = 0;
         for (Map.Entry<String, List<String>> section : bySection.entrySet()) {
             String file = section.getKey().split("\t")[1];
             sb.append("\n###Pure\n// ").append(file);
@@ -431,7 +481,9 @@ class PreludeGeneratorTest {
             List<String> inOrder = new ArrayList<>(section.getValue());
             inOrder.sort(java.util.Comparator.comparingInt(offsetOf::get));
             for (String fqn : inOrder) {
-                if (resolved.get(fqn) instanceof ClassDefinition) {
+                if (fqn.indexOf('#') >= 0) {
+                    functions++;
+                } else if (resolved.get(fqn) instanceof ClassDefinition) {
                     classes++;
                 } else {
                     enums++;
@@ -439,7 +491,23 @@ class PreludeGeneratorTest {
                 sb.append(declText.get(fqn)).append("\n\n");
             }
         }
-        sb.append("// ").append(classes).append(" classes, ").append(enums).append(" enums.\n");
+        sb.append("// ").append(classes).append(" classes, ").append(enums).append(" enums, ")
+                .append(functions).append(" functions (legend-pure's platform library, bodied and non-test;")
+                .append(functionWalls.size()).append(" files unparsed, the census's load walls).\n");
+        if (!platformOwnedNames.isEmpty()) {
+            sb.append("// PLATFORM-OWNED NAMES — library functions whose name the platform implements (a registered\n");
+            sb.append("// native or an operator special form: the native IS the definition, Pure.java); not carried:\n");
+            for (String f : platformOwnedNames) {
+                sb.append("//   ").append(f).append('\n');
+            }
+        }
+        if (!systemOwnedFunctions.isEmpty()) {
+            sb.append("// SYSTEM-OWNED FUNCTIONS — library functions the system metamodel implements over its\n");
+            sb.append("// rows (SystemMetamodel.java); the platform's versions stand, the spec's bodies are not carried:\n");
+            for (String f : systemOwnedFunctions) {
+                sb.append("//   ").append(f).append('\n');
+            }
+        }
         if (!pulledFromCorpus.isEmpty()) {
             sb.append("// T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields\n");
             sb.append("// (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:\n");
@@ -452,14 +520,34 @@ class PreludeGeneratorTest {
         // to exactly the wanted declarations
         ParsedModel whole = ElementParser.parse(module, Dialect.LEGEND_PLATFORM);
         Set<String> parsedFqns = new TreeSet<>();
-        whole.elements().forEach(e -> parsedFqns.add(e.qualifiedName()));
-        if (whole.elements().size() != classes + enums || !parsedFqns.equals(new TreeSet<>(want))) {
+        int parsedFunctions = 0;
+        for (PackageableElement e : whole.elements()) {
+            if (e instanceof com.legend.model.FunctionDefinition) {
+                parsedFunctions++;   // overloads are distinct elements
+            } else {
+                parsedFqns.add(e.qualifiedName());
+            }
+        }
+        // and RESOLVES, as the boot layer will resolve it — beside the system
+        // metamodel's names, strictly: a function whose signature or body
+        // names something outside the module is a generator error here,
+        // never a boot failure later (COMPILE_EVERYTHING: strict at boot)
+        Map<String, String> resolveWalls = new LinkedHashMap<>();
+        NameResolver.resolveAlongside(whole,
+                com.legend.builtin.SystemMetamodel.elementFqns(), resolveWalls);
+        if (!resolveWalls.isEmpty()) {
+            throw new IllegalStateException("prelude generator: the module does not resolve"
+                    + " against the boot names (" + resolveWalls.size() + "): " + resolveWalls);
+        }
+        if (whole.elements().size() - parsedFunctions != classes + enums
+                || !parsedFqns.equals(new TreeSet<>(want)) || parsedFunctions != functions) {
             Set<String> missing = new TreeSet<>(want);
             missing.removeAll(parsedFqns);
             Set<String> extra = new TreeSet<>(parsedFqns);
             extra.removeAll(want);
             throw new IllegalStateException("prelude generator: the module parses to "
-                    + whole.elements().size() + " elements, expected " + (classes + enums)
+                    + (whole.elements().size() - parsedFunctions) + " declarations + "
+                    + parsedFunctions + " functions, expected " + (classes + enums) + " + " + functions
                     + "; missing " + missing + ", extra " + extra);
         }
         return module;
@@ -1043,6 +1131,95 @@ class PreludeGeneratorTest {
             }
         }
         assertTrue(decls.size() >= 85, "m3.pure declares 85 classes; read " + decls.size());
+    }
+
+    /** One platform-library function: its module key ({@code fqn#offset} —
+     * overloads share an FQN), its verbatim text, its spec file and offset,
+     * and the wildcard imports of the section it sits in. */
+    record PlatformFunction(String key, String fqn, String file, int offset, String text,
+                            List<String> wildcards) {
+    }
+
+    private static final Pattern IMPORT_LINE = Pattern.compile("(?m)^\\s*import\\s+([A-Za-z0-9_:]+)::\\*;");
+
+    /** Every bodied, non-test {@code function} declaration in the platform
+     * roots, sliced VERBATIM by the parser ({@code parseFunctionProtocol}
+     * from the {@code function} token to the end of its body); a file that
+     * does not parse whole is a wall (the census's load walls), never a
+     * partial copy. Test functions ({@code test.*}, {@code PCT.test}) are the
+     * PCT lane's programs and stay out; {@code PCT.function} marks a library
+     * function under conformance and stays in. */
+    static List<PlatformFunction> platformFunctions(List<Path> platformRoots, List<String> walls)
+            throws IOException {
+        List<PlatformFunction> out = new ArrayList<>();
+        for (Path root : platformRoots) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            List<Path> files;
+            try (Stream<Path> walk = Files.walk(root)) {
+                files = walk.filter(p -> p.toString().endsWith(".pure")).sorted().toList();
+            }
+            for (Path f : files) {
+                String text = Files.readString(f, StandardCharsets.UTF_8);
+                List<String> parseWalls = new ArrayList<>();
+                Compiler.parseSources(List.of(new Compiler.ModelSource(f.toString(), text)),
+                        (n, e) -> parseWalls.add(n + ": " + e), Dialect.LEGEND_PLATFORM);
+                if (!parseWalls.isEmpty()) {
+                    walls.add(parseWalls.get(0));
+                    continue;
+                }
+                TokenStream ts = Lexer.tokenize(text);
+                int depth = 0;
+                for (int k = 0; k < ts.count(); k++) {
+                    if (ts.type(k) == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (ts.type(k) == TokenType.BRACE_CLOSE) {
+                        depth--;
+                    }
+                    // a DECLARATION-position `function`: at brace depth 0 (a
+                    // class's property named `function` sits at depth 1, so
+                    // does a Profile's stereotype list), the first token or
+                    // right after a previous declaration's `;` or `}` (section
+                    // headers lex to nothing; `native function` follows NATIVE,
+                    // the keyword in `<<PCT.function>>` follows a DOT).
+                    if (depth != 0 || ts.type(k) != TokenType.FUNCTION
+                            || (k > 0 && ts.type(k - 1) != TokenType.SEMI_COLON
+                                    && ts.type(k - 1) != TokenType.BRACE_CLOSE)) {
+                        continue;
+                    }
+                    ElementParser p = ElementParser.at(ts, k, Dialect.LEGEND_PLATFORM);
+                    Protocol.PFunction fn;
+                    try {
+                        fn = p.parseFunctionProtocol();
+                    } catch (com.legend.parser.ParseException e) {
+                        throw new IllegalStateException("prelude generator: function slice at "
+                                + f + " token " + k + " (" + ts.text(Math.min(k + 1, ts.count() - 1))
+                                + "…): " + e.getMessage(), e);
+                    }
+                    boolean test = fn.stereotypes().stream().anyMatch(st ->
+                            st.profile().endsWith("test") && !st.profile().endsWith("PCT")
+                                    || (st.profile().endsWith("PCT") && st.value().equals("test")));
+                    int start = ts.start(k);
+                    String fqn = fn.pkg().isEmpty() ? fn.name() : fn.pkg() + "::" + fn.name();
+                    // a `tests` package is test SUPPORT (fixture models, helpers
+                    // over them — the equality test model's ClassWithoutEquality):
+                    // the PCT lane's world, not the library's
+                    if (test || fqn.contains("::tests::")) {
+                        continue;
+                    }
+                    int sectionStart = Math.max(0, text.lastIndexOf("###Pure", start));
+                    List<String> wildcards = new ArrayList<>();
+                    Matcher im = IMPORT_LINE.matcher(text.substring(sectionStart, start));
+                    while (im.find()) {
+                        wildcards.add(im.group(1));
+                    }
+                    out.add(new PlatformFunction(fqn + "#" + start, fqn, f.toString(), start,
+                            text.substring(start, ts.end(p.pos() - 1)), wildcards));
+                }
+            }
+        }
+        return out;
     }
 
     /**

@@ -134,6 +134,28 @@ public final class MinimalCorpus {
     }
 
     private final ModelContext ctx;
+
+    /** The corpus's ONE compiled world (libraries, shapes, every corpus
+     * file) — the eager-compile probe types every body in it
+     * (COMPILE_EVERYTHING_HOMEWORK, P3: "everything compiles when needed"). */
+    public ModelContext context() {
+        return ctx;
+    }
+
+    private final Map<String, String> elementSources;
+    private final List<Compiler.ModelSource> sources;
+
+    /** Every source unit the corpus world was parsed from (the eager-compile
+     * probe rebuilds the world with more files to measure what they close). */
+    public List<Compiler.ModelSource> sources() {
+        return sources;
+    }
+
+    /** Element FQN → the source unit it was parsed from (the eager-compile
+     * probe attributes failures by file). */
+    public Map<String, String> elementSources() {
+        return elementSources;
+    }
     private final List<TestCase> tests = new ArrayList<>();
     /** {@code <<test.BeforePackage>>} functions by package. */
     private final Map<String, List<String>> setupsByPackage = new LinkedHashMap<>();
@@ -242,6 +264,8 @@ public final class MinimalCorpus {
                                 new com.legend.model.ConnectionSpecification.InMemory(),
                                 new com.legend.model.AuthenticationSpec.NoAuth()));
         discover(parsed.model());
+        elementSources = Map.copyOf(parsed.model().elementSources());
+        sources = List.copyOf(all);
         // the shared fixture's own zero-arg functions (parsed apart so
         // their FQNs are known without an element→source index)
         Compiler.ParsedModule sharedParsed = Compiler.parseSources(shared,

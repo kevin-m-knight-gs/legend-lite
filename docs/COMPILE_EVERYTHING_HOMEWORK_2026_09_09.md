@@ -143,3 +143,55 @@ as "bodies resolve where they run" applied to the measurement.
 - "The T4 list is stable" (batch 155): a redefinition; the list burns (B6).
 - "The prelude-as-module program is complete" (batch 167): TRUE for the module MECHANISM (steps 1–5 of its homework);
   NOT a claim that everything compiles. This document is the program for that.
+
+## 10. Measurements and rulings (2026-09-09, batches 168–169)
+
+**10.1 The eager compile (P3 measured).** `EagerCorpusCompileProbe` (test tree, run by name — the user deferred gates
+until the work is done) types every body of the corpus's compiled world through `Compiler.compileAllBodies`:
+
+| | before step 2 | after step 2 |
+|---|---|---|
+| bodies | 9,099 | 9,173 |
+| fail | 1,605 | 1,562 |
+| unknown function | 678 | 629 |
+| unknown type | 445 | 445 |
+| kernel / other | 416 | 422 |
+| overload | 61 | 61 |
+
+Typing all of them takes ~1.3 s: demand-driven compile is an optimization, not a cost saving. Where the failures live:
+the engine's protocol serializers, one copy per protocol version (14 versions, ~820); the engine SQL compiler (~300:
+`pureToSQLQuery.pure` 131/398, its variant, `relationalMappingExecution`, `sqlQueryToString`); model-to-model TESTS
+(228, all under `test::`) blocked on `defaultExtensions()` (148) and `serializerExtension()` (63); four natives with no
+registration (`stereotype` 15, `replaceTreeNode` 14, `executeHTTPRaw` 11, `mutateAdd` 6); fixture classes in files the
+corpus never admits (`Firm`, `Person`, `HealthProfile`); our own typer gaps (`dataQuality.pure` 25/27,
+`constraints.pure` 17/17, `milestoning.pure` 15/80). Test bodies 395, non-test 1,211.
+
+**10.2 The second world.** The corpus + legend-pure's platform packages WHOLE closed 111 world-1 failures — the
+platform's own bodied functions (`class`, `hasUpperBound`, `otherTableFromAlias`, `mainRelation`,
+`dataTypeToCompatiblePureType`, the mapping helpers) existed in no runtime world — but poisoned 523 elements (the
+corpus tree's copies collide). Conclusion: the library enters through the boot layer, never as graph sources.
+
+**10.3 The rulings (USER 2026-09-09).**
+1. The prelude carries legend-pure's platform packages WHOLE, functions included (T1 as written; batch 155's
+   narrowing to shapes was wrong). T2 stands for engine files.
+2. Engine classes' bodies in the prelude are walled AT THE BODY when they are the engine's implementation of a platform
+   concern (the SQL printer, plan-time schema inference, the serializer registry, external-format validation), each
+   with its reason; engine machinery in the corpus is walled BY FILE. The un-walling mechanism is the generator's
+   call-following slice, on demand, with a witness. No stub functions ("register the callees with a fail body" is the
+   phantom-native mechanism rejected in batch 147: it makes the gate tautological and puts the receipt on the callee).
+3. `defaultExtensions()` is a platform function, typing-only, beside `relationalExtensions()`.
+4. The four natives get registrations (a lowering or a named wall).
+Also: the four functions batch 150 registered (`createDbConfig`, `toSQLString`, `setUpDataSQLs`, `testedBy`) are spec
+PROGRAMS the platform deliberately owns (its compiler, its harness); that ownership — not any test — is why `DbConfig`,
+`SQLResult` and `Extension` are in the prelude, and it makes their seven walled printer bodies permanent by design.
+
+**10.4 Sizing.** legend-pure's nine platform packages: 261 files, ~21k lines; 390 classes/enums (in the prelude),
+222 natives (the registry's), 952 test functions (the PCT lane's), 257 bodied functions. "Only what is referenced"
+would define the library by our harness; whole is 257 functions that all compile. Of the 257: 20 are the system
+store's (it owns the NAME), 161 overloads share a name with a native or an operator form (the platform's definition —
+a library twin CAPTURES bare calls through the core imports: batch 169's 12 lost tests), the `tests` packages are test
+support; 74 remain and are carried.
+
+**10.5 Steps 1–6 (status).** 1 measured (batch 168–169; gates deferred). 2 LANDED (batch 169). 3 `defaultExtensions`
+next. 4 the four natives. 5 walls by file (the 14 protocol versions first). 6 the residue as named legs. Gates: decided
+after 6, on the measured numbers.

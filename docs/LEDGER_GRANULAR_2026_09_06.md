@@ -995,3 +995,15 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 3 | `mutateAdd` bucketed B2 at first | it is an ENGINE native (core_functions_unclassified), not legend-pure: the marking index scans the engine tree | CensusWorlds.engineNativeNames |
 | 4 | "B2 == 0 always" (homework §6) | wrong: a file no program loads is a real row (D2); pinned 5 | homework |
 | 5 | USER: "where did you use dialect? revert if in compiler" | only the test helper parses spec files (the census's own call); nothing under src/main touched; registered in ParserBoundaryArchTest with its reason | — |
+
+## 42. Batch 169 — compile-everything step 2: the platform library's functions; the eager compile (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | eager compile 9,099 / 1,605 in 1.3 s | measured, ungated (user); the probe stays a tool run by name | EagerCorpusCompileProbe, MinimalCorpus accessors |
+| 2 | the platform's bodied functions in no runtime world | T1 whole: classes AND functions, through the boot layer | PreludeGeneratorTest.platformFunctions, Prelude, Compiler |
+| 3 | `ClassWithoutEquality` unknown at boot | `tests` packages are test support, excluded; the module now RESOLVES at generation | generator |
+| 4 | `allPropertyMappings` census row | the system store owns the NAME (all overloads), not just the same-shape twin | generator receipt list |
+| 5 | 12 tds-extension tests lost: bare `join` captured by legend-pure's `meta::pure::tds::join` via the core imports | PLATFORM-OWNED NAMES: a name with a registered native or an operator form is the platform's — 161 overloads listed, not carried | generator receipt list |
+| 6 | USER rulings recorded (the four) and the order 1–6; gates deferred until the work is done | — | homework §10 |
+| 7 | `function` lexes as a keyword in three non-declaration positions | declaration-position rule (depth 0, after `;`/`}`) | generator |
