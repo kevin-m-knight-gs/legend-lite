@@ -932,3 +932,18 @@ CI pins `JAVA_TOOL_OPTIONS=-Xmx4g` (it caps the Maven JVM too, where the Pure
 PAR generation plugin peaks around 2.5 GB). **Validate any chain change under
 that same cap locally before pushing** — `JAVA_TOOL_OPTIONS=-Xmx4g
 MVN_OFFLINE=0 tools/allgates.sh` — or the runner finds what the laptop hides.
+
+**Lint the workflows before pushing them** (added the hard way, same day): the
+first version of `gate.yml` filtered the lane matrix with a job-level
+`if: ${{ ... matrix.lane.gate ... }}`. A job-level `if` may read only
+`github`, `inputs`, `needs` and `vars` — so the FILE was invalid, GitHub ran
+**zero jobs**, and the run appeared as a failure named after the file path with
+no logs to read. The lane list is now data computed in a `setup` job and
+consumed via `fromJSON`. `actionlint` flags exactly this in under a second:
+
+    curl -sL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_darwin_arm64.tar.gz | tar xz actionlint
+    ./actionlint
+
+A `lint workflows` job runs it in CI too, but note what that job CANNOT do: a
+workflow whose own file is invalid never starts. The local run is the one that
+protects `gate.yml` itself.

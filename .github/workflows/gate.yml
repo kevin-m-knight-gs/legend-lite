@@ -44,6 +44,60 @@ env:
   JAVA_TOOL_OPTIONS: -Xmx4g
 
 jobs:
+  # The lane matrix is DATA, computed here, because a job-level `if` cannot
+  # read the `matrix` context (GitHub allows only github/needs/vars/inputs
+  # there — an `if` on matrix.* makes the whole file invalid, zero jobs, and
+  # a run named after the file path). So workflow_dispatch's gate selection
+  # filters the list before it becomes a matrix.
+  setup:
+    name: lane matrix
+    runs-on: ubuntu-latest
+    outputs:
+      lanes: ${{ steps.pick.outputs.lanes }}
+    steps:
+      - id: pick
+        env:
+          WANT: ${{ inputs.gates }}
+        run: |
+          set -eu
+          all='[
+            {"name":"gate 4 DuckDB corpus",          "gate":"4","gates":"2,4"},
+            {"name":"gate 5 H2 corpus",              "gate":"5","gates":"2,5"},
+            {"name":"gate 6 PCT DuckDB",             "gate":"6","gates":"2,6"},
+            {"name":"gate 7 PCT H2 relation",        "gate":"7","gates":"2,7"},
+            {"name":"gate 9 Channel B dual-verdict", "gate":"9","gates":"2,9"},
+            {"name":"gate 8 parser equivalence",     "gate":"8","gates":"8"}
+          ]'
+          if [ -n "${WANT:-}" ]; then
+            lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," \
+              '[.[] | select($w | contains("," + .gate + ","))]')
+          else
+            lanes=$(printf '%s' "$all" | jq -c .)
+          fi
+          # an empty matrix makes the lanes job fail with a cryptic runner
+          # error — say what actually went wrong instead
+          [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
+            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 4,5,6,7,8,9 (gate 1 always runs, gate 2 is folded into each lane)"
+            exit 1
+          }
+          echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
+          echo "$lanes" | jq -r '.[].name' | sed 's/^/lane: /'
+
+  # A workflow whose OWN file is invalid never runs (GitHub reports zero jobs
+  # and names the run after the file path — how the first version of this file
+  # failed). So workflows are linted LOCALLY before a push, and here as well,
+  # which catches an edit to any OTHER workflow before it is merged.
+  workflows:
+    name: lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            | tar xz actionlint
+          ./actionlint -color
+
   core:
     name: gate 1 core suite
     runs-on: ubuntu-latest
@@ -75,22 +129,14 @@ jobs:
 
   lanes:
     name: ${{ matrix.lane.name }}
-    needs: core
+    needs: [setup, core]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       # collect-all semantics, like the local chain: every lane reports
       fail-fast: false
       matrix:
-        lane:
-          - { name: "gate 4 DuckDB corpus",            gate: 4, gates: "2,4" }
-          - { name: "gate 5 H2 corpus",                gate: 5, gates: "2,5" }
-          - { name: "gate 6 PCT DuckDB",               gate: 6, gates: "2,6" }
-          - { name: "gate 7 PCT H2 relation",          gate: 7, gates: "2,7" }
-          - { name: "gate 9 Channel B dual-verdict",   gate: 9, gates: "2,9" }
-          - { name: "gate 8 parser equivalence",       gate: 8, gates: "8"   }
-    # workflow_dispatch with a gate list runs only those lanes
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.gates == '' || contains(format(',{0},', inputs.gates), format(',{0},', matrix.lane.gate)) }}
+        lane: ${{ fromJSON(needs.setup.outputs.lanes) }}
     steps:
       - uses: actions/checkout@v4
         with:
