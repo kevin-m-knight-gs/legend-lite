@@ -142,6 +142,17 @@ class PreludeGeneratorTest {
             }
         }
 
+        // 1a. m3.pure — the one spec file in the M3 instance syntax — indexes
+        // through the reader: its classes and enumerations are spec
+        // declarations like any other (T1: legend-pure's platform packages
+        // whole), printed from the graph, never copied as text
+        Path m3File = pure.resolve(
+                "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure");
+        Map<String, String> m3Decls = m3Declarations(Files.readString(m3File, StandardCharsets.UTF_8));
+        for (String fqn : m3Decls.keySet()) {
+            index.putIfAbsent(fqn, m3File);
+        }
+
         // 1b. PROVENANCE of every hand declaration: a class Pure.java still
         // declares by hand must be a spec shape (indexed — a Java-referenced
         // definition or a carrier awaiting migration), an m3 BOOTSTRAP shape
@@ -299,7 +310,7 @@ class PreludeGeneratorTest {
         // (Spec.close: the closure walk, reusable — the T1 demand below runs it too)
         Set<String> knownFqns = new LinkedHashSet<>(index.keySet());
         knownFqns.addAll(owned);
-        Spec spec = new Spec(index, platformOwned, corpusDefined, knownFqns);
+        Spec spec = new Spec(index, platformOwned, corpusDefined, knownFqns, m3File, m3Decls);
         // THE DEMAND IS T1 (PRELUDE_MODULE_HOMEWORK §2, PHASE3_DEMAND_CUT_HOMEWORK;
         // batch 155 = phase 3b-2): (1) legend-pure's platform packages WHOLE —
         // every class and enum under the nine platform roots, minus the decided
@@ -408,7 +419,12 @@ class PreludeGeneratorTest {
         int enums = 0;
         for (Map.Entry<String, List<String>> section : bySection.entrySet()) {
             String file = section.getKey().split("\t")[1];
-            sb.append("\n###Pure\n// ").append(file).append('\n');
+            sb.append("\n###Pure\n// ").append(file);
+            if (file.endsWith("/grammar/m3.pure")) {
+                sb.append(" — PRINTED from the M3 instance graph by the generator's reader (no class syntax to copy):"
+                        + " stored properties, supertypes, type and multiplicity parameters; m3's qualified properties are not carried");
+            }
+            sb.append('\n');
             for (String pkg : sectionScope.get(section.getKey()).wildcards()) {
                 sb.append("import ").append(pkg).append("::*;\n");
             }
@@ -471,13 +487,35 @@ class PreludeGeneratorTest {
         final Map<String, ImportScope> scopeOf = new LinkedHashMap<>();
         final Set<Path> parsedFiles = new LinkedHashSet<>();
         final Map<String, TokenStream> tokensOf = new LinkedHashMap<>();
+        final Path m3File;
+        final Map<String, String> m3Decls;
 
         Spec(Map<String, Path> index, Set<String> platformOwned, Set<String> corpusDefined,
-                Set<String> knownFqns) {
+                Set<String> knownFqns, Path m3File, Map<String, String> m3Decls) {
             this.index = index;
             this.platformOwned = platformOwned;
             this.corpusDefined = corpusDefined;
             this.knownFqns = knownFqns;
+            this.m3File = m3File;
+            this.m3Decls = m3Decls;
+        }
+
+        /** An m3 declaration enters the caches from the READER's print. */
+        private void admitM3(String fqn) {
+            if (resolved.containsKey(fqn)) {
+                return;
+            }
+            String text = m3Decls.get(fqn);
+            ParsedModel one = ElementParser.parse(text, Dialect.LEGEND_PLATFORM);
+            if (one.elements().size() != 1) {
+                throw new IllegalStateException("m3 reader: '" + fqn + "' printed as "
+                        + one.elements().size() + " elements: " + text);
+            }
+            resolved.put(fqn, one.elements().get(0));
+            declText.put(fqn, text);
+            fileOf.put(fqn, m3File.toString());
+            offsetOf.put(fqn, new ArrayList<>(m3Decls.keySet()).indexOf(fqn));
+            scopeOf.put(fqn, ImportScope.empty());
         }
 
         Closure close(Set<String> seed) throws IOException {
@@ -494,6 +532,10 @@ class PreludeGeneratorTest {
                 List<Compiler.ModelSource> sources = new ArrayList<>();
                 for (String fqn : new ArrayList<>(want)) {
                     Path f = index.get(fqn);
+                    if (f != null && f.equals(m3File)) {
+                        admitM3(fqn);
+                        continue;
+                    }
                     if (f != null && parsedFiles.add(f)) {
                         sources.add(new Compiler.ModelSource(f.toString(),
                                 Files.readString(f, StandardCharsets.UTF_8)));
@@ -614,6 +656,391 @@ class PreludeGeneratorTest {
                             .map(e -> e.getKey() + " [" + e.getValue() + "]")
                             .collect(java.util.stream.Collectors.joining("\n  ")));
         }
+    }
+
+    // ------------------------------------------------------------------
+    // the m3 reader: legend-pure's m3.pure is the ONE spec file in the M3
+    // instance (graph) syntax — no `Class` text to copy — so its classes are
+    // read structurally and PRINTED as declarations: stored properties,
+    // supertypes, type and multiplicity parameters, fully qualified. What
+    // it does not carry (receipt): m3's qualified properties, whose bodies
+    // are graph-encoded expression sequences (the Typer serves the two the
+    // platform needs, classifierGenericType / elementOverride, by hand).
+    // A shape it cannot read fails LOUDLY — never a guessed declaration.
+    // ------------------------------------------------------------------
+
+    /** A parsed M3 value: a path, an instance ({@code ^classifier [name] { entries }}),
+     * a list, a string or a number. */
+    sealed interface M3 permits M3.Path, M3.Instance, M3.Items, M3.Str, M3.Num {
+        record Path(String text) implements M3 {
+            /** {@code Root.children[a].children[b]…} → {@code a::b::…}; a bare
+             * name (a primitive: {@code Integer}) stays bare. */
+            String fqn() {
+                Matcher m = Pattern.compile("children\\[([A-Za-z0-9_]+)\\]").matcher(text);
+                List<String> parts = new ArrayList<>();
+                while (m.find()) {
+                    parts.add(m.group(1));
+                }
+                if (parts.isEmpty()) {
+                    // a PRIMITIVE is spelled by its root name (Integer, String):
+                    // the m3 primitive types live in meta::pure::metamodel::type
+                    return HAND_CARRIERS.containsKey("meta::pure::metamodel::type::" + text)
+                            ? "meta::pure::metamodel::type::" + text : text;
+                }
+                return String.join("::", parts);
+            }
+            String last() {
+                int i = text.lastIndexOf('[');
+                return i < 0 ? text : text.substring(i + 1, text.length() - 1);
+            }
+        }
+        record Instance(String classifier, @com.legend.Nullable String name,
+                @com.legend.Nullable String at, Map<String, M3> entries) implements M3 {
+            /** The entry whose key ends with {@code properties[<key>]}. */
+            @com.legend.Nullable M3 entry(String key) {
+                for (Map.Entry<String, M3> e : entries.entrySet()) {
+                    if (e.getKey().endsWith("properties[" + key + "]")) {
+                        return e.getValue();
+                    }
+                }
+                return null;
+            }
+        }
+        record Items(List<M3> items) implements M3 {
+        }
+        record Str(String value) implements M3 {
+        }
+        record Num(String value) implements M3 {
+        }
+    }
+
+    /** A recursive-descent reader of the m3 instance syntax. */
+    static final class M3Reader {
+        private final String src;
+        private int i;
+
+        M3Reader(String src) {
+            this.src = src;
+        }
+
+        /** Every TOP-LEVEL named instance of the file, in order. */
+        static List<M3.Instance> topLevel(String src) {
+            M3Reader r = new M3Reader(src);
+            List<M3.Instance> out = new ArrayList<>();
+            while (true) {
+                r.ws();
+                if (r.i >= src.length()) {
+                    break;
+                }
+                if (r.peek() == '^') {
+                    out.add(r.instance());
+                } else {
+                    // a non-instance top-level line (imports, section markers,
+                    // functions in class syntax): skip the line
+                    int nl = src.indexOf('\n', r.i);
+                    r.i = nl < 0 ? src.length() : nl + 1;
+                }
+            }
+            return out;
+        }
+
+        private char peek() {
+            return src.charAt(i);
+        }
+
+        private void ws() {
+            while (i < src.length()) {
+                char c = src.charAt(i);
+                if (Character.isWhitespace(c)) {
+                    i++;
+                } else if (c == '/' && i + 1 < src.length() && src.charAt(i + 1) == '/') {
+                    int nl = src.indexOf('\n', i);
+                    i = nl < 0 ? src.length() : nl;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        /** {@code Root.children[a].children[b]…}, optionally ending in a bare
+         * segment ({@code …children[relationship].children} — a package path). */
+        private static final Pattern PATH = Pattern.compile(
+                "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_]+(?:\\[[A-Za-z0-9_]+\\])?)*");
+
+        private String path() {
+            Matcher m = PATH.matcher(src);
+            if (!m.find(i) || m.start() != i) {
+                throw new IllegalStateException("m3 reader: expected a path at " + where());
+            }
+            i = m.end();
+            return m.group();
+        }
+
+        private String where() {
+            int line = 1;
+            for (int k = 0; k < i && k < src.length(); k++) {
+                if (src.charAt(k) == '\n') {
+                    line++;
+                }
+            }
+            return "line " + line + ": '" + src.substring(i, Math.min(src.length(), i + 60)).replace('\n', ' ') + "'";
+        }
+
+        private void expect(char c) {
+            ws();
+            if (i >= src.length() || src.charAt(i) != c) {
+                throw new IllegalStateException("m3 reader: expected '" + c + "' at " + where());
+            }
+            i++;
+        }
+
+        /** {@code ^classifier [name] [@at] { key : value, … }} */
+        private M3.Instance instance() {
+            expect('^');
+            ws();
+            String classifier = path();
+            ws();
+            String name = null;
+            String at = null;
+            if (i < src.length() && Character.isLetter(peek())) {
+                name = path();
+                ws();
+            }
+            if (i < src.length() && peek() == '@') {
+                i++;
+                at = path();
+                ws();
+            }
+            Map<String, M3> entries = new LinkedHashMap<>();
+            expect('{');
+            while (true) {
+                ws();
+                if (peek() == '}') {
+                    i++;
+                    break;
+                }
+                String key = path();
+                expect(':');
+                ws();
+                entries.put(key, value());
+                ws();
+                if (peek() == ',') {
+                    i++;
+                }
+            }
+            return new M3.Instance(classifier, name, at, entries);
+        }
+
+        private M3 value() {
+            ws();
+            char c = peek();
+            if (c == '^') {
+                return instance();
+            }
+            if (c == '[') {
+                i++;
+                List<M3> items = new ArrayList<>();
+                while (true) {
+                    ws();
+                    if (peek() == ']') {
+                        i++;
+                        break;
+                    }
+                    items.add(value());
+                    ws();
+                    if (peek() == ',') {
+                        i++;
+                    }
+                }
+                return new M3.Items(items);
+            }
+            if (c == '\'') {
+                int start = ++i;
+                while (src.charAt(i) != '\'') {
+                    if (src.charAt(i) == '\\') {
+                        i++;
+                    }
+                    i++;
+                }
+                return new M3.Str(src.substring(start, i++));
+            }
+            if (Character.isDigit(c) || c == '-') {
+                int start = i++;
+                while (i < src.length() && (Character.isDigit(peek()) || peek() == '.')) {
+                    i++;
+                }
+                return new M3.Num(src.substring(start, i));
+            }
+            return new M3.Path(path());
+        }
+    }
+
+    /** The m3 classes as printed declarations, keyed by FQN. */
+    static Map<String, String> m3Declarations(String m3Source) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (M3.Instance inst : M3Reader.topLevel(m3Source)) {
+            boolean cls = inst.classifier().endsWith("children[Class]");
+            boolean enm = inst.classifier().endsWith("children[Enumeration]");
+            if ((!cls && !enm) || inst.name() == null) {
+                continue;
+            }
+            String pkg = inst.at() == null ? null : new M3.Path(inst.at()).fqn();
+            // m3 declares Package (no @package) at the metamodel root
+            String fqn = (pkg == null || pkg.isEmpty() ? "meta::pure::metamodel" : pkg) + "::" + inst.name();
+            if (cls) {
+                out.put(fqn, m3Class(fqn, inst));
+            } else {
+                List<String> values = new ArrayList<>();
+                for (M3 v : items(inst.entry("values"))) {
+                    M3.Instance vi = (M3.Instance) v;
+                    values.add(vi.name() != null ? vi.name() : str(vi.entry("name")));
+                }
+                out.put(fqn, "Enum " + fqn + " { " + String.join(", ", values) + " }");
+            }
+        }
+        return out;
+    }
+
+    private static String m3Class(String fqn, M3.Instance cls) {
+        StringBuilder sb = new StringBuilder("Class ").append(fqn);
+        List<String> typeParams = new ArrayList<>();
+        for (M3 tp : items(cls.entry("typeParameters"))) {
+            typeParams.add(str(((M3.Instance) tp).entry("name")));
+        }
+        List<String> multParams = new ArrayList<>();
+        for (M3 mp : items(cls.entry("multiplicityParameters"))) {
+            // spelled as an InstanceValue whose values are the parameter names
+            if (mp instanceof M3.Str s) {
+                multParams.add(s.value());
+            } else if (mp instanceof M3.Instance iv && iv.entry("values") != null) {
+                for (M3 v : items(iv.entry("values"))) {
+                    multParams.add(str(v));
+                }
+            } else {
+                throw new IllegalStateException("m3 reader: cannot read the multiplicity parameters of " + fqn + ": " + mp);
+            }
+        }
+        if (!typeParams.isEmpty() || !multParams.isEmpty()) {
+            sb.append('<').append(String.join(",", typeParams));
+            if (!multParams.isEmpty()) {
+                sb.append('|').append(String.join(",", multParams));
+            }
+            sb.append('>');
+        }
+        List<String> supers = new ArrayList<>();
+        for (M3 g : items(cls.entry("generalizations"))) {
+            supers.add(genericType(((M3.Instance) g).entry("general")));
+        }
+        if (!supers.isEmpty()) {
+            sb.append(" extends ").append(String.join(", ", supers));
+        }
+        sb.append(" {");
+        for (M3 p : items(cls.entry("properties"))) {
+            M3.Instance prop = (M3.Instance) p;
+            String name = prop.name() != null ? prop.name() : str(prop.entry("name"));
+            sb.append(' ').append(name).append(": ")
+                    .append(genericType(prop.entry("genericType")))
+                    .append(multiplicity(prop.entry("multiplicity"))).append(';');
+        }
+        return sb.append(" }").toString();
+    }
+
+    private static List<M3> items(@com.legend.Nullable M3 v) {
+        return v == null ? List.of() : v instanceof M3.Items it ? it.items() : List.of(v);
+    }
+
+    private static String str(@com.legend.Nullable M3 v) {
+        if (v instanceof M3.Str s) {
+            return s.value();
+        }
+        throw new IllegalStateException("m3 reader: expected a string, got " + v);
+    }
+
+    /** A GenericType instance → its type spelling: a raw type with arguments,
+     * a type parameter, or a function type. */
+    private static String genericType(@com.legend.Nullable M3 v) {
+        if (!(v instanceof M3.Instance g)) {
+            throw new IllegalStateException("m3 reader: expected a GenericType instance, got " + v);
+        }
+        M3 tp = g.entry("typeParameter");
+        if (tp instanceof M3.Instance tpi) {
+            return str(tpi.entry("name"));
+        }
+        M3 raw = g.entry("rawType");
+        if (raw instanceof M3.Path p) {
+            String base = p.fqn();
+            List<String> args = new ArrayList<>();
+            for (M3 a : items(g.entry("typeArguments"))) {
+                args.add(genericType(a));
+            }
+            List<String> mults = new ArrayList<>();
+            for (M3 m : items(g.entry("multiplicityArguments"))) {
+                mults.add(multiplicity(m).replaceAll("^\\[|\\]$", ""));
+            }
+            if (args.isEmpty() && mults.isEmpty()) {
+                return base;
+            }
+            return base + "<" + String.join(",", args) + (mults.isEmpty() ? "" : "|" + String.join(",", mults)) + ">";
+        }
+        if (raw instanceof M3.Instance ft && ft.classifier().endsWith("children[FunctionType]")) {
+            List<String> ps = new ArrayList<>();
+            for (M3 pv : items(ft.entry("parameters"))) {
+                M3.Instance pi = (M3.Instance) pv;
+                ps.add(genericType(pi.entry("genericType")) + multiplicity(pi.entry("multiplicity")));
+            }
+            return "{" + String.join(", ", ps) + "->" + genericType(ft.entry("returnType"))
+                    + multiplicity(ft.entry("returnMultiplicity")) + "}";
+        }
+        throw new IllegalStateException("m3 reader: cannot spell the generic type " + g);
+    }
+
+    private static String multiplicity(@com.legend.Nullable M3 v) {
+        if (v instanceof M3.Path p) {
+            return switch (p.last()) {
+                case "PureOne" -> "[1]";
+                case "ZeroOne" -> "[0..1]";
+                case "ZeroMany" -> "[*]";
+                case "OneMany" -> "[1..*]";
+                case "PureZero" -> "[0]";
+                default -> throw new IllegalStateException("m3 reader: unknown packageable multiplicity " + p.text());
+            };
+        }
+        if (v instanceof M3.Instance m) {
+            M3 param = m.entry("multiplicityParameter");
+            if (param != null) {
+                return "[" + str(param) + "]";
+            }
+            String lo = m.entry("lowerBound") instanceof M3.Instance lb && lb.entry("value") instanceof M3.Num n
+                    ? n.value() : null;
+            String hi = m.entry("upperBound") instanceof M3.Instance ub && ub.entry("value") instanceof M3.Num n
+                    ? n.value() : null;
+            if (lo == null) {
+                throw new IllegalStateException("m3 reader: a multiplicity without a lower bound: " + m);
+            }
+            return hi == null ? (lo.equals("0") ? "[*]" : "[" + lo + "..*]")
+                    : lo.equals(hi) ? "[" + lo + "]" : "[" + lo + ".." + hi + "]";
+        }
+        throw new IllegalStateException("m3 reader: cannot spell the multiplicity " + v);
+    }
+
+    @Test
+    @DisplayName("m3 reader: every class of m3.pure prints as a declaration (-Dprelude.m3=1 lists them)")
+    void m3ReaderPrintsEveryClass() throws IOException {
+        Path pure = Path.of(System.getProperty("legend.pure.root", "/Users/neemsandv/legend/legend-pure"));
+        Path m3 = pure.resolve("legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure");
+        // never an assumption-skip (SkipCensusTest): the reference checkout is
+        // this test class's hard default, exactly as preludeIsCurrent's
+        assertTrue(Files.isRegularFile(m3), "m3.pure missing at " + m3);
+        Map<String, String> decls = m3Declarations(Files.readString(m3, StandardCharsets.UTF_8));
+        for (Map.Entry<String, String> e : decls.entrySet()) {
+            // every printed declaration parses through the platform's own door
+            ParsedModel parsed = ElementParser.parse(e.getValue(), Dialect.LEGEND_PLATFORM);
+            assertEquals(1, parsed.elements().size(), e.getKey());
+            if ("1".equals(System.getProperty("prelude.m3"))) {
+                System.out.println(e.getValue());
+            }
+        }
+        assertTrue(decls.size() >= 85, "m3.pure declares 85 classes; read " + decls.size());
     }
 
     /**

@@ -78,6 +78,12 @@ go when the shapes migrate).
    the ColSpec six, `Variant`, `Rows`, `TDSNull`, `Result`, `RelationalActivity` — hand lines deleted, every Java site names
    them by `PlatformTypes` constants, definitions read from the module; kinds A/B for them dissolved by construction; hand
    count 85 → 74; no pass change. Left in the file-declared group: the six store-coupled shapes (step 4) and `Column`/`Database`.
+   **The m3 reader LANDED (batch 158):** the generator reads m3.pure's instance graph and prints its 85 classes and 2
+   enumerations as declarations (`PreludeGeneratorTest.M3Reader`; `tools/m3shape.py` retired — one owner); T1-whole then admits
+   the 32 classes + 2 enums no hand line owned (`prelude.pure` 384 → 418); against the 53 hand m3 shapes the print reproduces
+   exactly the kinds A–D divergences above (28 identical, 25 differing only by them). Remaining by hand: 74 = 53 m3 shapes
+   (migrate by family now that the reader exists — the bootstrap floor is measured as each family goes) + 13 primitives
+   (`PrimitiveType` instances, the Java `Type.Primitive` enum's keys) + the 6 store-coupled + `Column`/`Database`.
    The original plan: m3 valuespecification/function/type families,
    mapping, relational, plan/runtime, tds. Migration = delete the hand line, let the generator emit the spec declaration. Kinds
    A–D dissolve on migration by construction. `Pure.java` keeps native signatures, `Lite`, and the BOOTSTRAP handful.

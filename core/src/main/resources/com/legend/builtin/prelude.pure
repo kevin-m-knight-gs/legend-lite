@@ -267,6 +267,77 @@ Class meta::pure::functions::relation::_Window<T>
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure — PRINTED from the M3 instance graph by the generator's reader (no class syntax to copy): stored properties, supertypes, type and multiplicity parameters; m3's qualified properties are not carried
+Class meta::pure::metamodel::type::generics::InferredGenericType extends meta::pure::metamodel::type::generics::GenericType { }
+
+Class meta::pure::metamodel::extension::ElementWithConstraints extends meta::pure::metamodel::type::Any { constraints: meta::pure::metamodel::constraint::Constraint[*]; }
+
+Class meta::pure::metamodel::type::GetterOverride extends meta::pure::metamodel::type::ElementOverride { getterOverrideToOne: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1], meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|0..1>[1]->meta::pure::metamodel::type::Any[0..1]}>[0..1]; getterOverrideToMany: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1], meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|*>[1]->meta::pure::metamodel::type::Any[*]}>[0..1]; hiddenPayload: meta::pure::metamodel::type::Any[0..1]; }
+
+Class meta::pure::metamodel::type::ConstraintsGetterOverride extends meta::pure::metamodel::type::GetterOverride, meta::pure::metamodel::type::ConstraintsOverride { }
+
+Class meta::pure::metamodel::multiplicity::PackageableMultiplicity extends meta::pure::metamodel::multiplicity::Multiplicity, meta::pure::metamodel::PackageableElement { }
+
+Class meta::pure::metamodel::import::ImportGroup extends meta::pure::metamodel::PackageableElement { imports: meta::pure::metamodel::import::Import[*]; }
+
+Class meta::pure::metamodel::import::Import extends meta::pure::metamodel::type::Any { path: meta::pure::metamodel::type::String[1]; }
+
+Class meta::pure::metamodel::valuespecification::Expression extends meta::pure::metamodel::valuespecification::ValueSpecification { }
+
+Class meta::pure::metamodel::valuespecification::NonExecutableValueSpecification extends meta::pure::metamodel::valuespecification::ValueSpecification { values: meta::pure::metamodel::type::Any[*]; }
+
+Class meta::pure::metamodel::valuespecification::ExpressionSequenceValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext { functionDefinition: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1]; }
+
+Class meta::pure::metamodel::valuespecification::InstanceValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext { instanceValue: meta::pure::metamodel::valuespecification::InstanceValue[1]; }
+
+Class meta::pure::metamodel::valuespecification::ClassConstraintValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext { type: meta::pure::metamodel::type::Type[1]; }
+
+Class meta::pure::metamodel::valuespecification::ParameterValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext { functionExpression: meta::pure::metamodel::valuespecification::FunctionExpression[1]; }
+
+Class meta::pure::metamodel::valuespecification::KeyValueValueSpecificationContext extends meta::pure::metamodel::valuespecification::ValueSpecificationContext { functionExpression: meta::pure::metamodel::valuespecification::FunctionExpression[1]; }
+
+Class meta::pure::metamodel::import::ImportStub extends meta::pure::metamodel::type::Any { importGroup: meta::pure::metamodel::import::ImportGroup[1]; idOrPath: meta::pure::metamodel::type::String[1]; resolvedNode: meta::pure::metamodel::type::Any[0..1]; }
+
+Class meta::pure::metamodel::import::PropertyStub extends meta::pure::metamodel::type::Any { owner: meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]; propertyName: meta::pure::metamodel::type::String[1]; resolvedProperty: meta::pure::metamodel::function::property::AbstractProperty<meta::pure::metamodel::type::Any>[0..1]; }
+
+Class meta::pure::metamodel::import::EnumStub extends meta::pure::metamodel::type::Any { enumeration: meta::pure::metamodel::type::Enumeration<meta::pure::metamodel::type::Any>[1]; enumName: meta::pure::metamodel::type::String[1]; resolvedEnum: meta::pure::metamodel::type::Enum[0..1]; }
+
+Enum meta::pure::metamodel::function::property::AggregationKind { None, Shared, Composite }
+
+Class meta::pure::metamodel::function::KeyExpression extends meta::pure::metamodel::type::Any { key: meta::pure::metamodel::valuespecification::InstanceValue[1]; expression: meta::pure::metamodel::valuespecification::ValueSpecification[1]; add: meta::pure::metamodel::type::Boolean[0..1]; }
+
+Class meta::pure::metamodel::type::ClassProjection<T> extends meta::pure::metamodel::type::Class<T>, meta::pure::metamodel::PackageableElement { projectionSpecification: meta::pure::metamodel::treepath::RootRouteNode[1]; }
+
+Class meta::pure::metamodel::relationship::AssociationProjection extends meta::pure::metamodel::relationship::Association { projectedAssociation: meta::pure::metamodel::relationship::Association[1]; projections: meta::pure::metamodel::type::ClassProjection<meta::pure::metamodel::type::Any>[2]; }
+
+Class meta::pure::metamodel::treepath::RouteNode extends meta::pure::metamodel::extension::AnnotatedElement { name: meta::pure::metamodel::type::String[1]; includeAll: meta::pure::metamodel::type::String[1]; type: meta::pure::metamodel::type::generics::GenericType[1]; children: meta::pure::metamodel::treepath::PropertyRouteNode[*]; resolvedProperties: meta::pure::metamodel::function::property::AbstractProperty<meta::pure::metamodel::type::Any>[*]; included: meta::pure::metamodel::treepath::RouteNodePropertyStub[*]; excluded: meta::pure::metamodel::treepath::RouteNodePropertyStub[*]; }
+
+Class meta::pure::metamodel::treepath::RootRouteNode extends meta::pure::metamodel::treepath::RouteNode { owner: meta::pure::metamodel::type::Any[0..1]; }
+
+Class meta::pure::metamodel::treepath::PropertyRouteNode extends meta::pure::metamodel::treepath::RouteNode { propertyName: meta::pure::metamodel::type::String[1]; root: meta::pure::metamodel::treepath::RootRouteNode[1]; }
+
+Class meta::pure::metamodel::treepath::ExistingPropertyRouteNode extends meta::pure::metamodel::treepath::PropertyRouteNode { property: meta::pure::metamodel::treepath::RouteNodePropertyStub[1]; }
+
+Class meta::pure::metamodel::treepath::NewPropertyRouteNode extends meta::pure::metamodel::treepath::PropertyRouteNode { specifications: meta::pure::metamodel::valuespecification::ValueSpecification[1..*]; functionDefinition: meta::pure::metamodel::treepath::NewPropertyRouteNodeFunctionDefinition<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|*>[1]; }
+
+Class meta::pure::metamodel::treepath::RouteNodePropertyStub extends meta::pure::metamodel::extension::AnnotatedElement { property: meta::pure::metamodel::function::property::AbstractProperty<meta::pure::metamodel::type::Any>[*]; owner: meta::pure::metamodel::treepath::RouteNode[1]; parameters: meta::pure::metamodel::valuespecification::InstanceValue[*]; }
+
+Class meta::pure::metamodel::treepath::NewPropertyRouteNodeFunctionDefinition<U,V|m> extends meta::pure::metamodel::function::FunctionDefinition<{U[1]->V[m]}> { owner: meta::pure::metamodel::treepath::NewPropertyRouteNode[1]; }
+
+Class meta::pure::tools::GrammarInfoStub extends meta::pure::metamodel::type::Any { value: meta::pure::metamodel::type::Any[1]; original: meta::pure::metamodel::type::Any[1]; }
+
+Class meta::pure::metamodel::function::property::DefaultValue extends meta::pure::metamodel::type::Any { functionDefinition: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }
+
+Class meta::pure::metamodel::testable::Test extends meta::pure::metamodel::type::Any { id: meta::pure::metamodel::type::String[1]; testable: meta::pure::metamodel::testable::Testable[1]; }
+
+Enum meta::pure::metamodel::relation::GenericTypeOperationType { Union, Difference, Subset, Equal }
+
+Class meta::pure::metamodel::relation::GenericTypeOperation extends meta::pure::metamodel::type::generics::GenericType { left: meta::pure::metamodel::type::generics::GenericType[1]; right: meta::pure::metamodel::type::generics::GenericType[1]; type: meta::pure::metamodel::relation::GenericTypeOperationType[1]; }
+
+Class meta::pure::metamodel::relation::RelationType<T> extends meta::pure::metamodel::type::Type, meta::pure::metamodel::Referenceable { columns: meta::pure::metamodel::relation::Column<T,meta::pure::metamodel::type::Any|*>[*]; }
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/milestoning.pure
 import meta::pure::milestoning::*;
 import meta::pure::functions::string::*;
@@ -3904,7 +3975,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 370 classes, 14 enums.
+// 402 classes, 16 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime

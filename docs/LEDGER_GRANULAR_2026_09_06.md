@@ -901,3 +901,12 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 1 | 85 hand shapes: 65 m3.pure bootstrap (generator-unreadable), 17 legend-pure files, 2 engine files; family-1 Java uses are name-only | eleven migrated (ColSpec ×6, Variant, Rows, TDSNull, Result, RelationalActivity); FQN constants in PlatformTypes; hand 85 → 74; prelude 373 → 384 | Pure.java, PlatformTypes, nine Java sites |
 | 2 | `TdsNullTypingPinTest` built a context without the boot layer | the front door (`Compiler.buildModel`) | test |
 | 3 | the 65 m3 shapes | a generator leg: read the m3 graph (`tools/m3shape.py`'s rule) and emit them into the module; the bootstrap floor is then measured | next |
+
+## 31. Batch 158 — the m3 reader (2026-09-08)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | m3.pure has no class syntax; the Python tool crashed on an inline-bounds multiplicity at its 16th class | a real reader of the instance syntax in the generator; prints declarations; loud on the unreadable; `tools/m3shape.py` retired | `PreludeGeneratorTest.M3Reader` |
+| 2 | the print vs the 53 hand m3 shapes: 28 identical, 25 differ exactly by kinds A–D | the reader is faithful; the hand copies can leave family by family | HAND_SHAPE_DIVERGENCE §4 |
+| 3 | 32 m3 classes + 2 enums entered under T1-whole; prelude 384 → 418; no pass change | — | prelude.pure |
+| 4 | `SkipCensusTest` refused a new assumption-skip in the reader's test | the reference root is a hard default; assert, never assume | test |

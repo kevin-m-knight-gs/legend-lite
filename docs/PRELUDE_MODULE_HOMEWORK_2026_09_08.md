@@ -139,7 +139,13 @@ demand — so the census's typing list will grow by whatever those 136 + 16 bodi
 
 ## 6. The decision on emission, and the phases
 
-**Emission = the spec's declaration text VERBATIM, under the spec file's imports.** The generator re-prints stored properties with
+**Emission = the spec's declaration text VERBATIM, under the spec file's imports.** ONE documented exception (batch 158): legend-pure's
+`m3.pure` is written in the M3 instance (graph) syntax — there is no `Class` text to copy — so the generator READS it structurally
+(`PreludeGeneratorTest.M3Reader`, a small recursive-descent reader of `^classifier name @package { key : value, … }`) and PRINTS
+each class and enumeration as a declaration: stored properties, supertypes, type and multiplicity parameters, fully qualified.
+What it does not carry, as a receipt: m3's qualified properties (graph-encoded expression sequences; the Typer serves the two the
+platform needs by hand). The reader refuses loudly what it cannot read, never prints a guess, and reproduces the hand shapes'
+known kinds A–D divergences exactly (28 identical, 25 differing only by them), so the hand copies can leave family by family. The generator re-prints stored properties with
 fully qualified names only because the catalog had no imports. A module has `###Pure` sections with imports, so the whole class
 declaration — constraints, stereotypes, tagged values, derived properties, defaults — is copied as written and the resolver
 qualifies it like user code. Half the slicing code written on 2026-09-08 (derived-text, constraint-text, tagged-value regexes)
