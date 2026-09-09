@@ -4136,6 +4136,38 @@ Class meta::pure::functions::math::mathUtility::RowMapper<T,U>
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/io/http/executeHTTPRaw.pure
+import meta::pure::functions::io::http::*;
+Class meta::pure::functions::io::http::URL
+{
+    scheme: URLScheme[0..1];
+    host : String[1];
+    port : Integer[1];
+    path : String[1];
+}
+
+Enum meta::pure::functions::io::http::URLScheme
+{
+    http,
+    https
+}
+
+Enum meta::pure::functions::io::http::HTTPMethod
+{
+    GET,
+    PUT,
+    POST,
+    DELETE
+}
+
+Class meta::pure::functions::io::http::HTTPResponse
+{
+    statusCode : Integer[1];
+    entity : String[1];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/string/regex/regexpParameter.pure
 Enum meta::pure::functions::string::RegexpParameter
 {
@@ -5021,7 +5053,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 464 classes, 16 enums, 74 functions (legend-pure's platform library, bodied and non-test;6 files unparsed, the census's load walls).
+// 466 classes, 18 enums, 74 functions (legend-pure's platform library, bodied and non-test;6 files unparsed, the census's load walls).
 // PLATFORM-OWNED NAMES — library functions whose name the platform implements (a registered
 // native or an operator special form: the native IS the definition, Pure.java); not carried:
 //   meta::pure::functions::asserts::assert
@@ -5156,6 +5188,10 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::extension::FeatureExtension
 //   meta::pure::extension::ModuleExtension
 //   meta::pure::extension::SerializerExtension
+//   meta::pure::functions::io::http::HTTPMethod
+//   meta::pure::functions::io::http::HTTPResponse
+//   meta::pure::functions::io::http::URL
+//   meta::pure::functions::io::http::URLScheme
 //   meta::pure::functions::test::TestedByResult
 //   meta::pure::graphFetch::executionPlan::LocalGraphFetchExecutionNode
 //   meta::pure::graphFetch::executionPlan::StoreMappingCrossLocalGraphFetchExecutionNodeGenerationInput

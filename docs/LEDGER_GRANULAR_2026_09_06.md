@@ -1016,3 +1016,12 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 2 | still slow after the fix | a HUNG `Python -` from batch 165 at 100% CPU for 12 h, survived pkill; killed by pid; quiet chain 6m19s | memory verify-kills-with-ps |
 | 3 | `defaultExtensions()` (148 first-error bodies) | typing-only native beside `relationalExtensions()`; golden +1; eager 1,562 → 1,537 — per-name counts are FIRST-error attributions, upper bounds; 122 of those bodies stop next at `jsonEquivalent` | Pure.java |
 | 4 | the typer's declared-column scan on every property read (batch 166) | behind the name test | TdsSurfaceReads |
+
+## 44. Batch 171 — step 4: the four natives as named walls (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | an unruled native fails as an IllegalStateException (a bug) | `Pure.WALLED_NATIVES` + one Scalars branch: a walled native fails as a NotImplementedException naming its reason; the bug stays for genuinely unregistered lowerings | Pure.java, Scalars |
+| 2 | the http types absent from the module | Java demand (the signature names them) admitted `URL`, `HTTPMethod`, `HTTPResponse` — the generator's rule, no hand step | prelude.pure |
+| 3 | eager 1,537 → 1,504 | 33 first-error bodies closed; the rest stop at their next error | probe |
+| 4 | USER: "this feels like never-ending chasing" | the finish line: one more batch (family classification with reasons; the non-test residue outside walled families pinned shrink-only, ~75 bodies); everything after is the harness plan's existing legs | homework §10.5 |

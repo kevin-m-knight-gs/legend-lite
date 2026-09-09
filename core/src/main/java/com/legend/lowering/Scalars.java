@@ -2567,6 +2567,13 @@ final class Scalars {
                         + call.callee().qualifiedName()
                         + "' in scalar position (aggregation machinery owns it)");
             }
+            // a native WALLED by decision (Pure.WALLED_NATIVES): the named wall,
+            // never the registration bug below (batch 171, the native rule)
+            String wall = com.legend.builtin.Pure.walledNativeReason(call.callee().qualifiedName());
+            if (wall != null) {
+                throw new com.legend.error.NotImplementedException("walled native '"
+                        + call.callee().qualifiedName() + "': " + wall);
+            }
             throw new IllegalStateException("no scalar lowering registered for resolved overload '"
                     + call.callee().qualifiedName() + "' with " + call.callee().parameters().size()
                     + " parameter(s)");

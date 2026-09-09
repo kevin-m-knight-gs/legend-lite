@@ -194,6 +194,11 @@ support; 74 remain and are carried.
 
 **10.5 Steps 1–6 (status).** 1 measured (batch 168–169; gates deferred). 2 LANDED (batch 169). 3 LANDED (batch 170:
 eager 1,562 → 1,537; the per-name counts are FIRST-error attributions — 122 of the model-to-model bodies stop next at
-`jsonEquivalent`, engine json.pure, a file-admission question). 4 the four natives next. 5 walls by file (the 14
-protocol versions first). 6 the residue as named legs. Gates: decided after 6, on the measured numbers. Chain time:
-restored to ~6m19s on a quiet machine (batch 170: a layout memo + a runaway process killed).
+`jsonEquivalent`, engine json.pure, a file-admission question). 4 LANDED (batch 171: named walls via
+`Pure.WALLED_NATIVES`; eager 1,504). 5 NEXT and LAST: the family classification in the probe with a reason per family —
+engine protocol serializers (14 versions, ~820 bodies), the engine SQL compiler and mapping execution (~190), other
+relational-store machinery (~90) — and the number that must reach zero printed and pinned shrink-only: NON-TEST
+failures outside the walled families (~75 today, in milestoning / relationalGraphFetch / relationalToPure /
+relationalMappingExecution and a few others). Test bodies (362) are the roster's. 6 = the harness plan's existing legs
+worked from that number; no further measurement programs (USER 2026-09-09: "this feels like never-ending chasing" —
+the finish line is by construction: only shrinking counters remain). Chain time: 6m10s (batch 171).

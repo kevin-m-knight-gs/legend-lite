@@ -1517,6 +1517,41 @@ public final class Pure {
     // The eager corpus compile named it 148 times (§10.1).
     public static final NativeFunctionDefinition DEFAULT_EXTENSIONS__EXT_MANY = signature("native function meta::pure::extension::defaultExtensions():meta::pure::extension::Extension[*];");
 
+    // COMPILE_EVERYTHING step 4 (batch 171): the four spec natives the eager
+    // corpus compile named with NO registration (§10.1: 47 bodies) — a native
+    // is a Pure.java signature + one lowering or a NAMED wall (the native
+    // rule); none has an SQL meaning today and no roster test reaches them,
+    // so each is a signature whose lowering is the loud named wall until a
+    // witness demands a rule. Spelled exactly as the spec declares them.
+    // stereotype(profile, name) — legend-pure essential/meta/profile/stereotype.pure
+    public static final NativeFunctionDefinition STEREOTYPE__PROFILE_1__STRING_1 = signature("native function meta::pure::functions::meta::stereotype(profile:meta::pure::metamodel::extension::Profile[1], str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::extension::Stereotype[1];");
+    // replaceTreeNode(root, target, value) — legend-pure essential/collection/anonymous/tree/replaceTreeNode.pure
+    public static final NativeFunctionDefinition REPLACE_TREE_NODE__TREENODE_1__TREENODE_1__TREENODE_1 = signature("native function meta::pure::functions::collection::replaceTreeNode(root:meta::pure::functions::collection::TreeNode[1], target:meta::pure::functions::collection::TreeNode[1], value:meta::pure::functions::collection::TreeNode[1]):meta::pure::functions::collection::TreeNode[1];");
+    // executeHTTPRaw(url, method, mimeType, body) — engine core_functions_unclassified/io/http/executeHTTPRaw.pure (an IO effect; walled)
+    public static final NativeFunctionDefinition EXECUTE_HTTP_RAW__URL_1__METHOD_1__STRING_01__STRING_01 = signature("native function meta::pure::functions::io::http::executeHTTPRaw(url:meta::pure::functions::io::http::URL[1], method:meta::pure::functions::io::http::HTTPMethod[1], mimeType:meta::pure::metamodel::type::String[0..1], body:meta::pure::metamodel::type::String[0..1]):meta::pure::functions::io::http::HTTPResponse[1];");
+    // mutateAdd(obj, property, value) — engine core_functions_unclassified/lang/mutateAdd.pure (a mutation; walled)
+    public static final NativeFunctionDefinition MUTATE_ADD__T_1__STRING_1__ANY_MANY = signature("native function meta::pure::functions::lang::mutateAdd<T>(obj:T[1], property:meta::pure::metamodel::type::String[1], value:meta::pure::metamodel::type::Any[*]):T[1];");
+
+    /** WALLED NATIVES — registered signatures whose lowering is a NAMED WALL by
+     * decision (the native rule's second arm): a program reaching one fails at
+     * lowering with the reason, a wall (NotImplementedException), never the
+     * "no scalar lowering registered" bug. Shrink-only: a lowering rule
+     * deletes the entry. */
+    private static final java.util.Map<String, String> WALLED_NATIVES = java.util.Map.of(
+            "meta::pure::functions::meta::stereotype",
+            "profile reflection — the platform's metamodel rows carry no stereotype values yet",
+            "meta::pure::functions::collection::replaceTreeNode",
+            "in-memory tree mutation — no relational meaning",
+            "meta::pure::functions::io::http::executeHTTPRaw",
+            "an IO effect — the database never performs HTTP",
+            "meta::pure::functions::lang::mutateAdd",
+            "instance mutation — no relational meaning");
+
+    /** The wall reason for a walled native, or null when the native is not walled. */
+    public static @com.legend.Nullable String walledNativeReason(String fqn) {
+        return WALLED_NATIVES.get(fqn);
+    }
+
     // setUpDataSQLsV2 / setUpDataSQLs: spelled with the SPEC's exact signatures
     // (toDDL.pure:198, helperFunctions.pure:186/209) so the engine's own copies are
     // same-shape shadows the kernel tie-break resolves to the native (batch 147)
