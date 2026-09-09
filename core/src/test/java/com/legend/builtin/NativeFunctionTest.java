@@ -668,6 +668,20 @@ class NativeFunctionTest {
         // floor (Type.Primitive's keys; the SQL type wall).
         assertEquals(12, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
+        // STEP 5, the governance pin (batch 167, HAND_SHAPE_DIVERGENCE §4):
+        // the hand set IS the bootstrap floor — exactly Type.Primitive's
+        // keys, by NAME (tools/shape_sweep.py retired: nothing by hand has
+        // a spec shape to diff any more). Any other hand shape is a spec
+        // shape the prelude module must carry instead.
+        java.util.Set<String> handNames = Pure.allNativeClasses().stream()
+                .map(ClassDefinition::qualifiedName)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Set<String> primitives = java.util.Arrays.stream(
+                        com.legend.compiler.element.type.Type.Primitive.values())
+                .map(com.legend.compiler.element.type.Type.Primitive::qualifiedName)
+                .collect(java.util.stream.Collectors.toSet());
+        assertEquals(primitives, handNames,
+                "the hand-declared classes are exactly the primitives (the bootstrap floor)");
     }
 
     /**

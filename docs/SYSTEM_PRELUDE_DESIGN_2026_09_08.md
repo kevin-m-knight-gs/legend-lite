@@ -243,7 +243,8 @@ redefining a prelude class or enum is dropped in favour of the prelude (what the
    the Typer's hand-served `classifierGenericType`/`elementOverride` go.
 4. The store-shaped divergences (`PropertyOwnerImplementation` rows; `Enum`-typed enum-value rows).
 5. `tools/shape_sweep.py` becomes the governance pin; `FunctionCompiler`'s on-demand lift is deleted with the last
-   catalog derived property.
+   catalog derived property. — LANDED batch 167 (2026-09-09): NativeFunctionTest pins the hand set to the primitives by
+   name; the script and the lift are deleted. Steps 1–5 complete (GATES.md batches 151–167).
 
 **Phase 1 LANDED (2026-09-08, batch 151):** `prelude.pure` (537 classes + 32 enums, VERBATIM, parser-delimited), the
 `Prelude` reader, the boot-layer merge, the resolver's ordered platform universe, the T4 drop with 61 receipts. Pass counts

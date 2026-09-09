@@ -169,7 +169,7 @@ Phases, one batch each, lanes exact between them:
    only, D1); prelude 569 → 357. T4's receipt list does NOT burn to zero (D2): it is the stable list of vocabulary classes the
    graph's own files also declare (119), pinned shrink-only by parity. Pass counts unchanged; census 22 → 19.
 4. **The bootstrap handful** and the store-shaped divergences (HAND_SHAPE_DIVERGENCE §4 steps 3–4).
-5. `tools/shape_sweep.py` and the census as pins; `FunctionCompiler`'s on-demand lift deleted.
+5. `tools/shape_sweep.py` and the census as pins; `FunctionCompiler`'s on-demand lift deleted. — LANDED batch 167 (2026-09-09): the pin is the exact primitive set by name, the sweep script is gone, the lift is gone; PROGRAM COMPLETE (GATES.md batch 167).
 
 ## 6a. RATIFIED 2026-09-08 (after batch 152) — the order and the open decisions, USER: "let's ratify all and go"
 

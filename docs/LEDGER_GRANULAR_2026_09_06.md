@@ -977,3 +977,11 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 3 | `->cast(@Table)` / `->cast(@NamedRelation)` over the navigated `column.owner` | a cast over a navigated path is the identity when the routed rows' class conforms; `Registries.conforms` carries the model's subtype relation (StoreResolver only) | Substitution, StoreResolver |
 | 4 | Typer over its caps; a new JDBC surface | extraction; conscious registration | CodeShape, JdbcSurfaceCensusTest |
 | 5 | lesson | reproduce the witness in the USER shape before designing — both batch-164 designs (re-root, same-table extension) were unnecessary; the root causes were two unrelated seams | — |
+
+## 40. Batch 167 — step 5, the governance pin; the prelude-as-module program closes (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | step 5 | the exact-set pin (hand == Type.Primitive by name); `tools/shape_sweep.py` deleted; the catalog derived-property lift deleted | NativeFunctionTest, FunctionCompiler |
+| 2 | the 19 census rows | D4 stands: honest receipt, shrink-only — the five "unknown functions" are engine PROGRAMS (functions with bodies), never natives; they enter when a program imports their files | SPEC_BODY_CENSUS §10.4 |
+| 3 | what remains | outside this program: the END_TO_END plan's harness close-out (phases 3–6: the named legs, the referee, code-as-data, single-shot); the six parser load walls | END_TO_END_PLAN |

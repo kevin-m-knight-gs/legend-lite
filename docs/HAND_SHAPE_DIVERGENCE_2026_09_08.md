@@ -127,7 +127,7 @@ go when the shapes migrate).
    (`Type.asClassType`, all 108 sites) — GATES.md batch 165, ledger §38. Hand 20 → 13 (12 primitives + `Column`).
    Column LANDED batch 166 (the lowering leg dissolved: a typer name clash and a cast-over-navigation arm — GATES.md batch 166).
    After both: `Pure.java` = native signatures + `Lite` + the 13 primitives. Phase 2 complete.
-5. **The pin**: `tools/shape_sweep.py` becomes a governance test — every hand shape exact, or on a shrink-only list with its receipt.
+5. **The pin** — LANDED batch 167: `NativeFunctionTest` pins the hand set to EXACTLY `Type.Primitive`'s keys by name (nothing by hand has a spec shape left to diff); `tools/shape_sweep.py` deleted. Was: `tools/shape_sweep.py` becomes a governance test — every hand shape exact, or on a shrink-only list with its receipt.
 
 Estimated: step 1 is the design leg (generator output + model-build wiring, moderate); steps 2–3 are mechanical with lane risk per
 family; step 4 is two store legs; step 5 is small. None of it changes what the corpus passes; all of it removes Java and hand text.
