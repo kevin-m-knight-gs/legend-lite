@@ -1045,3 +1045,18 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 4 | group B hijack? | at the entry: `resolveSchema` = the typer's columns; witness `resolveSchemaTest` (helper file unloaded) — NEXT leg | — |
 | 5 | group D compile? | its helper is in the refused stdlib-extension files (08-28 ruling) — walled, reason names the ruling | WalledBodies |
 | 6 | order | boot strict first, parser gaps next (USER: "either way we should do both") | — |
+
+## 47. Batch 174 — B5: five of the six parser load walls read (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | 6 load walls hide rows (homework §5) | three grammar forms landed; new.pure needed two (type-variable headers AND `^X(v)(…)`) | ElementParser, SpecParser |
+| 2 | 13 rows red on arrival (the strict pin) | cast ×6: `val : P(8)[1]` classified as a generic → P; type variables ×7: dropped by two class re-creations → carried, bound in lifted bodies | TypeClassifier, TypeAnnotations, NameResolver, ModelNormalizer, SpecCompiler |
+| 3 | `toMultiplicity(@[0..1])` | desugar covers [1], [1..*], [*]; other targets typed by signature, walled at lowering (no platform spelling for a checked narrowing to [0..1]) | CallShapes, Pure.WALLED_NATIVES |
+| 4 | `addColumns` on a RelationType VALUE | registered (typing), walled (metamodel value algebra) | Pure |
+| 5 | `.res('z')` unknown | derived overloads by arity share the lifted FQN — the call picks | Typer.derivedOverloadArity |
+| 6 | `new($l1->class(), '')` | reflection — walled with reason (walled 22 → 23) | WalledBodies |
+| 7 | m3.pure | stays: `^Instance` at top level is the m3 READER's grammar (the generator reads it declaration by declaration); load-wall pin 6 → 1 | SpecBodyCensusTest |
+| 8 | first chain: G4 G5 G8 G9 red | STALE ROOTS — the background shell exports no LEGEND_*_ROOT; the script fell back to $HOME's July checkouts (census 2682/144/2538, manifest 871/466, variant asserts with `"`). Exported; `tools/allgates.sh` prints `roots: …` first; memory corpus-engine-root-neemsandv REPEATED | tools/allgates.sh |
+| 9 | second chain: G8 ours-richer 1276 < 1277 | the new forms were reachable in the EXACT-ENGINE dialect — quarantined behind `dialect.refusesPlatformDialect()`; the sweep's platform catalog +32 adjudicated (1601 → 1633) | ElementParser, SpecParser, CorpusSweepTest |
+| 10 | third chain: G1 SpecParser.java 3501 > 3500 | the token scan moved to `TokenStreamCursor.parenGroupFollowedByParen` (its home among the token-level helpers) | TokenStreamCursor |

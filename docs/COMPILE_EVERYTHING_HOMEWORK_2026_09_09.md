@@ -84,7 +84,7 @@ Witness: the census's running-world pass, B2b 5 → 0 (or a named B4).
 
 | front | size | bucket | note |
 |---|---|---|---|
-| parser load walls in legend-pure | 6 files: cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, m3.pure (`^Instance` at top level), precisePrimitives.pure | B5 | they HIDE rows: P1's 0 is a floor. First, because every other count is judged by it. |
+| parser load walls in legend-pure | LANDED batch 174: 6 → 1 file. cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, precisePrimitives.pure READ (type variables, `@[m]`, bare `@(…)`, `^X(v)(…)`); m3.pure (`^Instance` at top level) stays by design — the m3 reader's grammar | B5 | they HIDE rows: P1's 0 is a floor. First, because every other count is judged by it. |
 | missing platform functions in the corpus | 13 names / 21 failures: `routeFunction` ×5, `toRelation::transform`, `contextHasFlag`, `compileLegendGrammar`, `transformPlan`, `dataTypeToCompatiblePureType`, `functionReturnType`, `isExecutionOptionPresent`, `newMultiValueMap`, `toJSONStringStream`, `byPassRouterInfo`, `header`, one test extension | B1 or B2 by marking — classify FIRST | today they are counted only as corpus failures |
 | the post-processor walls | 5 FQNs in `UserCallInliner.ENGINE_MACHINERY_WALLS` | B3 | USER 2026-09-03: post-processors are COMPILER PASSES, never recursion in SQL — the design session is owed |
 | the T4 receipt list | 135 names at the foot of prelude.pure | B6 | homework said "burns to zero in phase 3"; batch 155 re-labelled it "stable" — that was a quiet redefinition, undone here |
@@ -116,7 +116,7 @@ as "bodies resolve where they run" applied to the measurement.
 3. **The 13 corpus "unknown function" names classified by marking**: a table in this document (§5) with each name's
    spec declaration; then B1 legs (register + lower or wall) and B2 files (admit by file to the corpus's LIBRARY_FILES
    or SHAPE_FILES per T2). Expected: some of the 21 corpus failures pass; the rest become named.
-4. **The six parser load walls** (B5): one grammar form per batch, each with the spec file as the witness. These
+4. **The six parser load walls** (B5) — DONE batch 174 (five files in one batch; m3.pure stays, the reader's). These
    come early because they hide rows — but after 1–3 because those are cheap and make the denominator honest first.
 5. **The post-processor design session** (B3, §8): a decision, then one batch per pass.
 6. **T4 burn** (B6): a census of the 135 (same text → delete the receipt; divergent → the modeling error named), then
@@ -234,6 +234,7 @@ number; the probe already prints it.
 Mechanism: `WalledBodies.REASONS` (one list, reasons), `SpecCompiler.compile` refuses a walled body before typing,
 `UserCallInliner` raises the named wall on reach. Census pins: unwalled == 0 (STRICT), walled <= 22 (the 18 rows +
 the four PostProcessor registry properties). "The whole prelude compiles" now means: every declaration resolves, every
-library function types, every body types or is refused with a written reason; the remaining hole is the six spec files
-the parser cannot read (§5 B5) — the NEXT leg, in this order on purpose: the strict pin makes every newly parsed
-declaration or body red on arrival.
+library function types, every body types or is refused with a written reason. Batch 174 read five of the six spec
+files the parser could not (§5 B5): the strict pin made the 13 newly parsed rows red on arrival and the batch typed or
+walled every one (walled 23, load walls 1 — m3.pure, the m3 reader's own grammar). Pins now: unwalled == 0, walled <= 23,
+load walls <= 1.

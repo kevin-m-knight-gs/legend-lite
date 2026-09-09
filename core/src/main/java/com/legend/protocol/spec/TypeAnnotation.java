@@ -74,7 +74,19 @@ public sealed interface TypeAnnotation
         extends ValueSpecification
         permits TypeAnnotation.Named,
                 TypeAnnotation.RelationShape,
+                TypeAnnotation.MultiplicityRef,
                 TypeAnnotation.Wildcard {
+
+    /** {@code @[m]} — a MULTIPLICITY annotation used as a value (legend-pure
+     * cast/toMultiplicity.pure: {@code ['a']->toMultiplicity(@[1])}): typed as a
+     * prototype value {@code Any[m]}, so a {@code |z} signature binds z from it
+     * (parser leg, batch 174). */
+    record MultiplicityRef(com.legend.protocol.Multiplicity multiplicity,
+            @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements TypeAnnotation {
+        public MultiplicityRef {
+            Objects.requireNonNull(multiplicity, "multiplicity");
+        }
+    }
 
     /**
      * Named type reference: a structured {@link TypeExpression} that

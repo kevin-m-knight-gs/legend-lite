@@ -19,6 +19,9 @@ ROOT_ENGINE=${LEGEND_ENGINE_ROOT:-$HOME/legend/legend-engine}
 ROOT_PURE=${LEGEND_PURE_ROOT:-$HOME/legend/legend-pure}
 R1="-Dlegend.engine.root=$ROOT_ENGINE"
 R2="-Dlegend.pure.root=$ROOT_PURE"
+# the roots decide every corpus denominator — name them first, so a run on a
+# stale fallback checkout (an unexported LEGEND_*_ROOT, batch 174) is visible
+echo "roots: engine=$ROOT_ENGINE pure=$ROOT_PURE"
 SFLAG=()
 [ -n "${MVN_SETTINGS:-}" ] && SFLAG=(-s "$MVN_SETTINGS")
 # Offline by default (local hygiene: skips remote metadata checks). CI has a

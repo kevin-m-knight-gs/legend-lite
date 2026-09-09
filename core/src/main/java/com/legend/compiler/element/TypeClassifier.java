@@ -106,6 +106,11 @@ final class TypeClassifier {
                         "Unknown type: '" + nr.name() + "' is not a known primitive, class, or enum"));
             }
             case TypeExpression.Generic g -> {
+                if (g.arguments().isEmpty() && !g.typeVariableValues().isEmpty()) {
+                    // `val : P(8)[1]` — a primitive with its constraint VALUES
+                    // (Primitive P(x:Integer[1]) extends Integer): the type is P
+                    yield classify(new TypeExpression.NameRef(g.name(), g.pos()), typeParams);
+                }
                 List<Type> args = new ArrayList<>(g.arguments().size());
                 for (TypeExpression arg : g.arguments()) {
                     args.add(classify(arg, typeParams));

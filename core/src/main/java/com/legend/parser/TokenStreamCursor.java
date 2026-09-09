@@ -224,6 +224,24 @@ public interface TokenStreamCursor {
     }
 
     /** Whether the cursor is past the last token. */
+    /** True when the parenthesis group at {@code pos()} is immediately followed by
+     * another {@code (} — the {@code ^X(values)(bindings)} instantiation form. */
+    default boolean parenGroupFollowedByParen() {
+        int depth = 0;
+        for (int i = pos(); i < tokens().count(); i++) {
+            TokenType t = tokens().type(i);
+            if (t == TokenType.PAREN_OPEN) {
+                depth++;
+            } else if (t == TokenType.PAREN_CLOSE) {
+                depth--;
+                if (depth == 0) {
+                    return i + 1 < tokens().count() && tokens().type(i + 1) == TokenType.PAREN_OPEN;
+                }
+            }
+        }
+        return false;
+    }
+
     default boolean atEnd() {
         return pos() >= tokens().count();
     }

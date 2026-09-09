@@ -593,7 +593,11 @@ final class Typer {
             if (classFqn != null
                     && ctx.findProperty(classFqn, af.function()).orElse(null)
                             instanceof Property.Derived d
-                    && d.parameters().size() == af.parameters().size() - 1) {
+                    && (d.parameters().size() == af.parameters().size() - 1
+                            // an OVERLOAD by arity (res() / res(z)) shares the lifted FQN;
+                            // the call picks among its signatures like any function
+                            || derivedOverloadArity(classFqn, af.function(),
+                                    af.parameters().size() - 1))) {
                 // AUTO-MAP: a qualifier call on a MANY receiver applies per
                 // element (engine qualified-property auto-map:
                 // $o.product($bd).qualifier() over a [*] milestoned read)
@@ -1459,6 +1463,10 @@ final class Typer {
      * {@code sort}, non-{@code ^} {@code new}) call it directly.
      */
     TypedSpec applyGeneric(AppliedFunction af, Env env) {
+        com.legend.protocol.spec.ValueSpecification coerced = CallShapes.toMultiplicityDesugar(af);
+        if (coerced != null) {
+            return synth(coerced, env);
+        }
         TypedSpec autoMapped = CallShapes.autoMapReceiver(this, af, env);
         if (autoMapped != null) {
             return autoMapped;
@@ -3307,11 +3315,25 @@ final class Typer {
      */
     private TypedSpec typeRef(TypeAnnotation ta) {
         Type target = annotationType(ta);
+        if (ta instanceof TypeAnnotation.MultiplicityRef mr) {
+            // @[m]: the prototype value carries m — a |z signature binds z from it
+            return new TypedTypeRef(target, new ExprType(target,
+                    com.legend.compiler.element.type.Multiplicity.from(mr.multiplicity())));
+        }
         return new TypedTypeRef(target, ExprType.one(target));
     }
 
     private Type annotationType(TypeAnnotation ta) {
         return annotations.annotationType(ta);
+    }
+
+    /** True when class {@code classFqn} declares a derived property {@code name}
+     * taking exactly {@code arity} parameters (an overload of the one findProperty returned). */
+    private boolean derivedOverloadArity(String classFqn, String name, int arity) {
+        return ctx.findClassDefinition(classFqn)
+                .map(cd -> cd.derivedProperties().stream()
+                        .anyMatch(dp -> dp.name().equals(name) && dp.parameters().size() == arity))
+                .orElse(false);
     }
 
     Type namedType(TypeExpression te) {

@@ -194,7 +194,7 @@ public final class ModelNormalizer {
                 List<DerivedPropertyDefinition> merged =
                         new ArrayList<>(cd.derivedProperties());
                 merged.addAll(adoptions.get(cd.qualifiedName()));
-                out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(),
+                out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
                         cd.superClasses(), cd.properties(), merged, cd.constraints(),
                         cd.stereotypes(), cd.taggedValues(), cd.isNative()));
             } else {

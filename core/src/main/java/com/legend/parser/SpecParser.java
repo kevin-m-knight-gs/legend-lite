@@ -1604,6 +1604,20 @@ public final class SpecParser implements TokenStreamCursor {
                 typeArgs = parseTypeArguments(typeMultArgs);
             }
             receiver = new PackageableElementPtr(className, spanOf(cnStart, cnEnd));
+            // ^X(10)(text = …) — type-variable VALUES (m3 GenericType.typeVariableValues;
+            // legend-pure new.pure): parsed, not carried — an instance's type-variable
+            // values are not modeled (the bodies that read $x are walled by decision)
+            if (!dialect().refusesPlatformDialect()
+                    && !atEnd() && peek() == TokenType.PAREN_OPEN && parenGroupFollowedByParen()) {
+                pos++; // '('
+                while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                    parseCombinedExpression();
+                    if (!atEnd() && peek() == TokenType.COMMA) {
+                        pos++;
+                    }
+                }
+                expect(TokenType.PAREN_CLOSE, "expected ')' to close type-variable values");
+            }
         }
         // OLD-pure named form '^Person klp (...)': the instance NAME parses and DROPS —
         // the wire's name slot stays "" (probe "pf named new and store tref")
@@ -2438,6 +2452,19 @@ public final class SpecParser implements TokenStreamCursor {
     private TypeAnnotation parseTypeAnnotation() {
         int atTok = pos;
         pos++; // consume '@'
+        // @[m] — a multiplicity annotation (toMultiplicity.pure); PLATFORM grammar
+        boolean platform = !dialect().refusesPlatformDialect();
+        if (platform && !atEnd() && peek() == TokenType.BRACKET_OPEN) {
+            Multiplicity m = parseMultiplicity();
+            return new TypeAnnotation.MultiplicityRef(m, spanOf(atTok, pos - 1));
+        }
+        // @(x:String, …) — a bare relation-shape annotation (addColumns.pure);
+        // the same shape @Relation<(…)> spells with its name
+        if (platform && !atEnd() && peek() == TokenType.PAREN_OPEN) {
+            TypeAnnotation.RelationShape shape = parseRelationShape();
+            return new TypeAnnotation.RelationShape(shape.columns(), null,
+                    spanOf(atTok, pos - 1), spanOf(atTok, pos - 1));
+        }
         if (!isFqnSegmentToken(peek())) {
             throw error("expected type name after '@'");
         }

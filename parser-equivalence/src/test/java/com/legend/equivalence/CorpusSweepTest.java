@@ -111,7 +111,8 @@ public class CorpusSweepTest {
     // spec's declaration files); the engine grammar has no variance slot
     // (its refusal: type/multiplicity parameters not authorized) —
     // PURE-DIALECT-generics family; the exact-engine surface is untouched.
-    private static final int MAX_PLATFORM_CATALOG = 1601;   // 2026-09-08 units (census batch 150): +37 PURE-DIALECT-unit-instance rows (AbstractTestMeasure, AbstractTestToJson)
+    private static final int MAX_PLATFORM_CATALOG = 1633;   // 2026-09-09 parser leg (batch 174): +32 rows the PLATFORM dialect now reads and the engine refuses (null-message GRAMMAR-REFUSAL / PURE-DIALECT-generics): type variables `Class X(x:Integer[1])` / `Primitive P(x) extends`, `@[m]`, bare `@(…)`, `^X(v)(…)` — legend-pure's cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, precisePrimitives.pure and their inline tests; the exact-engine surface refuses them as before (dialect quarantine)
+    // was 1601;   // 2026-09-08 units (census batch 150): +37 PURE-DIALECT-unit-instance rows (AbstractTestMeasure, AbstractTestToJson)
     // was 1564;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
     // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
     // PCT test-file surface (236/236 now parses at LEGEND_PLATFORM):

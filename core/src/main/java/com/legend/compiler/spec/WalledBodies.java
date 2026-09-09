@@ -62,6 +62,10 @@ public final class WalledBodies {
                 "external-format binding validation — its reflection helper is in the refused stdlib-extension files");
         REASONS.put("meta::external::format::shared::ExternalFormatToPureDescriptor$constraint$configurationType",
                 "external-format binding validation — its reflection helper is in the refused stdlib-extension files");
+        // legend-pure new.pure (parser leg, batch 174): instantiation from a Class VALUE —
+        // new($l1->class(), '') — is reflection; the platform's new is the ^X(...) form
+        REASONS.put("meta::pure::functions::lang::tests::new::testNewGenericFunc",
+                "REFLECTION: instantiation from a Class value (new(class, id)) — not modeled");
         return Map.copyOf(REASONS);   // immutable (ArchitectureTest invariant 3)
     }
 

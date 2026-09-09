@@ -812,6 +812,7 @@ public final class ElementParser implements TokenStreamCursor {
         String qualifiedName = parseQualifiedName();
 
         List<String> typeParams = parseClassTypeParams();
+        List<com.legend.protocol.ParameterDefinition> typeVariables = parseTypeVariableDeclarations();
         if (dialect.refusesLiteExtensions() && !typeParams.isEmpty()) {
             // DECLARED extension LITE-DESIGN-function-types-generics
             // (OWN_CORPUS_DECISIONS §11): LEGEND_LITE parses generics,
@@ -839,7 +840,7 @@ public final class ElementParser implements TokenStreamCursor {
                 skipBalancedBlock();
             }
             String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
-            return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, List.of(),
+            return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, typeVariables, List.of(),
                     List.of(), List.of(), List.of(), stereotypes, taggedValues, isNative,
                     spanOf(classStartTok, pos - 1));
         }
@@ -885,6 +886,7 @@ public final class ElementParser implements TokenStreamCursor {
                 pn[0],
                 pn[1],
                 typeParams,
+                typeVariables,
                 superClasses,
                 properties,
                 derivedProperties,
@@ -896,6 +898,33 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** Optional generic type parameters: {@code <T>}, {@code <U, V>}, ... */
+    /** {@code (x:Integer[1], y:String[*])} after a Class / Primitive name —
+     * TYPE VARIABLES (legend-pure m3 Class.typeVariables; new.pure, cast.pure,
+     * precisePrimitives.pure). Empty when the header has no parenthesis. */
+    private List<com.legend.protocol.ParameterDefinition> parseTypeVariableDeclarations() {
+        // PLATFORM grammar (legend-pure m3): the engine's grammar has no type
+        // variables — the drop-in surface keeps refusing them where it did
+        if (peek() != TokenType.PAREN_OPEN || dialect.refusesPlatformDialect()) {
+            return List.of();
+        }
+        advance();   // '('
+        List<com.legend.protocol.ParameterDefinition> out = new ArrayList<>();
+        while (peek() != TokenType.PAREN_CLOSE) {
+            int start = pos;
+            String name = text();
+            advance();
+            expect(TokenType.COLON);
+            com.legend.protocol.TypeExpression type = parseType();
+            com.legend.protocol.Multiplicity mult = parseMultiplicity();
+            out.add(new com.legend.protocol.ParameterDefinition(name, type, mult, spanOf(start, pos - 1)));
+            if (!match(TokenType.COMMA)) {
+                break;
+            }
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return out;
+    }
+
     private List<String> parseClassTypeParams() {
         if (peek() != TokenType.LESS_THAN) return List.of();
         advance(); // consume <
@@ -1267,6 +1296,7 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement primitiveElement() {
         advance();   // 'Primitive'
         String fqn = parseQualifiedName();
+        List<com.legend.protocol.ParameterDefinition> typeVariables = parseTypeVariableDeclarations();
         expect(TokenType.EXTENDS);
         String base = parseQualifiedName();
         // optional (args) on the base (e.g. Decimal(10,2)) — dropped
@@ -1277,7 +1307,7 @@ public final class ElementParser implements TokenStreamCursor {
         if (peek() == TokenType.BRACKET_OPEN) {
             skipBalancedBlock();
         }
-        return new com.legend.model.PrimitiveExtensionDefinition(fqn, base);
+        return new com.legend.model.PrimitiveExtensionDefinition(fqn, base, typeVariables);
     }
 
     // ============================================================

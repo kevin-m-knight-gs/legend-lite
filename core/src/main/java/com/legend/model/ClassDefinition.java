@@ -48,6 +48,9 @@ import java.util.Objects;
 public record ClassDefinition(
         String qualifiedName,
         List<String> typeParams,
+        /** TYPE VARIABLES ({@code Class X(x:Integer[1])}): carried as declared (name, type,
+         * multiplicity); a body naming {@code $x} types against them — batch 174 */
+        List<com.legend.protocol.ParameterDefinition> typeVariables,
         List<TypeExpression> superClasses,
         List<PropertyDefinition> properties,
         List<DerivedPropertyDefinition> derivedProperties,
@@ -56,6 +59,15 @@ public record ClassDefinition(
         List<TaggedValue> taggedValues,
         boolean isNative)
         implements PackageableElement {
+
+    /** The pre-type-variable arity: no type variables. */
+    public ClassDefinition(String qualifiedName, List<String> typeParams,
+            List<TypeExpression> superClasses, List<PropertyDefinition> properties,
+            List<DerivedPropertyDefinition> derivedProperties, List<ConstraintDefinition> constraints,
+            List<StereotypeApplication> stereotypes, List<TaggedValue> taggedValues, boolean isNative) {
+        this(qualifiedName, typeParams, List.of(), superClasses, properties, derivedProperties,
+                constraints, stereotypes, taggedValues, isNative);
+    }
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

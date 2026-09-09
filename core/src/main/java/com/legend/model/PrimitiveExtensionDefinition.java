@@ -13,9 +13,16 @@ import java.util.Objects;
  */
 public record PrimitiveExtensionDefinition(
         String qualifiedName,
-        String baseTypeName) implements PackageableElement {
+        String baseTypeName,
+        /** {@code Primitive P(x:Integer[1]) extends Integer} — type variables (batch 174) */
+        java.util.List<com.legend.protocol.ParameterDefinition> typeVariables) implements PackageableElement {
+
+    public PrimitiveExtensionDefinition(String qualifiedName, String baseTypeName) {
+        this(qualifiedName, baseTypeName, java.util.List.of());
+    }
 
     public PrimitiveExtensionDefinition {
+        typeVariables = java.util.List.copyOf(typeVariables);
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(baseTypeName, "Base type cannot be null");
     }

@@ -230,11 +230,11 @@ public class SpecBodyCensusTest {
                 () -> "spec body typing census: " + failures.size()
                         + " UNWALLED boot failures (must be zero) —\n  "
                         + String.join("\n  ", failures.keySet()));
-        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 22,
+        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 23,
                 () -> "spec body census WALLED rows GREW: " + walled.size()
-                        + " > 22 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
+                        + " > 23 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
                         + String.join("\n  ", walled.keySet()));
-        org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 6,
+        org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 1,
                 () -> "spec body census load walls GREW: " + loadWalls);
         System.out.println("[spec-census] runningWorld buckets=" + worlds.buckets()
                 + " walls=" + worlds.worldWalls().size());

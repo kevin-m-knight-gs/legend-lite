@@ -367,7 +367,7 @@ public final class FromProtocol {
         for (Protocol.PSuperType st : c.superTypes()) {
             supers.add(st.type());
         }
-        return new ClassDefinition(c.qualifiedName(), c.typeParams(), supers, props,
+        return new ClassDefinition(c.qualifiedName(), c.typeParams(), c.typeVariables(), supers, props,
                 c.derivedProperties(), c.constraints(),
                 stereotypes(c.stereotypes()), taggedValues(c.taggedValues()),
                 c.isNative());

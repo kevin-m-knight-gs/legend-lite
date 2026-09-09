@@ -7,6 +7,7 @@ import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
@@ -23,6 +24,34 @@ import java.util.List;
 final class CallShapes {
 
     private CallShapes() {
+    }
+
+    /** {@code toMultiplicity(values, @[m])} (legend-pure lang/cast/toMultiplicity.pure:
+     * {@code <T|z>(source:T[*], object:Any[z]):T[z]}) — a multiplicity COERCION
+     * the platform already spells: {@code @[1]} is {@code toOne}, {@code @[1..*]}
+     * is {@code toOneMany}, {@code @[*]} the identity; any other target types
+     * through the native signature and is a named wall at lowering
+     * (Pure.WALLED_NATIVES; parser leg, batch 174). Null when not desugared. */
+    static com.legend.protocol.spec.@com.legend.Nullable ValueSpecification toMultiplicityDesugar(
+            AppliedFunction af) {
+        String fn = af.function();
+        String simple = fn.substring(fn.lastIndexOf(':') + 1);
+        if (!simple.equals("toMultiplicity") || af.parameters().size() != 2
+                || !(af.parameters().get(1) instanceof TypeAnnotation.MultiplicityRef mr)
+                || !(mr.multiplicity() instanceof com.legend.protocol.Multiplicity.Concrete m)) {
+            return null;
+        }
+        com.legend.protocol.spec.ValueSpecification source = af.parameters().get(0);
+        if (m.lowerBound() == 1 && Integer.valueOf(1).equals(m.upperBound())) {
+            return new AppliedFunction("toOne", java.util.List.of(source));
+        }
+        if (m.lowerBound() == 1 && m.upperBound() == null) {
+            return new AppliedFunction("toOneMany", java.util.List.of(source));
+        }
+        if (m.lowerBound() == 0 && m.upperBound() == null) {
+            return source;
+        }
+        return null;   // other targets ([0..1], [2..5]): typed by the signature, walled at lowering
     }
 
     /** Pure's auto-map on the DOT spelling: {@code $xs.qp()} over a

@@ -663,7 +663,7 @@ public final class NameResolver {
                 && stereotypes == cd.stereotypes() && taggedValues == cd.taggedValues()) {
             return cd;
         }
-        return new ClassDefinition(cd.qualifiedName(), cd.typeParams(),
+        return new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
                 superClasses, properties, derived, constraints,
                 stereotypes, taggedValues, cd.isNative());
     }
@@ -1824,6 +1824,7 @@ public final class NameResolver {
                 yield t == named.type() ? named : new TypeAnnotation.Named(nn(t));
             }
             case TypeAnnotation.Wildcard ignored -> ta;
+            case TypeAnnotation.MultiplicityRef ignored -> ta;   // no names to resolve
             case TypeAnnotation.RelationShape shape -> {
                 List<TypeAnnotation.RelationShape.Column> out = resolveList(
                         shape.columns(), NameResolver::resolveRelationShapeColumn, scope);

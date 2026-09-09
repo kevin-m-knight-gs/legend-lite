@@ -52,6 +52,9 @@ final class TypeAnnotations {
             // relation op emits).
             case TypeAnnotation.RelationShape rs ->
                     Type.relation(relationShapeType(rs));
+            // @[m]: a prototype of Any — the multiplicity rides the value's stamp (Typer.typeRef)
+            case TypeAnnotation.MultiplicityRef ignored ->
+                    new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
             case TypeAnnotation.Wildcard ignored -> throw new TypeInferenceException(
                     "the ? wildcard is only legal as a column type inside @Relation<(…)>");
         };
@@ -87,6 +90,12 @@ final class TypeAnnotations {
                     .map(this::namedType).toList();
             String fqn = base instanceof Type.ClassType ct ? ct.fqn()
                     : base instanceof Type.GenericType gt ? gt.rawFqn() : null;
+            if (fqn == null && args.isEmpty() && !g.typeVariableValues().isEmpty()) {
+                // @P(8) over `Primitive P(x:Integer[1]) extends Integer` (cast.pure):
+                // the VALUES are the primitive's constraint inputs, not type
+                // arguments — the annotated type is the primitive itself
+                return base;
+            }
             if (fqn == null) {
                 throw new TypeInferenceException(
                         "generic annotation over a non-class type: " + g.name());

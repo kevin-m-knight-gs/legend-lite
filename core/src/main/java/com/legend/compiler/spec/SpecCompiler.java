@@ -169,6 +169,19 @@ public final class SpecCompiler {
         for (TypedParameter p : fn.parameters()) {
             scope = scope.with(p.name(), new ExprType(p.type(), p.multiplicity()));
         }
+        // TYPE VARIABLES (m3 Class.typeVariables; `Class X(x:Integer[1])`): a lifted
+        // derived / constraint body of X may read $x — bound by its declaration
+        // (the instance's VALUES are not carried: reading one at lowering is a wall)
+        int lift = fn.qualifiedName().indexOf('$');
+        if (lift > 0) {
+            var owner = ctx.findClassDefinition(fn.qualifiedName().substring(0, lift));
+            if (owner.isPresent()) {
+                for (com.legend.protocol.ParameterDefinition tv : owner.get().typeVariables()) {
+                    scope = scope.with(tv.name(), new ExprType(typer.namedType(tv.type()),
+                            com.legend.compiler.element.type.Multiplicity.from(tv.multiplicity())));
+                }
+            }
+        }
         ExprType declaredReturn = new ExprType(fn.returnType(), fn.returnMultiplicity());
 
         List<TypedSpec> typed = new ArrayList<>(body.size());

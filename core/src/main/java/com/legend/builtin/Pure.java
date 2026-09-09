@@ -1531,6 +1531,15 @@ public final class Pure {
     public static final NativeFunctionDefinition EXECUTE_HTTP_RAW__URL_1__METHOD_1__STRING_01__STRING_01 = signature("native function meta::pure::functions::io::http::executeHTTPRaw(url:meta::pure::functions::io::http::URL[1], method:meta::pure::functions::io::http::HTTPMethod[1], mimeType:meta::pure::metamodel::type::String[0..1], body:meta::pure::metamodel::type::String[0..1]):meta::pure::functions::io::http::HTTPResponse[1];");
     // mutateAdd(obj, property, value) — engine core_functions_unclassified/lang/mutateAdd.pure (a mutation; walled)
     public static final NativeFunctionDefinition MUTATE_ADD__T_1__STRING_1__ANY_MANY = signature("native function meta::pure::functions::lang::mutateAdd<T>(obj:T[1], property:meta::pure::metamodel::type::String[1], value:meta::pure::metamodel::type::Any[*]):T[1];");
+    // toMultiplicity<T|z>(source, object:Any[z]):T[z] — legend-pure lang/cast/
+    // toMultiplicity.pure:17 (one of the six parser-gap files, batch 174): the
+    // @[m] value binds z; the Typer desugars the call to toOne / toOneMany /
+    // the identity (CallShapes.toMultiplicityDesugar) — the signature types it
+    // addColumns(RelationType, ColSpecArray):RelationType — legend-pure meta/type/relation/
+    // addColumns.pure:18 (PCT.platformOnly): schema algebra on a RelationType INSTANCE
+    // (a metamodel value), not on a relation — typed here, walled at lowering
+    public static final NativeFunctionDefinition ADD_COLUMNS__RELATIONTYPE_1__COLSPECARRAY_1 = signature("native function meta::pure::functions::meta::addColumns(source:meta::pure::metamodel::relation::RelationType<meta::pure::metamodel::type::Any>[1], colSpec:meta::pure::metamodel::relation::ColSpecArray<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::relation::RelationType<meta::pure::metamodel::type::Any>[1];");
+    public static final NativeFunctionDefinition TO_MULTIPLICITY__T_MANY__ANY_Z = signature("native function meta::pure::functions::lang::toMultiplicity<T|z>(source:T[*], object:meta::pure::metamodel::type::Any[z]):T[z];");
 
     /** WALLED NATIVES — registered signatures whose lowering is a NAMED WALL by
      * decision (the native rule's second arm): a program reaching one fails at
@@ -1545,7 +1554,13 @@ public final class Pure {
             "meta::pure::functions::io::http::executeHTTPRaw",
             "an IO effect — the database never performs HTTP",
             "meta::pure::functions::lang::mutateAdd",
-            "instance mutation — no relational meaning");
+            "instance mutation — no relational meaning",
+            "meta::pure::functions::lang::toMultiplicity",
+            "a multiplicity target other than [1], [1..*], [*] (the Typer desugars those to"
+                    + " toOne / toOneMany / the identity) — a checked narrowing to [0..1] has no platform spelling",
+            "meta::pure::functions::meta::addColumns",
+            "schema algebra on a RelationType INSTANCE (a metamodel value) — the typer's schema"
+                    + " algebra covers types, not values");
 
     /** The wall reason for a walled native, or null when the native is not walled. */
     public static @com.legend.Nullable String walledNativeReason(String fqn) {

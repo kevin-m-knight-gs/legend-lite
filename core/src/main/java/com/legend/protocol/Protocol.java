@@ -2771,6 +2771,10 @@ public final class Protocol {
      */
     public record PClass(String pkg, String name,
                          List<String> typeParams,
+                         /** {@code Class X(x:Integer[1])} — TYPE VARIABLES (legend-pure new.pure,
+                          * cast.pure, precisePrimitives.pure; m3 Class.typeVariables): declared
+                          * values a constraint or derived body may name as {@code $x} */
+                         List<com.legend.protocol.ParameterDefinition> typeVariables,
                          List<PSuperType> superTypes,
                          List<PProperty> properties,
                          List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
@@ -2779,8 +2783,20 @@ public final class Protocol {
                          List<PTaggedValue> taggedValues,
                          boolean isNative,
                          com.legend.protocol.SourceInfo sourceInformation) implements Element {
+        /** The pre-type-variable arity: no type variables. */
+        public PClass(String pkg, String name, List<String> typeParams,
+                      List<PSuperType> superTypes, List<PProperty> properties,
+                      List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                      List<com.legend.protocol.ConstraintDefinition> constraints,
+                      List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
+                      boolean isNative, com.legend.protocol.SourceInfo sourceInformation) {
+            this(pkg, name, typeParams, List.of(), superTypes, properties, derivedProperties,
+                    constraints, stereotypes, taggedValues, isNative, sourceInformation);
+        }
+
         public PClass {
             typeParams = List.copyOf(typeParams);
+            typeVariables = List.copyOf(typeVariables);
             superTypes = List.copyOf(superTypes);
             properties = List.copyOf(properties);
             derivedProperties = List.copyOf(derivedProperties);

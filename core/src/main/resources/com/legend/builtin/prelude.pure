@@ -1138,6 +1138,16 @@ Class meta::pure::metamodel::variant::Variant
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-precisePrimitives/src/main/resources/platform_precise_primitives/precisePrimitives.pure
+import meta::pure::precisePrimitives::*;
+function meta::pure::precisePrimitives::fractionDigits(x:Decimal[1]):Decimal[1]
+{
+  let val = $x - $x->floor();
+  $val->toDecimal();
+}
+
+
+###Pure
 // legend-pure/legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources/platform_dsl_diagram/diagram.pure
 import meta::pure::profiles::*;
 import meta::pure::diagram::*;
@@ -5053,7 +5063,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 466 classes, 18 enums, 74 functions (legend-pure's platform library, bodied and non-test;6 files unparsed, the census's load walls).
+// 466 classes, 18 enums, 75 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // PLATFORM-OWNED NAMES — library functions whose name the platform implements (a registered
 // native or an operator special form: the native IS the definition, Pure.java); not carried:
 //   meta::pure::functions::asserts::assert
