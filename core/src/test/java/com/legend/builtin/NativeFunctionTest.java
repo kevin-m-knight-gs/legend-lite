@@ -164,7 +164,7 @@ class NativeFunctionTest {
                 List.of("T"),
                 List.of("m"),
                 List.of(
-                        new ParameterDefinition("source", nr(Pure.ANY),
+                        new ParameterDefinition("source", nr(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY)),
                                 new Multiplicity.Parameter("m")),
                         new ParameterDefinition("type", nr("T"), Multiplicity.exactly(1))),
                 nr("T"),
@@ -263,7 +263,7 @@ class NativeFunctionTest {
                         tp(tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), nr("T")), Multiplicity.exactly(1)),
                         tp(tg(Prelude.cls("meta::pure::functions::relation::_Window"), nr("T")), Multiplicity.exactly(1)),
                         tp(nr("T"), Multiplicity.exactly(1))),
-                tp(nr(Pure.ANY), Multiplicity.range(0, 1)));
+                tp(nr(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY)), Multiplicity.range(0, 1)));
         assertEquals(tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC), innerFn, nr("R")),
                 def.parameters().get(2).type());
         // Return type Relation<T+R> = Generic(Relation, [SchemaAlgebra(T, UNION, R)]).
@@ -644,7 +644,12 @@ class NativeFunctionTest {
         // multiplicityParameters, originalMilestonedProperties,
         // qualifiedPropertiesFromAssociations) and its five supertypes; the
         // system store's Class rows (metamodel.classes) type against it
-        assertEquals(22, hand,
+        // 22 -> 21 (batch 163): Any — m3's shape with classifierGenericType
+        // and elementOverride, which ClassLayouts.isReflectionCarrier keeps
+        // out of every instance layout; the Typer's two served arms stay for
+        // receivers that do not spell `extends Any`. What is left by hand: the
+        // 13 primitives (the bootstrap floor) and the 8 store-coupled shapes.
+        assertEquals(21, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -1376,7 +1381,7 @@ class NativeFunctionTest {
     @Test
     void numericTowerHierarchyIsCorrect() {
         // Integer/Float/Decimal extend Number; Number extends Any.
-        assertEquals(List.of(nr(Pure.ANY)), Pure.NUMBER.superClasses());
+        assertEquals(List.of(nr(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY))), Pure.NUMBER.superClasses());
         assertEquals(List.of(nr(Pure.NUMBER)), Pure.INTEGER.superClasses());
         assertEquals(List.of(nr(Pure.NUMBER)), Pure.FLOAT.superClasses());
         assertEquals(List.of(nr(Pure.NUMBER)), Pure.DECIMAL.superClasses());
@@ -1385,7 +1390,7 @@ class NativeFunctionTest {
     @Test
     void dateHierarchyIsCorrect() {
         // Date extends Any; StrictDate/DateTime/LatestDate extend Date.
-        assertEquals(List.of(nr(Pure.ANY)),  Pure.DATE.superClasses());
+        assertEquals(List.of(nr(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY))),  Pure.DATE.superClasses());
         assertEquals(List.of(nr(Pure.DATE)), Pure.STRICT_DATE.superClasses());
         assertEquals(List.of(nr(Pure.DATE)), Pure.DATE_TIME.superClasses());
         assertEquals(List.of(nr(Pure.DATE)), Pure.LATEST_DATE.superClasses());
@@ -1394,8 +1399,8 @@ class NativeFunctionTest {
     @Test
     void anyHasNoSuperclass() {
         // Top of the hierarchy: Any must have no supers.
-        assertTrue(Pure.ANY.superClasses().isEmpty(),
-                () -> "Any must have no superclasses, got " + Pure.ANY.superClasses());
+        assertTrue(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY).superClasses().isEmpty(),
+                () -> "Any must have no superclasses, got " + Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY).superClasses());
     }
 
     @Test
@@ -1423,7 +1428,7 @@ class NativeFunctionTest {
         // parameters. Pinning this catches accidental drift where a
         // declaration grows an unintended <T>.
         for (ClassDefinition c : List.of(
-                Pure.ANY, Prelude.cls("meta::pure::metamodel::type::Type"),
+                Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY), Prelude.cls("meta::pure::metamodel::type::Type"),
                 Prelude.cls(com.legend.compiler.element.type.PlatformTypes.NIL),
                 Pure.NUMBER, Pure.INTEGER, Pure.FLOAT, Pure.DECIMAL,
                 Pure.STRING, Pure.BOOLEAN, Pure.BYTE,

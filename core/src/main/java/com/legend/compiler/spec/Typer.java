@@ -3115,8 +3115,9 @@ final class Typer {
                     }
                     // real M3: Any.elementOverride surfaces on every class
                     // (the corpus KeyInformation guard); folded to empty
-                    // below — Any itself stays property-FREE (its shape is
-                    // load-bearing for the struct/variant carrier)
+                    // below. Since batch 163 Any DECLARES both properties in
+                    // the prelude module (no layout slot); these arms remain
+                    // for receivers whose class does not spell `extends Any`
                     if (ap.property().equals("elementOverride")) {
                         yield new ExprType(new Type.ClassType(
                                 com.legend.compiler.element.type.PlatformTypes.ELEMENT_OVERRIDE),

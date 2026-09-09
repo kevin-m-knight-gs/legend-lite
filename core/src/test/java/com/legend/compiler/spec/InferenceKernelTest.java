@@ -7,7 +7,6 @@ import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.model.NormalizedModel;
 import com.legend.model.ParsedModel;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +31,7 @@ class InferenceKernelTest {
     private static PureModelContext ctx() {
         ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::Person {}\nClass model::Address {}\n");
-        return PureModelContext.from(new NormalizedModel(parsed.elements(), parsed.imports()));
+        return (PureModelContext) com.legend.Compiler.buildModel(parsed);
     }
 
     private static InferenceKernel kernel() {
@@ -82,7 +81,7 @@ class InferenceKernelTest {
         Bindings b = new Bindings();
         k.unify(new Type.TypeVar("T"), Type.Primitive.INTEGER, b);
         k.unify(new Type.TypeVar("T"), Type.Primitive.STRING, b);
-        assertEquals(new Type.ClassType(Pure.ANY.qualifiedName()), b.type("T").orElseThrow());
+        assertEquals(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), b.type("T").orElseThrow());
 
         Bindings b2 = new Bindings();
         k.unify(new Type.TypeVar("T"), Type.Primitive.INTEGER, b2);
@@ -96,7 +95,7 @@ class InferenceKernelTest {
         Bindings b = new Bindings();
         k.unify(new Type.TypeVar("T"), Type.Primitive.INTEGER, b);
         // re-binding to Any is the escape hatch: it does not conflict AND does not overwrite.
-        k.unify(new Type.TypeVar("T"), new Type.ClassType(Pure.ANY.qualifiedName()), b);
+        k.unify(new Type.TypeVar("T"), new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), b);
         assertEquals(Type.Primitive.INTEGER, b.type("T").orElseThrow());
     }
 
@@ -239,7 +238,7 @@ class InferenceKernelTest {
         assertThrows(TypeInferenceException.class,
                 () -> k.unify(person, new Type.ClassType("model::Address"), new Bindings()));
         // Any accepts anything (top type)
-        k.unify(new Type.ClassType(Pure.ANY.qualifiedName()), Type.Primitive.INTEGER, new Bindings());
+        k.unify(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), Type.Primitive.INTEGER, new Bindings());
     }
 
     // ---- relations (reference-faithful: wrapper preserved) -------------
@@ -506,7 +505,7 @@ class InferenceKernelTest {
         InferenceKernel.Resolution mixed = kernel().resolveOverload(List.of(f),
                 List.of(et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE),
                         et(Type.Primitive.STRING, Multiplicity.Bounded.ONE)));
-        assertEquals(new Type.ClassType(Pure.ANY.qualifiedName()), mixed.output().type());
+        assertEquals(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), mixed.output().type());
     }
 
     @Test

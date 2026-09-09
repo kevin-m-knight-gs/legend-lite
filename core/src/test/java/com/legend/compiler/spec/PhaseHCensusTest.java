@@ -166,8 +166,11 @@ public class PhaseHCensusTest {
             PureModelContext ctx;
             try {
                 parsed = com.legend.testing.Own.model(fx.getValue());
+                // the FRONT DOOR (resolve, normalize, the boot layer): Any and the
+                // metaclasses are prelude MODULE classes since batch 163
+                ctx = (PureModelContext) com.legend.Compiler.buildModel(parsed);
+                // the user model's OWN normalization, only to list its synthesized bodies
                 normalized = ModelNormalizer.normalize(NameResolver.resolve(parsed));
-                ctx = PureModelContext.from(normalized);
             } catch (Exception e) {
                 bucket(buckets, sample, "[MODEL] " + shape(e), fx.getKey() + ": " + e.getMessage());
                 continue;

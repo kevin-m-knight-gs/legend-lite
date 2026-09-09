@@ -167,11 +167,9 @@ public final class Pure {
     }
 
     // ---- Top of the hierarchy ----
-    // m3.pure declares Any.classifierGenericType: GenericType[0..1]; like
-    // elementOverride it is SERVED by the Typer, never declared here — Any's
-    // property-free shape is load-bearing for the struct/variant carrier
-    // (Phase 5 batch 147: declaring it lost 173 tests in one lane run)
-    public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
+    // (Any is a prelude MODULE class since batch 163, printed from m3.pure
+    // with its two reflection properties; ClassLayouts.isReflectionCarrier
+    // gives them no slot, so the struct/variant carrier is unchanged)
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
     // ModelElement; letFn's removeDuplicates over classes needs it)

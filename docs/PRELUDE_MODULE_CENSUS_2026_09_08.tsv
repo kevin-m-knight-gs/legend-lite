@@ -225,6 +225,7 @@ meta::pure::metamodel::treepath::PropertyRouteNode	legend-pure	platform	false	0	
 meta::pure::metamodel::treepath::RootRouteNode	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::treepath::RouteNode	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::treepath::RouteNodePropertyStub	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::Any	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::Class	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::ClassProjection	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::ConstraintsGetterOverride	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure

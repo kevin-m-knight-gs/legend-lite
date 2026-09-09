@@ -17,7 +17,6 @@ import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.model.NormalizedModel;
 import com.legend.model.ParsedModel;
 import org.junit.jupiter.api.Test;
 
@@ -41,8 +40,7 @@ class SpecCompilerTest {
 
     private static SpecCompiler compilerWith(String model) {
         ParsedModel p = com.legend.testing.Own.model(model);
-        return new SpecCompiler(PureModelContext.from(
-                new NormalizedModel(p.elements(), p.imports())));
+        return new SpecCompiler((PureModelContext) com.legend.Compiler.buildModel(p));
     }
 
     private static SpecCompiler compiler() {
@@ -56,7 +54,7 @@ class SpecCompilerTest {
     /** Parse a model, find the one overload of {@code fnFqn}, and type-check its body. */
     private static CompiledFunction checkOnly(String model, String fnFqn) {
         ParsedModel p = com.legend.testing.Own.model(model);
-        PureModelContext c = PureModelContext.from(new NormalizedModel(p.elements(), p.imports()));
+        PureModelContext c = (PureModelContext) com.legend.Compiler.buildModel(p);
         List<TypedFunction> fns = c.findFunction(fnFqn);
         assertEquals(1, fns.size(), fnFqn + " should have exactly one overload");
         return new SpecCompiler(c).compile(fns.get(0));
@@ -336,7 +334,7 @@ class SpecCompilerTest {
     @Test
     void check_nativeFunctionHasNoBodyThrows() {
         ParsedModel p = com.legend.testing.Own.model("Class model::Person {}\n");
-        PureModelContext c = PureModelContext.from(new NormalizedModel(p.elements(), p.imports()));
+        PureModelContext c = (PureModelContext) com.legend.Compiler.buildModel(p);
         TypedFunction nativeLength = c.findFunction("length").get(0);
         assertThrows(TypeInferenceException.class, () -> new SpecCompiler(c).compile(nativeLength));
     }
@@ -345,7 +343,7 @@ class SpecCompilerTest {
 
     private static SpecCompiler compilerAndCtx(String model, PureModelContext[] outCtx) {
         ParsedModel p = com.legend.testing.Own.model(model);
-        PureModelContext c = PureModelContext.from(new NormalizedModel(p.elements(), p.imports()));
+        PureModelContext c = (PureModelContext) com.legend.Compiler.buildModel(p);
         outCtx[0] = c;
         return new SpecCompiler(c);
     }
@@ -396,7 +394,7 @@ class SpecCompilerTest {
     @Test
     void collection_unrelatedTypesWidenToAny() {
         // ['a', 1] : String + Integer -> Any[2]
-        assertEquals(exact(new Type.ClassType(Pure.ANY.qualifiedName()), 2), infer("['a', 1]").info());
+        assertEquals(exact(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), 2), infer("['a', 1]").info());
     }
 
     @Test

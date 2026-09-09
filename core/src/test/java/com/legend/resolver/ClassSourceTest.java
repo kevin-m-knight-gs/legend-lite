@@ -37,9 +37,9 @@ class ClassSourceTest {
     private record Ctx(PureModelContext model, ClassSources sources) {}
 
     private static Ctx load(String source) {
-        NormalizedModel normalized = ModelNormalizer.normalize(
-                NameResolver.resolve(com.legend.testing.Own.model(source)));
-        PureModelContext ctx = PureModelContext.from(normalized);
+        // the FRONT DOOR: the boot layer carries Any and the metaclasses (batch 163)
+        PureModelContext ctx = (PureModelContext) com.legend.Compiler.buildModel(
+                com.legend.testing.Own.model(source));
         return new Ctx(ctx, new ClassSources(ctx, new SpecCompiler(ctx)));
     }
 
@@ -55,9 +55,11 @@ class ClassSourceTest {
     void censusBatteryExtracts() {
         int extracted = 0;
         for (var fx : PhaseHCensusTest.FIXTURES.entrySet()) {
+            PureModelContext ctx = (PureModelContext) com.legend.Compiler.buildModel(
+                    com.legend.testing.Own.model(fx.getValue()));
+            // the fixture's OWN normalization, only to list its mappings
             NormalizedModel normalized = ModelNormalizer.normalize(
                     NameResolver.resolve(com.legend.testing.Own.model(fx.getValue())));
-            PureModelContext ctx = PureModelContext.from(normalized);
             ClassSources sources = new ClassSources(ctx, new SpecCompiler(ctx));
             for (MappingDefinition md : mappingsOf(normalized)) {
                 for (MappingDefinition.ClassBinding cb : md.classBindings()) {

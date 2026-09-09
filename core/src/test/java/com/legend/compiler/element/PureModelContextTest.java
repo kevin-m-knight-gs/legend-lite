@@ -131,7 +131,12 @@ class PureModelContextTest {
     void isSubtypeWalksNativeLattice() {
         PureModelContext ctx = fixture();
         assertTrue(ctx.isSubtype(INTEGER, NUMBER));
-        assertTrue(ctx.isSubtype(INTEGER, Pure.ANY.qualifiedName()));
+        // Any is a prelude MODULE class (batch 163): the lattice question needs
+        // a context that carries the boot layer — the front door, not this
+        // class's boot-layer-bypassing fixture
+        PureModelContext booted = (PureModelContext) com.legend.Compiler.buildModel(
+                com.legend.testing.Own.model("Class model::X { x: " + INTEGER + "[1]; }\n"));
+        assertTrue(booted.isSubtype(INTEGER, com.legend.compiler.element.type.PlatformTypes.ANY));
     }
 
     // ====================================================================
@@ -304,7 +309,7 @@ class PureModelContextTest {
         // a CATALOG class: this fixture bypasses the boot layer, so the
         // generated module's classes (Class itself, since batch 162) are not
         // in its extent — Any is the catalog witness (see findTypeClassifiesEveryKind)
-        assertTrue(extent.contains(Pure.ANY.qualifiedName()),
+        assertTrue(extent.contains(Pure.INTEGER.qualifiedName()),
                 () -> "native classes missing from the Class extent");
         assertEquals(extent.stream().sorted().toList(), extent,
                 "deterministic order: sorted by FQN");

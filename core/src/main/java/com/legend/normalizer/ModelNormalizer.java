@@ -398,7 +398,7 @@ public final class ModelNormalizer {
                 List.of(),
                 List.of(),
                 params,
-                new TypeExpression.NameRef(Pure.ANY.qualifiedName()),
+                new TypeExpression.NameRef(com.legend.compiler.element.type.PlatformTypes.ANY),
                 Multiplicity.Concrete.ZERO_MANY,
                 body,
                 List.of(), List.of())

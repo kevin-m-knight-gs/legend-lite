@@ -310,6 +310,8 @@ Class meta::pure::metamodel::type::Enum extends meta::pure::metamodel::extension
 
 Class meta::pure::metamodel::type::Nil extends meta::pure::metamodel::type::Any { }
 
+Class meta::pure::metamodel::type::Any { classifierGenericType: meta::pure::metamodel::type::generics::GenericType[0..1]; elementOverride: meta::pure::metamodel::type::ElementOverride[0..1]; }
+
 Class meta::pure::metamodel::type::ElementOverride extends meta::pure::metamodel::type::Any { }
 
 Class meta::pure::metamodel::type::GetterOverride extends meta::pure::metamodel::type::ElementOverride { getterOverrideToOne: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1], meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|0..1>[1]->meta::pure::metamodel::type::Any[0..1]}>[0..1]; getterOverrideToMany: meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1], meta::pure::metamodel::function::property::Property<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any|*>[1]->meta::pure::metamodel::type::Any[*]}>[0..1]; hiddenPayload: meta::pure::metamodel::type::Any[0..1]; }
@@ -4079,7 +4081,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 454 classes, 16 enums.
+// 455 classes, 16 enums.
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
 //   meta::core::runtime::EngineRuntime

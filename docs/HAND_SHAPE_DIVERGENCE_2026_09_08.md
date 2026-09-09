@@ -96,8 +96,22 @@ go when the shapes migrate).
    `Relation<T>` and the ColSpec family the Typer builds directly): each stays with a receipt naming WHICH Java constructs it. `Any`
    gets the layout rule (reflection-typed properties have no slot) and then its two spec properties; the Typer's hand-served
    `classifierGenericType`/`elementOverride` arms go with it.
-4. **The two store-shaped divergences** (kind E/F): a `PropertyOwnerImplementation` row class and `Enum`-typed enum-value rows in
-   the system store. Each is a store leg with a witness; until it lands the hand shape carries the receipt.
+4. **The two store-shaped divergences (kind E/F) are MAPPING legs, not table legs** — USER 2026-09-09: "keep the class model the
+   same as pure/engine and use mapping to map between the two"; ratified after weighing a table refactor (both work; the tables
+   were shaped by the lanes — one table per hierarchy for H2, batches 9–10 — and a spec change must ripple to the mapping text
+   only, never to the tables and the Java seeds; a table changes only when a FACT is missing, never for shape).
+   **Leg A — `Column`, `Database`** (hand 21 → 19): `Column.owner : Relation[0..1]` — the mapping's target for `owner` becomes
+   `Relation`, whose rows the relational-element table already holds (kind column: Table/View); `Database`'s `SetBasedStore` /
+   `AnnotatedElement` supertypes are unmapped.
+   **Leg B — `Mapping`, `SetImplementation`, `PropertyMappingsImplementation`, `InstanceSetImplementation`, `PropertyMapping`,
+   `EnumValueMapping`** (hand 19 → 13): the spec's `PropertyOwnerImplementation { id; superSetImplementationId; parent }` with
+   `SetImplementation` and `PropertyMappingsImplementation` beside it and `InstanceSetImplementation` inheriting both — every
+   class of the chain maps onto the ONE `set_implementations` table (subclass mappings sharing the main table; the mapping
+   calculus walks both parents, batch 160's rule); `EnumValueMapping.enum : Enum[1]` — an `Enum` class mapping over the
+   enum-name column and `enum` a join to it; `sourceValues : Any[*]` — the text column conformed to the platform's `Any`
+   carrier AT THE MAPPING (conform-by-emission), never the class narrowed; `Mapping`'s `Testable` / `EnumerationMapping<Any>` /
+   duplicated `name` dissolve; unmapped new properties stay unmapped (a read walls).
+   After both: `Pure.java` = native signatures + `Lite` + the 13 primitives. Phase 2 complete.
 5. **The pin**: `tools/shape_sweep.py` becomes a governance test — every hand shape exact, or on a shrink-only list with its receipt.
 
 Estimated: step 1 is the design leg (generator output + model-build wiring, moderate); steps 2–3 are mechanical with lane risk per

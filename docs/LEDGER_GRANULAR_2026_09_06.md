@@ -939,3 +939,11 @@ tier is gone; the core import group gained the engine's three additions. One lit
 |---|---|---|---|
 | 1 | `Class<T>` with five supertypes and five new properties; the store's `metamodel.classes` rows type against it | migrated; hand 23 → 22; prelude 454; no pass change | Pure.java |
 | 2 | a boot-layer-bypassing fixture asserted `Class` in the catalog extent | `Any` is the catalog witness | PureModelContextTest |
+
+## 36. Batch 163 — Any behind its layout rule (2026-09-09)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | m3's Any carries two reflection properties; declaring them once cost 173 tests (batch 147) | `ClassLayouts.isReflectionCarrier`: no slot for GenericType/ElementOverride-typed properties; Any migrated; hand 22 → 21 | ClassLayouts, Pure.java |
+| 2 | five fixtures built contexts without the boot layer and lost `Any` | the front door | InferenceKernelTest, SpecCompilerTest, PhaseHCensusTest, ClassSourceTest, PureModelContextTest |
+| 3 | USER: the last 8 — tables mirror the model, or mapping? | MAPPING: tables stay, classes from the spec, the system metamodel's mapping bridges; a table changes only for a missing fact | HAND_SHAPE_DIVERGENCE §4 step 4 |

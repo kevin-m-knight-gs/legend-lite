@@ -146,6 +146,19 @@ public final class ClassLayouts {
      * QualifiedProperty, FunctionDefinition, …) is CODE like the bare
      * function type — Class.properties: Property<T,Any|*>[*] has no slot
      * (batch 149: the metaclass shapes gained their m3 properties). */
+    /** A REFLECTION-typed property ({@code Any.classifierGenericType :
+     * GenericType[0..1]}, {@code Any.elementOverride : ElementOverride[0..1]},
+     * m3.pure) is the metamodel's view of the value, not data the value
+     * carries: no SQL carrier, no slot — the function-carrier rule's twin.
+     * With it m3's {@code Any} comes into the prelude whole (batch 163);
+     * without it every instance struct grew two fields (batch 147: 173
+     * tests in one lane run). */
+    private static boolean isReflectionCarrier(Type declared) {
+        String raw = declared instanceof Type.ClassType ct ? ct.fqn()
+                : declared instanceof Type.GenericType g ? g.rawFqn() : null;
+        return PlatformTypes.GENERIC_TYPE.equals(raw) || PlatformTypes.ELEMENT_OVERRIDE.equals(raw);
+    }
+
     private static boolean isFunctionCarrier(ModelContext ctx, Type declared) {
         String raw = declared instanceof Type.ClassType ct ? ct.fqn()
                 : declared instanceof Type.GenericType g ? g.rawFqn() : null;
@@ -166,7 +179,8 @@ public final class ClassLayouts {
             if (declared instanceof Type.FunctionType
                     || (declared instanceof Type.GenericType g
                             && g.rawFqn().equals(PlatformTypes.FUNCTION))
-                    || isFunctionCarrier(ctx, declared)) {
+                    || isFunctionCarrier(ctx, declared)
+                    || isReflectionCarrier(declared)) {
                 // a FUNCTION-typed property is CODE, not data (the engine's
                 // Runtime.preprocessFunction hook, Function<{FunctionDefinition,
                 // Runtime -> FunctionDefinition}>): it has no SQL carrier and
