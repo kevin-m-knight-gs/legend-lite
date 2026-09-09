@@ -21,8 +21,12 @@ runs:
         set -eu
         # KEY=VALUE lines only; comments and blanks dropped
         grep -E '^[A-Z_]+=' legend-lite/tools/oracle-pins.env >> "$GITHUB_ENV"
-        echo "LEGEND_ENGINE_ROOT=$GITHUB_WORKSPACE/oracles/legend-engine" >> "$GITHUB_ENV"
-        echo "LEGEND_PURE_ROOT=$GITHUB_WORKSPACE/oracles/legend-pure" >> "$GITHUB_ENV"
+        # On Windows GITHUB_WORKSPACE is a backslash path (D:\a\...), which
+        # bash reads as escapes and `git -C` chokes on. Forward slashes work
+        # for the JVM, for git and for bash on all three platforms.
+        ws=${GITHUB_WORKSPACE//\\//}
+        echo "LEGEND_ENGINE_ROOT=$ws/oracles/legend-engine" >> "$GITHUB_ENV"
+        echo "LEGEND_PURE_ROOT=$ws/oracles/legend-pure" >> "$GITHUB_ENV"
     - uses: actions/setup-java@v4
       with:
         distribution: temurin

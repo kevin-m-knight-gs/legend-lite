@@ -1,16 +1,23 @@
-# THE STANDING GATE CHAIN, IN CI — the same nine gates as tools/allgates.sh
-# (docs/GATES.md), run BY that script so the gate logic (rosters, ceilings,
-# skip detection, the tree tripwire) has exactly one home.
+# THE STANDING GATE — the same nine gates (docs/GATES.md) on Linux, macOS and
+# Windows, in parallel, on every push.
 #
-# Shape: gate 1 (core suite) runs first and FAILS FAST — a red core jar makes
-# every later gate noise. The remaining gates then run as parallel jobs, one
-# per lane, each self-sufficient (GATES=2,<n> installs core into the job's
-# own ~/.m2 first; gate 8 builds core in-reactor with -am). Locally the chain
-# is sequential because concurrent JVMs get killed on a laptop; here each
-# lane owns a runner.
+# The chain itself lives in gates-run.yml, called three times below, and it
+# runs tools/allgates.sh — so gate policy has exactly one home (the script) and
+# the CI shape has exactly one definition (that file). Adding a gate touches
+# the script and the lane list; it never touches this file.
 #
-# The oracle checkouts (legend-engine / legend-pure) are cloned at the
-# commits pinned in tools/oracle-pins.env by .github/actions/gate-env.
+# WHY THREE PLATFORMS. On 2026-09-09 the first CI run found that DuckDB's
+# percentile_cont returns a different double on x86_64 than on arm64, reddening
+# three lanes. A single-platform pipeline cannot see that class of bug by
+# construction. The three chains are independent jobs, so the wall clock is the
+# SLOWEST platform rather than the sum, and the runners are free for a public
+# repository.
+#
+# macOS is arm64 — the architecture the rosters and goldens were minted on, so
+# it is the reference configuration rather than a new one. Windows is the
+# genuinely new surface; gates-run.yml carries its checkout guards (autocrlf
+# would rewrite the .pure corpus and break byte-exact parser parity, and the
+# engine checkout's deep paths need core.longpaths).
 name: gates
 on:
   push:
@@ -35,67 +42,17 @@ on:
         description: "Comma-separated gate numbers to run (empty = all). Gate 1 always runs."
         default: ""
         type: string
+      platforms:
+        description: "Which platforms to run."
+        default: all
+        type: choice
+        options: [all, linux, macos, windows]
 
 concurrency:
   group: gates-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # CI has a cold ~/.m2 and must resolve; the script defaults to -o for
-  # local hygiene
-  MVN_OFFLINE: "0"
-  # Maven 3.9 reads MAVEN_ARGS: batch mode, no transfer progress spam
-  MAVEN_ARGS: -B -ntp
-  # The forked test JVMs default to 1/4 of the runner's RAM (4 GB on the
-  # 16 GB public runner, 1.75 GB on the 7 GB private one). Pin the heap so
-  # the lanes behave the same on either; the local chain is validated under
-  # this same cap before a bump lands. MEASURED 2026-09-09: corpus and
-  # parser lanes fit in 3 GB; a PCT suite's live set is 2.0-2.8 GB (pct/pom
-  # forks one JVM per suite for exactly this reason) and the Pure PAR
-  # generation plugin peaks at ~2.5 GB INSIDE the Maven JVM, which this
-  # variable also caps. 4 GB covers every JVM in the chain.
-  JAVA_TOOL_OPTIONS: -Xmx4g
-
 jobs:
-  # The lane matrix is DATA, computed here, because a job-level `if` cannot
-  # read the `matrix` context (GitHub allows only github/needs/vars/inputs
-  # there — an `if` on matrix.* makes the whole file invalid, zero jobs, and
-  # a run named after the file path). So workflow_dispatch's gate selection
-  # filters the list before it becomes a matrix.
-  setup:
-    name: lane matrix
-    runs-on: ubuntu-latest
-    outputs:
-      lanes: ${{ steps.pick.outputs.lanes }}
-    steps:
-      - id: pick
-        env:
-          WANT: ${{ inputs.gates }}
-        run: |
-          set -eu
-          all='[
-            {"name":"gate 4 DuckDB corpus",          "gate":"4","gates":"2,4"},
-            {"name":"gate 5 H2 corpus",              "gate":"5","gates":"2,5"},
-            {"name":"gate 6 PCT DuckDB",             "gate":"6","gates":"2,6"},
-            {"name":"gate 7 PCT H2 relation",        "gate":"7","gates":"2,7"},
-            {"name":"gate 9 Channel B dual-verdict", "gate":"9","gates":"2,9"},
-            {"name":"gate 8 parser equivalence",     "gate":"8","gates":"8"}
-          ]'
-          if [ -n "${WANT:-}" ]; then
-            lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," \
-              '[.[] | select($w | contains("," + .gate + ","))]')
-          else
-            lanes=$(printf '%s' "$all" | jq -c .)
-          fi
-          # an empty matrix makes the lanes job fail with a cryptic runner
-          # error — say what actually went wrong instead
-          [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 4,5,6,7,8,9 (gate 1 always runs, gate 2 is folded into each lane)"
-            exit 1
-          }
-          echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
-          echo "$lanes" | jq -r '.[].name' | sed 's/^/lane: /'
-
   # A workflow whose OWN file is invalid never runs (GitHub reports zero jobs
   # and names the run after the file path — how the first version of this file
   # failed). So workflows are linted LOCALLY before a push, and here as well,
@@ -111,75 +68,28 @@ jobs:
             | tar xz actionlint
           ./actionlint -color
 
-  core:
-    name: gate 1 core suite
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: legend-lite
-      - uses: ./legend-lite/.github/actions/gate-env
-      - name: run gate 1
-        working-directory: legend-lite
-        run: GATES=1 GATES_LOG="$RUNNER_TEMP/gates.log" tools/allgates.sh
-      - name: gate log to summary
-        if: always()
-        working-directory: legend-lite
-        run: |
-          { echo '### gate 1'; echo '```'; cat "$RUNNER_TEMP/gates.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          # on RED the script copies the failing surefire output beside the log
-          # so the assertion is in the artifact, not just "exit 1"
-          for f in "$RUNNER_TEMP"/gates.g*.out; do
-            [ -f "$f" ] && { echo "::group::$(basename "$f") (tail)"; tail -200 "$f"; echo '::endgroup::'; }
-          done; true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gate-1-core
-          path: ${{ runner.temp }}/gates*
-          if-no-files-found: ignore
+  linux:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux' }}
+    uses: ./.github/workflows/gates-run.yml
+    with:
+      runs-on: ubuntu-latest
+      platform: linux
+      gates: ${{ inputs.gates }}
 
-  lanes:
-    name: ${{ matrix.lane.name }}
-    needs: [setup, core]
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      # collect-all semantics, like the local chain: every lane reports
-      fail-fast: false
-      matrix:
-        lane: ${{ fromJSON(needs.setup.outputs.lanes) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: legend-lite
-      - uses: ./legend-lite/.github/actions/gate-env
-      - name: run ${{ matrix.lane.name }}
-        working-directory: legend-lite
-        run: GATES="${{ matrix.lane.gates }}" GATES_LOG="$RUNNER_TEMP/gates.log" tools/allgates.sh
-      - name: gate log to summary
-        if: always()
-        working-directory: legend-lite
-        run: |
-          { echo '### ${{ matrix.lane.name }}'; echo '```'; cat "$RUNNER_TEMP/gates.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          for f in "$RUNNER_TEMP"/gates.g*.out; do
-            [ -f "$f" ] && { echo "::group::$(basename "$f") (tail)"; tail -200 "$f"; echo '::endgroup::'; }
-          done; true
-      - name: scoreboard drift (gate 4 rewrites docs/RELATIONAL_CORPUS.md in place)
-        if: always()
-        working-directory: legend-lite
-        run: |
-          if ! git diff --quiet -- docs/RELATIONAL_CORPUS.md; then
-            echo "::warning file=docs/RELATIONAL_CORPUS.md::the committed scoreboard differs from this run's — regenerate locally (gate 4) and commit it with the change"
-            { echo '#### scoreboard drift'; echo '```diff'; git diff -- docs/RELATIONAL_CORPUS.md | head -200; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gate-${{ matrix.lane.gate }}
-          path: |
-            ${{ runner.temp }}/gates*
-            legend-lite/parser-equivalence/target/*-report.txt
-            legend-lite/docs/RELATIONAL_CORPUS.md
-          if-no-files-found: ignore
+  macos:
+    # macos-14 and later are arm64. Pinned rather than -latest so a runner
+    # image flip is a deliberate commit, like the oracle pins.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'macos' }}
+    uses: ./.github/workflows/gates-run.yml
+    with:
+      runs-on: macos-14
+      platform: macos
+      gates: ${{ inputs.gates }}
+
+  windows:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'windows' }}
+    uses: ./.github/workflows/gates-run.yml
+    with:
+      runs-on: windows-2022
+      platform: windows
+      gates: ${{ inputs.gates }}
