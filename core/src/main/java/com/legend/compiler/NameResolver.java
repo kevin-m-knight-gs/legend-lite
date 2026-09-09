@@ -234,7 +234,14 @@ public final class NameResolver {
             "meta::pure::service",
             "meta::pure::tds",
             "meta::pure::tools",
-            "meta::pure::profiles");
+            "meta::pure::profiles",
+            // the ENGINE's implicit group is m3.pure's plus these three
+            // (legend-engine CompileContext.META_IMPORTS, "taken from
+            // m3.pure in PURE") — the corpus is engine code and spells
+            // `Relation<(…)>` bare on their strength (batch 153)
+            "meta::pure::metamodel::relation",
+            "meta::pure::metamodel::variant",
+            "meta::pure::precisePrimitives");
 
     private static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
             java.util.@com.legend.Nullable Map<String, String> wallSink,
@@ -283,22 +290,11 @@ public final class NameResolver {
                         model.elementSources());
     }
 
-    /** The platform prelude as a bare-name index (simple -> FQN) — the
-     * FALLBACK tier of {@link #resolveNameMulti}: consulted only when the
-     * user's explicit imports, wildcards, and own package claim nothing.
-     * Within-prelude collisions keep an arbitrary winner here and are
-     * tie-broken by the file's wildcards ({@link #PRELUDE_COLLISIONS}). */
-    private static final Map<String, String> PRELUDE_TYPES = preludeTypes();
-
-    /**
-     * The platform's TYPE universe, IN COLLISION ORDER (PRELUDE_MODULE_HOMEWORK
-     * §9.12): the catalog's hand shapes and enums in declaration order, then
-     * the generated prelude module in module order (legend-pure's sections
-     * before legend-engine's, each by spec path, source order within). The
-     * bare-name fallback ({@link #PRELUDE_TYPES}) gives a colliding simple
-     * name to the FIRST claimant — a rule; the catalog's HashMap key order
-     * was luck (bare {@code Boolean} once fell to the relational datatype).
-     */
+    /** The platform's TYPE universe: the catalog's hand shapes and enums and
+     * the generated prelude module's classes and enums — what an import, an
+     * own-package or a core-import candidate may resolve TO. Never a
+     * bare-name fallback (batch 153): a name no import makes visible is
+     * unresolved, as in the engine. */
     private static List<String> platformTypeFqns() {
         List<String> all = new ArrayList<>();
         Pure.allNativeClasses().forEach(c -> all.add(c.qualifiedName()));
@@ -306,40 +302,6 @@ public final class NameResolver {
         all.addAll(com.legend.builtin.Prelude.classFqns());
         all.addAll(com.legend.builtin.Prelude.enumFqns());
         return all;
-    }
-
-    private static Map<String, String> preludeTypes() {
-        Map<String, String> bySimple = new HashMap<>();
-        List<String> all = platformTypeFqns();
-        for (String fqn : all) {
-            int cut = fqn.lastIndexOf("::");
-            if (cut > 0) {
-                bySimple.putIfAbsent(fqn.substring(cut + 2), fqn);   // first claimant wins
-            }
-        }
-        return bySimple;
-    }
-
-    /** Simple names claimed by MORE THAN ONE prelude class/enum (Table:
-     * metamodel::relation vs the sql protocol) — the type-import map
-     * keeps one arbitrarily, so resolution consults the file's wildcard
-     * imports for these names (see the collision arm in
-     * {@link #resolveNameMulti}). */
-    private static final Map<String, List<String>> PRELUDE_COLLISIONS =
-            preludeCollisions();
-
-    private static Map<String, List<String>> preludeCollisions() {
-        Map<String, List<String>> bySimple = new HashMap<>();
-        List<String> all = platformTypeFqns();
-        for (String fqn : all) {
-            int cut = fqn.lastIndexOf("::");
-            if (cut > 0) {
-                bySimple.computeIfAbsent(fqn.substring(cut + 2),
-                        k -> new ArrayList<>()).add(fqn);
-            }
-        }
-        bySimple.values().removeIf(v -> v.size() < 2);
-        return bySimple;
     }
 
     /** Declared element FQNs + platform FQNs: the wildcard-disambiguation universe. */
@@ -669,27 +631,14 @@ public final class NameResolver {
                 return List.of(candidate);
             }
         }
-        String prelude = scope.prelude() ? PRELUDE_TYPES.get(name) : null;
-        if (prelude != null) {
-            List<String> colliding = PRELUDE_COLLISIONS.get(name);
-            if (colliding != null) {
-                // WITHIN-PRELUDE collision (Table: relation vs the sql
-                // protocol) — the index kept one ARBITRARILY; the file's
-                // wildcard imports choose among the colliding prelude
-                // classes.
-                List<String> byWildcard = new ArrayList<>(1);
-                for (String pkg : scope.imports().wildcards()) {
-                    String candidate = pkg + "::" + name;
-                    if (colliding.contains(candidate)) {
-                        byWildcard.add(candidate);
-                    }
-                }
-                if (byWildcard.size() == 1) {
-                    return byWildcard;
-                }
-            }
-            return List.of(prelude);
-        }
+        // NO FALLBACK TIER (USER RULING 2026-09-08, PRELUDE_MODULE_HOMEWORK
+        // §9.12 / §6a item 2: "bare names must fail like pure/engine"): a
+        // bare name is its section's imports, its own package, or the core
+        // import group — or it is unresolved and fails downstream exactly as
+        // the engine's `Can't find type`. The platform-prelude fallback that
+        // stood here (a simple-name index over every catalog and module
+        // class, its collision winner first HashMap order, then declaration
+        // order) resolved names no import made visible; deleted.
         return List.of(name);
     }
 

@@ -860,3 +860,13 @@ lowering: `UserCallInliner` β-reduced the module's generic `Pair<U,V>.toString(
 | 4 | `testFormatPair`/`testFormatList` once the arms went: printf showed the struct | `format`'s class-typed slots type as `$arg->toString()` (`CallShapes.formatSlotsByToString`, `PlatformTypes.printsByOwnToString`) | typer |
 | 5 | `ErrorShapeGuardrailTest`: a catch returning a value | pre-check `hasFreeTypeVars(t, bindings)` instead of catching the kernel's unbound-variable exception | inliner |
 | 6 | `CodeShapeGuardrailTest`: Typer 3538 > 3500 lines | the format rewrite lives in `CallShapes` | — |
+
+## 26. Batch 153 — bare names fail like pure and the engine (2026-09-08)
+
+The ratified §6a item 2, its own batch so phase 3's lane movement is demand alone. The resolver's prelude fallback
+tier is gone; the core import group gained the engine's three additions. One lite test moved; every gate unchanged.
+
+| # | what the gates named | decided | where |
+|---|---|---|---|
+| 1 | `testLegacyTdsJoinWithLetBoundJoinType`: `unknown enumeration 'JoinType'` — a sectionless query, bare enum | qualified in the test (the engine would refuse it too) | test |
+| 2 | our core group was m3.pure's exactly; the engine's has `metamodel::relation`, `metamodel::variant`, `precisePrimitives` too | added with the receipt (`CompileContext.META_IMPORTS`) — the corpus spells `Relation<(…)>` bare on their strength | `NameResolver.CORE_IMPORTS` |

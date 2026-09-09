@@ -76,6 +76,14 @@ and nothing ever validated a prelude declaration's references. `SystemMetamodel`
 packages: m3, the functions' shapes, the dsl and store metamodels) plus the platform's JAVA VOCABULARY (the shapes our Java
 constructs, types against, or dispatches on), plus the closure of what those declarations name. Nothing else.
 
+**T1 sharpened (USER 2026-09-08, after batch 152): platform vocabulary is decided by USE, never by provenance.** A class is
+prelude material when the platform's own Java constructs it, reads it, or names it in a native signature — whichever
+checkout declares it. Fifty-nine engine-declared classes (the TDS result, the JSON tree, connections and runtime, plan
+nodes, the platform's own output records) are the platform's interface types and belong in the prelude with a receipt
+naming that Java site; an engine class only programs use stays in the graph even when every corpus test names it. The
+test is the design's question 4, not the file's repository. A Java MENTION (a comment, a dispatch string) is not use:
+phase 3 tightens the generator's demand to construct / read / signature.
+
 **T2 — The graph is everything a program declares or brings in as a library, by file.** Engine modules are programs
 (WORLD_MAP rule 8); their classes are graph material admitted through `Corpus.LIBRARY_FILES`. "A corpus test names it" is NOT a
 reason to be in the prelude — that is a library-admission decision on the graph side.
@@ -154,6 +162,22 @@ Phases, one batch each, lanes exact between them:
    rule 8; T4's receipt list burns to zero. The lanes decide the pace.
 4. **The bootstrap handful** and the store-shaped divergences (HAND_SHAPE_DIVERGENCE §4 steps 3–4).
 5. `tools/shape_sweep.py` and the census as pins; `FunctionCompiler`'s on-demand lift deleted.
+
+## 6a. RATIFIED 2026-09-08 (after batch 152) — the order and the open decisions, USER: "let's ratify all and go"
+
+1. **Phase 3 before phase 2.** The demand cut (T1-by-use, §2) settles what the prelude IS — removes the 253 corpus-only engine
+   classes, most of the 48 collisions, 18 of the 22 census rows — before hand shapes migrate into it.
+2. **The bare-name leg is its own batch, FIRST (batch 153) — LANDED, one lite test moved, nothing else.** A bare name resolves through the section's imports, the core imports
+   and its own package, or fails with the engine's message; the resolver's fallback tier (`PRELUDE_TYPES`/`PRELUDE_COLLISIONS`)
+   is deleted; lite tests that leaned on it get their imports. Done before phase 3 so phase 3's lane movement is demand alone.
+3. **Vocabulary by the spec's marking:** `native function` → Pure.java signature + one lowering or a named wall; a Pure-bodied
+   `function` → generated body. `mutateAdd` is a wall (mutation, no SQL meaning).
+4. **What stays by hand after phase 2:** a shape survives only with a receipt naming the Java line that constructs it before a
+   model exists (the primitives, Any/Nil, Class<T>, Relation<T>, the ColSpec family the typer builds; the six store-coupled shapes
+   until their store legs). "Java dispatches on its FQN" is not a receipt — the module serves that.
+5. **Platform vocabulary by use, never provenance** (T1 sharpened, §2).
+6. **Text natives beyond `format`** (`makeString`, `joinStrings` over class values): the same rule as `format` when a witness asks.
+7. **Closure = option B** (§9a).
 
 ## 7. What happened on 2026-09-08 and what survives (branch `wip/prelude-module`)
 
@@ -235,6 +259,15 @@ Decided while implementing (2026-09-08):
    makes the module CLOSED (T5) and the census's "references outside prelude ∪ catalog = 0" true; a reference that still escapes is
    a generator ERROR (the dangling check), never a silently omitted class. A corpus-tree class pulled this way is listed at the foot
    of `prelude.pure` — the T4 receipt list phase 3 burns.
+9a. **CLOSURE — USER RULING 2026-09-08 (option B): declarations closed, bodies resolved where they run.** The closure follows a
+    class's DECLARATION (supertypes, property types, derived-property parameter and result types) and never its BODIES (derived
+    properties, constraints). What a body names resolves when the body is used, against everything loaded then — prelude, catalog,
+    system metamodel, the program's own graph — as a real Pure qualified property resolves against the whole loaded world. Why not
+    follow bodies: engine-class bodies name the engine's world (the SQL printer's whole vocabulary would ride in through the back
+    door, against T1/T2), and bodies call FUNCTIONS, which the prelude never carries, so following them would not make them type.
+    The guarantee "the prelude's bodies are closed" is therefore a MEASURED fact — the census pin (`SpecBodyCensusTest`, shrink-only)
+    — not a generator rule. Consequence accepted: the 18 engine-class body rows of SPEC_BODY_CENSUS §10.2 stay red until phase 3
+    moves those classes to the graph where their helpers live; what remains after that is real vocabulary.
 10. **Section headers name the spec file RELATIVE to its checkout root** (`legend-pure/…`, `legend-engine/…`): the module is a
     committed resource and must not carry a machine's absolute paths.
 11. **Two architecture allowlists widen by one receipt each**: `PlatformSurfaceGuardrailTest` (Prelude.java names
@@ -254,6 +287,19 @@ Decided while implementing (2026-09-08):
     section order, `Prelude`'s ordered sets. The rule is a phase-1 container decision, not the end state: real Pure has no
     fallback tier (a bare name is its imports or an error), and phase 3's demand cut removes most of the 48 collisions from
     the module; whether an ambiguous bare name should then be an error is a leg of its own.
+    **USER RULING 2026-09-08 (after batch 152): "Bare names must fail like pure/engine."** The fallback tier goes: a bare
+    name resolves through the section's imports, the core imports and its own package, or it is an error — as in the
+    engine. The ordered first-claimant rule above is transitional only until that leg lands (phase 3 removes most of the
+    48 collisions first; lite tests that leaned on the fallback get their imports).
+    **LANDED (batch 153, 2026-09-08).** `NameResolver`'s fallback index (`PRELUDE_TYPES`, `PRELUDE_COLLISIONS`) is deleted: a
+    bare name resolves through its section's wildcards, its own package, then the core import group, or stays unresolved and
+    fails downstream (`Unknown type`, the engine's `Can't find type`). The core group is m3.pure's `coreImport` PLUS the three
+    packages the engine adds (`CompileContext.META_IMPORTS`: `meta::pure::metamodel::relation`, `::variant`,
+    `meta::pure::precisePrimitives`) — the corpus is engine code and spells `Relation<(…)>` bare on their strength. MEASURED:
+    the fallback was nearly dead — the whole chain moved by ONE lite test (`testLegacyTdsJoinWithLetBoundJoinType`, a
+    sectionless query spelling `JoinType.LEFT_OUTER` bare; now qualified, as the engine would demand). Lanes EXACT, PCT
+    1110/0, channel B at its floor, census 22. Phase 3 no longer has a collision problem to solve: two prelude classes with
+    one simple name are now simply two classes, reachable by import.
 13. **`Compiler.compileAllBodies` is the MODULE's eager pass, not the boot layer's.** The boot layer's functions (the system
     metamodel's, the prelude's lifted derived properties and constraints) are compiled once per process and typed by
     `SpecBodyCensusTest`, whose loop walks every function in the context — the 136 + 16 bodies' failures are that census's

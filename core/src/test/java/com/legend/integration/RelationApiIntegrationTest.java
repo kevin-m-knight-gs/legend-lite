@@ -656,10 +656,13 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // through a let (23 tests) — JoinChecker.resolveLetBoundArgs
             // chases $type through the alias channel so the legacy
             // desugar (JoinType -> JoinKind, get*('col') reads by name)
-            // fires exactly as for the literal spelling.
+            // fires exactly as for the literal spelling. The enum is spelled
+            // QUALIFIED: a sectionless query has no imports and the engine
+            // resolves a bare name only through imports and the core group
+            // (batch 153 — the resolver's prelude fallback is gone).
             String pureQuery = """
                     {|
-                      let type = JoinType.LEFT_OUTER;
+                      let type = meta::relational::metamodel::join::JoinType.LEFT_OUTER;
                       model::Person.all()
                         ->project([col(p|$p.firstName, 'name'), col(p|$p.age, 'age')])
                         ->join(
