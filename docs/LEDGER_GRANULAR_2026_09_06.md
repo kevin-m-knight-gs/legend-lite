@@ -1007,3 +1007,12 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 5 | 12 tds-extension tests lost: bare `join` captured by legend-pure's `meta::pure::tds::join` via the core imports | PLATFORM-OWNED NAMES: a name with a registered native or an operator form is the platform's — 161 overloads listed, not carried | generator receipt list |
 | 6 | USER rulings recorded (the four) and the order 1–6; gates deferred until the work is done | — | homework §10 |
 | 7 | `function` lexes as a keyword in three non-declaration positions | declaration-position rule (depth 0, after `;`/`}`) | generator |
+
+## 43. Batch 170 — step 3 `defaultExtensions`; the chain's minute found twice (2026-09-09)
+
+| # | what the chain named | decided | where |
+|---|---|---|---|
+| 1 | chain 6m05 → 7m20 since batch 165, uniform across gates | bisect (69/74/81/83 s) + JFR: layouts recomputed per use → memo on the model context; lane 83 → 66 s | ClassLayouts, PureModelContext |
+| 2 | still slow after the fix | a HUNG `Python -` from batch 165 at 100% CPU for 12 h, survived pkill; killed by pid; quiet chain 6m19s | memory verify-kills-with-ps |
+| 3 | `defaultExtensions()` (148 first-error bodies) | typing-only native beside `relationalExtensions()`; golden +1; eager 1,562 → 1,537 — per-name counts are FIRST-error attributions, upper bounds; 122 of those bodies stop next at `jsonEquivalent` | Pure.java |
+| 4 | the typer's declared-column scan on every property read (batch 166) | behind the name test | TdsSurfaceReads |

@@ -71,8 +71,36 @@ public final class ClassLayouts {
      * store-mapped reads would project NULL (no such producer exists in
      * the identity lanes today — the attr-count wall guards it).
      */
+    /** THE LAYOUT MEMO — a compile-time fact of the immutable model, cached
+     * ON the model context (ModelContext.derived: the compile artifact,
+     * never a static sink — instrument-state-matches-fact-lifetime). The
+     * batch-170 profile: the lowering asked for the same class layouts on
+     * every use, each a supertype walk per declared property
+     * (isFunctionCarrier → isSubtype), 3× the samples of batch 164 once
+     * the module's classes grew — the corpus lane 69 s → 83 s. Get-then-put,
+     * not computeIfAbsent: a layout derivation reads other layouts. */
+    private static final class LayoutMemo {
+        final java.util.Map<Type, Optional<List<Type.Column>>> plain =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        final java.util.Map<Type, Optional<List<Type.Column>>> identity =
+                new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
     public static Optional<List<Type.Column>> layoutOf(ModelContext ctx, Type t,
                                                       boolean withIdentity) {
+        LayoutMemo memo = ctx.derived(LayoutMemo.class, c -> new LayoutMemo());
+        java.util.Map<Type, Optional<List<Type.Column>>> table = withIdentity ? memo.identity : memo.plain;
+        Optional<List<Type.Column>> hit = table.get(t);
+        if (hit != null) {
+            return hit;
+        }
+        Optional<List<Type.Column>> computed = layoutOfUncached(ctx, t, withIdentity);
+        table.putIfAbsent(t, computed);
+        return computed;
+    }
+
+    private static Optional<List<Type.Column>> layoutOfUncached(ModelContext ctx, Type t,
+                                                              boolean withIdentity) {
         Optional<List<Type.Column>> base = plainLayoutOf(ctx, t);
         if (!withIdentity || base.isEmpty()) {
             return base;

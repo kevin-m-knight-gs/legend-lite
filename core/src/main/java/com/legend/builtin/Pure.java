@@ -1508,6 +1508,15 @@ public final class Pure {
     // still types.
     public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::extension::Extension[*];");
 
+    // defaultExtensions(): the engine's default extension list
+    // (extensions/functions.pure:84, a program constructing ^Extension(type =
+    // 'defaultExtensions', …)) — the SAME typing-only surface as
+    // relationalExtensions() above: the platform IS its extensions
+    // (COMPILE_EVERYTHING_HOMEWORK §10.3 ruling 3, batch 170); it types the
+    // context argument of execute/toSQLString calls and is never evaluated.
+    // The eager corpus compile named it 148 times (§10.1).
+    public static final NativeFunctionDefinition DEFAULT_EXTENSIONS__EXT_MANY = signature("native function meta::pure::extension::defaultExtensions():meta::pure::extension::Extension[*];");
+
     // setUpDataSQLsV2 / setUpDataSQLs: spelled with the SPEC's exact signatures
     // (toDDL.pure:198, helperFunctions.pure:186/209) so the engine's own copies are
     // same-shape shadows the kernel tie-break resolves to the native (batch 147)

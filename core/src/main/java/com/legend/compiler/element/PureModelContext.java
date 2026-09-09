@@ -120,6 +120,28 @@ public final class PureModelContext implements ModelContext {
         return classifier.findType(fqn);
     }
 
+    /** THE SUBTYPE MEMO — the declared-supertype walk is a fact of the
+     * immutable model, asked millions of times per corpus run (every
+     * conformance check, every layout's function-carrier test); memoized
+     * on the context (batch 170's profile: 1,477 samples in isSubtype). */
+    private static final class SubtypeMemo {
+        final java.util.Map<String, Boolean> answers =
+                new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
+    @Override
+    public boolean isSubtype(String childFqn, String parentFqn) {
+        SubtypeMemo memo = derived(SubtypeMemo.class, c -> new SubtypeMemo());
+        String key = childFqn + '\u0000' + parentFqn;
+        Boolean hit = memo.answers.get(key);
+        if (hit != null) {
+            return hit;
+        }
+        boolean answer = ModelContext.super.isSubtype(childFqn, parentFqn);
+        memo.answers.putIfAbsent(key, answer);
+        return answer;
+    }
+
     @Override
     public <T> T derived(Class<T> key,
             java.util.function.Function<ModelContext, T> derive) {

@@ -192,6 +192,8 @@ store's (it owns the NAME), 161 overloads share a name with a native or an opera
 a library twin CAPTURES bare calls through the core imports: batch 169's 12 lost tests), the `tests` packages are test
 support; 74 remain and are carried.
 
-**10.5 Steps 1–6 (status).** 1 measured (batch 168–169; gates deferred). 2 LANDED (batch 169). 3 `defaultExtensions`
-next. 4 the four natives. 5 walls by file (the 14 protocol versions first). 6 the residue as named legs. Gates: decided
-after 6, on the measured numbers.
+**10.5 Steps 1–6 (status).** 1 measured (batch 168–169; gates deferred). 2 LANDED (batch 169). 3 LANDED (batch 170:
+eager 1,562 → 1,537; the per-name counts are FIRST-error attributions — 122 of the model-to-model bodies stop next at
+`jsonEquivalent`, engine json.pure, a file-admission question). 4 the four natives next. 5 walls by file (the 14
+protocol versions first). 6 the residue as named legs. Gates: decided after 6, on the measured numbers. Chain time:
+restored to ~6m19s on a quiet machine (batch 170: a layout memo + a runaway process killed).

@@ -51,9 +51,15 @@ final class TdsSurfaceReads {
         // the reflection surface below serves a TABLE always (engine
         // TabularDataSet.columns) and a row only when it declares no
         // such column (the lite bare-row extension, assertSize targets)
-        boolean declaredColumn = !Type.isRelation(source.info().type())
-                && rt2.columns().stream()
-                        .anyMatch(c -> c.name().equals(ap.property()));
+        // the NAME test first: the column scan runs only for the three
+        // reflection names, never on every property read (batch 166 put the
+        // scan before the name test — a per-read cost on every row access,
+        // the batch-170 bisect's 7 s)
+        String prop = ap.property();
+        boolean reflectionName = prop.equals("values") || prop.equals("columns")
+                || prop.equals("columnNames");
+        boolean declaredColumn = reflectionName && !Type.isRelation(source.info().type())
+                && rt2.columns().stream().anyMatch(c -> c.name().equals(prop));
         if (!declaredColumn && ap.property().equals("values")) {
             return t.tdsValuesRead(source, rt2);
         }
