@@ -373,7 +373,7 @@ public sealed interface Type permits
 
     /** THE table-type mint: {@code Relation<schema>}, pure's spelling. */
     static GenericType relation(RelationType schema) {
-        return new GenericType(Pure.RELATION.qualifiedName(), List.of(schema));
+        return new GenericType(com.legend.compiler.element.type.PlatformTypes.RELATION, List.of(schema));
     }
 
     /** Whether {@code t} is a relation (table) type — the wrapped form,
@@ -381,7 +381,7 @@ public sealed interface Type permits
      * with an unsolved {@code T} is still a table type). */
     static boolean isRelation(Type t) {
         return t instanceof GenericType g
-                && g.rawFqn().equals(Pure.RELATION.qualifiedName())
+                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.RELATION)
                 && g.arguments().size() == 1;
     }
 
@@ -391,7 +391,7 @@ public sealed interface Type permits
      * table, and returns null here. */
     static @com.legend.Nullable RelationType relationSchema(Type t) {
         return t instanceof GenericType g
-                && g.rawFqn().equals(Pure.RELATION.qualifiedName())
+                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.RELATION)
                 && g.arguments().size() == 1
                 && g.arguments().get(0) instanceof RelationType r ? r : null;
     }

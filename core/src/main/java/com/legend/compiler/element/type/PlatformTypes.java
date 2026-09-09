@@ -95,6 +95,16 @@ public final class PlatformTypes {
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
     public static final String TDS_ROW = "meta::pure::tds::TDSRow";
+    /** m3 metaclasses — prelude module classes since batch 161 (phase 2 family 4);
+     * every Java site names them here, definitions come from the boot layer. */
+    public static final String ELEMENT_OVERRIDE = "meta::pure::metamodel::type::ElementOverride";
+    public static final String GENERIC_TYPE = "meta::pure::metamodel::type::generics::GenericType";
+    public static final String MEASURE = "meta::pure::metamodel::type::Measure";
+    public static final String UNIT = "meta::pure::metamodel::type::Unit";
+    public static final String PACKAGE = "meta::pure::metamodel::Package";
+    public static final String ENUMERATION = "meta::pure::metamodel::type::Enumeration";
+    /** The relation carrier {@code Relation<T>} (legend-pure relation.pure / m3). */
+    public static final String RELATION = "meta::pure::metamodel::relation::Relation";
     /** The m3 Profile metaclass (a prelude module class since batch 159). */
     public static final String PROFILE = "meta::pure::metamodel::extension::Profile";
 

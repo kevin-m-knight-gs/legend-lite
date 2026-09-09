@@ -545,7 +545,7 @@ public final class PureModelContext implements ModelContext {
                     model.classes().map(c -> c.qualifiedName()),
                     com.legend.builtin.Pure.allNativeClasses().stream()
                             .map(c -> c.qualifiedName()));
-        } else if (com.legend.builtin.Pure.ENUMERATION.qualifiedName()
+        } else if (com.legend.compiler.element.type.PlatformTypes.ENUMERATION
                 .equals(classifierFqn)) {
             fqns = java.util.stream.Stream.concat(
                     model.enums().map(e -> e.qualifiedName()),

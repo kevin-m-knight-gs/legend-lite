@@ -54,7 +54,7 @@ public final class TypeExpressionFixtures {
     }
 
     /** Overload accepting a {@link com.legend.model.ClassDefinition}
-     *  for the head, e.g. {@code tg(Pure.RELATION, nr("T"))}. */
+     *  for the head, e.g. {@code tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), nr("T"))}. */
     public static Generic tg(com.legend.model.ClassDefinition head, TypeExpression... args) {
         return new Generic(head.qualifiedName(), List.of(args));
     }

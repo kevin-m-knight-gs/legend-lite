@@ -163,10 +163,11 @@ meta::pure::mapping::relation::RelationFunctionPropertyMapping	legend-pure	platf
 meta::pure::mapping::xStore::XStoreAssociationImplementation	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure
 meta::pure::mapping::xStore::XStorePropertyMapping	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/grammar/mapping.pure
 meta::pure::metamodel::ModelElement	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::Package	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::PackageableElement	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::PropertyOwner	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::ReferenceUsage	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
-meta::pure::metamodel::Referenceable	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::Referenceable	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::constraint::Constraint	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::extension::AnnotatedElement	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::extension::Annotation	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
@@ -181,6 +182,7 @@ meta::pure::metamodel::function::ConcreteFunctionDefinition	legend-pure	java	fal
 meta::pure::metamodel::function::Function	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::function::FunctionDefinition	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::function::KeyExpression	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::function::LambdaFunction	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::function::NativeFunction	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::function::PackageableFunction	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::function::property::AbstractProperty	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
@@ -205,6 +207,7 @@ meta::pure::metamodel::relation::FuncColSpec	legend-pure	java	false	0	0	0	0	0		l
 meta::pure::metamodel::relation::FuncColSpecArray	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/relation.pure
 meta::pure::metamodel::relation::GenericTypeOperation	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::relation::GenericTypeOperationType	legend-pure	platform	false	enum						legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::relation::Relation	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::relation::RelationElementAccessor	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::relation::RelationType	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::relation::TDS	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-dsl/legend-pure-dsl-tds/legend-pure-m2-dsl-tds-pure/src/main/resources/platform_dsl_tds/tds.pure
@@ -225,15 +228,20 @@ meta::pure::metamodel::treepath::RouteNodePropertyStub	legend-pure	platform	fals
 meta::pure::metamodel::type::ClassProjection	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::ConstraintsGetterOverride	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::ConstraintsOverride	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
-meta::pure::metamodel::type::DataType	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::DataType	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::ElementOverride	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::Enum	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::Enumeration	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::FunctionType	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::GetterOverride	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::Measure	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::Nil	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::PrimitiveType	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::Type	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::Unit	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::generics::GenericType	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::type::generics::InferredGenericType	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
-meta::pure::metamodel::type::generics::TypeParameter	legend-pure	java	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
+meta::pure::metamodel::type::generics::TypeParameter	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::valuespecification::ClassConstraintValueSpecificationContext	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::valuespecification::Expression	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure
 meta::pure::metamodel::valuespecification::ExpressionSequenceValueSpecificationContext	legend-pure	platform	false	0	0	0	0	0		legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure

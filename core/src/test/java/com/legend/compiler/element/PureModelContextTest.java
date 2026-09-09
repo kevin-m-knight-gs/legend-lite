@@ -312,7 +312,7 @@ class PureModelContextTest {
     @DisplayName("classifierInstances(Enumeration) includes user and native enums")
     void classifierInstancesEnumExtent() {
         List<String> extent = fixture().classifierInstances(
-                Pure.ENUMERATION.qualifiedName());
+                com.legend.compiler.element.type.PlatformTypes.ENUMERATION);
         assertTrue(extent.contains("model::Color"),
                 "user enum missing from the Enumeration extent");
         // a CATALOG enum: the fixture bypasses the boot layer (see findTypeClassifiesEveryKind)

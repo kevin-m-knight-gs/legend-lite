@@ -172,11 +172,6 @@ public final class Pure {
     // property-free shape is load-bearing for the struct/variant carrier
     // (Phase 5 batch 147: declaring it lost 173 tests in one lane run)
     public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
-    /** M3 ElementOverride (real package meta::pure::metamodel::type — the
-     * hand copy had guessed ::extension until the generated prelude named
-     * the real one, 2026-09-04): the Typer serves {@code Any.elementOverride}
-     * reads as this type and folds them EMPTY (never installed here). */
-    public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::type::ElementOverride extends meta::pure::metamodel::type::Any {}");
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
     // ModelElement; letFn's removeDuplicates over classes needs it)
@@ -185,7 +180,6 @@ public final class Pure {
     /** Real M3 GenericType — {@code $x->genericType().rawType} reflection
      * (inheritance testGetAll: per-instance member class over a union). */
     // real m3.pure GenericType / TypeParameter (tools/m3shape.py, 2026-09-04)
-    public static final ClassDefinition GENERIC_TYPE_META = nativeClass("native Class meta::pure::metamodel::type::generics::GenericType extends meta::pure::metamodel::Referenceable { rawType: meta::pure::metamodel::type::Type[0..1]; typeParameter: meta::pure::metamodel::type::generics::TypeParameter[0..1]; typeVariableValues: meta::pure::metamodel::valuespecification::ValueSpecification[*]; typeArguments: meta::pure::metamodel::type::generics::GenericType[*]; multiplicityArguments: meta::pure::metamodel::multiplicity::Multiplicity[*]; }");
     // leg 3b (dossier D3): the MINIMUM reflection surface — genericType
     // only, so every other ValueSpecification read walls at ordinary
     // property resolution instead of fabricating
@@ -213,9 +207,6 @@ public final class Pure {
     // m3 bootstrap shapes (tools/m3shape.py DataType PrimitiveType FunctionType): the
     // spec's instanceOf/cast targets and the FunctionType metaclass
     // units (m3.pure:783 Measure, :922 Unit — tools/m3shape.py cannot read them: hand receipts)
-    public static final ClassDefinition MEASURE_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Measure extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { canonicalUnit: meta::pure::metamodel::type::Unit[1]; nonCanonicalUnits: meta::pure::metamodel::type::Unit[*]; }");
-    public static final ClassDefinition UNIT_METACLASS = nativeClass("native Class meta::pure::metamodel::type::Unit extends meta::pure::metamodel::type::DataType { measure: meta::pure::metamodel::type::Measure[1]; conversionFunction: meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[0..1]; }");
-    public static final ClassDefinition PACKAGE_METACLASS = nativeClass("native Class meta::pure::metamodel::Package extends meta::pure::metamodel::PackageableElement { children: meta::pure::metamodel::PackageableElement[*]; }");
     // m3 PackageableElement.package (legend-pure m3.pure): the owning
     // package — a constructed element names it (^Database(package = ::))
     // Real m3 Property<U,T|m> (AbstractProperty -> Function -> Packageable
@@ -282,7 +273,6 @@ public final class Pure {
     // Array forms — moved to the generated prelude module in batch 157,
     // phase 2 family 1: relation.pure verbatim, the Typer names them by
     // PlatformTypes constants and reads their definitions from the model)
-    public static final ClassDefinition RELATION             = nativeClass("native Class meta::pure::metamodel::relation::Relation<T>         extends meta::pure::metamodel::type::Any {}");
 
 
 
@@ -322,7 +312,6 @@ public final class Pure {
     // the kernel's unwrapFunction treats all carriers as wrapper
     // spellings of the bare FunctionType.
     // real m3 (legend-pure m3.pure graph): FunctionDefinition.expressionSequence : ValueSpecification[1..*]
-    public static final ClassDefinition LAMBDA_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::LambdaFunction<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
 
     // ---- Metaclass ----
     // Pure exposes the metaclass as `Class<T>` (parameterized over the
@@ -339,7 +328,6 @@ public final class Pure {
     // The enumeration metaclass (real m3: Class Enumeration<T> extends Type) —
     // a bare enumeration reference (STR_GeographicEntityType->toString()) is a
     // value of this type.
-    public static final ClassDefinition ENUMERATION = nativeClass("native Class meta::pure::metamodel::type::Enumeration<T> extends meta::pure::metamodel::type::DataType, meta::pure::metamodel::PackageableElement { values: T[1..*]; }");
 
 
 

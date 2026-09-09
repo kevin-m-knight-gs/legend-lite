@@ -137,7 +137,7 @@ class NativeFunctionTest {
     @Test
     void filterRelation_pinShape() {
         // filter<T>(Relation<T>[1], Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1]
-        TypeExpression relationOfT = tg(Pure.RELATION, nr("T"));
+        TypeExpression relationOfT = tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), nr("T"));
         TypeExpression filterFn = tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNCTION), new FunctionType(
                 List.of(tp(nr("T"), Multiplicity.exactly(1))),
                 tp(nr(Pure.BOOLEAN), Multiplicity.exactly(1))));
@@ -200,7 +200,7 @@ class NativeFunctionTest {
                 List.of(),
                 List.of(
                         new ParameterDefinition("r",
-                                tg(Pure.RELATION, nr("T")),
+                                tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), nr("T")),
                                 Multiplicity.exactly(1)),
                         new ParameterDefinition("old",
                                 tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC), zEqQK_subT),
@@ -208,7 +208,7 @@ class NativeFunctionTest {
                         new ParameterDefinition("new",
                                 tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC), vEqQK),
                                 Multiplicity.exactly(1))),
-                tg(Pure.RELATION, tMinusZPlusV),
+                tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), tMinusZPlusV),
                 Multiplicity.exactly(1),
                 List.of(),
                 List.of());
@@ -260,14 +260,14 @@ class NativeFunctionTest {
         // Structural pin of the nested function type with three input arrows.
         TypeExpression innerFn = new FunctionType(
                 List.of(
-                        tp(tg(Pure.RELATION, nr("T")), Multiplicity.exactly(1)),
+                        tp(tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), nr("T")), Multiplicity.exactly(1)),
                         tp(tg(Prelude.cls("meta::pure::functions::relation::_Window"), nr("T")), Multiplicity.exactly(1)),
                         tp(nr("T"), Multiplicity.exactly(1))),
                 tp(nr(Pure.ANY), Multiplicity.range(0, 1)));
         assertEquals(tg(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC), innerFn, nr("R")),
                 def.parameters().get(2).type());
         // Return type Relation<T+R> = Generic(Relation, [SchemaAlgebra(T, UNION, R)]).
-        assertEquals(tg(Pure.RELATION, sa(nr("T"), Op.UNION, nr("R"))),
+        assertEquals(tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), sa(nr("T"), Op.UNION, nr("R"))),
                 def.returnType());
         assertEquals(Multiplicity.exactly(1), def.returnMultiplicity());
     }
@@ -275,7 +275,7 @@ class NativeFunctionTest {
     @Test
     void sortWithSubsetConstraintMultiplicityMany_pinShape() {
         // sort<X,T>(Relation<T>[1], SortInfo<X \u2286 T>[*]): Relation<T>[1]
-        TypeExpression relationOfT = tg(Pure.RELATION, nr("T"));
+        TypeExpression relationOfT = tg(com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION), nr("T"));
         TypeExpression sortInfoXsubT = tg(Prelude.cls("meta::pure::functions::relation::SortInfo"),
                 sa(nr("X"), Op.SUBSET, nr("T")));
         var expected = new NativeFunctionDefinition(
@@ -633,7 +633,13 @@ class NativeFunctionTest {
         // classes), Function/FunctionDefinition/ConcreteFunctionDefinition,
         // Property, PackageableElement, PrimitiveType, Type, Nil, relation
         // Column/RelationElementAccessor — printed from m3.pure by the reader
-        assertEquals(31, hand,
+        // 31 -> 23 (batch 161, phase 2 family 4): ElementOverride, GenericType,
+        // Measure, Unit, Package, LambdaFunction, Enumeration, Relation — every
+        // Java use was name-only; printed from m3.pure by the reader. What is
+        // left by hand: Any (its layout rule first), Class (store rows), the
+        // 13 primitives (the bootstrap floor), the six store-coupled shapes,
+        // Column and Database (the store legs).
+        assertEquals(23, hand,
                 "Pure.java hand-declared native class count moved: review the catalog");
     }
 
@@ -1390,7 +1396,7 @@ class NativeFunctionTest {
     @Test
     void parameterizedNativeClassesCarryTypeParameters() {
         // Single-parameter generics.
-        assertEquals(List.of("T"), Pure.RELATION.typeParams());
+        assertEquals(List.of("T"), com.legend.builtin.Prelude.cls(com.legend.compiler.element.type.PlatformTypes.RELATION).typeParams());
         assertEquals(List.of("T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC).typeParams());
         assertEquals(List.of("T"), Prelude.cls(com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY).typeParams());
         assertEquals(List.of("T"), Prelude.cls("meta::pure::functions::relation::_Window").typeParams());

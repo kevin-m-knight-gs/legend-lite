@@ -41,7 +41,7 @@ import java.util.Set;
  */
 public final class InferenceKernel {
 
-    private static final String RELATION_FQN = Pure.RELATION.qualifiedName();
+    private static final String RELATION_FQN = com.legend.compiler.element.type.PlatformTypes.RELATION;
     private static final String ANY_FQN = Pure.ANY.qualifiedName();
     private static final String NIL_FQN = com.legend.compiler.element.type.PlatformTypes.NIL;
 

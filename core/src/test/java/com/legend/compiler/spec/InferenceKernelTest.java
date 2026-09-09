@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class InferenceKernelTest {
 
-    private static final String REL = Pure.RELATION.qualifiedName();
+    private static final String REL = com.legend.compiler.element.type.PlatformTypes.RELATION;
 
     private static PureModelContext ctx() {
         ParsedModel parsed = com.legend.testing.Own.model(

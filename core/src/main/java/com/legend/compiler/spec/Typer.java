@@ -1272,7 +1272,7 @@ final class Typer {
     private @com.legend.Nullable TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
         TypedSpec e0 = synth(af.parameters().get(0), env);
         if (!(e0.info().type() instanceof Type.GenericType gt)
-                || !gt.rawFqn().equals(Pure.ENUMERATION.qualifiedName())
+                || !gt.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.ENUMERATION)
                 || gt.arguments().size() != 1
                 || !(gt.arguments().get(0) instanceof Type.EnumType et)) {
             return null;
@@ -2630,7 +2630,7 @@ final class Typer {
         var en = ctx.findEnum(ref.fullPath());
         if (en.isPresent()) {
             String fqn = en.get().qualifiedName();
-            Type enumOf = new Type.GenericType(Pure.ENUMERATION.qualifiedName(),
+            Type enumOf = new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.ENUMERATION,
                     List.of(new Type.EnumType(fqn)));
             return new TypedPackageableRef(fqn, ExprType.one(enumOf));
         }
@@ -2661,7 +2661,7 @@ final class Typer {
         // Unit (m3 Measure/Unit; the spec's unit tests: RomanLength~Pes)
         if (ctx.findMeasure(ref.fullPath()).isPresent()) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
-                    new Type.ClassType(Pure.MEASURE_METACLASS.qualifiedName())));
+                    new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.MEASURE)));
         }
         int tilde = ref.fullPath().indexOf('~');
         if (tilde > 0) {
@@ -2673,14 +2673,14 @@ final class Typer {
                     || md.get().nonCanonicalUnits().stream().anyMatch(u -> u.name().equals(unit)));
             if (known) {
                 return new TypedPackageableRef(ref.fullPath(), ExprType.one(
-                        new Type.ClassType(Pure.UNIT_METACLASS.qualifiedName())));
+                        new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.UNIT)));
             }
         }
         // A PACKAGE reference is a value of Package (m3: Root and every
         // proper prefix of an element's name — elementToPath(meta::pure))
         if (ref.fullPath().equals("Root") || ctx.isPackage(ref.fullPath())) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
-                    new Type.ClassType(Pure.PACKAGE_METACLASS.qualifiedName())));
+                    new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.PACKAGE)));
         }
         // An execution-context element (runtime/connection) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.
@@ -3119,8 +3119,7 @@ final class Typer {
                     // load-bearing for the struct/variant carrier)
                     if (ap.property().equals("elementOverride")) {
                         yield new ExprType(new Type.ClassType(
-                                com.legend.builtin.Pure.ELEMENT_OVERRIDE
-                                        .qualifiedName()),
+                                com.legend.compiler.element.type.PlatformTypes.ELEMENT_OVERRIDE),
                                 Multiplicity.Bounded.ZERO_ONE);
                     }
                     // the same for Any.classifierGenericType (m3.pure: GenericType
@@ -3128,8 +3127,7 @@ final class Typer {
                     // here, never declared on Any (Phase 5 batch 147 ledger row 1)
                     if (ap.property().equals("classifierGenericType")) {
                         yield new ExprType(new Type.ClassType(
-                                com.legend.builtin.Pure.GENERIC_TYPE_META
-                                        .qualifiedName()),
+                                com.legend.compiler.element.type.PlatformTypes.GENERIC_TYPE),
                                 Multiplicity.Bounded.ZERO_ONE);
                     }
                     throw new TypeInferenceException("class " + ct.fqn()
@@ -3205,7 +3203,7 @@ final class Typer {
     /** A property of the lambda literal's m3 classifier (LambdaFunction ⊆
      * FunctionDefinition): $f.expressionSequence; null when none. */
     private @com.legend.Nullable ExprType lambdaClassifierProperty(String name) {
-        return ctx.findProperty(Pure.LAMBDA_FUNCTION.qualifiedName(), name)
+        return ctx.findProperty(com.legend.compiler.element.type.PlatformTypes.LAMBDA_FUNCTION, name)
                 .map(pd -> new ExprType(pd.type(), pd.multiplicity())).orElse(null);
     }
 
@@ -3217,12 +3215,12 @@ final class Typer {
         // receiver — a parameterized one included (Function<Any>.classifierGenericType)
         if (ap.property().equals("classifierGenericType")
                 && ctx.findProperty(g.rawFqn(), ap.property()).isEmpty()) {
-            return new ExprType(new Type.ClassType(Pure.GENERIC_TYPE_META.qualifiedName()),
+            return new ExprType(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.GENERIC_TYPE),
                     Multiplicity.Bounded.ZERO_ONE);
         }
         if (ap.property().equals("elementOverride")
                 && ctx.findProperty(g.rawFqn(), ap.property()).isEmpty()) {
-            return new ExprType(new Type.ClassType(Pure.ELEMENT_OVERRIDE.qualifiedName()),
+            return new ExprType(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ELEMENT_OVERRIDE),
                     Multiplicity.Bounded.ZERO_ONE);
         }
         Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->

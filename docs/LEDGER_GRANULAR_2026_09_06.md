@@ -925,3 +925,10 @@ tier is gone; the core import group gained the engine's three additions. One lit
 | 1 | `MetamodelQueryFunctionsTest`: `Property.name` "not declared" once `Property` came from m3 (`extends AbstractProperty<{…}>` → `Function<T>` → `name`) | the four ancestor walks follow a parameterized supertype by its raw class — `TypeExpression.rawClassName` | MappingNormalizer, TypeExpression |
 | 2 | 17 m3 shapes incl. the expression-tree row classes | migrated; hand 48 → 31; prelude 428 → 445; no pass change | Pure.java |
 | 3 | MappingNormalizer 3519 > 3510 with the helper inline | the helper is a type-expression fact; lives on `TypeExpression` | — |
+
+## 34. Batch 161 — phase 2 family 4 (2026-09-09)
+
+| # | what | decided | where |
+|---|---|---|---|
+| 1 | 8 metaclasses, every Java use name-only | migrated; `PlatformTypes` constants; hand 31 → 23; prelude 445 → 453; no pass change | Pure.java, PlatformTypes |
+| 2 | USER: a background chain then an `until` wait | never poll a background chain; end the turn, the notification returns | memory |
