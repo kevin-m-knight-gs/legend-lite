@@ -947,3 +947,44 @@ consumed via `fromJSON`. `actionlint` flags exactly this in under a second:
 A `lint workflows` job runs it in CI too, but note what that job CANNOT do: a
 workflow whose own file is invalid never starts. The local run is the one that
 protects `gate.yml` itself.
+
+## OPEN, 2026-09-09 — DuckDB's `percentile_cont` is not arch-stable
+
+The first real CI runs left gates 4, 6 and 9 red for **one** reason, and it is
+a product finding rather than a pipeline defect. DuckDB computes a different
+last-ULP double on **linux/x86_64** than on the dev machine's **macOS/arm64**,
+with the same pinned driver (`duckdb_jdbc` 1.4.4.0 — the jar ships per-platform
+natives):
+
+    44.6 (arm64) vs 44.599999999999994 (x86_64)
+    1.4  (arm64) vs 1.4000000000000001 (x86_64)
+
+**It is the only cross-platform divergence in the suite.** Both H2 lanes (5 and
+7) are identical on either architecture, and gates 1 and 8 are clean; every
+DuckDB lane carries exactly this and nothing else:
+
+| gate | tests |
+|---|---|
+| 4 DuckDB corpus | `groupBy::testGroupByPercentile`, `tds::groupBy::testTDSGroupByPercentile` — roster LOST 2, GAINED 0 of 2575 |
+| 6 PCT DuckDB | `math::tests::percentile::testPercentile_Relation_Window` |
+| 9 Channel B standard | the same test — census PASS 204 → 203 |
+
+**Not to be papered over.** The asserts are the engine's own, over rows printed
+to strings, and the values genuinely differ — this is not a formatting or
+tolerance question. `TdsCompare.cellEquals` does carry a bounded 1e-11 relative
+tolerance, but that path is the CSV cell compare; these are Pure-level
+`assertEquals` on `makeString`ed rows. Rostering the four would reclassify a
+real divergence; loosening the comparator would weaken a shared checker.
+
+The emitted SQL is `percentile_cont(cast(0.9 as float)) within group (…)`, and
+DuckDB's FLOAT is 4-byte — so the interpolation fraction is float32 and
+`lo + (hi-lo)*frac` can land differently per architecture. `as double` is the
+obvious probe, but `assertSameSQL` pins the `as float` spelling, which makes
+this a dialect-rewrite design question, not a one-line change.
+
+**Undecided, for the user:** (a) run the DuckDB lanes on macOS arm64 runners so
+CI reproduces the architecture the rosters were minted on — free for this
+public repo, but it declares one laptop's arch the reference and hides the
+divergence from anyone on Linux; (b) make the emission arch-stable, the real
+answer; (c) an explicit documented per-arch delta. Until one is chosen, gates
+4, 6 and 9 are RED in CI **for this reason only** — an honest red.
