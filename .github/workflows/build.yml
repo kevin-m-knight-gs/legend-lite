@@ -75,8 +75,15 @@
 #     input that reaches it is platform-dependent.
 #
 # Also NOT honest yet, and NOT hidden by this file: several
-# parser-equivalence classes still pass green without roots rather than
-# failing on a floor. On the fix list. CI showing all of this is the point.
+# parser-equivalence classes pass green on a SHORT corpus rather than
+# failing on a floor. That mattered most when there was no checkout at
+# all; this job now supplies both roots (see the env block), so those
+# classes read the real corpus and a green from them means more than it
+# did. The missing floors are still on the fix list.
+#
+# NOTE ON THE COUNTS BELOW: they were measured with NO spec checkout, when
+# six tests could not run at all. They are kept as the before picture and
+# will not match a run of this file today.
 #
 # ONE JOB, SEVERAL STEPS, not one `mvn install`: a reactor build stops the
 # modules downstream of a failure, so any red in core would report nlq, pct
@@ -163,9 +170,43 @@ jobs:
     # the ~4g the big runners would have defaulted to, so this LOWERS the
     # ceiling on ubuntu/windows as much as it raises it on macos. Sizing only
     # the small runner would leave macos as the one leg anyone had measured.
+    #
+    # THE SPEC CHECKOUTS. legend-engine and legend-pure are SPEC and TEST
+    # INPUT (AGENTS.md's reference-checkout tenet): corpus sources, PCT
+    # trees, parity fixtures, signature verification. Six tests could not
+    # run without them and reported nothing on every leg - core
+    # PreludeGeneratorTest and pct's five ChannelB suites - and several
+    # parser-equivalence classes read a SMALLER corpus rather than failing.
+    #
+    # ONE VERSION, and it is the tree's own. 4.138.2 is what
+    # parser-equivalence pins; 5.92.0 is not a second choice but the
+    # <legend.pure.version> legend-engine 4.138.2 declares in its own pom, so
+    # the pair cannot drift. Verified: regenerating core's prelude.pure
+    # against these two tags returns the committed file line for line.
+    # A MOVING ref would be wrong here - PreludeGeneratorTest compares the
+    # whole generated file, so `main` would turn CI red the next time FINOS
+    # cuts a release, for a reason that is not about this repo.
+    #
+    # COMPLETE clones, not sparse. The generator reads three subtrees, but
+    # parser-equivalence's Corpus walks the WHOLE root, so a sparse checkout
+    # silently shrinks its corpus - the exact vacuous-green shape its size
+    # floor exists to catch. Measured: complete at --depth 1 is 152M / 3174
+    # .pure files for engine and 29M for pure, ~30s; the 3-subtree sparse
+    # version would have hidden 1261 corpus files.
+    #
+    # core.autocrlf=false is LOAD-BEARING, not tidiness. These trees are
+    # PARSED, and git hands a windows runner CRLF where it hands linux LF -
+    # so without this the six legs read different bytes and comparing them
+    # stops meaning anything. parser-equivalence already has one real defect
+    # (MutationFuzzTest) that fires only where a fixture's line endings move
+    # the truncation point.
     env:
       MAVEN_OPTS: -Xmx3g
       JAVA_TOOL_OPTIONS: -Xmx3g
+      LEGEND_ENGINE_TAG: legend-engine-4.138.2
+      LEGEND_PURE_TAG: legend-pure-5.92.0
+      LEGEND_ENGINE_ROOT: ${{ github.workspace }}/spec/legend-engine
+      LEGEND_PURE_ROOT: ${{ github.workspace }}/spec/legend-pure
     strategy:
       fail-fast: false
       matrix:
@@ -178,6 +219,22 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+
+      # See the env block above for the version and the two flags. `git clone
+      # -c` writes the config into the new repo BEFORE its initial checkout,
+      # which is the point - setting it afterwards would be too late for the
+      # working tree the tests read.
+      - name: spec checkouts (legend-engine, legend-pure)
+        shell: bash
+        run: |
+          git clone --quiet --depth 1 -c core.autocrlf=false -c core.eol=lf \
+            --branch "$LEGEND_ENGINE_TAG" \
+            https://github.com/finos/legend-engine "$LEGEND_ENGINE_ROOT"
+          git clone --quiet --depth 1 -c core.autocrlf=false -c core.eol=lf \
+            --branch "$LEGEND_PURE_TAG" \
+            https://github.com/finos/legend-pure "$LEGEND_PURE_ROOT"
+          echo "engine $LEGEND_ENGINE_TAG: $(find "$LEGEND_ENGINE_ROOT" -name '*.pure' | wc -l) .pure files"
+          echo "pure   $LEGEND_PURE_TAG: $(find "$LEGEND_PURE_ROOT" -name '*.pure' | wc -l) .pure files"
 
       # Compile every module cold and install it. `clean` is load-bearing —
       # the NullAway null gate and the compile-time guardrails run only on a
@@ -198,9 +255,15 @@ jobs:
         id: build
         run: mvn -B -e clean install -DskipTests "-Dmaven.compiler.maxmem=2048m"
 
+      # The roots go in as ${{ env.… }} rather than $LEGEND_ENGINE_ROOT: these
+      # steps run in pwsh on the windows legs, where $NAME is not an
+      # environment variable and would expand to nothing. The expression is
+      # substituted before any shell sees the line, so one spelling works on
+      # all six. Quoted for the same reason -Dmaven.compiler.maxmem is: pwsh
+      # ends a parameter token at the first dot.
       - name: core suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: mvn -B -e -pl core test
+        run: mvn -B -e -pl core test "-Dlegend.engine.root=${{ env.LEGEND_ENGINE_ROOT }}" "-Dlegend.pure.root=${{ env.LEGEND_PURE_ROOT }}"
 
       - name: nlq suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -215,11 +278,11 @@ jobs:
       # class at a 1500m heap still failed all five suites.
       - name: pct suites
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: mvn -B -e -pl pct test -DreuseForks=false
+        run: mvn -B -e -pl pct test -DreuseForks=false "-Dlegend.engine.root=${{ env.LEGEND_ENGINE_ROOT }}" "-Dlegend.pure.root=${{ env.LEGEND_PURE_ROOT }}"
 
       - name: parser-equivalence suite
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: mvn -B -e -pl parser-equivalence test
+        run: mvn -B -e -pl parser-equivalence test "-Dlegend.engine.root=${{ env.LEGEND_ENGINE_ROOT }}" "-Dlegend.pure.root=${{ env.LEGEND_PURE_ROOT }}"
 
       # ONE readable verdict for the whole job. Four suite steps x six
       # matrix legs means the thing you actually want — which tests failed —
@@ -238,10 +301,15 @@ jobs:
           PY=$(command -v python3 || command -v python)
           "$PY" tools/ci-summary.py
 
-      # Structural reds: no code change clears these on a bare runner, so
-      # name them once here instead of re-diagnosing them every run. Delete
-      # a line the day its cause is fixed — by gating the test honestly, or
-      # by giving CI the checkouts.
-      - name: label the structural reds (oracle checkouts absent here)
+      # The structural reds are GONE: this job supplies both checkouts, so
+      # nothing here fails for want of an input any more. What is left worth
+      # naming is a SKEW, and only on branches whose poms have not caught up
+      # - pct/pom.xml on main still resolves engine 4.133.0 / pure 5.88.0
+      # from Maven Central while these steps hand it 4.138.2 spec trees, so
+      # ChannelB's census pins and the PCT corpus can disagree for that
+      # reason alone. Delete this step once every pom names the tags above.
+      - name: label the version skew
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: echo "::warning ::No legend-engine/legend-pure checkout on this runner. Structural reds, expected until fixed - core PreludeGeneratorTest; pct ChannelB*Test (5 classes, allgates G9); parser-equivalence corpus tests. ANY other red is a real regression."
+        # No ": " anywhere in the message - an unquoted YAML scalar ends at a
+        # colon-space, which is why the sentences below use dashes.
+        run: echo "::warning ::Spec checkouts ARE present (${{ env.LEGEND_ENGINE_TAG }}, ${{ env.LEGEND_PURE_TAG }}) - no red here is waiting on a missing input. KNOWN SKEW - if pct/pom.xml still pins engine 4.133.0 / pure 5.88.0, pct compiles 4.138.2 spec trees against 4.133.0 jars and its census pins can move for that reason alone. Every other red is a real result."
