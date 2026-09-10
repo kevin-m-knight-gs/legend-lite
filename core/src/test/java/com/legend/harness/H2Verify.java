@@ -154,13 +154,20 @@ public final class H2Verify {
     public static final ThreadLocal<String> CURRENT_TEST =
             ThreadLocal.withInitial(() -> "<unattributed>");
 
-    /** Per-test ORDER-LENIENCY census (Phase 0.5, audit §10 item 5): every
-     * row verdict that held ONLY because rows were compared as a multiset
-     * — an UNORDERED chain whose two sides arrived in different orders
-     * (legitimate: SQL arrival order is not a contract), or an ORDERED
-     * chain whose sort keys the compared output could not carry (the
-     * counted residue) — keyed {@code tag + ' ' + test}; the harness
-     * prints it and pins the set against a committed register. */
+    /** Per-test ORDER census (Phase 0.5, audit §10 item 5), keyed
+     * {@code tag + ' ' + test}; the harness prints it and pins each tag's
+     * SET against a committed register. Two tags, both COMPILE-TIME facts
+     * of the verdict's chain, never of the run:
+     * {@code unordered-chain} — the chain has no sort, so the rows are
+     * compared as a multiset (SQL arrival order is not a contract);
+     * {@code ordered-keys-unmappable} — the chain IS sorted but the compared
+     * output cannot carry its keys (the counted residue).
+     * Until 2026-09-10 the first tag was {@code unordered-leniency}: fired
+     * only when the two sides' rows ALSO arrived in different orders — a
+     * run- and platform-dependent event (DuckDB's parallel scan order), so
+     * its count flapped 104–109 across runs and platforms and its ceiling
+     * broke the first Windows CI run. Tagging the CHAIN makes the census the
+     * same number on every platform (USER 2026-09-10). */
     public static final java.util.concurrent.ConcurrentHashMap<String,
             java.util.concurrent.atomic.LongAdder> ORD_CENSUS =
             new java.util.concurrent.ConcurrentHashMap<>();
@@ -683,15 +690,13 @@ public final class H2Verify {
             }
             if (facts.ordered()) {
                 ordFallback();
+            } else {
+                ord("unordered-chain");
             }
             List<String> sortedTheirs = new ArrayList<>(theirs);
-            List<String> mineRaw = new ArrayList<>(mine);
             Collections.sort(sortedTheirs);
             Collections.sort(mine);
             if (sortedTheirs.equals(mine)) {
-                if (!theirs.equals(mineRaw)) {
-                    ord("unordered-leniency");
-                }
                 return null;
             }
             if (collapsed != null) {
@@ -840,18 +845,15 @@ public final class H2Verify {
                 }
                 if (facts.ordered()) {
                     ordFallback();
+                } else {
+                    // F2.4 / §7: an UNORDERED query's rows compare as a
+                    // multiset — tagged by the CHAIN, pinned as an exact
+                    // register by the harness
+                    ord("unordered-chain");
                 }
-                List<String> theirsRaw = new ArrayList<>(theirs);
-                List<String> mineRaw = new ArrayList<>(mine);
                 Collections.sort(theirs);
                 Collections.sort(mine);
                 if (theirs.equals(mine)) {
-                    // F2.4: the oracle discards row order for UNORDERED
-                    // queries by §7 — COUNTED per test (strict recheck =
-                    // pre-sort order) and pinned by the harness
-                    if (!theirsRaw.equals(mineRaw)) {
-                        ord("unordered-leniency");
-                    }
                     return null;
                 }
                 return divergence(theirs, mine);

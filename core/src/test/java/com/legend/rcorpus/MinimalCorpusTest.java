@@ -63,6 +63,14 @@ class MinimalCorpusTest {
      * unordered-leniency, is run-dependent and has a ceiling instead). */
     private static final String DUCKDB_ORD = "/rcorpus/duckdb-ord-register.txt";
     private static final String H2_ORD = "/rcorpus/h2-ord-register.txt";
+    /** The UNORDERED-CHAIN registers (2026-09-10): "unordered-chain <test>"
+     * per test whose row verdicts compare as multisets because its chain
+     * has no sort — a compile-time fact of the query, the same set on every
+     * platform. Replaces a CEILING on "unordered-leniency" firings, which
+     * counted arrival-order coincidences (104–109 across runs and platforms)
+     * and broke the first Windows CI run. Exact, like the ord register. */
+    private static final String DUCKDB_UNORDERED = "/rcorpus/duckdb-unordered-register.txt";
+    private static final String H2_UNORDERED = "/rcorpus/h2-unordered-register.txt";
 
     /** The denominator per lane (the ceiling's other half: a pass-count
      * jump is either a GAINED name or a bigger corpus, and both must be
@@ -235,37 +243,35 @@ class MinimalCorpusTest {
         }
         System.out.println("[corpus2] accepted divergences " + accepted.size()
                 + " " + acceptedByBucket);
-        // the referee's ORDER-LENIENCY census (Phase 0.5): every row verdict
-        // that held only as a multiset. Two tags, two pins: an ORDERED chain
-        // whose sort keys the compared output could not carry is a
-        // compile-time fact — pinned as an exact set; an UNORDERED chain
-        // whose two sides arrived in different orders is arrival order —
-        // run-dependent (three DuckDB union/concatenate tests flapped
-        // between two runs of batch 130), so its COUNT has a ceiling
+        // the referee's ORDER census (Phase 0.5): two tags, both COMPILE-TIME
+        // facts of a verdict's chain, both pinned as EXACT sets — an ORDERED
+        // chain whose sort keys the compared output could not carry, and an
+        // UNORDERED chain (no sort: rows compare as a multiset). Until
+        // 2026-09-10 the second was a CEILING on arrival-order coincidences
+        // ("unordered-leniency": fired only when the two sides also arrived
+        // in different orders — 104–109 across runs and platforms; Windows CI
+        // hit 109 > 108). Tagging the chain makes it the same set everywhere.
         List<String> unmappable = new ArrayList<>();
-        long unordered = 0;
+        List<String> unorderedChains = new ArrayList<>();
         for (var e : com.legend.harness.H2Verify.ORD_CENSUS.entrySet()) {
             System.out.println("[corpus2] ord " + e.getKey() + " x" + e.getValue().sum());
             if (e.getKey().startsWith(ORD_UNMAPPABLE + " ")) {
                 unmappable.add(e.getKey() + " :: x" + e.getValue().sum());
-            } else {
-                unordered++;      // TESTS, not firings: a test with several verdicts fires per verdict
+            } else if (e.getKey().startsWith(ORD_UNORDERED + " ")) {
+                unorderedChains.add(e.getKey() + " :: x" + e.getValue().sum());
             }
         }
-        System.out.println("[corpus2] ord-unordered-leniency=" + unordered);
-        if (only.isEmpty()) {
-            long ceiling = MinimalCorpus.H2_BACKEND ? H2_ORD_UNORDERED : DUCKDB_ORD_UNORDERED;
-            org.junit.jupiter.api.Assertions.assertTrue(unordered <= ceiling,
-                    "unordered-leniency passes (row verdicts held only as multisets"
-                    + " over an unordered chain) grew past the ceiling: " + unordered
-                    + " > " + ceiling + " — explain, then re-pin");
-        }
+        System.out.println("[corpus2] ord-unordered-chains=" + unorderedChains.size());
         List<String> ranTagged = new ArrayList<>();
+        List<String> ranTaggedUnordered = new ArrayList<>();
         for (String t : ran) {
             ranTagged.add(ORD_UNMAPPABLE + " " + t);
+            ranTaggedUnordered.add(ORD_UNORDERED + " " + t);
         }
         pinRoster(only, ranTagged, unmappable, "ord",
                 MinimalCorpus.H2_BACKEND ? H2_ORD : DUCKDB_ORD, false);
+        pinRoster(only, ranTaggedUnordered, unorderedChains, "unordered",
+                MinimalCorpus.H2_BACKEND ? H2_UNORDERED : DUCKDB_UNORDERED, false);
         pinChannels(only, corpus);
         pinStrength(only, strength);
     }
@@ -414,11 +420,7 @@ class MinimalCorpusTest {
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
 
     private static final String ORD_UNMAPPABLE = "ordered-keys-unmappable";
-    /** Ceilings on the number of TESTS with an arrival-order leniency pass
-     * per lane (batch 130, measured over three runs: DuckDB 108 / 105 / 106
-     * — three union/concatenate tests flap; H2 11). */
-    private static final long DUCKDB_ORD_UNORDERED = 108;
-    private static final long H2_ORD_UNORDERED = 11;
+    private static final String ORD_UNORDERED = "unordered-chain";
 
     /** Phase 0.8 — the denominator RE-DERIVED: the model's triple
      * (declared / excluded / discovered) printed, pinned to the committed
