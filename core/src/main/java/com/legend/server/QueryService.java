@@ -78,8 +78,10 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
-        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
-        return execute(pureSource, query, runtimeName, conn);
+        try (ConnectionResolver.Lease lease =
+                ConnectionResolver.resolve(pureSource, runtimeName)) {
+            return execute(pureSource, query, runtimeName, lease.connection());
+        }
     }
 
     /**
@@ -119,12 +121,14 @@ public class QueryService {
      * from the Runtime. */
     public WireData executeWireJson(String pureSource, String query,
             String runtimeName) throws SQLException, IOException {
-        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
-        var sw = new java.io.StringWriter();
-        List<String> cols = com.legend.Compiler.executeWire(pureSource, query,
-                runtimeName, conn,
-                com.legend.lowering.WireRender.Format.JSON, sw);
-        return new WireData(sw.toString(), cols);
+        try (ConnectionResolver.Lease lease =
+                ConnectionResolver.resolve(pureSource, runtimeName)) {
+            var sw = new java.io.StringWriter();
+            List<String> cols = com.legend.Compiler.executeWire(pureSource, query,
+                    runtimeName, lease.connection(),
+                    com.legend.lowering.WireRender.Format.JSON, sw);
+            return new WireData(sw.toString(), cols);
+        }
     }
 
     /**
@@ -135,8 +139,10 @@ public class QueryService {
             OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
-        execute(pureSource, query, runtimeName, conn, out, format);
+        try (ConnectionResolver.Lease lease =
+                ConnectionResolver.resolve(pureSource, runtimeName)) {
+            execute(pureSource, query, runtimeName, lease.connection(), out, format);
+        }
     }
 
     /**
@@ -145,9 +151,9 @@ public class QueryService {
     public ExecutionResult executeSql(String pureSource, String sql, String runtimeName)
             throws SQLException {
 
-        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
-
-        try (java.sql.Statement stmt = conn.createStatement()) {
+        try (ConnectionResolver.Lease lease =
+                ConnectionResolver.resolve(pureSource, runtimeName);
+                java.sql.Statement stmt = lease.connection().createStatement()) {
             stmt.execute(sql);
             // DDL/DML: no result set — an empty relation, the caller's
             // "no columns" signal (the legacy empty() contract).
@@ -190,8 +196,10 @@ public class QueryService {
             OutputStream out)
             throws SQLException, IOException {
 
-        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
-        stream(pureSource, query, runtimeName, conn, out);
+        try (ConnectionResolver.Lease lease =
+                ConnectionResolver.resolve(pureSource, runtimeName)) {
+            stream(pureSource, query, runtimeName, lease.connection(), out);
+        }
     }
 
 }

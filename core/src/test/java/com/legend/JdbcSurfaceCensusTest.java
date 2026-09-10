@@ -130,6 +130,13 @@ class JdbcSurfaceCensusTest {
 
     private static final Set<String> TEST_REGISTER = new TreeSet<>(List.of(
             "core/src/test/java/com/legend/ArchitectureTest.java",
+            // 2026-09-09, the connection lease: the CONNECTION LIFECYCLE is
+            // the thing under test, so java.sql.Connection is the subject and
+            // not an execution shortcut. It asserts isClosed() on a resolved
+            // handle — that a caller-owned connection is released by its lease
+            // and a store-owned one never is. No statements, no queries: the
+            // database executes nothing here, which is exactly tenet #1.
+            "core/src/test/java/com/legend/server/ConnectionLeaseTest.java",
             // batch 58: reads the referee H2 jar's VERSION constant (no
             // connection, no statement) to pin the raw-SQL boundary's H2
             // dialect level to the jar it translates for

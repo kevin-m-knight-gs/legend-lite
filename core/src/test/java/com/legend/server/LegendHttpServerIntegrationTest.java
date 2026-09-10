@@ -48,13 +48,18 @@ class LegendHttpServerIntegrationTest {
         if (server != null) {
             server.stop();
         }
-        // Clean up temp file
+        // Clean up temp file. NOT swallowed: this catch used to printStackTrace
+        // and pass, which is how a leaked connection hid here for the life of
+        // the module — on Windows the delete fails outright ("the process
+        // cannot access the file"), and a test that prints and goes green
+        // reports nothing. The delete is part of the contract now.
         try {
             Files.deleteIfExists(tempDbFile);
             // DuckDB also creates .wal file
             Files.deleteIfExists(Path.of(tempDbFile.toString() + ".wal"));
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException("the temp database could not be"
+                    + " deleted — something still holds it open: " + tempDbFile, e);
         }
     }
 

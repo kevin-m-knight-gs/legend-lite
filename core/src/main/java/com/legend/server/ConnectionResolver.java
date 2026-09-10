@@ -33,6 +33,62 @@ final class ConnectionResolver {
 
     private static final HandleStore<Connection> STORE = new HandleStore<>();
 
+    /**
+     * A BORROWED connection. {@code close()} RELEASES it, and what releasing
+     * means is the lease's business, not the caller's:
+     *
+     * <ul>
+     *   <li>a STORE-OWNED handle (the in-memory arms) is released by doing
+     *       NOTHING — {@link HandleStore} owns it for the life of the process
+     *       because evicting it would silently drop its tables, and closing it
+     *       here would break the persistence feature
+     *       {@code ConnectionIsolationTest} pins;</li>
+     *   <li>every other arm is a fresh {@code DriverManager} connection that
+     *       this lease closes. Before leases nobody closed them, so each call
+     *       through an auto-resolving {@link QueryService} method leaked one
+     *       connection — 25 calls, 25 file descriptors, measured
+     *       (ConnectionLeaseTest). Silent on POSIX, and on Windows the symptom
+     *       was a database file that could not be deleted.</li>
+     * </ul>
+     *
+     * <p>Callers always close. That is the whole contract, and it is the
+     * engine's (a Hikari connection's {@code close} returns it to the pool)
+     * reached without the engine's pool — which cannot be ported here because
+     * the engine RE-SEEDS per acquisition and never persists across requests.
+     * See docs/CONNECTION_LEASE_DESIGN_2026_09_09.md.
+     */
+    static final class Lease implements AutoCloseable {
+
+        private final Connection connection;
+        private final boolean storeOwned;
+
+        private Lease(Connection connection, boolean storeOwned) {
+            this.connection = connection;
+            this.storeOwned = storeOwned;
+        }
+
+        /** A handle the {@link HandleStore} owns: releasing is a no-op. */
+        static Lease borrowed(Connection c) {
+            return new Lease(c, true);
+        }
+
+        /** A connection opened for this call alone: the lease closes it. */
+        static Lease owned(Connection c) {
+            return new Lease(c, false);
+        }
+
+        Connection connection() {
+            return connection;
+        }
+
+        @Override
+        public void close() throws SQLException {
+            if (!storeOwned) {
+                connection.close();
+            }
+        }
+    }
+
     /** A connection is DEAD when closed — or unanswerable, which only a
      * broken handle produces; treating it live would cache the wreck. */
     private static boolean dead(Connection c) {
@@ -43,7 +99,7 @@ final class ConnectionResolver {
         }
     }
 
-    static Connection resolve(String pureSource, String runtimeName)
+    static Lease resolve(String pureSource, String runtimeName)
             throws SQLException {
         ParsedModel model = com.legend.Compiler.parseModel(pureSource);
         RuntimeDefinition runtime = null;
@@ -116,26 +172,26 @@ final class ConnectionResolver {
                 Hash.ofUtf8(def.toString()));
     }
 
-    private static Connection connect(Hash storesKey, ConnectionDefinition def)
+    private static Lease connect(Hash storesKey, ConnectionDefinition def)
             throws SQLException {
         return switch (def.databaseType()) {
             case DuckDB -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
-                        DriverManager.getConnection("jdbc:duckdb:" + path);
+                        Lease.owned(DriverManager.getConnection("jdbc:duckdb:" + path));
                 // InMemory — and every spec kind the legacy resolver folded
                 // to in-memory (LocalH2, static specs DuckDB can't reach)
-                default -> STORE.getOrOpen(contentKey(storesKey, def),
-                        ConnectionResolver::dead,
-                        () -> DriverManager.getConnection("jdbc:duckdb:"));
+                default -> Lease.borrowed(STORE.getOrOpen(
+                        contentKey(storesKey, def), ConnectionResolver::dead,
+                        () -> DriverManager.getConnection("jdbc:duckdb:")));
             };
             case SQLite -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
-                        DriverManager.getConnection("jdbc:sqlite:" + path);
-                default -> STORE.getOrOpen(contentKey(storesKey, def),
-                        ConnectionResolver::dead,
-                        () -> DriverManager.getConnection("jdbc:sqlite::memory:"));
+                        Lease.owned(DriverManager.getConnection("jdbc:sqlite:" + path));
+                default -> Lease.borrowed(STORE.getOrOpen(
+                        contentKey(storesKey, def), ConnectionResolver::dead,
+                        () -> DriverManager.getConnection("jdbc:sqlite::memory:")));
             };
-            case H2 -> auth(DriverManager.getConnection(switch (def.specification()) {
+            case H2 -> Lease.owned(auth(DriverManager.getConnection(switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) -> "jdbc:h2:file:" + path;
                 case ConnectionSpecification.StaticDatasource(String host, int port,
                         String database) -> "jdbc:h2:tcp://" + host + ":" + port + "/" + database;
@@ -154,7 +210,7 @@ final class ConnectionResolver {
                 default -> "jdbc:h2:mem:c_"
                         + contentKey(storesKey, def).hex().substring(0, 16)
                         + ";DB_CLOSE_DELAY=-1";
-            }), def);
+            }), def));
             case Postgres -> {
                 if (!(def.specification()
                         instanceof ConnectionSpecification.StaticDatasource(
@@ -162,8 +218,8 @@ final class ConnectionResolver {
                     throw new com.legend.error.NotImplementedException(
                             "Postgres requires a static datasource with host/port/database");
                 }
-                yield auth(DriverManager.getConnection(
-                        "jdbc:postgresql://" + host + ":" + port + "/" + database), def);
+                yield Lease.owned(auth(DriverManager.getConnection(
+                        "jdbc:postgresql://" + host + ":" + port + "/" + database), def));
             }
             default -> throw new com.legend.error.NotImplementedException(
                     "connection resolution for database type '" + def.databaseType()
