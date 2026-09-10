@@ -62,7 +62,7 @@ class VerdictChannelRegisterTest {
                             .replaceAll("//.*", "");
                     if (src.contains("PureAsserts.equal")
                             || src.contains("PureAsserts::equal")) {
-                        String rel = f.toString().replace('\\', '/')
+                        String rel = f.toString().replace(java.io.File.separatorChar, '/')
                                 .replace("../pct/", "pct/");
                         found.add(rel.startsWith("src/")
                                 ? "core/" + rel : rel);

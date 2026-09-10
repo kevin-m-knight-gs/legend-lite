@@ -453,7 +453,7 @@ class JdbcSurfaceCensusTest {
             if (JDBC.matcher(src).find()) {
                 String rel = Path.of("..").toAbsolutePath().normalize()
                         .relativize(p.toAbsolutePath().normalize())
-                        .toString().replace('\\', '/');
+                        .toString().replace(java.io.File.separatorChar, '/');
                 (rel.contains("/main/") ? mainHits : testHits).add(rel);
             }
         }

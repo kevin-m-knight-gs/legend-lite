@@ -38,7 +38,7 @@ class ZTier2FixtureHarvest {
                 for (Path p : s.filter(f -> f.toString().endsWith(".class"))
                         .filter(f -> !f.toString().contains("$"))
                         .sorted().toList()) {
-                    String cls = root.relativize(p).toString()
+                    String cls = root.relativize(p).toString().replace(java.io.File.separatorChar, '/')
                             .replace(".class", "").replace('/', '.');
                     if (!cls.substring(cls.lastIndexOf('.') + 1)
                             .startsWith("Test")) {

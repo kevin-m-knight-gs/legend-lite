@@ -171,7 +171,7 @@ final class CensusWorlds {
             // Windows this filter matches NOTHING and the census silently
             // reports an empty world (Windows CI, 2026-09-09).
             for (Path f : walk.filter(x -> x.toString().endsWith(".pure")
-                    && x.toString().replace('\\', '/')
+                    && x.toString().replace(java.io.File.separatorChar, '/')
                             .contains("/src/main/resources/")).toList()) {
                 Matcher m = nat.matcher(Files.readString(f, StandardCharsets.UTF_8));
                 while (m.find()) {

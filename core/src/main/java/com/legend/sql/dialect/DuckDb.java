@@ -214,7 +214,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             // slashes then keep the SQL literal free of backslashes; Windows
             // accepts them everywhere. (Windows CI, 2026-09-09.)
             String path = java.nio.file.Path.of(java.net.URI.create(url))
-                    .toString().replace('\\', '/');
+                    .toString().replace(java.io.File.separatorChar, '/');
             return "SELECT json AS data FROM read_json_objects(" + stringLit(path) + ")";
         }
         throw new IllegalStateException("unsupported sourceUrl scheme: " + url);

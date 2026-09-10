@@ -186,7 +186,15 @@ public final class MinimalCorpus {
             seen.add(s.text());
         }
         for (Path f : corpusFiles()) {
-            String rel = Corpus.RELATIONAL.relativize(f).toString();
+            // '/' ALWAYS: the keys above are forward-slash relative paths, and
+            // Path.toString uses the PLATFORM separator — on Windows nothing
+            // matched, so the engine's scanRelations implementation was
+            // admitted as user Pure and inlined over the platform's, failing
+            // exactly the 49 lineage tests this map exists to protect
+            // (Windows CI gate 4, 2026-09-09 — the count matched the batch-134
+            // measurement in the comment above to the test).
+            String rel = Corpus.RELATIONAL.relativize(f).toString()
+                    .replace(java.io.File.separatorChar, '/');
             if (ENGINE_IMPLEMENTATION_FILES.containsKey(rel)) {
                 engineImplementationSkips.add(rel + " — " + ENGINE_IMPLEMENTATION_FILES.get(rel));
                 continue;
@@ -194,7 +202,8 @@ public final class MinimalCorpus {
             String text = Files.readString(f);
             if (seen.add(text)) {
                 all.add(new Compiler.ModelSource(
-                        Corpus.RELATIONAL.relativize(f).toString(), text));
+                        Corpus.RELATIONAL.relativize(f).toString()
+                                .replace(java.io.File.separatorChar, '/'), text));
             }
         }
         // LIBRARY sources are optional inputs (the platform's own M2M test

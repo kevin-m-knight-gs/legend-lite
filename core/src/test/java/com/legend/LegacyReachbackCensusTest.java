@@ -113,7 +113,7 @@ class LegacyReachbackCensusTest {
                         // committed doc written with forward slashes, so on
                         // Windows every key differs and the census reads as
                         // pure GROWTH (Windows CI, 2026-09-09).
-                        found.put(f.normalize().toString().replace('\\', '/')
+                        found.put(f.normalize().toString().replace(java.io.File.separatorChar, '/')
                                 .replaceFirst("^\\.\\./", ""), n);
                     }
                 }

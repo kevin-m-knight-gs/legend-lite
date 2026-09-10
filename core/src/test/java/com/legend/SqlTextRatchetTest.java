@@ -116,7 +116,7 @@ class SqlTextRatchetTest {
                     .toList()) {
                 String rel = root.toAbsolutePath().normalize()
                         .relativize(p.toAbsolutePath().normalize())
-                        .toString().replace('\\', '/');
+                        .toString().replace(java.io.File.separatorChar, '/');
                 if (rel.startsWith("sql/dialect/")) {
                     continue;
                 }

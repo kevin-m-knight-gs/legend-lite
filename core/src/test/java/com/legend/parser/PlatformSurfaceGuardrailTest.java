@@ -71,7 +71,7 @@ class PlatformSurfaceGuardrailTest {
                     // on Windows (com\legend\...) NOTHING matches and every
                     // legitimate caller reads as a new offender (Windows CI,
                     // 2026-09-09).
-                    .map(p -> root.relativize(p).toString().replace('\\', '/'))
+                    .map(p -> root.relativize(p).toString().replace(java.io.File.separatorChar, '/'))
                     .filter(p -> !WHITELIST.contains(p))
                     .toList();
         }

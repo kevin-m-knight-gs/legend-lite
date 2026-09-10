@@ -49,7 +49,7 @@ public final class Corpus {
      * every path-shape test through here (Windows CI, 2026-09-09).
      */
     static String slashed(Path p) {
-        return p.toString().replace('\\', '/');
+        return p.toString().replace(java.io.File.separatorChar, '/');
     }
 
     /** Every {@code .pure} under a root, excluding build output. */
@@ -93,7 +93,11 @@ public final class Corpus {
             if (head.matches("###\\w+")
                     || head.matches("(Class|Enum|Association|Profile"
                             + "|function|import)\\b.*")) {
-                out.add(new Source(root.relativize(p).toString(), t, tier));
+                // slashed(): the source ID is the corpus KEY — it is matched
+                // against the committed manifest and the allowlist ledgers,
+                // which are forward-slash. A platform-separator id makes every
+                // row miss (Windows CI gate 8, 2026-09-09).
+                out.add(new Source(slashed(root.relativize(p)), t, tier));
             }
         }
     }
@@ -116,7 +120,11 @@ public final class Corpus {
                 continue;
             }
             if (accept.test(t)) {
-                out.add(new Source(root.relativize(p).toString(), t, tier));
+                // slashed(): the source ID is the corpus KEY — it is matched
+                // against the committed manifest and the allowlist ledgers,
+                // which are forward-slash. A platform-separator id makes every
+                // row miss (Windows CI gate 8, 2026-09-09).
+                out.add(new Source(slashed(root.relativize(p)), t, tier));
             }
         }
     }

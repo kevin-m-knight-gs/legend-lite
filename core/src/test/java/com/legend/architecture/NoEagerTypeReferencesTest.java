@@ -67,7 +67,8 @@ class NoEagerTypeReferencesTest {
         List<String> violations = new ArrayList<>();
         try (Stream<Path> paths = Files.walk(classesRoot)) {
             paths.filter(p -> p.toString().endsWith(".class"))
-                    .map(p -> classesRoot.relativize(p).toString())
+                    .map(p -> classesRoot.relativize(p).toString()
+                            .replace(java.io.File.separatorChar, '/'))
                     .map(rel -> rel.replace('/', '.').replace('\\', '.'))
                     .map(name -> name.substring(0, name.length() - ".class".length()))
                     .filter(fqn -> fqn.startsWith("com.legend."))

@@ -227,7 +227,7 @@ class   CarrierPurityRatchetTest {
                         // files, and its floor trips for a reason that has
                         // nothing to do with carrier purity (Windows CI,
                         // 2026-09-09).
-                        String path = f.toString().replace('\\', '/');
+                        String path = f.toString().replace(java.io.File.separatorChar, '/');
                         return (path.contains("/lowering/")
                                 || path.contains("/resolver/")
                                 || path.contains("/plan/"))

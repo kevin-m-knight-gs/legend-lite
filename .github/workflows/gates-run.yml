@@ -34,8 +34,15 @@ env:
   # CI has a cold ~/.m2 and MUST resolve; the script defaults to -o for local
   # hygiene
   MVN_OFFLINE: "0"
-  # Maven 3.9 reads MAVEN_ARGS: batch mode, no transfer progress spam
-  MAVEN_ARGS: -B -ntp
+  # Maven 3.9 reads MAVEN_ARGS: batch mode, no transfer progress spam, and
+  # ONE JVM PER PCT SUITE. That last one is bought for the macOS runner:
+  # GitHub's hosted arm64 macOS box has 3 vCPU and 7 GB TOTAL (ubuntu and
+  # windows have 16 GB), and a PCT suite's Pure graph is a 2.0-2.8 GB live
+  # set it never releases, so five suites cannot share a fork there at any
+  # heap. It costs ~11s (measured locally, 89s -> 100s), which is why the
+  # pom DEFAULTS to sharing and CI opts out rather than the reverse — a
+  # developer machine should not pay for a 7 GB runner's constraint.
+  MAVEN_ARGS: -B -ntp -Dpct.reuseForks=false
   # The forked test JVMs default to 1/4 of the runner's RAM. Pin the heap so
   # every runner behaves alike; the local chain is validated under this same cap
   # before a bump lands. MEASURED 2026-09-09: corpus and parser lanes fit in

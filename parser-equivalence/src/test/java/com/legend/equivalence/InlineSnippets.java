@@ -66,7 +66,7 @@ final class InlineSnippets {
                     .filter(f -> !Corpus.slashed(f).contains("/target/"))
                     .sorted().toList()) {
                 try {
-                    out.add(new FileRuns(root.relativize(p).toString(),
+                    out.add(new FileRuns(Corpus.slashed(root.relativize(p)),
                             literalRuns(Files.readString(p))));
                 } catch (Exception ignored) {
                     // non-UTF8 — visible via extract()'s counters

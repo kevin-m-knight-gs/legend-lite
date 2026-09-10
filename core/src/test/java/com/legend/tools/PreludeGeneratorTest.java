@@ -1259,10 +1259,10 @@ class PreludeGeneratorTest {
     static String relative(String absolute, Path engine, Path pure) {
         Path f = Path.of(absolute);
         if (f.startsWith(engine)) {
-            return "legend-engine/" + engine.relativize(f).toString().replace('\\', '/');
+            return "legend-engine/" + engine.relativize(f).toString().replace(java.io.File.separatorChar, '/');
         }
         if (f.startsWith(pure)) {
-            return "legend-pure/" + pure.relativize(f).toString().replace('\\', '/');
+            return "legend-pure/" + pure.relativize(f).toString().replace(java.io.File.separatorChar, '/');
         }
         throw new IllegalStateException("prelude generator: " + absolute + " is under neither checkout root");
     }

@@ -19,6 +19,19 @@
         <!-- direct pin beats core's transitive 2.1.214: run the modern
              profile with -Dh2.version=2.4.240 (PV4) -->
         <h2.version>2.1.214</h2.version>
+        <!-- ONE JVM PER SUITE, or one for all five? A PCT suite's Pure graph
+             is a 2.0-2.8 GB live set it never releases, so five suites in one
+             fork stack past 8 GB. That is fatal on the macOS CI runner, which
+             has 3 vCPU and 7 GB TOTAL (GitHub-hosted arm64 spec; ubuntu and
+             windows have 16 GB), and it is why the shared fork died with
+             OutOfMemoryError in the Pure graph loader at both 3 GB and 4 GB.
+             It is NOT a problem on a developer machine with room to spare, and
+             the isolation costs ~15s of JVM starts and graph reloads.
+             So: SHARED by default (local speed), and CI sets
+             -Dpct.reuseForks=false to buy the isolation it actually needs.
+             Validating the CI envelope locally means passing that flag too —
+             see docs/GATES.md. -->
+        <pct.reuseForks>true</pct.reuseForks>
         <!-- Legend Engine versions (isolated to this module only) -->
         <legend.engine.version>4.133.0</legend.engine.version>
         <legend.pure.version>5.88.0</legend.pure.version>
@@ -229,15 +242,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <useSystemClassLoader>false</useSystemClassLoader>
-                    <!-- ONE JVM PER SUITE (measured 2026-09-09, CI leg): each
-                         PCT suite's Pure graph is a 2.0-2.8 GB live set and the
-                         suites do not release it between classes, so sharing a
-                         fork stacked them past 8 GB — gate 6 passed locally
-                         only because a 32 GB laptop hands the fork 8 GB by
-                         default, and died with OutOfMemoryError in the graph
-                         loader at 3 GB and 4 GB. Fresh fork per class: green at
-                         4 GB, 1110/1110, +13s (83s -> 96s). -->
-                    <reuseForks>false</reuseForks>
+                    <!-- see the pct.reuseForks property above: shared by
+                         default, per-suite in CI where 7 GB of macOS runner
+                         cannot hold five Pure graphs at once -->
+                    <reuseForks>${pct.reuseForks}</reuseForks>
                     <!-- PCT failures FAIL the build: known divergences are
                          LEDGERED as expectedFailures pins (reference-adapter
                          parity), never swallowed here. -->

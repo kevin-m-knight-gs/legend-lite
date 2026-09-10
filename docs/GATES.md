@@ -988,3 +988,38 @@ public repo, but it declares one laptop's arch the reference and hides the
 divergence from anyone on Linux; (b) make the emission arch-stable, the real
 answer; (c) an explicit documented per-arch delta. Until one is chosen, gates
 4, 6 and 9 are RED in CI **for this reason only** — an honest red.
+
+## Fork policy and the 7 GB runner, 2026-09-09
+
+Gate 6 (the five PCT suites) went **~81s → ~98s** when the PCT module moved to
+one JVM per suite. That was not the CI split, which changes nothing locally; it
+was `reuseForks=false`, added because a suite's Pure graph is a 2.0–2.8 GB live
+set it never releases, so five suites in one fork stack past 8 GB.
+
+**The constraint is the macOS runner, and only it.** GitHub's hosted standard
+runners for public repositories:
+
+| runner | CPU | RAM |
+|---|---:|---:|
+| ubuntu-latest | 4 | 16 GB |
+| windows-2022 | 4 | 16 GB |
+| **macos-14 (arm64)** | **3** | **7 GB** |
+
+Seven gigabytes total cannot hold five Pure graphs at any heap, so per-suite
+forks are mandatory *there* — and nowhere else. A 32 GB developer machine has
+no reason to pay for it.
+
+So `pct/pom.xml` takes a `pct.reuseForks` property that **defaults to `true`**
+(shared fork, fast local), and CI opts out with `-Dpct.reuseForks=false` in
+`MAVEN_ARGS`. Measured on the same machine at the same heap: shared **89s**,
+per-suite **100s** — 11s back on every local chain.
+
+**Validating the CI envelope locally means passing the flag too:**
+
+    JAVA_TOOL_OPTIONS=-Xmx4g MVN_OFFLINE=0 \
+      MAVEN_ARGS="-B -ntp -Dpct.reuseForks=false" tools/allgates.sh
+
+The default is the fast one BECAUSE CI now runs all three platforms on every
+push: an OOM from a future memory regression is caught there within one run,
+which is what makes the local default affordable. If that ever stops being
+true, flip the default back.
