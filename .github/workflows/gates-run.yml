@@ -150,9 +150,16 @@ jobs:
           path: ${{ runner.temp }}/gates*
           if-no-files-found: ignore
 
+  # NOT `needs: core`. The lanes are self-sufficient — each runs GATES=2,<n>,
+  # so it installs core into its own cold ~/.m2 before its gate — and waiting
+  # for the core SUITE only serialized the run: 112s on linux, 133s on macOS,
+  # 210s on windows, on every green push, which is the common case. The local
+  # chain keeps its fail-fast (a red core there means the same broken jar feeds
+  # every later gate); here a red core costs six lanes of runner time on a
+  # public repo, and buys back ~2 minutes of wall clock every other run.
   lanes:
     name: ${{ matrix.lane.name }} (${{ inputs.platform }})
-    needs: [setup, core]
+    needs: [setup]
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 90
     defaults:

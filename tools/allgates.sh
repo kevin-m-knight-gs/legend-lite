@@ -154,7 +154,6 @@ if want 4; then
   # a failed lane keeps its log beside the chain log (like G1): the
   # moved pin's assertion is in there, and re-running the lane to read
   # it cost a full sweep per pin (2026-09-02)
-  cp "$OUT/g4.out" "${L%.log}.g4.out" 2>/dev/null   # kept on GREEN too: the exact roster of record
   fi
 fi
 
@@ -169,7 +168,6 @@ if want 5; then
     echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
   fi
   rec 5 $G5; grep -E "EXACT|h2|Tests run: [0-9]+, Fail" "$OUT/g5.out" | tail -3 >> "$L"
-  cp "$OUT/g5.out" "${L%.log}.g5.out" 2>/dev/null   # kept on GREEN too
   fi
 fi
 
@@ -298,6 +296,15 @@ if want 8; then
   fi
 fi
 
+# EVERY gate's output is kept, GREEN INCLUDED (2026-09-09). Only G4/G5 were
+# kept on green and the rest only on failure, so a PASSING gate left no record
+# — and when gate 6 became CI's critical path there was no way to see where its
+# time went without re-running it. A gate's output is evidence whatever the
+# verdict; the scratch dir is deleted on exit, so it is keep-now or lose-it.
+for f in "$OUT"/g*.out; do
+  [ -f "$f" ] && cp "$f" "${L%.log}.$(basename "$f")" 2>/dev/null
+done
+
 # PX.1 tripwire runs UNCONDITIONALLY (DEEP_AUDIT §11c: it only ran on
 # all-green chains, so a failed-gate chain never checked tree
 # mutation) and REPORTS FAILURE to automated callers (it printed
@@ -317,6 +324,5 @@ if [ ${#FAILED[@]} -eq 0 ]; then
 fi
 echo "ALLGATES_DONE — FAILED: ${FAILED[*]}" >> "$L"
 echo "ALLGATES_DONE — FAILED: ${FAILED[*]}  (detail: $L)" >&2
-for k in "${FAILED[@]}"; do n=${k#G}; cp "$OUT/g$n.out" "${L%.log}.g$n.out" 2>/dev/null; done
-echo "failing gate output copied beside $L" >&2
+echo "every gate's output is beside $L" >&2
 exit 1
