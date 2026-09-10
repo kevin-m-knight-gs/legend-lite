@@ -59,6 +59,12 @@ class SkipCensusTest {
             // REPORT (target/spec-body-census.txt), not yet a pin; its
             // numbers are recorded in docs/SPEC_BODY_CENSUS_2026_09_08.md
             "SpecBodyCensusTest.java",
+            // the upstream path manifest (upstream boundary batch 2,
+            // 2026-09-10): skips ONLY when a checkout root itself is absent
+            // (tools/oracle-roots.sh fails the gates upstream of that); a
+            // PRESENT checkout is checked in full — 90 paths, every miss
+            // named, the count pinned
+            "UpstreamPathManifestTest.java",
             // ---- parser-equivalence (audit-of-audits #11: the walk
             // now covers sibling modules — these 8 carried the exact
             // vacuous-green pattern c4386547 was written to kill,

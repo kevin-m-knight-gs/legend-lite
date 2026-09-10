@@ -114,29 +114,56 @@ class PreludeGeneratorTest {
     // the generator
     // ------------------------------------------------------------------
 
+    /** The engine-checkout roots the generator indexes (ENGINE_ROOT-relative)
+     *  — the spec's declaration files. Public for the upstream path manifest
+     *  ({@code UpstreamPathManifestTest}); the pure checkout is indexed WHOLE. */
+    public static final List<String> ENGINE_SPEC_ROOTS = List.of(
+            "legend-engine-xts-relationalStore",
+            "legend-engine-core/legend-engine-core-pure",
+            // the service metamodel (core_service): ^Service(...) in the
+            // execution-strategy tests (batch 57)
+            "legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/"
+                    + "src/main/resources/core_service");
+    /** The relational corpus root the generator scans for DEMAND — the same
+     *  directory as {@code Corpus.RELATIONAL}, declared separately on purpose
+     *  (the two can go stale independently). */
+    public static final String CORPUS_ROOT =
+            "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
+            + "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
+            + "src/main/resources/core_relational/relational";
+    /** m3.pure — the one spec file in the M3 instance syntax (PURE_ROOT-relative). */
+    public static final String M3_PURE =
+            "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure";
+
+    static Path engineRoot() {
+        return Path.of(System.getProperty("legend.engine.root",
+                System.getProperty("user.home") + "/legend/legend-engine"));
+    }
+
+    static Path pureRoot() {
+        return Path.of(System.getProperty("legend.pure.root",
+                System.getProperty("user.home") + "/legend/legend-pure"));
+    }
+
     static String generate() throws IOException {
         // the roots arrive as system properties from the root pom (surefire
         // forwards -D / LEGEND_*_ROOT / the ${user.home} default); the
         // literal here is only the IDE fallback
-        Path engine = Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
-        Path pure = Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
-        List<Path> roots = List.of(
-                engine.resolve("legend-engine-xts-relationalStore"),
-                engine.resolve("legend-engine-core/legend-engine-core-pure"),
-                // the service metamodel (core_service): ^Service(...) in the
-                // execution-strategy tests (batch 57)
-                engine.resolve("legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/"
-                        + "src/main/resources/core_service"),
-                pure);
-        Path corpus = engine.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
-                + "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
-                + "src/main/resources/core_relational/relational");
+        Path engine = engineRoot();
+        Path pure = pureRoot();
+        List<Path> roots = new ArrayList<>();
+        for (String r : ENGINE_SPEC_ROOTS) {
+            roots.add(engine.resolve(r));
+        }
+        roots.add(pure);
+        Path corpus = engine.resolve(CORPUS_ROOT);
 
         // 1. the spec index: every Class/Enum FQN -> its defining file
         Map<String, Path> index = new TreeMap<>();
         for (Path root : roots) {
+            if (!Files.isDirectory(root)) {
+                throw new IllegalStateException("spec root missing (upstream moved it?): " + root);
+            }
             try (Stream<Path> s = Files.walk(root)) {
                 for (Path f : s.filter(p -> p.toString().endsWith(".pure")).sorted().toList()) {
                     Matcher m = DECL_HEADER.matcher(Files.readString(f, StandardCharsets.UTF_8));
@@ -151,8 +178,7 @@ class PreludeGeneratorTest {
         // through the reader: its classes and enumerations are spec
         // declarations like any other (T1: legend-pure's platform packages
         // whole), printed from the graph, never copied as text
-        Path m3File = pure.resolve(
-                "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure");
+        Path m3File = pure.resolve(M3_PURE);
         Map<String, String> m3Decls = m3Declarations(Files.readString(m3File, StandardCharsets.UTF_8));
         for (String fqn : m3Decls.keySet()) {
             index.putIfAbsent(fqn, m3File);
@@ -203,7 +229,10 @@ class PreludeGeneratorTest {
         scanned.addAll(com.legend.rcorpus.Corpus.SHAPE_FILES);
         for (Path f : scanned) {
             if (!Files.isRegularFile(f)) {
-                continue;
+                // LOUD (batch 2): a named LIBRARY/SHAPE file that is gone is a
+                // moved upstream path, and a demand scan that skips it under-
+                // generates the prelude without a word
+                throw new IllegalStateException("demand input missing (upstream moved it?): " + f);
             }
             for (String line : Files.readString(f, StandardCharsets.UTF_8).split("\n")) {
                 Matcher d = DECL.matcher(line);
@@ -1121,7 +1150,7 @@ class PreludeGeneratorTest {
     void m3ReaderPrintsEveryClass() throws IOException {
         Path pure = Path.of(System.getProperty("legend.pure.root",
                 System.getProperty("user.home") + "/legend/legend-pure"));
-        Path m3 = pure.resolve("legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure");
+        Path m3 = pure.resolve(M3_PURE);
         // never an assumption-skip (SkipCensusTest): the reference checkout is
         // this test class's hard default, exactly as preludeIsCurrent's
         assertTrue(Files.isRegularFile(m3), "m3.pure missing at " + m3);
@@ -1158,7 +1187,9 @@ class PreludeGeneratorTest {
         List<PlatformFunction> out = new ArrayList<>();
         for (Path root : platformRoots) {
             if (!Files.isDirectory(root)) {
-                continue;
+                // LOUD (batch 2): a missing platform root shrinks the function
+                // census and every rule keyed on it — never silently
+                throw new IllegalStateException("platform root missing (upstream moved it?): " + root);
             }
             List<Path> files;
             try (Stream<Path> walk = Files.walk(root)) {

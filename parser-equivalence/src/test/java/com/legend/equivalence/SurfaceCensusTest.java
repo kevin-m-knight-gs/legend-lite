@@ -127,25 +127,44 @@ class SurfaceCensusTest {
             snap.add(line.split("\t")[0]);
         }
         java.util.List<String> fresh = new java.util.ArrayList<>();
+        java.util.Set<String> engineKeywords = new java.util.HashSet<>();
         java.util.regex.Pattern rule = java.util.regex.Pattern.compile(
                 "^[A-Z][A-Z0-9_]*\\s*:\\s*'([A-Za-z][A-Za-z0-9_]*)'\\s*;",
                 java.util.regex.Pattern.MULTILINE);
+        int grammars = 0;
         try (var walk = java.nio.file.Files.walk(
                 java.nio.file.Path.of(engineRoot))) {
             for (var g4 : (Iterable<java.nio.file.Path>) walk
                     .filter(f -> f.toString().endsWith("Grammar.g4"))
                     .filter(f -> !Corpus.slashed(f).contains("/target/")
                             && !Corpus.slashed(f).contains("/test/"))::iterator) {
+                grammars++;
                 var m = rule.matcher(java.nio.file.Files.readString(g4));
                 while (m.find()) {
+                    engineKeywords.add(m.group(1));
                     if (!snap.contains(m.group(1))) {
                         fresh.add(m.group(1) + " (" + g4.getFileName() + ")");
                     }
                 }
             }
         }
+        // a walk that found no grammar is a starved checkout, not an empty
+        // engine — never a green (the roots check upstream should have failed)
+        assertTrue(grammars > 0, "no *Grammar.g4 under " + engineRoot);
         assertTrue(fresh.isEmpty(), "ENGINE g4 keywords not in "
                 + "docs/g4-keyword-snapshot.tsv — classify them: " + fresh);
+        // THE SHRINK DIRECTION (upstream boundary batch 2): a snapshot row the
+        // engine no longer defines is a keyword upstream REMOVED — it must
+        // leave the snapshot (with its status), or the ledger rots
+        java.util.List<String> gone = new java.util.ArrayList<>();
+        for (String k : snap) {
+            if (!k.equals("keyword") && !engineKeywords.contains(k)) {
+                gone.add(k);
+            }
+        }
+        java.util.Collections.sort(gone);
+        assertTrue(gone.isEmpty(), "docs/g4-keyword-snapshot.tsv rows the engine's grammars"
+                + " no longer define — upstream removed them; remove the rows: " + gone);
     }
 
     /** The flavors ConnectionSectionGrammar dispatches (keep in sync with

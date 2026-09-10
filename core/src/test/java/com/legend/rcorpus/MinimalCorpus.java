@@ -126,8 +126,31 @@ public final class MinimalCorpus {
     private static final Map<String, String> ENGINE_IMPLEMENTATION_FILES = Map.of(
             "lineage/scanRelations/scanRelations.pure",
             "the engine's implementation of the platform-owned meta::pure::lineage::scanRelations family");
+    /** The exclusion keys, RELATIONAL-relative — for the upstream path manifest
+     *  ({@code UpstreamPathManifestTest}): a key that names no file admits the
+     *  engine's implementation silently, which is exactly what it must not do. */
+    public static java.util.Set<String> engineImplementationFileKeys() {
+        return ENGINE_IMPLEMENTATION_FILES.keySet();
+    }
+    /** The graphFetch domain model (engine-core), an optional LIBRARY input
+     *  beside {@link Corpus#M2M_TESTS}. ENGINE_ROOT-relative. */
+    public static final String GRAPH_FETCH_DOMAIN =
+            "legend-engine-core/legend-engine-core-pure/"
+            + "legend-engine-pure-code-compiled-core/"
+            + "src/main/resources/core/pure/graphFetch/domain";
     /** The engine-implementation files skipped, with their reason (reported). */
     private final List<String> engineImplementationSkips = new ArrayList<>();
+    /** Upstream inputs this run could NOT find — a named SHAPE/LIBRARY file, a
+     *  library directory, or an exclusion key that matched no file. LOUD: the
+     *  corpus test fails on a non-empty list (upstream boundary program batch
+     *  2, 2026-09-10 — until then each of these was a silent {@code continue},
+     *  and a starved input passes green: batch 155 traded the prelude's parity
+     *  guard for exactly this class of silence). */
+    private final List<String> missingInputs = new ArrayList<>();
+
+    public List<String> missingInputs() {
+        return List.copyOf(missingInputs);
+    }
 
     public List<String> engineImplementationSkips() {
         return List.copyOf(engineImplementationSkips);
@@ -185,6 +208,7 @@ public final class MinimalCorpus {
         for (Compiler.ModelSource s : shared) {
             seen.add(s.text());
         }
+        java.util.Set<String> matchedExclusionKeys = new java.util.HashSet<>();
         for (Path f : corpusFiles()) {
             // '/' ALWAYS: the keys above are forward-slash relative paths, and
             // Path.toString uses the PLATFORM separator — on Windows nothing
@@ -197,6 +221,7 @@ public final class MinimalCorpus {
                     .replace(java.io.File.separatorChar, '/');
             if (ENGINE_IMPLEMENTATION_FILES.containsKey(rel)) {
                 engineImplementationSkips.add(rel + " — " + ENGINE_IMPLEMENTATION_FILES.get(rel));
+                matchedExclusionKeys.add(rel);
                 continue;
             }
             String text = Files.readString(f);
@@ -204,6 +229,16 @@ public final class MinimalCorpus {
                 all.add(new Compiler.ModelSource(
                         Corpus.RELATIONAL.relativize(f).toString()
                                 .replace(java.io.File.separatorChar, '/'), text));
+            }
+        }
+        // an exclusion key that matched NO file: the engine's implementation
+        // it names would have been admitted as user Pure (Windows CI 2026-09-09
+        // found this by the separator; a moved upstream file finds it the same
+        // way) — reported, never silent
+        for (String key : ENGINE_IMPLEMENTATION_FILES.keySet()) {
+            if (!matchedExclusionKeys.contains(key)) {
+                missingInputs.add("ENGINE_IMPLEMENTATION_FILES key matched no corpus file: "
+                        + key + " (under " + Corpus.RELATIONAL + ")");
             }
         }
         // LIBRARY sources are optional inputs (the platform's own M2M test
@@ -311,6 +346,7 @@ public final class MinimalCorpus {
         Map<String, String> sources = new LinkedHashMap<>(parsed.model().elementSources());
         for (Path f : Corpus.SHAPE_FILES) {
             if (!Files.isRegularFile(f)) {
+                missingInputs.add("SHAPE_FILES entry is not a file: " + f);
                 continue;
             }
             String name = "shape/" + f.getFileName();
@@ -378,12 +414,9 @@ public final class MinimalCorpus {
         }
     }
 
-    private static List<Path> libraryFiles() throws IOException {
+    private List<Path> libraryFiles() throws IOException {
         List<Path> out = new ArrayList<>();
-        Path gfDomain = Corpus.ENGINE_ROOT.resolve(
-                "legend-engine-core/legend-engine-core-pure/"
-                + "legend-engine-pure-code-compiled-core/"
-                + "src/main/resources/core/pure/graphFetch/domain");
+        Path gfDomain = Corpus.ENGINE_ROOT.resolve(GRAPH_FETCH_DOMAIN);
         for (Path dir : List.of(Corpus.M2M_TESTS, gfDomain)) {
             if (Files.isDirectory(dir)) {
                 try (Stream<Path> s = Files.walk(dir)) {
@@ -391,11 +424,15 @@ public final class MinimalCorpus {
                             .sorted(java.util.Comparator.comparing(MinimalCorpus::sortKey))
                             .toList());
                 }
+            } else {
+                missingInputs.add("library directory is not a directory: " + dir);
             }
         }
         for (Path lib : Corpus.LIBRARY_FILES) {
             if (Files.isRegularFile(lib)) {
                 out.add(lib);
+            } else {
+                missingInputs.add("LIBRARY_FILES entry is not a file: " + lib);
             }
         }
         return out;

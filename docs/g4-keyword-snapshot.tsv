@@ -348,7 +348,6 @@ list	HostedService,Service	present
 location	Authentication,ExternalFormat,ServiceStore	present
 mappers	PostProcessor	present
 mapping	DataSpace,HostedService,Service	present
-mappingProvider	DataSpace	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 mappings	ModelConnection,Runtime	present
 mcpServer	Service	present
 mergeStrategy	Persistence	present

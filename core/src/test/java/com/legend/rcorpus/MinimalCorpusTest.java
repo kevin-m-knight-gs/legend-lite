@@ -120,6 +120,12 @@ class MinimalCorpusTest {
         for (String w : corpus.engineImplementationSkips()) {
             System.out.println("[corpus2] engine-implementation skipped: " + w);
         }
+        // LOUD, NOT SILENT (upstream boundary batch 2): every named upstream
+        // input resolved, and every exclusion key matched a file. A miss here
+        // is a moved upstream path or a stale key — never absorbed.
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(), corpus.missingInputs(),
+                "upstream inputs the corpus could not find (a moved upstream file, or a"
+                + " stale exclusion key) — fix the path; never let the model shrink silently");
         pinCensus(corpus.census());
         List<String> pass = new ArrayList<>();
         List<String> fail = new ArrayList<>();

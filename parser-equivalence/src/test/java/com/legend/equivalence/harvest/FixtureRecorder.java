@@ -30,6 +30,14 @@ public final class FixtureRecorder {
         }
         try {
             Files.createDirectories(OUT.getParent());
+            if (!Files.exists(OUT)) {
+                // the release the fixtures are harvested from, INSIDE the file
+                // (upstream boundary batch 2): the reader (Corpus.engineFixtures)
+                // and tools/version-report.sh INV-4 assert it against the pin
+                Files.writeString(OUT, com.legend.equivalence.Corpus.FIXTURE_HEADER_PREFIX
+                        + com.legend.equivalence.OraclePins.engineRelease() + "\n",
+                        StandardOpenOption.CREATE);
+            }
             var node = JSON.createObjectNode();
             node.put("source", source);
             if (expectedError != null) {

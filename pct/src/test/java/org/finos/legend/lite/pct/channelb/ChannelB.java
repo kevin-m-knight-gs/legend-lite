@@ -79,6 +79,26 @@ public final class ChannelB {
      * roots and matches by the same prefixed name. */
     public static List<Outcome> run(List<Path> modelRoots,
             List<Path> scopeDirs, List<String> wallsOut) throws IOException {
+        // LOUD, NOT SILENT (upstream boundary batch 2): every model root and
+        // every scope directory is a hardcoded upstream path — ten across the
+        // five suites — and a moved one must fail by name, never walk an empty
+        // tree into a discovery count of zero (the exact pins would catch the
+        // zero, but not a scope that lost a subdirectory)
+        List<String> missing = new ArrayList<>();
+        for (Path p : modelRoots) {
+            if (!Files.isDirectory(p)) {
+                missing.add("model root " + p);
+            }
+        }
+        for (Path p : scopeDirs) {
+            if (!Files.isDirectory(p)) {
+                missing.add("scope dir " + p);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("ChannelB upstream paths do not resolve (moved"
+                    + " upstream, or the checkout is not on the pin): " + missing);
+        }
         List<Compiler.ModelSource> sources = new ArrayList<>();
         for (int r = 0; r < modelRoots.size(); r++) {
             Path root = modelRoots.get(r);

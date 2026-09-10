@@ -70,8 +70,21 @@ public class SpecBodyCensusTest {
         // gate; the literal is only the IDE fallback
         Path pure = Path.of(System.getProperty("legend.pure.root",
                 System.getProperty("user.home") + "/legend/legend-pure"));
-        Assumptions.assumeTrue(Files.isDirectory(pure.resolve(PLATFORM_ROOTS.get(0))),
-                "legend-pure checkout not present");
+        // PRECHECK ALL NINE ROOTS (upstream boundary batch 2): a missing
+        // checkout skips (there is nothing to census); a PRESENT checkout
+        // missing any one root FAILS, every miss named — a root that moved
+        // upstream shrank the census input and let the shrink-only pins pass
+        // easier without a word (the old precheck tested root 0 only, and the
+        // walk below `continue`d past the rest).
+        Assumptions.assumeTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
+        List<String> missingRoots = new ArrayList<>();
+        for (String r : PLATFORM_ROOTS) {
+            if (!Files.isDirectory(pure.resolve(r))) {
+                missingRoots.add(r);
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(), missingRoots,
+                "PLATFORM_ROOTS missing under " + pure + " — upstream moved them; fix the path");
 
         // 1. LOAD — every platform .pure file as a source; files that do not
         // parse and elements the model integrity refuses are recorded, never
@@ -79,9 +92,6 @@ public class SpecBodyCensusTest {
         List<Compiler.ModelSource> sources = new ArrayList<>();
         for (String r : PLATFORM_ROOTS) {
             Path root = pure.resolve(r);
-            if (!Files.isDirectory(root)) {
-                continue;
-            }
             try (Stream<Path> walk = Files.walk(root)) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted(java.util.Comparator.comparing(SpecBodyCensusTest::slash)).toList()) {
                     sources.add(new Compiler.ModelSource(

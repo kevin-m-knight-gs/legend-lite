@@ -145,19 +145,51 @@ public final class Corpus {
      * <p>{@code m3.pure} is excluded: 3,607 lines of {@code ^Root.children[...]} bootstrap-instance
      * syntax with zero normal declarations, which skews every count.
      */
+    /** The first line of the fixture snapshot: the engine release it was
+     *  harvested from, INSIDE the file (upstream boundary batch 2). The
+     *  filename carries it too; both must equal the pinned release
+     *  ({@link OraclePins#engineRelease()}, INV-4 in tools/version-report.sh). */
+    public static final String FIXTURE_HEADER_PREFIX = "# engine=";
+
+    /** The committed fixture snapshot for the pinned release. */
+    static java.nio.file.Path engineFixturesFile() {
+        return java.nio.file.Path.of("src/test/resources/"
+                + "engine-grammar-fixtures-" + OraclePins.engineRelease() + ".jsonl");
+    }
+
     /** C6: the committed engine-fixture snapshot (see the harvest note
-     *  in {@link #all()}); empty when the resource is absent. */
+     *  in {@link #all()}). LOUD (batch 2): an ABSENT snapshot, or one whose
+     *  in-file header names another release than tools/oracle-pins.env,
+     *  fails — until 2026-09-10 the reader returned an empty list and tier C6
+     *  (1,552 sources) vanished from every gate without a word. */
     static List<Source> engineFixtures() {
         List<Source> out = new ArrayList<>();
-        java.nio.file.Path p = java.nio.file.Path.of("src/test/resources/"
-                + "engine-grammar-fixtures-4.138.2.jsonl");
+        java.nio.file.Path p = engineFixturesFile();
         if (!java.nio.file.Files.exists(p)) {
-            return out;
+            throw new IllegalStateException("engine fixture snapshot for the pinned release "
+                    + OraclePins.engineRelease() + " is missing: " + p
+                    + " — harvest it (mvn -pl parser-equivalence test -Pengine-fixture-harvest"
+                    + " -Dtest=ZEngineFixtureHarvest) and commit it under that name");
         }
         try {
             var om = new com.fasterxml.jackson.databind.ObjectMapper();
             int i = 0;
+            boolean first = true;
             for (String line : java.nio.file.Files.readAllLines(p)) {
+                if (first) {
+                    first = false;
+                    if (!line.startsWith(FIXTURE_HEADER_PREFIX)) {
+                        throw new IllegalStateException("fixture snapshot " + p + " has no '"
+                                + FIXTURE_HEADER_PREFIX + "<release>' header line");
+                    }
+                    String harvested = line.substring(FIXTURE_HEADER_PREFIX.length()).strip();
+                    if (!harvested.equals(OraclePins.engineRelease())) {
+                        throw new IllegalStateException("fixture snapshot " + p + " was harvested from"
+                                + " engine " + harvested + " but tools/oracle-pins.env pins "
+                                + OraclePins.engineRelease() + " — re-harvest");
+                    }
+                    continue;
+                }
                 out.add(new Source("engine-fixture#" + (i++),
                         om.readTree(line).get("source").asText(),
                         "C6 engine-fixtures"));

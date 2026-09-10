@@ -217,12 +217,8 @@ say "  (INV-3 PCT jars == SOURCE, and ORACLE == SOURCE, follow from INV-0 + INV-
 # must agree.
 inv "4a" "$([ "$FIXTURE_NAME_VER" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
   "FIXTURE filename version $FIXTURE_NAME_VER == LEGEND_ENGINE_RELEASE $LEGEND_ENGINE_RELEASE"
-if [ -n "$FIXTURE_HEAD_VER" ]; then
-  inv "4b" "$([ "$FIXTURE_HEAD_VER" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
-    "FIXTURE snapshot header engine=$FIXTURE_HEAD_VER == LEGEND_ENGINE_RELEASE"
-else
-  say "  (INV-4b fixture header not yet recorded inside the file — batch 2)"
-fi
+inv "4b" "$([ -n "$FIXTURE_HEAD_VER" ] && [ "$FIXTURE_HEAD_VER" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
+  "FIXTURE snapshot header engine=${FIXTURE_HEAD_VER:-<none>} == LEGEND_ENGINE_RELEASE (the reader, Corpus.engineFixtures, asserts the same)"
 
 # INV-6: the four third-party versions the root pom manages for classpath
 # convergence (INV-5, tools/classpath-convergence.sh) are the ENGINE RELEASE'S
