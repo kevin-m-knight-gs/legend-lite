@@ -64,7 +64,13 @@ public final class Corpus {
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(ext))
                     .filter(p -> !slashed(p).contains("/target/"))
-                    .sorted()
+                    // ORDER BY THE ID, not the Path: Windows's
+                    // Path.compareTo is CASE-INSENSITIVE, so a Path sort
+                    // interleaves dataSpaceX and dataspaceY differently
+                    // there and the whole manifest pairs up wrong
+                    // (missing 5034 / extra 5034 / changed 0 — the same
+                    // files in a different order; Windows CI, 2026-09-09)
+                    .sorted(java.util.Comparator.comparing(Corpus::slashed))
                     .toList();
         } catch (IOException e) {
             throw new IllegalStateException("cannot walk corpus root " + root, e);
@@ -116,7 +122,7 @@ public final class Corpus {
             try {
                 t = Files.readString(p);
             } catch (Exception e) {
-                UNREADABLE.add(root.relativize(p) + " :: " + e);
+                UNREADABLE.add(slashed(root.relativize(p)) + " :: " + e);
                 continue;
             }
             if (accept.test(t)) {

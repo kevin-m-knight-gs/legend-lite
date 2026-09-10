@@ -29,6 +29,20 @@ on:
         description: "Short label for job names and artifact names (linux/macos/windows)."
         required: true
         type: string
+      heap:
+        description: >-
+          Max heap for every JVM in the chain. Per-platform BECAUSE the
+          hardware differs: ubuntu and windows runners have 16 GB, the macOS
+          arm64 runner 7 GB. Not a knob to turn without measuring.
+        default: "4g"
+        type: string
+      reuse-forks:
+        description: >-
+          Share ONE JVM across the PCT suites (fast) or fork per suite (safe).
+          A suite's Pure graph is a 2.0-2.8 GB live set it never releases, so
+          sharing needs headroom the 7 GB macOS runner does not have.
+        default: false
+        type: boolean
 
 env:
   # CI has a cold ~/.m2 and MUST resolve; the script defaults to -o for local
@@ -42,14 +56,14 @@ env:
   # heap. It costs ~11s (measured locally, 89s -> 100s), which is why the
   # pom DEFAULTS to sharing and CI opts out rather than the reverse — a
   # developer machine should not pay for a 7 GB runner's constraint.
-  MAVEN_ARGS: -B -ntp -Dpct.reuseForks=false
+  MAVEN_ARGS: -B -ntp -Dpct.reuseForks=${{ inputs.reuse-forks }}
   # The forked test JVMs default to 1/4 of the runner's RAM. Pin the heap so
   # every runner behaves alike; the local chain is validated under this same cap
   # before a bump lands. MEASURED 2026-09-09: corpus and parser lanes fit in
   # 3 GB; a PCT suite's live set is 2.0-2.8 GB (pct/pom forks one JVM per suite
   # for exactly that reason) and the Pure PAR generation plugin peaks at ~2.5 GB
   # inside the Maven JVM, which this variable also caps.
-  JAVA_TOOL_OPTIONS: -Xmx4g
+  JAVA_TOOL_OPTIONS: -Xmx${{ inputs.heap }}
 
 jobs:
   # The lane matrix is DATA, computed here, because a job-level `if` cannot read
@@ -78,8 +92,14 @@ jobs:
             {"name":"gate 8 parser equivalence",     "gate":"8","gates":"8"}
           ]'
           if [ -n "${WANT:-}" ]; then
+            # BIND THE ELEMENT FIRST. In `$w | contains(X)`, jq evaluates X
+            # against $w — so a bare `.gate` there indexes the STRING and dies
+            # with "Cannot index string with string". This path had never run:
+            # every push event leaves the gate list empty and takes the else
+            # branch, so the first real dispatch was its first execution
+            # (2026-09-09).
             lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," \
-              '[.[] | select($w | contains("," + .gate + ","))]')
+              '[.[] | . as $e | select($w | contains("," + $e.gate + ","))]')
           else
             lanes=$(printf '%s' "$all" | jq -c .)
           fi

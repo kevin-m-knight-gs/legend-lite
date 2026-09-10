@@ -20,6 +20,13 @@ import java.util.TreeMap;
  * platform packages whole). Measured 2026-09-09: 9,099 bodies, 1,605 fail
  * (COMPILE_EVERYTHING_HOMEWORK §10). */
 class EagerCorpusCompileProbe {
+    /** A platform-independent path string: '/' separators always. A Path in a
+     *  concatenation converts with the PLATFORM separator, so an id built that
+     *  way differs on Windows (census 2026-09-09). */
+    private static String slash(java.nio.file.Path p) {
+        return p.toString().replace(java.io.File.separatorChar, '/');
+    }
+
 
     @Test
     void eagerCompileEverything() throws Exception {
@@ -108,8 +115,12 @@ class EagerCorpusCompileProbe {
             Path root = pure.resolve(r);
             if (!Files.isDirectory(root)) continue;
             try (var walk = Files.walk(root)) {
-                for (Path f : walk.filter(x -> x.toString().endsWith(".pure")).sorted().toList()) {
-                    w2.add(new Compiler.ModelSource("platform:" + root.relativize(f), Files.readString(f)));
+                for (Path f : walk.filter(x -> x.toString().endsWith(".pure"))
+                        .sorted(java.util.Comparator.comparing(EagerCorpusCompileProbe::slash))
+                        .toList()) {
+                    w2.add(new Compiler.ModelSource(
+                            "platform:" + slash(root.relativize(f)),
+                            Files.readString(f)));
                 }
             }
         }

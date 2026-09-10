@@ -38,6 +38,13 @@ import java.util.stream.Stream;
  * a reason, never a silent skip.
  */
 public final class ChannelB {
+    /** A platform-independent path string: '/' separators always. A Path in a
+     *  concatenation converts with the PLATFORM separator, so an id built that
+     *  way differs on Windows (census 2026-09-09). */
+    private static String slash(java.nio.file.Path p) {
+        return p.toString().replace(java.io.File.separatorChar, '/');
+    }
+
 
     private ChannelB() {
     }
@@ -80,7 +87,7 @@ public final class ChannelB {
                         .filter(p -> p.toString().endsWith(".pure"))
                         .toList()) {
                     sources.add(new Compiler.ModelSource(
-                            r + ":" + root.relativize(f),
+                            r + ":" + slash(root.relativize(f)),
                             Files.readString(f)));
                 }
             }
@@ -141,9 +148,9 @@ public final class ChannelB {
             for (int r = 0; r < modelRoots.size(); r++) {
                 if (d.toAbsolutePath().normalize().startsWith(
                         modelRoots.get(r).toAbsolutePath().normalize())) {
-                    prefix = r + ":" + modelRoots.get(r).toAbsolutePath()
+                    prefix = r + ":" + slash(modelRoots.get(r).toAbsolutePath()
                             .normalize().relativize(
-                                    d.toAbsolutePath().normalize());
+                                    d.toAbsolutePath().normalize()));
                     break;
                 }
             }

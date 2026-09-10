@@ -64,7 +64,8 @@ final class InlineSnippets {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> Corpus.slashed(f).contains("/src/test/"))
                     .filter(f -> !Corpus.slashed(f).contains("/target/"))
-                    .sorted().toList()) {
+                    .sorted(java.util.Comparator.comparing(Corpus::slashed))
+                    .toList()) {
                 try {
                     out.add(new FileRuns(Corpus.slashed(root.relativize(p)),
                             literalRuns(Files.readString(p))));
@@ -92,7 +93,7 @@ final class InlineSnippets {
                 s.filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> Corpus.slashed(p).contains("/src/test/"))
                         .filter(p -> !Corpus.slashed(p).contains("/target/"))
-                        .sorted()
+                        .sorted(java.util.Comparator.comparing(Corpus::slashed))
                         .forEach(javaFiles::add);
             } catch (IOException e) {
                 throw new IllegalStateException("cannot walk " + root, e);
@@ -113,7 +114,11 @@ final class InlineSnippets {
             int idx = 0;
             for (String run : found) {
                 if (run.length() > 20 && candidate.matcher(run).find()) {
-                    byText.putIfAbsent(run, root.relativize(p) + "#" + idx);
+                    // slashed(): this id is matched against the census's
+                    // forward-slash host rows — a platform-separator id
+                    // quarantines nothing (Windows CI gate 8, 2026-09-09)
+                    byText.putIfAbsent(run,
+                            Corpus.slashed(root.relativize(p)) + "#" + idx);
                 }
                 idx++;
             }

@@ -34,6 +34,13 @@ import java.util.regex.Pattern;
  * typer/normalizer gap. A measurement only — no arm, no registration.
  */
 final class CensusWorlds {
+    /** A platform-independent path string: '/' separators always. A Path in a
+     *  concatenation converts with the PLATFORM separator, so an id built that
+     *  way differs on Windows (census 2026-09-09). */
+    private static String slash(java.nio.file.Path p) {
+        return p.toString().replace(java.io.File.separatorChar, '/');
+    }
+
 
     private CensusWorlds() {
     }
@@ -226,7 +233,11 @@ final class CensusWorlds {
                 walls.add(f + ": MISSING");
                 continue;
             }
-            sources.add(new Compiler.ModelSource("engine:" + engineRoot.relativize(f),
+            // PLATFORM-INDEPENDENT: a Path in a concatenation converts with the
+            // platform separator, and sorting Paths is CASE-INSENSITIVE on
+            // Windows — both make this id/order differ there (census 2026-09-09)
+            sources.add(new Compiler.ModelSource("engine:"
+                    + slash(engineRoot.relativize(f)),
                     Files.readString(f, StandardCharsets.UTF_8)));
         }
         for (int round = 0; round < 400; round++) {

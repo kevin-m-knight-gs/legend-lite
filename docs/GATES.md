@@ -1023,3 +1023,52 @@ The default is the fast one BECAUSE CI now runs all three platforms on every
 push: an OOM from a future memory regression is caught there within one run,
 which is what makes the local default affordable. If that ever stops being
 true, flip the default back.
+
+## Fork scope and the per-platform heap, 2026-09-09
+
+**Where the fork property reaches — audited, not assumed.** `reuseForks`
+appears in exactly ONE place in the whole build (`pct/pom.xml`, reading
+`${pct.reuseForks}`), and that property is read nowhere else. Surefire
+configuration blocks exist in three modules and only PCT's mentions forking:
+core sets `excludedGroups`, nlq sets `excludes`, and the root pom's
+`pluginManagement` sets only `argLine` and `systemPropertyVariables`. So the
+property changes the PCT module and nothing else.
+
+Which gates that is, from `tools/allgates.sh`: gates **6, 7 and 9** run
+`cd pct`, so all three are affected — not gate 6 alone. Gates 1, 2, 4 and 5 run
+`-pl core` and gate 8 runs `-pl parser-equivalence`; neither module configures
+forking, so both use surefire's own default. That default is `reuseForks=true`
+(read from the 3.5.2 plugin descriptor), which means core and parser-equivalence
+have ALWAYS shared one fork, and so did PCT until the macOS runner forced the
+split. `nlq` is the only other module with a surefire block and no gate builds it.
+
+One hazard avoided by naming: surefire exposes its own user property
+`${reuseForks}`, so a bare `-DreuseForks=` would hit every module at once.
+Ours is `pct.reuseForks`, which cannot collide.
+
+**The settings, per platform.** The three runners are different hardware, so
+`gates-run.yml` takes `heap` and `reuse-forks` as inputs and each caller states
+its own:
+
+| runner | CPU | RAM | heap | PCT forks |
+|---|---:|---:|---|---|
+| ubuntu-latest | 4 | 16 GB | 8g | shared |
+| windows-2022 | 4 | 16 GB | 8g | shared |
+| macos-14 (arm64) | 3 | **7 GB** | 4g | per-suite |
+
+macOS is the only runner that needs the split: 7 GB cannot hold five 2.0–2.8 GB
+Pure graphs, and cannot give a JVM 8 GB at all.
+
+**What was measured, and what was not.** Three single-sample Windows runs of
+gate 6: 452s at 4g per-suite, 420s at 8g per-suite, 403s at 8g shared. The
+gate 1 control in those same runs read 134s and 211s for the SAME
+configuration, so this runner's noise is comparable to the effect and one
+sample per config cannot separate them. The setting was adopted on the
+direction of travel and the fact that shared forks are the original behaviour,
+NOT on a demonstrated 11%. If someone wants the real number, it needs
+replicates with the configs alternated to keep cache warmth off one arm.
+
+**Local runs are unaffected**: `pct.reuseForks` defaults to `true` in the pom,
+so a developer machine shares forks without passing anything. To reproduce a
+macOS-runner failure locally, pass `-Dpct.reuseForks=false` with
+`JAVA_TOOL_OPTIONS=-Xmx4g`.

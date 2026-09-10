@@ -74,6 +74,10 @@ jobs:
     with:
       runs-on: ubuntu-latest
       platform: linux
+      # 16 GB runner: the heap has room and the PCT suites share one
+      # fork, as they did before the macOS runner forced the split.
+      heap: 8g
+      reuse-forks: true
       gates: ${{ inputs.gates }}
 
   macos:
@@ -84,6 +88,11 @@ jobs:
     with:
       runs-on: macos-14
       platform: macos
+      # 3 vCPU / 7 GB TOTAL — cannot hold five 2.0-2.8 GB Pure graphs
+      # at once, and cannot give a JVM 8 GB. This is the ONE runner
+      # the per-suite fork exists for.
+      heap: 4g
+      reuse-forks: false
       gates: ${{ inputs.gates }}
 
   windows:
@@ -92,4 +101,8 @@ jobs:
     with:
       runs-on: windows-2022
       platform: windows
+      # 16 GB runner: the heap has room and the PCT suites share one
+      # fork, as they did before the macOS runner forced the split.
+      heap: 8g
+      reuse-forks: true
       gates: ${{ inputs.gates }}

@@ -41,6 +41,13 @@ import java.util.stream.Stream;
  * checkout like the prelude generator) and skips without it.
  */
 public class SpecBodyCensusTest {
+    /** A platform-independent path string: '/' separators always. A Path in a
+     *  concatenation converts with the PLATFORM separator, so an id built that
+     *  way differs on Windows (census 2026-09-09). */
+    private static String slash(java.nio.file.Path p) {
+        return p.toString().replace(java.io.File.separatorChar, '/');
+    }
+
 
     public static final List<String> PLATFORM_ROOTS = List.of(
             "legend-pure-core/legend-pure-m3-core/src/main/resources/platform",
@@ -76,9 +83,10 @@ public class SpecBodyCensusTest {
                 continue;
             }
             try (Stream<Path> walk = Files.walk(root)) {
-                for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted().toList()) {
+                for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted(java.util.Comparator.comparing(SpecBodyCensusTest::slash)).toList()) {
                     sources.add(new Compiler.ModelSource(
-                            r.substring(r.lastIndexOf('/') + 1) + ":" + root.relativize(f),
+                            r.substring(r.lastIndexOf('/') + 1) + ":"
+                                    + slash(root.relativize(f)),
                             Files.readString(f, StandardCharsets.UTF_8)));
                 }
             }

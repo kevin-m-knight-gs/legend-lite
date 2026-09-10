@@ -359,10 +359,22 @@ public final class MinimalCorpus {
         return out;
     }
 
+    /** A platform-independent ordering key: the path with '/' separators.
+     *  Sorting Paths directly is CASE-INSENSITIVE on Windows and case-
+     *  sensitive on POSIX, which reorders the whole corpus. */
+    private static String sortKey(Path p) {
+        return p.toString().replace(java.io.File.separatorChar, '/');
+    }
+
     private static List<Path> corpusFiles() throws IOException {
         try (Stream<Path> walk = Files.walk(Corpus.RELATIONAL)) {
             return walk.filter(f -> f.toString().endsWith(".pure") && Files.isRegularFile(f))
-                    .sorted().toList();
+                    // ORDER BY THE ID, not the Path: Windows's Path.compareTo
+                    // is CASE-INSENSITIVE, so a Path sort gives a DIFFERENT
+                    // corpus order there — and this order decides the model
+                    // assembly and the dedup below (Windows CI, 2026-09-09)
+                    .sorted(java.util.Comparator.comparing(MinimalCorpus::sortKey))
+                    .toList();
         }
     }
 
@@ -375,7 +387,9 @@ public final class MinimalCorpus {
         for (Path dir : List.of(Corpus.M2M_TESTS, gfDomain)) {
             if (Files.isDirectory(dir)) {
                 try (Stream<Path> s = Files.walk(dir)) {
-                    out.addAll(s.filter(f -> f.toString().endsWith(".pure")).sorted().toList());
+                    out.addAll(s.filter(f -> f.toString().endsWith(".pure"))
+                            .sorted(java.util.Comparator.comparing(MinimalCorpus::sortKey))
+                            .toList());
                 }
             }
         }
