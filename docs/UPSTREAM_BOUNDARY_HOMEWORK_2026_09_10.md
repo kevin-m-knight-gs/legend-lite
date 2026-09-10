@@ -66,8 +66,11 @@ Three things this corrects or adds versus the opening fact sheet:
   `git ls-remote --tags`, never from a local tag list — and not from the GitHub
   tags API either: it pages, and its first page opens with the legacy
   `legend-engine-release-*` names rather than the newest version.
-- **`4.138.2` is a real git tag** (`1d3e236bc735bf98b40388eff9d813acd4fb18e4`) as
-  well as a Central artifact. It is not a phantom. Open question 5: closed.
+- **`4.138.2` is a real git tag** (`1d3e236bc735bf98b40388eff9d813acd4fb18e4` is the
+  annotated TAG OBJECT; the commit it points to is `28e75114f6ed4e22ec23e19184aa7e95da81c7af`,
+  which is what `tools/oracle-pins.env` carries — CI and `oracle_roots_check` compare
+  HEAD, a commit; corrected at batch 1) as well as a Central artifact. It is not a
+  phantom. Open question 5: closed.
 - **Tags and Central disagree in both directions [V].** `4.142.0` is tagged and
   was never published; `4.135.3` / `4.135.4` likewise. So jar pins may only name
   what Central has, source pins may name any commit, and "what is the latest
@@ -81,9 +84,10 @@ artifacts, all 5.92.0); `pct`: 4.133.0 + 5.88.0 (41 engine + 30 pure artifacts).
 No mixed-version classpath anywhere. The spread between the identities is
 deliberate configuration, not dependency-resolution accident.
 
-**[V] Three test files document a `5.88.1` pure oracle that is no longer on the
+**[V] Four test files document a `5.88.1` pure oracle that is no longer on the
 classpath** — `EngineSectionRosterTest:32`, `FixtureAdjudicationTest:42`,
-`SectionParseSentinelTest:329`. The resolved oracle is 5.92.0. These are stale
+`SectionParseSentinelTest:329`, and `EngineElementRosterTest:35` (missed by the first
+count; all four fixed at batch 1, 2026-09-10). The resolved oracle is 5.92.0. These are stale
 comments from before the 2026-08-10 re-pin, and they are cited as the rationale
 for ledger adjudications, so they mislead exactly where it costs most. Fix them
 in the next bump.
@@ -170,7 +174,7 @@ platform sources at different versions, so its refusals stop meaning anything.
 
 **INV-2 — the SOURCE pins name RELEASE TAGS, so the oracle jar can be the same
 release as the source.** **Status: BROKEN — and the first draft of this document
-got this one wrong.**
+got this one wrong. CLOSED at batch 1 (2026-09-10): the pins are the tags' commits.**
 
 The draft stated the invariant as "the oracle jar is at or ahead of the source
 pin", called the spread deliberate, and marked it HOLDS. Its only evidence was
@@ -233,7 +237,9 @@ relation scope both channels claim to cover — `core_functions_relation`, 49
 are 7 apart** (gate 7 floors A at `348`, `ChannelBRelationTest` asserts B
 discovers exactly `355`). The same +2 offset on both sides is a discovery detail
 my grep does not model; the *delta* is the point, and it matches exactly.
-**Status: BROKEN (a defect to close, not a policy to document).**
+**Status: BROKEN (a defect to close, not a policy to document). CLOSED at batch 1
+(2026-09-10): PCT jars at 4.138.2/5.92.0, and channel A runs exactly channel B's 350
+relation / 136 grammar tests.**
 
 **INV-4 — the committed fixture snapshot was harvested from the ORACLE jars it
 is adjudicated against.** **[V]** `engine-grammar-fixtures-4.138.2.jsonl` ==
@@ -1497,6 +1503,34 @@ Expect each of these to move; each needs a reason, not just a new number:
 - Fix the stale `5.88.1` oracle comments named in §1a.
 
 ---
+
+### 5a. Batch 1 receipts — the first bump under the procedure (2026-09-10)
+
+Every number here is in the pin's own comment and in docs/GATES.md's batch-1 record.
+
+- **Pins:** `LEGEND_ENGINE_RELEASE=4.138.2`, `LEGEND_PURE_RELEASE=5.92.0` (derived from the
+  engine pom on Central), SHAs = tag commits 28e75114f / b2ef7e832, root `pom.xml` carries
+  both numbers; pct and parser-equivalence declare none of their own; `--check` in CI.
+  Done-criteria: `version-report.sh --check` exit 0; `classpath-convergence.sh` 71 → 4 → 0
+  (the 4 = HikariCP / commons-lang3 / httpcore / junit, managed at the engine's own
+  versions, INV-6).
+- **Regenerated:** prelude.pure 0 diff; corpus-manifest.tsv 8,891 → 8,834.
+- **Denominators:** census 2721/146/2575 → 2702/144/2558; channel B 355 → 350 (relation),
+  137 → 136 (grammar); parser floors 424 → 420, 417 → 413, 337 → 335, 6489 → 6471 (100%),
+  6480 → 6462, 1277 → 1240. Cause in every case: the old pin was 20 commits PAST the tag.
+- **The spec moved backwards on #4900** (engine 096e68735dd, null-safe equality, after the
+  tag, in 4.145.0): 19 tests → the fail rosters (DuckDB 108 → 127, H2 565 → 584);
+  oracle-declined 22 → 36 / 28 → 42; strength {1512,49,22} → {1491,45,20},
+  {1279,56,22} → {1264,51,20}. They return at batch 8.
+- **Upstream changed a reader:** legend-pure 5.92.0 `stringToTDS` quotes with `'` + `\`
+  (Pure string form) — `Render.pctCell` now spells cells that way; 28 variant tests were
+  erroring "too many columns". Gate 7 348/22 → 350/24 (two new LATERAL-family tests).
+- **A drop-in gap found by the same-release oracle:** bare `@(…)` — accepted by the 4.138.2
+  engine in every probed position; our LEGEND surface refused it. Parser + emitter fixed;
+  the batch-174 note saying the engine refuses it was wrong.
+- **The skew ledger:** 25 → 25. Not skew — dialect rows (program §9).
+- **Checkouts:** `/Users/neema/legend/legend-{engine,pure}` on the tags. The
+  `/Users/neemsandv` checkouts are read-only to this account and stay on the old pin.
 
 ## 5b. Module layout: where each upstream-dependent thing belongs
 

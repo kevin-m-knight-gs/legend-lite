@@ -2113,14 +2113,24 @@ public final class ProtocolEmitter {
             // literal "Relation" with span over the whole application; columns as in
             // signature position (probe "simple relation cast")
             case com.legend.protocol.spec.TypeAnnotation.RelationShape rs -> {
-                b.append("{\"_type\":\"genericTypeInstance\",\"genericType\":{\"multiplicityArguments\":[],"
-                        + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
-                // fullPath is the name AS SPELLED — simple or FQN (inline-snippet corpus)
-                str(b, java.util.Objects.requireNonNull(rs.spelledName(),
-                        "@Relation<(...)> spelled name"));
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(rs.typeSpan(), "@Relation<(...)> type"));
-                b.append("},\"typeArguments\":[{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
+                // BARE @(a:Integer) — no spelled name: the engine emits the
+                // relationType AS the rawType, with no packageableType wrapper
+                // and no typeArguments, the span over the whole `@(...)`
+                // (probed 2026-09-10 against the 4.138.2 oracle: columns
+                // exactly as in the named form, default multiplicity 0..1)
+                String spelled = rs.spelledName();
+                boolean bare = spelled == null;
+                b.append("{\"_type\":\"genericTypeInstance\",\"genericType\":{\"multiplicityArguments\":[],");
+                if (spelled == null) {
+                    b.append("\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
+                } else {
+                    b.append("\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
+                    // fullPath is the name AS SPELLED — simple or FQN (inline-snippet corpus)
+                    str(b, spelled);
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, requirePos(rs.typeSpan(), "@Relation<(...)> type"));
+                    b.append("},\"typeArguments\":[{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
+                }
                 for (int i = 0; i < rs.columns().size(); i++) {
                     if (i > 0) {
                         b.append(',');
@@ -2147,7 +2157,11 @@ public final class ProtocolEmitter {
                     srcInfo(b, requirePos(col.pos(), "@Relation column " + col.name()));
                     b.append('}');
                 }
-                b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]}],\"typeVariableValues\":[]},\"sourceInformation\":");
+                if (bare) {
+                    b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]},\"sourceInformation\":");
+                } else {
+                    b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]}],\"typeVariableValues\":[]},\"sourceInformation\":");
+                }
                 srcInfo(b, requirePos(rs.pos(), "@Relation annotation"));
                 b.append('}');
             }

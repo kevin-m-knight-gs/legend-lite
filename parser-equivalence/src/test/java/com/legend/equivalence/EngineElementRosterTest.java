@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EngineElementRosterTest {
 
-    /** Element types at the pinned oracle version (5.88.1). The burn-down
+    /** Element types at the pinned oracle release (tools/oracle-pins.env). The burn-down
      *  denominator: 25 sections x these 41 element types is the whole job. */
     private static final int MIN_ELEMENTS = 41;
 

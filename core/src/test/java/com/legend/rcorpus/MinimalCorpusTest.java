@@ -68,12 +68,21 @@ class MinimalCorpusTest {
      * jump is either a GAINED name or a bigger corpus, and both must be
      * explained). 2575 = 2721 declared − 146 excluded by the engine's own
      * stereotypes (audit §9); re-derived against a corpus scan in Phase
-     * 0.8. */
-    private static final int DISCOVERED = 2575;
-    /** 2721 {@code <<test.Test>>} functions declared, 146 excluded by the
+     * 0.8.
+     *
+     * <p>2721/146/2575 -> 2702/144/2558 on 2026-09-10 (upstream boundary
+     * batch 1): the SOURCE pin moved from 4.137.0+36 — a non-tag commit 20
+     * commits PAST the 4.138.2 tag — back to the 4.138.2 TAG itself (one
+     * release: the checkout is now the same release as every oracle jar).
+     * The 20 newer commits carried 19 declared tests (17 discovered, 2
+     * excluded) that are not in 4.138.2; they return at the 4.145.0 bump
+     * (homework §4b: +14 there, on top). A denominator move, not a
+     * discovery change. */
+    private static final int DISCOVERED = 2558;
+    /** 2702 {@code <<test.Test>>} functions declared, 144 excluded by the
      * engine's ToFix / ExcludeAlloy (Phase 0.8; the audit's census). */
-    private static final int DECLARED = 2721;
-    private static final int EXCLUDED = 146;
+    private static final int DECLARED = 2702;
+    private static final int EXCLUDED = 144;
 
     /** Setups the platform derives as INERT on the full run (Phase 0.2;
      * measured 2026-09-08, the names print as {@code [corpus2] inert-setup}):
@@ -281,7 +290,15 @@ class MinimalCorpusTest {
 
     /** {differential floor, spelling ceiling, cardinality ceiling} per lane
      * (Phase 0.7; measured 2026-09-08, batch 133). */
-    private static final int[] DUCKDB_STRENGTH = {1512, 49, 22};
+    // {1512, 49, 22} -> {1491, 45, 20} on 2026-09-10 (upstream boundary batch 1):
+    // the SOURCE pin moved to the 4.138.2 TAG — 17 discovered tests left the
+    // corpus (2575 -> 2558) and the 19 pre-#4900 goldens moved to the fail
+    // roster (see DUCKDB_TEXT_DECIDED), taking their row verdicts with them:
+    // differential 1512 -> 1491. The spelling (49 -> 45) and cardinality
+    // (22 -> 20) ceilings shrank with the departed tests and are ratcheted
+    // down in the same commit (shrink-only means shrink); they grow back,
+    // with reasons, when the tests return at 4.145.0.
+    private static final int[] DUCKDB_STRENGTH = {1491, 45, 20};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -289,7 +306,9 @@ class MinimalCorpusTest {
     // cardinality 19 -> 22 (batch 142): the membership rewrite (EXISTS through
     // the non-null / compact carriers) made 9 query::filter::exists tests pass
     // on H2; their asserts are assertSize — the same 22 the DuckDB lane carries
-    private static final int[] H2_STRENGTH = {1279, 56, 22};
+    // {1279, 56, 22} -> {1264, 51, 20} on 2026-09-10 (upstream boundary batch 1):
+    // the same denominator move as DUCKDB_STRENGTH above, measured on the H2 lane
+    private static final int[] H2_STRENGTH = {1264, 51, 20};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -363,12 +382,22 @@ class MinimalCorpusTest {
     // reduces with the literal arms on); its assertEquals is a POSTGRES
     // SQL-text golden — a foreign dialect, text is the contract, one more
     // test the arm counts (it stays in the fail roster: TEXT-ONLY)
+    // oracle-declined 22 -> 36 (DuckDB) / 28 -> 42 (H2), 2026-09-10 (upstream
+    // boundary batch 1): the SOURCE pin moved from 4.137.0+36 back to the
+    // 4.138.2 TAG, and engine commit 096e68735dd (#4900, null-safe equality,
+    // merged AFTER the tag, in 4.139.0+) is no longer in the spec. The
+    // platform implements #4900's semantics (IS NOT DISTINCT FROM); the
+    // tag's goldens for executionPlanTest.pure's 15 optional-parameter
+    // tests carry the PRE-#4900 `optionalVarPlaceHolderOperationSelector`
+    // template, which the plan-text oracle DECLINES (unbound template
+    // argument) — 14 land here, all 15 are on the fail rosters with this
+    // reason. Shrinks back at the 4.145.0 bump (contains #4900).
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 29, "plan-params-unbindable", 6, "oracle-declined", 22,
+            "rows-underivable", 29, "plan-params-unbindable", 6, "oracle-declined", 36,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 38, "plan-params-unbindable", 6, "oracle-declined", 28,
+            "rows-underivable", 38, "plan-params-unbindable", 6, "oracle-declined", 42,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(

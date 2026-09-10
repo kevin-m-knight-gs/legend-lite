@@ -189,9 +189,15 @@ share a dependency *set* — `pct` needs the PCT framework and the interpreted r
 `parser-equivalence` the grammar/compiler/extension jars. What they must share is the
 **version of every artifact present in both**: with one release, every
 `org.finos.legend.*` resolves at it, and every transitive third-party both pull resolves
-identically. Today: 136 shared, **71 divergent** (66 legend, 5 third-party — `tools/classpath-convergence.sh`,
-the authority; a hand-run said 135/70 before it parsed `test-jar` rows). After batch 1:
-**0**. `tools/classpath-convergence.sh` measures it and also asserts the
+identically. Before batch 1: 136 shared, **71 divergent** (66 legend, 5 third-party — `tools/classpath-convergence.sh`,
+the authority; a hand-run said 135/70 before it parsed `test-jar` rows). **MEASURED at
+batch 1 (2026-09-10): one release took it to 4, not 0** — HikariCP, commons-lang3,
+httpcore, junit. Those four are NOT version drift: Maven nearest-wins resolves
+legend-pure's own (older) managed versions on pct's graph and the engine's on
+parser-equivalence's, at the same release. The engine release's own root pom manages all
+four for its whole reactor (the PCT framework included), so the root pom now manages them
+at the engine's values — DERIVED, checked by `version-report.sh` INV-6 against the pinned
+engine checkout's pom — and the count is **0**. `tools/classpath-convergence.sh` measures it and also asserts the
 boundary — `core` (and `spec`) resolve zero `org.finos.legend` artifacts. It is the test
 that "one release" propagated *transitively*, not just at the pom-property level, and
 the one instrument that would catch upstream itself pinning two versions of something
@@ -309,7 +315,7 @@ change what programs resolve.
 | # | Batch | Closes | Done when / what moves |
 |---|---|---|---|
 | 0 | **Hygiene.** `nlq` → `com.legend.nlq` (28 files, 1 pom `mainClass`, 1 README line; it imports **no** real upstream class — the squat is the only upstream-looking thing about it); delete `tools/fqn-mapping.json` (467 rows, **zero readers**, last touched 2026-07-08) | the K3 grep over-report; a dead hand list | none |
-| 1 | **One release at 4.138.2.** pct → 4.138.2/5.92.0; source → the tag; pins file carries jar versions, poms read `${…}`; `--check` in CI | A | **`version-report.sh --check` exits 0 and `classpath-convergence.sh` reports 0 divergent** (INV-5); ChannelB pins, gate 7 ceilings, skew ledger (expect most of 25 rows gone — an inference from their "re-adjudicate at re-pin" annotations, not measured), 3 stale `5.88.1` comments |
+| 1 | **One release at 4.138.2.** pct → 4.138.2/5.92.0; source → the tag; pins file carries jar versions, poms read `${…}`; `--check` in CI | A | **`version-report.sh --check` exits 0 and `classpath-convergence.sh` reports 0 divergent** (INV-5); ChannelB pins, gate 7 ceilings, skew ledger (expected most of 25 rows gone — an inference from their "re-adjudicate at re-pin" annotations; **measured: NONE left, see §9**), 4 stale `5.88.1` comments. **LANDED 2026-09-10** — every move receipted in homework §5a and docs/GATES.md |
 | 2 | **Loud.** Path manifest test; 4 `continue`s → reported; census precheck 1 → 9; exclusion keys assert; fixture version inside the file | E | none expected — lands green |
 | 3 | **Claims.** The claim registry + completeness test; every ad-hoc dispatch site claims what it implements; `KNOWN_ABSENT` deleted | D1, D5 | a NEW printed fact: the implemented surface. Expect the test to land red and be ratcheted: unclaimed count is shrink-only |
 | 4 | **Membership.** Unclaimed entries leave Pure.java; prelude carries bodies / respelled natives; exclusion rule keys on claims; 44 undeclared natives enter the prelude | D2, D3 | corpus pass count (expect **up**: suppressed bodies now run); catalog row count (down); `SpecBodyCensus` walls; unclaimed → 0 |
@@ -375,8 +381,10 @@ or leave two channels refereeing different universes (one release).
    module-inherent**: traced, pct's `commons-lang3 3.5` arrives via
    `legend-pure-m3-core:5.88.0` and parser's `3.18.0` via
    `legend-engine-language-pure-grammar:4.138.2`; HikariCP likewise via 4.133.0 vs
-   4.138.2 artifacts. So batch 1 most likely removes all 70 — *the dependency conflicts
-   are not the reason to keep the modules apart.* The reasons are the other two.
+   4.138.2 artifacts. So batch 1 was expected to remove all 70 — *the dependency conflicts
+   are not the reason to keep the modules apart.* **Measured at batch 1: the 66 legend
+   rows vanished; the third-party ones did NOT** (4 of the 5 survived at one release —
+   nearest-wins, not drift; §3 A explains the fix). The topology conclusion stands. The reasons are the other two.
    `parser-equivalence`'s pom records a live hazard: upstream test-jars
    carry **ServiceLoader registrations that ALTERED the oracle** (gate 8 caught it — a
    stale error pin and 3 corpus rows flipping), so its classpath is quarantined on
@@ -409,21 +417,24 @@ Every number here is regenerable, and a fresh session should regenerate rather t
 | 136 shared / 71 divergent artifacts; boundary = 0 legend jars in core | `tools/classpath-convergence.sh` | exact (resolved classpaths) |
 | SystemMetamodel 104 / 23; Lexer 56; nlq 28; fqn-mapping 0 readers | greps in homework §3o | exact |
 
-**What is still inference, labelled:** that most of the 25 skew rows vanish at the tag
-(batch 1); that the 70 dependency conflicts *all* vanish at one release (§6.3 — traced to
-version drift, but not re-resolved at 4.138.2); the ChannelB pin predictions (arithmetic on
-file-set drift, "plus content drift"); that the live protocol differential goes red on
-landing.
+**What was inference, now measured (batch 1, 2026-09-10):** the 25 skew rows did NOT
+vanish at the tag — all 25 are live at one release (they are dialect rows, §9); the 70
+dependency conflicts did NOT all vanish — 66 legend did, 4 third-party did not (§3 A); the
+ChannelB predictions for batch 8 stand untested (batch 1 moved 355 → 350 and 137 → 136 for a
+reason the arithmetic did not model: the old pin was 20 commits PAST the tag). **Still
+inference:** that the live protocol differential goes red on landing.
 
 ## 8. Next actions for a fresh session
 
 1. **The documents and tools are committed** (2026-09-10, main): this file, the homework,
    the facts sheet, `NATIVE_CLAIMS_CENSUS_2026_09_10.tsv`, and the three read-only tools.
    No gate was needed — nothing under `core/`, `pct/` or `parser-equivalence/` changed.
-2. **Batch 0** is mechanical and needs only gate 1: the `nlq` rename and the
+2. **Batch 0 LANDED** (4678b72ce, 2026-09-10): the `nlq` rename and the
    `fqn-mapping.json` delete.
-3. **Batch 1** is the first real batch and is a bump — follow homework §5 with
-   `ORACLE_PIN_CHECK=0`; `tools/allgates.sh` once, in the background.
+3. **Batch 1 LANDED** (2026-09-10): one release; receipts in homework §5a and
+   docs/GATES.md. The oracle checkouts are `/Users/neema/legend/legend-{engine,pure}` on
+   the tags (the `/Users/neemsandv` checkouts are another account's — read-only here — and
+   sit on the old non-tag pin). Next is **batch 2**.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
@@ -456,3 +467,18 @@ forward:
 - **The ArchUnit rule is narrower than §3e claims**: it closes the literal/identifier
   classes; the observed-bytes class is closed by *deleting* the goldens (F), not by a
   rule.
+- **The skew ledger was never skew rent (batch 1 measurement).** §3 A and §4 said the 25
+  rows of `docs/version-skew-claims.tsv` were "the rent" of a non-tag pin and would mostly
+  vanish at one release. At 4.138.2 = 4.138.2 all 25 are still live: the engine's grammar
+  refuses them at the SAME release. They are legend-pure-vs-legend-engine dialect rows
+  (m2-dsl-tds `#TDS` positions, `Primitive X extends Y`) and engine-refuses-its-own-file
+  rows. The ledger stays, re-annotated; its name is now wrong and it is a batch-2/7 rename.
+- **The tag's SHA in homework §1 is the tag OBJECT** (`1d3e236b…`); the pin carries the
+  commit it points to (`28e75114f…`) because CI and `oracle_roots_check` compare HEAD.
+- **"Consolidation breakage" was not purely consolidation.** The two-step bump was meant
+  to keep it apart from upstream change, and mostly did — but the old non-tag pin was 20
+  commits PAST the tag, so moving to the tag moved the spec BACKWARDS on one commit
+  (#4900, null-safe equality): 19 corpus tests the platform passes against the newer
+  spec fail against 4.138.2 and sit on the fail rosters until 4.145.0. The 5.92.0
+  `stringToTDS` quoting change, by contrast, was genuine upstream change on the jar side
+  (4.133.0 → 4.138.2).

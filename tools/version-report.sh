@@ -1,22 +1,30 @@
 #!/bin/bash
-# THE VERSION REPORT — every upstream identity legend-lite pins, side by side
-# with what upstream has released, plus the three INVARIANTS that say whether
-# the spread between them is legal.
+# THE VERSION REPORT — every upstream identity legend-lite carries, side by side
+# with the ONE release tools/oracle-pins.env names, plus the invariants that say
+# whether they agree. Upstream is one release (docs/UPSTREAM_BOUNDARY_PROGRAM.md
+# §3 A); this script is what makes "one" a checked fact rather than a habit.
 #
-# There is no single "legend version" here. Four identities are live at once
-# (docs/UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md §1), each controlling a different
-# gate's universe:
+# The identities (docs/UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md §1 measured six
+# of them live at once before 2026-09-10):
 #
-#   SOURCE   tools/oracle-pins.env      gates 1,4,5,8,9 + the prelude generator
-#                                       read these CHECKOUTS as the spec
-#   ORACLE   parser-equivalence/pom.xml the reference PARSER gate 8 differs against
-#   PCT      pct/pom.xml                the PCT framework + ReportScopes, gates 6,7
-#   RUNNER   tools/engine-runner/pom.xml the perf harness (not a gate)
+#   RELEASE  tools/oracle-pins.env        THE pin: LEGEND_ENGINE_RELEASE and the
+#                                         pure version derived from it
+#   SOURCE   tools/oracle-pins.env        the checkout commits gates 1,4,5,8,9 and
+#                                         the prelude generator read as the spec —
+#                                         must be the release TAG's commit
+#   POM      pom.xml                      <legend.engine.version>/<legend.pure.version>
+#                                         — what pct (gates 6,7,9) and
+#                                         parser-equivalence (gate 8) resolve
+#   RUNNER   tools/engine-runner/pom.xml  the perf harness (standalone pom, not a gate)
+#   FIXTURE  parser-equivalence/.../engine-grammar-fixtures-*.jsonl
+#                                         harvested from the oracle jars (tier C6)
 #
 # Usage:
 #   tools/version-report.sh            report (exit 0 unless an invariant breaks)
 #   tools/version-report.sh --offline  pins only, no network
-#   tools/version-report.sh --check    invariants only, quiet on success
+#   tools/version-report.sh --check    invariants only, quiet on success (CI:
+#                                      .github/actions/gate-env, beside
+#                                      oracle_roots_check)
 #
 # Exit 1 on an invariant violation, 2 on a broken pin file.
 
@@ -31,7 +39,7 @@ for a in "$@"; do
   case "$a" in
     --offline) OFFLINE=1 ;;
     --check) CHECK_ONLY=1 ;;
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "unknown argument: $a" >&2; exit 2 ;;
   esac
 done
@@ -44,33 +52,35 @@ say() { [ "$CHECK_ONLY" = 1 ] || echo "$@"; }
 
 # ---------------------------------------------------------------- the pins ---
 . "$HERE/oracle-pins.env" || { echo "cannot read tools/oracle-pins.env" >&2; exit 2; }
+for k in LEGEND_ENGINE_RELEASE LEGEND_PURE_RELEASE LEGEND_ENGINE_SHA LEGEND_PURE_SHA \
+         LEGEND_ENGINE_DESCRIBE LEGEND_PURE_DESCRIBE LEGEND_ENGINE_REPO LEGEND_PURE_REPO; do
+  [ -n "${!k:-}" ] || { echo "tools/oracle-pins.env: $k is missing" >&2; exit 2; }
+done
 
-# <legend.engine.version> / <legend.pure.version> out of a pom's own properties
+# <property> out of a pom's own <properties>
 pom_prop() {  # pom_prop <file> <property>
   sed -n "s|.*<$2>\([^<]*\)</$2>.*|\1|p" "$1" | head -1
 }
-# a hardcoded <version> under a named artifactId (pure m3-core in the parser pom)
-pom_dep_version() {  # pom_dep_version <file> <artifactId>
-  grep -A2 "<artifactId>$2</artifactId>" "$1" \
-    | sed -n 's|.*<version>\([^<$][^<]*\)</version>.*|\1|p' | head -1
-}
 
-ORACLE_ENGINE=$(pom_prop "$ROOT/parser-equivalence/pom.xml" legend.engine.version)
-ORACLE_PURE=$(pom_dep_version "$ROOT/parser-equivalence/pom.xml" legend-pure-m3-core)
-PCT_ENGINE=$(pom_prop "$ROOT/pct/pom.xml" legend.engine.version)
-PCT_PURE=$(pom_prop "$ROOT/pct/pom.xml" legend.pure.version)
+POM_ENGINE=$(pom_prop "$ROOT/pom.xml" legend.engine.version)
+POM_PURE=$(pom_prop "$ROOT/pom.xml" legend.pure.version)
 RUNNER_ENGINE=$(pom_prop "$ROOT/tools/engine-runner/pom.xml" legend.version)
 
-# the SOURCE pins name commits; `git describe` gives them a release identity
-SRC_ENGINE_REL=${LEGEND_ENGINE_DESCRIBE#legend-engine-}
-SRC_PURE_REL=${LEGEND_PURE_DESCRIBE#legend-pure-}
-SRC_ENGINE_BASE=${SRC_ENGINE_REL%%-*}
-SRC_PURE_BASE=${SRC_PURE_REL%%-*}
+# a module pom that declares its OWN legend version would silently shadow the
+# root's; the rule is that none does
+own_versions() {  # own_versions <module pom>
+  # grep -c prints 0 AND exits 1 on no match — no `|| echo 0` fallback
+  grep -cE '<legend\.(engine|pure)\.version>' "$1" 2>/dev/null || true
+}
 
-# the version carried by a committed FILENAME (the harvested fixture snapshot)
+# the version carried by the committed FIXTURE snapshot. Recorded INSIDE the
+# file as its first line (`# engine=<version>`, batch 2 of the program); the
+# filename carries it too and the two must agree.
 FIXTURE=$(ls "$ROOT"/parser-equivalence/src/test/resources/engine-grammar-fixtures-*.jsonl 2>/dev/null | head -1)
-FIXTURE_VER=$(basename "${FIXTURE:-engine-grammar-fixtures-none.jsonl}" .jsonl)
-FIXTURE_VER=${FIXTURE_VER#engine-grammar-fixtures-}
+FIXTURE_NAME_VER=$(basename "${FIXTURE:-engine-grammar-fixtures-none.jsonl}" .jsonl)
+FIXTURE_NAME_VER=${FIXTURE_NAME_VER#engine-grammar-fixtures-}
+FIXTURE_HEAD_VER=""
+[ -n "$FIXTURE" ] && FIXTURE_HEAD_VER=$(head -1 "$FIXTURE" | sed -n 's|^# engine=\([^ ]*\).*|\1|p')
 
 # ------------------------------------------------------------- the upstream ---
 # Maven Central and the git tags DISAGREE: 4.142.0 is tagged and was never
@@ -78,7 +88,7 @@ FIXTURE_VER=${FIXTURE_VER#engine-grammar-fixtures-}
 # pins can name any commit. Both are reported.
 LATEST_ENGINE=""; LATEST_PURE=""; TAG_ENGINE=""; TAG_PURE=""
 ENGINE_VERSIONS=""; PURE_VERSIONS=""
-if [ "$OFFLINE" = 0 ]; then
+if [ "$OFFLINE" = 0 ] && [ "$CHECK_ONLY" = 0 ]; then
   ENGINE_META=$(curl -sf --max-time 40 "$CENTRAL/$ENGINE_GA/maven-metadata.xml" 2>/dev/null)
   PURE_META=$(curl -sf --max-time 40 "$CENTRAL/$PURE_GA/maven-metadata.xml" 2>/dev/null)
   LATEST_ENGINE=$(printf '%s' "$ENGINE_META" | sed -n 's|.*<release>\([^<]*\)</release>.*|\1|p')
@@ -119,19 +129,15 @@ pure_of_engine() {  # pure_of_engine <engine version>
 say
 say "==================== legend-lite upstream pins, $(date +%Y-%m-%d) ===================="
 say
-printf_row() { [ "$CHECK_ONLY" = 1 ] || printf '%-9s %-28s %-24s %-21s %s\n' "$1" "$2" "$3" "$4" "$5"; }
+printf_row() { [ "$CHECK_ONLY" = 1 ] || printf '%-9s %-40s %-12s %-10s %s\n' "$1" "$2" "$3" "$4" "$5"; }
 printf_row IDENTITY "DECLARED IN" ENGINE PURE "RELEASES BEHIND"
-printf_row --------- ---------------------------- ------------------------ --------------------- ---------------
-printf_row SOURCE "tools/oracle-pins.env" "$SRC_ENGINE_REL" "$SRC_PURE_REL" \
-  "$(behind "$SRC_ENGINE_BASE" "$ENGINE_VERSIONS")/$(behind "$SRC_PURE_BASE" "$PURE_VERSIONS")"
-printf_row ORACLE "parser-equivalence/pom.xml" "$ORACLE_ENGINE" "$ORACLE_PURE" \
-  "$(behind "$ORACLE_ENGINE" "$ENGINE_VERSIONS")/$(behind "$ORACLE_PURE" "$PURE_VERSIONS")"
-printf_row PCT "pct/pom.xml" "$PCT_ENGINE" "$PCT_PURE" \
-  "$(behind "$PCT_ENGINE" "$ENGINE_VERSIONS")/$(behind "$PCT_PURE" "$PURE_VERSIONS")"
-printf_row RUNNER "tools/engine-runner/pom.xml" "$RUNNER_ENGINE" "-" \
-  "$(behind "$RUNNER_ENGINE" "$ENGINE_VERSIONS")/-"
-printf_row FIXTURE "parser-equiv .../fixtures-*" "$FIXTURE_VER" "-" \
-  "$(behind "$FIXTURE_VER" "$ENGINE_VERSIONS")/-"
+printf_row --------- ---------------------------------------- ------------ ---------- ---------------
+printf_row RELEASE "tools/oracle-pins.env" "$LEGEND_ENGINE_RELEASE" "$LEGEND_PURE_RELEASE" \
+  "$(behind "$LEGEND_ENGINE_RELEASE" "$ENGINE_VERSIONS")/$(behind "$LEGEND_PURE_RELEASE" "$PURE_VERSIONS")"
+printf_row SOURCE "tools/oracle-pins.env (tag commits)" "${LEGEND_ENGINE_DESCRIBE#legend-engine-}" "${LEGEND_PURE_DESCRIBE#legend-pure-}" ""
+printf_row POM "pom.xml (pct, parser-equivalence)" "$POM_ENGINE" "$POM_PURE" ""
+printf_row RUNNER "tools/engine-runner/pom.xml" "$RUNNER_ENGINE" "-" ""
+printf_row FIXTURE "parser-equiv .../fixtures-*.jsonl" "${FIXTURE_HEAD_VER:-?} (name $FIXTURE_NAME_VER)" "-" ""
 say
 printf_row LATEST "maven central (release)" "${LATEST_ENGINE:-?}" "${LATEST_PURE:-?}" ""
 printf_row LATEST "git tags (newest)" "${TAG_ENGINE:-?}" "${TAG_PURE:-?}" ""
@@ -139,17 +145,17 @@ say
 
 # local checkouts: present, and on the pins?
 say "---- local checkouts ----"
-for pair in "engine|${LEGEND_ENGINE_ROOT:-$HOME/legend/legend-engine}|$LEGEND_ENGINE_SHA" \
-            "pure|${LEGEND_PURE_ROOT:-$HOME/legend/legend-pure}|$LEGEND_PURE_SHA"; do
-  IFS='|' read -r name dir want <<< "$pair"
+for pair in "engine|${LEGEND_ENGINE_ROOT:-$HOME/legend/legend-engine}|$LEGEND_ENGINE_SHA|$LEGEND_ENGINE_DESCRIBE" \
+            "pure|${LEGEND_PURE_ROOT:-$HOME/legend/legend-pure}|$LEGEND_PURE_SHA|$LEGEND_PURE_DESCRIBE"; do
+  IFS='|' read -r name dir want tag <<< "$pair"
   if [ ! -d "$dir" ]; then
     say "  legend-$name: MISSING at $dir"
   else
     h=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
     d=$(git -C "$dir" describe --tags 2>/dev/null)
     if [ -z "$h" ]; then say "  legend-$name: $dir (not a git checkout)"
-    elif [ "$h" = "$want" ]; then say "  legend-$name: ON PIN    $d"
-    else say "  legend-$name: PIN DRIFT $d  ($h != $want)"
+    elif [ "$h" = "$want" ]; then say "  legend-$name: ON PIN    $d  ($dir)"
+    else say "  legend-$name: PIN DRIFT $d  ($h != $want; $dir)"
     fi
   fi
 done
@@ -162,58 +168,82 @@ inv() {  # inv <id> <ok:0|1> <text>
   else echo "  BROKEN INV-$1  $3"; FAIL=1
   fi
 }
-say "---- invariants (docs/UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md §2) ----"
+say "---- invariants (docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A, §5) ----"
 
-# INV-1: a jar identity pairs engine with the pure version THAT engine release
-# declares. Mixing an engine with a pure it was never built against means the
+# INV-0: ONE release. Every declared version identity equals the pin.
+inv "0a" "$([ "$POM_ENGINE" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
+  "pom.xml legend.engine.version $POM_ENGINE == LEGEND_ENGINE_RELEASE $LEGEND_ENGINE_RELEASE"
+inv "0b" "$([ "$POM_PURE" = "$LEGEND_PURE_RELEASE" ] && echo 0 || echo 1)" \
+  "pom.xml legend.pure.version $POM_PURE == LEGEND_PURE_RELEASE $LEGEND_PURE_RELEASE"
+inv "0c" "$([ "$RUNNER_ENGINE" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
+  "tools/engine-runner/pom.xml legend.version $RUNNER_ENGINE == LEGEND_ENGINE_RELEASE"
+own=$(( $(own_versions "$ROOT/pct/pom.xml") + $(own_versions "$ROOT/parser-equivalence/pom.xml") ))
+inv "0d" "$([ "$own" = 0 ] && echo 0 || echo 1)" \
+  "no module pom declares its own legend.engine.version / legend.pure.version ($own found; the root pom is the one place)"
+
+# INV-1: the pure version is the one THIS engine release declares in its own
+# pom. Mixing an engine with a pure it was never built against means the
 # oracle's own platform sources disagree with its compiler.
 if [ "$OFFLINE" = 1 ]; then
   say "  SKIP  INV-1  (offline: upstream pairing not checked)"
 else
-  want=$(pure_of_engine "$ORACLE_ENGINE")
-  inv "1a" "$([ -n "$want" ] && [ "$want" = "$ORACLE_PURE" ] && echo 0 || echo 1)" \
-    "ORACLE pure $ORACLE_PURE == engine $ORACLE_ENGINE's own legend.pure.version ${want:-<unresolved>}"
-  want=$(pure_of_engine "$PCT_ENGINE")
-  inv "1b" "$([ -n "$want" ] && [ "$want" = "$PCT_PURE" ] && echo 0 || echo 1)" \
-    "PCT pure $PCT_PURE == engine $PCT_ENGINE's own legend.pure.version ${want:-<unresolved>}"
+  want=$(pure_of_engine "$LEGEND_ENGINE_RELEASE")
+  inv "1" "$([ -n "$want" ] && [ "$want" = "$LEGEND_PURE_RELEASE" ] && echo 0 || echo 1)" \
+    "LEGEND_PURE_RELEASE $LEGEND_PURE_RELEASE == engine $LEGEND_ENGINE_RELEASE's own legend.pure.version ${want:-<unresolved: Central unreachable, or the release is not published>}"
 fi
 
-# INV-2: the SOURCE pins name RELEASE TAGS, so the oracle jar can be the same
-# release as the source. Gate 8 differs our parser against the oracle over the
-# SOURCE checkout's files, and jars exist ONLY at release tags — so a source pin
-# on an arbitrary commit makes an identical oracle IMPOSSIBLE, and the two trees
-# end up DIVERGED rather than ordered (2026-09-10: the 4.137.0+36 pin is 20
-# commits ahead of the 4.138.2 tag and 11 behind it). Every construct on either
-# side of that divergence becomes a hand-adjudicated row in
-# docs/version-skew-claims.tsv. "The oracle is deliberately ahead" needs an
-# ORDERING that a non-tag pin cannot provide.
-for pair in "engine|$SRC_ENGINE_REL" "pure|$SRC_PURE_REL"; do
-  IFS='|' read -r name rel <<< "$pair"
-  case "$rel" in
-    *-*-g*) inv "2$([ "$name" = engine ] && echo a || echo b)" 1 \
-              "SOURCE $name pin $rel is NOT a release tag — no jar exists at this commit, so the oracle cannot match it" ;;
-    *)      inv "2$([ "$name" = engine ] && echo a || echo b)" 0 \
-              "SOURCE $name pin $rel is a release tag" ;;
-  esac
-done
-inv "2c" "$([ "$ORACLE_ENGINE" = "$SRC_ENGINE_BASE" ] && echo 0 || echo 1)" \
-  "ORACLE engine $ORACLE_ENGINE == SOURCE engine $SRC_ENGINE_BASE  (skew hand-adjudicated in docs/version-skew-claims.tsv: $(grep -c . "$ROOT/docs/version-skew-claims.tsv" 2>/dev/null) rows — that ledger is the COST of this row being broken)"
+# INV-2: the SOURCE pins are the release TAGS' commits — the checkouts gates
+# 1/4/5/8/9 read and the jars gates 6/7/8 load are then the SAME release. Jars
+# exist only at release tags, so a source pin on an arbitrary commit makes an
+# identical oracle IMPOSSIBLE (2026-09-10: the 4.137.0+36 pin was 20 commits
+# ahead of the 4.138.2 tag and 11 behind it; docs/version-skew-claims.tsv's 25
+# rows were the rent). The DESCRIBE must be the bare tag; whether the SHA is
+# that tag's commit is checked by oracle_roots_check on a checkout that has the
+# tag (tools/oracle-roots.sh).
+inv "2a" "$([ "$LEGEND_ENGINE_DESCRIBE" = "legend-engine-$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
+  "SOURCE engine pin $LEGEND_ENGINE_DESCRIBE is the release tag legend-engine-$LEGEND_ENGINE_RELEASE"
+inv "2b" "$([ "$LEGEND_PURE_DESCRIBE" = "legend-pure-$LEGEND_PURE_RELEASE" ] && echo 0 || echo 1)" \
+  "SOURCE pure pin $LEGEND_PURE_DESCRIBE is the release tag legend-pure-$LEGEND_PURE_RELEASE"
 
-# INV-3: PCT jars == the SOURCE pin. Channel A discovers its universe from
-# these JARS (ReportScope); Channel B discovers the SAME universe by walking
-# the SOURCE checkouts. They are a dual-verdict pair, so a version spread
-# means the two channels referee different test sets and the comparison is
-# not like-for-like.
-inv "3a" "$([ "$PCT_ENGINE" = "$SRC_ENGINE_BASE" ] && echo 0 || echo 1)" \
-  "PCT engine $PCT_ENGINE == SOURCE engine $SRC_ENGINE_BASE  (channel A jars vs channel B source walk)"
-inv "3b" "$([ "$PCT_PURE" = "$SRC_PURE_BASE" ] && echo 0 || echo 1)" \
-  "PCT pure $PCT_PURE == SOURCE pure $SRC_PURE_BASE"
+# INV-3 (PCT jars == source) and the old ORACLE == SOURCE row are now
+# consequences of INV-0 + INV-2: one pom property, one tag. Reported for the
+# reader, not re-checked.
+say "  (INV-3 PCT jars == SOURCE, and ORACLE == SOURCE, follow from INV-0 + INV-2: one property, one tag)"
 
 # INV-4: the committed fixture snapshot was harvested from the ORACLE jars it
-# is adjudicated against (tier C6 of the parser corpus).
-inv 4 "$([ "$FIXTURE_VER" = "$ORACLE_ENGINE" ] && echo 0 || echo 1)" \
-  "FIXTURE snapshot $FIXTURE_VER == ORACLE engine $ORACLE_ENGINE"
+# is adjudicated against (tier C6 of the parser corpus). The filename carries
+# the version; when the file ALSO carries it in its header (batch 2 of the
+# program: `# engine=<version>` first line, asserted by the reader) the two
+# must agree.
+inv "4a" "$([ "$FIXTURE_NAME_VER" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
+  "FIXTURE filename version $FIXTURE_NAME_VER == LEGEND_ENGINE_RELEASE $LEGEND_ENGINE_RELEASE"
+if [ -n "$FIXTURE_HEAD_VER" ]; then
+  inv "4b" "$([ "$FIXTURE_HEAD_VER" = "$LEGEND_ENGINE_RELEASE" ] && echo 0 || echo 1)" \
+    "FIXTURE snapshot header engine=$FIXTURE_HEAD_VER == LEGEND_ENGINE_RELEASE"
+else
+  say "  (INV-4b fixture header not yet recorded inside the file — batch 2)"
+fi
+
+# INV-6: the four third-party versions the root pom manages for classpath
+# convergence (INV-5, tools/classpath-convergence.sh) are the ENGINE RELEASE'S
+# OWN managed versions, read from the pinned engine checkout's pom — derived,
+# not chosen. Skipped when the checkout is absent (CI has it: gate-env).
+ENGINE_POM=${LEGEND_ENGINE_ROOT:-$HOME/legend/legend-engine}/pom.xml
+if [ -f "$ENGINE_POM" ]; then
+  managed() {  # managed <artifactId> — the version the ROOT pom manages
+    grep -A1 "<artifactId>$1</artifactId>" "$ROOT/pom.xml" | sed -n 's|.*<version>\([^<$]*\)</version>.*|\1|p' | head -1
+  }
+  for pair in "HikariCP|hikaricp.version" "commons-lang3|commons-lang3.version" \
+              "httpcore|httpcore.version" "junit|junit.version"; do
+    IFS='|' read -r art prop <<< "$pair"
+    ours=$(managed "$art"); theirs=$(pom_prop "$ENGINE_POM" "$prop")
+    inv "6" "$([ -n "$theirs" ] && [ "$ours" = "$theirs" ] && echo 0 || echo 1)" \
+      "root pom manages $art at ${ours:-<none>} == engine $LEGEND_ENGINE_RELEASE's own <$prop> ${theirs:-<unresolved>}"
+  done
+else
+  say "  SKIP  INV-6  (no engine checkout at $ENGINE_POM: managed third-party versions not compared)"
+fi
 
 say
-if [ "$FAIL" = 0 ]; then say "all invariants hold."; else echo; echo "INVARIANT VIOLATIONS above — see docs/UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md §2."; fi
+if [ "$FAIL" = 0 ]; then say "all invariants hold."; else echo; echo "INVARIANT VIOLATIONS above — see docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A / §5."; fi
 exit $FAIL

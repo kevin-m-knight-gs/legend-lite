@@ -887,18 +887,25 @@ public final class Render {
         return t.typeName();
     }
 
-    /** One PCT cell: typed print form, SQL NULL = bare 'null'. */
+    /** One PCT cell: typed print form, SQL NULL = bare 'null'.
+     *
+     *  <p>QUOTING is the reader's rule, and the reader is upstream's
+     *  {@code stringToTDS} (legend-pure m2-dsl-tds {@code TDSExtension
+     *  .makePureCsvSpecs}). At 5.92.0 it reads with {@code quote('\'')}
+     *  and {@code escape('\\')} — "emulate Pure String quoting" — where
+     *  5.88.0 read RFC-4180 double quotes. So a quoted cell is
+     *  {@code '…'} with {@code \} and {@code '} backslash-escaped, the
+     *  same spelling the engine's own {@code s()} uses for the '#TDS'
+     *  print form ({@link #tdsCell}). Double-quoted cells split on
+     *  their commas under the 5.92.0 reader ("Row 2 has too many
+     *  columns" — 28 variant tests, batch 1 of the upstream boundary
+     *  program, 2026-09-10). */
     private static SqlExpr pctCell(SqlExpr c, Type.Column col, SqlType slot) {
         Type t = col.type();
         SqlExpr rendered;
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
-            // pure prints VARIANT cells ALWAYS quoted, quotes doubled
-            SqlExpr json = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
-            rendered = cat(new SqlExpr.StringLit("\""),
-                    SqlExpr.Call.of(SqlFn.REPLACE, json,
-                            new SqlExpr.StringLit("\""),
-                            new SqlExpr.StringLit("\"\"")),
-                    new SqlExpr.StringLit("\""));
+            // pure prints VARIANT cells ALWAYS quoted
+            rendered = pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
         } else if (dateOnly(t, slot)) {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
@@ -924,18 +931,29 @@ public final class Render {
                 new SqlExpr.StringLit("null"))), rendered);
     }
 
-    /** PCT string cell quoting: only when the value carries a comma,
-     *  quote, or newline (quotes double). */
+    /** PCT string cell quoting: only when the value carries a comma, a
+     *  single quote, a backslash, or a line break — the characters the
+     *  5.92.0 reader ({@code quote('\'')}, {@code escape('\\')}) would
+     *  otherwise read as structure. */
     private static SqlExpr pctEscape(SqlExpr s) {
-        SqlExpr needs = or(or(contains(s, ","), contains(s, "\"")),
-                contains(s, "\n"));
-        SqlExpr quoted = cat(new SqlExpr.StringLit("\""),
-                SqlExpr.Call.of(SqlFn.REPLACE, s,
-                        new SqlExpr.StringLit("\""),
-                        new SqlExpr.StringLit("\"\"")),
-                new SqlExpr.StringLit("\""));
+        SqlExpr needs = or(or(contains(s, ","), contains(s, "'")),
+                or(contains(s, "\\"), or(contains(s, "\n"), contains(s, "\r"))));
         return new SqlExpr.Case(
-                List.of(new SqlExpr.Case.When(needs, quoted)), s);
+                List.of(new SqlExpr.Case.When(needs, pureQuoted(s))), s);
+    }
+
+    /** {@code '…'} with backslash and single quote backslash-escaped —
+     *  the Pure string spelling upstream's TDS reader (5.92.0+) and the
+     *  engine's {@code s()} both use. */
+    private static SqlExpr pureQuoted(SqlExpr s) {
+        return cat(new SqlExpr.StringLit("'"),
+                SqlExpr.Call.of(SqlFn.REPLACE,
+                        SqlExpr.Call.of(SqlFn.REPLACE, s,
+                                new SqlExpr.StringLit("\\"),
+                                new SqlExpr.StringLit("\\\\")),
+                        new SqlExpr.StringLit("'"),
+                        new SqlExpr.StringLit("\\'")),
+                new SqlExpr.StringLit("'"));
     }
 
     private static SqlExpr escapeCsv(SqlExpr s) {

@@ -47,7 +47,18 @@ oracle_roots_check() {
     h=$(_oracle_head "$dir")
     if [ -z "$h" ]; then
       echo "WARNING: $dir is not a git checkout — pin drift for legend-$name cannot be checked"
-    elif [ "$h" != "$want" ]; then
+    elif [ "$h" = "$want" ]; then
+      # on the pin. The pin must be a RELEASE TAG's commit (one release,
+      # docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A): when the checkout knows the
+      # tag, verify it points here (a shallow CI clone has no tags — skipped).
+      local describe tagged
+      describe=$([ "$name" = engine ] && echo "$LEGEND_ENGINE_DESCRIBE" || echo "$LEGEND_PURE_DESCRIBE")
+      tagged=$(git -C "$dir" rev-parse "refs/tags/$describe^{commit}" 2>/dev/null)
+      if [ -n "$tagged" ] && [ "$tagged" != "$want" ]; then
+        echo "PIN/TAG MISMATCH: legend-$name pin $want is not the commit tag $describe points to ($tagged)."
+        ok=1
+      fi
+    else
       if [ "${ORACLE_PIN_CHECK:-1}" = "0" ]; then
         echo "WARNING: legend-$name checkout at $dir is $h, pin is $want (ORACLE_PIN_CHECK=0: continuing)"
       else

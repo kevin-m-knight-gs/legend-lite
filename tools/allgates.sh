@@ -191,10 +191,17 @@ gate6() {
   rec 6 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g6.out" | tail -1 >> "$L"
 }
 
-# Ledger: 348 run, <=1 failure, <=22 errors. CEILINGS, not equality — the old
+# Ledger: 350 run, <=1 failure, <=24 errors. CEILINGS, not equality — the old
 # `grep -q "Tests run: 348, Failures: 1, Errors: 22"` went RED the moment you
 # fixed one of the 22. Lower these numbers when you earn it.
-G7_MIN_RUN=348; G7_MAX_FAIL=1; G7_MAX_ERR=22
+# 348/22 -> 350/24 on 2026-09-10 (upstream boundary batch 1): the PCT jars
+# moved 4.133.0 -> 4.138.2 (one release with the source checkouts), and the
+# relation jar universe gained exactly two tests —
+# testVariantMapColumn_{keys,values}_LateralFlatten — both in the LATERAL
+# family the H2 lane already errors on (`Function "LATERAL" not found`; the
+# DuckDB lane runs all 350 with 0 errors). The other 22 are the same
+# dialect-capability rows as before (LIST_*, UNNEST, fold, LATERAL x4).
+G7_MIN_RUN=350; G7_MAX_FAIL=1; G7_MAX_ERR=24
 gate7() {
   if ! want 7; then return 0; fi
   g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"

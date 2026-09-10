@@ -38,7 +38,11 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
             // Pin is the FULL expected+actual text, verbatim the official
             // legend-engine DuckDB PCT's pin for the SAME failure — a loose
             // fragment would keep matching if the test regressed elsewhere.
-            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\"[1,2,3]\",1,2,3\n   2,\"[4,5,6]\",4,5,6\n   3,\"[7,8,9]\",7,8,9\n   4,\"null\",\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\"[1,2,3]\",1,2,3\n   2,\"[4,5,6]\",4,5,6\n   3,\"[7,8,9]\",7,8,9\n   4,\"null\",null\n#'\""));
+            // 2026-09-10 (upstream boundary batch 1): variant cells spell
+            // \'…\' since the 5.92.0 TDS reader quotes with the Pure string
+            // form (Render.pctCell); the failure is the SAME (the empty-
+            // string cell), only its spelling moved.
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""));
 
     /**
      * JUnit 3 test suite entry point.

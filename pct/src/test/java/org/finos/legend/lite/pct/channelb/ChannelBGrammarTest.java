@@ -65,8 +65,13 @@ class ChannelBGrammarTest {
         // the numList unwrap on collection sum/product (witness
         // testPlusNumber). Discovery exact; PASS grows-only; wire-bug
         // census shrinks-only; TRUE pinned at ZERO like essential.
-        assertTrue(out.size() == 137,
-                "grammar discovery moved: " + out.size() + " != 137");
+        // 137 -> 136 (2026-09-10, upstream boundary batch 1): the SOURCE
+        // pin moved from legend-pure 5.92.0+3 back to the 5.92.0 TAG; the 3
+        // newer commits had added one PCT.test to
+        // grammar/functions/boolean/equality/equal.pure (11 -> 10 at the
+        // tag). Channel A's jar universe is 136 too — one universe.
+        assertTrue(out.size() == 136,
+                "grammar discovery moved: " + out.size() + " != 136");
         // 128 (slice 11): letFn ×2 (inline multi-statement hoist),
         // testSingle{Plus,Minus}Type + OneToOne (is/assertIs World-1
         // identity: type refs canonicalized, instance provenance)
@@ -94,7 +99,8 @@ class ChannelBGrammarTest {
         // metamodel.classes table through the ordinary store lane
         // (METAMODEL_STORE_HANDOFF.md); the FULL grammar lane. Both
         // channels pass; the channel A ledger entry removed same-commit.
-        assertTrue(c.pass() >= 137, "grammar PASS fell: " + c.pass());
+        // 137 -> 136 with the universe (above): 100% of 136
+        assertTrue(c.pass() >= 136, "grammar PASS fell: " + c.pass());
         assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,

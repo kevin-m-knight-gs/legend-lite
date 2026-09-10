@@ -2459,8 +2459,14 @@ public final class SpecParser implements TokenStreamCursor {
             return new TypeAnnotation.MultiplicityRef(m, spanOf(atTok, pos - 1));
         }
         // @(x:String, …) — a bare relation-shape annotation (addColumns.pure);
-        // the same shape @Relation<(…)> spells with its name
-        if (platform && !atEnd() && peek() == TokenType.PAREN_OPEN) {
+        // the same shape @Relation<(…)> spells with its name. EVERY dialect:
+        // the engine's own grammar accepts it (probed 2026-09-10 against the
+        // 4.138.2 oracle — bare, `->cast(@(a:Integer))`, and
+        // `@(name:Varchar(200))->genericType()` all ACCEPT; the engine's
+        // core_external_query_sql/server/tests/testSchema.pure carries the
+        // last form). The earlier "engine refuses bare @(…)" note on
+        // CorpusSweepTest.MAX_PLATFORM_CATALOG was wrong about this form.
+        if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             TypeAnnotation.RelationShape shape = parseRelationShape();
             return new TypeAnnotation.RelationShape(shape.columns(), null,
                     spanOf(atTok, pos - 1), spanOf(atTok, pos - 1));

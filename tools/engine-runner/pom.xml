@@ -3,6 +3,9 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>perf</groupId><artifactId>legend-perf-harness</artifactId><version>1.0</version>
   <properties>
+    <!-- standalone pom (no parent), so this cannot read the root pom's
+         legend.engine.version; tools/version-report.sh asserts it equals
+         LEGEND_ENGINE_RELEASE in tools/oracle-pins.env -->
     <legend.version>4.138.2</legend.version>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>

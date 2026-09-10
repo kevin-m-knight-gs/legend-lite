@@ -326,10 +326,12 @@ class SectionParseSentinelTest {
     // (1) NEW rows are oracle-version-skew: the five service-new-grammar
     //     *.pure files plus the Java-snippet services with suite doc
     //     strings (testSuite_1 'Happy path') and parameterised asserts use
-    //     grammar the 5.88.1 ORACLE refuses while the 5.92.1 checkout's
-    //     OWN engine accepts (its own build compiles these fixtures). The
-    //     corpus decides (the xStore rule); when the oracle jars catch up
-    //     these become MATCHED and this ratchets back DOWN.
+    //     grammar the then-ORACLE (5.88.1, later 5.92.0) refused while the
+    //     then-checkout (5.92.1-SNAPSHOT, 4.137.0+36) accepted (its own
+    //     build compiled these fixtures). Since 2026-09-10 the oracle jars
+    //     and the checkout are ONE release (tools/oracle-pins.env), so a
+    //     remaining row here is a lite bug, not skew; the corpus decides
+    //     (the xStore rule), and this ratchets back DOWN as rows match.
     // (2) UNMASKED rows: files whose ###Service section we previously
     //     refused (masking everything after it) now parse to the content
     //     BEHIND the service — mostly the same skew category. The two

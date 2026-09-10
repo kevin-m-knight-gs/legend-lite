@@ -166,11 +166,11 @@ class RejectionParityTest {
      *  pins all became exact. The 12 line-agreeing, column-different pins are
      *  genuinely different tokens — ours later, ANTLR's at the first token
      *  that cannot start an alternative. */
-    private static final int MIN_COLUMN_EXACT = 337;   // ratcheted to measured 2026-08-14
+    private static final int MIN_COLUMN_EXACT = 335;   // ratcheted to measured 2026-08-14; 337 -> 335 on 2026-09-10 (upstream boundary batch 1): 4 negative pins left with the SOURCE pin's move to the 4.138.2 tag (MIN_PINS 424 -> 420), two of them column-exact — a denominator move
 
     /** Against the engine's LIVE thrown position (the scraped literals are 40%
      *  mispaired — audit §3.5). Bumped as error positioning improves. */
-    private static final int MIN_LINE_AGREEMENT = 417;   // ratcheted to measured 2026-08-14 (deep audit #2 §2e: was 40 with 377 slack)
+    private static final int MIN_LINE_AGREEMENT = 413;   // ratcheted to measured 2026-08-14 (deep audit #2 §2e: was 40 with 377 slack); 417 -> 413 on 2026-09-10 (upstream boundary batch 1): 4 negative pins left with the SOURCE pin's move to the 4.138.2 tag (MIN_PINS 424 -> 420); 413 of 419 agree — the same 6 divergences as before, a denominator move
 
     /** The STRICT drop-in surface: the full parse plus every element site through the
      *  same {@code ElementParser.at} path the byte-comparison uses (protocol-only
@@ -196,7 +196,7 @@ class RejectionParityTest {
     }
 
     /** Bumped deliberately as extraction improves. Lowering it requires saying why. */
-    private static final int MIN_PINS = 424;   // 43 -> 424: the sectioned pins joined 2026-08-13 (REJECT_MISS 37 -> 0)
+    private static final int MIN_PINS = 420;   // 43 -> 424: the sectioned pins joined 2026-08-13 (REJECT_MISS 37 -> 0); 424 -> 420 on 2026-09-10 (upstream boundary batch 1): the SOURCE pin moved from 4.137.0+36 back to the 4.138.2 TAG, 20 commits of newer test sources left the corpus (C4 engine-inline rows 8,891 -> 8,834 in the manifest) and took 4 negative pins with them — a denominator move, not a parity loss (REJECT_MISS stays 0)
 
     private List<Pin> extractPins() {
         List<Pin> pins = new ArrayList<>();

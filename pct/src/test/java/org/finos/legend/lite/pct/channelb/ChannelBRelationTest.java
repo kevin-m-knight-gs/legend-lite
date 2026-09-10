@@ -78,8 +78,14 @@ class ChannelBRelationTest {
         // the qualifier profile are DISCOVERED — more than the 348 the
         // reference suite itself enumerates (its qualifier config
         // filters ~7). Exact in both directions, as before.
-        assertTrue(out.size() == 355,
-                "relation discovery moved: " + out.size() + " != 355");
+        // 355 -> 350 (2026-09-10, upstream boundary batch 1): the SOURCE
+        // pin moved from 4.137.0+36 back to the 4.138.2 TAG; the 20 newer
+        // commits had added 5 PCT.test to relation/tests/composition.pure
+        // (70 -> 65 at the tag). Channel A's jar universe is ALSO 350 now
+        // (it was 348 at 4.133.0): both channels referee ONE universe —
+        // INV-3 closed and measured.
+        assertTrue(out.size() == 350,
+                "relation discovery moved: " + out.size() + " != 350");
         // 100% (2026-08-19): the DESC nulls-first sort burned the last
         // pair — pure null ordering is NULL-IS-LARGEST
         // 287 -> 355 (2026-08-23): 100% at the EXPANDED universe —
@@ -87,7 +93,8 @@ class ChannelBRelationTest {
         // RANGE-with-nulls DESC failures were ONE renderer bug (the
         // aggregate ORDER BY hoist dropped declared null placement —
         // AggOrderNullPlacementTest pins it).
-        assertTrue(c.pass() >= 355, "relation PASS fell: " + c.pass());
+        // 355 -> 350 with the universe (above): 100% of 350
+        assertTrue(c.pass() >= 350, "relation PASS fell: " + c.pass());
         // 33→28 (slice 1: singleton extremes, carrier norm, chunk)
         // →24 (slice 4: CANONICAL variant text — to_json over the
         // JSON-cast value, compact with leaf quoting preserved)

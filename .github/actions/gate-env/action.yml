@@ -51,3 +51,7 @@ runs:
       shell: bash
       working-directory: legend-lite
       run: . tools/oracle-roots.sh && oracle_roots_check
+    - name: upstream is ONE release (pins, poms, fixture agree)
+      shell: bash
+      working-directory: legend-lite
+      run: tools/version-report.sh --check

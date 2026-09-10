@@ -22,11 +22,12 @@
         this module exists so the reference can be generated without breaking it.
     </description>
 
-    <properties>
-        <!-- 4.133.0 -> 4.138.2 (2026-08-10, leniency burn-down): AHEAD of the
-             corpus checkout (4.137.1-SNAPSHOT), so VERSION-SKEW must be zero -->
-        <legend.engine.version>4.138.2</legend.engine.version>
-    </properties>
+    <!-- legend.engine.version / legend.pure.version come from the ROOT pom
+         (one release, tools/oracle-pins.env). The oracle jars are the SAME
+         release as the source checkouts gate 8 sweeps — so a construct the
+         oracle refuses and the checkout carries is a lite bug or an
+         adjudicated row, never "version skew" (docs/version-skew-claims.tsv
+         is shrink-only and was the rent of a non-tag source pin). -->
 
     <dependencies>
         <dependency>
@@ -49,16 +50,16 @@
         <dependency>
             <groupId>org.finos.legend.pure</groupId>
             <artifactId>legend-pure-m3-core</artifactId>
-            <version>5.92.0</version>
+            <version>${legend.pure.version}</version>
             <scope>test</scope>
         </dependency>
         <!-- junit4 is compile-support for the recording shims only; it
              carries no legend ServiceLoader registrations, so the oracle
-             stays production-shaped -->
+             stays production-shaped. Version managed by the root pom at the
+             engine release's own junit (INV-5). -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>

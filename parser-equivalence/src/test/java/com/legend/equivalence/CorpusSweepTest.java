@@ -75,10 +75,10 @@ public class CorpusSweepTest {
     // ------------------------------------------------------------------
 
     /** Oracle-accepted documents lite must byte-match. Up-only. */
-    private static final int MIN_DOCS_MATCHED = 6489;   // 2026-08-14: EVERY oracle-accepted source byte-matches — 100%
+    private static final int MIN_DOCS_MATCHED = 6471;   // 2026-08-14: EVERY oracle-accepted source byte-matches — 100%; 6489 -> 6471 on 2026-09-10 (upstream boundary batch 1): the SOURCE pin moved to the 4.138.2 TAG and the oracle-accepted population is 6,471 there (57 manifest rows left with the 20 newer commits) — still 100%, a denominator move
 
     /** Seam byte coverage floor. Up-only. */
-    private static final int MIN_SEAM_MATCHED = 6480;   // 2026-08-14: the strictness batch (stray-')' + copy-new gates) earned +569
+    private static final int MIN_SEAM_MATCHED = 6462;   // 2026-08-14: the strictness batch (stray-')' + copy-new gates) earned +569; 6480 -> 6462 on 2026-09-10 (batch 1): the same denominator move (9 engine JSON-asymmetry rows unchanged)
 
     /** Vanilla-rejected sources the SPI seam accepts — post-flip residue
      *  (upstream walker defects + the reviewed allowlist). Down-only. */
@@ -111,7 +111,7 @@ public class CorpusSweepTest {
     // spec's declaration files); the engine grammar has no variance slot
     // (its refusal: type/multiplicity parameters not authorized) —
     // PURE-DIALECT-generics family; the exact-engine surface is untouched.
-    private static final int MAX_PLATFORM_CATALOG = 1633;   // 2026-09-09 parser leg (batch 174): +32 rows the PLATFORM dialect now reads and the engine refuses (null-message GRAMMAR-REFUSAL / PURE-DIALECT-generics): type variables `Class X(x:Integer[1])` / `Primitive P(x) extends`, `@[m]`, bare `@(…)`, `^X(v)(…)` — legend-pure's cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, precisePrimitives.pure and their inline tests; the exact-engine surface refuses them as before (dialect quarantine)
+    private static final int MAX_PLATFORM_CATALOG = 1633;   // 2026-09-09 parser leg (batch 174): +32 rows the PLATFORM dialect now reads and the engine refuses (null-message GRAMMAR-REFUSAL / PURE-DIALECT-generics): type variables `Class X(x:Integer[1])` / `Primitive P(x) extends`, `@[m]`, `^X(v)(…)` — legend-pure's cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, precisePrimitives.pure and their inline tests; the exact-engine surface refuses them as before (dialect quarantine). CORRECTION 2026-09-10 (upstream boundary batch 1): bare `@(…)` was listed here too, but the 4.138.2 oracle ACCEPTS it in every probed position (bare, `->cast(@(…))`, `@(name:Varchar(200))->genericType()` — the engine's own testSchema.pure carries it), so SpecParser now reads it on every surface
     // was 1601;   // 2026-09-08 units (census batch 150): +37 PURE-DIALECT-unit-instance rows (AbstractTestMeasure, AbstractTestToJson)
     // was 1564;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
     // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
@@ -136,7 +136,7 @@ public class CorpusSweepTest {
 
     /** A6 classified tiers — measured 2026-08-15, placeholder until
      *  the first run pins them. */
-    private static final int MSG_RICHER_FLOOR = 1277;   // 2026-08-15: oracle-degenerate rows (NPE-text/null/generic) where ours is a positioned specific diagnostic
+    private static final int MSG_RICHER_FLOOR = 1240;   // 2026-08-15: oracle-degenerate rows (NPE-text/null/generic) where ours is a positioned specific diagnostic; 1277 -> 1240 on 2026-09-10 (upstream boundary batch 1): the SOURCE pin moved from 4.137.0+36 back to the 4.138.2 TAG — 57 manifest rows left (8,891 -> 8,834, mostly C4 engine-inline snippets from the 20 newer commits), and 37 of them were oracle-degenerate rows; a denominator move (GENUINE mismatches unchanged)
     private static final int MAX_MSG_GENUINE_MISMATCH = 254;   // 2026-08-15 first pin: the REAL error-voice divergence tail — adjudicate down
 
     private static final double M3_CALIBRATION_FLOOR = 95.0;

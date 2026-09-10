@@ -38,6 +38,20 @@
         <junit.version>5.11.3</junit.version>
         <archunit.version>1.3.0</archunit.version>
 
+        <!-- THE UPSTREAM RELEASE — one number, everywhere. These MUST equal
+             LEGEND_ENGINE_RELEASE / LEGEND_PURE_RELEASE in tools/oracle-pins.env
+             (Maven cannot source that file for dependency versions, so the
+             value is repeated here and tools/version-report.sh in check mode,
+             run in CI beside the oracle-roots check, fails the build when they
+             disagree). pct and parser-equivalence read ${legend.engine.version}
+             / ${legend.pure.version} from here and declare NO version of their
+             own; core declares no org.finos.legend dependency at all
+             (tools/classpath-convergence.sh asserts both). The pure version is
+             DERIVED: it is the <legend.pure.version> the engine release's own
+             pom declares — never chosen independently. -->
+        <legend.engine.version>4.138.2</legend.engine.version>
+        <legend.pure.version>5.92.0</legend.pure.version>
+
         <!-- THE ORACLE ROOTS: the legend-engine / legend-pure source
              checkouts the tests read as the spec (corpus, PCT channel B,
              parser parity, the prelude generator, the typing census).
@@ -116,6 +130,41 @@
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>
                 <version>${junit.version}</version>
+            </dependency>
+
+            <!-- INV-5 (tools/classpath-convergence.sh): the upstream-facing
+                 modules must resolve every SHARED artifact at ONE version.
+                 With one release every org.finos.legend.* converges by
+                 itself; these four third-party artifacts do NOT, because
+                 Maven's nearest-wins picks legend-pure's own (older) managed
+                 versions on pct's graph and the engine's on parser-
+                 equivalence's. The engine release's OWN root pom manages all
+                 four for its whole reactor — the PCT framework included — so
+                 the engine's values are what upstream actually runs with.
+                 DERIVED, not chosen: each equals the engine checkout's
+                 <hikaricp.version> / <commons-lang3.version> /
+                 <httpcore.version> / <junit.version> at the pinned release
+                 (tools/version-report.sh INV-6 compares them). Measured
+                 2026-09-10 at 4.138.2: divergent 71 -> 4 -> 0. -->
+            <dependency>
+                <groupId>com.zaxxer</groupId>
+                <artifactId>HikariCP</artifactId>
+                <version>7.0.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.18.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpcore</artifactId>
+                <version>4.4.13</version>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>4.13.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

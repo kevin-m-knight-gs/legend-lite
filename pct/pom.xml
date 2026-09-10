@@ -32,9 +32,11 @@
              Validating the CI envelope locally means passing that flag too —
              see docs/GATES.md. -->
         <pct.reuseForks>true</pct.reuseForks>
-        <!-- Legend Engine versions (isolated to this module only) -->
-        <legend.engine.version>4.133.0</legend.engine.version>
-        <legend.pure.version>5.88.0</legend.pure.version>
+        <!-- legend.engine.version / legend.pure.version come from the ROOT
+             pom (one release, tools/oracle-pins.env): the PCT jars here are
+             the SAME release the source checkouts pin, so channel A (jars,
+             gates 6/7) and channel B (checkout walk, gate 9) referee ONE
+             universe. 4.133.0/5.88.0 until 2026-09-10 — 7 tests apart. -->
         <eclipse.collections.version>10.2.0</eclipse.collections.version>
     </properties>
 
@@ -176,11 +178,11 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- JUnit 4 (required by PCT framework) -->
+        <!-- JUnit 4 (required by PCT framework); version managed by the root
+             pom at the engine release's own junit (INV-5) -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13.1</version>
             <scope>test</scope>
         </dependency>
 
