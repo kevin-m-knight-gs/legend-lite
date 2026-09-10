@@ -277,7 +277,7 @@ mvn exec:java -pl engine \
 # With NLQ (adds natural language → Pure endpoint)
 GEMINI_API_KEY=your-key \
 mvn exec:java -pl nlq \
-  -Dexec.mainClass="org.finos.legend.engine.nlq.NlqHttpServer"
+  -Dexec.mainClass="com.legend.nlq.NlqHttpServer"
 ```
 
 Both start on **port 8080**. Connect [Studio Lite](https://github.com/neema2/studio-lite) (the React IDE) to `http://localhost:8080`.
