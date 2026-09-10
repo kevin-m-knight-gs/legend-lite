@@ -169,6 +169,22 @@ public final class Claims {
         return false;
     }
 
+    /** The BARE names of every claimed overload — the prelude generator's
+     *  exclusion rule (batch 4): a library body under a name the platform
+     *  implements stays out of the prelude (else a bare call resolves to the
+     *  library's FQN through the core imports and bypasses the platform's
+     *  form — batch 169). Keyed on CLAIMS, not on "a signature exists". */
+    public static java.util.Set<String> claimedBareNames() {
+        java.util.Set<String> out = new java.util.TreeSet<>();
+        for (var e : BY_OVERLOAD.entrySet()) {
+            if (!e.getValue().isEmpty()) {
+                String fqn = e.getKey().qualifiedName();
+                out.add(fqn.substring(fqn.lastIndexOf(':') + 1));
+            }
+        }
+        return out;
+    }
+
     /** Whether ANY claim backs the overload. */
     public static boolean claimed(NativeFunctionDefinition overload) {
         return !of(overload).isEmpty();

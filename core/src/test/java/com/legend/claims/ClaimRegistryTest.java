@@ -57,7 +57,15 @@ public class ClaimRegistryTest {
      *  post-processors, createDbConfig, toCSV, the reflection natives, …).
      *  Batch 4 adjudicates every one: register it (a family enum or a rule)
      *  or move it to the prelude; the pin reaches 0 there. */
-    static final int UNCLAIMED_MAX = 133;
+    // 133 -> 91 (batch 4a, 2026-09-10): 38 FQNs / 42 overloads that no code
+    // dispatches on left Pure.java for the prelude (bodies carried where
+    // upstream has one, respelled natives where it does not). Kept, for 4b:
+    // 6 census "constant-only" rows dispatched through PlatformTypes
+    // predicates (fetchDb*MetaData x4, createTableStatement, createDbConfig),
+    // and `_range` (7 overloads) whose frame VALUE the over() checker
+    // consumes by type — a name-grep census cannot see that (102 PCT tests
+    // went red when it left, and came back).
+    static final int UNCLAIMED_MAX = 91;
 
     /** constant name(s) per overload, by reflection over {@link Pure}'s
      *  fields — the catalog's own naming, never a parse of the source. */

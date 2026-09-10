@@ -2566,6 +2566,16 @@ final class Scalars {
                 throw new com.legend.error.NotImplementedException("walled native '"
                         + call.callee().qualifiedName() + "': " + wall);
             }
+            // a native the PRELUDE declares (upstream's `native function`,
+            // respelled — upstream boundary batch 4): it resolves and
+            // type-checks because upstream declares it; the platform has no
+            // lowering for it. The truth, named — never "unknown function",
+            // never the registration bug below (which is for CATALOG natives)
+            if (com.legend.builtin.Pure.nativeFunctionsAt(call.callee().qualifiedName()).isEmpty()) {
+                throw new com.legend.error.NotImplementedException("upstream native '"
+                        + call.callee().qualifiedName() + "' is declared by the spec and not"
+                        + " implemented by the platform");
+            }
             throw new IllegalStateException("no scalar lowering registered for resolved overload '"
                     + call.callee().qualifiedName() + "' with " + call.callee().parameters().size()
                     + " parameter(s)");

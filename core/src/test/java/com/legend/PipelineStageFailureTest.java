@@ -182,9 +182,25 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("lowering: unregistered scalar overload names the function")
     void unregisteredScalar() {
+        // a CATALOG native (Pure.java) with no lowering rule is the
+        // registration bug — loud, IllegalState (paginated: typed by the
+        // Typer, lowered by nothing; UNCLAIMED in native-claims.tsv)
         Exception ex = failsWith(IllegalStateException.class, MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|"
+                        + "meta::pure::functions::math::olap::averageRank() > 1)");
+        messageNames(ex, "averageRank");
+    }
+
+    @Test
+    void specDeclaredNativeIsNotImplemented() {
+        // an upstream native the platform does NOT implement (upstream
+        // boundary batch 4): it left Pure.java and the prelude carries
+        // upstream's declaration respelled — it resolves and type-checks,
+        // and a call fails at lowering as NOT IMPLEMENTED, never as
+        // "unknown function" and never as the registration bug
+        Exception ex = failsWith(com.legend.error.NotImplementedException.class, MODEL,
+                "#>{test::DB.T_PERSON}#->filter(x|"
                         + "['a','b']->removeAllOptimized(['a'])->size() > 1)");
-        messageNames(ex, "removeAllOptimized");
+        messageNames(ex, "removeAllOptimized", "not implemented");
     }
 }

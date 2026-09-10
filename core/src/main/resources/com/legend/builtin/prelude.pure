@@ -49,14 +49,36 @@ Class meta::pure::functions::collection::ValueHolder<T>
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/getIfAbsentPutWithKey.pure
+import meta::pure::test::pct::*;
+import meta::pure::functions::asserts::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::getIfAbsentPutWithKey<U,V>(m:Map<U,V>[1], key:U[1], func:Function<{U[1]->V[0..1]}>[1]):V[0..1];
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/getMapStats.pure
 import meta::pure::test::pct::*;
 import meta::pure::functions::asserts::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::getMapStats<U,V>(m:Map<U,V>[1]):MapStats[0..1];
+
 Class meta::pure::functions::collection::MapStats
 {
    getIfAbsentCounter : Integer[1];
    size: Integer[1];
 }
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/replaceAll.pure
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::replaceAll<U,V>(m:Map<U,V>[1], pairs:Pair<U,V>[*]):Map<U,V>[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/transformation/removeAllOptimized.pure
+import meta::pure::functions::collection::tests::removeAllOptimized::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::removeAllOptimized<T>(set:T[*], other:T[*]):T[*];
 
 
 ###Pure
@@ -137,6 +159,67 @@ Class meta::pure::functions::lang::KeyValue
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/eval/evaluate.pure
+import meta::pure::functions::lang::tests::model::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::evaluate(func:Function<Any>[1], params:List<Any>[*]):Any[*];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/eval/rawEvalProperty.pure
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::rawEvalProperty<V|m>(p:Property<Nil,V|m>[1], a:Any[1]):V[m];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/unit/getUnitValue.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getUnitValue(unit:Any[1]):Number[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/math/random.pure
+import meta::pure::test::pct::*;
+native function <<functionType.SideEffectFunction, PCT.function>> meta::pure::functions::math::random():Float[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/graph/elementToPath.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+native function meta::pure::functions::meta::elementPath(element:PackageableElement[1]):PackageableElement[1..*];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/graph/pathToElement.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::pathToElement(path:String[1]):PackageableElement[1]
+{
+    $path->pathToElement('::')
+}
+
+native function meta::pure::functions::meta::pathToElement(path:String[1], separator:String[1]):PackageableElement[1];
+
+function meta::pure::functions::meta::lenientPathToElement(path:String[1]):PackageableElement[0..1]
+{
+    $path->lenientPathToElement('::')
+}
+
+native function meta::pure::functions::meta::lenientPathToElement(path:String[1], separator:String[1]):PackageableElement[0..1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/instance/getHiddenPayload.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getHiddenPayload(o:Any[1]):Any[1]
+{
+   $o.elementOverride->toOne()->cast(@GetterOverride).hiddenPayload->toOne();
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/getUpperBound.pure
 import meta::pure::test::pct::*;
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getUpperBound(multiplicity:Multiplicity[1]):Integer[1]
@@ -183,6 +266,42 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToOne
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/profile/tag.pure
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::tag(profile:Profile[1], str:String[1]):Tag[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/reflect/canReactivateDynamically.pure
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::canReactivateDynamically(vs:ValueSpecification[1]):Boolean[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/reflect/openVariableValues.pure
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::openVariableValues(f:Function<Any>[1]):Map<String, List<Any>>[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/reflect/reactivate.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::reactivate(vs:ValueSpecification[1], vars:Map<String, List<Any>>[1]):Any[*];
+
+function meta::pure::functions::meta::reactivate(vs:ValueSpecification[1]):Any[*]
+{
+   meta::pure::functions::meta::reactivate($vs, ^Map<String, List<Any>>());
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/removeOverride.pure
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::removeOverride<T>(instance:T[1]):T[1];
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/source/sourceInformation.pure
 import meta::pure::functions::meta::tests::sourceInformation::*;
 import meta::pure::test::pct::*;
@@ -199,6 +318,16 @@ Class meta::pure::functions::meta::SourceInformation
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/_subTypeOf.pure
+import meta::pure::functions::meta::tests::subTypeOf::*;
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::_subTypeOf(subType:Type[1], superType:Type[1]):Boolean[1]
+{
+    if($subType == Nil,|true, |$subType->getAllTypeGeneralisations()->contains($superType));  
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/class.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
@@ -206,6 +335,13 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::class<T
 {
     $any->genericType()->genericTypeClass()->cast(@Class<T>);
 }
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/genericTypeClass.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::genericTypeClass(g:GenericType[1]):Class<Any>[1];
 
 
 ###Pure
@@ -225,6 +361,13 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::propert
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/enum/enumName.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::enumName<T>(enum:Enumeration<T>[1]):String[1];
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/function/functionType.pure
 import meta::pure::test::pct::*;
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::functionType(f:Function<Any>[1]):FunctionType[1]
@@ -232,6 +375,13 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::functio
    assert($f->instanceOf(FunctionDefinition) || $f->instanceOf(NativeFunction), | 'functionType is not supported yet for this subtype of function '+$f->type()->id());
    $f.classifierGenericType->toOne().typeArguments->at(0).rawType->toOne()->cast(@FunctionType);
 }
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/generalizations.pure
+import meta::pure::functions::meta::tests::generalizations::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::generalizations(class:Type[1]):Type[1..*];
 
 
 ###Pure
@@ -245,6 +395,23 @@ function
    let generalisations = $class.generalizations->map(g | $g.general->cast(@GenericType).rawType->toOne()->getAllTypeGeneralisations());
    $class->concatenate($generalisations);
 }
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/subtypeOf.pure
+import meta::pure::functions::meta::tests::subTypeOf::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::subTypeOf(subType:Type[1], superType:Type[1]):Boolean[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/string/index/lastIndexOf.pure
+function meta::pure::functions::string::lastIndexOf(str:String[1], toFind:String[1]):Integer[1]
+{
+    $str->lastIndexOf($toFind, $str->length() - $toFind->length());
+}
+
+native function meta::pure::functions::string::lastIndexOf(str:String[1], toFind:String[1], fromIndex:Integer[1]):Integer[1];
 
 
 ###Pure
@@ -359,6 +526,8 @@ Class meta::pure::test::pct::PCTManifest
     exclusions : Map<Function<Any>,String>[1];     // test function to expected error message
 }
 
+native function meta::pure::test::pct::loadPCTManifest(manifestPath:String[1]): PCTManifest[1];
+
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/surveyor.pure
@@ -389,6 +558,10 @@ Class meta::pure::test::surveyor::TestReport
     errorCount    : Integer[1];
     skipCount     : Integer[1];
 }
+
+native function <<access.private>> meta::pure::test::surveyor::executeTest(testFn:Function<{->Any[*]}>[1]): TestResult[1];
+
+native function <<access.private>> meta::pure::test::surveyor::executePCTTest(testFn:Function<Any>[1], adapter:Function<Any>[1], exclusions:Map<Function<Any>,String>[1]): TestResult[1];
 
 function meta::pure::test::surveyor::runTests(pkg:PackageableElement[1], filter:String[1]): TestReport[1]
 {
@@ -574,10 +747,45 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::tools::indent(d:DebugCon
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tools/debug/noDebug.pure
+import meta::pure::test::pct::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::tools::noDebug():DebugContext[1]
+{
+   ^DebugContext(debug=false, space='');
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/executionPlan.pure
 Class meta::pure::executionPlan::PlanVariablePlaceHolder
 {
     name : String[1];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/lang/creation/copy.pure
+import meta::pure::test::pct::*;
+import meta::pure::functions::lang::tests::model::*;
+native function
+    <<PCT.function, PCT.platformOnly>>
+    {
+        doc.doc='Build a copy of an instance, potentially modifying property values.',
+        PCT.grammarDoc='^$object()',
+        PCT.grammarCharacters='^$'
+    }
+    meta::pure::functions::lang::copy<T>(object:T[1], id:String[1], keyExpressions:KeyExpression[*]):T[1];
+
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::copy<T>(object:T[1], id:String[1]):T[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/lang/enum/extractEnumValue.pure
+import meta::pure::test::pct::*;
+import meta::pure::functions::lang::tests::model::*;
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::extractEnumValue<T>(enum:Enumeration<T>[1], value:String[0..1]):T[0..1]
+{
+    if ($value->isEmpty(), | [], | $enum->extractEnumValue($value->toOne()));
 }
 
 
@@ -829,6 +1037,11 @@ Class meta::pure::functions::relation::FrameIntervalValue extends meta::pure::fu
 
 Class meta::pure::functions::relation::UnboundedFrameValue extends meta::pure::functions::relation::FrameValue
 {
+}
+
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::relation::unbounded():meta::pure::functions::relation::UnboundedFrameValue[1]
+{
+    ^meta::pure::functions::relation::UnboundedFrameValue();
 }
 
 
@@ -1379,6 +1592,12 @@ function meta::pure::mapping::findSubstituteStore(_this:Mapping[1], store:Store[
     $_this.includes->fold({inc:MappingInclude[1], sub:Store[0..1] | if($sub->isEmpty(), |$inc->findSubstituteStore($store), |$sub)}, [])
 }
 
+function meta::pure::mapping::resolveStore(_this:Mapping[1], store:Store[1]):Store[1]
+{
+    let substitute = $_this->findSubstituteStore($store);
+    if($substitute->isEmpty(), |$store, |$substitute->toOne());
+}
+
 function meta::pure::mapping::allSuperSetImplementationIds(_this:Mapping[1], id : String[1]):String[*]
 {
     let setImplementation = $_this->classMappingById($id);
@@ -1786,6 +2005,8 @@ Class meta::pure::metamodel::relation::TDS<T> extends meta::pure::metamodel::rel
     csv : String[1];
 }
 
+native function meta::pure::metamodel::relation::stringToTDS(s:String[1]):meta::pure::metamodel::relation::TDS<Any>[1];
+
 Class meta::pure::metamodel::relation::TDSRelationAccessor<T> extends meta::pure::metamodel::relation::RelationElementAccessor<T> // sourceElement is of type TDS<T>
 {
 }
@@ -1803,6 +2024,18 @@ import meta::relational::mapping::*;
 import meta::relational::metamodel::*;
 import meta::relational::metamodel::join::*;
 import meta::pure::mapping::*;
+native function meta::relational::metamodel::execute::loadValuesToDbTable(tableData:List<List<Any>>[*], table:Table[1], databaseConnection:DatabaseConnection[1]):Nil[0];
+
+native function meta::relational::metamodel::execute::loadValuesToDbTable(tableData:List<List<Any>>[1], table:Table[1], databaseConnection:DatabaseConnection[1]):Nil[0];
+
+native function meta::relational::metamodel::execute::fetchDbImportedKeysMetaData(databaseConnection:DatabaseConnection[1], schemaPattern:String[0..1], tableName:String[1]):ResultSet[1];
+
+native function meta::relational::metamodel::execute::createTempTable(tableName:String[1], cols:Column[*], sql:meta::pure::metamodel::function::Function<{String[1], Column[*], DatabaseType[1]->String[1]}>[1], databaseConnection:DatabaseConnection[1]):Nil[0];
+
+native function meta::relational::metamodel::execute::createTempTable(tableName:String[1], cols:Column[*], sql:meta::pure::metamodel::function::Function<{String[1], Column[*], DatabaseType[1]->String[1]}>[1], relyOnFinallyForCleanup:Boolean[1], databaseConnection:DatabaseConnection[1]):Nil[0];
+
+native function meta::relational::metamodel::execute::dropTempTable(tableName:String[1], databaseConnection:DatabaseConnection[1]):Nil[0];
+
 function meta::relational::metamodel::datatype::dataTypeToCompatiblePureType(type: meta::relational::metamodel::datatype::DataType[1]):Type[1]
 {
     $type->match([
@@ -2745,6 +2978,11 @@ Class <<typemodifiers.abstract>> meta::external::store::relational::runtime::Rel
 
 
 ###Pure
+// legend-pure/legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational/runtimeLogging.pure
+native function meta::pure::functions::io::logActivities(activities: meta::pure::mapping::Activity[*]):Nil[0];
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/binding.pure
 import meta::external::format::shared::binding::*;
 import meta::external::format::shared::metamodel::*;
@@ -3663,24 +3901,6 @@ Class meta::pure::graphFetch::routing::StoreMappingClusteredGraphFetchTree exten
 
 
 ###Pure
-// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/runtime/runtimeExtension.pure
-import meta::core::runtime::*;
-import meta::pure::store::*;
-import meta::pure::mapping::*;
-import meta::external::store::model::*;
-Class meta::core::runtime::EngineRuntime extends Runtime
-{
-  mappings: Mapping[*];
-// NOTE: we don't need to process the rest of engine runtime for now
-}
-
-Class meta::pure::runtime::PackageableRuntime extends PackageableElement
-{
-   runtimeValue: meta::core::runtime::EngineRuntime[1];
-}
-
-
-###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/serialization/toPureGrammar.pure
 import meta::pure::router::utils::*;
 import meta::pure::router::metamodel::clustering::*;
@@ -4450,20 +4670,6 @@ Class meta::relational::metamodel::data::RelationalCSVTable
 
 
 ###Pure
-// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/cteExtractionPostProcessor.pure
-import meta::core::runtime::*;
-import meta::pure::functions::collection::*;
-import meta::pure::mapping::*;
-import meta::relational::mapping::*;
-import meta::relational::metamodel::*;
-import meta::relational::runtime::*;
-import meta::relational::metamodel::join::*;
-import meta::relational::metamodel::relation::*;
-import meta::relational::postProcessor::cteExtraction::*;
-Class meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor extends meta::pure::alloy::connections::PostProcessor {}
-
-
-###Pure
 // legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/defaultPostProcessor/dbSpecificProcessor.pure
 import meta::pure::alloy::connections::*;
 import meta::external::store::relational::runtime::*;
@@ -5063,9 +5269,11 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 466 classes, 18 enums, 75 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
-// PLATFORM-OWNED NAMES — library functions whose name the platform implements (a registered
-// native or an operator special form: the native IS the definition, Pure.java); not carried:
+// 463 classes, 18 enums, 119 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// RESPELLED NATIVES — 31 upstream `native function` declarations the platform does not implement (carried so they
+// resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
+// PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
+// a registered lowering, a family enum, a wall) or an operator special form; not carried:
 //   meta::pure::functions::asserts::assert
 //   meta::pure::functions::asserts::assertContains
 //   meta::pure::functions::asserts::assertEmpty
@@ -5081,39 +5289,159 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::asserts::assertSameElements
 //   meta::pure::functions::asserts::assertSize
 //   meta::pure::functions::asserts::fail
+//   meta::pure::functions::boolean::and
+//   meta::pure::functions::boolean::eq
+//   meta::pure::functions::boolean::equal
 //   meta::pure::functions::boolean::greaterThan
 //   meta::pure::functions::boolean::greaterThanEqual
+//   meta::pure::functions::boolean::is
 //   meta::pure::functions::boolean::lessThan
 //   meta::pure::functions::boolean::lessThanEqual
+//   meta::pure::functions::boolean::not
+//   meta::pure::functions::boolean::or
+//   meta::pure::functions::collection::add
+//   meta::pure::functions::collection::at
+//   meta::pure::functions::collection::concatenate
 //   meta::pure::functions::collection::contains
+//   meta::pure::functions::collection::drop
+//   meta::pure::functions::collection::exists
+//   meta::pure::functions::collection::filter
+//   meta::pure::functions::collection::find
+//   meta::pure::functions::collection::first
+//   meta::pure::functions::collection::fold
+//   meta::pure::functions::collection::forAll
+//   meta::pure::functions::collection::get
+//   meta::pure::functions::collection::getAll
+//   meta::pure::functions::collection::getAllVersions
+//   meta::pure::functions::collection::getAllVersionsInRange
+//   meta::pure::functions::collection::groupBy
 //   meta::pure::functions::collection::head
+//   meta::pure::functions::collection::indexOf
+//   meta::pure::functions::collection::init
 //   meta::pure::functions::collection::isEmpty
 //   meta::pure::functions::collection::isNotEmpty
+//   meta::pure::functions::collection::keyValues
+//   meta::pure::functions::collection::keys
+//   meta::pure::functions::collection::last
 //   meta::pure::functions::collection::list
+//   meta::pure::functions::collection::map
+//   meta::pure::functions::collection::newMap
 //   meta::pure::functions::collection::pair
+//   meta::pure::functions::collection::put
+//   meta::pure::functions::collection::putAll
 //   meta::pure::functions::collection::range
 //   meta::pure::functions::collection::removeDuplicates
 //   meta::pure::functions::collection::removeDuplicatesBy
+//   meta::pure::functions::collection::replaceTreeNode
+//   meta::pure::functions::collection::reverse
+//   meta::pure::functions::collection::size
+//   meta::pure::functions::collection::slice
 //   meta::pure::functions::collection::sort
+//   meta::pure::functions::collection::tail
+//   meta::pure::functions::collection::take
+//   meta::pure::functions::collection::values
+//   meta::pure::functions::collection::zip
+//   meta::pure::functions::date::adjust
+//   meta::pure::functions::date::date
+//   meta::pure::functions::date::dateDiff
+//   meta::pure::functions::date::datePart
+//   meta::pure::functions::date::dayOfMonth
+//   meta::pure::functions::date::hasDay
+//   meta::pure::functions::date::hasHour
+//   meta::pure::functions::date::hasMinute
+//   meta::pure::functions::date::hasMonth
+//   meta::pure::functions::date::hasSecond
+//   meta::pure::functions::date::hasSubsecond
+//   meta::pure::functions::date::hasSubsecondWithAtLeastPrecision
+//   meta::pure::functions::date::hour
+//   meta::pure::functions::date::minute
+//   meta::pure::functions::date::monthNumber
+//   meta::pure::functions::date::second
+//   meta::pure::functions::date::year
 //   meta::pure::functions::io::print
 //   meta::pure::functions::io::println
+//   meta::pure::functions::lang::cast
+//   meta::pure::functions::lang::compare
+//   meta::pure::functions::lang::dynamicNew
+//   meta::pure::functions::lang::eval
 //   meta::pure::functions::lang::extractEnumValue
 //   meta::pure::functions::lang::if
-//   meta::pure::functions::meta::_subTypeOf
+//   meta::pure::functions::lang::letFunction
+//   meta::pure::functions::lang::match
+//   meta::pure::functions::lang::new
+//   meta::pure::functions::lang::toMultiplicity
+//   meta::pure::functions::math::abs
+//   meta::pure::functions::math::acos
+//   meta::pure::functions::math::asin
+//   meta::pure::functions::math::atan
+//   meta::pure::functions::math::atan2
+//   meta::pure::functions::math::cbrt
+//   meta::pure::functions::math::ceiling
+//   meta::pure::functions::math::cos
+//   meta::pure::functions::math::cot
+//   meta::pure::functions::math::divide
+//   meta::pure::functions::math::exp
+//   meta::pure::functions::math::floor
+//   meta::pure::functions::math::log
+//   meta::pure::functions::math::log10
+//   meta::pure::functions::math::minus
+//   meta::pure::functions::math::mod
+//   meta::pure::functions::math::plus
+//   meta::pure::functions::math::pow
+//   meta::pure::functions::math::rem
+//   meta::pure::functions::math::round
+//   meta::pure::functions::math::sign
+//   meta::pure::functions::math::sin
+//   meta::pure::functions::math::sqrt
+//   meta::pure::functions::math::tan
+//   meta::pure::functions::math::times
+//   meta::pure::functions::math::toDecimal
+//   meta::pure::functions::math::toFloat
+//   meta::pure::functions::meta::addColumns
+//   meta::pure::functions::meta::deactivate
 //   meta::pure::functions::meta::elementToPath
-//   meta::pure::functions::meta::getHiddenPayload
-//   meta::pure::functions::meta::lenientPathToElement
-//   meta::pure::functions::meta::pathToElement
-//   meta::pure::functions::meta::reactivate
+//   meta::pure::functions::meta::enumValues
+//   meta::pure::functions::meta::evaluateAndDeactivate
+//   meta::pure::functions::meta::genericType
+//   meta::pure::functions::meta::id
+//   meta::pure::functions::meta::instanceOf
+//   meta::pure::functions::meta::newUnit
+//   meta::pure::functions::meta::sourceInformation
+//   meta::pure::functions::meta::stereotype
 //   meta::pure::functions::meta::type
-//   meta::pure::functions::relation::unbounded
+//   meta::pure::functions::multiplicity::toOne
+//   meta::pure::functions::multiplicity::toOneMany
+//   meta::pure::functions::string::contains
+//   meta::pure::functions::string::endsWith
+//   meta::pure::functions::string::format
+//   meta::pure::functions::string::indexOf
 //   meta::pure::functions::string::joinStrings
-//   meta::pure::functions::string::lastIndexOf
+//   meta::pure::functions::string::length
+//   meta::pure::functions::string::ltrim
+//   meta::pure::functions::string::parseBoolean
+//   meta::pure::functions::string::parseDate
+//   meta::pure::functions::string::parseDecimal
+//   meta::pure::functions::string::parseFloat
+//   meta::pure::functions::string::parseInteger
 //   meta::pure::functions::string::plus
+//   meta::pure::functions::string::replace
+//   meta::pure::functions::string::reverseString
+//   meta::pure::functions::string::rtrim
+//   meta::pure::functions::string::split
+//   meta::pure::functions::string::startsWith
+//   meta::pure::functions::string::substring
+//   meta::pure::functions::string::toLower
 //   meta::pure::functions::string::toRepresentation
-//   meta::pure::mapping::resolveStore
+//   meta::pure::functions::string::toString
+//   meta::pure::functions::string::toUpper
+//   meta::pure::functions::string::trim
 //   meta::pure::metamodel::relation::newTDSRelationAccessor
-//   meta::pure::tools::noDebug
+//   meta::relational::metamodel::execute::executeInDb
+//   meta::relational::metamodel::execute::fetchDbColumnsMetaData
+//   meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData
+//   meta::relational::metamodel::execute::fetchDbSchemasMetaData
+//   meta::relational::metamodel::execute::fetchDbTablesMetaData
+//   meta::relational::metamodel::execute::loadCsvToDbTable
 //   meta::relational::metamodel::filter
 //   meta::relational::metamodel::join
 // SYSTEM-OWNED FUNCTIONS — library functions the system metamodel implements over its
@@ -5140,7 +5468,6 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::relational::metamodel::view
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
-//   meta::core::runtime::EngineRuntime
 //   meta::external::format::shared::ExternalFormatContract
 //   meta::external::format::shared::ExternalFormatExternalizeConfig
 //   meta::external::format::shared::ExternalFormatFromPureDescriptor
@@ -5220,7 +5547,6 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::router::metamodel::clustering::ClusteredValueSpecification
 //   meta::pure::router::routing::PropertyMap
 //   meta::pure::router::routing::RoutingState
-//   meta::pure::runtime::PackageableRuntime
 //   meta::pure::store::StoreContract
 //   meta::pure::tds::ColumnSpecification
 //   meta::pure::tds::OlapOperation
@@ -5273,7 +5599,6 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::relational::metamodel::VariableDeclaration
 //   meta::relational::metamodel::data::RelationalCSVData
 //   meta::relational::metamodel::data::RelationalCSVTable
-//   meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor
 //   meta::relational::runtime::RelationalExecutionContext
 //   meta::relational::testDataGeneration::RowIdentifier
 //   meta::relational::testDataGeneration::TableRowIdentifiers

@@ -239,8 +239,13 @@ class LowerRelationTest {
     @Test
     @DisplayName("unregistered scalar overload fails LOUDLY naming the signature")
     void unregisteredOverloadThrows() {
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        // removeAllOptimized LEFT Pure.java (upstream boundary batch 4): the
+        // prelude carries upstream's native declaration respelled, so the
+        // call resolves and type-checks and fails at lowering as NOT
+        // IMPLEMENTED, naming the function — the catalog registration bug
+        // (IllegalState) is PipelineStageFailureTest.unregisteredScalar's
+        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
                 () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|"
                         + "['a','b']->removeAllOptimized(['a'])->size() > 1)"));
         org.junit.jupiter.api.Assertions.assertTrue(

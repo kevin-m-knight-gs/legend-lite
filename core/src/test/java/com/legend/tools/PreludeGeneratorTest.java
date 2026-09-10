@@ -402,13 +402,41 @@ class PreludeGeneratorTest {
         // legend-pure's meta::pure::tds::join captured the corpus's bare
         // join calls from the built-in join)
         Set<String> platformOwnedNames = new TreeSet<>();
+        // THE EXCLUSION RULE KEYS ON CLAIMS (upstream boundary batch 4, D3):
+        // the bare names the registry CLAIMS (com.legend.claims.Claims — the
+        // four lowering registries, CoreFn, the walls, IMPLEMENTATION_KIND,
+        // the family enums) plus the CoreFn forms — not "a signature exists in
+        // Pure.java". A Pure.java entry nothing implements no longer
+        // suppresses upstream's working body: it left Pure.java, or it is
+        // UNCLAIMED and the ledger says so. An upstream NATIVE is owned by the
+        // platform only when Pure.java declares that exact FQN (a respelled
+        // twin of a catalog native would be an ambiguous 2-candidate tie).
+        Set<String> claimedNames = com.legend.claims.Claims.claimedBareNames();
+        Set<String> respelledNatives = new TreeSet<>();
         for (PlatformFunction pf : platformFunctions(platformRoots, functionWalls)) {
             if (com.legend.builtin.SystemMetamodel.elementFqns().contains(pf.fqn())) {
                 systemOwnedFunctions.add(pf.fqn());
                 continue;
             }
             String simple = pf.fqn().substring(pf.fqn().lastIndexOf(':') + 1);
-            if (!com.legend.builtin.Pure.nativeFunctionsAt(simple).isEmpty()
+            if (pf.nativeDecl()) {
+                // a native is platform-owned when Pure.java declares that exact
+                // FQN, OR when its NAME is a claimed one or a CoreFn language
+                // form (`new`, `cast`, `copy`… have no Pure.java signature: the
+                // Typer owns them as forms — first landing of batch 4 carried
+                // upstream's `native function new` and it captured every
+                // ^Class(...) in the corpus: 2,436 tests red)
+                if (!com.legend.builtin.Pure.nativeFunctionsAt(pf.fqn()).isEmpty()
+                        || claimedNames.contains(simple)
+                        || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
+                    platformOwnedNames.add(pf.fqn());
+                    continue;
+                }
+                respelledNatives.add(pf.fqn());
+                platformFunctions.add(pf);
+                continue;
+            }
+            if (claimedNames.contains(simple)
                     || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
                 platformOwnedNames.add(pf.fqn());
                 continue;
@@ -526,9 +554,12 @@ class PreludeGeneratorTest {
         sb.append("// ").append(classes).append(" classes, ").append(enums).append(" enums, ")
                 .append(functions).append(" functions (legend-pure's platform library, bodied and non-test;")
                 .append(functionWalls.size()).append(" files unparsed, the census's load walls).\n");
+        sb.append("// RESPELLED NATIVES — ").append(respelledNatives.size())
+                .append(" upstream `native function` declarations the platform does not implement (carried so they\n")
+                .append("// resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').\n");
         if (!platformOwnedNames.isEmpty()) {
-            sb.append("// PLATFORM-OWNED NAMES — library functions whose name the platform implements (a registered\n");
-            sb.append("// native or an operator special form: the native IS the definition, Pure.java); not carried:\n");
+            sb.append("// PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:\n");
+            sb.append("// a registered lowering, a family enum, a wall) or an operator special form; not carried:\n");
             for (String f : platformOwnedNames) {
                 sb.append("//   ").append(f).append('\n');
             }
@@ -554,8 +585,9 @@ class PreludeGeneratorTest {
         Set<String> parsedFqns = new TreeSet<>();
         int parsedFunctions = 0;
         for (PackageableElement e : whole.elements()) {
-            if (e instanceof com.legend.model.FunctionDefinition) {
-                parsedFunctions++;   // overloads are distinct elements
+            if (e instanceof com.legend.model.FunctionDefinition
+                    || e instanceof com.legend.model.NativeFunctionDefinition) {
+                parsedFunctions++;   // overloads are distinct elements; respelled natives are functions too (batch 4)
             } else {
                 parsedFqns.add(e.qualifiedName());
             }
@@ -1170,7 +1202,7 @@ class PreludeGeneratorTest {
      * overloads share an FQN), its verbatim text, its spec file and offset,
      * and the wildcard imports of the section it sits in. */
     record PlatformFunction(String key, String fqn, String file, int offset, String text,
-                            List<String> wildcards) {
+                            List<String> wildcards, boolean nativeDecl) {
     }
 
     private static final Pattern IMPORT_LINE = Pattern.compile("(?m)^\\s*import\\s+([A-Za-z0-9_:]+)::\\*;");
@@ -1218,9 +1250,59 @@ class PreludeGeneratorTest {
                     // right after a previous declaration's `;` or `}` (section
                     // headers lex to nothing; `native function` follows NATIVE,
                     // the keyword in `<<PCT.function>>` follows a DOT).
-                    if (depth != 0 || ts.type(k) != TokenType.FUNCTION
-                            || (k > 0 && ts.type(k - 1) != TokenType.SEMI_COLON
-                                    && ts.type(k - 1) != TokenType.BRACE_CLOSE)) {
+                    if (depth != 0) {
+                        continue;
+                    }
+                    boolean atStart = k == 0 || ts.type(k - 1) == TokenType.SEMI_COLON
+                            || ts.type(k - 1) == TokenType.BRACE_CLOSE;
+                    // UPSTREAM NATIVES ARE CARRIED, RESPELLED (upstream boundary
+                    // batch 4, program §0 right column): a `native function`
+                    // declaration at declaration position is sliced from
+                    // `native` to its `;` and parsed like the catalog parses its
+                    // own signatures — so a function upstream declares in Java
+                    // resolves and type-checks here, and fails at LOWERING with
+                    // "not implemented", never as "unknown function". Until
+                    // 2026-09-10 the `native` token in front of `function` made
+                    // the position test fail and every native was dropped.
+                    if (ts.type(k) == TokenType.NATIVE && atStart && k + 1 < ts.count()
+                            && ts.type(k + 1) == TokenType.FUNCTION) {
+                        int semi = k + 1;
+                        while (semi < ts.count() && ts.type(semi) != TokenType.SEMI_COLON) {
+                            semi++;
+                        }
+                        if (semi >= ts.count()) {
+                            throw new IllegalStateException("prelude generator: native declaration"
+                                    + " without ';' at " + f + " token " + k);
+                        }
+                        String slice = text.substring(ts.start(k), ts.end(semi));
+                        com.legend.model.ParsedModel one;
+                        try {
+                            one = ElementParser.parse(slice, Dialect.LEGEND_PLATFORM);
+                        } catch (com.legend.parser.ParseException e) {
+                            throw new IllegalStateException("prelude generator: native slice at "
+                                    + f + " token " + k + ": " + e.getMessage(), e);
+                        }
+                        if (one.elements().size() != 1
+                                || !(one.elements().get(0) instanceof com.legend.model.NativeFunctionDefinition nfd)) {
+                            throw new IllegalStateException("prelude generator: native slice at " + f
+                                    + " token " + k + " did not parse to one native function");
+                        }
+                        String nfqn = nfd.qualifiedName();
+                        if (!nfqn.contains("::tests::")) {
+                            int nstart = ts.start(k);
+                            int nsectionStart = Math.max(0, text.lastIndexOf("###Pure", nstart));
+                            List<String> nwildcards = new ArrayList<>();
+                            Matcher nim = IMPORT_LINE.matcher(text.substring(nsectionStart, nstart));
+                            while (nim.find()) {
+                                nwildcards.add(nim.group(1));
+                            }
+                            out.add(new PlatformFunction(nfqn + "#" + nstart, nfqn, f.toString(), nstart,
+                                    slice, nwildcards, true));
+                        }
+                        k = semi;
+                        continue;
+                    }
+                    if (ts.type(k) != TokenType.FUNCTION || !atStart) {
                         continue;
                     }
                     ElementParser p = ElementParser.at(ts, k, Dialect.LEGEND_PLATFORM);
@@ -1250,7 +1332,7 @@ class PreludeGeneratorTest {
                         wildcards.add(im.group(1));
                     }
                     out.add(new PlatformFunction(fqn + "#" + start, fqn, f.toString(), start,
-                            text.substring(start, ts.end(p.pos() - 1)), wildcards));
+                            text.substring(start, ts.end(p.pos() - 1)), wildcards, false));
                 }
             }
         }
