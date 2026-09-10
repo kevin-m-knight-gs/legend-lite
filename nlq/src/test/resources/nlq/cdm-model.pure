@@ -2572,7 +2572,6 @@ Enum observable::PriceTypeEnum
     ExchangeRate,
     InterestRate,
     provision,
-    provision,
     Variance,
     Volatility
 }
