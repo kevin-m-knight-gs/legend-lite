@@ -98,49 +98,54 @@ skipped() {
 # Only docs/RELATIONAL_CORPUS.md may change during a chain (G4 writes it).
 TREE0=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
 
-if want 1; then
-  g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
-  g "       so a warm target/ silently no-ops the null gate)"
-  # $R1/$R2 here too: the suite reads the spec checkouts (PreludeGeneratorTest
-  # regenerates prelude.pure from them; SpecBodyCensusTest's typing census is a
-  # shrink-only pin over legend-pure). They used to fall back to a literal
-  # /Users/... default, so a bare runner failed or assume-skipped them.
-  mvn ${OFF[@]+"${OFF[@]}"} -pl core clean test "$R1" "$R2" > "$OUT/g1.out" 2>&1
-  G1_EXIT=$?
-  rec 1 $G1_EXIT; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
-  # G1 FAILS FAST (user directive 2026-08-29): the core suite is the
-  # "does the code even work" gate — when it is red the same broken
-  # jar feeds every later gate and their results are noise. G2-G9 keep
-  # collect-all semantics (scan ALL tripped registers in one pass);
-  # only G1 aborts the chain.
-  if [ "$G1_EXIT" -ne 0 ]; then
-    echo "ALLGATES_DONE — FAILED: G1 (fail-fast; later gates skipped)" >> "$L"
-    echo "ALLGATES_DONE — FAILED: G1 (fail-fast; later gates skipped)  (detail: $L)" >&2
-    cp "$OUT/g1.out" "${L%.log}.g1.out" 2>/dev/null
-    exit 1
-  fi
-fi
-
-if want 2; then
-  g "GATE2 core install (the ROOT POM TOO: -pl .,core)"
-  # `-pl core` alone installs legend-lite-core and NOT its parent
-  # org.finos.legend:legend-lite:pom. The pct module builds standalone
-  # (`cd pct && mvn ...`), so it resolves that parent from the repository —
-  # and on a machine whose ~/.m2 never saw a full `mvn install`, gates 6, 7
-  # and 9 die in dependency collection before a single test runs
-  # ("Could not find artifact org.finos.legend:legend-lite:pom"). It has
-  # always been latent here; every local ~/.m2 had the parent from some
-  # earlier full install, and CI's cold repository is what exposed it
-  # (2026-09-09, first real CI run). Gate 8 was never affected: `-am`
-  # already pulls the parent into its reactor.
-  mvn ${OFF[@]+"${OFF[@]}"} -pl .,core install -DskipTests > "$OUT/g2.out" 2>&1
-  rec 2 $?
+# THE BUILD — ONE compile of core per chain, ALWAYS, before any suite.
+#
+# It was three: gate 1 `clean test`, gate 2 `install`, and gate 8's `-am clean`.
+# Nothing downstream needs core's TESTS to have passed, only its JAR, so the
+# build is hoisted out and everything reads the single result: core's own
+# suites use core/target directly (never cleaned after this), while pct and
+# parser-equivalence resolve the installed jar from ~/.m2.
+#
+# CLEAN is load-bearing HERE now: NullAway binds to default-compile, so a warm
+# target/ silently no-ops the null gate. Verified 2026-09-10 by injecting a
+# `return null` into a @NonNull method — this step failed with the NullAway
+# error, so the gate still fires from its new home.
+#
+# `-pl .,core` installs the PARENT POM too: pct builds standalone and resolves
+# it from the repository (CI's cold ~/.m2 caught that, 2026-09-09).
+#
+# It runs even for a single-gate selection, and that is a FIX, not overhead:
+# `GATES=6` used to run pct against whatever jar happened to be installed. The
+# `-am` on gate 8 guarded exactly that hazard for one gate and left it open for
+# the three pct gates. Building first closes it for all of them.
+g "BUILD core once (clean compile = the null gate; install = what pct and"
+g "      parser-equivalence resolve)"
+mvn ${OFF[@]+"${OFF[@]}"} -pl .,core clean install -DskipTests > "$OUT/g2.out" 2>&1
+BUILD_EXIT=$?
+rec 2 $BUILD_EXIT
+if [ "$BUILD_EXIT" -ne 0 ]; then
+  echo "ALLGATES_DONE — FAILED: BUILD (nothing can be trusted without it)" >> "$L"
+  echo "ALLGATES_DONE — FAILED: BUILD  (detail: $L)" >&2
+  cp "$OUT/g2.out" "${L%.log}.g2.out" 2>/dev/null
+  exit 1
 fi
 
 # GATE3 (engine suite) folded into GATE1 — the engine module is deleted and
 # its behavioral tests live in core's suite (com.legend.integration).
 
-if want 4; then
+gate1() {
+  if ! want 1; then return 0; fi
+  g "GATE1 core suite (the SUITE only — THE BUILD compiled main and ran the"
+  g "      null gate; a second clean here would just redo that work)"
+  # $R1/$R2: the suite reads the spec checkouts (PreludeGeneratorTest
+  # regenerates prelude.pure from them; SpecBodyCensusTest's typing census is
+  # a shrink-only pin over legend-pure).
+  mvn ${OFF[@]+"${OFF[@]}"} -pl core test "$R1" "$R2" > "$OUT/g1.out" 2>&1
+  rec 1 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
+}
+
+gate4() {
+  if ! want 4; then return 0; fi
   if ! roots_present; then
     echo "G4 NOT RUN — legend-engine checkout absent. NOT a pass." >> "$L"
     rec 4 1
@@ -155,9 +160,10 @@ if want 4; then
   # moved pin's assertion is in there, and re-running the lane to read
   # it cost a full sweep per pin (2026-09-02)
   fi
-fi
+}
 
-if want 5; then
+gate5() {
+  if ! want 5; then return 0; fi
   if ! roots_present; then
     echo "G5 NOT RUN — legend-engine checkout absent. NOT a pass." >> "$L"
     rec 5 1
@@ -169,9 +175,10 @@ if want 5; then
   fi
   rec 5 $G5; grep -E "EXACT|h2|Tests run: [0-9]+, Fail" "$OUT/g5.out" | tail -3 >> "$L"
   fi
-fi
+}
 
-if want 6; then
+gate6() {
+  if ! want 6; then return 0; fi
   g "GATE6 PCT full DuckDB (the five PCT suites; Channel B runs ONCE, in G9)"
   # $R1 AND $R2 are REQUIRED: the Standard/Relation/Unclassified scopes
   # read the REAL legend-engine trees at legend.engine.root; without the
@@ -182,13 +189,14 @@ if want 6; then
   # inputs — ~13s of duplicate work per chain); G9 is their one run.
   ( cd pct && mvn ${OFF[@]+"${OFF[@]}"} clean test -Dtest='!ChannelB*' "$R1" "$R2" ) > "$OUT/g6.out" 2>&1
   rec 6 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g6.out" | tail -1 >> "$L"
-fi
+}
 
 # Ledger: 348 run, <=1 failure, <=22 errors. CEILINGS, not equality — the old
 # `grep -q "Tests run: 348, Failures: 1, Errors: 22"` went RED the moment you
 # fixed one of the 22. Lower these numbers when you earn it.
 G7_MIN_RUN=348; G7_MAX_FAIL=1; G7_MAX_ERR=22
-if want 7; then
+gate7() {
+  if ! want 7; then return 0; fi
   g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"
   ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn ${OFF[@]+"${OFF[@]}"} test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 "$R1" "$R2" ) > "$OUT/g7.out" 2>&1
   # Anchor on the SUITE line, not `tail -1`. Surefire prints a trailing
@@ -210,9 +218,10 @@ if want 7; then
     echo "G7 no surefire summary found — treating as failure" >> "$L"
   fi
   rec 7 $G7; echo "${G7_LINE:-<no summary>}" >> "$L"
-fi
+}
 
-if want 9; then
+gate9() {
+  if ! want 9; then return 0; fi
   if ! roots_present; then
     echo "G9 NOT RUN — upstream checkout absent. NOT a pass." >> "$L"
     rec 9 1
@@ -235,17 +244,20 @@ if want 9; then
   rec 9 $G9; echo "${G9_LINE:-<no summary>}" >> "$L"
   grep -hE "census=|canon: " "$OUT/g9.out" | head -10 >> "$L"
   fi
-fi
+}
 
-if want 8; then
+gate8() {
+  if ! want 8; then return 0; fi
   if ! roots_present; then
     echo "G8 NOT RUN — upstream checkout absent. NOT a pass." >> "$L"
     rec 8 1
   else
   g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
-  # -am is REQUIRED: without it Maven resolves legend-lite-core from ~/.m2,
-  # not the reactor, so GATES=8 alone silently A/Bs the previously installed
-  # jar. Relying on GATE2 having run first institutionalises hazard #1.
+  # `-am` is GONE (2026-09-10). It existed so GATES=8 alone could not A/B a
+  # previously installed jar — but THE BUILD now runs before every selection,
+  # so the installed jar is always this tree's. Dropping it stops gate 8
+  # rebuilding core (measured: same 40 tests, 71s -> 59s) and takes gate 8 out
+  # of core/target, which is what lets it run beside the other streams.
   # CLEAN is load-bearing here too: a warm target/ runs test classes
   # compiled against the PREVIOUS core jar (stale-class NoSuchMethodError,
   # or worse, stale tests silently passing old behavior)
@@ -263,7 +275,7 @@ if want 8; then
   # oracle-pin bump, parser/protocol/census-code change. The gate
   # roster below = every ASSERTING parity class; nothing sits outside
   # some roster.
-  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am clean test \
+  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence clean test \
       -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest,GenerativeDualParseTest,PctParseCensusTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?
@@ -294,6 +306,55 @@ if want 8; then
   sed -n '3,9p' parser-equivalence/target/spi-seam-report.txt >> "$L" 2>/dev/null
   sed -n '3,5p' parser-equivalence/target/section-sentinel-report.txt >> "$L" 2>/dev/null
   fi
+}
+
+# ---- THE STREAMS -------------------------------------------------------
+# Suites conflict exactly when they write the same directory, so the safe
+# decomposition is three groups and no finer:
+#
+#   A  core/target               gate 1, gate 4, gate 5
+#   B  pct/target                gate 6, gate 7, gate 9
+#   C  parser-equivalence/target gate 8   (only since it dropped -am)
+#
+# Gates 4 and 5 both write target/corpus2-{pass,fail,skipped}.txt at FIXED
+# paths and share one surefire-reports dir, which is why core's three suites
+# stay sequential rather than splitting further.
+#
+# SEQUENTIAL BY DEFAULT. GATES_PARALLEL=1 runs the three streams at once,
+# which is only sound because THE BUILD already ran: every stream reads a
+# finished artifact and none of them writes another's directory. Set it on a
+# machine with cores and RAM to spare; the old warning stands otherwise, and
+# concurrent heavy JVMs on a small box get killed.
+stream() {
+  local name=$1; shift
+  for fn in "$@"; do "$fn"; done
+  return 0
+}
+
+if [ "${GATES_PARALLEL:-0}" = "1" ]; then
+  echo "streams: A(1,4,5) B(6,7,9) C(8) in PARALLEL" >> "$L"
+  # Each stream is a subshell with its OWN log. Three writers appending to one
+  # file can tear a line, and the verdict below is derived from those lines —
+  # so they are kept apart and concatenated in a fixed order afterwards, which
+  # also makes the log read the same every run. The subshell's own G_T0 keeps
+  # each gate's timing honest.
+  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate4 gate5 ) &
+  PA=$!
+  ( L="$OUT/stream-B.log"; : > "$L"; stream B gate6 gate7 gate9 ) &
+  PB=$!
+  ( L="$OUT/stream-C.log"; : > "$L"; stream C gate8 ) &
+  PC=$!
+  wait $PA; wait $PB; wait $PC
+  cat "$OUT/stream-A.log" "$OUT/stream-B.log" "$OUT/stream-C.log" >> "$L" 2>/dev/null
+  # a subshell cannot mutate the parent's FAILED array, so rebuild it from the
+  # verdict lines the streams wrote
+  FAILED=()
+  while read -r n; do FAILED+=("G$n"); done < <(
+    grep -E "^G[0-9]+_EXIT=[1-9]" "$L" | sed -E 's/^G([0-9]+)_EXIT=.*/\1/')
+else
+  stream A gate1 gate4 gate5
+  stream B gate6 gate7 gate9
+  stream C gate8
 fi
 
 # EVERY gate's output is kept, GREEN INCLUDED (2026-09-09). Only G4/G5 were

@@ -1072,3 +1072,57 @@ replicates with the configs alternated to keep cache warmth off one arm.
 so a developer machine shares forks without passing anything. To reproduce a
 macOS-runner failure locally, pass `-Dpct.reuseForks=false` with
 `JAVA_TOOL_OPTIONS=-Xmx4g`.
+
+## Build once, three streams — 2026-09-10
+
+The chain built core **three times**: gate 1's `clean test`, gate 2's
+`install`, and gate 8's `-am clean`. Nothing downstream needs core's TESTS to
+have passed — only its JAR — so the build is hoisted out and runs once, always,
+before any suite.
+
+**What each consumer actually reads.** Core's own suites (1, 4, 5) use
+`core/target` directly, which THE BUILD compiled and nothing cleans afterwards.
+`pct` and `parser-equivalence` resolve the installed jar from `~/.m2` (verified
+with `dependency:build-classpath`). One compile, consumed two ways.
+
+**A staleness hole this closed.** `-am` existed so `GATES=8` alone could not
+A/B a previously installed jar — but the three PCT gates had the SAME exposure
+and no guard: `cd pct` resolves `~/.m2`, and nothing required gate 2 to have
+run. Building before every selection closes it for all four, and lets gate 8
+drop `-am` (same 40 tests, 71s → 61s, and it leaves `core/target` entirely).
+
+**The null gate still fires**, from its new home. Verified by injecting
+`return null` into a `@NonNull` method: THE BUILD failed with the NullAway
+error, and the source was reverted. A warm `target/` would no-op the check,
+which is why THE BUILD cleans and no later gate does.
+
+**The streams.** Suites conflict exactly when they write the same directory:
+
+| stream | writes | gates |
+|---|---|---|
+| A | `core/target` | 1, 4, 5 |
+| B | `pct/target` | 6, 7, 9 |
+| C | `parser-equivalence/target` | 8 |
+
+Gates 4 and 5 both write `target/corpus2-{pass,fail,skipped}.txt` at fixed
+paths and share a surefire-reports dir, which is why core's three stay
+sequential rather than splitting further.
+
+**Measured, one sample each:**
+
+| chain | wall |
+|---|---:|
+| before | 362s |
+| build-once, sequential | 354s |
+| build-once, `GATES_PARALLEL=1` | **229s** |
+
+`user` 1029s against `real` 229s — about 4.5x parallelism on 10 cores.
+Contention inflates every gate (gate 8 61s → 116s, gate 6 85s → 134s), so an
+estimate built from sequential times will be optimistic; 157s was predicted and
+229s measured.
+
+**SEQUENTIAL REMAINS THE DEFAULT.** Parallel is opt-in via `GATES_PARALLEL=1`,
+because the standing rule against concurrent heavy JVMs was written from real
+incidents on smaller machines, and three concurrent Maven processes want cores
+and RAM to spare. It is sound only because THE BUILD already ran: every stream
+reads a finished artifact and none writes another's directory.
