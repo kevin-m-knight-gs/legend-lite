@@ -152,8 +152,14 @@ def collect_enum_values():
         ):
             name = m.group(1)
             body = m.group(0)
-            # Extract enum value names (indented identifiers)
-            values = re.findall(r'^\s+(\w+)', body, re.MULTILINE)
+            # Extract enum value names (indented identifiers). This also picks
+            # up the first word of any indented documentation line, which is how
+            # PriceTypeEnum acquired 'provision' twice and made the generated
+            # Pure uncompilable ("Found duplicated value"). A Rosetta enum
+            # cannot declare the same value twice, so a repeat is always scrape
+            # noise; drop it rather than emit an enum that will not compile.
+            # dict.fromkeys dedupes while preserving source order.
+            values = list(dict.fromkeys(re.findall(r'^\s+(\w+)', body, re.MULTILINE)))
             if values:
                 ALL_ENUM_VALUES[name] = values
                 ENUM_TO_DOMAIN[name] = domain
