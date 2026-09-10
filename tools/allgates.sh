@@ -357,6 +357,22 @@ else
   stream C gate8
 fi
 
+# NO VERDICT IS A FAILURE. Rebuilding the verdict from log lines means a gate
+# that never REPORTED looks exactly like a gate that never ran — and in
+# parallel mode a stream killed mid-flight (an OOM on a small box is the
+# obvious way) takes its remaining gates' lines with it. Proven 2026-09-10 on a
+# synthetic log: streams A/B/C dead after gate 1 produced an EMPTY failure list
+# and the chain reported GREEN. So every SELECTED gate must have written a
+# verdict; a missing one is a failure with its own name, never silence.
+# ("A gate script that cannot fail is not a gate" — the rule this restores.)
+for n in 1 4 5 6 7 8 9; do
+  want "$n" || continue
+  grep -qE "^G${n}_EXIT=" "$L" || {
+    echo "G${n} NO VERDICT — its stream did not report (killed? crashed?). NOT a pass." >> "$L"
+    FAILED+=("G${n}(no-verdict)")
+  }
+done
+
 # EVERY gate's output is kept, GREEN INCLUDED (2026-09-09). Only G4/G5 were
 # kept on green and the rest only on failure, so a PASSING gate left no record
 # — and when gate 6 became CI's critical path there was no way to see where its
