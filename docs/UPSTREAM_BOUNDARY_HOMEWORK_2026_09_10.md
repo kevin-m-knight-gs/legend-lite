@@ -1248,8 +1248,9 @@ regex.
 
 ### 3o. Receipts for the feature table and the topology decision (program §2b, §6.3)
 
-**Module topology — measured, not chosen.** `mvn dependency:list` on both jar modules:
-`pct` resolves 142 artifacts, `parser-equivalence` 389, **135 shared, 70 at different
+**Module topology — measured, not chosen.** `tools/classpath-convergence.sh` (the
+authority; a first hand-run said 142/389/135/70 before parsing `test-jar` rows):
+`pct` resolves 144 artifacts, `parser-equivalence` 393, **136 shared, 71 at different
 versions** — 65 legend (the version spread batch 1 removes) and 5 third-party:
 HikariCP 3.4.5 vs 7.0.2, commons-lang3 3.5 vs 3.18.0, deephaven-csv 0.18 vs 0.19, junit
 4.13.1 vs 4.13.2, httpcore 4.4.9 vs 4.4.13. **A first draft said these "persist" after one

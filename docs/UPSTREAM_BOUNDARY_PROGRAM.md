@@ -10,7 +10,7 @@ One thesis, six workstreams, nine batches (0–8). Present tense; no history.
 | [`UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md`](UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md) | the evidence — every measurement and receipt, in order of discovery; §8 is the provenance ledger | you need a number, or how it was measured |
 | [`UPSTREAM_BOUNDARY_FACTS_2026_09_10.md`](UPSTREAM_BOUNDARY_FACTS_2026_09_10.md) | the opening fact sheet that started the homework — superseded, kept for provenance | never, unless tracing a correction |
 | [`NATIVE_CLAIMS_CENSUS_2026_09_10.tsv`](NATIVE_CLAIMS_CENSUS_2026_09_10.tsv) | the 175 registry-unclaimed natives, one row each with class and handler | working batches 3–4 |
-| [`../tools/version-report.sh`](../tools/version-report.sh) · [`../tools/upstream-drift.py`](../tools/upstream-drift.py) · [`../tools/native-axes.py`](../tools/native-axes.py) | the read-only measurement tools; §7 maps each number to its tool | regenerating rather than trusting |
+| [`../tools/version-report.sh`](../tools/version-report.sh) · [`../tools/upstream-drift.py`](../tools/upstream-drift.py) · [`../tools/native-axes.py`](../tools/native-axes.py) · [`../tools/classpath-convergence.sh`](../tools/classpath-convergence.sh) | the read-only measurement tools; §7 maps each number to its tool | regenerating rather than trusting |
 
 Every number in this file is receipted in the homework; every conclusion the homework
 reached that this file overrides is listed in §9.
@@ -184,6 +184,19 @@ exists for; the two trees are `diverged`, 20 ahead / 11 behind, and
 release (today channel A and channel B referee universes 7 tests apart).
 `tools/version-report.sh --check` exits 0 in CI or the push fails.
 
+**INV-5 — classpath convergence (USER 2026-09-10).** The upstream-facing modules do not
+share a dependency *set* — `pct` needs the PCT framework and the interpreted runtime,
+`parser-equivalence` the grammar/compiler/extension jars. What they must share is the
+**version of every artifact present in both**: with one release, every
+`org.finos.legend.*` resolves at it, and every transitive third-party both pull resolves
+identically. Today: 136 shared, **71 divergent** (66 legend, 5 third-party — `tools/classpath-convergence.sh`,
+the authority; a hand-run said 135/70 before it parsed `test-jar` rows). After batch 1:
+**0**. `tools/classpath-convergence.sh` measures it and also asserts the
+boundary — `core` (and `spec`) resolve zero `org.finos.legend` artifacts. It is the test
+that "one release" propagated *transitively*, not just at the pom-property level, and
+the one instrument that would catch upstream itself pinning two versions of something
+across its own modules within a release (ours to record, not to fix).
+
 ### B — The boundary
 
 Everything that reads `legend.engine.root` / `legend.pure.root` or depends on an
@@ -284,14 +297,19 @@ guarding one.
 
 ## 4. Batches, in dependency order
 
-Every batch moves a ratchet and lands through `tools/allgates.sh`. D is two batches
-because D1 is pure measurement/enforcement (no behaviour change) and D2–D4 change what
-programs resolve.
+**Every batch has a done-criterion — a check that goes from absent-or-red to green — and
+lands through `tools/allgates.sh`.** This is deliberately *not* the burn-down rule
+"every batch moves a ratchet / mechanism-only legs are not batches" (USER 2026-09-10):
+this program is structural, and several batches move no ratchet by design (2 lands
+green, 7 relocates, 3 creates a new fact). The burn-down's FAIL→SKIP rule survives only
+as Phase 4 of a bump: a reclassification is a re-pin and needs a written reason. D is two
+batches because D1 is pure measurement/enforcement (no behaviour change) and D2–D4
+change what programs resolve.
 
-| # | Batch | Closes | What moves |
+| # | Batch | Closes | Done when / what moves |
 |---|---|---|---|
 | 0 | **Hygiene.** `nlq` → `com.legend.nlq` (28 files, 1 pom `mainClass`, 1 README line; it imports **no** real upstream class — the squat is the only upstream-looking thing about it); delete `tools/fqn-mapping.json` (467 rows, **zero readers**, last touched 2026-07-08) | the K3 grep over-report; a dead hand list | none |
-| 1 | **One release at 4.138.2.** pct → 4.138.2/5.92.0; source → the tag; pins file carries jar versions, poms read `${…}`; `--check` in CI | A | ChannelB pins, gate 7 ceilings, skew ledger (expect most of 25 rows gone — an inference from their "re-adjudicate at re-pin" annotations, not measured), 3 stale `5.88.1` comments |
+| 1 | **One release at 4.138.2.** pct → 4.138.2/5.92.0; source → the tag; pins file carries jar versions, poms read `${…}`; `--check` in CI | A | **`version-report.sh --check` exits 0 and `classpath-convergence.sh` reports 0 divergent** (INV-5); ChannelB pins, gate 7 ceilings, skew ledger (expect most of 25 rows gone — an inference from their "re-adjudicate at re-pin" annotations, not measured), 3 stale `5.88.1` comments |
 | 2 | **Loud.** Path manifest test; 4 `continue`s → reported; census precheck 1 → 9; exclusion keys assert; fixture version inside the file | E | none expected — lands green |
 | 3 | **Claims.** The claim registry + completeness test; every ad-hoc dispatch site claims what it implements; `KNOWN_ABSENT` deleted | D1, D5 | a NEW printed fact: the implemented surface. Expect the test to land red and be ratcheted: unclaimed count is shrink-only |
 | 4 | **Membership.** Unclaimed entries leave Pure.java; prelude carries bodies / respelled natives; exclusion rule keys on claims; 44 undeclared natives enter the prelude | D2, D3 | corpus pass count (expect **up**: suppressed bodies now run); catalog row count (down); `SpecBodyCensus` walls; unclaimed → 0 |
@@ -321,11 +339,12 @@ upstream change, made legible), the ratchet moves (each with a reason), the ledg
 adjudications. CI runs it on three platforms. Upstream ships roughly weekly; monthly or
 per-minor is the cadence, and a scheduled job opening the PR is the natural endpoint.
 
-**Five green checks define "sane":**
+**Six green checks define "sane":**
 
 | check | question it answers | where |
 |---|---|---|
 | `version-report.sh --check` | is upstream one release, everywhere? | CI, every push |
+| `classpath-convergence.sh` | did that release propagate transitively — every shared artifact at one version, zero legend jars in `core`/`spec`? | CI, on a pin change |
 | path manifest | do all 132 upstream paths still resolve? | `spec`, gate |
 | parity tests | do core's generated facts match the pinned release? | `spec`, gate |
 | claim completeness | does every Pure.java entry have exactly one implementer? | `core`, gate 1 |
@@ -368,10 +387,10 @@ or leave two channels refereeing different universes (one release).
    **`parser-equivalence`** (grammar/oracle jars, ServiceLoader-sensitive). Splitting
    rcorpus from `spec` into a fourth buys nothing: same classpath shape, same inputs,
    and gate 2 installs core once for all of them. Three modules, one pin.
-4. **Two-step bump** (4.138.2 then 4.145.0) vs one. Recommended: two.
+4. ~~**Two-step bump**~~ **RESOLVED (USER 2026-09-10): two** — 4.138.2 first, then 4.145.0.
 5. **Cadence.**
-6. **DuckDB 1.4.4.0 vs the engine's 1.3.0.0** — orthogonal to this program; decision
-   still owed (homework §1c).
+6. ~~**DuckDB 1.4.4.0 vs the engine's 1.3.0.0**~~ **OUT OF SCOPE (USER 2026-09-10): do not
+   touch.** Recorded in homework §1c for whoever picks it up.
 
 ---
 
@@ -387,7 +406,7 @@ Every number here is regenerable, and a fresh session should regenerate rather t
 | axis O registry half: 469 keys; 272 / 67 / 6 / **175** | the §3n probe (source in homework; run once, delete) | **exact** — read from the running maps |
 | the 175 → 70 / 35 / 31 / 39 | `tools/native-axes.py --tsv` with the probe output present; snapshot at `docs/NATIVE_CLAIMS_CENSUS_2026_09_10.tsv` | **heuristic** — a string mention is evidence of a handler, not proof of a lowering. "70 implemented off-registry" means *implemented, verify*; the 35 grey exist because of this |
 | 8 ≤ suppressed bodies ≤ 25 | intersect the 42 / the 175 with `prelude.pure`'s 209-name block | bounds, not a count; the claim registry collapses them |
-| 135 shared / 70 conflicting artifacts | `mvn -pl {pct,parser-equivalence} dependency:list` | exact |
+| 136 shared / 71 divergent artifacts; boundary = 0 legend jars in core | `tools/classpath-convergence.sh` | exact (resolved classpaths) |
 | SystemMetamodel 104 / 23; Lexer 56; nlq 28; fqn-mapping 0 readers | greps in homework §3o | exact |
 
 **What is still inference, labelled:** that most of the 25 skew rows vanish at the tag
