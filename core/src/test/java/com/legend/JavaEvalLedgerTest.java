@@ -467,7 +467,7 @@ class JavaEvalLedgerTest {
             // 1765 -> 1774 (batch 143): the quantified verdict's SOURCE reduces through the
             // inliner with the literal arms on (enumValues()->filter(in) unrolls) — which
             // elements to judge, never a judgment
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1774),
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1776),   // 1774 -> 1776 (upstream boundary batch 3, 2026-09-10): the assert family dispatches through the closed type AssertFn (an exhaustive switch expression, no default) — the import and one line of typed resolution, zero lines of evaluation
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

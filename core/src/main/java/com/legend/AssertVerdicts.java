@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.builtin.AssertFn;
+
 import com.legend.compiler.element.ModelContext;
 
 import com.legend.compiler.spec.SpecCompiler;
@@ -243,24 +245,32 @@ final class AssertVerdicts {
         if (!fqn.startsWith(PKG)) {
             return null;
         }
-        String name = fqn.substring(PKG.length());
+        // The family is the closed type AssertFn: a member not in it
+        // (assertError with its own arm, fail) is a normal fall-through —
+        // and the switch below is an EXPRESSION with no default, so a new
+        // member does not compile until it is placed (batch 3).
+        AssertFn fn = AssertFn.ofFqn(fqn).orElse(null);
+        if (fn == null) {
+            return null;
+        }
+        String name = fn.bareName();
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
                 (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
                 letPrefix, specs);
-        switch (name) {
-            case "assertEquals", "assertNotEquals" -> {
+        return switch (fn) {
+            case ASSERT_EQUALS, ASSERT_NOT_EQUALS -> {
                 if (args.size() < 2) {
-                    return null;
+                    yield null;
                 }
-                boolean wantEqual = name.equals("assertEquals");
+                boolean wantEqual = fn == AssertFn.ASSERT_EQUALS;
                 // SQLTEXT charter slice 3a — the SQL-TEXT arm: a
                 // toSQLString producer in an argument tree judges on
                 // ROWS (SqlTextVerdicts; text is a census number).
-                // Shapes outside the exact cohort return null here.
+                // Shapes outside the exact cohort yield null here.
                 ExecutionResult sv = SqlTextVerdicts.tryArm(name,
                         wantEqual, args, letPrefix, specs, env, hook);
                 if (sv != null) {
-                    return sv;
+                    yield sv;
                 }
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
@@ -270,7 +280,7 @@ final class AssertVerdicts {
                 ExecutionResult ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
                 if (ra != null) {
-                    return ra;
+                    yield ra;
                 }
                 // a bare no-key sort() over a FLAT-CELLS side
                 // (`$result.values.rows.values->sort()` — the strictdate
@@ -287,7 +297,7 @@ final class AssertVerdicts {
                     SideFetch af0 = sideCanon(cellsA != null ? cellsA : args.get(1),
                             letPrefix, specs, env, false, hook);
                     if (ef0.grid() != null || af0.grid() != null) {
-                        return tdsRowValuesSameElements(name, ef0, af0);
+                        yield tdsRowValuesSameElements(name, ef0, af0);
                     }
                 }
                 // D3 — the GRID-PAIR arm: both sides statically
@@ -311,10 +321,10 @@ final class AssertVerdicts {
                             ta, orderView(args.get(1), letPrefix)
                                     == OrderView.SORTED);
                     if (held != wantEqual) {
-                        return fail(name + ":\n" + summarize(te)
+                        yield fail(name + ":\n" + summarize(te)
                                 + "\n does not match:\n" + summarize(ta));
                     }
-                    return ok();
+                    yield ok();
                 }
                 // D3 — the ORDER VIEW: an INCIDENTAL-order actual side
                 // (unsorted store read / frame read) has SQL arrival
@@ -341,7 +351,7 @@ final class AssertVerdicts {
                 // the FLAT-CELLS verdict (grid canon byte channel +
                 // host cell lattice referee)
                 if (ef.grid() != null || af.grid() != null) {
-                    return tdsRowValuesVerdict(name, wantEqual, args,
+                    yield tdsRowValuesVerdict(name, wantEqual, args,
                             letPrefix, ef, af, incidental);
                 }
                 // X5: a same-class KEYED pair restricts both sides to
@@ -375,7 +385,7 @@ final class AssertVerdicts {
                 // non-scalar shape) is counted and the host judges.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
                         args.get(1), ef, af, letPrefix, env, equal);
-                return finish(name, wantEqual, equal,
+                yield finish(name, wantEqual, equal,
                         byteVerdict == null ? null : byteVerdict.held(),
                         byteVerdict == null ? "" : byteVerdict.detail(),
                         () -> incidental
@@ -385,16 +395,16 @@ final class AssertVerdicts {
                                 + " lattice agreed — dual-verdict"
                                 + " divergence, see [canon] census)");
             }
-            case "assertSameElements" -> {
+            case ASSERT_SAME_ELEMENTS -> {
                 if (args.size() < 2) {
-                    return null;
+                    yield null;
                 }
                 // D3 — rendered-text sides (a sep-joined grid string
                 // vs its golden): the token/line multiset judges
                 ExecutionResult rse = renderedArm(name, true, args,
                         letPrefix, specs, env, hook, false);
                 if (rse != null) {
-                    return rse;
+                    yield rse;
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
@@ -407,7 +417,7 @@ final class AssertVerdicts {
                 // column-grouped — loose multiset IS this assert's
                 // reference semantics, audit 9), cell-level byte canon
                 if (ef.grid() != null || af.grid() != null) {
-                    return tdsRowValuesSameElements("assertSameElements", ef, af);
+                    yield tdsRowValuesSameElements("assertSameElements", ef, af);
                 }
                 // a CLASS-kind side that rode a JSON carrier (a polymorphic
                 // Node[1] program value) arrives as object text: decode it
@@ -429,7 +439,7 @@ final class AssertVerdicts {
                 // is the parallel referee.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
                         args.get(1), ef, af, letPrefix, env, d == null);
-                return finish("assertSameElements", true, d == null,
+                yield finish("assertSameElements", true, d == null,
                         byteVerdict == null ? null : byteVerdict.held(),
                         byteVerdict == null ? "" : byteVerdict.detail(),
                         () -> d,
@@ -437,9 +447,9 @@ final class AssertVerdicts {
                                 + " (host multiset agreed — dual-verdict"
                                 + " divergence, see [canon] census)");
             }
-            case "assertSize" -> {
+            case ASSERT_SIZE -> {
                 if (args.size() < 2) {
-                    return null;
+                    yield null;
                 }
                 Object n = one(side(args.get(1), letPrefix, specs, env, hook),
                         "assertSize size");
@@ -466,24 +476,24 @@ final class AssertVerdicts {
                 };
                 boolean heldSize = n instanceof Number num
                         && num.longValue() == actual;
-                return heldSize ? ok()
+                yield heldSize ? ok()
                         : fail("assertSize: expected " + n + ", got "
                                 + actual);
             }
-            case "assertJsonStringsEqual" -> {
+            case ASSERT_JSON_STRINGS_EQUAL -> {
                 // D4 — the JSON verdict: engine semantics (object keys
                 // order-INSENSITIVE, arrays order-SENSITIVE) over
                 // PARSED structures; JsonCompare is the one tree owner
                 // (V3 register). Sides are DB-computed strings.
                 if (args.size() != 2) {
-                    return null;
+                    yield null;
                 }
                 String ejson = jsonSideText(args.get(0), letPrefix,
                         specs, env, hook);
                 String ajson = jsonSideText(args.get(1), letPrefix,
                         specs, env, hook);
                 if (ejson == null || ajson == null) {
-                    return null;   // non-[1]-string shape: generic path
+                    yield null;   // non-[1]-string shape: generic path
                 }
                 // the GOLDEN side parses first and names itself when it
                 // does not: a golden the engine only accepts because its
@@ -508,33 +518,33 @@ final class AssertVerdicts {
                 }
                 String diff = com.legend.exec.JsonCompare.document(
                         expected, actual);
-                return diff == null ? ok()
+                yield diff == null ? ok()
                         : fail("assertJsonStringsEqual: FIRST DIFF at "
                                 + diff);
             }
-            case "assertContains" -> {
+            case ASSERT_CONTAINS -> {
                 // real pure membership (assertContains.pure): both
                 // sides DB-computed, the lattice judges element
                 // equality; message args are failure-position only
                 if (args.size() < 2) {
-                    return null;
+                    yield null;
                 }
                 List<Object> coll = side(args.get(0), letPrefix, specs,
                         env, hook);
                 List<Object> val = side(args.get(1), letPrefix, specs,
                         env, hook);
                 if (val.size() != 1) {
-                    return null;   // non-[1] value arg — generic path
+                    yield null;   // non-[1] value arg — generic path
                 }
                 boolean member = coll.stream().anyMatch(x ->
                         PureAsserts.equalScalar(x, val.get(0)));
-                return member ? ok()
+                yield member ? ok()
                         : fail("assertContains: " + coll
                                 + " does not contain " + val.get(0));
             }
-            case "assertEq" -> {
+            case ASSERT_EQ -> {
                 if (args.size() < 2) {
-                    return null;
+                    yield null;
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, false, hook);
@@ -552,7 +562,7 @@ final class AssertVerdicts {
                 // coincides with equal; the identity rule walled above)
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
                         args.get(1), ef, af, letPrefix, env, d == null);
-                return finish("assertEq", true, d == null,
+                yield finish("assertEq", true, d == null,
                         byteVerdict == null ? null : byteVerdict.held(),
                         byteVerdict == null ? "" : byteVerdict.detail(),
                         () -> d,
@@ -560,9 +570,9 @@ final class AssertVerdicts {
                                 + " lattice agreed — dual-verdict"
                                 + " divergence, see [canon] census)");
             }
-            case "assertEqWithinTolerance" -> {
+            case ASSERT_EQ_WITHIN_TOLERANCE -> {
                 if (args.size() < 3) {
-                    return null;
+                    yield null;
                 }
                 String d = PureAsserts.assertEqWithinTolerance(
                         (Number) one(side(args.get(0), letPrefix, specs, env, hook),
@@ -571,11 +581,11 @@ final class AssertVerdicts {
                                 "tolerance actual"),
                         (Number) one(side(args.get(2), letPrefix, specs, env, hook),
                                 "tolerance delta"));
-                return d == null ? ok() : fail(d);
+                yield d == null ? ok() : fail(d);
             }
-            case "assert", "assertFalse" -> {
+            case ASSERT, ASSERT_FALSE -> {
                 if (args.isEmpty()) {
-                    return null;
+                    yield null;
                 }
                 // forAll-contains SUBSET (the functionvariables idiom
                 // — the harness's audited fc arm, moved to the owner):
@@ -594,10 +604,10 @@ final class AssertVerdicts {
                                     PureAsserts.equalScalar(n2, h)))
                             .toList();
                     boolean subsetHolds = missing.isEmpty();
-                    if (subsetHolds == name.equals("assert")) {
-                        return ok();
+                    if (subsetHolds == (fn == AssertFn.ASSERT)) {
+                        yield ok();
                     }
-                    return fail(name + " (forAll-contains subset):"
+                    yield fail(name + " (forAll-contains subset):"
                             + " missing " + missing);
                 }
                 // F13c: the CONDITION rides the identity lane — eq/
@@ -606,22 +616,22 @@ final class AssertVerdicts {
                 // no other lane ever sees the identity field
                 Object c = one(identitySide(args.get(0), letPrefix,
                         specs, env, hook), name + " condition");
-                boolean held = Boolean.TRUE.equals(c) == name.equals("assert");
-                return held ? ok() : fail("Assert failed");
+                boolean held = Boolean.TRUE.equals(c) == (fn == AssertFn.ASSERT);
+                yield held ? ok() : fail("Assert failed");
             }
-            case "assertInstanceOf" -> {
+            case ASSERT_INSTANCE_OF -> {
                 if (args.size() < 2) {
-                    return null;
+                    yield null;
                 }
                 // the /3 message overload has no witness — fall through
                 if (args.size() != 2) {
-                    return null;
+                    yield null;
                 }
                 Object v = one(side(args.get(0), letPrefix, specs, env, hook),
                         "assertInstanceOf instance");
                 String type = typeRefName(args.get(1));
                 if (type == null) {
-                    return null;   // non-literal type arg — fall through
+                    yield null;   // non-literal type arg — fall through
                 }
                 // a CLASS value's wire carries its classifier (__type,
                 // batch 53): instanceOf is the model's subtype relation
@@ -632,24 +642,24 @@ final class AssertVerdicts {
                                 instanceof String wireType) {
                     boolean ok = wireType.equals(type)
                             || env.ctx().isSubtype(wireType, type);
-                    return ok ? ok() : fail("expected an instance of " + type
+                    yield ok ? ok() : fail("expected an instance of " + type
                             + ", actual: " + wireType);
                 }
                 String d = PureAsserts.assertInstanceOf(v, type);
-                return d == null ? ok() : fail(d);
+                yield d == null ? ok() : fail(d);
             }
-            case "assertIs" -> {
+            case ASSERT_IS -> {
                 // is() = IDENTITY (real pure is.pure:23, PCT.platformOnly).
                 // World-1 adjudication for statically-identified operands
                 // only; message overloads have no witness — fall through.
                 if (args.size() != 2) {
-                    return null;
+                    yield null;
                 }
-                return isVerdict(args.get(0), args.get(1));
+                yield isVerdict(args.get(0), args.get(1));
             }
-            case "assertEmpty", "assertNotEmpty" -> {
+            case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> {
                 if (args.isEmpty()) {
-                    return null;
+                    yield null;
                 }
                 // §8 leg 1: a TABULAR side's emptiness is its ROW count
                 // (engine relation semantics) — no canon involved
@@ -659,19 +669,13 @@ final class AssertVerdicts {
                 boolean empty = er instanceof ExecutionResult.Tabular te3
                         ? te3.rows().isEmpty()
                         : decodeSide(er).isEmpty();
-                boolean held = empty == name.equals("assertEmpty");
-                return held ? ok()
-                        : fail(name.equals("assertEmpty")
+                boolean held = empty == (fn == AssertFn.ASSERT_EMPTY);
+                yield held ? ok()
+                        : fail(fn == AssertFn.ASSERT_EMPTY
                                 ? "collection is not empty"
                                 : "collection is empty");
             }
-            // assertError has its OWN K-arm (AssertErrorNative); every
-            // other member rides the legacy inline path — the recorded
-            // residual, never intercepted-and-broken
-            default -> {
-                return null;
-            }
-        }
+        };
     }
 
     /** The IDENTITY verdict ({@code assertIs} → {@code is()}, real pure
@@ -922,15 +926,15 @@ final class AssertVerdicts {
         if (fqn == null || !fqn.startsWith(PKG)) {
             return null;
         }
-        String name = fqn.substring(PKG.length());
+        AssertFn qfn = AssertFn.ofFqn(fqn).orElse(null);
         List<TypedSpec> aargs = root instanceof TypedUserCall u ? u.args()
                 : ((TypedNativeCall) root).args();
-        if (!(name.equals("assert") || name.equals("assertFalse"))
+        if (!(qfn == AssertFn.ASSERT || qfn == AssertFn.ASSERT_FALSE)
                 || aargs.isEmpty()) {
             throw new com.legend.error.NotImplementedException(
                     "quantified assert verdict: only map(f|assert/"
                     + "assertFalse(pred[, message])) is modeled — got '"
-                    + name + "'/" + aargs.size());
+                    + fqn + "'/" + aargs.size());
         }
         String msg = aargs.size() >= 2
                 && aargs.get(1) instanceof
@@ -948,7 +952,7 @@ final class AssertVerdicts {
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
         List<Object> verdicts = identitySide(predMap, letPrefix, specs, env, hook);
-        boolean wantTrue = name.equals("assert");
+        boolean wantTrue = qfn == AssertFn.ASSERT;
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
                 return fail(msg);

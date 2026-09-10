@@ -3,6 +3,8 @@
 
 package com.legend.lowering;
 
+import com.legend.builtin.CalendarFn;
+
 import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -34,15 +36,13 @@ final class CalendarAgg {
     private CalendarAgg() {
     }
 
-    private static final String PKG = "meta::pure::functions::date::calendar::";
-
     /** The two calendar aliases serving one agg's calendar call. */
     record Ctx(String cal0, String cal1) {
     }
 
     static @com.legend.Nullable TypedNativeCall calendarCallOf(TypedSpec mapBody) {
         return mapBody instanceof TypedNativeCall c
-                && c.callee().qualifiedName().startsWith(PKG)
+                && CalendarFn.of(c.callee().qualifiedName()).isPresent()
                 && c.args().size() == 4
                 ? c : null;
     }
@@ -105,46 +105,51 @@ final class CalendarAgg {
 
     /** The fn's CASE-conditioned (and possibly NORMALISED) value. */
     static SqlExpr caseValue(TypedNativeCall call, Ctx ctx, SqlExpr value) {
-        String fn = call.callee().qualifiedName().substring(PKG.length());
+        // the family is a closed type: a calendar call that is not a
+        // CalendarFn is a catalog/enum mismatch, loud here
+        CalendarFn fn = CalendarFn.of(call.callee().qualifiedName()).orElseThrow(() -> new IllegalStateException(
+                "not a calendar function: " + call.callee().qualifiedName()));
         String c = ctx.cal0();
         String e = ctx.cal1();
-        // multi-arm / normalised families first (whole-case forms)
-        switch (fn) {
-            case "annualized" -> {
+        // multi-arm / normalised families first (whole-case forms); the plain
+        // condition families go through condition(). A switch EXPRESSION with
+        // no default: a 33rd constant does not compile until it is placed.
+        return switch (fn) {
+            case ANNUALIZED -> {
                 // value / (endDay.fiscalDay / daysInYear), year-scoped
                 SqlExpr factor = div(col(e, "fiscalDay"),
                         col(e, "numberOfFiscalDaysInYear"));
-                return caseOf(eq(col(c, "currentYear"), col(e, "currentYear")),
+                yield caseOf(eq(col(c, "currentYear"), col(e, "currentYear")),
                         div(value, factor));
             }
-            case "cme" -> {
+            case CME -> {
                 SqlExpr factor = div(col(e, "fiscalDay"),
                         col(e, "numberOfFiscalDaysInMonth"));
-                return caseOf(and(
+                yield caseOf(and(
                         eq(col(c, "currentYear"), col(e, "currentYear")),
                         eq(col(c, "currentMonthNum"), col(e, "currentMonthNum"))),
                         div(value, factor));
             }
-            case "p4wa" -> {
-                return caseOf(priorWeeksRange(c, e, "prior4WeekDate"),
+            case P4WA -> {
+                yield caseOf(priorWeeksRange(c, e, "prior4WeekDate"),
                         div(value, new SqlExpr.IntLit(4)));
             }
-            case "p12wa" -> {
-                return caseOf(priorWeeksRange(c, e, "prior12WeekDate"),
+            case P12WA -> {
+                yield caseOf(priorWeeksRange(c, e, "prior12WeekDate"),
                         div(value, new SqlExpr.IntLit(12)));
             }
-            case "p52wa" -> {
-                return caseOf(priorWeeksRange(c, e, "prior52WeekDate"),
+            case P52WA -> {
+                yield caseOf(priorWeeksRange(c, e, "prior52WeekDate"),
                         div(value, new SqlExpr.IntLit(52)));
             }
-            case "pma" -> {
+            case PMA -> {
                 // Jan report: previous year's average (/12); later: current
                 // year's elapsed months (/previousFiscalMonth)
                 SqlExpr isJan = eq(col(e, "currentMonthNum"),
                         new SqlExpr.IntLit(1));
                 SqlExpr notJan = SqlExpr.Call.of(SqlFn.GREATER,
                         col(e, "currentMonthNum"), new SqlExpr.IntLit(1));
-                return new SqlExpr.Case(List.of(
+                yield new SqlExpr.Case(List.of(
                         new SqlExpr.Case.When(
                                 and(isJan, eq(col(c, "currentYear"),
                                         col(e, "previousFiscalYear"))),
@@ -158,14 +163,14 @@ final class CalendarAgg {
                                 div(value, col(e, "previousFiscalMonth")))),
                         new SqlExpr.NullLit());
             }
-            case "pwa" -> {
+            case PWA -> {
                 SqlExpr first5 = lte(col(e, "currentWeek"),
                         new SqlExpr.IntLit(5));
                 SqlExpr not5 = SqlExpr.Call.of(SqlFn.GREATER,
                         col(e, "currentWeek"), new SqlExpr.IntLit(5));
                 SqlExpr endPrevWeek = SqlExpr.Call.of(SqlFn.MINUS,
                         col(e, "fiscalDay"), col(e, "fiscalDayOfWeek"));
-                return new SqlExpr.Case(List.of(
+                yield new SqlExpr.Case(List.of(
                         new SqlExpr.Case.When(
                                 and(first5, eq(col(c, "currentYear"),
                                         col(e, "previousFiscalYear"))),
@@ -183,37 +188,35 @@ final class CalendarAgg {
                                         new SqlExpr.IntLit(5)))),
                         new SqlExpr.NullLit());
             }
-            case "pywa" -> {
+            case PYWA -> {
                 SqlExpr first5 = lte(col(e, "currentWeek"),
                         new SqlExpr.IntLit(5));
-                return caseOf(and(first5, eq(col(c, "currentYear"),
+                yield caseOf(and(first5, eq(col(c, "currentYear"),
                                 col(e, "previousFiscalYear"))),
                         SqlExpr.Call.of(SqlFn.TIMES,
                                 div(value, col(e, "numberOfFiscalDaysInYear")),
                                 new SqlExpr.IntLit(5)));
             }
-            case "p12mtd" -> {
+            case P12MTD -> {
                 SqlExpr start = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                         new SqlExpr.StringLit("to_years"),
                         new SqlExpr.IntLit(-1), col(e, "date")));
-                return caseOf(and(
+                yield caseOf(and(
                         SqlExpr.Call.of(SqlFn.GREATER, col(c, "date"), start),
                         lte(col(c, "date"), col(e, "date"))), value);
             }
-            case "p4wtd" -> {
-                return caseOf(priorWeeksRange(c, e, "prior4WeekDate"), value);
+            case P4WTD -> {
+                yield caseOf(priorWeeksRange(c, e, "prior4WeekDate"), value);
             }
-            case "p12wtd" -> {
-                return caseOf(priorWeeksRange(c, e, "prior12WeekDate"), value);
+            case P12WTD -> {
+                yield caseOf(priorWeeksRange(c, e, "prior12WeekDate"), value);
             }
-            case "p52wtd" -> {
-                return caseOf(priorWeeksRange(c, e, "prior52WeekDate"), value);
+            case P52WTD -> {
+                yield caseOf(priorWeeksRange(c, e, "prior52WeekDate"), value);
             }
-            default -> {
-                // plain condition families
-            }
-        }
-        return caseOf(condition(fn, c, e), value);
+            case REPORT_END_DAY, CW_FM, CW, WTD, MTD, QTD, YTD, PWTD, PMTD, PQTD, PYTD, PYWTD, PYMTD, PYQTD, PRIOR_DAY, PRIOR_YEAR, CY_MINUS2, CY_MINUS3, PW, PW_FM ->
+                    caseOf(condition(fn, c, e), value);
+        };
     }
 
     private static SqlExpr caseOf(SqlExpr cond, SqlExpr value) {
@@ -262,12 +265,12 @@ final class CalendarAgg {
         return out;
     }
 
-    private static SqlExpr condition(String fn, String c, String e) {
+    private static SqlExpr condition(CalendarFn fn, String c, String e) {
         return switch (fn) {
-            case "reportEndDay" -> eq(col(c, "date"), col(e, "date"));
-            case "cw_fm" -> eq(col(c, "fiscalWeekOffset"),
+            case REPORT_END_DAY -> eq(col(c, "date"), col(e, "date"));
+            case CW_FM -> eq(col(c, "fiscalWeekOffset"),
                     col(e, "fiscalWeekOffset"));
-            case "cw" -> {
+            case CW -> {
                 // currentWeek = fiscalWeekOffset - (endDay is a weekend ? 1 : 0)
                 SqlExpr weekend = SqlExpr.Call.of(SqlFn.IN,
                         col(e, "shortNameWeekDay"),
@@ -280,28 +283,28 @@ final class CalendarAgg {
                         SqlExpr.Call.of(SqlFn.MINUS,
                                 col(e, "fiscalWeekOffset"), offset));
             }
-            case "wtd" -> and(
+            case WTD -> and(
                     eq(col(c, "currentYear"), col(e, "currentYear")),
                     eq(col(c, "currentWeek"), col(e, "currentWeek")),
                     lte(col(c, "dayOfCalendarYear"), col(e, "dayOfCalendarYear")));
-            case "mtd" -> and(
+            case MTD -> and(
                     eq(col(c, "currentYear"), col(e, "currentYear")),
                     eq(col(c, "currentMonthNum"), col(e, "currentMonthNum")),
                     lte(col(c, "fiscalDay"), col(e, "fiscalDay")));
-            case "qtd" -> and(
+            case QTD -> and(
                     eq(col(c, "currentYear"), col(e, "currentYear")),
                     eq(col(c, "currentQuarterNum"), col(e, "currentQuarterNum")),
                     lte(col(c, "fiscalDay"), col(e, "fiscalDay")));
-            case "ytd" -> and(
+            case YTD -> and(
                     eq(col(c, "currentYear"), col(e, "currentYear")),
                     lte(col(c, "fiscalDay"), col(e, "fiscalDay")));
-            case "pwtd" -> and(
+            case PWTD -> and(
                     eq(col(c, "fiscalWeekOffset"),
                             SqlExpr.Call.of(SqlFn.MINUS,
                                     col(e, "fiscalWeekOffset"),
                                     new SqlExpr.IntLit(1))),
                     lte(col(c, "fiscalDayOfWeek"), col(e, "fiscalDayOfWeek")));
-            case "pmtd" -> {
+            case PMTD -> {
                 // January's previous month is last year's December
                 SqlExpr isJan = eq(col(e, "currentMonthNum"), new SqlExpr.IntLit(1));
                 SqlExpr yearOfPrev = new SqlExpr.Case(
@@ -313,7 +316,7 @@ final class CalendarAgg {
                         eq(col(c, "currentMonthNum"), col(e, "previousFiscalMonth")),
                         lte(col(c, "fiscalDayOfMonth"), col(e, "fiscalDayOfMonth")));
             }
-            case "pqtd" -> {
+            case PQTD -> {
                 SqlExpr isQ1 = eq(col(e, "currentQuarterNum"), new SqlExpr.IntLit(1));
                 SqlExpr yearOfPrev = new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(isQ1,
@@ -324,31 +327,31 @@ final class CalendarAgg {
                         eq(col(c, "currentQuarterNum"), col(e, "previousFiscalQuarter")),
                         lte(col(c, "fiscalDayOfQuarter"), col(e, "fiscalDayOfQuarter")));
             }
-            case "pytd" -> and(
+            case PYTD -> and(
                     eq(col(c, "currentYear"), col(e, "previousFiscalYear")),
                     lte(col(c, "fiscalDay"), col(e, "fiscalDay")));
-            case "pywtd" -> and(
+            case PYWTD -> and(
                     eq(col(c, "currentYear"), col(e, "previousFiscalYear")),
                     eq(col(c, "currentWeek"), col(e, "currentWeek")),
                     lte(col(c, "fiscalDayOfWeek"), col(e, "fiscalDayOfWeek")));
-            case "pymtd" -> and(
+            case PYMTD -> and(
                     eq(col(c, "currentYear"), col(e, "previousFiscalYear")),
                     eq(col(c, "currentMonthNum"), col(e, "currentMonthNum")),
                     lte(col(c, "fiscalDayOfMonth"), col(e, "fiscalDayOfMonth")));
-            case "pyqtd" -> and(
+            case PYQTD -> and(
                     eq(col(c, "currentYear"), col(e, "previousFiscalYear")),
                     eq(col(c, "currentQuarterNum"), col(e, "currentQuarterNum")),
                     lte(col(c, "fiscalDayOfQuarter"), col(e, "fiscalDayOfQuarter")));
-            case "priorDay" -> eq(col(c, "date"), col(e, "previousBusinessDay"));
-            case "priorYear" -> eq(col(c, "currentYear"),
+            case PRIOR_DAY -> eq(col(c, "date"), col(e, "previousBusinessDay"));
+            case PRIOR_YEAR -> eq(col(c, "currentYear"),
                     col(e, "previousFiscalYear"));
-            case "CYMinus2" -> eq(col(c, "currentYear"),
+            case CY_MINUS2 -> eq(col(c, "currentYear"),
                     SqlExpr.Call.of(SqlFn.MINUS,
                             col(e, "previousFiscalYear"), new SqlExpr.IntLit(1)));
-            case "CYMinus3" -> eq(col(c, "currentYear"),
+            case CY_MINUS3 -> eq(col(c, "currentYear"),
                     SqlExpr.Call.of(SqlFn.MINUS,
                             col(e, "previousFiscalYear"), new SqlExpr.IntLit(2)));
-            case "pw" -> {
+            case PW -> {
                 // weekend end-day: 'previous week' skips two offsets
                 SqlExpr weekend = SqlExpr.Call.of(SqlFn.IN,
                         col(e, "shortNameWeekDay"),
@@ -361,14 +364,12 @@ final class CalendarAgg {
                         SqlExpr.Call.of(SqlFn.MINUS,
                                 col(e, "fiscalWeekOffset"), offset));
             }
-            case "pw_fm" -> eq(col(c, "fiscalWeekOffset"),
+            case PW_FM -> eq(col(c, "fiscalWeekOffset"),
                     SqlExpr.Call.of(SqlFn.MINUS,
                             col(e, "fiscalWeekOffset"), new SqlExpr.IntLit(1)));
-            default -> throw new com.legend.error.NotImplementedException(
-                    "calendar function '" + fn + "' condition is not"
-                    + " transcribed yet (engine synthetise"
-                    + fn.substring(0, 1).toUpperCase() + fn.substring(1)
-                    + "CaseCondition)");
+            case ANNUALIZED, CME, P4WA, P12WA, P52WA, PMA, PWA, PYWA, P12MTD, P4WTD, P12WTD, P52WTD ->
+                    throw new IllegalStateException("whole-case calendar form '" + fn
+                            + "' is dispatched by caseValue, never a plain condition");
         };
     }
 }

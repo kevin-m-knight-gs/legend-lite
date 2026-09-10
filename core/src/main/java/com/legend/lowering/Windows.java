@@ -37,6 +37,17 @@ final class Windows {
     /** SQL reducer names for the 4-arg colToAgg window aggregates. */
     private static final Map<String, com.legend.sql.SqlAgg.Fn> AGGREGATES = new HashMap<>();
 
+    /** The signature keys of the window functions — CLAIMS, kind WINDOW_FN
+     *  ({@link com.legend.builtin.Claims}). */
+    static java.util.Set<String> fnKeys() {
+        return java.util.Collections.unmodifiableSet(FNS.keySet());
+    }
+
+    /** The signature keys of the window-only aggregates — CLAIMS, kind WINDOW_AGG. */
+    static java.util.Set<String> aggregateKeys() {
+        return java.util.Collections.unmodifiableSet(AGGREGATES.keySet());
+    }
+
     static {
         family(com.legend.sql.SqlAgg.Fn.ROW_NUMBER, Kind.RANKING, "rowNumber");
         family(com.legend.sql.SqlAgg.Fn.RANK, Kind.RANKING, "rank");

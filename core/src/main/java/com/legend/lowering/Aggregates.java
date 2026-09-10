@@ -16,6 +16,12 @@ public final class Aggregates {
 
     private static final Map<String, SqlAgg.Fn> REDUCERS = new HashMap<>();
 
+    /** The signature keys this registry reduces — a CLAIM per key
+     *  ({@link com.legend.builtin.Claims}, kind REDUCER). */
+    static java.util.Set<String> reducerKeys() {
+        return java.util.Collections.unmodifiableSet(REDUCERS.keySet());
+    }
+
     private Aggregates() {
     }
 

@@ -317,7 +317,7 @@ change what programs resolve.
 | 0 | **Hygiene.** `nlq` → `com.legend.nlq` (28 files, 1 pom `mainClass`, 1 README line; it imports **no** real upstream class — the squat is the only upstream-looking thing about it); delete `tools/fqn-mapping.json` (467 rows, **zero readers**, last touched 2026-07-08) | the K3 grep over-report; a dead hand list | none |
 | 1 | **One release at 4.138.2.** pct → 4.138.2/5.92.0; source → the tag; pins file carries jar versions, poms read `${…}`; `--check` in CI | A | **`version-report.sh --check` exits 0 and `classpath-convergence.sh` reports 0 divergent** (INV-5); ChannelB pins, gate 7 ceilings, skew ledger (expected most of 25 rows gone — an inference from their "re-adjudicate at re-pin" annotations; **measured: NONE left, see §9**), 4 stale `5.88.1` comments. **LANDED 2026-09-10** — every move receipted in homework §5a and docs/GATES.md |
 | 2 | **Loud.** Path manifest test; 4 `continue`s → reported; census precheck 1 → 9; exclusion keys assert; fixture version inside the file | E | none expected — lands green. **LANDED 2026-09-10**: `UpstreamPathManifestTest` (90 core paths + 10 ChannelB + 33 ledger keys = 133; the homework's 132 missed `MinimalCorpus.GRAPH_FETCH_DOMAIN`); the keyword-snapshot shrink direction fired at once (`mappingProvider`, added upstream after the tag) |
-| 3 | **Claims.** The claim registry + completeness test; every ad-hoc dispatch site claims what it implements; `KNOWN_ABSENT` deleted | D1, D5 | a NEW printed fact: the implemented surface. Expect the test to land red and be ratcheted: unclaimed count is shrink-only |
+| 3 | **Claims.** The claim registry + completeness test; every ad-hoc dispatch site claims what it implements; `KNOWN_ABSENT` deleted | D1, D5 | a NEW printed fact: the implemented surface. Expect the test to land red and be ratcheted: unclaimed count is shrink-only. **LANDED 2026-09-10**: 881 overloads, 133 unclaimed (94 FQNs) — derived claims only (no hand table: USER), three string-switch families became closed enum types; the ledger `native-claims.tsv` is the surface; "exactly one claim" was false (112 overloads lower differently by position) |
 | 4 | **Membership.** Unclaimed entries leave Pure.java; prelude carries bodies / respelled natives; exclusion rule keys on claims; 44 undeclared natives enter the prelude | D2, D3 | corpus pass count (expect **up**: suppressed bodies now run); catalog row count (down); `SpecBodyCensus` walls; unclaimed → 0 |
 | 5 | **Generated text.** Signature oracle (verify), then Pure.java text generated from membership + checkout; `CORE_IMPORTS` generated, ordered; `PlatformTypes` generated, identity → methods | C, D4 | divergence buckets (same-FQN-different-sig must reach 0); `PlatformTypesDriftTest` deleted; 7 inline literals → 0 |
 | 6 | **Protocol live.** Differential in parser-equivalence; seed 17, grow to corpus; delete goldens + positions from core | F | differential count up; divergence ledger shrink |
@@ -435,9 +435,12 @@ inference:** that the live protocol differential goes red on landing.
    docs/GATES.md. The oracle checkouts are `/Users/neema/legend/legend-{engine,pure}` on
    the tags (the `/Users/neemsandv` checkouts are another account's — read-only here — and
    sit on the old non-tag pin).
-4. **Batch 2 LANDED** (2026-09-10): loud, not silent — receipts in docs/GATES.md. Next is
-   the claim-registry design doc, `docs/CLAIM_REGISTRY_DESIGN_2026_09_10.md` (§6.1, with
-   §6.2 and §6.5 asked alongside) — **USER approval before any batch-3 code**.
+4. **Batch 2 LANDED** (2026-09-10): loud, not silent — receipts in docs/GATES.md.
+5. **Batch 3 LANDED** (2026-09-10): the claim registry as the USER approved it and then
+   revised it at landing (`docs/CLAIM_REGISTRY_DESIGN_2026_09_10.md` §1a): derived claims,
+   closed enum families, a committed ledger, UNCLAIMED_MAX = 133. Decisions taken: §6.1 as
+   the doc; §6.2 the prelude carries ALL upstream natives in the read roots; §6.5 every two
+   weeks, Legend's cadence. Next is **batch 4**: the 94 unclaimed FQNs adjudicated to 0.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

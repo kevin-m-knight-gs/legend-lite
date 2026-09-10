@@ -1567,6 +1567,11 @@ public final class Pure {
         return WALLED_NATIVES.get(fqn);
     }
 
+    /** The walled FQNs — CLAIMS of kind WALL ({@link Claims}). */
+    public static java.util.Set<String> walledNativeFqns() {
+        return WALLED_NATIVES.keySet();
+    }
+
     // setUpDataSQLsV2 / setUpDataSQLs: spelled with the SPEC's exact signatures
     // (toDDL.pure:198, helperFunctions.pure:186/209) so the engine's own copies are
     // same-shape shadows the kernel tie-break resolves to the native (batch 147)

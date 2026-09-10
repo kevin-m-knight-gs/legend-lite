@@ -59,6 +59,12 @@ final class Scalars {
     private Scalars() {
     }
 
+    /** The signature keys this registry lowers — a CLAIM per key
+     *  ({@link com.legend.builtin.Claims}, kind SCALAR_RULE). */
+    static Set<String> ruleKeys() {
+        return java.util.Collections.unmodifiableSet(RULES.keySet());
+    }
+
     /** Register every catalog overload of {@code pureName} under one semantic entry. */
     private static void family(SqlFn semantic, String pureName) {
         var overloads = Pure.nativeKeysAt(pureName);
@@ -2469,26 +2475,12 @@ final class Scalars {
         });
     }
 
-    /**
-     * Names known to be ABSENT from our catalog (engine-only or not yet
-     * signed). Anything else missing at registration is a TYPO and dies.
-     */
-    private static final Set<String> KNOWN_ABSENT = Set.of(
-            "cbrt", "log10", "atan2", "sinh", "cosh", "tanh", "ascii", "char",
-            "encodeBase64", "levenshteinDistance", "generateGuid", "hashCode",
-            "toUpperFirstCharacter", "toLowerFirstCharacter", "matches",
-            "lpad", "rpad", "ltrim", "rtrim", "reverseString", "splitPart",
-            "left", "right", "mode", "median", "mean", "datePart", "today",
-            "now", "hash", "zip", "toVariant", "split", "xor",
-            "bitAnd", "bitOr", "bitXor", "bitShiftLeft", "bitShiftRight");
-
+    /** A registration names a catalog overload or dies — there is no
+     *  "known absent" list any more (upstream boundary batch 3: its 39 names
+     *  were ALL present in the catalog, the branch was dead, and a stale hand
+     *  list is the pattern the program exists to delete). */
     private static void familyIfPresent(SqlFn semantic, String pureName) {
-        if (!Pure.nativeFunctionsAt(pureName).isEmpty()) {
-            family(semantic, pureName);
-        } else if (!KNOWN_ABSENT.contains(pureName)) {
-            throw new IllegalStateException("registration typo: no catalog overloads for '"
-                    + pureName + "' and it is not in KNOWN_ABSENT");
-        }
+        family(semantic, pureName);
     }
 
     private static void castFamily(String pureName, Type target) {

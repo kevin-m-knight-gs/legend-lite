@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.lowering;
 
+import com.legend.builtin.RowGetter;
+
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.sql.SqlExpr;
 
-import java.util.Set;
 
 /**
  * The TDSRow getters (real tds.pure getString/getInteger/…) over the
@@ -18,18 +19,13 @@ import java.util.Set;
  */
 final class RowGetters {
 
-    private static final Set<String> GETTERS = Set.of(
-            "meta::pure::tds::getString", "meta::pure::tds::getInteger",
-            "meta::pure::tds::getFloat", "meta::pure::tds::getDecimal",
-            "meta::pure::tds::getNumber", "meta::pure::tds::getBoolean",
-            "meta::pure::tds::getDate", "meta::pure::tds::getDateTime",
-            "meta::pure::tds::getStrictDate", "meta::pure::tds::getEnum");
-
     private RowGetters() {
     }
 
+    /** The family is the closed type {@link RowGetter} (batch 3): membership
+     *  by the enum, never a string set beside the code. */
     static boolean isRowGetter(TypedNativeCall g) {
-        return GETTERS.contains(g.callee().qualifiedName())
+        return RowGetter.of(g.callee().qualifiedName()).isPresent()
                 && g.args().size() == 2
                 && g.args().get(0) instanceof TypedVariable
                 && g.args().get(1) instanceof TypedCString;

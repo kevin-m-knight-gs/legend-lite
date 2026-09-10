@@ -48,49 +48,11 @@ class NativeFunctionTest {
     // Catalog size + uniqueness
     // ---------------------------------------------------------------
 
-    @Test
-    void catalogMatchesTheGoldenFile() throws Exception {
-        // THE golden catalog: every signature, canonically rendered, in
-        // (load-bearing) declaration order. Replaces the count-pin + comment
-        // changelog: any add/remove/edit/REORDER is a reviewable line diff.
-        // To update deliberately: fix the code, regenerate the resource with
-        // the renderer below, and review the diff in the commit.
-        List<String> expected = java.nio.file.Files.readAllLines(
-                        java.nio.file.Path.of("src/test/resources/native-catalog.txt"))
-                .stream().filter(l -> !l.startsWith("#")).toList();
-        List<String> actual = Pure.all().stream()
-                .map(NativeFunctionTest::renderCanonical).toList();
-        // the rendered catalog as a target/ dump — the diff against the
-        // golden is the review (a deliberate change copies it over)
-        java.nio.file.Files.createDirectories(java.nio.file.Path.of("target"));
-        java.nio.file.Files.write(
-                java.nio.file.Path.of("target/native-catalog-actual.txt"), actual);
-        assertEquals(expected, actual,
-                "the native catalog diverged from the golden file — review the diff;"
-                        + " regenerate the resource only for DELIBERATE catalog changes");
-    }
+    // catalogMatchesTheGoldenFile + native-catalog.txt DELETED (upstream boundary
+    // batch 3): a snapshot of Pure.java's own output pinned nothing about
+    // implementation; the implemented surface is now the committed ledger
+    // core/src/main/resources/com/legend/builtin/native-claims.tsv (ClaimRegistryTest).
 
-    /** Canonical signature rendering — the golden file's line format. */
-    static String renderCanonical(NativeFunctionDefinition d) {
-        StringBuilder s = new StringBuilder(d.qualifiedName());
-        if (!d.typeParameters().isEmpty() || !d.multiplicityParameters().isEmpty()) {
-            s.append('<').append(String.join(",", d.typeParameters()));
-            if (!d.multiplicityParameters().isEmpty()) {
-                s.append('|').append(String.join(",", d.multiplicityParameters()));
-            }
-            s.append('>');
-        }
-        s.append('(');
-        for (int i = 0; i < d.parameters().size(); i++) {
-            var p = d.parameters().get(i);
-            if (i > 0) {
-                s.append(", ");
-            }
-            s.append(p.name()).append(':').append(renderType(p.type())).append(p.multiplicity());
-        }
-        return s.append("):").append(renderType(d.returnType()))
-                .append(d.returnMultiplicity()).toString();
-    }
 
     private static String renderType(com.legend.protocol.TypeExpression t) {
         return switch (t) {

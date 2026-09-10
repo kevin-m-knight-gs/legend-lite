@@ -168,6 +168,13 @@ public enum CoreFn {
 
     private static final Map<String, CoreFn> BY_NAME = new HashMap<>();
 
+    /** Every parse-time name (aliases included) with its construct — the
+     *  CoreFn CLAIMS ({@link com.legend.builtin.Claims}, kind CORE_FN): every
+     *  catalog overload whose bare name is one of these is dispatched here. */
+    public static Map<String, CoreFn> parseNames() {
+        return java.util.Collections.unmodifiableMap(BY_NAME);
+    }
+
     static {
         for (CoreFn fn : values()) {
             for (String name : fn.parseNames) {
