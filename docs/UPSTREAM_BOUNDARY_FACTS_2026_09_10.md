@@ -1,5 +1,14 @@
 # Bumping legend-engine / legend-pure — the FACTS, 2026-09-10
 
+> **SUPERSEDED.** The plan is [`UPSTREAM_BOUNDARY_PROGRAM.md`](UPSTREAM_BOUNDARY_PROGRAM.md);
+> the evidence is [`UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md`](UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md). Read those instead. It verifies or corrects every claim below, closes all six open
+> questions in §6, and adds the ordered procedure. Two corrections matter enough
+> to flag here: **latest upstream is engine 4.145.0 / pure 5.99.0**, not the
+> 4.138.1 / 5.92.0 recorded below (that came from unfetched local tag lists); and
+> **all 122 hardcoded upstream paths still resolve at latest**, so the path
+> hazard in §4 is real in mechanism but did not fire across 15 engine releases.
+> Kept for provenance.
+
 Not a plan. A starting fact sheet for the homework, so that work begins from
 what is already known rather than re-deriving it. Everything below is marked
 **VERIFIED** (checked in this tree today) or **CANDIDATE** (believed relevant,
