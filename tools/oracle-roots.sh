@@ -18,6 +18,14 @@
 #     against the wrong spec); ORACLE_PIN_CHECK=0 downgrades that to a
 #     warning for a deliberate pin-bump session.
 # Returns 0 when both checkouts are present and on the pinned commits.
+#
+# This is the LAPTOP guard: in CI the checkouts are cloned BY the pinned SHA
+# and the comparison passes by construction, so CI does not call it
+# separately (tools/allgates.sh calls it on entry, everywhere, once). Whether
+# the pinned SHA is the release TAG's commit is a property of the pins file,
+# not of any clone: tools/version-report.sh INV-2c asks the remote
+# (`git ls-remote`), so no clone needs tags and no git runs against the
+# oracle clones in CI (USER 2026-09-10).
 
 # BASH_SOURCE is bash-only; from a zsh hand shell fall back to the repo-root
 # relative path (both gate scripts cd to the repo root before sourcing)
@@ -47,18 +55,7 @@ oracle_roots_check() {
     h=$(_oracle_head "$dir")
     if [ -z "$h" ]; then
       echo "WARNING: $dir is not a git checkout — pin drift for legend-$name cannot be checked"
-    elif [ "$h" = "$want" ]; then
-      # on the pin. The pin must be a RELEASE TAG's commit (one release,
-      # docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A): when the checkout knows the
-      # tag, verify it points here (a shallow CI clone has no tags — skipped).
-      local describe tagged
-      describe=$([ "$name" = engine ] && echo "$LEGEND_ENGINE_DESCRIBE" || echo "$LEGEND_PURE_DESCRIBE")
-      tagged=$(git -C "$dir" rev-parse "refs/tags/$describe^{commit}" 2>/dev/null)
-      if [ -n "$tagged" ] && [ "$tagged" != "$want" ]; then
-        echo "PIN/TAG MISMATCH: legend-$name pin $want is not the commit tag $describe points to ($tagged)."
-        ok=1
-      fi
-    else
+    elif [ "$h" != "$want" ]; then
       if [ "${ORACLE_PIN_CHECK:-1}" = "0" ]; then
         echo "WARNING: legend-$name checkout at $dir is $h, pin is $want (ORACLE_PIN_CHECK=0: continuing)"
       else

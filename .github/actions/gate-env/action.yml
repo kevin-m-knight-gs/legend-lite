@@ -47,11 +47,12 @@ runs:
         ref: ${{ env.LEGEND_PURE_SHA }}
         path: oracles/legend-pure
         fetch-depth: 1
-    - name: oracle roots are present and on the pins
-      shell: bash
-      working-directory: legend-lite
-      run: . tools/oracle-roots.sh && oracle_roots_check
-    - name: upstream is ONE release (pins, poms, fixture agree)
+    # No roots check here: the clones above ARE the pinned SHAs, so "present
+    # and on the pin" holds by construction (tools/allgates.sh still runs
+    # oracle_roots_check on entry — the laptop guard, a no-op comparison in
+    # CI). The one check worth running in CI is the pins file against the
+    # poms, the fixture and the REMOTE tags — no git against the clones.
+    - name: upstream is ONE release (pins, poms, fixture, remote tags agree)
       shell: bash
       working-directory: legend-lite
       run: tools/version-report.sh --check

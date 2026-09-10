@@ -205,6 +205,25 @@ inv "2a" "$([ "$LEGEND_ENGINE_DESCRIBE" = "legend-engine-$LEGEND_ENGINE_RELEASE"
 inv "2b" "$([ "$LEGEND_PURE_DESCRIBE" = "legend-pure-$LEGEND_PURE_RELEASE" ] && echo 0 || echo 1)" \
   "SOURCE pure pin $LEGEND_PURE_DESCRIBE is the release tag legend-pure-$LEGEND_PURE_RELEASE"
 
+# INV-2c: the pinned SHAs ARE the tags' commits — asked of the REMOTE (the
+# peeled `^{}` ref of `git ls-remote --tags`), so no clone needs tags and CI's
+# shallow clones are never consulted (USER 2026-09-10: no git against the
+# oracle clones in CI). Network; skipped offline.
+tag_commit() {  # tag_commit <owner/repo> <tag>
+  git ls-remote --tags "https://github.com/$1" "refs/tags/$2^{}" 2>/dev/null | awk '{print $1}' | head -1
+}
+if [ "$OFFLINE" = 1 ]; then
+  say "  SKIP  INV-2c (offline: tag commits not asked of the remote)"
+else
+  for pair in "engine|$LEGEND_ENGINE_REPO|$LEGEND_ENGINE_DESCRIBE|$LEGEND_ENGINE_SHA" \
+              "pure|$LEGEND_PURE_REPO|$LEGEND_PURE_DESCRIBE|$LEGEND_PURE_SHA"; do
+    IFS='|' read -r name repo tag sha <<< "$pair"
+    remote=$(tag_commit "$repo" "$tag")
+    inv "2c" "$([ -n "$remote" ] && [ "$remote" = "$sha" ] && echo 0 || echo 1)" \
+      "SOURCE $name SHA ${sha:0:9} is the commit tag $tag points to on the remote (${remote:-<unresolved: remote unreachable or no such tag>})"
+  done
+fi
+
 # INV-3 (PCT jars == source) and the old ORACLE == SOURCE row are now
 # consequences of INV-0 + INV-2: one pom property, one tag. Reported for the
 # reader, not re-checked.
