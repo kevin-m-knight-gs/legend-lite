@@ -1489,7 +1489,7 @@ final class UnionSynthesis {
                     if (!wrapped.add(st.alias())) {
                         continue;
                     }
-                    threadPipe = new AppliedFunction(Pure.Lite.JOIN, List.of(threadPipe,
+                    threadPipe = new AppliedFunction(Pure.Lite.JOIN_SLOT, List.of(threadPipe,
                             new ColSpec(st.alias(), new LambdaFunction(List.of(),
                                     List.of(ViewRelation.relationExpr(
                                             st.db(), st.table(), model, md))),

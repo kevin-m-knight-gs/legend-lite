@@ -45,7 +45,7 @@ final class JoinChecker {
         // ONLY under its exact spelling (normalizer emissions); a
         // user-written bare 'join' must never reach it
         boolean liteSlotSpelling = af.function()
-                .equals(com.legend.builtin.Pure.Lite.JOIN);
+                .equals(com.legend.builtin.Pure.Lite.JOIN_SLOT);
         // FQN spellings canonicalize to the parse name up front (the
         // ProjectChecker lesson): rebuilds and generic resolution key on
         // the name, and an FQN finds only its own narrow catalog entry.
@@ -376,7 +376,7 @@ final class JoinChecker {
     private static TypedSpec slot(Typer t, AppliedFunction af, Env env) {
         // the slot overload is lite-INTERNAL vocabulary (not in the
         // user bare-name namespace) — resolve by exact identity
-        TypedFunction sig = t.model().findFunction(com.legend.builtin.Pure.Lite.JOIN).stream()
+        TypedFunction sig = t.model().findFunction(com.legend.builtin.Pure.Lite.JOIN_SLOT).stream()
                 .filter(c -> c.parameters().size() == 3)
                 .findFirst()
                 .orElseThrow(() -> new TypeInferenceException(

@@ -431,15 +431,14 @@ public final class Pure {
         public static final String ASOR_PK_VALUE = PKG + "asorPkValue";
         public static final String ASOR_DECODE_PK_MAP = PKG + "asorDecodePkMap";
 
-        // -- ENGINE-VOCABULARY typing shims (per-name verified): the
-        // NAME is legend-engine's own wire/dynaFn vocabulary
-        // ('divideRound' pureToSQLQuery dynaFunction, 'notEqualAnsi'
-        // relationalExtension, 'avg' legacy ~groupBy aggregate, 'sub'
-        // databricks dynaFns, 'isNumeric' duckdb extension, 'hash'
-        // memsql dialect); 'join' is the REAL relation join's name —
-        // lite carries a same-name overload shim. Only the typing-shim
-        // FQN package is ours.
-        public static final String AVG = PKG + "avg";
+        // -- ENGINE-VOCABULARY typing shims: the NAME is a legend-engine
+        // dynafunction (DynaFn: registered by dynaFnToSql in the engine's
+        // SQL renderer, or in its type-inference map) whose shape no pure
+        // signature has — the registry's SHIM rows resolve to these
+        // identities, and the mapping translator's format arms land on
+        // the four *Format ones. Only the FQN package is ours. The set is
+        // DERIVED-VERIFIED: DynaFnRegistryTest holds ENGINE_VOCAB_SHIMS
+        // equal to the SHIM rows plus the translator's declared landings.
         public static final String DIVIDE_ROUND = PKG + "divideRound";
         public static final String NOT_EQUAL_ANSI = PKG + "notEqualAnsi";
         /** Engine DynaFunc ORDERING comparisons in join/filter conditions:
@@ -452,14 +451,20 @@ public final class Pure {
         public static final String LESS_THAN_EQUAL_ANY = PKG + "lessThanEqual";
         public static final String GREATER_THAN_ANY = PKG + "greaterThan";
         public static final String GREATER_THAN_EQUAL_ANY = PKG + "greaterThanEqual";
-        public static final String SUB = PKG + "sub";
         public static final String IS_NUMERIC = PKG + "isNumeric";
         /** The engine's relational dynaFn {@code isDistinct(a, b)} (SQL
          *  IS DISTINCT FROM; extensionDefaults.pure) — no pure counterpart
          *  (pure's isDistinct is the 1-arg collection test). */
         public static final String IS_DISTINCT = PKG + "isDistinct";
-        public static final String HASH = PKG + "hash";
-        public static final String JOIN = PKG + "join";
+        /** INTERNAL DESUGAR IR: the pipeline SLOT join the normalizer emits
+         *  (JoinChecker: "lite-INTERNAL vocabulary, exists ONLY under its exact
+         *  spelling") — never user-reachable; the user's relation join is
+         *  upstream's own. Until the batch-5 audit (2026-09-11) it was filed with
+         *  the engine shims AND spelled {@code lite::join}, sharing upstream's
+         *  bare name — which the internal-desugar rule (a bare internal name is
+         *  refused) cannot hold for a name users write; internal IR gets its own
+         *  name. */
+        public static final String JOIN_SLOT = PKG + "joinSlot";
         /** LITE SURFACE (USER 2026-09-11): the relation join / asOfJoin with a
          *  right-column PREFIX — {@code join(l, r, kind, {a,b|…}, 'p_')} renames
          *  every right-side column p_&lt;name&gt; in the output (JoinChecker
@@ -510,9 +515,7 @@ public final class Pure {
             java.util.stream.Stream.of(Lite.CAST_AS_DECLARED,
                     Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
-                    Lite.OTHERWISE, Lite.PARSE_DATE_FORMAT,
-                    Lite.CONVERT_DATE_FORMAT, Lite.CONVERT_DATE_TIME_FORMAT,
-                    Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS,
+                    Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS)
@@ -522,11 +525,12 @@ public final class Pure {
     /** Bare names of the engine-vocabulary typing shims (see
      *  {@link Lite}). Pinned shrink-only. */
     public static final java.util.Set<String> ENGINE_VOCAB_SHIMS =
-            java.util.stream.Stream.of(Lite.AVG, Lite.DIVIDE_ROUND,
-                    Lite.NOT_EQUAL_ANSI, Lite.SUB, Lite.IS_NUMERIC, Lite.IS_DISTINCT,
-                    Lite.HASH, Lite.JOIN, Lite.LESS_THAN_ANY,
-                    Lite.LESS_THAN_EQUAL_ANY, Lite.GREATER_THAN_ANY,
-                    Lite.GREATER_THAN_EQUAL_ANY)
+            java.util.stream.Stream.of(Lite.DIVIDE_ROUND,
+                    Lite.NOT_EQUAL_ANSI, Lite.IS_NUMERIC, Lite.IS_DISTINCT,
+                    Lite.LESS_THAN_ANY, Lite.LESS_THAN_EQUAL_ANY,
+                    Lite.GREATER_THAN_ANY, Lite.GREATER_THAN_EQUAL_ANY,
+                    Lite.PARSE_DATE_FORMAT, Lite.CONVERT_DATE_FORMAT,
+                    Lite.CONVERT_DATE_TIME_FORMAT, Lite.CONVERT_TIME_ZONE_FORMAT)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -547,21 +551,6 @@ public final class Pure {
                     liteLocalName(Lite.SOURCE_URL),
                     liteLocalName(Lite.JOIN_WITH_PREFIX),
                     liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX));
-
-    /**
-     * Translation at the engine-wire DATA BOUNDARY: a name arriving
-     * from the engine's relational-operation vocabulary (protocol
-     * dynaFns, legacy ~groupBy aggregates) is respelled to its exact
-     * lite-internal identity the moment it enters our AST; every other
-     * name passes through untouched (it is real pure vocabulary and
-     * resolves in the user namespace).
-     */
-    public static String wireEmissionName(String wireName) {
-        return INTERNAL_DESUGAR.contains(wireName)
-                || ENGINE_VOCAB_SHIMS.contains(wireName)
-                ? Lite.PKG + wireName : wireName;
-    }
-
 
     /** Every registered native in the lite-internal package — the
      *  governance test's census surface. */
@@ -918,7 +907,6 @@ public final class Pure {
     // engine-lite-authored tests since rewritten) and are DELETED.
     // over(): verify the ⊆-constrained args + the String[*] overload in 4c.
     public static final NativeFunctionDefinition AVERAGE__RELATION_1__WINDOW_1__T_1__COL_SPEC_1 = signature("native function meta::pure::functions::math::average<T>(partition:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], row:T[1], colToAgg:meta::pure::metamodel::relation::ColSpec<(?:meta::pure::metamodel::type::Number)⊆T>[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition AVG__NUMBER_MANY = signature("native function meta::legend::lite::avg(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition BETWEEN__NUMBER = signature("native function meta::pure::functions::boolean::between(value:meta::pure::metamodel::type::Number[0..1], lower:meta::pure::metamodel::type::Number[0..1], upper:meta::pure::metamodel::type::Number[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition BETWEEN__STRING = signature("native function meta::pure::functions::boolean::between(value:meta::pure::metamodel::type::String[0..1], lower:meta::pure::metamodel::type::String[0..1], upper:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition BETWEEN__STRICT_DATE = signature("native function meta::pure::functions::boolean::between(value:meta::pure::metamodel::type::StrictDate[0..1], lower:meta::pure::metamodel::type::StrictDate[0..1], upper:meta::pure::metamodel::type::StrictDate[0..1]):meta::pure::metamodel::type::Boolean[1];");
@@ -1181,7 +1169,6 @@ public final class Pure {
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition HASH_CODE__ANY_MANY = signature("native function meta::pure::functions::hash::hashCode(vals:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Integer[1];");
     // lite convenience; REAL pure hashing is hash(text, HashType) below.
-    public static final NativeFunctionDefinition HASH__STRING_1 = signature("native function meta::legend::lite::hash(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition HASH__STRING_1__HASH_TYPE_1 = signature("native function meta::pure::functions::hash::hash(text:meta::pure::metamodel::type::String[1], hashType:meta::pure::functions::hash::HashType[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition HAS_DAY__DATE_1 = signature("native function meta::pure::functions::date::hasDay(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition HAS_HOUR__DATE_1 = signature("native function meta::pure::functions::date::hasHour(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
@@ -1276,7 +1263,7 @@ public final class Pure {
     // is the join condition over (source-row, target-row). Defaults to LEFT.
     // This is the relational, same-store widening primitive; cross-class
     // widening uses `associate` on Class[*] above.
-    public static final NativeFunctionDefinition JOIN__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1 = signature("native function meta::legend::lite::join<S,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], slot:meta::pure::metamodel::relation::FuncColSpec<{->meta::pure::metamodel::relation::Relation<T>[1]},Z>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
+    public static final NativeFunctionDefinition JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1 = signature("native function meta::legend::lite::joinSlot<S,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], slot:meta::pure::metamodel::relation::FuncColSpec<{->meta::pure::metamodel::relation::Relation<T>[1]},Z>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
     public static final NativeFunctionDefinition JOIN_WITH_PREFIX__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1 = signature("native function meta::legend::lite::joinWithPrefix<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
     public static final NativeFunctionDefinition LAG__RELATION_1__T_1 = signature("native function meta::pure::functions::relation::lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1];");
     public static final NativeFunctionDefinition LAG__RELATION_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
@@ -2210,10 +2197,6 @@ public final class Pure {
     // CORPUS-SHAPE window overload — see VARIANCE__RELATION_1__WINDOW_1__T_1.
     public static final NativeFunctionDefinition SUBSTRING__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::substring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUBSTRING__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::string::substring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition SUB__DECIMAL_1__DECIMAL_1 = signature("native function meta::legend::lite::sub(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1];");
-    public static final NativeFunctionDefinition SUB__FLOAT_1__FLOAT_1 = signature("native function meta::legend::lite::sub(left:meta::pure::metamodel::type::Float[1], right:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition SUB__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::sub(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition SUB__NUMBER_1__NUMBER_1 = signature("native function meta::legend::lite::sub(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition SUM__FLOAT_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition SUM__INTEGER_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition SUM__NUMBER_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");

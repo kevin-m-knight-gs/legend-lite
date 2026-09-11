@@ -547,10 +547,6 @@ final class Scalars {
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
         }
-        // the 1-arg memsql-dialect 'hash' typing shim (the bare 'hash'
-        // entry above registers only the REAL 2-arg hash::hash — the
-        // shim is not user-resolvable and registers by exact identity)
-        familyIfPresent(SqlFn.HASH, Pure.Lite.HASH);
         // startsWith/endsWith carry the pure [0..1]-overload guards
         // (stringExtension.pure: $source->isNotEmpty() && ...) — the
         // COMPARISON-SITE null tolerance (audit 20a H2), overriding the
@@ -916,7 +912,6 @@ final class Scalars {
                         new SqlExpr.IntLit(0));
             });
         }
-        familyIfPresent(SqlFn.MINUS, Pure.Lite.SUB);
         // makeString: the Any[*] joiner. Elements stringify; a NULL element
         // prints 'TDSNull' (engine TDS-cell convention — ordinary pure
         // collections hold no empties, so the coalesce is unobservable

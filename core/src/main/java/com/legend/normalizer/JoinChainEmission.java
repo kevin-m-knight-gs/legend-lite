@@ -454,7 +454,7 @@ final class JoinChainEmission {
                 ColSpec slot = new ColSpec(java.util.Objects.requireNonNull(slotAlias, "slotAlias"),
                         new LambdaFunction(List.of(), List.of(targetRel)),
                         null, viewTarget);
-                p.expr = new AppliedFunction(Pure.Lite.JOIN,
+                p.expr = new AppliedFunction(Pure.Lite.JOIN_SLOT,
                         List.of(p.expr, slot, condLambda));
             }
             p.aliasToTargetTable.put(slotAlias, targetTable);

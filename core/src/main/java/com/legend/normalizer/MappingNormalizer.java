@@ -128,16 +128,6 @@ public final class MappingNormalizer {
 
     private MappingNormalizer() {}
 
-    /**
-     * Canonical Pure aggregate function names recognized for {@code ~groupBy}
-     * decomposition. Matched case-sensitively against the parsed function name
-     * (Pure function names are case-sensitive) and emitted verbatim, so the
-     * emitted aggregate call resolves to the same-named native (e.g. {@code stdDev}
-     * must keep its camelCase to match the catalog entry, not be lowercased).
-     */
-    static final Set<String> AGGREGATE_FNS = Set.of(
-            "sum", "count", "avg", "min", "max", "stdDev", "variance");
-
     // ====================================================================
     // Entry point
     // ====================================================================

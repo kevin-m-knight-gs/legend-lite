@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.builtin.DynaFn;
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
@@ -52,8 +53,15 @@ final class RelOpTranslator {
      * (core_functions_unclassified/hash/hash.pure). Future divergent
      * dynafunctions belong HERE, not in ad-hoc predicates.
      */
-    private static final Map<String, String> DYNA_HASH_TYPES =
-            Map.of("md5", "MD5", "sha1", "SHA1", "sha256", "SHA256");
+    /** The engine's hashing dynafunctions → upstream's {@code hash(String, HashType)}. */
+    private static final Map<DynaFn, String> DYNA_HASH_TYPES =
+            Map.of(DynaFn.MD5, "MD5", DynaFn.SHA1, "SHA1", DynaFn.SHA256, "SHA256");
+
+    /** The registry entry of a mapping-expression call, or null when the engine
+     *  registers no dynafunction of that name (a plain pure function call). */
+    private static @com.legend.Nullable DynaFn dyna(RelationalOperation.FunctionCall call) {
+        return DynaFn.of(call.name()).orElse(null);
+    }
 
     /** What the surrounding pipeline exposes to expression translation. */
     interface PipelineView {
@@ -236,7 +244,7 @@ final class RelOpTranslator {
             }
             case RelationalOperation.Literal lit -> literalToValueSpec(lit.value());
             case RelationalOperation.FunctionCall call
-                    when DYNA_HASH_TYPES.containsKey(call.name()) ->
+                    when dyna(call) instanceof DynaFn hashed && DYNA_HASH_TYPES.containsKey(hashed) ->
                     // SQL-lane operand: optional column reads null-
                     // propagate; hash(String[1], ...) is strict — the
                     // 'position' toOne idiom
@@ -244,20 +252,16 @@ final class RelOpTranslator {
                             toOne(translate(call.args().get(0), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline)),
                             new EnumValue("meta::pure::functions::hash::HashType",
-                                    DYNA_HASH_TYPES.get(call.name()))));
+                                    java.util.Objects.requireNonNull(DYNA_HASH_TYPES.get(hashed)))));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("dayOfWeek") && call.args().size() == 1 ->
+                    when dyna(call) == DynaFn.DAY_OF_WEEK && call.args().size() == 1 ->
                     // the DYNA returns the day NAME (a string); pure's
                     // dayOfWeek returns the enum — toString is the name
                     new AppliedFunction("toString", List.of(new AppliedFunction(
                             "dayOfWeek", translateArgs(call, tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline))));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("isNumeric") && call.args().size() == 1 ->
-                    new AppliedFunction(Pure.Lite.IS_NUMERIC, translateArgs(call, tableScope,
-                            targetVarOrNull, rowBindOrNull, pipeline));
-            case RelationalOperation.FunctionCall call
-                    when call.name().equals("dayOfWeekNumber")
+                    when dyna(call) == DynaFn.DAY_OF_WEEK_NUMBER
                     && (call.args().size() == 1 || call.args().size() == 2) -> {
                     // Engine H2: 1-arg = DAY_OF_WEEK (SUNDAY=1); the 2-arg
                     // form fixes the week start — 'Monday' emits
@@ -290,7 +294,7 @@ final class RelOpTranslator {
                                     new CInteger(1L)));
             }
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("adjust") && call.args().size() == 3
+                    when dyna(call) == DynaFn.ADJUST && call.args().size() == 3
                     && call.args().get(2) instanceof RelationalOperation.Literal ul
                     && ul.value() instanceof String unit -> {
                     // the dyna spells the DurationUnit as a string literal;
@@ -304,7 +308,7 @@ final class RelOpTranslator {
                                     unit.toUpperCase())));
             }
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("convertTimeZone") && call.args().size() == 3 ->
+                    when dyna(call) == DynaFn.CONVERT_TIME_ZONE && call.args().size() == 3 ->
                     new AppliedFunction(Pure.Lite.CONVERT_TIME_ZONE_FORMAT, translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline));
             // FORMAT dynafunctions: parseDate/convertDate/convertDateTime/
@@ -313,11 +317,11 @@ final class RelOpTranslator {
             // without a format is the ISO spelling; convertVarchar128 is
             // the VARCHAR coercion.
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("parseDate") && call.args().size() == 2 ->
+                    when dyna(call) == DynaFn.PARSE_DATE && call.args().size() == 2 ->
                     new AppliedFunction(Pure.Lite.PARSE_DATE_FORMAT, translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("convertDate") && call.args().size() <= 2 -> {
+                    when dyna(call) == DynaFn.CONVERT_DATE && call.args().size() <= 2 -> {
                     List<ValueSpecification> as = translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline);
                     yield new AppliedFunction(Pure.Lite.CONVERT_DATE_FORMAT,
@@ -325,17 +329,17 @@ final class RelOpTranslator {
                                     : List.of(as.get(0), new CString("yyyy-MM-dd")));
             }
             case RelationalOperation.FunctionCall call
-                    when (call.name().equals("convertDateTime")
-                            || call.name().equals("toTimestamp"))
+                    when (dyna(call) == DynaFn.CONVERT_DATE_TIME
+                            || dyna(call) == DynaFn.TO_TIMESTAMP)
                     && call.args().size() == 2 ->
                     new AppliedFunction(Pure.Lite.CONVERT_DATE_TIME_FORMAT, translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("convertVarchar128") && call.args().size() == 1 ->
+                    when dyna(call) == DynaFn.CONVERT_VARCHAR128 && call.args().size() == 1 ->
                     strCast(translate(call.args().get(0), tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("splitPart") && call.args().size() == 3 -> {
+                    when dyna(call) == DynaFn.SPLIT_PART && call.args().size() == 3 -> {
                     // the DYNAFUNCTION accepts a string-typed part index (the
                     // corpus maps VARCHAR columns); pure splitPart requires
                     // Integer — conform by EMISSION: cast(@Integer) is a
@@ -357,7 +361,7 @@ final class RelOpTranslator {
                                             new TypeExpression.NameRef("Integer"))))));
             }
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("case") && call.args().size() >= 3
+                    when dyna(call) == DynaFn.CASE && call.args().size() >= 3
                             && call.args().size() % 2 == 1 -> {
                     // the relational 'case' dynafunction:
                     // case(c1, v1 [, c2, v2 ...], default) — pure spells it
@@ -390,7 +394,7 @@ final class RelOpTranslator {
             PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("concat") && call.args().size() >= 2 -> {
+                    when dyna(call) == DynaFn.CONCAT && call.args().size() >= 2 -> {
                     // The variadic 'concat' dynafunction has NO pure-function
                     // counterpart (engine renders it per-dialect straight to
                     // SQL); real pure spells string concatenation with plus.
@@ -415,7 +419,7 @@ final class RelOpTranslator {
             // @Type) (the same emission the JSON-source synthesizer uses:
             // text-extraction then cast).
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("extractFromSemiStructured")
+                    when dyna(call) == DynaFn.EXTRACT_FROM_SEMI_STRUCTURED
                     && call.args().size() == 3
                     && call.args().get(2) instanceof RelationalOperation.Literal lit
                     && lit.value() instanceof String sqlType ->
@@ -438,7 +442,7 @@ final class RelOpTranslator {
             // dynafunction forwards VERBATIM (the old +1 emission paired
             // with the 0-based rule; both sides dropped together).
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("indexOf") && call.args().size() == 2 ->
+                    when dyna(call) == DynaFn.INDEX_OF && call.args().size() == 2 ->
                     new AppliedFunction("indexOf", List.of(
                             translate(call.args().get(0), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline),
@@ -450,7 +454,7 @@ final class RelOpTranslator {
             // forward unchanged (the old pure-semantics pre-shift paired
             // with the lowering's re-shift; both sides dropped together).
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("substring")
+                    when dyna(call) == DynaFn.SUBSTRING
                     && (call.args().size() == 2 || call.args().size() == 3) ->
                 new AppliedFunction("substring", translateArgs(call,
                         tableScope, targetVarOrNull, rowBindOrNull, pipeline));
@@ -463,12 +467,12 @@ final class RelOpTranslator {
             // the translated operands wrap in toOne — the 'position'
             // idiom below, now uniform across the dyna emissions.
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("add") && call.args().size() == 2 ->
+                    when dyna(call) == DynaFn.ADD && call.args().size() == 2 ->
                     AppliedFunction.infixRun("plus", toOneAll(translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull,
                             pipeline)));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("sub") && call.args().size() == 2 ->
+                    when dyna(call) == DynaFn.SUB && call.args().size() == 2 ->
                     AppliedFunction.infixRun("minus", toOneAll(translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull,
                             pipeline)));
@@ -476,7 +480,7 @@ final class RelOpTranslator {
             // vs pure's indexOf(haystack, needle); forwards verbatim like
             // the indexOf dynafunction above (C1.5c made the rule 1-based)
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("position") && call.args().size() == 2 ->
+                    when dyna(call) == DynaFn.POSITION && call.args().size() == 2 ->
                     // toOne on the haystack: an OPTIONAL column read would
                     // otherwise infect the whole arithmetic chain with [*]
                     // (SQL null-propagates; erasure makes toOne free)
@@ -488,19 +492,19 @@ final class RelOpTranslator {
                             translate(call.args().get(0), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline)));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("isNull") && call.args().size() == 1 ->
+                    when dyna(call) == DynaFn.IS_NULL && call.args().size() == 1 ->
                     new AppliedFunction("isEmpty", List.of(translate(call.args().get(0),
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("isNotNull") && call.args().size() == 1 ->
+                    when dyna(call) == DynaFn.IS_NOT_NULL && call.args().size() == 1 ->
                     new AppliedFunction("isNotEmpty", List.of(translate(call.args().get(0),
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("group") && call.args().size() == 1 ->
+                    when dyna(call) == DynaFn.GROUP && call.args().size() == 1 ->
                     translate(call.args().get(0), tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline);
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("if") && call.args().size() == 3 ->
+                    when dyna(call) == DynaFn.IF && call.args().size() == 3 ->
                     new AppliedFunction("if", List.of(
                             translate(call.args().get(0), tableScope, targetVarOrNull,
                                     rowBindOrNull, pipeline),
@@ -511,7 +515,7 @@ final class RelOpTranslator {
                                     translate(call.args().get(2), tableScope, targetVarOrNull,
                                             rowBindOrNull, pipeline)))));
             case RelationalOperation.FunctionCall call
-                    when (call.name().equals("or") || call.name().equals("and"))
+                    when (dyna(call) == DynaFn.OR || dyna(call) == DynaFn.AND)
                     && call.args().size() > 2 -> {
                 // The or/and DYNAs are VARIADIC (corpus testMerge.pure:121
                 // or(4 disjuncts)); real pure boolean::or/and are binary —
@@ -689,21 +693,22 @@ final class RelOpTranslator {
      *  rewrite — THE ONE lookup (DynaFn): a PURE operator passes through under
      *  its own name (the catalog's overloads decide), a SHIM takes its Lite
      *  identity, an UNSUPPORTED one fails loud naming the operator; a name the
-     *  engine registers as no dynafunction is a plain function the expression
-     *  calls (the data-boundary respelling of internal vocabulary applies). */
-    private static String dynaFnName(RelationalOperation.FunctionCall call) {
-        java.util.Optional<com.legend.builtin.DynaFn> d = com.legend.builtin.DynaFn.of(call.name());
-        if (d.isEmpty()) {
-            return Pure.wireEmissionName(call.name());
+     *  engine registers as no dynafunction is a plain pure function the
+     *  expression calls, under its own name (no respelling: the 2026-09-11
+     *  audit deleted the bare-name respelling table). */
+    static String dynaFnName(RelationalOperation.FunctionCall call) {
+        DynaFn d = dyna(call);
+        if (d == null) {
+            return call.name();
         }
-        return switch (d.get().resolution()) {
+        return switch (d.resolution()) {
             case PURE -> call.name();
-            case SHIM -> d.get().liteFqn();
+            case SHIM -> d.liteFqn();
             case TRANSLATED -> throw new IllegalStateException("dynafunction '" + call.name()
                     + "' is declared TRANSLATED but no translator arm rewrote it");
             case UNSUPPORTED -> throw new com.legend.error.NotImplementedException(
                     "engine dynafunction '" + call.name() + "' is not supported by this platform yet"
-                    + " (DynaFn." + d.get().name() + ", registered by " + d.get().dialects() + ")");
+                    + " (DynaFn." + d.name() + ", registered by " + d.dialects() + ")");
         };
     }
 

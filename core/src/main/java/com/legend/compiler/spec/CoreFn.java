@@ -101,7 +101,7 @@ public enum CoreFn {
     /** Relation {@code aggregate(~agg:map:reduce)} &mdash; whole-relation aggregation ({@code Relation<R>}). */
     AGGREGATE("aggregate"),
     /** Relation {@code join(other, JoinKind.INNER, {t,v|cond})} &mdash; schema union {@code T+V}. */
-    JOIN("join", "joinWithPrefix"),
+    JOIN("join", "joinWithPrefix", "joinSlot"),
     /** Relation {@code asOfJoin(other, {t,v|match} [, {t,v|cond}])} &mdash; temporal join, {@code T+V}. */
     AS_OF_JOIN("asOfJoin", "asOfJoinWithPrefix"),
     /** {@code cast(@T)} &mdash; type conversion at the source's multiplicity ({@code T[m]}). */

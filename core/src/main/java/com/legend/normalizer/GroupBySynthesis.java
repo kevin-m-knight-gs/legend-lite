@@ -209,10 +209,9 @@ final class GroupBySynthesis {
             ValueSpecification selector = RelOpTranslator.translate(fc.args().get(0), scope, null,
                     rowBind, p.view());
             Variable vals = new Variable("vals");
-            // ~groupBy aggregate names are WIRE vocabulary ('avg' types
-            // against the lite shim) — respell at the data boundary
+            // the reducer is the engine dynafunction's pure passthrough
             ValueSpecification aggBody = new AppliedFunction(
-                    Pure.wireEmissionName(fc.name()), List.of(vals));
+                    RelOpTranslator.dynaFnName(fc), List.of(vals));
             aggCols.add(new ColSpec(pm.propertyName(),
                     new LambdaFunction(List.of(rowBind), List.of(selector)),
                     new LambdaFunction(List.of(vals), List.of(aggBody))));
@@ -231,10 +230,45 @@ final class GroupBySynthesis {
                 || "groupBy".equals(af.function());
     }
 
+    /**
+     * Is this mapping/view column expression a REDUCTION of the group — a
+     * one-argument call of an engine dynafunction that passes through to a
+     * pure function consuming a COLLECTION ({@code sum(Number[*])},
+     * {@code count(Any[*])}, {@code average}, {@code min}/{@code max},
+     * {@code first} …)? The engine itself decides nothing here (it emits the
+     * SQL verbatim and the database aggregates); this platform's {@code ~groupBy}
+     * decomposition needs the fact, and reads it from the two registries — the
+     * dynafunction registry for the name, the catalog for the shape — instead of
+     * a hand list (the 2026-09-11 audit found that list carrying {@code avg} and
+     * {@code stdDev}, neither an engine dynafunction).
+     */
+    static boolean isGroupReducer(RelationalOperation.FunctionCall fc) {
+        if (fc.args().size() != 1) {
+            return false;
+        }
+        java.util.Optional<com.legend.builtin.DynaFn> d = com.legend.builtin.DynaFn.of(fc.name());
+        if (d.isEmpty() || d.get().resolution() != com.legend.builtin.DynaFn.Resolution.PURE) {
+            return false;
+        }
+        for (var native_ : Pure.nativeFunctionsAt(fc.name())) {
+            if (!native_.parameters().isEmpty()
+                    && isCollection(native_.parameters().get(0).multiplicity())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isCollection(com.legend.protocol.Multiplicity m) {
+        return !(m instanceof com.legend.protocol.Multiplicity.Concrete c)
+                || c.upperBound() == null || c.upperBound() > 1;
+    }
+
+
     static boolean isAggregatePm(PropertyMapping pm) {
         if (pm instanceof PropertyMapping.Expression expr
                 && expr.expression() instanceof RelationalOperation.FunctionCall fc) {
-            return MappingNormalizer.AGGREGATE_FNS.contains(fc.name());
+            return isGroupReducer(fc);
         }
         return false;
     }

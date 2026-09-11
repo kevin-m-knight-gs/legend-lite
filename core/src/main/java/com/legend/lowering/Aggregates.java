@@ -38,11 +38,6 @@ public final class Aggregates {
         family(SqlAgg.Fn.SUM, "plus");
         family(SqlAgg.Fn.COUNT, "count");
         family(SqlAgg.Fn.AVG, "average");
-        // the mapping ~groupBy DSL's 'avg' (wire vocabulary — the
-        // normalizer respells it to the lite typing shim at the data
-        // boundary) — the catalog HALF was missing once: typechecked,
-        // then died at lowering (T1.8)
-        family(SqlAgg.Fn.AVG, Pure.Lite.AVG);
         family(SqlAgg.Fn.MIN, "min");
         family(SqlAgg.Fn.MAX, "max");
         // H2-LENIENT per-group witness (view ~groupBy per-row columns —

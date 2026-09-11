@@ -858,7 +858,7 @@ class MappingNormalizerTest {
         assertEquals("map", mapCall.function());
 
         AppliedFunction join = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, join.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, join.function());
         assertEquals(3, join.parameters().size(),
                 "join takes (rel, ColSpec, cond)");
 
@@ -934,10 +934,10 @@ class MappingNormalizerTest {
         // Body: map(join(join(tableRef, ColSpec1, cond1), ColSpec2, cond2), row | ^Person(...))
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction outerJoin = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, outerJoin.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, outerJoin.function(),
                 "outer join is hop 2");
         AppliedFunction innerJoin = (AppliedFunction) outerJoin.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, innerJoin.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, innerJoin.function(),
                 "inner join is hop 1");
         AppliedFunction tableRef = (AppliedFunction) innerJoin.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
@@ -1010,7 +1010,7 @@ class MappingNormalizerTest {
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function());
 
         // Target table of the self-join is T_PERSON (same as source).
         com.legend.protocol.spec.ColSpec spec =
@@ -1323,7 +1323,7 @@ class MappingNormalizerTest {
         assertEquals("filter", filterCall.function());
 
         AppliedFunction joinCall = (AppliedFunction) filterCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function());
         com.legend.protocol.spec.ColSpec spec =
                 (com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1);
         assertEquals("Person_Firm", spec.name(),
@@ -1665,7 +1665,7 @@ class MappingNormalizerTest {
         assertEquals("firm",
                 ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name());
         AppliedFunction intermediate = (AppliedFunction) nav.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, intermediate.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, intermediate.function(),
                 "multi-hop OE fallback emits the intermediate hop as a join");
         // Terminal composes otherwise(^Firm(...), $row.firm).
         AppliedFunction otherwiseCall =
@@ -1818,11 +1818,11 @@ class MappingNormalizerTest {
         // emission order (hop1 innermost, hop3 outermost).
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction h3Join = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h3Join.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, h3Join.function());
         AppliedFunction h2Join = (AppliedFunction) h3Join.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h2Join.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, h2Join.function());
         AppliedFunction h1Join = (AppliedFunction) h2Join.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h1Join.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function());
 
         // Aliases: hop1, hop1__hop2, hop1__hop2__hop3 (join-name concatenation)
         assertEquals("Person_Firm",
@@ -1957,7 +1957,7 @@ class MappingNormalizerTest {
         assertEquals("filter", filter.function(),
                 "filter is outermost upstream op (wraps the joins)");
         AppliedFunction joinCall = (AppliedFunction) filter.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function(),
                 "join sits between tableReference and filter");
         AppliedFunction tableRef = (AppliedFunction) joinCall.parameters().get(0);
         assertEquals("tableReference", tableRef.function(),
@@ -1990,7 +1990,7 @@ class MappingNormalizerTest {
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         // Exactly ONE join: the shared Person_Firm chain.
         AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function());
         com.legend.protocol.spec.ColSpec spec =
                 (com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1);
         assertEquals("Person_Firm", spec.name(),
@@ -2270,7 +2270,7 @@ class MappingNormalizerTest {
         // headline emission paths, so a regression that stops emitting (rather
         // than emits something new) also fails here.
         for (String marker : List.of(
-                "map", "new", "tableReference", "getAll", "filter", "join",
+                "map", "new", "tableReference", "getAll", "filter", "joinSlot",
                 "legacyNavigate", "legacyAssocPredicate", "otherwise", "groupByComputedKeys",
                 "distinct", "if", "equal", "sum", "sourceUrl", "get", "to")) {
             assertTrue(emitted.contains(marker),
@@ -3049,7 +3049,7 @@ class MappingNormalizerTest {
 
         // Upstream of legacyNavigate is the intermediate Person_Firm join.
         AppliedFunction h1Join = (AppliedFunction) nav.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h1Join.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function(),
                 "intermediate hop is a clean join step");
 
         // Condition: {s, t | $s.Person_Firm.ORG_ID == $t.ID}.
@@ -3167,7 +3167,7 @@ class MappingNormalizerTest {
         // prelude chains the intermediate hop before the navigate.
         AppliedFunction nav = navStep(personFn);
         AppliedFunction h1Join = (AppliedFunction) nav.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h1Join.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function(),
                 "intermediate hop is present as a join beneath the legacyNavigate");
         AppliedFunction base = (AppliedFunction) h1Join.parameters().get(0);
         assertEquals("tableReference", base.function(),
@@ -3266,10 +3266,10 @@ class MappingNormalizerTest {
         // Pipeline: map(join(join(tableRef, ~Person_Firm), ~Person_Addr), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction outerJoin = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, outerJoin.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, outerJoin.function(),
                 "Outer join wraps the second chain (Person_Addr)");
         AppliedFunction innerJoin = (AppliedFunction) outerJoin.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, innerJoin.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, innerJoin.function(),
                 "Inner join wraps the first chain (Person_Firm)");
         AppliedFunction tableRef = (AppliedFunction) innerJoin.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
@@ -3340,7 +3340,7 @@ class MappingNormalizerTest {
         // Exactly one join in the prelude.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function());
         assertEquals("tableReference",
                 ((AppliedFunction) joinCall.parameters().get(0)).function(),
                 "Single-chain mixed expression hoists exactly one join");
@@ -3391,7 +3391,7 @@ class MappingNormalizerTest {
         AppliedFunction filterCall = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("filter", filterCall.function());
         AppliedFunction joinCall = (AppliedFunction) filterCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function(),
                 "Chain from the filter condition is hoisted BEFORE the filter");
         assertEquals("Person_Firm",
                 ((com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1)).name());
@@ -3439,7 +3439,7 @@ class MappingNormalizerTest {
         // Exactly ONE join: shape map(join(tableRef, ~Person_Firm), ...).
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function());
         AppliedFunction underJoin = (AppliedFunction) joinCall.parameters().get(0);
         assertEquals("tableReference", underJoin.function(),
                 "Structural JTC and nested JoinNavigation share one join (dedup)");
@@ -3473,7 +3473,7 @@ class MappingNormalizerTest {
         // chain from the LocalProperty body has been hoisted.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function(),
                 "Chain inside a LocalProperty body is hoisted into the prelude");
         assertEquals("Person_Firm",
                 ((com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1)).name());
@@ -3525,12 +3525,12 @@ class MappingNormalizerTest {
         // Pipeline shape: map(join(join(tableRef, ~Person_Firm), ~Person_Firm__Firm_Org), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction h2Join = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h2Join.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, h2Join.function());
         assertEquals("Person_Firm__Firm_Org",
                 ((com.legend.protocol.spec.ColSpec) h2Join.parameters().get(1)).name(),
                 "Hop 2 alias = join-name concatenation");
         AppliedFunction h1Join = (AppliedFunction) h2Join.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, h1Join.function());
+        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function());
         assertEquals("Person_Firm",
                 ((com.legend.protocol.spec.ColSpec) h1Join.parameters().get(1)).name());
         AppliedFunction tableRef = (AppliedFunction) h1Join.parameters().get(0);
@@ -3589,7 +3589,7 @@ class MappingNormalizerTest {
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, groupBy.function());
         AppliedFunction joinCall = (AppliedFunction) groupBy.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function(),
                 "Chain from the groupBy key is hoisted BEFORE the groupBy");
 
         // Key ColSpec lambda body: $row.Person_Firm.NAME
@@ -4227,7 +4227,7 @@ class MappingNormalizerTest {
         assertEquals("project", frame.function(),
                 "the view frames as its own projection");
         AppliedFunction joinCall = (AppliedFunction) frame.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, joinCall.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, joinCall.function(),
                 "the join-backed view column's join lives INSIDE the frame");
         AppliedFunction tableRef = (AppliedFunction) joinCall.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
@@ -4578,7 +4578,7 @@ class MappingNormalizerTest {
                 ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name(),
                 "multi-hop association end emits legacyNavigate(~city)");
         AppliedFunction intermediate = (AppliedFunction) nav.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN, intermediate.function(),
+        assertEquals(Pure.Lite.JOIN_SLOT, intermediate.function(),
                 "the intermediate Person_Address hop is a join() step");
         assertEquals("Person_Address",
                 ((com.legend.protocol.spec.ColSpec) intermediate.parameters().get(1)).name(),

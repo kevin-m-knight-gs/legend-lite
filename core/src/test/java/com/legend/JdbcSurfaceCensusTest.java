@@ -367,7 +367,7 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/integration/VariantIntegrationTest.java",
             "core/src/test/java/com/legend/integration/WindowFunctionTest.java",
             "core/src/test/java/com/legend/integration/WriteCheckerTest.java",
-            "core/src/test/java/com/legend/lowering/GroupByAvgMappingTest.java",
+            "core/src/test/java/com/legend/lowering/GroupByAverageMappingTest.java",
             "core/src/test/java/com/legend/lowering/JoinTortureTest.java",
             "core/src/test/java/com/legend/lowering/LowerRelationTest.java",
             "core/src/test/java/com/legend/lowering/NullSemanticsTest.java",

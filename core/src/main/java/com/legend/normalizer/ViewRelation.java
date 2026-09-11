@@ -180,16 +180,15 @@ final class ViewRelation {
             for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
                 RelationalOperation expr = vc.expression();
                 if (expr instanceof RelationalOperation.FunctionCall fc
-                        && MappingNormalizer.AGGREGATE_FNS.contains(fc.name()) && fc.args().size() == 1) {
+                        && GroupBySynthesis.isGroupReducer(fc)) {
                     ValueSpecification selector = RelOpTranslator.translate(
                             fc.args().get(0), scope, null, r, vp.view());
                     Variable vals = new Variable("vals");
                     aggCols.add(new ColSpec(vc.name(),
                             new LambdaFunction(List.of(r), List.of(selector)),
                             new LambdaFunction(List.of(vals),
-                                    // wire vocabulary ('avg' -> lite shim)
                                     List.of(new AppliedFunction(
-                                            Pure.wireEmissionName(fc.name()),
+                                            RelOpTranslator.dynaFnName(fc),
                                             List.of(vals))))));
                     continue;
                 }

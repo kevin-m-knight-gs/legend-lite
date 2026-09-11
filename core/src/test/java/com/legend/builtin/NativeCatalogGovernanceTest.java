@@ -76,7 +76,11 @@ class NativeCatalogGovernanceTest {
         // upstream's tds::groupBy (divergent rows), now its own internal identity.
         // 17→18: groupByComputedKeys — the relation group-by with key EXPRESSIONS
         // (mapping ~groupBy / view ~groupBy synthesis; the engine emits GROUP BY expr)
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 18,
+        // 18→15 (batch 5 audit leg A, 2026-09-11): the four *Format date shims
+        // are ENGINE vocabulary (the translator's format arms land on them) and
+        // move to ENGINE_VOCAB_SHIMS; the pipeline SLOT join (internal IR the
+        // normalizer emits) moves IN from the shim set where it was mis-filed.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 15,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -89,6 +93,14 @@ class NativeCatalogGovernanceTest {
         // FROM; legend-engine extensionDefaults.pure registers it) has no
         // pure counterpart (pure's isDistinct is the 1-arg collection test);
         // it had been carried as an invented 2-arg overload of the pure name.
+        // 12→12 with a DIFFERENT membership (batch 5 audit leg A, 2026-09-11):
+        // OUT — hash (1-arg; no engine dynafunction, no producer), avg (the
+        // engine spells avg only as SQL for pure's average), sub (the
+        // translator's arm rewrites every 2-arg sub into the minus run; other
+        // arities are an error, as the engine's %s-%s format makes them), and
+        // the slot join (internal IR). IN — the four *Format date shims. The
+        // membership is now DERIVED-VERIFIED against the dynafunction registry
+        // (DynaFnRegistryTest: SHIM rows + the translator's declared landings).
         assertTrue(Pure.ENGINE_VOCAB_SHIMS.size() <= 12,
                 "ENGINE_VOCAB_SHIMS grew: " + Pure.ENGINE_VOCAB_SHIMS);
         // +2 2026-09-11 (USER, upstream boundary batch 5 leg 5d): joinWithPrefix /

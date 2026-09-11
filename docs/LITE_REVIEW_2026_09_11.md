@@ -1,6 +1,6 @@
 # Lite functions in Pure.java — the one-by-one review (2026-09-11, batch 5 audit, item 1)
 
-Every native under `meta::legend::lite::` — 43 signatures, 34 names. Each is either (ENGINE) a name from the engine's relational grammar / dynaFn registry with no Pure signature, (IR) an intermediate form our own normalizer or resolver emits and only it can reach, or (SURFACE) a user-reachable lite-dialect feature. The census columns are mechanical (governance set, claim, referencing files); the verdict column is mine and marked VERIFY where I am not sure.
+Every native under `meta::legend::lite::` — 43 signatures, 34 names at the review (37 signatures, 31 names after leg A). Each is either (ENGINE) a name from the engine's relational grammar / dynaFn registry with no Pure signature, (IR) an intermediate form our own normalizer or resolver emits and only it can reach, or (SURFACE) a user-reachable lite-dialect feature. The census columns are mechanical (governance set, claim, referencing files); the verdict column is mine and marked VERIFY where I am not sure.
 
 | name | set | origin | verdict |
 |---|---|---|---|
@@ -8,20 +8,20 @@ Every native under `meta::legend::lite::` — 43 signatures, 34 names. Each is e
 | `asOfJoinWithPrefix` | LITE_SURFACE | SURFACE: the prefix as-of join (USER decision, leg 5d): every right-side column renamed prefix+name. | keep |
 | `asorDecodePkMap` | INTERNAL_DESUGAR | IR: store-object-reference pk-map decode (base64 + framing) minted by the resolver where the engine's decodeObjectReferencesAndGetPkMap reads a frame. | keep |
 | `asorPkValue` | INTERNAL_DESUGAR | IR: store-object-reference decoder (base64 + framing) minted by the resolver where the engine's objectReferenceIn is a runtime value. | keep |
-| `avg` | ENGINE_VOCAB_SHIMS | NOT ENGINE VOCABULARY (registry check, item 0): no `dynaFnToSql('avg')` in any of the 21 engine registries; the engine spells `avg` only as SQL OUTPUT for pure's `average` (`pair(Average, simpleFunctionProcessor('avg'))` in the dialect models). Our producers: MappingNormalizer's aggregate-name list and RelationalTypeInference's `"sum","average","avg"` arm. | VERIFY the producers: if a mapping/view `~groupBy` writes `avg(...)`, what does the ENGINE do with it (it is no dynaFn) — likely delete the shim and accept only `average` |
+| `avg` | DELETED (leg A) | NOT ENGINE VOCABULARY (registry check, item 0): no `dynaFnToSql('avg')` in any of the 21 engine registries; the engine spells `avg` only as SQL OUTPUT for pure's `average` (`pair(Average, simpleFunctionProcessor('avg'))` in the dialect models). Our producers: MappingNormalizer's aggregate-name list and RelationalTypeInference's `"sum","average","avg"` arm. | done — the only writer was our own test (now `average`); the engine would have failed on `avg` (no rendering) |
 | `castAsDeclared` | INTERNAL_DESUGAR | IR: the mapping property's DECLARED-type coercion (DeclaredCoercions) — a typing shim. | keep; verify each site still needs a coercion rather than the kernel's own conformance |
-| `convertDateFormat` | INTERNAL_DESUGAR | ENGINE: engine dynaFn with a format argument, renamed to avoid clashing with pure's 1-arg convertDate. | RECATEGORIZE? it is engine vocabulary (an ENGINE_VOCAB_SHIM), filed as INTERNAL_DESUGAR |
-| `convertDateTimeFormat` | INTERNAL_DESUGAR | ENGINE: engine dynaFn with a format argument, renamed to avoid clashing with pure's convertDateTime. | RECATEGORIZE? engine vocabulary filed as internal desugar |
-| `convertTimeZoneFormat` | INTERNAL_DESUGAR | ENGINE: engine dynaFn with a format argument. | RECATEGORIZE? engine vocabulary filed as internal desugar |
+| `convertDateFormat` | ENGINE_VOCAB_SHIMS | ENGINE: the `convertDate` dynaFn's format shape; the translator's arm lands here (`DynaFnArms.LANDINGS`). | moved (leg A) |
+| `convertDateTimeFormat` | ENGINE_VOCAB_SHIMS | ENGINE: the `convertDateTime`/`toTimestamp` dynaFns' format shape; arm landing. | moved (leg A) |
+| `convertTimeZoneFormat` | ENGINE_VOCAB_SHIMS | ENGINE: the `convertTimeZone` dynaFn's shape; arm landing. | moved (leg A) |
 | `divideRound` | ENGINE_VOCAB_SHIMS | ENGINE: engine dynaFn. | keep |
 | `greaterThan` | ENGINE_VOCAB_SHIMS | ENGINE: Any-typed ordering shim for the engine's untyped dynaFn literals (protocol `Literal` carries `Object value`, no type). | keep — receipt verified |
 | `greaterThanEqual` | ENGINE_VOCAB_SHIMS | ENGINE: Any-typed ordering shim for the engine's untyped dynaFn literals (protocol `Literal` carries `Object value`, no type). | keep — receipt verified |
 | `groupByComputedKeys` | INTERNAL_DESUGAR | IR: mapping/view ~groupBy over table rows by key expressions (leg 5d). | keep |
 | `groupByOverInstances` | INTERNAL_DESUGAR | IR: the legacy tds::groupBy(K[*], …) desugar landing (leg 5d). | keep |
-| `hash` | ENGINE_VOCAB_SHIMS | NOT ENGINE VOCABULARY (registry check, item 0): no `dynaFnToSql('hash')` anywhere. The engine's hashing dynaFns are `md5`/`sha1`/`sha256`, which the translator rewrites to UPSTREAM's `meta::pure::functions::hash::hash(String[1], HashType[1])` (carried byte-identical, `HASH__STRING_1__HASH_TYPE_1`). Our 1-arg `lite::hash(String[1])` has NO producer (translator, checkers, corpus: none) — only a lowering family registration (`Scalars`: `SqlFn.HASH`) and the shim set. | DELETE candidate: a stub that types and is never consumed |
+| `hash` | DELETED (leg A) | NOT ENGINE VOCABULARY (registry check, item 0): no `dynaFnToSql('hash')` anywhere. The engine's hashing dynaFns are `md5`/`sha1`/`sha256`, which the translator rewrites to UPSTREAM's `meta::pure::functions::hash::hash(String[1], HashType[1])` (carried byte-identical, `HASH__STRING_1__HASH_TYPE_1`). Our 1-arg `lite::hash(String[1])` has NO producer (translator, checkers, corpus: none) — only a lowering family registration (`Scalars`: `SqlFn.HASH`) and the shim set. | done — deleted with the Scalars family row |
 | `isDistinct` | ENGINE_VOCAB_SHIMS | ENGINE: engine dynaFn isDistinct(a, b) — IS DISTINCT FROM (leg 5c). | keep |
 | `isNumeric` | ENGINE_VOCAB_SHIMS | ENGINE: engine dynaFn. | keep |
-| `join` | ENGINE_VOCAB_SHIMS | IR: the pipeline SLOT join the normalizer emits (JoinChecker: "lite-INTERNAL vocabulary, exists ONLY under its exact spelling"). | MIS-SET: it sits in ENGINE_VOCAB_SHIMS but is internal desugar IR — move to INTERNAL_DESUGAR |
+| `join` → `joinSlot` | INTERNAL_DESUGAR | IR: the pipeline SLOT join the normalizer emits (JoinChecker: "lite-INTERNAL vocabulary, exists ONLY under its exact spelling"). It shared upstream's bare name, which the internal-desugar rule (bare internal names are refused) cannot hold for a name users write — renamed `lite::joinSlot` (`Pure.Lite.JOIN_SLOT`). | moved + renamed (leg A) |
 | `joinWithPrefix` | LITE_SURFACE | SURFACE: the prefix join (USER decision, leg 5d). | keep |
 | `legacyAssocPredicate` | INTERNAL_DESUGAR | IR: legacy mapping association predicate. | keep; verify whether the resolver could read the association directly |
 | `legacyLocalProperty` | INTERNAL_DESUGAR | IR: legacy +local property spelling. | keep |
@@ -31,9 +31,9 @@ Every native under `meta::legend::lite::` — 43 signatures, 34 names. Each is e
 | `navigate` | LITE_SURFACE | SURFACE: the relation-navigation extension users write in query text; VERIFIED — the normalizer's three mentions are comments, zero internal emitters. | keep |
 | `notEqualAnsi` | ENGINE_VOCAB_SHIMS | ENGINE: engine dynaFn. | keep |
 | `otherwise` | INTERNAL_DESUGAR | IR: the mapping `otherwise` embedded-mapping form. | keep |
-| `parseDateFormat` | INTERNAL_DESUGAR | ENGINE: engine dynaFn parseDate(x, format); pure's parseDate is 1-arg. | RECATEGORIZE? engine vocabulary filed as internal desugar |
+| `parseDateFormat` | ENGINE_VOCAB_SHIMS | ENGINE: the `parseDate` dynaFn's 2-arg format shape; arm landing (pure's 1-arg parseDate passes through). | moved (leg A) |
 | `sourceUrl` | LITE_SURFACE | SURFACE: JSON source URL of a lite runtime (SourceUrlChecker). | keep |
-| `sub` | ENGINE_VOCAB_SHIMS | ENGINE: engine dynaFn `sub` (extensionDefaults.pure registers pair('sub', …) beside 'minus'); four overloads — the date/number forms pure spells differently. | verify the four overloads against the engine's sub rendering: which shapes exist there |
+| `sub` | DELETED (leg A) | The engine's `sub` renders `%s-%s` (2-ary, extensionDefaults.pure); the translator's arm rewrites every 2-arg `sub` into the minus run, so the four numeric-pair overloads had NO producer; any other arity is an error, as it is in the engine. Registry: TRANSLATED. | done |
 | `tds` | INTERNAL_DESUGAR | IR: the #TDS literal carrier the parser produces. | keep |
 | `trustOne` | INTERNAL_DESUGAR | IR: the SQL-lane to-one trust wrapper (typing-level; erased at lowering). | keep — and it is now also StoreLane's mark |
 | `typeAsDeclared` | INTERNAL_DESUGAR | IR: the mapping property's DECLARED-type coercion at the type level (DeclaredCoercions). | keep; same question as castAsDeclared |
@@ -41,12 +41,18 @@ Every native under `meta::legend::lite::` — 43 signatures, 34 names. Each is e
 
 ## Findings to act on
 
-1. `join` (the slot form) is filed under ENGINE_VOCAB_SHIMS but is internal desugar IR. Move it.
-2. `parseDateFormat`, `convertDateFormat`, `convertDateTimeFormat`, `convertTimeZoneFormat` are engine dynaFns (format-taking spellings pure lacks) filed under INTERNAL_DESUGAR. Either category is defensible; the sets should say what they mean.
-3. `sub` has four overloads; check each against the engine's `sub` rendering.
-4. `hash` (1-arg) is not engine vocabulary and has no producer — delete it and its `Scalars` family row (the registry, `DynaFn`, showed this: the engine's hashing operators are `md5`/`sha1`/`sha256`, already translated to upstream's 2-arg `hash`).
-5. `avg` is not engine vocabulary either (no `dynaFnToSql('avg')`); find what emits it (MappingNormalizer's aggregate-name list, RelationalTypeInference) and what the engine does with a mapping that writes `avg(...)`; the shim set should then shrink to the 7 names the registry marks SHIM plus whatever that check keeps.
-6. The 15-name ENGINE_VOCAB_SHIMS set in Pure.java and the registry's SHIM rows describe the same fact twice; derive one from the other (registry follow-up).
+Findings 1–6 LANDED as batch 5 audit leg A (2026-09-11); see the GATES.md record.
+
+1. ~~`join` (the slot form) filed under ENGINE_VOCAB_SHIMS~~ — moved to INTERNAL_DESUGAR and renamed `joinSlot` (a bare internal name must not be a name users write).
+2. ~~the four `*Format` date shims filed under INTERNAL_DESUGAR~~ — moved to ENGINE_VOCAB_SHIMS; they are the translator's declared landings (`DynaFnArms.LANDINGS`).
+3. ~~`sub` four overloads~~ — deleted; the arm covers the engine's only shape.
+4. ~~`hash` (1-arg)~~ — deleted with its lowering family row.
+5. ~~`avg`~~ — deleted; the only writer was our own test, now `average`. The hand list of aggregate names (`AGGREGATE_FNS`, which also carried `stdDev`, no dynafunction either) is replaced by a derivation: a one-argument call of a PURE-resolved dynafunction whose catalog native consumes a collection.
+6. ~~shim set described twice~~ — `Pure.ENGINE_VOCAB_SHIMS` is now held equal to the registry's SHIM rows plus the landings; the bare-name respelling table `wireEmissionName` is deleted (an unregistered name is a plain pure call under its own name).
+7. OPEN — `castAsDeclared` / `typeAsDeclared` / `trustOne`: verify each producer site still needs a coercion the kernel's own conformance would not give (a measurement leg: count sites, remove one, watch the rosters).
+8. OPEN — `legacyAssocPredicate`: could the resolver read the association directly?
+9. OPEN (leg C) — `RelationalTypeInference` mirrors the engine's `getDynaFunctionTypeInferenceMap` by hand, with a lowercase string switch (the engine's lookup is case-sensitive); it should switch on `DynaFn` and its name set be held ⊆ the `Inference.MAPPED` members.
+10. OPEN (leg B) — the 156 PURE-resolved dynafunctions pass through to pure's same-name function; the registry test checks that the name EXISTS in the catalog, not that the engine's SQL rendering and pure's semantics agree (`reverse` — SQL string reverse vs pure's collection reverse — was caught by hand and marked UNSUPPORTED; the other 155 want the same reading).
 
 Verified during the review (no action): the four Any-typed ordering shims — the engine's relational protocol `Literal` class carries `Object value` with no type, so dynaFn comparison operands really are untyped; `navigate` — zero internal emitters, a genuine lite-surface feature.
 

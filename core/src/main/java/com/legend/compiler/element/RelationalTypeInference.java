@@ -51,7 +51,7 @@ public final class RelationalTypeInference {
                                 : infer(f.args().get(0), db, ctx);
                 // sum/avg PROMOTE float-family to DOUBLE (engine
                 // inferDynaFunctionReturnType aggregation rule)
-                case "sum", "average", "avg" -> {
+                case "sum", "average" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
                             : infer(f.args().get(0), db, ctx);
                     yield at instanceof RelationalDataType.Float_

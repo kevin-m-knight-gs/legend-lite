@@ -15,12 +15,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Remediation T1.8 — a mapping {@code ~groupBy} using {@code avg(COL)}
- * type-checked (the meta::legend::lite::avg native) and then died at
- * lowering: the reducer catalog carried {@code average}/{@code mean}
- * but not the DSL's {@code avg}. The pair now registers together.
+ * A mapping {@code ~groupBy} using the engine dynafunction {@code average(COL)}
+ * (extensionDefaults.pure renders it {@code avg(1.0 * %s)}) lowers and executes.
+ * Until the 2026-09-11 audit this test wrote {@code avg(COL)} against an invented
+ * lite shim: the engine registers no {@code avg} dynafunction.
  */
-class GroupByAvgMappingTest {
+class GroupByAverageMappingTest {
 
     private static final String MODEL = """
             Class g::Acct { k: String[1]; avgQty: Float[1]; }
@@ -32,7 +32,7 @@ class GroupByAvgMappingTest {
                 ~groupBy([g::DB] T.K)
                 ~mainTable [g::DB] T
                 k: T.K,
-                avgQty: avg(T.QTY)
+                avgQty: average(T.QTY)
               }
             )
             ###Runtime
@@ -40,8 +40,8 @@ class GroupByAvgMappingTest {
             """;
 
     @Test
-    @DisplayName("~groupBy avg(COL) lowers and executes")
-    void avgLowersAndExecutes() throws Exception {
+    @DisplayName("~groupBy average(COL) lowers and executes")
+    void averageLowersAndExecutes() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE T (K VARCHAR, QTY INTEGER)");

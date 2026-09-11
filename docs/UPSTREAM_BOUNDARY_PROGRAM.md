@@ -540,6 +540,15 @@ inference:** that the live protocol differential goes red on landing.
    docs/LITE_REVIEW_2026_09_11.md). Audit material produced: the Lite one-by-one
    review (that doc) and the 752-row catalog provenance
    (docs/NATIVE_PROVENANCE_2026_09_11.md). NEXT: walk the review with the user.
+17. **Batch 5 AUDIT leg A LANDED** (2026-09-11, USER: "Do the full audit"): the Lite
+   review's findings 1–6 — `hash`/`avg`/`sub` deleted (no engine dynafunction, no
+   producer), slot `join` and the four `*Format` shims re-filed, the shim set and the
+   translator's arm set DERIVED (registry SHIM rows + declared landings; the DynaFn
+   members the translator's source names), `wireEmissionName` and the aggregate-name
+   hand list deleted for registry/catalog derivations; the registry gains the engine's
+   type-inference map as a second source (227 members). Open: review findings 7–10.
+   NEXT: leg B (catalog rows by consumer + PURE dynafunction semantics), leg C
+   (simple-name census 140), leg D (owed cleanups).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
