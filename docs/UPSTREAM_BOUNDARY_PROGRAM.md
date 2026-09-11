@@ -497,6 +497,14 @@ inference:** that the live protocol differential goes red on landing.
    lands; divergent 42 → 25. Five chains: 76 → 54 → 42 → 15 → 0 lost, every fix at a
    rule that assumed pairs (receipts in docs/GATES.md). Remaining 25 = leg 5c/5d (shapes
    our own checkers synthesize or CoreFn validation targets).
+13. **Batch 5 MINI-AUDIT LANDED** (2026-09-11, USER: "did we hack/shortcut/defer?"): a
+   guardrail dodged by its letter (LineageTreeVerdicts), a bisect hypothesis left as code
+   (`rebuilt`), a sloppy bound, and the blanket SQL-lane rule for operator runs — replaced
+   by PROVENANCE (`lowering/StoreLane`: a store column read folds to the SQL chain, a
+   possibly-empty pure value keeps pure's drop-empty rule), pinned both ways, recorded in
+   docs/MULTIPLICITY_AUDIT_2026_08_20.md §4a. Keeping every marker across rebuilds also
+   restored the row-cells mark main had been dropping: H2 gained 126 tests (579 → 453
+   fails), verified by toggle. Five-chain process breach on leg 5a/5b disclosed.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

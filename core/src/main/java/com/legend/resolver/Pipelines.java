@@ -1490,7 +1490,7 @@ public final class Pipelines {
             case TypedNativeCall c -> c.withChildren(c.args().stream().map(a ->
                             rewriteRowReads(a, rowVar, prefixes, stripped, varRewrite))
                             .toList());
-            case TypedCollection c -> c.rebuilt(c.elements().stream().map(e ->
+            case TypedCollection c -> c.withChildren(c.elements().stream().map(e ->
                                     rewriteRowReads(e, rowVar, prefixes, stripped, varRewrite))
                                     .toList());
             case TypedIf i ->
@@ -1595,7 +1595,7 @@ public final class Pipelines {
                     pa.property(), pa.info());
             case TypedNativeCall c -> c.withChildren(c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
                             .toList());
-            case TypedCollection c -> c.rebuilt(c.elements().stream().map(e ->
+            case TypedCollection c -> c.withChildren(c.elements().stream().map(e ->
                                     prefixColumns(e, rowVar, colPrefix, varRewrite)).toList());
             case TypedIf i ->
                     new TypedIf(

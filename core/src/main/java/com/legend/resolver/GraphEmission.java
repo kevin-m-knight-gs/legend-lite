@@ -3363,6 +3363,15 @@ final class GraphEmission {
         return plus.get(0);
     }
 
+    /** The bound of the two-element run [prefix, body]: one plus the body's. */
+    private static com.legend.compiler.element.type.Multiplicity runBound(
+            com.legend.compiler.element.type.Multiplicity body) {
+        return body instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                ? new com.legend.compiler.element.type.Multiplicity.Bounded(
+                        1 + b.lower(), b.upper() == null ? null : 1 + b.upper())
+                : com.legend.compiler.element.type.Multiplicity.Bounded.ONE_MANY;
+    }
+
     /** An ENUM-typed leaf body concat-prefixed with its enumeration FQN
      * (a NULL enum rides concat's null-skip — acceptable until the
      * removeNull sub-slice owns null keys). Non-enum leaves unchanged. */
@@ -3384,8 +3393,7 @@ final class GraphEmission {
                                 et.fqn() + ".",
                                 new ExprType(Type.Primitive.STRING, one)),
                         body),
-                        new ExprType(Type.Primitive.STRING,
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                        new ExprType(Type.Primitive.STRING, runBound(body.info().multiplicity())),
                         false)),
                 new ExprType(Type.Primitive.STRING,
                         body.info().multiplicity()));

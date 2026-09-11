@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -411,6 +412,33 @@ class LowerRelationTest {
                 "frame renders: " + sql);
         assertEquals(List.of("Ann|25|ACME|25", "Bob|35|ACME|60", "Cat|45|Widget|45", "Dan|55|null|55"),
                 exec(sql + "\nORDER BY t0.AGE"), "running total per firm");
+    }
+
+    @Test
+    @DisplayName("an operator run over a NULLABLE store column is the SQL chain (engine semantics, StoreLane)")
+    void operatorRunOverStoreColumnIsTheChain() throws SQLException {
+        // FIRM is nullable ([0..1]): the engine compiles `FIRM + '!'` verbatim
+        // and the database's concat decides the empty row — never the value
+        // collection's compaction (docs/MULTIPLICITY_AUDIT_2026_08_20.md §4)
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(~tag : r|$r.FIRM + '!')");
+        assertEquals("""
+                SELECT t0.*, concat(t0.FIRM, '!') AS tag
+                FROM T_PERSON AS t0""", sql);
+        assertEquals(List.of("Ann|25|ACME|ACME!", "Bob|35|ACME|ACME!", "Cat|45|Widget|Widget!", "Dan|55|null|!"),
+                exec(sql));
+    }
+
+    @Test
+    @DisplayName("an operator run over a possibly-empty PURE value keeps pure's empty rule (StoreLane)")
+    void operatorRunOverPureEmptyDropsTheEmpty() throws SQLException {
+        // []->first() is a pure value that may be empty, not a store read:
+        // plus([[], 1]) is plus([1]) — the run lowers as the value collection
+        // (drop empties, then sum), never as NULL-propagating SQL arithmetic
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(~n : r|[]->first() + 1)");
+        assertFalse(sql.contains("NULL, 1] AS") || sql.contains("+ 1 AS"),
+                "a pure empty must not ride the SQL chain: " + sql);
+        assertEquals(List.of("Ann|25|ACME|1", "Bob|35|ACME|1", "Cat|45|Widget|1", "Dan|55|null|1"),
+                exec(sql));
     }
 
     @Test

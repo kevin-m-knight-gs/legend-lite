@@ -17,7 +17,6 @@ import com.legend.exec.ExecutionResult;
 import com.legend.exec.Executor;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * THE LINEAGE-TREE VERDICT ARM — the scanRelations sibling of
@@ -39,7 +38,6 @@ import java.util.Set;
 final class LineageTreeVerdicts {
 
     private static final String ASSERT_EQUALS = "meta::pure::functions::asserts::assertEquals";
-    private static final Set<String> PLUS = Set.of(com.legend.compiler.element.type.PlatformTypes.PLUS, com.legend.compiler.element.type.PlatformTypes.STRING_PLUS);
 
     /** The tree-print → rows query; {@code %s} is the print as a SQL
      * string literal. Aliases resolve LONGEST NAME FIRST (a node name can
@@ -132,7 +130,8 @@ final class LineageTreeVerdicts {
             return null;
         }
         List<TypedSpec> parts;
-        if (e instanceof TypedNativeCall n && PLUS.contains(n.callee().qualifiedName())) {
+        if (e instanceof TypedNativeCall n
+                && com.legend.compiler.element.type.PlatformTypes.isPlus(n.callee().qualifiedName())) {
             parts = n.args().size() == 1 && n.args().get(0) instanceof TypedCollection c
                     ? c.elements() : n.args();
         } else if (e instanceof TypedCollection c) {

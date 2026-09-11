@@ -38,13 +38,6 @@ public record TypedCollection(List<TypedSpec> elements, ExprType info,
      *  arithmetic carrier (upstream's variadic {@code plus(Number[*])} & co.).
      *  Its operands are SQL-lane (null-propagating, never compacted) and the
      *  run is row-wise, never a reduction. */
-    /** A rewrite pass's REBUILD of this collection over new elements: the
-     *  operator-run marker is the run's identity and rides along; the
-     *  row-cells marker describes the ORIGINAL elements and does not. */
-    public TypedCollection rebuilt(List<TypedSpec> kids) {
-        return new TypedCollection(kids, info, false, operatorRun);
-    }
-
     public TypedCollection asOperatorRun() {
         return new TypedCollection(elements, info, rowCells, true);
     }

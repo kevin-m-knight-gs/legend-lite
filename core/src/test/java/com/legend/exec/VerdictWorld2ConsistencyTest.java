@@ -112,6 +112,19 @@ class VerdictWorld2ConsistencyTest {
     }
 
     @Test
+    @DisplayName("an operator run over a possibly-empty PURE value keeps pure's empty rule (audit §4, 2026-09-11)")
+    void operatorRunOverPureEmptyDropsTheEmpty() throws Exception {
+        // plus([[], 1]) is plus([1]) in real pure: the empty element drops —
+        // the run's operands are pure VALUES, never store reads (StoreLane)
+        assertTrue("1".equals(String.valueOf(world1("[]->first() + 1"))),
+                "[] + 1 must be 1 (pure), got " + world1("[]->first() + 1"));
+        assertTrue("a".equals(String.valueOf(world1("[]->first() + 'a'"))),
+                "[] + 'a' must be 'a' (pure), got " + world1("[]->first() + 'a'"));
+        assertTrue("3".equals(String.valueOf(world1("[]->first() + 1 + 2"))),
+                "[] + 1 + 2 must be 3 (pure), got " + world1("[]->first() + 1 + 2"));
+    }
+
+    @Test
     @DisplayName("egress: the FULL positional battery over a carrier holding empties (audit-of-R1)")
     void section5FullBattery() throws Exception {
         // the audit-of-R1 pass found consumer-site compaction was

@@ -334,6 +334,35 @@ synonym `removeDuplicates` at `:1447` does guard).
 
 ---
 
+### 4a. Operator runs over a possibly-empty operand (2026-09-11, upstream boundary batch 5 leg 5)
+
+Real pure spells `a + b` as `plus([a, b])` — a collection — and an empty operand
+DROPS out of it (`plus([[], 1])` is `1`). Our binary `plus(T[1], T[1])` rows were an
+invention that REJECTED `$p.middleName + '!'` ("[0..1] into a [1] slot"); they are
+gone, the run types as real pure types it, and the rejection pinned in §1's spirit
+(`MultiplicityStrictnessTest`) is now a pin of ACCEPTANCE.
+
+The empty semantics of the run are decided by WHERE the operand comes from, the
+same fork this section names, read from the resolver's output by its checked type
+(`lowering/StoreLane`):
+
+- a STORE read — a column of a relation row, which is what the resolver turns a
+  mapped class property into, and what a relation column already is (through the
+  cast / toOne / trust wrappers the resolver leaves on one) — goes into the SQL
+  verbatim: `FIRM + '!'` is `concat(FIRM, '!')`, `AGE - 5` is `AGE - 5`. The
+  engine compiles exactly this and every corpus golden agrees; NULL propagates
+  for numbers (the database's rule), while `concat` on DuckDB and H2 skips NULL and
+  so agrees with pure for strings;
+- a possibly-empty PURE value — a let, a literal, a `[0..1]` call result — keeps
+  pure's rule: the run lowers as the value collection (drop empties, then sum /
+  left-fold / product / concatenation), so `[]->first() + 1` is `1`.
+
+Pinned: `LowerRelationTest.operatorRunOverStoreColumnIsTheChain` /
+`operatorRunOverPureEmptyDropsTheEmpty`, `VerdictWorld2ConsistencyTest.operatorRunOverPureEmptyDropsTheEmpty`,
+`MultiplicityStrictnessTest.optionalIntoArithmeticConformsLikeRealPure`. A run
+mixing the two (a column and a pure empty) takes the pure path — the column's NULL
+is an empty there too, and drops.
+
 ## 5. Egress: honest at one exit, dropped at the rest
 
 **Credit:** the `Scalar`-vs-`Collection` split is genuinely stamp-driven —

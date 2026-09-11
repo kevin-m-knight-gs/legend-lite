@@ -746,7 +746,7 @@ class JavaEvalLedgerTest {
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the
             // row lists compare; no value computation in Java.
-            Map.entry("core/src/main/java/com/legend/LineageTreeVerdicts.java", 116),
+            Map.entry("core/src/main/java/com/legend/LineageTreeVerdicts.java", 115),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

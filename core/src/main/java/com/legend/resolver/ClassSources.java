@@ -1172,7 +1172,7 @@ public final class ClassSources {
             case TypedNativeCall c ->
                     c.withChildren(c.args().stream().map(a -> substituteSourceReads(a,
                                     srcVar, inner, classFqn, mappingFqn, false)).toList());
-            case TypedCollection c -> c.rebuilt(c.elements().stream().map(a -> substituteSourceReads(a,
+            case TypedCollection c -> c.withChildren(c.elements().stream().map(a -> substituteSourceReads(a,
                                     srcVar, inner, classFqn, mappingFqn, false)).toList());
             case TypedIf i ->
                     new TypedIf(

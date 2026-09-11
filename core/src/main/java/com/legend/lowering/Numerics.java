@@ -82,10 +82,12 @@ final class Numerics {
                 || la.elements().size() != tc.elements().size()) {
             return null;
         }
-        // an OPERATOR RUN (a + b, the parser's infix carrier) IS the operator
-        // chain — SQL arithmetic promotes across kinds exactly as the engine's
-        // does (Float column - Integer literal); the one-kind rule below is
-        // the VALUE list's (a mixed literal rides the variant carrier)
+        // an OPERATOR RUN (a + b, the parser's infix carrier) that reached the
+        // rule as a plain literal — LambdaBinding lowers it so only when every
+        // operand is SQL-lane (StoreLane) — IS the operator chain: SQL
+        // arithmetic promotes across kinds exactly as the engine's does (Float
+        // column - Integer literal); the one-kind rule below is the VALUE
+        // list's (a mixed literal rides the variant carrier)
         if (tc.operatorRun()) {
             SqlExpr acc = widen.apply(la.elements().get(0));
             for (int i = 1; i < la.elements().size(); i++) {

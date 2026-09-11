@@ -321,11 +321,13 @@ final class LambdaBinding {
                 continue;
             }
             if (a instanceof com.legend.compiler.spec.typed.TypedCollection run
-                    && run.operatorRun()) {
-                // the infix run a + b (+ …): its operands are SQL-LANE —
-                // an optional column read null-propagates exactly as the
-                // engine's arithmetic does — so the run never takes the
-                // value collection's empty-element compaction
+                    && run.operatorRun() && StoreLane.sqlLane(run.elements())) {
+                // the infix run a + b (+ …) over STORE reads (StoreLane): the
+                // operands go into the SQL verbatim — an optional column
+                // null-propagates exactly as the engine's arithmetic does —
+                // never through the value collection's empty-element
+                // compaction. A run holding a possibly-empty PURE value keeps
+                // pure's rule and lowers as the value collection below.
                 out.add(Lowerer.listLiteral(run, e -> scalarFn.apply(e, columns)));
                 continue;
             }

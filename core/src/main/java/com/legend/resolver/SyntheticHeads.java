@@ -866,7 +866,7 @@ final class SyntheticHeads {
                             i.elseBranch().map(e ->
                                     liftFilteredHeads(e, enabled, fc)),
                             i.info());
-            case TypedCollection c -> c.rebuilt(c.elements().stream().map(e ->
+            case TypedCollection c -> c.withChildren(c.elements().stream().map(e ->
                     liftFilteredHeads(e, enabled, fc)).toList());
             case TypedCast c ->
                     new TypedCast(
@@ -1849,7 +1849,7 @@ final class SyntheticHeads {
                     new TypedIf(
                             f.apply(i.condition()), f.apply(i.thenBranch()),
                             i.elseBranch().map(f), i.info());
-            case TypedCollection c -> c.rebuilt(c.elements().stream().map(f).toList());
+            case TypedCollection c -> c.withChildren(c.elements().stream().map(f).toList());
             case TypedCast c ->
                     new TypedCast(
                             f.apply(c.source()), c.target(), c.info(),
