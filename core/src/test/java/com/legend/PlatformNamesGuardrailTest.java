@@ -68,9 +68,99 @@ class PlatformNamesGuardrailTest {
         // 73 at batch 114 (2026-09-06) — SHRINK-ONLY: every burn moves a
         // spelling into PlatformTypes; a new literal check anywhere else
         // fails here
-        assertTrue(count <= 73, "literal Pure-name checks outside PlatformTypes grew: "
-                + count + " > 73 — " + where);
+        // 60 measured 2026-09-11 (was 73 at batch 114): re-pinned to the
+        // measurement — headroom is not a pin
+        assertTrue(count <= 60, "literal Pure-name checks outside PlatformTypes grew: "
+                + count + " > 60 — " + where);
     }
+
+    /** The catalogs — the files where a Pure FUNCTION name may be spelled
+     *  as a literal: the signatures, the registered families, the subsumed
+     *  and walled registries, the system metamodel, the type spellings. */
+    private static final java.util.Set<String> CATALOG_FILES = java.util.Set.of(
+            "Pure.java", "NativeFn.java", "Subsumed.java", "SystemMetamodel.java",
+            "PlatformTypes.java", "WalledBodies.java");
+
+    /** A function FQN literal: {@code "meta::…::lowerCamel"} (a class or enum
+     *  FQN ends in an upper-case segment and is a TYPE spelling, not dispatch). */
+    private static final Pattern FUNCTION_FQN_LITERAL =
+            Pattern.compile("\"meta::[A-Za-z_:]*::[a-z][A-Za-z0-9_]*\"");
+
+    /** A bare-name switch arm: {@code case "lowerCamel"} — dispatch on a
+     *  simple function name, the string-dispatch shape batch 4b retired from
+     *  the executor. The parser's section grammars switch on KEYWORDS and
+     *  are not counted. */
+    private static final Pattern BARE_NAME_ARM =
+            Pattern.compile("case \"[a-z][A-Za-z0-9]*\"");
+
+    @Test
+    void functionFqnLiteralsOutsideTheCatalogsOnlyShrink() throws IOException {
+        int count = 0;
+        StringBuilder where = new StringBuilder();
+        try (Stream<Path> files = Files.walk(MAIN)) {
+            for (Path f : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
+                if (CATALOG_FILES.contains(f.getFileName().toString())) {
+                    continue;
+                }
+                int n = 0;
+                for (String line : Files.readAllLines(f)) {
+                    String code = line.stripLeading();
+                    if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) {
+                        continue;
+                    }
+                    Matcher m = FUNCTION_FQN_LITERAL.matcher(line);
+                    while (m.find()) {
+                        n++;
+                    }
+                }
+                if (n > 0) {
+                    count += n;
+                    where.append(MAIN.relativize(f)).append('=').append(n).append(' ');
+                }
+            }
+        }
+        // MEASURED 2026-09-11 (upstream boundary, after batch 4b): the
+        // compiler's own string dispatch — SHRINK-ONLY; a new function-name
+        // literal anywhere but a catalog fails here (USER: "only on typed
+        // things that are registered")
+        assertTrue(count <= FUNCTION_FQN_LITERALS_MAX, "function-FQN literals outside the catalogs grew: "
+                + count + " > " + FUNCTION_FQN_LITERALS_MAX + " — " + where);
+    }
+
+    @Test
+    void bareNameSwitchArmsOutsideTheParserOnlyShrink() throws IOException {
+        int count = 0;
+        StringBuilder where = new StringBuilder();
+        try (Stream<Path> files = Files.walk(MAIN)) {
+            for (Path f : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
+                if (f.toString().contains("/parser/") || CATALOG_FILES.contains(f.getFileName().toString())) {
+                    continue;
+                }
+                int n = 0;
+                for (String line : Files.readAllLines(f)) {
+                    String code = line.stripLeading();
+                    if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) {
+                        continue;
+                    }
+                    Matcher m = BARE_NAME_ARM.matcher(line);
+                    while (m.find()) {
+                        n++;
+                    }
+                }
+                if (n > 0) {
+                    count += n;
+                    where.append(MAIN.relativize(f)).append('=').append(n).append(' ');
+                }
+            }
+        }
+        assertTrue(count <= BARE_NAME_ARMS_MAX, "bare-name switch arms outside the parser grew: "
+                + count + " > " + BARE_NAME_ARMS_MAX + " — " + where);
+    }
+
+    /** Pins, MEASURED at their introduction (2026-09-11) — set from the
+     *  first run's count, never from a guess. */
+    static final int FUNCTION_FQN_LITERALS_MAX = 324;
+    static final int BARE_NAME_ARMS_MAX = 116;
 
     @Test
     void runtimeShapesAreReadByTheOneReaderOnly() throws IOException {

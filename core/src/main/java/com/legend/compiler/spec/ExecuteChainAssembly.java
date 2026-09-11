@@ -98,10 +98,14 @@ public final class ExecuteChainAssembly {
         }
         // preval(query, extensions) / withFeatureFlags(query, flags):
         // plan-time wrappers, IDENTITY for row semantics — read through
-        // to the wrapped query lambda.
+        // to the wrapped query lambda. RECEIPTS: withFeatureFlags's body
+        // IS `$object` (executionPlanFeature.pure:27); preval is a
+        // semantics-preserving partial evaluation of the function
+        // (preeval.pure:63-92 — constants folded, the same function
+        // returned in a PrevalWrapper), so the rows are the wrapped
+        // query's rows.
         while (q instanceof TypedNativeCall pv
-                && ("meta::pure::router::preeval::preval"
-                        .equals(pv.callee().qualifiedName())
+                && (com.legend.builtin.NativeFn.Handle.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.PREVAL
                     || com.legend.builtin.NativeFn.PlanWrapper.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS)) {
             q = letBound(pv.args().get(0), letPrefix);
         }
