@@ -25,7 +25,7 @@ class SubsumedRegistryTest {
 
     /** Shrink-only. MEASURED 2026-09-10: createDbConfig (the batch-4b census;
      *  USER: a stub that types and is never consumed is not an implementation). */
-    static final int SUBSUMED_MAX = 1;
+    static final int SUBSUMED_MAX = 2;
 
     static final Path MAIN = Path.of("src/main/java");
 

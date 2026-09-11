@@ -51,7 +51,25 @@ public enum Subsumed {
             241, 262,
             "the engine's Pure SQL printer config; its body reads loadDbExtension (the reflective"
                     + " extension registry) and this platform's compiler is the printer — no code"
-                    + " here consumes a DbConfig value");
+                    + " here consumes a DbConfig value"),
+
+
+    /** The engine's EXTENSION REGISTRY: {@code relationalExtension()} builds
+     *  an {@code ^Extension(...)} of routing, plan-generation and SQL-printing
+     *  hooks (lambdas over the engine's own metamodel). This platform is its
+     *  own extensions — no arm reads an {@code Extension} value; the corpus
+     *  passes the call as the {@code extensions} argument of execute /
+     *  toSQLString / executionPlan in 3,072 places, and those arms never
+     *  look at it. Until now a hand-typed native won the overload tie-break
+     *  over the corpus's own definition ("signature-broken", batch 147 — the
+     *  file parses and compiles today). */
+    RELATIONAL_EXTENSIONS("meta::relational::extension::relationalExtensions",
+            "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
+                    + "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
+                    + "src/main/resources/core_relational/relational/extensions/extension.pure",
+            62, 65,
+            "the engine's extension registry (routing, plan-generation and SQL-printing hooks);"
+                    + " this platform is its own extensions and no arm reads an Extension value");
 
     private final String fqn;
     private final String engineFile;

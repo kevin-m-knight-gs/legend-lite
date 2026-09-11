@@ -454,9 +454,7 @@ public final class NativeFn {
         WITH_FEATURE_FLAGS("meta::pure::executionPlan::featureFlag::withFeatureFlags",
                 Pure.WITH_FEATURE_FLAGS__T_MANY__ANY_MANY),
         CONCATENATE_TEMPORAL_TDS_QUERIES("meta::relational::milestoning::concatenateTemporalTdsQueries",
-                Pure.CONCATENATE_TEMPORAL_TDS_QUERIES),
-        RELATIONAL_EXTENSIONS("meta::relational::extension::relationalExtensions",
-                Pure.RELATIONAL_EXTENSIONS__ANY_MANY);
+                Pure.CONCATENATE_TEMPORAL_TDS_QUERIES);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;

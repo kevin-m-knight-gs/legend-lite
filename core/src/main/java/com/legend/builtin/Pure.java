@@ -1454,24 +1454,6 @@ public final class Pure {
     // the flags ride the plan context; the harness reads through it.
     public static final NativeFunctionDefinition WITH_FEATURE_FLAGS__T_MANY__ANY_MANY = signature("native function meta::pure::executionPlan::featureFlag::withFeatureFlags<T>(object:T[*], e:meta::pure::metamodel::type::Any[*]):T[*];");
 
-    // relationalExtensions(): the corpus's own definition is signature-
-    // broken in this platform (the Extension metamodel class), so it never
-    // enters the module — this native exists for TYPING the context
-    // argument of toSQLString/execute calls; it is never evaluated.
-    // Return TIGHTENED Any[*] -> Extension[*] (wall-deepening slice,
-    // FULL_RESIDUE_CENSUS §5): the REAL spec (extensions/extension.pure
-    // :62) returns Extension[*], and routerExtensions' receiver typing
-    // demanded the truth; Extension <: Any so every Any[*] consumer
-    // still types.
-    public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::extension::Extension[*];");
-
-    // defaultExtensions(): the engine's default extension list
-    // (extensions/functions.pure:84, a program constructing ^Extension(type =
-    // 'defaultExtensions', …)) — the SAME typing-only surface as
-    // relationalExtensions() above: the platform IS its extensions
-    // (COMPILE_EVERYTHING_HOMEWORK §10.3 ruling 3, batch 170); it types the
-    // context argument of execute/toSQLString calls and is never evaluated.
-    // The eager corpus compile named it 148 times (§10.1).
 
     // COMPILE_EVERYTHING step 4 (batch 171): the four spec natives the eager
     // corpus compile named with NO registration (§10.1: 47 bodies) — a native
