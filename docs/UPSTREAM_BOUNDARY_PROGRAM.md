@@ -451,6 +451,16 @@ inference:** that the live protocol differential goes red on landing.
    checkouts (design doc §3), `CORE_IMPORTS` as a generated resource, the `PlatformTypes`
    type spellings verified whole. USER 2026-09-10: local allgates is the landing gate;
    do not wait on CI between batches.
+8. **SUBSUMED — a third claim kind LANDED** (2026-09-10, 84cd47ffd; receipts in
+   docs/GATES.md). USER catch: createDbConfig was a stub (typed, never consumed,
+   there to shadow an engine program). `com.legend.builtin.Subsumed` = engine programs
+   the platform subsumes: not in Pure.java, not a family, not owned; typed by the
+   corpus's own declaration; value dead by governance test; count shrink-only. The
+   §0 terminology gains the kind: a name is LOWERED (Pure.java + a claim), WALLED (an
+   upstream native we cannot do, loud), or SUBSUMED (an engine program that is moot
+   here). Before ANY catalog removal: read the constant's comment, grep the Typer and
+   kernel for consumption, check ownership — grep classes are not proof (twice).
+   OPEN: relationalExtensions (experiment), preval's string-literal identity.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

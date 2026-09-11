@@ -152,6 +152,22 @@ executor kinds (`PlatformTypes.IMPLEMENTATION_KIND`) merged into it as families;
 those rows are FAMILY claims now. The registry reads `NativeFn.families()`; nothing is
 hand-listed twice. UNCLAIMED_MAX reached 0.
 
+## 2c. Subsumed engine programs (USER 2026-09-10) — the third kind
+
+The census after batch 4b found a claim the registry could not express: a native
+declared ONLY so that an upstream engine program's corpus body would not run
+(createDbConfig, the engine's SQL-printer config). It typed, it owned the name, and
+nothing consumed its value — a stub, not an implementation, and not a wall either
+(a wall is an upstream native we cannot do; a call must fail loudly). The kind is
+`com.legend.builtin.Subsumed`: a closed enum of engine programs the platform
+subsumes, each with the upstream file+lines and the reason. Contract (pinned by
+`SubsumedRegistryTest`): NOT declared in Pure.java / NativeFn / the ownership set —
+the corpus's own declaration types the call; DEAD VALUE — no main-tree source names
+the FQN; CITED and present at the pinned checkout; count shrink-only. Mechanism: the
+user-call inliner stops at a subsumed FQN (a typed opaque value), the escapee check
+and the effect scan know it. Measured at landing: zero corpus movement — the 51 tests
+that leaned on the stub never needed the value.
+
 ## 3. The membership list (batch 5's input) — DECISION: a TSV resource, one row per overload
 
 When batch 5 flips Pure.java from hand-typed to generated, the generator needs the
