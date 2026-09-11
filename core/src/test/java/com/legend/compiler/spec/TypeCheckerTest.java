@@ -1174,7 +1174,7 @@ class TypeCheckerTest {
                 + "->groupBy(~LAST_NAME, ~w : x|rowMapper($x.AGE, $x.AGE) : y|$y->wavg())"));
         assertEquals(Type.Primitive.FLOAT, columnType(rt, "w"));
         assertEquals(Type.Primitive.NUMBER, columnType(schemaOf(typeQuery(T_PERSON
-                + "->groupBy(~LAST_NAME, ~s : x|$x.AGE : y|$y->stdDev())")), "s"));
+                + "->groupBy(~LAST_NAME, ~s : x|$x.AGE : y|$y->stdDevSample())")), "s"));
     }
 
     @Test

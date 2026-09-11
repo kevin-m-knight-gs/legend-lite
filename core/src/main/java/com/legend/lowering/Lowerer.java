@@ -1121,23 +1121,11 @@ public final class Lowerer {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
                     + reduceBody.getClass().getSimpleName());
         }
-        // A SCALAR wrapping the reducer (y|$y->average()->round()): lower the
-        // inner aggregate, then apply the scalar rule around it — trailing
-        // args must be literal-lowerable (no row scope out here).
-        if (Aggregates.reducerOrNull(call.callee()) == null
-                && !call.args().isEmpty()
-                && call.args().get(0) instanceof TypedNativeCall innerAgg
-                && Aggregates.reducerOrNull(innerAgg.callee()) != null) {
-            SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
-                    new TypedLambda(a.reduce().parameters(),
-                            List.of(innerAgg), a.reduce().info()),
-                    a.orderKey(), a.orderAsc()));
-            List<SqlExpr> wrapped = new ArrayList<>();
-            wrapped.add(inner);
-            for (int i = 1; i < call.args().size(); i++) {
-                wrapped.add(scalar(call.args().get(i), noScope()));
-            }
-            return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, wrapped));
+        // A SCALAR around the reducer — y|$y->average()->round(), or the
+        // reducer inside an arithmetic run (y|$y->sum() * 2 = times([sum(y), 2]))
+        SqlExpr around = aroundReducer(base, a, call);
+        if (around != null) {
+            return around;
         }
         SqlAgg.Fn fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = aggSelectorBody(a);
@@ -1194,7 +1182,7 @@ public final class Lowerer {
                         + " is not supported (literals only)");
             }
         }
-        AggFlavor flavor = aggFlavor(fn, flags, extra.size());
+        Aggregates.AggFlavor flavor = Aggregates.aggFlavor(fn, flags, extra.size());
         fn = flavor.fn();
         descending = flavor.descending();
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
@@ -1511,6 +1499,47 @@ public final class Lowerer {
                     : Fold.mergeAnd(src.qualify(), predicate));
             case ISOLATE -> throw new IllegalStateException("unreachable: isolated above");
         };
+    }
+
+    /** The scalar-around-the-reducer shape: the ONE reducer among the
+     *  operands (direct, or inside an arithmetic run) lowers as the
+     *  aggregate, the rest as literals (no row scope), the scalar's rule
+     *  applies around it; null for any other shape. */
+    private @com.legend.Nullable SqlExpr aroundReducer(SqlSelect base, TypedAggCol a,
+            TypedNativeCall call) {
+        if (Aggregates.reducerOrNull(call.callee()) != null || call.args().isEmpty()) {
+            return null;
+        }
+        List<TypedNativeCall> reducers = new ArrayList<>();
+        for (TypedSpec arg : call.args()) {
+            for (TypedSpec e : arg instanceof TypedCollection run ? run.elements() : List.of(arg)) {
+                if (e instanceof TypedNativeCall rc && Aggregates.reducerOrNull(rc.callee()) != null) {
+                    reducers.add(rc);
+                }
+            }
+        }
+        if (reducers.size() != 1) {
+            return null;
+        }
+        TypedNativeCall reducer = reducers.get(0);
+        SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
+                new TypedLambda(a.reduce().parameters(),
+                        List.of(reducer), a.reduce().info()),
+                a.orderKey(), a.orderAsc()));
+        java.util.function.Function<TypedSpec, SqlExpr> operand =
+                e -> e == reducer ? inner : scalar(e, noScope());
+        List<SqlExpr> wrapped = new ArrayList<>();
+        for (TypedSpec arg : call.args()) {
+            wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
+        }
+        return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, wrapped));
+    }
+
+    /** The list literal a collection lowers to — ONE construction site;
+     *  the element lowering is the caller's channel (plain or window). */
+    static SqlExpr listLiteral(TypedCollection c,
+            java.util.function.Function<TypedSpec, SqlExpr> element) {
+        return new SqlExpr.ArrayLit(c.elements().stream().map(element).toList());
     }
 
     /** whereExpr identity -> its {@link WhereMerge.Zones} split — written
@@ -2327,6 +2356,13 @@ public final class Lowerer {
                         .map(a -> windowScalar(a, base, over)).toList();
                 return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, args));
             }
+            // The n-ary arithmetic carrier ($r.AGE - $p->lag($r).AGE spells
+            // minus([a, b]) — upstream's variadic natives, batch 5 leg 5):
+            // its elements stay on the WINDOW channel; the arithmetic rule
+            // folds the literal run to the operator chain.
+            case TypedCollection c -> {
+                return listLiteral(c, e -> windowScalar(e, base, over));
+            }
             // Thunk lambdas (if branches) stay on the WINDOW channel — their
             // bodies may hold lag/lead property accesses that plain scalar
             // lowering cannot place.
@@ -2521,8 +2557,7 @@ public final class Lowerer {
                 if (ValueCollections.c1Singleton(c)) {
                     yield scalar(c.elements().get(0), columns);
                 }
-                SqlExpr arr = new SqlExpr.ArrayLit(
-                        c.elements().stream().map(e -> scalar(e, columns)).toList());
+                SqlExpr arr = listLiteral(c, e -> scalar(e, columns));
                 // pure LITERAL FLATTENING at CONSTRUCTION (audit-of-R1:
                 // consumer-site compaction was whack-a-mole — head/tail/
                 // drop/take/makeString all read raw slots): an element
@@ -3360,42 +3395,6 @@ public final class Lowerer {
 
     private static boolean isMany(TypedSpec spec) {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
-    }
-
-    /** The reducer a percentile's (ascending, continuous) flags select,
-     * plus whether the value's within-group order is DESCENDING. The
-     * order is SEMANTIC (SQL-standard PERCENTILE_x(p) WITHIN GROUP
-     * (ORDER BY v DESC)): continuous descending interpolates in the
-     * reverse direction (engine golden 1.4 over [1,1.5,2]); discrete
-     * descending picks the ceil(p*N)-th largest. Dialects whose
-     * quantile family takes no order (DuckDB) spell the direction
-     * themselves. */
-    private record AggFlavor(SqlAgg.Fn fn, boolean descending) {
-    }
-
-    private static AggFlavor aggFlavor(SqlAgg.Fn fn,
-            List<Boolean> flags, int extras) {
-        if (flags.isEmpty()) {
-            return new AggFlavor(fn, false);
-        }
-        if (fn == SqlAgg.Fn.VAR_SAMP && flags.size() == 1 && extras == 0) {
-            return new AggFlavor(flags.get(0)
-                    ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP, false);
-        }
-        if (fn == SqlAgg.Fn.QUANTILE_CONT && flags.size() == 2
-                && extras == 1) {
-            if (flags.get(0)) {
-                return new AggFlavor(flags.get(1)
-                        ? SqlAgg.Fn.QUANTILE_CONT
-                        : SqlAgg.Fn.QUANTILE_DISC, false);
-            }
-            return new AggFlavor(flags.get(1)
-                    ? SqlAgg.Fn.QUANTILE_CONT
-                    : SqlAgg.Fn.QUANTILE_DISC, true);
-        }
-        throw new IllegalStateException("boolean reducer arguments are"
-                + " only understood on percentile(p, ascending,"
-                + " continuous) and variance(isBiasCorrected)");
     }
 
     // fold lowering moved to LambdaBinding.lowerFold (the binding-door

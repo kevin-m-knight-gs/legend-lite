@@ -1619,7 +1619,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Pure query using stdDev() aggregate
-        String pureQuery = "model::Stats.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDev()})], ['dept', 'stdDevSal'])";
+        String pureQuery = "model::Stats.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevSample()})], ['dept', 'stdDevSal'])";
 
         // Execute via QueryService
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
@@ -1680,7 +1680,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::VarMap ]; connections: [ store::VarDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "model::Var.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->variance()})], ['dept', 'varSal'])";
+        String pureQuery = "model::Var.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->varianceSample()})], ['dept', 'varSal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 

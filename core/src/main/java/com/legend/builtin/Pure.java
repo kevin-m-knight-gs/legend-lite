@@ -705,10 +705,12 @@ public final class Pure {
 
     /**
      * Signature keys of specific overloads the lowering must single out
-     * (string CONCAT-plus; IN) — parser records stay behind this wall.
+     * (string CONCAT-plus — upstream's meta::pure::functions::string::plus(String[*]),
+     * the collection form the parser emits for 'a' + 'b'; IN) — parser records
+     * stay behind this wall.
      */
     public static String keyPlusString() {
-        return PLUS__STRING_1__STRING_1.signatureKey();
+        return STRING_PLUS__STRING_MANY.signatureKey();
     }
 
     public static String keyIn() {
@@ -724,6 +726,27 @@ public final class Pure {
         return Index.KEYS_BY_NAME
                 .getOrDefault(name, java.util.Set.of())
                 .contains(signatureKey);
+    }
+
+    /** Whether the native {@code name} names is declared VARIADIC — every
+     *  overload takes ONE collection parameter ({@code plus(Number[*])} & co.,
+     *  upstream's arithmetic): its infix spelling {@code a + b} is the parser's
+     *  n-ary carrier, one collection argument. Read off the registered
+     *  signatures, never a name set. */
+    public static boolean isVariadicRun(String name) {
+        List<NativeFunctionDefinition> overloads = nativeFunctionsAt(name);
+        if (overloads.isEmpty()) {
+            return false;
+        }
+        for (NativeFunctionDefinition d : overloads) {
+            if (d.parameters().size() != 1
+                    || !(d.parameters().get(0).multiplicity()
+                            instanceof com.legend.protocol.Multiplicity.Concrete c
+                            && c.upperBound() == null)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static List<NativeFunctionDefinition> nativeFunctionsAt(String name) {
@@ -1789,10 +1812,6 @@ public final class Pure {
     public static final NativeFunctionDefinition MAX__STRICT_DATE_MANY = signature("native function meta::pure::functions::date::max(dates:meta::pure::metamodel::type::StrictDate[*]):meta::pure::metamodel::type::StrictDate[0..1];");
     public static final NativeFunctionDefinition MEAN__NUMBER_MANY = signature("native function meta::pure::functions::math::mean(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition MEDIAN__NUMBER_MANY = signature("native function meta::pure::functions::math::median(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1];");   // engine median.pure:17+:26 — BOTH overloads return Float[1]; Number[1] was a mis-transcription F5.3-B caught when the header overlay stopped concealing it
-    public static final NativeFunctionDefinition MINUS__DECIMAL_1__DECIMAL_1 = signature("native function meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1];");
-    public static final NativeFunctionDefinition MINUS__FLOAT_1__FLOAT_1 = signature("native function meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Float[1], right:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition MINUS__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition MINUS__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition MINUTE__DATE_1 = signature("native function meta::pure::functions::date::minute(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition MIN_BY__ROW_MAPPER_MANY = signature("native function meta::pure::functions::math::minBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::Number>[*]):T[0..1];");
     public static final NativeFunctionDefinition MIN_BY__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::math::minBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
@@ -1911,11 +1930,6 @@ public final class Pure {
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__ANY_1_MANY__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], values:meta::pure::metamodel::type::Any[1..*], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
-    public static final NativeFunctionDefinition PLUS__DECIMAL_1__DECIMAL_1 = signature("native function meta::pure::functions::math::plus(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1];");
-    public static final NativeFunctionDefinition PLUS__FLOAT_1__FLOAT_1 = signature("native function meta::pure::functions::math::plus(left:meta::pure::metamodel::type::Float[1], right:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition PLUS__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::math::plus(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition PLUS__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::plus(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
-    public static final NativeFunctionDefinition PLUS__STRING_1__STRING_1 = signature("native function meta::pure::functions::math::plus(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition POW__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::pow(base:meta::pure::metamodel::type::Number[1], exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition PROJECT__C_MANY__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::project<C,T>(cl:C[*], x:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]}, T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     // real tds.pure spells getString as a TDSRow qualified property
@@ -2172,9 +2186,7 @@ public final class Pure {
     public static final NativeFunctionDefinition STD_DEV_POPULATION__NUMBER_MANY = signature("native function meta::pure::functions::math::stdDevPopulation(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition STD_DEV_POPULATION__RELATION_1__WINDOW_1__T_1__COL_SPEC_1 = signature("native function meta::pure::functions::math::stdDevPopulation<T>(partition:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], row:T[1], colToAgg:meta::pure::metamodel::relation::ColSpec<(?:meta::pure::metamodel::type::Number)⊆T>[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition STD_DEV_SAMPLE__NUMBER_MANY = signature("native function meta::pure::functions::math::stdDevSample(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
-    public static final NativeFunctionDefinition STD_DEV__NUMBER_MANY = signature("native function meta::pure::functions::math::stdDev(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     // CORPUS-SHAPE window overload — see VARIANCE__RELATION_1__WINDOW_1__T_1.
-    public static final NativeFunctionDefinition STD_DEV__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::math::stdDev<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
     public static final NativeFunctionDefinition SUBSTRING__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::substring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUBSTRING__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::string::substring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUB__DECIMAL_1__DECIMAL_1 = signature("native function meta::legend::lite::sub(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1];");
@@ -2198,10 +2210,6 @@ public final class Pure {
     public static final NativeFunctionDefinition TANH__NUMBER_1 = signature("native function meta::pure::functions::math::tanh(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition TAN__NUMBER_1 = signature("native function meta::pure::functions::math::tan(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition TDS__STRING_1__STRING_1 = signature("native function meta::legend::lite::tds(tag:meta::pure::metamodel::type::String[1], raw:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
-    public static final NativeFunctionDefinition TIMES__DECIMAL_1__DECIMAL_1 = signature("native function meta::pure::functions::math::times(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1];");
-    public static final NativeFunctionDefinition TIMES__FLOAT_1__FLOAT_1 = signature("native function meta::pure::functions::math::times(left:meta::pure::metamodel::type::Float[1], right:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition TIMES__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::math::times(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition TIMES__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::times(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
     // timeBucket: REAL pure has CONCRETE overloads (core_functions_standard/date/operation/timeBucket.pure)
     // — the abstract Date form was ours, and it broke lattice-kind recovery (midnight buckets).
     public static final NativeFunctionDefinition TIME_BUCKET__DATETIME_1__INTEGER_1__DURATION_UNIT_1 = signature("native function meta::pure::functions::date::timeBucket(date:meta::pure::metamodel::type::DateTime[1], quantity:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::DateTime[1];");
@@ -2232,11 +2240,11 @@ public final class Pure {
     public static final NativeFunctionDefinition UNBOUNDED = signature("native function meta::pure::functions::relation::unbounded():meta::pure::functions::relation::UnboundedFrameValue[1];");
     public static final NativeFunctionDefinition VARIANCE_POPULATION__NUMBER_MANY = signature("native function meta::pure::functions::math::variancePopulation(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition VARIANCE_SAMPLE__NUMBER_MANY = signature("native function meta::pure::functions::math::varianceSample(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
-    public static final NativeFunctionDefinition VARIANCE__NUMBER_MANY = signature("native function meta::pure::functions::math::variance(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     // CORPUS-SHAPE window overload (no real-pure counterpart): the
     // first/last 3-arg spelling with the column named by the wrapping
     // property access — conform-by-emission, VARIANCE(col) OVER (...).
-    public static final NativeFunctionDefinition VARIANCE__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::math::variance<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+    // stdDev(numbers, isBiasCorrected): upstream's flagged form (true = sample) — the lowering's aggFlavor
+    public static final NativeFunctionDefinition STD_DEV__NUMBER_1_MANY__BOOLEAN_1 = signature("native function meta::pure::functions::math::stdDev(numbers:meta::pure::metamodel::type::Number[1..*], isBiasCorrected:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition VARIANCE__NUMBER_MANY__BOOLEAN_1 = signature("native function meta::pure::functions::math::variance(numbers:meta::pure::metamodel::type::Number[*], isBiasCorrected:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Number[1];");
     // lite spelling of REAL pure meta::pure::functions::variant::convert::to/toMany.
     public static final NativeFunctionDefinition WAVG__ROW_MAPPER_MANY = signature("native function meta::pure::functions::math::wavg(wavgRows:meta::pure::functions::math::mathUtility::RowMapper<meta::pure::metamodel::type::Number, meta::pure::metamodel::type::Number>[*]):meta::pure::metamodel::type::Float[1];");

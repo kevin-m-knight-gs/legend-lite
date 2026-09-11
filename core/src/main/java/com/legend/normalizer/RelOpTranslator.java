@@ -24,6 +24,7 @@ import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -283,7 +284,7 @@ final class RelOpTranslator {
                                     targetVarOrNull, rowBindOrNull, pipeline))));
                     yield weekStart.equalsIgnoreCase("Monday")
                             ? iso
-                            : new AppliedFunction("plus", List.of(
+                            : AppliedFunction.infixRun("plus", List.of(
                                     new AppliedFunction("mod", List.of(iso,
                                             new CInteger(7L))),
                                     new CInteger(1L)));
@@ -398,16 +399,15 @@ final class RelOpTranslator {
                     // (the DATABASE's own formatting: '2014-01-01 06:30:00',
                     // not pure toString's ISO form — audit), a no-op for
                     // strings.
-                    ValueSpecification chain = toOne(strCast(translate(
-                            call.args().get(0), tableScope, targetVarOrNull,
-                            rowBindOrNull, pipeline)));
-                    for (int i = 1; i < call.args().size(); i++) {
-                        chain = new AppliedFunction("plus", List.of(chain,
-                                toOne(strCast(translate(call.args().get(i),
-                                        tableScope, targetVarOrNull,
-                                        rowBindOrNull, pipeline)))));
+                    // ONE run: string::plus(String[*]) — the engine's n-ary
+                    // carrier, exactly what the parser spells for a + b + c
+                    List<ValueSpecification> parts = new ArrayList<>(call.args().size());
+                    for (RelationalOperation part : call.args()) {
+                        parts.add(toOne(strCast(translate(part, tableScope,
+                                targetVarOrNull, rowBindOrNull, pipeline))));
                     }
-                    yield chain;
+                    yield parts.size() == 1 ? parts.get(0)
+                            : AppliedFunction.infixRun("plus", parts);
             }
             // extractFromSemiStructured(col, 'path', 'SQLTYPE'): the ENGINE's
             // semistructured scalar extraction (core_relational grammar —
@@ -464,12 +464,12 @@ final class RelOpTranslator {
             // idiom below, now uniform across the dyna emissions.
             case RelationalOperation.FunctionCall call
                     when call.name().equals("add") && call.args().size() == 2 ->
-                    new AppliedFunction("plus", toOneAll(translateArgs(call,
+                    AppliedFunction.infixRun("plus", toOneAll(translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull,
                             pipeline)));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("sub") && call.args().size() == 2 ->
-                    new AppliedFunction("minus", toOneAll(translateArgs(call,
+                    AppliedFunction.infixRun("minus", toOneAll(translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull,
                             pipeline)));
             // SQL POSITION(needle, haystack) — 1-based, arguments REVERSED
@@ -536,7 +536,7 @@ final class RelOpTranslator {
             // in the 'position' toOne idiom (typing-level trust; the
             // lowering's erasure keeps SQL identical, and [1] args are
             // unaffected).
-            case RelationalOperation.FunctionCall call -> new AppliedFunction(
+            case RelationalOperation.FunctionCall call -> operatorCall(
                     Pure.wireEmissionName(call.name()),
                     toOneAll(translateArgs(call, tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline)));
@@ -683,5 +683,20 @@ final class RelOpTranslator {
             case GT  -> com.legend.builtin.Pure.Lite.GREATER_THAN_ANY;
             case GTE -> com.legend.builtin.Pure.Lite.GREATER_THAN_EQUAL_ANY;
         };
+    }
+
+    /** The engine's dynaFn call {@code plus(a, b)} names a VARIADIC pure
+     *  native ({@code Pure.isVariadicRun}): the arguments ARE its one
+     *  collection — the parser's n-ary carrier. */
+    static List<ValueSpecification> variadicRun(String fn, List<ValueSpecification> args) {
+        return args.size() >= 2 && Pure.isVariadicRun(fn)
+                ? List.of(new PureCollection(args)) : args;
+    }
+
+    /** The engine's arithmetic dynaFn IS the infix operator: its call is
+     *  spelled exactly as the parser spells {@code a + b}. */
+    private static AppliedFunction operatorCall(String fn, List<ValueSpecification> args) {
+        List<ValueSpecification> shaped = variadicRun(fn, args);
+        return shaped == args ? new AppliedFunction(fn, args) : AppliedFunction.infixRun(fn, args);
     }
 }

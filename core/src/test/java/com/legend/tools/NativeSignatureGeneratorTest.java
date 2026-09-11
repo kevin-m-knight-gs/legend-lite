@@ -71,7 +71,7 @@ class NativeSignatureGeneratorTest {
      *  invented arities, 17 wildcard subsets dropped, 6 TDS-as-Relation,
      *  9 TDSRow getters (qualified properties upstream), 3 type-parameter
      *  names, 39 mixed. Leg 1 (the simple rows) adopts ~30. */
-    static final int DIVERGENT_MAX = 42;
+    static final int DIVERGENT_MAX = 25;
 
     /** One membership row: OUR constant name, the FQN, the overload's key. */
     record Row(String constant, String fqn, String key) {

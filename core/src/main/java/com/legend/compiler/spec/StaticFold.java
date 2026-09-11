@@ -350,8 +350,12 @@ final class StaticFold {
     private @com.legend.Nullable Object evalCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
         switch (af.function()) {
+            // arithmetic is VARIADIC (upstream's plus(Number[*]) & co.): the
+            // infix run is the parser's one-collection carrier, whose
+            // operands fold — sum / concatenation, left-fold subtraction
+            // (one operand negates), product
             case "plus" -> {
-                List<Object> args = evalAll(ps, scope);
+                List<Object> args = evalAll(operands(af), scope);
                 if (args == null) {
                     return null;
                 }
@@ -366,9 +370,18 @@ final class StaticFold {
                 return null;
             }
             case "minus" -> {
-                List<Object> args = evalAll(ps, scope);
-                return args != null && args.size() == 1 && args.get(0) instanceof Long l
-                        ? -l : null;
+                List<Object> args = evalAll(operands(af), scope);
+                if (args == null || !args.stream().allMatch(a -> a instanceof Long)) {
+                    return null;
+                }
+                if (args.size() == 1) {
+                    return -(Long) args.get(0);
+                }
+                long acc = (Long) args.get(0);
+                for (int i = 1; i < args.size(); i++) {
+                    acc -= (Long) args.get(i);
+                }
+                return acc;
             }
             case "pair" -> {
                 List<Object> args = evalAll(ps, scope);
@@ -619,6 +632,14 @@ final class StaticFold {
         Map<String, Object> inner = new LinkedHashMap<>(scope);
         inner.put(lam.parameters().get(0).name(), arg);
         return eval(lam.body().get(0), inner);
+    }
+
+    /** The operands of an operator application: the n-ary carrier's run
+     *  ({@code plus[Collection[a,b]]}) or the parameters themselves. */
+    private static List<ValueSpecification> operands(AppliedFunction af) {
+        return af.parameters().size() == 1
+                && af.parameters().get(0) instanceof PureCollection run
+                ? run.values() : af.parameters();
     }
 
     private @com.legend.Nullable List<Object> evalAll(List<ValueSpecification> ps, Map<String, Object> scope) {

@@ -488,6 +488,15 @@ inference:** that the live protocol differential goes red on landing.
    argument's relation, the kernel's one output rule (`resolveOutput(…, args)`,
    `TdsErasure`). Three chains: 19 → 8 → 0 lost, every fix at the rule, receipts in
    docs/GATES.md. Remaining 42 = leg 5 (all inventions our own checkers synthesize).
+12. **Batch 5 LEG 5a/5b LANDED** (2026-09-11): arithmetic is VARIADIC — the 13 binary
+   plus/minus/times inventions and the 4 stdDev/variance shapes are gone; the parser's
+   n-ary carrier `plus([a,b,c])` types against upstream's `plus(Number[*])` & co.
+   directly, the typer's pairwise desugar (`InfixArith`) deleted; the infix marker rides
+   the typed tree (`TypedCollection.operatorRun`: SQL-lane operands, row-wise, folds to
+   the operator chain across kinds); upstream's flagged `stdDev(numbers, isBiasCorrected)`
+   lands; divergent 42 → 25. Five chains: 76 → 54 → 42 → 15 → 0 lost, every fix at a
+   rule that assumed pairs (receipts in docs/GATES.md). Remaining 25 = leg 5c/5d (shapes
+   our own checkers synthesize or CoreFn validation targets).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

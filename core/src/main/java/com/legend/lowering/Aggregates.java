@@ -6,6 +6,7 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.compiler.element.TypedFunction;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 /**
  * Aggregate-reducer dispatch: the RESOLVED overload of an agg-col's reduce
@@ -51,6 +52,8 @@ public final class Aggregates {
         // excluding ANY_VALUE at THEIR arms, never a synthetic native
         family(SqlAgg.Fn.ANY_VALUE, "first");
         family(SqlAgg.Fn.STDDEV_SAMP, "stdDevSample");
+        // upstream's flagged stdDev(numbers, isBiasCorrected) — the flag picks
+        // SAMP/POP in the lowering's aggFlavor, exactly as variance's does
         family(SqlAgg.Fn.STDDEV_SAMP, "stdDev");
         family(SqlAgg.Fn.COUNT, "size");
         // joinStrings carries its separator as an EXTRA reduce-call argument
@@ -136,14 +139,19 @@ public final class Aggregates {
     }
 
     /** Node-level demand membership (§4AD decision 1): INFIX plus —
-     * the n-ary spelling {@code a + b} — is a ROW-WISE operation over
-     * a mapped navigation in the engine's algebra (witness
+     * the parser's n-ary carrier {@code plus([a, b, …])}, a LITERAL RUN of
+     * two or more operands — is a ROW-WISE operation over a mapped
+     * navigation in the engine's algebra (witness
      * testQualifierWithOperation: concat per fanned row), never a
-     * reduction; only the 1-arg collection form ({@code ->plus()} ==
-     * sum) reduces. The and/or arity precedent, applied at the node. */
-    public static boolean isDemandReducer(TypedFunction callee, int argc) {
+     * reduction; the collection form over a VALUE ({@code $ages->plus()} ==
+     * sum) reduces. The and/or precedent, applied at the node by the
+     * argument's SHAPE (upstream declares plus variadic only — batch 5 leg 5). */
+    public static boolean isDemandReducer(TypedFunction callee,
+            com.legend.compiler.spec.typed.TypedSpec argument) {
         return isDemandReducer(callee)
-                && !(PLUS_KEYS.contains(callee.signatureKey()) && argc > 1);
+                && !(PLUS_KEYS.contains(callee.signatureKey())
+                        && argument instanceof com.legend.compiler.spec.typed.TypedCollection run
+                        && run.operatorRun());
     }
 
     /** The plus-family overload keys (the one FQN family whose infix
@@ -163,6 +171,49 @@ public final class Aggregates {
                             + callee.qualifiedName() + "'");
         }
         return name;
+    }
+
+
+    /** The reducer a percentile's (ascending, continuous) flags select,
+     * plus whether the value's within-group order is DESCENDING. The
+     * order is SEMANTIC (SQL-standard PERCENTILE_x(p) WITHIN GROUP
+     * (ORDER BY v DESC)): continuous descending interpolates in the
+     * reverse direction (engine golden 1.4 over [1,1.5,2]); discrete
+     * descending picks the ceil(p*N)-th largest. Dialects whose
+     * quantile family takes no order (DuckDB) spell the direction
+     * themselves. */
+    record AggFlavor(SqlAgg.Fn fn, boolean descending) {
+    }
+
+    static AggFlavor aggFlavor(SqlAgg.Fn fn,
+            List<Boolean> flags, int extras) {
+        if (flags.isEmpty()) {
+            return new AggFlavor(fn, false);
+        }
+        // variance(numbers, isBiasCorrected) / stdDev(numbers, isBiasCorrected):
+        // the flag picks the SAMPLE (bias-corrected) or POPULATION estimator
+        if (fn == SqlAgg.Fn.VAR_SAMP && flags.size() == 1 && extras == 0) {
+            return new AggFlavor(flags.get(0)
+                    ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP, false);
+        }
+        if (fn == SqlAgg.Fn.STDDEV_SAMP && flags.size() == 1 && extras == 0) {
+            return new AggFlavor(flags.get(0)
+                    ? SqlAgg.Fn.STDDEV_SAMP : SqlAgg.Fn.STDDEV_POP, false);
+        }
+        if (fn == SqlAgg.Fn.QUANTILE_CONT && flags.size() == 2
+                && extras == 1) {
+            if (flags.get(0)) {
+                return new AggFlavor(flags.get(1)
+                        ? SqlAgg.Fn.QUANTILE_CONT
+                        : SqlAgg.Fn.QUANTILE_DISC, false);
+            }
+            return new AggFlavor(flags.get(1)
+                    ? SqlAgg.Fn.QUANTILE_CONT
+                    : SqlAgg.Fn.QUANTILE_DISC, true);
+        }
+        throw new IllegalStateException("boolean reducer arguments are"
+                + " only understood on percentile(p, ascending,"
+                + " continuous) and variance(isBiasCorrected)");
     }
 
 }

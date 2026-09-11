@@ -448,16 +448,21 @@ final class Typer {
         return null;
     }
 
-    private TypedSpec applyFunction(AppliedFunction af, Env env) {
-        // The engine-shaped variadic spelling of infix arithmetic — one
-        // collection parameter holding the whole same-op run. The compiler's
-        // internal convention (and Pure.java's registered binary signatures)
-        // is pairwise; desugar by LEFT FOLD (InfixArith.binarize). Wire
-        // fidelity is unaffected: the model keeps the n-ary node; this
-        // rewrite exists only inside typing.
-        if (InfixArith.isNaryCarrier(af)) {
-            return synth(InfixArith.binarize(af), env);
+    /** The parser's INFIX marker rides the typed run ({@code TypedCollection
+     *  .operatorRun}) — on BOTH typing paths (eager and deferred), the one
+     *  place an application's typed arguments are final. */
+    private static void markOperatorRun(boolean infix, List<TypedSpec> args) {
+        if (infix && args.size() == 1
+                && args.get(0) instanceof com.legend.compiler.spec.typed.TypedCollection run) {
+            args.set(0, run.asOperatorRun());
         }
+    }
+
+    private TypedSpec applyFunction(AppliedFunction af, Env env) {
+        // (infix arithmetic types as the parser spells it — the engine's
+        // n-ary carrier plus([a,b,c]) against upstream's plus(Number[*]) &
+        // co.; the pairwise desugar and Pure.java's binary inventions are
+        // gone, batch 5 leg 5 — the lowering folds a literal run to a chain)
         // Legacy TDS surface desugars (engine's TDS-era spellings):
         // col(fn, 'name') is the function-column spec — the modern ~name:fn
         if (af.function().equals("col") && af.parameters().size() == 2
@@ -745,13 +750,12 @@ final class Typer {
                 && af.parameters().size() == 3) {
             ValueSpecification pg = af.parameters().get(1);
             ValueSpecification sz = af.parameters().get(2);
+            // arithmetic in the parser's (= the engine's) COLLECTION form:
+            // plus/minus/times are declared over T[*] only (batch 5)
             return synth(new AppliedFunction("slice", List.of(
                     af.parameters().get(0),
-                    new AppliedFunction("times", List.of(
-                            new AppliedFunction("minus", List.of(pg,
-                                    new CInteger(1L))),
-                            sz)),
-                    new AppliedFunction("times", List.of(pg, sz)))), env);
+                    AppliedFunction.infixRun("times", List.of(AppliedFunction.infixRun("minus", List.of(pg, new CInteger(1L))), sz)),
+                    AppliedFunction.infixRun("times", List.of(pg, sz)))), env);
         }
         // olapGroupBy — the legacy TDS OLAP spellings; the modern construct
         // IS the windowed extend (see olapGroupByDesugar)
@@ -1813,6 +1817,7 @@ final class Typer {
         for (ValueSpecification p : af.parameters()) {
             args.add(synth(p, env));
         }
+        markOperatorRun(af.infix(), args);
         return checkGenericTyped(af, args, expected);
     }
 
@@ -1926,7 +1931,7 @@ final class Typer {
         TypeInferenceException firstFailure = null;
         for (TypedFunction cand : ranked) {
             try {
-                return bindDeferredAndBuild(cand, raw, typed.clone(), env);
+                return bindDeferredAndBuild(cand, raw, typed.clone(), env, af.infix());
             } catch (SchemaInvariantException invariant) {
                 throw invariant;   // the program's defect, never a
                                    // candidate mismatch — no retry
@@ -1944,7 +1949,7 @@ final class Typer {
      *  {@link TypeInferenceException} when the candidate cannot host the
      *  deferred arguments — the caller's retry loop moves on. */
     private Application bindDeferredAndBuild(TypedFunction chosen,
-            List<ValueSpecification> raw, TypedSpec[] typed, Env env) {
+            List<ValueSpecification> raw, TypedSpec[] typed, Env env, boolean infix) {
         Bindings b = new Bindings();
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] != null) {
@@ -2049,7 +2054,9 @@ final class Typer {
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
-        return new Application(chosen, List.of(typed),
+        List<TypedSpec> typedArgs = new ArrayList<>(List.of(typed));
+        markOperatorRun(infix, typedArgs);
+        return new Application(chosen, typedArgs,
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out)));
     }
 

@@ -1672,8 +1672,8 @@ public final class NameResolver {
                 yield (fn.equals(af.function()) && params == af.parameters()
                         && candidates.isEmpty()) ? af
                         // preserve pos + the spelling markers: infix is
-                        // load-bearing downstream (InfixArith's carrier
-                        // test; the emitter's key-expression rule)
+                        // load-bearing downstream (the emitter's
+                        // key-expression rule)
                         : new AppliedFunction(fn, params, candidates, af.pos(),
                                 af.propertyCall(), af.grouped(), af.infix());
             }

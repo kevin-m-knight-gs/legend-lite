@@ -1778,7 +1778,7 @@ class MappingNormalizerTest {
         // firmIdStr value: concat($row.firmName_h1.ID, '')
         AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.first("firmIdStr").value());
         assertEquals("plus", firmIdStr.function());   // concat -> plus-chain
-        AppliedProperty idRef = (AppliedProperty) unwrapToString(firmIdStr.parameters().get(0));
+        AppliedProperty idRef = (AppliedProperty) unwrapToString(runHead(firmIdStr));
         assertEquals("ID", idRef.property());
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
         assertEquals("Person_Firm", firmAlias.property(),
@@ -1905,7 +1905,7 @@ class MappingNormalizerTest {
         // design hoists ALL joins before project translation runs.
         AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.first("firmIdStr").value());
         assertEquals("plus", firmIdStr.function());   // concat -> plus-chain
-        AppliedProperty idRef = (AppliedProperty) unwrapToString(firmIdStr.parameters().get(0));
+        AppliedProperty idRef = (AppliedProperty) unwrapToString(runHead(firmIdStr));
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
         assertEquals("Person_Firm", firmAlias.property(),
                 "Column PM declared BEFORE its required Join PM still resolves "
@@ -2497,19 +2497,24 @@ class MappingNormalizerTest {
      * pure-function counterpart; real pure spells concatenation with plus)
      * back into its {@code n} argument list.
      */
+    /** The first operand of a plus carrier ({@code plus([a, b, …])}). */
+    private static ValueSpecification runHead(AppliedFunction plus) {
+        assertEquals("plus", plus.function());
+        return assertInstanceOf(com.legend.protocol.spec.PureCollection.class,
+                plus.parameters().get(0), "expected the plus run").values().get(0);
+    }
+
     private static List<ValueSpecification> plusChain(ValueSpecification v, int n) {
-        java.util.LinkedList<ValueSpecification> out = new java.util.LinkedList<>();
-        ValueSpecification cur = v;
-        while (out.size() < n - 1) {
-            AppliedFunction af = assertInstanceOf(AppliedFunction.class, cur,
-                    "expected a plus-chain node");
-            assertEquals("plus", af.function());
-            assertEquals(2, af.parameters().size());
-            out.addFirst(unwrapToString(af.parameters().get(1)));
-            cur = af.parameters().get(0);
-        }
-        out.addFirst(unwrapToString(cur));
-        return List.copyOf(out);
+        // the engine's n-ary carrier: plus([a, b, c]) — upstream's
+        // string::plus(String[*]) (batch 5 leg 5)
+        AppliedFunction af = assertInstanceOf(AppliedFunction.class, v,
+                "expected a plus carrier");
+        assertEquals("plus", af.function());
+        assertEquals(1, af.parameters().size());
+        var run = assertInstanceOf(com.legend.protocol.spec.PureCollection.class,
+                af.parameters().get(0), "expected the plus run");
+        assertEquals(n, run.values().size());
+        return run.values().stream().map(MappingNormalizerTest::unwrapToString).toList();
     }
 
     /**
@@ -2944,10 +2949,9 @@ class MappingNormalizerTest {
         AppliedFunction plusCall = (AppliedFunction) eq.parameters().get(0);
         assertEquals("plus", plusCall.function());
         // dyna operands carry the SQL-lane toOne wrap (audit slice 2)
-        AppliedProperty arg0 = (AppliedProperty) unwrapToString(
-                plusCall.parameters().get(0));
-        AppliedProperty arg1 = (AppliedProperty) unwrapToString(
-                plusCall.parameters().get(1));
+        List<ValueSpecification> run = plusChain(plusCall, 2);
+        AppliedProperty arg0 = (AppliedProperty) run.get(0);
+        AppliedProperty arg1 = (AppliedProperty) run.get(1);
         assertEquals("A", arg0.property(),
                 "Source-side arg of mixed function reads $s.<col>");
         assertEquals("s", ((Variable) arg0.receiver()).name());
@@ -3484,7 +3488,7 @@ class MappingNormalizerTest {
                 "displayFirm is a +local field (isLocal=true)");
         AppliedFunction concat = (AppliedFunction) displayKe.value();
         assertEquals("plus", concat.function());   // concat -> plus-chain
-        AppliedProperty subRowCol = (AppliedProperty) unwrapToString(concat.parameters().get(0));
+        AppliedProperty subRowCol = (AppliedProperty) unwrapToString(runHead(concat));
         assertEquals("LEGAL_NAME", subRowCol.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) subRowCol.receiver()).property(),
@@ -3549,7 +3553,7 @@ class MappingNormalizerTest {
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
         AppliedFunction concat = (AppliedFunction) toOneInner(ni.first("tagline").value());
-        AppliedProperty terminal = (AppliedProperty) unwrapToString(concat.parameters().get(0));
+        AppliedProperty terminal = (AppliedProperty) unwrapToString(runHead(concat));
         assertEquals("NAME", terminal.property());
         assertEquals("Person_Firm__Firm_Org",
                 ((AppliedProperty) terminal.receiver()).property(),

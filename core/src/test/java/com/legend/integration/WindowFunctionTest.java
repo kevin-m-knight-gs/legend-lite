@@ -710,7 +710,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department), ~deptStdDev:{p,w,r|$p->stdDev($w,$r).salary})
+                    ->extend(over(~department), ~deptStdDev:{p,w,r|$r.salary}:y|$y->stdDevSample())
                 """;
 
         String sql = generateSql(pureQuery);
@@ -732,11 +732,11 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department), ~deptVar:{p,w,r|$p->variance($w,$r).salary})
+                    ->extend(over(~department), ~deptVar:{p,w,r|$r.salary}:y|$y->varianceSample())
                 """;
 
         String sql = generateSql(pureQuery);
-        assertTrue(sql.contains("VARIANCE"), "SQL should contain VARIANCE");
+        assertTrue(sql.contains("VAR_SAMP"), "SQL should contain VAR_SAMP");
         assertTrue(sql.contains("OVER"), "SQL should contain OVER");
         assertTrue(sql.contains("PARTITION BY"), "SQL should contain PARTITION BY");
 

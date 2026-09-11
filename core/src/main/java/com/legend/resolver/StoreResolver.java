@@ -3478,5 +3478,4 @@ public final class StoreResolver {
         return sources.dispatch(context.explicitMapping(),
                 context.runtimeFqn(), context.chainMappings(), classFqn);
     }
-
 }

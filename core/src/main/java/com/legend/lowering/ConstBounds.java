@@ -37,20 +37,25 @@ final class ConstBounds {
         // CONSTANT integer arithmetic folds — the paginated desugar's
         // (page-1)*size over literals (the engine folds these at plan
         // time too); a genuinely dynamic operand stays the loud wall
+        // (upstream's arithmetic is variadic — the run plus([a, b, …]) folds
+        // left to right: sum, left-fold difference, product)
         if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall ar
-                && ar.args().size() == 2) {
+                && ar.args().size() == 1
+                && ar.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCollection run
+                && run.elements().size() >= 2) {
             String q = ar.callee().qualifiedName();
-            Long folded = switch (q) {
-                case "meta::pure::functions::math::plus" ->
-                        intOf(ar.args().get(0)) + intOf(ar.args().get(1));
-                case "meta::pure::functions::math::minus" ->
-                        intOf(ar.args().get(0)) - intOf(ar.args().get(1));
-                case "meta::pure::functions::math::times" ->
-                        intOf(ar.args().get(0)) * intOf(ar.args().get(1));
+            java.util.function.LongBinaryOperator op = switch (q) {
+                case "meta::pure::functions::math::plus" -> Long::sum;
+                case "meta::pure::functions::math::minus" -> (x, y) -> x - y;
+                case "meta::pure::functions::math::times" -> (x, y) -> x * y;
                 default -> null;
             };
-            if (folded != null) {
-                return folded;
+            if (op != null) {
+                long acc = intOf(run.elements().get(0));
+                for (int i = 1; i < run.elements().size(); i++) {
+                    acc = op.applyAsLong(acc, intOf(run.elements().get(i)));
+                }
+                return acc;
             }
         }
         throw new NotImplementedException(

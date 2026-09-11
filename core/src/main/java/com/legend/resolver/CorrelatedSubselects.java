@@ -1799,11 +1799,11 @@ private static boolean readsVarOutsideSlot(TypedSpec n, String var,
         return com.legend.lowering.Aggregates.isDemandReducer(callee);
     }
 
-    /** Node-level gate (§4AD decision 1): infix plus (n-ary args) is
+    /** Node-level gate (§4AD decision 1): infix plus (a literal run) is
      * row-wise over navigations — see Aggregates.isDemandReducer. */
     static boolean isAggregate(TypedNativeCall nc) {
-        return com.legend.lowering.Aggregates.isDemandReducer(
-                nc.callee(), nc.args().size());
+        return !nc.args().isEmpty() && com.legend.lowering.Aggregates.isDemandReducer(
+                nc.callee(), nc.args().get(0));
     }
 
 

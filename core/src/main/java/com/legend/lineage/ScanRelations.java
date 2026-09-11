@@ -2085,6 +2085,11 @@ public final class ScanRelations {
             bf.parameters().forEach(p -> scopedChains(p, scope, out));
             return;
         }
+        if (n instanceof com.legend.protocol.spec.PureCollection run) {
+            // the arithmetic carrier's operands (a + b is plus([a, b]))
+            run.values().forEach(p -> scopedChains(p, scope, out));
+            return;
+        }
         List<Seg> c = scopedChainOf(n, scope);
         if (c != null) {
             if (!c.isEmpty()) {

@@ -526,7 +526,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     1, 30
                     2, 100
                     2, 200
-                    #->groupBy(~grp, ~sd:x|$x.val:y|$y->stdDev())""");
+                    #->groupBy(~grp, ~sd:x|$x.val:y|$y->stdDevSample())""");
             assertEquals(2, result.rowCount());
             var byGrp = CheckerResults.collect(result, "grp", "sd");
             assertEquals(10.0, ((Number) byGrp.get(1)).doubleValue(), 0.01);
@@ -582,7 +582,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     1, 30
                     2, 5
                     2, 5
-                    #->groupBy(~grp, ~v:x|$x.val:y|$y->variance())""");
+                    #->groupBy(~grp, ~v:x|$x.val:y|$y->varianceSample())""");
             assertEquals(2, result.rowCount());
             var byGrp = CheckerResults.collect(result, "grp", "v");
             // variance of [10,20,30] = ~66.67 (pop) or 100 (sample)
@@ -633,7 +633,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     1, 20
                     1, 30
                     2, 40
-                    #->groupBy(~grp, ~[s:x|$x.val:y|$y->plus(), sd:x|$x.val:y|$y->stdDev(), v:x|$x.val:y|$y->variance()])""");
+                    #->groupBy(~grp, ~[s:x|$x.val:y|$y->plus(), sd:x|$x.val:y|$y->stdDevSample(), v:x|$x.val:y|$y->varianceSample()])""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size());
         }
@@ -649,7 +649,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     eng, 140
                     mkt, 80
                     mkt, 120
-                    #->groupBy(~dept, ~[avg:x|$x.salary:y|$y->average(), sd:x|$x.salary:y|$y->stdDev()])""");
+                    #->groupBy(~dept, ~[avg:x|$x.salary:y|$y->average(), sd:x|$x.salary:y|$y->stdDevSample()])""");
             assertEquals(2, result.rowCount());
             assertEquals(3, result.columns().size());
             var avgs = CheckerResults.collect(result, "dept", "avg");

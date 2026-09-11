@@ -497,6 +497,9 @@ public final class PlatformTypes {
     public static final String DURATION = "meta::pure::functions::date::Duration";
     public static final String MAP = "meta::pure::functions::collection::map";
     public static final String PLUS = "meta::pure::functions::math::plus";
+    /** String concatenation — upstream's own {@code string::plus(String[*])}
+     *  (a string run resolves HERE, never to math::plus — batch 5 leg 5). */
+    public static final String STRING_PLUS = "meta::pure::functions::string::plus";
 
     /** The three relational connection classes (exact FQN). */
     public static boolean isRelationalConnectionClass(String fqn) {
@@ -537,9 +540,10 @@ public final class PlatformTypes {
                 || "LocalH2DatasourceSpecification".equals(nameOrFqn);
     }
 
-    /** The string/number {@code +} in a raw body: bare or FQN spelling. */
+    /** The string/number {@code +} in a raw body: bare or either FQN
+     *  spelling (math::plus for numbers, string::plus for strings). */
     public static boolean isPlus(String nameOrFqn) {
-        return PLUS.equals(nameOrFqn) || "plus".equals(nameOrFqn);
+        return PLUS.equals(nameOrFqn) || STRING_PLUS.equals(nameOrFqn) || "plus".equals(nameOrFqn);
     }
 
     /** The asserts package: every function in it is a VERDICT the

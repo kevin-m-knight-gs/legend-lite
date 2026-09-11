@@ -3350,15 +3350,17 @@ final class GraphEmission {
                 ? mappingFqn : null;
     }
 
-    /** The String+String plus overload — the includeEnumType prefix. */
+    /** Upstream's string concatenation — {@code string::plus(String[*])},
+     *  the one overload — the includeEnumType prefix. */
     static com.legend.compiler.element.TypedFunction stringPlusCallee(
             ModelContext mc) {
-        return mc.findFunction("meta::pure::functions::math::plus").stream()
-                .filter(f -> f.parameters().size() == 2
-                        && f.parameters().get(0).type()
-                                == Type.Primitive.STRING)
-                .findFirst().orElseThrow(() -> new IllegalStateException(
-                        "resolver bug: no String plus registration"));
+        List<com.legend.compiler.element.TypedFunction> plus =
+                mc.findFunction(com.legend.builtin.Pure.STRING_PLUS__STRING_MANY.qualifiedName());
+        if (plus.size() != 1) {
+            throw new IllegalStateException("resolver bug: string::plus carries "
+                    + plus.size() + " overloads");
+        }
+        return plus.get(0);
     }
 
     /** An ENUM-typed leaf body concat-prefixed with its enumeration FQN
@@ -3375,11 +3377,16 @@ final class GraphEmission {
             return l;
         }
         var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        // the run ['<enum fqn>.', body] — string::plus(String[*]) (batch 5 leg 5)
         TypedSpec prefixed = new TypedNativeCall(plusCallee, List.of(
-                new com.legend.compiler.spec.typed.TypedCString(
-                        et.fqn() + ".",
-                        new ExprType(Type.Primitive.STRING, one)),
-                body),
+                new com.legend.compiler.spec.typed.TypedCollection(List.of(
+                        new com.legend.compiler.spec.typed.TypedCString(
+                                et.fqn() + ".",
+                                new ExprType(Type.Primitive.STRING, one)),
+                        body),
+                        new ExprType(Type.Primitive.STRING,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                        false)),
                 new ExprType(Type.Primitive.STRING,
                         body.info().multiplicity()));
         List<TypedSpec> nb = new ArrayList<>(lam.body());

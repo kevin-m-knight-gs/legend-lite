@@ -727,6 +727,14 @@ final class Substitution {
             }
             return c2.withChildren(args);
         }
+        if (e instanceof com.legend.compiler.spec.typed.TypedCollection run) {
+            // the arithmetic carrier (length(...) - 7 is minus([…, 7]))
+            List<TypedSpec> els = new java.util.ArrayList<>(run.elements().size());
+            for (TypedSpec a : run.elements()) {
+                els.add(crossCellSubst(a, aVar, bVar, outerById, tRow, tv));
+            }
+            return run.withChildren(els);
+        }
         if (e instanceof TypedVariable v
                 && (v.name().equals(aVar) || v.name().equals(bVar))) {
             throw new NotImplementedException("tdsContains cross form:"

@@ -22,6 +22,14 @@ final class Numerics {
      * null = not that shape (the aggregate path continues). */
     static @com.legend.Nullable SqlExpr decimalChain(SqlExpr list,
             SqlFn op) {
+        return decimalChain(list, op, java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@code widen} rewrites each operand as it joins the chain (the
+     *  near-INT64-edge literal widening — an all-integer literal run folds
+     *  here first). */
+    static @com.legend.Nullable SqlExpr decimalChain(SqlExpr list,
+            SqlFn op, java.util.function.UnaryOperator<SqlExpr> widen) {
         // fires for DECIMAL-bearing literal lists (exact binary decimal
         // arithmetic vs LIST_PRODUCT's DOUBLE degradation) AND — Part-1
         // fix 2026-08-26 — for ALL-INTEGER literal lists (LIST_PRODUCT
@@ -39,9 +47,9 @@ final class Numerics {
                         e instanceof SqlExpr.DecimalLit
                         || e instanceof SqlExpr.IntLit
                         || e instanceof SqlExpr.FloatLit)) {
-            SqlExpr acc = la.elements().get(0);
+            SqlExpr acc = widen.apply(la.elements().get(0));
             for (int i = 1; i < la.elements().size(); i++) {
-                acc = SqlExpr.Call.of(op, acc, la.elements().get(i));
+                acc = SqlExpr.Call.of(op, acc, widen.apply(la.elements().get(i)));
             }
             return acc;
         }
@@ -60,11 +68,30 @@ final class Numerics {
     static @com.legend.Nullable SqlExpr scalarChain(
             com.legend.compiler.spec.typed.TypedSpec typedArg, SqlExpr list,
             SqlFn op) {
+        return scalarChain(typedArg, list, op, java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@code widen} rewrites each operand before it joins the chain (the
+     *  near-INT64-edge literal widening). */
+    static @com.legend.Nullable SqlExpr scalarChain(
+            com.legend.compiler.spec.typed.TypedSpec typedArg, SqlExpr list,
+            SqlFn op, java.util.function.UnaryOperator<SqlExpr> widen) {
         if (!(typedArg instanceof com.legend.compiler.spec.typed.TypedCollection tc)
                 || tc.elements().size() < 2
                 || !(list instanceof SqlExpr.ArrayLit la)
                 || la.elements().size() != tc.elements().size()) {
             return null;
+        }
+        // an OPERATOR RUN (a + b, the parser's infix carrier) IS the operator
+        // chain — SQL arithmetic promotes across kinds exactly as the engine's
+        // does (Float column - Integer literal); the one-kind rule below is
+        // the VALUE list's (a mixed literal rides the variant carrier)
+        if (tc.operatorRun()) {
+            SqlExpr acc = widen.apply(la.elements().get(0));
+            for (int i = 1; i < la.elements().size(); i++) {
+                acc = SqlExpr.Call.of(op, acc, widen.apply(la.elements().get(i)));
+            }
+            return acc;
         }
         // ONE primitive numeric kind across the operands: a NUMBER-LUB
         // mixed literal ([1, 2.5]) rides the variant carrier (JSON cells —
@@ -87,9 +114,9 @@ final class Numerics {
             }
             kind = t;
         }
-        SqlExpr acc = la.elements().get(0);
+        SqlExpr acc = widen.apply(la.elements().get(0));
         for (int i = 1; i < la.elements().size(); i++) {
-            acc = SqlExpr.Call.of(op, acc, la.elements().get(i));
+            acc = SqlExpr.Call.of(op, acc, widen.apply(la.elements().get(i)));
         }
         return acc;
     }

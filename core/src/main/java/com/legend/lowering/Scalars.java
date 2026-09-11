@@ -266,51 +266,46 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.NOT, args);
             });
         }
-        // UNARY plus/minus (the parser's -x => minus(x) desugar): a 1-arg
-        // minus NEGATES — the binary operator renderer would silently DROP
-        // the sign of a lone operand (audit: [-5, -3] executed as [5, 3]).
+        // plus / times / minus are upstream's VARIADIC natives only
+        // (plus(Number[*]) & co. — batch 5 leg 5): infix a + b + c arrives as
+        // the parser's n-ary carrier plus([a,b,c]) and a literal run folds to
+        // the binary SQL chain (Numerics.scalarChain); a runtime list is the
+        // collection SUM / PRODUCT / left-fold. UNARY plus/minus (the parser's
+        // -x => minus(x)): a 1-arg minus NEGATES — the operator renderer would
+        // silently DROP the sign of a lone operand (audit: [-5, -3] ran as [5, 3]).
         for (String f : Pure.nativeKeysAt("plus")) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
-                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                if (isToOne(n.args().get(0))) {
                     return args.get(0);   // unary +x (stamp decides)
                 }
-                // plus<T>(values:T[*]) is the COLLECTION SUM (real pure) —
-                // the infix renderer would emit a lone list bare (audit).
                 // A NUMBER-LUB mixed literal rides the variant carrier:
                 // numList unwraps it for the aggregate (sum(JSON) is a
                 // Binder error; grammar witness testPlusNumber).
-                if (args.size() == 1) {
-                    SqlExpr chain = Numerics.scalarChain(n.args().get(0),
-                            args.get(0), SqlFn.PLUS);
-                    if (chain != null) {
-                        return chain;
-                    }
-                    return new SqlExpr.Call(SqlFn.LIST_SUM,
-                            List.of(Numerics.numList(args.get(0))));
+                SqlExpr chain = Numerics.scalarChain(n.args().get(0),
+                        args.get(0), SqlFn.PLUS, Scalars::hugeWiden);
+                if (chain != null) {
+                    return chain;
                 }
-                return new SqlExpr.Call(SqlFn.PLUS, hugeWiden(args));
+                return new SqlExpr.Call(SqlFn.LIST_SUM,
+                        List.of(Numerics.numList(args.get(0))));
             });
         }
         for (String f : Pure.nativeKeysAt("times")) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
-                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                if (isToOne(n.args().get(0))) {
                     return args.get(0);
                 }
-                // times<T>(values:T[*]) is the COLLECTION PRODUCT (real
-                // pure); numList unwraps the mixed carrier (same defect
-                // class as plus — the aggregate needs raw numerics).
-                if (args.size() == 1) {
-                    SqlExpr chain = Numerics.scalarChain(n.args().get(0),
-                            args.get(0), SqlFn.TIMES);
-                    if (chain != null) {
-                        return chain;
-                    }
-                    return new SqlExpr.Call(SqlFn.LIST_PRODUCT,
-                            List.of(Numerics.numList(args.get(0))));
+                // numList unwraps the mixed carrier (same defect class as
+                // plus — the aggregate needs raw numerics).
+                SqlExpr chain = Numerics.scalarChain(n.args().get(0),
+                        args.get(0), SqlFn.TIMES, Scalars::hugeWiden);
+                if (chain != null) {
+                    return chain;
                 }
-                return new SqlExpr.Call(SqlFn.TIMES, hugeWiden(args));
+                return new SqlExpr.Call(SqlFn.LIST_PRODUCT,
+                        List.of(Numerics.numList(args.get(0))));
             });
         }
         for (String f : Pure.nativeKeysAt("times")) {
@@ -323,12 +318,10 @@ final class Scalars {
                     "times rule registered above");
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
-                if (args.size() == 1) {
-                    SqlExpr chain = Numerics.decimalChain(Numerics.numList(args.get(0)),
-                            SqlFn.TIMES);
-                    if (chain != null) {
-                        return chain;
-                    }
+                SqlExpr chain = Numerics.decimalChain(Numerics.numList(args.get(0)),
+                        SqlFn.TIMES, Scalars::hugeWiden);
+                if (chain != null) {
+                    return chain;
                 }
                 return base.apply(n, rawArgs);
             });
@@ -336,21 +329,25 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("minus")) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
-                if (args.size() != 1) {
-                    return new SqlExpr.Call(SqlFn.MINUS, hugeWiden(args));
-                }
                 // minus<T>(values:T[*]) LEFT-FOLDS subtraction (real pure:
                 // [10,3,2] -> 5); the seed is the first element. A SINGLETON
                 // LIST LITERAL is a list (the reduction of [x] is x, via the
                 // fold), not a unary negate (audit).
                 if (!isToOne(n.args().get(0))) {
+                    // a LITERAL run (the infix carrier a - b - c) IS the
+                    // left-fold operator chain
+                    SqlExpr run = Numerics.scalarChain(n.args().get(0),
+                            args.get(0), SqlFn.MINUS, Scalars::hugeWiden);
+                    if (run != null) {
+                        return run;
+                    }
                     // numList: the mixed-number VARIANT carrier unwraps
                     // for the reduction (-(JSON, JSON) does not bind;
                     // witness testDecimalMinus); a DECIMAL-bearing
                     // literal list folds to the exact BINARY chain
                     // (LIST_REDUCE, like the aggregates, runs DOUBLE)
                     SqlExpr list = Numerics.numList(args.get(0));
-                    SqlExpr chain = Numerics.decimalChain(list, SqlFn.MINUS);
+                    SqlExpr chain = Numerics.decimalChain(list, SqlFn.MINUS, Scalars::hugeWiden);
                     if (chain != null) {
                         return chain;
                     }
@@ -2383,7 +2380,26 @@ final class Scalars {
         }
 
         // Overload-specific overrides — the resolved signature IS the decision.
-        RULES.put(Pure.keyPlusString(), (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
+        // string::plus(String[*]) — real pure's string concatenation: the
+        // parser's n-ary carrier for 'a' + 'b' (a literal run) is CONCAT of
+        // the elements; one string is itself; a runtime list joins with no
+        // separator — the joinStrings(list) rule (every joinStrings key
+        // registers the same closure).
+        var joinStrings = java.util.Objects.requireNonNull(
+                RULES.get(Pure.nativeKeysAt("joinStrings").iterator().next()),
+                "joinStrings rule registered above");
+        RULES.put(Pure.keyPlusString(), (n, args) -> {
+            if (n.args().get(0) instanceof TypedCollection run
+                    && args.get(0) instanceof SqlExpr.ArrayLit lit
+                    && lit.elements().size() == run.elements().size()
+                    && !lit.elements().isEmpty()) {
+                return new SqlExpr.Call(SqlFn.CONCAT, lit.elements());
+            }
+            if (isToOne(n.args().get(0))) {
+                return args.get(0);
+            }
+            return joinStrings.apply(n, args);
+        });
         // real pure declares BOTH in(Any[1], ...) and in(Any[0..1], ...):
         // the optional-needle overload is FALSE for the empty needle
         // (COALESCE — a NULL needle must never say NULL).
@@ -2583,27 +2599,18 @@ final class Scalars {
         return rule.apply(call, loweredArgs);
     }
 
+
     /**
      * Integer arithmetic NEAR THE INT64 EDGE computes in HUGEINT (real
      * pure's 2 * maxLong PCT value): a literal within a factor of ~2 of
-     * overflow widens the first operand, and DuckDB propagates.
+     * overflow widens as it joins the operator chain, and DuckDB
+     * propagates. Never a float operand (CAST(2.5 AS HUGEINT) rounds to 3
+     * and poisons the product; audit).
      */
-    private static List<SqlExpr> hugeWiden(List<SqlExpr> args) {
-        // Widen the near-edge INTEGER LITERAL itself — never a float
-        // operand (CAST(2.5 AS HUGEINT) rounds to 3 and poisons the
-        // product; audit). DuckDB propagates HUGEINT from either side.
-        List<SqlExpr> out = null;
-        for (int i = 0; i < args.size(); i++) {
-            if (args.get(i) instanceof SqlExpr.IntLit lit
-                    && (lit.value() > (Long.MAX_VALUE >> 2)
-                            || lit.value() < (Long.MIN_VALUE >> 2))) {
-                if (out == null) {
-                    out = new ArrayList<>(args);
-                }
-                out.set(i, new SqlExpr.Cast(lit, SqlType.Scalar.HUGEINT));
-            }
-        }
-        return out == null ? args : out;
+    private static SqlExpr hugeWiden(SqlExpr operand) {
+        return operand instanceof SqlExpr.IntLit il
+                && (il.value() > (Long.MAX_VALUE >> 2) || il.value() < (Long.MIN_VALUE >> 2))
+                ? new SqlExpr.Cast(il, SqlType.Scalar.HUGEINT) : operand;
     }
 
     /**

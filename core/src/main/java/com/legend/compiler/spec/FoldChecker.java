@@ -59,12 +59,11 @@ final class FoldChecker {
         // 3. MapReduce: the body's left op-chain spine strips the accumulator, leaving
         // an element-only transform; the reducer is the same op over two accumulators.
         // The parser spells the body's operator runs the ENGINE's n-ary way
-        // (plus[Collection[$a, ...]]); the spine-matching below is pairwise, so
-        // binarize the top node first (nested carriers desugar when synth'd).
+        // (plus[Collection[$a, e1, e2]] — upstream's plus(Number[*]), batch 5
+        // leg 5): the run IS the left spine, the accumulator its head.
         String elemParam = lambda.parameters().get(0).name();
         String accParam = lambda.parameters().size() >= 2 ? lambda.parameters().get(1).name() : "y";
-        ValueSpecification body0 = lambda.body().get(0) instanceof AppliedFunction bodyAf
-                ? InfixArith.binarize(bodyAf) : lambda.body().get(0);
+        ValueSpecification body0 = lambda.body().get(0);
         ValueSpecification transform = elementTransform(body0, accParam);
         if (transform == null) {
             transform = commutativeElementTransform(body0, accParam, init);
@@ -72,10 +71,10 @@ final class FoldChecker {
         if (transform != null) {
             ExprType elemInfo = new ExprType(elementType, Multiplicity.Bounded.ONE);
             TypedSpec typedTransform = t.synth(transform, env.with(elemParam, elemInfo));
-            String op = ((AppliedFunction) body0).function();
             String freshParam = "__mr_x";
             TypedSpec typedReducer = t.synth(
-                    new AppliedFunction(op, List.of(new Variable(accParam), new Variable(freshParam))),
+                    sameShape((AppliedFunction) body0,
+                            List.of(new Variable(accParam), new Variable(freshParam))),
                     env.with(accParam, init).with(freshParam, init));
             // CLOSED lambdas (see MapReduce's javadoc): each tree binds
             // its own parameters, so the inliner's α-hygiene reaches them
@@ -128,21 +127,43 @@ final class FoldChecker {
      * Returns {@code null} when the body is not decomposable this way.
      */
     private static @com.legend.Nullable ValueSpecification elementTransform(ValueSpecification body, String accParam) {
-        if (!(body instanceof AppliedFunction af) || af.parameters().size() != 2) {
+        if (!(body instanceof AppliedFunction af)) {
             return null;
         }
-        ValueSpecification left = af.parameters().get(0);
-        ValueSpecification right = af.parameters().get(1);
-        if (left instanceof Variable v && v.name().equals(accParam)) {
-            return right;
+        List<ValueSpecification> run = operands(af);
+        if (run.size() < 2) {
+            return null;
         }
-        if (left instanceof AppliedFunction leftAf && leftAf.function().equals(af.function())) {
-            ValueSpecification stripped = elementTransform(left, accParam);
+        if (run.get(0) instanceof Variable v && v.name().equals(accParam)) {
+            List<ValueSpecification> rest = run.subList(1, run.size());
+            return rest.size() == 1 ? rest.get(0) : sameShape(af, rest);
+        }
+        if (run.size() == 2 && run.get(0) instanceof AppliedFunction leftAf
+                && leftAf.function().equals(af.function())) {
+            ValueSpecification stripped = elementTransform(leftAf, accParam);
             if (stripped != null) {
-                return af.withParameters(List.of(stripped, right));
+                return sameShape(af, List.of(stripped, run.get(1)));
             }
         }
         return null;
+    }
+
+    /** The operands of an operator application: the n-ary carrier's run
+     *  ({@code plus[Collection[a,b,c]]}) or the pairwise parameters
+     *  ({@code and(a,b)}). */
+    private static List<ValueSpecification> operands(AppliedFunction af) {
+        return af.parameters().size() == 1
+                && af.parameters().get(0) instanceof com.legend.protocol.spec.PureCollection run
+                && run.values().size() >= 2
+                ? run.values() : af.parameters();
+    }
+
+    /** {@code af} re-applied to {@code operands} in ITS OWN spelling — the
+     *  n-ary carrier stays a carrier, a pairwise call stays pairwise. */
+    private static AppliedFunction sameShape(AppliedFunction af, List<ValueSpecification> operands) {
+        return operands(af) == af.parameters()
+                ? af.withParameters(operands)
+                : af.withParameters(List.of(new com.legend.protocol.spec.PureCollection(operands)));
     }
 
     /**
@@ -157,9 +178,10 @@ final class FoldChecker {
      */
     private static @com.legend.Nullable ValueSpecification commutativeElementTransform(
             ValueSpecification body, String accParam, ExprType init) {
-        if (!(body instanceof AppliedFunction af) || af.parameters().size() != 2) {
+        if (!(body instanceof AppliedFunction af) || operands(af).size() != 2) {
             return null;
         }
+        List<ValueSpecification> run = operands(af);
         boolean commutative = switch (simpleName(af.function())) {
             // Commutativity must be PROVEN from the init's type: plus on
             // Strings is order-sensitive concatenation, and a []-born init
@@ -171,8 +193,8 @@ final class FoldChecker {
             default -> false;
         };
         if (commutative
-                && af.parameters().get(1) instanceof Variable v && v.name().equals(accParam)) {
-            return af.parameters().get(0);
+                && run.get(1) instanceof Variable v && v.name().equals(accParam)) {
+            return run.get(0);
         }
         return null;
     }

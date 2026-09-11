@@ -901,7 +901,7 @@ final class ContextReading {
             return cs.value();
         }
         if (n instanceof TypedNativeCall c
-                && PlatformTypes.PLUS.equals(c.callee().qualifiedName())) {
+                && PlatformTypes.isPlus(c.callee().qualifiedName())) {
             StringBuilder sb = new StringBuilder();
             for (TypedSpec a : c.args()) {
                 String part = foldLiteral(a);
@@ -938,8 +938,13 @@ final class ContextReading {
             }
             case com.legend.protocol.spec.AppliedFunction af
                     when PlatformTypes.isPlus(af.function()) -> {
+                // the parser's n-ary carrier plus([a, b, …]) (upstream's
+                // string::plus(String[*]), batch 5 leg 5) — its run
+                List<ValueSpecification> run = af.parameters().size() == 1
+                        && af.parameters().get(0) instanceof com.legend.protocol.spec.PureCollection pc
+                        ? pc.values() : af.parameters();
                 StringBuilder sb = new StringBuilder();
-                for (var p : af.parameters()) {
+                for (var p : run) {
                     String part = foldRawLiteral(p, lets);
                     if (part == null) {
                         yield null;

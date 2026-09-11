@@ -71,6 +71,15 @@ public record AppliedFunction(
         boolean grouped,
         boolean infix) implements ValueSpecification {
 
+    /** An OPERATOR RUN — {@code a + b (+ …)} as the parser spells it: the
+     *  engine's n-ary carrier (one collection parameter holding the whole
+     *  same-op run) with the {@code infix} marker. The compiler's own
+     *  synthesized arithmetic spells itself the same way. */
+    public static AppliedFunction infixRun(String op, List<ValueSpecification> operands) {
+        return new AppliedFunction(op, List.of(new PureCollection(operands)),
+                List.of(), null, false, false, true);
+    }
+
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
         Objects.requireNonNull(parameters, "parameters");

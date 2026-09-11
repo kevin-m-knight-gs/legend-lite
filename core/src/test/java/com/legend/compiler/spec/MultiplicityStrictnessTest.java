@@ -46,14 +46,16 @@ class MultiplicityStrictnessTest {
     }
 
     @Test
-    @DisplayName("audit §1: [0..1] into arithmetic is REJECTED; toOne() fixes it")
-    void optionalIntoArithmeticRejectsAndToOneConforms() {
-        // multi-overload natives reject at SELECTION (scoring mirrors
-        // the strict containment — the kernel-halves agreement)
-        assertTrue(rejects("m::Person.all()->map(p|$p.middleName + '!')")
-                        .getMessage().contains("no overload"),
-                "plus over a [0..1] operand must reject");
-        // the sanctioned spelling compiles
+    @DisplayName("real pure: [0..1] into infix plus CONFORMS — plus(String[*]) takes the run")
+    void optionalIntoArithmeticConformsLikeRealPure() {
+        // upstream declares arithmetic VARIADIC only (string::plus(String[*]));
+        // the parser's run ['middleName', '!'] is String[1..2] and conforms —
+        // real pure's MultiplicityMatch accepts it (batch 5 leg 5; the binary
+        // [1]-slot rejection was our own invention's)
+        TypedSpec run = Compiler.compileQuery(MODEL,
+                "m::Person.all()->map(p|$p.middleName + '!')");
+        assertEquals("[*]", run.info().multiplicity().text());
+        // the toOne() spelling compiles too
         TypedSpec ok = Compiler.compileQuery(MODEL,
                 "m::Person.all()->map(p|$p.middleName->toOne() + '!')");
         assertEquals("[*]", ok.info().multiplicity().text());

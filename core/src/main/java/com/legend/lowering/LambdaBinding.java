@@ -320,6 +320,15 @@ final class LambdaBinding {
                         scalarFn.apply(Lowerer.last(l), stamped)));
                 continue;
             }
+            if (a instanceof com.legend.compiler.spec.typed.TypedCollection run
+                    && run.operatorRun()) {
+                // the infix run a + b (+ …): its operands are SQL-LANE —
+                // an optional column read null-propagates exactly as the
+                // engine's arithmetic does — so the run never takes the
+                // value collection's empty-element compaction
+                out.add(Lowerer.listLiteral(run, e -> scalarFn.apply(e, columns)));
+                continue;
+            }
             out.add(scalarFn.apply(a, columns));
         }
         return out;

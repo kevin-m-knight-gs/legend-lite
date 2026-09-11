@@ -39,7 +39,7 @@ import java.util.Set;
 final class LineageTreeVerdicts {
 
     private static final String ASSERT_EQUALS = "meta::pure::functions::asserts::assertEquals";
-    private static final Set<String> PLUS = Set.of("meta::pure::functions::math::plus");
+    private static final Set<String> PLUS = Set.of(com.legend.compiler.element.type.PlatformTypes.PLUS, com.legend.compiler.element.type.PlatformTypes.STRING_PLUS);
 
     /** The tree-print → rows query; {@code %s} is the print as a SQL
      * string literal. Aliases resolve LONGEST NAME FIRST (a node name can

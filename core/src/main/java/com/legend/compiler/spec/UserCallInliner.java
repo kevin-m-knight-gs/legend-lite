@@ -532,8 +532,7 @@ public final class UserCallInliner {
         ExprType ni = new ExprType(callInfo.type(), reduced.info().multiplicity());
         return switch (reduced) {
             case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos());
-            case com.legend.compiler.spec.typed.TypedCollection tc ->
-                    new com.legend.compiler.spec.typed.TypedCollection(tc.elements(), ni);
+            case com.legend.compiler.spec.typed.TypedCollection tc -> tc.withInfo(ni);
             case TypedUserCall uc -> new TypedUserCall(uc.callee(), uc.args(), ni);
             default -> reduced;
         };
