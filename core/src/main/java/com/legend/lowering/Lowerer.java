@@ -538,8 +538,8 @@ public final class Lowerer {
             // body lowers with the row param CORRELATED to the left alias
             // (the enclosing-resolver channel); DuckDB joins it per-row via
             // CROSS JOIN LATERAL. Schema = T+V (checker's schema algebra).
-            case TypedNativeCall nc when nc.callee().qualifiedName()
-                    .equals("meta::pure::functions::relation::lateral")
+            case TypedNativeCall nc when com.legend.builtin.NativeFn.LowererForm
+                    .of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LowererForm.LATERAL
                     && nc.args().size() == 2
                     && nc.args().get(1) instanceof TypedLambda lam -> {
                 SqlSelect left = relation(nc.args().get(0));
@@ -1199,9 +1199,7 @@ public final class Lowerer {
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
         // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
         if (mapBody instanceof TypedNativeCall rm
-                && (rm.callee().qualifiedName().equals("meta::pure::functions::math::mathUtility::rowMapper")
-                        || rm.callee().qualifiedName().equals(
-                                "meta::pure::functions::math::wavgUtility::wavgRowMapper"))
+                && com.legend.builtin.NativeFn.LowererForm.isBivariateMap(rm.callee().qualifiedName())
                 && rm.args().size() == 2) {
             if (descending) {
                 // this arm returns without the within-group order —
@@ -2265,8 +2263,8 @@ public final class Lowerer {
             // dispatch (rowMapper decomposition, composed aggs, casts), and
             // windowize stamps the shared window spec on every reducer.
             case TypedNativeCall call
-                    when call.callee().qualifiedName()
-                            .equals("meta::pure::functions::relation::reduce")
+                    when com.legend.builtin.NativeFn.LowererForm.of(call.callee().qualifiedName())
+                            .orElse(null) == com.legend.builtin.NativeFn.LowererForm.REDUCE
                     && call.args().size() == 5
                     && call.args().get(3) instanceof TypedLambda mapFn
                     && call.args().get(4) instanceof TypedLambda aggFn -> {
@@ -2276,8 +2274,8 @@ public final class Lowerer {
             // zScore(p,w,r,~col): COMPOSED window expression — real zScore.pure
             // is (col - average(...)) / max(stdDevPopulation(...), 1e-10).
             case TypedNativeCall call
-                    when call.callee().qualifiedName()
-                            .equals("meta::pure::functions::math::zScore")
+                    when com.legend.builtin.NativeFn.LowererForm.of(call.callee().qualifiedName())
+                            .orElse(null) == com.legend.builtin.NativeFn.LowererForm.Z_SCORE
                     && call.args().size() == 4
                     && call.args().get(3)
                             instanceof TypedColSpec zcs -> {

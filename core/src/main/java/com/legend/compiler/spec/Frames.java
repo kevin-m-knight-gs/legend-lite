@@ -35,10 +35,27 @@ final class Frames {
         // unbounded mixes): each bounded side pairs an Integer with its
         // DurationUnit — RANGE BETWEEN INTERVAL n UNIT PRECEDING/FOLLOWING.
         List<TypedSpec> as = call.args();
+        // THE FAMILY IS A CLOSED TYPE (NativeFn.Frame, batch 4b): rows / _range
+        // are frames, unbounded is a BOUND — an exhaustive switch, no default
+        com.legend.builtin.NativeFn.Frame frame = com.legend.builtin.NativeFn.Frame
+                .of(call.callee().qualifiedName()).orElseThrow(() -> new IllegalStateException(
+                        "window frame expects rows()/_range(), got " + call.callee().qualifiedName()));
         boolean interval = as.stream().anyMatch(a ->
                 a instanceof TypedEnumValue ev
                         && ev.enumFqn().equals("meta::pure::functions::date::DurationUnit"));
-        if (interval) {
+        return switch (frame) {
+            case UNBOUNDED -> throw new IllegalStateException(
+                    "unbounded() is a frame BOUND, not a frame");
+            case ROWS -> new WindowFrame(WindowFrame.Kind.ROWS,
+                    bound(call.args().get(0), true), bound(call.args().get(1), false));
+            case RANGE -> interval ? intervalFrame(as)
+                    : new WindowFrame(WindowFrame.Kind.RANGE,
+                            bound(call.args().get(0), true), bound(call.args().get(1), false));
+        };
+    }
+
+    private static WindowFrame intervalFrame(List<TypedSpec> as) {
+        {
             WindowFrame.Bound from;
             WindowFrame.Bound to;
             int i = 0;
@@ -56,17 +73,13 @@ final class Frames {
             }
             return new WindowFrame(WindowFrame.Kind.RANGE, from, to);
         }
-        boolean rows = Pure.nativeNamed("rows", call.callee().signatureKey());
-        // Bound VALIDATION moved to the LOWERING (Lowerer.sqlFrame):
+        // Bound VALIDATION lives in the LOWERING (Lowerer.sqlFrame):
         // interpreted pure and the engine's relational executor both
         // raise the invalid-boundary error LAZILY at eval (spec witness
         // testRows/Range_InvalidWindowFrameBoundary passes through
         // assertError) — lowering-time keeps "never bad SQL" (a bad
         // frame still never renders) while staying observable to the
         // deferred-body catch (the timeBucket precedent).
-        return new WindowFrame(
-                rows ? WindowFrame.Kind.ROWS : WindowFrame.Kind.RANGE,
-                bound(call.args().get(0), true), bound(call.args().get(1), false));
     }
 
     private static WindowFrame.Bound bound(TypedSpec arg, boolean fromSide) {
@@ -88,8 +101,7 @@ final class Frames {
             }
             return new WindowFrame.Bound.CurrentRow();
         }
-        if (arg instanceof TypedNativeCall call
-                && Pure.nativeNamed("unbounded", call.callee().signatureKey())) {
+        if (isUnboundedCall(arg)) {
             return fromSide ? new WindowFrame.Bound.UnboundedPreceding()
                     : new WindowFrame.Bound.UnboundedFollowing();
         }
@@ -100,7 +112,8 @@ final class Frames {
 
     private static boolean isUnboundedCall(TypedSpec arg) {
         return arg instanceof TypedNativeCall c
-                && Pure.nativeNamed("unbounded", c.callee().signatureKey());
+                && com.legend.builtin.NativeFn.Frame.of(c.callee().qualifiedName()).orElse(null)
+                        == com.legend.builtin.NativeFn.Frame.UNBOUNDED;
     }
 
     /** One INTERVAL frame side: signed Integer + DurationUnit literal. */

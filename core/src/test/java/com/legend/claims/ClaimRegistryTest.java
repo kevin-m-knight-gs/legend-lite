@@ -65,7 +65,12 @@ public class ClaimRegistryTest {
     // and `_range` (7 overloads) whose frame VALUE the over() checker
     // consumes by type — a name-grep census cannot see that (102 PCT tests
     // went red when it left, and came back).
-    static final int UNCLAIMED_MAX = 91;
+    // 91 -> 67 (batch 4b group 1, 2026-09-10): NativeFn.Frame (rows, _range,
+    // unbounded) and NativeFn.LowererForm (lateral, reduce, zScore, the two
+    // row-mappers) registered; assertTdsEquivalent + toCSV joined
+    // NativeFn.Verdict; `offset` and `is` left Pure.java (the census's only
+    // "handler" for them was the SQL keyword list in the lexicon).
+    static final int UNCLAIMED_MAX = 67;
 
     /** constant name(s) per overload, by reflection over {@link Pure}'s
      *  fields — the catalog's own naming, never a parse of the source. */
@@ -93,7 +98,7 @@ public class ClaimRegistryTest {
     }
 
     private static final java.util.Set<String> NOT_ALSO = java.util.Set.of(
-            "Pure", "Claims", "CalendarFn", "AssertFn", "RowGetter");
+            "Pure", "Claims", "NativeFn");
 
     /** The files (simple names) that name the overload — one of its
      *  constants or its FQN — beyond the registry and the family enums. */

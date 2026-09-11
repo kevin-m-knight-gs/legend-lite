@@ -3,7 +3,7 @@
 
 package com.legend.lowering;
 
-import com.legend.builtin.CalendarFn;
+import com.legend.builtin.NativeFn;
 
 import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedCString;
@@ -42,7 +42,7 @@ final class CalendarAgg {
 
     static @com.legend.Nullable TypedNativeCall calendarCallOf(TypedSpec mapBody) {
         return mapBody instanceof TypedNativeCall c
-                && CalendarFn.of(c.callee().qualifiedName()).isPresent()
+                && NativeFn.Calendar.of(c.callee().qualifiedName()).isPresent()
                 && c.args().size() == 4
                 ? c : null;
     }
@@ -107,7 +107,7 @@ final class CalendarAgg {
     static SqlExpr caseValue(TypedNativeCall call, Ctx ctx, SqlExpr value) {
         // the family is a closed type: a calendar call that is not a
         // CalendarFn is a catalog/enum mismatch, loud here
-        CalendarFn fn = CalendarFn.of(call.callee().qualifiedName()).orElseThrow(() -> new IllegalStateException(
+        NativeFn.Calendar fn = NativeFn.Calendar.of(call.callee().qualifiedName()).orElseThrow(() -> new IllegalStateException(
                 "not a calendar function: " + call.callee().qualifiedName()));
         String c = ctx.cal0();
         String e = ctx.cal1();
@@ -265,7 +265,7 @@ final class CalendarAgg {
         return out;
     }
 
-    private static SqlExpr condition(CalendarFn fn, String c, String e) {
+    private static SqlExpr condition(NativeFn.Calendar fn, String c, String e) {
         return switch (fn) {
             case REPORT_END_DAY -> eq(col(c, "date"), col(e, "date"));
             case CW_FM -> eq(col(c, "fiscalWeekOffset"),

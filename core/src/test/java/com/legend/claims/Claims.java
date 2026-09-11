@@ -3,10 +3,8 @@
 
 package com.legend.claims;
 
-import com.legend.builtin.AssertFn;
-import com.legend.builtin.CalendarFn;
+import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
-import com.legend.builtin.RowGetter;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.CoreFn;
 import com.legend.lowering.LoweringClaims;
@@ -132,18 +130,14 @@ public final class Claims {
             }
         }
 
-        // ---- THE FAMILIES: closed types (enums, the CoreFn pattern) whose
-        // switches are exhaustive at compile time — the enum is the set and
-        // the dispatch key, so the claim is read straight off it
-        for (CalendarFn f : CalendarFn.values()) {
-            claim(f.overload(), Kind.FAMILY, "CalendarFn");
-        }
-        for (RowGetter g : RowGetter.values()) {
-            claim(g.overload(), Kind.FAMILY, "RowGetter");
-        }
-        for (AssertFn a : AssertFn.values()) {
-            for (NativeFunctionDefinition o : a.overloads()) {
-                claim(o, Kind.FAMILY, "AssertFn");
+        // ---- THE FAMILIES: NativeFn — closed types (enums, the CoreFn pattern)
+        // whose owning switches are exhaustive at compile time; the enum is the
+        // set and the dispatch key, so the claim is read straight off it
+        for (var fam : NativeFn.families().entrySet()) {
+            for (NativeFn.Member m : fam.getValue()) {
+                for (NativeFunctionDefinition o : m.overloads()) {
+                    claim(o, Kind.FAMILY, "NativeFn." + fam.getKey());
+                }
             }
         }
     }

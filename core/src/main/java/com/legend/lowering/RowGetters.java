@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.lowering;
 
-import com.legend.builtin.RowGetter;
+import com.legend.builtin.NativeFn;
 
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -22,10 +22,10 @@ final class RowGetters {
     private RowGetters() {
     }
 
-    /** The family is the closed type {@link RowGetter} (batch 3): membership
+    /** The family is the closed type {@link NativeFn.RowGetter} (batch 3): membership
      *  by the enum, never a string set beside the code. */
     static boolean isRowGetter(TypedNativeCall g) {
-        return RowGetter.of(g.callee().qualifiedName()).isPresent()
+        return NativeFn.RowGetter.of(g.callee().qualifiedName()).isPresent()
                 && g.args().size() == 2
                 && g.args().get(0) instanceof TypedVariable
                 && g.args().get(1) instanceof TypedCString;

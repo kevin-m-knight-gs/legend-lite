@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.builtin.AssertFn;
+import com.legend.builtin.NativeFn;
 
 import com.legend.compiler.element.ModelContext;
 
@@ -210,18 +210,31 @@ final class AssertVerdicts {
         // both relations execute IN THE DATABASE, the cell-zip
         // adjudicates host-side (tdsEquivalent.pure's numeric delta +
         // temporal seconds policies, already the one owner).
-        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_TDS_EQUIVALENT.equals(fqn)) {
+        // The family is the closed type NativeFn.Verdict: a member not in it
+        // (assertError with its own arm, fail) is a normal fall-through —
+        // and the switch below is an EXPRESSION with no default, so a new
+        // member does not compile until it is placed (batch 3).
+        NativeFn.Verdict fn = NativeFn.Verdict.of(fqn).orElse(null);
+        if (fn == null) {
+            return null;
+        }
+        String name = fn.bareName();
+        List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
+                (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
+                letPrefix, specs);
+        return switch (fn) {
+            case ASSERT_TDS_EQUIVALENT -> {
             List<TypedSpec> targs = ((bare instanceof TypedUserCall u2)
                     ? u2.args() : ((TypedNativeCall) bare).args());
             if (targs.size() < 3 || targs.size() > 4) {
-                return null;
+                yield null;
             }
             ExecutionResult.Tabular one =
                     tabular(targs.get(0), letPrefix, specs, env, hook);
             ExecutionResult.Tabular two =
                     tabular(targs.get(1), letPrefix, specs, env, hook);
             if (one == null || two == null) {
-                return null;   // non-tabular shape — fall through, loud later
+                yield null;   // non-tabular shape — fall through, loud later
             }
             double delta = ((Number) one(side(targs.get(2), letPrefix,
                     specs, env, hook), "assertTdsEquivalent delta")).doubleValue();
@@ -235,34 +248,23 @@ final class AssertVerdicts {
             List<String> c2 = two.columns().stream()
                     .map(com.legend.exec.Column::name).toList();
             if (!c1.equals(c2) || one.rows().size() != two.rows().size()) {
-                return fail("\n" + summarize(one) + "\n is not"
+                yield fail("\n" + summarize(one) + "\n is not"
                         + " equivalent to:\n" + summarize(two));
             }
             String d = com.legend.exec.TdsCompare.tdsEquivalent(
                     cells(one), cells(two), delta, timeDelta);
-            return d == null ? ok() : fail(d);
-        }
-        if (!fqn.startsWith(PKG)) {
-            return null;
-        }
-        // The family is the closed type AssertFn: a member not in it
-        // (assertError with its own arm, fail) is a normal fall-through —
-        // and the switch below is an EXPRESSION with no default, so a new
-        // member does not compile until it is placed (batch 3).
-        AssertFn fn = AssertFn.ofFqn(fqn).orElse(null);
-        if (fn == null) {
-            return null;
-        }
-        String name = fn.bareName();
-        List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
-                (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
-                letPrefix, specs);
-        return switch (fn) {
+            yield d == null ? ok() : fail(d);
+            }
+            // toCSV is an OPERAND form (a rendered grid text the verdict
+            // compares), never an assert of its own
+            case TO_CSV -> {
+                yield null;
+            }
             case ASSERT_EQUALS, ASSERT_NOT_EQUALS -> {
                 if (args.size() < 2) {
                     yield null;
                 }
-                boolean wantEqual = fn == AssertFn.ASSERT_EQUALS;
+                boolean wantEqual = fn == NativeFn.Verdict.ASSERT_EQUALS;
                 // SQLTEXT charter slice 3a — the SQL-TEXT arm: a
                 // toSQLString producer in an argument tree judges on
                 // ROWS (SqlTextVerdicts; text is a census number).
@@ -604,7 +606,7 @@ final class AssertVerdicts {
                                     PureAsserts.equalScalar(n2, h)))
                             .toList();
                     boolean subsetHolds = missing.isEmpty();
-                    if (subsetHolds == (fn == AssertFn.ASSERT)) {
+                    if (subsetHolds == (fn == NativeFn.Verdict.ASSERT)) {
                         yield ok();
                     }
                     yield fail(name + " (forAll-contains subset):"
@@ -616,7 +618,7 @@ final class AssertVerdicts {
                 // no other lane ever sees the identity field
                 Object c = one(identitySide(args.get(0), letPrefix,
                         specs, env, hook), name + " condition");
-                boolean held = Boolean.TRUE.equals(c) == (fn == AssertFn.ASSERT);
+                boolean held = Boolean.TRUE.equals(c) == (fn == NativeFn.Verdict.ASSERT);
                 yield held ? ok() : fail("Assert failed");
             }
             case ASSERT_INSTANCE_OF -> {
@@ -669,9 +671,9 @@ final class AssertVerdicts {
                 boolean empty = er instanceof ExecutionResult.Tabular te3
                         ? te3.rows().isEmpty()
                         : decodeSide(er).isEmpty();
-                boolean held = empty == (fn == AssertFn.ASSERT_EMPTY);
+                boolean held = empty == (fn == NativeFn.Verdict.ASSERT_EMPTY);
                 yield held ? ok()
-                        : fail(fn == AssertFn.ASSERT_EMPTY
+                        : fail(fn == NativeFn.Verdict.ASSERT_EMPTY
                                 ? "collection is not empty"
                                 : "collection is empty");
             }
@@ -926,10 +928,10 @@ final class AssertVerdicts {
         if (fqn == null || !fqn.startsWith(PKG)) {
             return null;
         }
-        AssertFn qfn = AssertFn.ofFqn(fqn).orElse(null);
+        NativeFn.Verdict qfn = NativeFn.Verdict.of(fqn).orElse(null);
         List<TypedSpec> aargs = root instanceof TypedUserCall u ? u.args()
                 : ((TypedNativeCall) root).args();
-        if (!(qfn == AssertFn.ASSERT || qfn == AssertFn.ASSERT_FALSE)
+        if (!(qfn == NativeFn.Verdict.ASSERT || qfn == NativeFn.Verdict.ASSERT_FALSE)
                 || aargs.isEmpty()) {
             throw new com.legend.error.NotImplementedException(
                     "quantified assert verdict: only map(f|assert/"
@@ -952,7 +954,7 @@ final class AssertVerdicts {
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
         List<Object> verdicts = identitySide(predMap, letPrefix, specs, env, hook);
-        boolean wantTrue = qfn == AssertFn.ASSERT;
+        boolean wantTrue = qfn == NativeFn.Verdict.ASSERT;
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
                 return fail(msg);

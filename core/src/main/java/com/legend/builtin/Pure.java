@@ -971,7 +971,6 @@ public final class Pure {
     // K-arm adjudicates identity in World 1 for statically-identified
     // operands (type refs, folded instance provenance); any other use
     // walls loudly at lowering — a wire carries values, not references.
-    public static final NativeFunctionDefinition IS__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::is(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     // VERBATIM real pure (platform/pure/essential/lang/eval/eval.pure),
     // arities 1-3 (real pure goes to 8; add on demand). Typed via the
     // kernel's FunctionType unification for function VALUES; lambda-literal
@@ -1883,7 +1882,6 @@ public final class Pure {
     public static final NativeFunctionDefinition DECODE_OBJECT_REFERENCES__3 = signature("native function meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap(clientVersion:meta::pure::metamodel::type::String[1], encodedObjectReferences:meta::pure::metamodel::type::String[1], extensions:meta::pure::extension::Extension[*]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition ASOR_PK_VALUE__STRING_1__INTEGER_1 = signature("native function meta::legend::lite::asorPkValue(ref:meta::pure::metamodel::type::String[1], index:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Any[1];");
     public static final NativeFunctionDefinition ASOR_DECODE_PK_MAP__STRING_1__STRING_1 = signature("native function meta::legend::lite::asorDecodePkMap(ref:meta::pure::metamodel::type::String[1], pkNames:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition OFFSET__RELATION_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::offset<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     public static final NativeFunctionDefinition OR__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::or(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition OR__BOOLEAN_MANY = signature("native function meta::pure::functions::collection::or(values:meta::pure::metamodel::type::Boolean[*]):meta::pure::metamodel::type::Boolean[1];");
     // otherwise (generic class-level structural merge): takes a partial

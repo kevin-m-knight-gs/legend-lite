@@ -49,6 +49,18 @@ Class meta::pure::functions::collection::ValueHolder<T>
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/boolean/equality/is.pure
+import meta::pure::test::pct::*;
+import meta::pure::functions::boolean::tests::equalitymodel::*;
+native function
+    <<PCT.function, PCT.platformOnly>>
+    {
+        doc.doc='Identity (i.e., pointer equality)'
+    }
+    meta::pure::functions::boolean::is(left:Any[1], right:Any[1]):Boolean[1];
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/getIfAbsentPutWithKey.pure
 import meta::pure::test::pct::*;
 import meta::pure::functions::asserts::*;
@@ -1037,11 +1049,6 @@ Class meta::pure::functions::relation::FrameIntervalValue extends meta::pure::fu
 
 Class meta::pure::functions::relation::UnboundedFrameValue extends meta::pure::functions::relation::FrameValue
 {
-}
-
-function <<PCT.function, PCT.platformOnly>> meta::pure::functions::relation::unbounded():meta::pure::functions::relation::UnboundedFrameValue[1]
-{
-    ^meta::pure::functions::relation::UnboundedFrameValue();
 }
 
 
@@ -5270,7 +5277,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 }
 
 // 463 classes, 18 enums, 119 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
-// RESPELLED NATIVES — 31 upstream `native function` declarations the platform does not implement (carried so they
+// RESPELLED NATIVES — 32 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
 // a registered lowering, a family enum, a wall) or an operator special form; not carried:
@@ -5294,7 +5301,6 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::boolean::equal
 //   meta::pure::functions::boolean::greaterThan
 //   meta::pure::functions::boolean::greaterThanEqual
-//   meta::pure::functions::boolean::is
 //   meta::pure::functions::boolean::lessThan
 //   meta::pure::functions::boolean::lessThanEqual
 //   meta::pure::functions::boolean::not
@@ -5411,6 +5417,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::meta::type
 //   meta::pure::functions::multiplicity::toOne
 //   meta::pure::functions::multiplicity::toOneMany
+//   meta::pure::functions::relation::unbounded
 //   meta::pure::functions::string::contains
 //   meta::pure::functions::string::endsWith
 //   meta::pure::functions::string::format
