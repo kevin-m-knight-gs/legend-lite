@@ -537,7 +537,7 @@ final class RelOpTranslator {
             // lowering's erasure keeps SQL identical, and [1] args are
             // unaffected).
             case RelationalOperation.FunctionCall call -> operatorCall(
-                    Pure.wireEmissionName(call.name()),
+                    dynaFnName(call),
                     toOneAll(translateArgs(call, tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline)));
             case RelationalOperation.Comparison cmp -> {
@@ -682,6 +682,28 @@ final class RelOpTranslator {
             case LTE -> com.legend.builtin.Pure.Lite.LESS_THAN_EQUAL_ANY;
             case GT  -> com.legend.builtin.Pure.Lite.GREATER_THAN_ANY;
             case GTE -> com.legend.builtin.Pure.Lite.GREATER_THAN_EQUAL_ANY;
+        };
+    }
+
+    /** The pure spelling of an engine dynafunction the arms above did not
+     *  rewrite — THE ONE lookup (DynaFn): a PURE operator passes through under
+     *  its own name (the catalog's overloads decide), a SHIM takes its Lite
+     *  identity, an UNSUPPORTED one fails loud naming the operator; a name the
+     *  engine registers as no dynafunction is a plain function the expression
+     *  calls (the data-boundary respelling of internal vocabulary applies). */
+    private static String dynaFnName(RelationalOperation.FunctionCall call) {
+        java.util.Optional<com.legend.builtin.DynaFn> d = com.legend.builtin.DynaFn.of(call.name());
+        if (d.isEmpty()) {
+            return Pure.wireEmissionName(call.name());
+        }
+        return switch (d.get().resolution()) {
+            case PURE -> call.name();
+            case SHIM -> d.get().liteFqn();
+            case TRANSLATED -> throw new IllegalStateException("dynafunction '" + call.name()
+                    + "' is declared TRANSLATED but no translator arm rewrote it");
+            case UNSUPPORTED -> throw new com.legend.error.NotImplementedException(
+                    "engine dynafunction '" + call.name() + "' is not supported by this platform yet"
+                    + " (DynaFn." + d.get().name() + ", registered by " + d.get().dialects() + ")");
         };
     }
 

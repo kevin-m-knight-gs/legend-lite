@@ -528,6 +528,18 @@ inference:** that the live protocol differential goes red on landing.
    group-by on `Lite.GROUP_BY_COMPUTED_KEYS` over Relation<T> (INTERNAL_DESUGAR 16 → 18).
    NEXT (USER): the batch-5 audit in this order — every Lite function in Pure.java (41)
    one by one, then every catalog row's provenance, then the simple-name census (140).
+16. **Batch 5 AUDIT item 0 LANDED — the dynafunction registry** (2026-09-11): the
+   engine's mapping-expression operators as data. `builtin/DynaFn.java` = every
+   `dynaFnToSql('<name>')` in `extensionDefaults.pure` + 20 dialect files (222 names,
+   with dialects), each with the platform's resolution: PURE 156 (passes through to the
+   catalog), SHIM 9 (a `Pure.Lite` identity), TRANSLATED 22 (a translator arm rewrites
+   it, nothing passes through), UNSUPPORTED 35 (fails LOUD naming the operator).
+   `DynaFnRegistryTest` regenerates and verifies it against the checkout. The
+   registry immediately caught two audit facts: `hash` (1-arg) and `avg` are in our
+   ENGINE_VOCAB_SHIMS but are NOT engine dynafunctions (findings 4–5 in
+   docs/LITE_REVIEW_2026_09_11.md). Audit material produced: the Lite one-by-one
+   review (that doc) and the 752-row catalog provenance
+   (docs/NATIVE_PROVENANCE_2026_09_11.md). NEXT: walk the review with the user.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

@@ -59,6 +59,11 @@ class SkipCensusTest {
             // REPORT (target/spec-body-census.txt), not yet a pin; its
             // numbers are recorded in docs/SPEC_BODY_CENSUS_2026_09_08.md
             "SpecBodyCensusTest.java",
+            // the dynafunction registry (upstream boundary batch 5 audit,
+            // 2026-09-11): skips only when the legend-engine checkout is
+            // absent — the enum is compared EXHAUSTIVELY with the engine's
+            // dynaFnToSql registries, which live in that checkout
+            "DynaFnRegistryTest.java",
             // the upstream path manifest (upstream boundary batch 2,
             // 2026-09-10): skips ONLY when a checkout root itself is absent
             // (tools/oracle-roots.sh fails the gates upstream of that); a

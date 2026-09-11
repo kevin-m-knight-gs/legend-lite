@@ -94,11 +94,13 @@ class NativeSignatureGeneratorTest {
         String dump = System.getProperty("natives.dump");
         if (dump != null) {
             // every upstream declaration of a membership FQN, one per line
-            // (fqn, canonical key, canonical text) — the input a re-keying leg
-            // reads instead of scraping this test's report
+            // (fqn, canonical key, canonical text, SOURCE FILE) — the input a
+            // re-keying leg and the provenance review read instead of scraping
+            // this test's report
             StringBuilder sb = new StringBuilder();
             for (Decl d : upstream.values()) {
-                sb.append(d.fqn()).append('\t').append(d.key()).append('\t').append(d.text()).append('\n');
+                sb.append(d.fqn()).append('\t').append(d.key()).append('\t').append(d.text())
+                        .append('\t').append(d.file()).append('\n');
             }
             Files.writeString(Path.of(dump), sb.toString(), StandardCharsets.UTF_8);
             System.out.println("[natives] dumped " + upstream.size() + " upstream declarations to " + dump);
