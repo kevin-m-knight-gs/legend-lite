@@ -142,6 +142,16 @@ constant or the FQN string, other than the owner). Truthful in both directions; 
 unexpected `also` owner is where the CoreFn over-claim concern gets eyeballed; promoting an `also`
 site to owner is a one-line move in the explicit table and the diff shows it.
 
+## 2b. Batch 4b landing note (2026-09-10)
+
+The "family enums" of §1a became ONE file, `com.legend.builtin.NativeFn`, one nested
+closed enum per implementer (USER: "only on typed things that are registered"; "one
+file of registered enums broken out by family"; name chosen over "Families"). The
+executor kinds (`PlatformTypes.IMPLEMENTATION_KIND`) merged into it as families; the
+`Kind` values JAVA_ROUTINE / HANDLE / EFFECT / CARRIER / CONTEXT_OWNER of §2 are gone —
+those rows are FAMILY claims now. The registry reads `NativeFn.families()`; nothing is
+hand-listed twice. UNCLAIMED_MAX reached 0.
+
 ## 3. The membership list (batch 5's input) — DECISION: a TSV resource, one row per overload
 
 When batch 5 flips Pure.java from hand-typed to generated, the generator needs the

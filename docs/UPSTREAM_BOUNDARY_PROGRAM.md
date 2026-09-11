@@ -318,7 +318,7 @@ change what programs resolve.
 | 1 | **One release at 4.138.2.** pct → 4.138.2/5.92.0; source → the tag; pins file carries jar versions, poms read `${…}`; `--check` in CI | A | **`version-report.sh --check` exits 0 and `classpath-convergence.sh` reports 0 divergent** (INV-5); ChannelB pins, gate 7 ceilings, skew ledger (expected most of 25 rows gone — an inference from their "re-adjudicate at re-pin" annotations; **measured: NONE left, see §9**), 4 stale `5.88.1` comments. **LANDED 2026-09-10** — every move receipted in homework §5a and docs/GATES.md |
 | 2 | **Loud.** Path manifest test; 4 `continue`s → reported; census precheck 1 → 9; exclusion keys assert; fixture version inside the file | E | none expected — lands green. **LANDED 2026-09-10**: `UpstreamPathManifestTest` (90 core paths + 10 ChannelB + 33 ledger keys = 133; the homework's 132 missed `MinimalCorpus.GRAPH_FETCH_DOMAIN`); the keyword-snapshot shrink direction fired at once (`mappingProvider`, added upstream after the tag) |
 | 3 | **Claims.** The claim registry + completeness test; every ad-hoc dispatch site claims what it implements; `KNOWN_ABSENT` deleted | D1, D5 | a NEW printed fact: the implemented surface. Expect the test to land red and be ratcheted: unclaimed count is shrink-only. **LANDED 2026-09-10**: 881 overloads, 133 unclaimed (94 FQNs) — derived claims only (no hand table: USER), three string-switch families became closed enum types; the ledger `native-claims.tsv` is the surface; "exactly one claim" was false (112 overloads lower differently by position) |
-| 4 | **Membership.** Unclaimed entries leave Pure.java; prelude carries bodies / respelled natives; exclusion rule keys on claims; 44 undeclared natives enter the prelude | D2, D3 | corpus pass count (expect **up**: suppressed bodies now run); catalog row count (down); `SpecBodyCensus` walls; unclaimed → 0. **4a LANDED 2026-09-10**: 38 FQNs left, 31 natives respelled (the pure roots' whole set — "44" counted the engine too), 10 bodies unsuppressed, unclaimed 133 → 91, corpus pass count UNCHANGED (measured: every one of the 38 was already failing where called). **4b owed**: the 91 → 0 |
+| 4 | **Membership.** Unclaimed entries leave Pure.java; prelude carries bodies / respelled natives; exclusion rule keys on claims; 44 undeclared natives enter the prelude | D2, D3 | corpus pass count (expect **up**: suppressed bodies now run); catalog row count (down); `SpecBodyCensus` walls; unclaimed → 0. **4a LANDED 2026-09-10**: 38 FQNs left, 31 natives respelled (the pure roots' whole set — "44" counted the engine too), 10 bodies unsuppressed, unclaimed 133 → 91, corpus pass count UNCHANGED (measured: every one of the 38 was already failing where called). **4b LANDED 2026-09-10** (three commits, receipts in docs/GATES.md): `NativeFn.java` — one file, one closed enum per implementer, 19 families, every dispatch site a typed lookup; the executor kinds left `PlatformTypes`; unclaimed 91 → **0** (833 overloads). Two chain catches: `createDbConfig` is typing-consumed (51 tests), name-ownership is per-FQN (1 test) |
 | 5 | **Generated text.** Signature oracle (verify), then Pure.java text generated from membership + checkout; `CORE_IMPORTS` generated, ordered; `PlatformTypes` generated, identity → methods | C, D4 | divergence buckets (same-FQN-different-sig must reach 0); `PlatformTypesDriftTest` deleted; 7 inline literals → 0 |
 | 6 | **Protocol live.** Differential in parser-equivalence; seed 17, grow to corpus; delete goldens + positions from core | F | differential count up; divergence ledger shrink |
 | 7 | **The `spec` module.** Pure relocation — after 2–6 so the move changes nothing it carries | B | none — that is the point |
@@ -443,9 +443,14 @@ inference:** that the live protocol differential goes red on landing.
    weeks, Legend's cadence.
 6. **Batch 4a LANDED** (2026-09-10): 38 unimplemented FQNs left Pure.java, the prelude
    carries 31 respelled natives and 10 unsuppressed bodies, the exclusion rule keys on
-   claims, UNCLAIMED_MAX = 91 — receipts in docs/GATES.md. Next is **batch 4b**: the 91
-   (56 FQNs) register (frame family, Lowerer forms, fetchDb/DDL kinds, the desugars) or
-   leave, to 0.
+   claims, UNCLAIMED_MAX = 91 — receipts in docs/GATES.md.
+7. **Batch 4b LANDED** (2026-09-10, af1ca50d8 / 57ab7af09 / 2d1d156f2): `NativeFn.java`,
+   the native families as closed enum types (USER: no string dispatch, exhaustive
+   switches, one file); the executor kinds left `PlatformTypes`; UNCLAIMED_MAX = 0.
+   Next is **batch 5**: the signature text generated from `native-membership.tsv` + the
+   checkouts (design doc §3), `CORE_IMPORTS` as a generated resource, the `PlatformTypes`
+   type spellings verified whole. USER 2026-09-10: local allgates is the landing gate;
+   do not wait on CI between batches.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
