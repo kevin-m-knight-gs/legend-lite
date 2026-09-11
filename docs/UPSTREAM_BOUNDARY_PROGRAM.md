@@ -460,6 +460,12 @@ inference:** that the live protocol differential goes red on landing.
    upstream native we cannot do, loud), or SUBSUMED (an engine program that is moot
    here). Before ANY catalog removal: read the constant's comment, grep the Typer and
    kernel for consumption, check ownership — grep classes are not proof (twice).
+9. **Batch 5 LEG 1 LANDED** (2026-09-11, d4ff27c2a): Pure.java's signature text is
+   generated from the checkouts (`NativeSignatureGeneratorTest`, membership in
+   `native-membership.tsv`); divergent rows pinned shrink-only 137 → 104. USER: no
+   ledger of reasons — every divergence is fixed to upstream's real signature, by leg:
+   2 wildcard subsets (17), 3 widened-to-Any (38), 4 TDS/TDSRow erasure (6 + 9 getters),
+   5 inventions to Lite or deleted. Receipts in docs/GATES.md.
    relationalExtensions is Subsumed #2 (same day, chain green, zero movement; the
    batch-147 "signature-broken" reason was stale). OWED: preval's read-through is a
    string literal (ExecuteChainAssembly) — typed lookup + the preeval.pure:63-92 receipt
