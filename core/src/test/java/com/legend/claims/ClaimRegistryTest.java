@@ -78,9 +78,10 @@ public class ClaimRegistryTest {
     // Pure.java (typed or parsed, never lowered). Group 3 (batch 4b landing):
     // the executor kinds left PlatformTypes for NativeFn (JavaRoutine, Handle,
     // Effect, Carrier, ContextOwner) with DdlStatement and TyperForm.UNION;
-    // createDbConfig (7 overloads) is TyperForm.CREATE_DB_CONFIG: typing-only,
-    // its DbConfig value consumed by the extension hooks (51 corpus tests).
-    // MEASURED 2026-09-10: 826 overloads, 0 unclaimed — the target state.
+    // createDbConfig (7 overloads) LEFT Pure.java: it is a SUBSUMED engine
+    // program (com.legend.builtin.Subsumed, SubsumedRegistryTest) — an engine
+    // program the platform replaces, typed by the corpus's own declaration,
+    // its value dead. MEASURED 2026-09-10: 826 overloads, 0 unclaimed.
     static final int UNCLAIMED_MAX = 0;
 
     /** constant name(s) per overload, by reflection over {@link Pure}'s

@@ -1828,6 +1828,12 @@ final class StatementExecutor {
                 && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().qualifiedName())) {
             return true;
         }
+        if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && com.legend.builtin.Subsumed.of(uc.callee().qualifiedName()).isPresent()) {
+            // a SUBSUMED engine program's body is never compiled or run
+            // here (Subsumed.java): no effect
+            return false;
+        }
         if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
             String key = uc.callee().signatureKey();
             Boolean known = memo.get(key);

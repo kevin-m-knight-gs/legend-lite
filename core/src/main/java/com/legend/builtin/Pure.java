@@ -1608,20 +1608,6 @@ public final class Pure {
     public static final NativeFunctionDefinition EXECUTION_PLAN__2 = signature("native function meta::pure::executionPlan::executionPlan(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
     public static final NativeFunctionDefinition EXECUTION_PLAN__3 = signature("native function meta::pure::executionPlan::executionPlan(f:meta::pure::metamodel::function::FunctionDefinition<meta::pure::metamodel::type::Any>[1], context:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
 
-    // createDbConfig: typing-only surfaces returning the spec's DbConfig
-    // (sqlQueryToString.pure:241-256; the prelude generator carries the shape —
-    // Phase 5 batch 147: the extension record's hooks read $dbConfig.dbExtension).
-    // the SPEC's exact overloads (sqlQueryToString.pure:241-256): same shape as the engine's own
-    // definitions, so the kernel's same-shape tie-break resolves to the native (batch 147, row 19)
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__DBTYPE_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::relational::runtime::DatabaseType[1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__DBTYPE_1__STRING_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::relational::runtime::DatabaseType[1], dbTimeZone:meta::pure::metamodel::type::String[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__CONN_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dc:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__DBTYPE_1__STRING_01__BOOLEAN_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::relational::runtime::DatabaseType[1], dbTimeZone:meta::pure::metamodel::type::String[0..1], quoteIdentifiers:meta::pure::metamodel::type::Boolean[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1__STRING_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1], dbTimeZone:meta::pure::metamodel::type::String[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-    // the 3-arg overload (sqlQueryToString.pure:256 — dbType, dbTimeZone, quoteIdentifiers): the extension record's plan-execution hook calls it (Phase 5 batch 147 ledger)
-    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1__STRING_01__BOOLEAN_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1], dbTimeZone:meta::pure::metamodel::type::String[0..1], quoteIdentifiers:meta::pure::metamodel::type::Boolean[0..1]):meta::relational::functions::sqlQueryToString::DbConfig[1];");
-
     // toSQLString: ordinary pure in the real engine (plan-generation
     // internals) — a K-native here: the query lambda lowers through the
     // platform's own pipeline against the mapping argument and renders

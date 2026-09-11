@@ -382,14 +382,6 @@ public final class PlatformTypes {
      * replacing their stub bodies. executeInDb is NOT owned: the corpus's
      * 2-arg wrapper there is legitimate pure code over the 4-arg leaf.
      */
-    /** The dialect-config handle feeding toSQLString/DebugContext — the
-     * corpus bodies build DbConfig by eval'ing stored dialect lambdas
-     * (loadDbExtension), M3 machinery this platform K-dispatches instead.
-     * Per-module compiles never carried the corpus definitions; the
-     * global corpus compile always does, so ownership must be explicit. */
-    public static final String CREATE_DB_CONFIG =
-            "meta::relational::functions::sqlQueryToString::createDbConfig";
-
     /** The RENDER phase's CSV text fn (F4.2) — the corpus's own
      *  M3-reflective body never joins the overload set. */
     public static final String TO_CSV = "meta::relational::tests::csv::toCSV";
@@ -632,8 +624,7 @@ public final class PlatformTypes {
             com.legend.builtin.NativeFn.Handle.TO_SQL.fqn(),
             com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN.fqn(),
             com.legend.builtin.NativeFn.Handle.EXECUTE.fqn(),
-            com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN_EXECUTE.fqn(),
-            com.legend.builtin.NativeFn.TyperForm.CREATE_DB_CONFIG.fqn());
+            com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN_EXECUTE.fqn());
 
     /** A call only the STATEMENT channel can run — an execution, a store
      * effect or a test-data generator: it never lowers inside an

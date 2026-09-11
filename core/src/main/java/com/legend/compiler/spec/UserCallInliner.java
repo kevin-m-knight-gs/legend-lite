@@ -295,6 +295,12 @@ public final class UserCallInliner {
         if (configMode || isStoreElementIdentity(call.callee().qualifiedName(), args)) {
             return new TypedUserCall(call.callee(), args, call.info());
         }
+        // a SUBSUMED ENGINE PROGRAM (com.legend.builtin.Subsumed): the body is
+        // never spliced — the call stays a typed opaque value, typed by
+        // upstream's own declaration; its value is dead by governance test
+        if (com.legend.builtin.Subsumed.of(call.callee().qualifiedName()).isPresent()) {
+            return new TypedUserCall(call.callee(), args, call.info());
+        }
         // signatureKey identifies the OVERLOAD — name/arity conflated two
         // same-arity overloads into a false recursion (audit).
         String key = call.callee().signatureKey();

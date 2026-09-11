@@ -588,7 +588,10 @@ class JavaEvalLedgerTest {
             // beside DriverPkAppend — four routing lines from the frame's bound
             // context to the resolver pass; no evaluation (the database
             // computes the coalesced key threads)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 1995),
+            // +4 (2026-09-10, Subsumed registry): the effect-reachability scan must
+            // not compile a SUBSUMED engine program's body (it cannot compile here —
+            // that is why the program is subsumed); a guard, not evaluation
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 1999),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

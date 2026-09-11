@@ -43,6 +43,12 @@ final class StoreEscapees {
             // value the structural natives consume — not an unresolved call
             return;
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && com.legend.builtin.Subsumed.of(uc.callee().qualifiedName()).isPresent()) {
+            // a SUBSUMED engine program (Subsumed.java): a typed opaque value
+            // by decision, never an unresolved call
+            return;
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
             throw new com.legend.error.NotImplementedException(
                     "store resolution left user call '"

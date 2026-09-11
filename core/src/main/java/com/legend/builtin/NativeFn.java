@@ -648,13 +648,7 @@ public final class NativeFn {
         EXTRACT_ENUM_VALUE("meta::pure::functions::lang::extractEnumValue",
                 Pure.EXTRACT_ENUM_VALUE, Pure.EXTRACT_ENUM_VALUE__OPTIONAL),
         UNION("meta::pure::functions::collection::union",
-                Pure.UNION__T_MANY__T_MANY),
-        /** typing-only: the spec's DbConfig value (sqlQueryToString.pure:241-256); the
-         *  kernel's same-shape tie-break resolves the call to this native over the
-         *  corpus's own program, and the extension record's hooks read the value —
-         *  never lowered (batch 147 row 19; removing it lost 51 corpus tests) */
-        CREATE_DB_CONFIG("meta::relational::functions::sqlQueryToString::createDbConfig",
-                Pure.CREATE_DB_CONFIG__DBTYPE_1, Pure.CREATE_DB_CONFIG__DBTYPE_1__STRING_01, Pure.CREATE_DB_CONFIG__CONN_1, Pure.CREATE_DB_CONFIG__DBTYPE_1__STRING_01__BOOLEAN_01, Pure.CREATE_DB_CONFIG__ANY_1, Pure.CREATE_DB_CONFIG__ANY_1__STRING_01, Pure.CREATE_DB_CONFIG__ANY_1__STRING_01__BOOLEAN_01);
+                Pure.UNION__T_MANY__T_MANY);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
