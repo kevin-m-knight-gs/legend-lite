@@ -128,7 +128,9 @@ class NativeFunctionTest {
                 List.of(
                         new ParameterDefinition("source", nr(Prelude.cls(com.legend.compiler.element.type.PlatformTypes.ANY)),
                                 new Multiplicity.Parameter("m")),
-                        new ParameterDefinition("type", nr("T"), Multiplicity.exactly(1))),
+                        // upstream's parameter names (batch 5: the text is generated
+                        // from the checkout — cast.pure spells the target `object`)
+                        new ParameterDefinition("object", nr("T"), Multiplicity.exactly(1))),
                 nr("T"),
                 new Multiplicity.Parameter("m"),
                 List.of(),
@@ -190,8 +192,9 @@ class NativeFunctionTest {
                 List.of("m"),
                 List.of(
                         new ParameterDefinition("test", nr(Pure.BOOLEAN), Multiplicity.exactly(1)),
-                        new ParameterDefinition("then", thunkOfT, Multiplicity.exactly(1)),
-                        new ParameterDefinition("else", thunkOfT, Multiplicity.exactly(1))),
+                        // upstream's parameter names (if.pure: valid / invalid)
+                        new ParameterDefinition("valid", thunkOfT, Multiplicity.exactly(1)),
+                        new ParameterDefinition("invalid", thunkOfT, Multiplicity.exactly(1))),
                 nr("T"),
                 Multiplicity.parameter("m"),
                 List.of(),

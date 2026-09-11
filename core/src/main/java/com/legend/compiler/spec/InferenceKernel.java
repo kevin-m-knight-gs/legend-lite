@@ -111,9 +111,13 @@ public final class InferenceKernel {
         // see the actual's carrier too, so the nominal lattice can judge
         // (LambdaFunction ≤ FunctionDefinition; a Function<Any> ref is NOT).
         Type ff = unwrapFunction(formal);
+        // an Any formal keeps the carrier too: Any accepts a function VALUE
+        // as a value (real pure: size(Any[*]) over a lambda collection counts
+        // the lambdas — batch 5, upstream's size/count text)
         boolean formalKeepsCarrier = ff == formal
-                && formal instanceof Type.GenericType fg
-                && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn());
+                && ((formal instanceof Type.GenericType fg
+                        && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn()))
+                    || PlatformTypes.isAny(formal));
         // NOMINAL GATE before any structural unwrap (audit 2026-08-28
         // R5): when BOTH sides are carriers the class lattice judges
         // FIRST — a Function-carrier actual must not slip into a
@@ -1286,8 +1290,9 @@ public final class InferenceKernel {
         // carrier too — the generic arm's lattice rule judges it.
         Type nf = unwrapFunction(formal);
         boolean formalKeepsCarrier = nf == formal
-                && formal instanceof Type.GenericType fg
-                && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn());
+                && ((formal instanceof Type.GenericType fg
+                        && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn()))
+                    || PlatformTypes.isAny(formal));   // as in unify(): Any keeps the carrier
         // NOMINAL GATE mirroring unify() (audit R5): carrier-vs-carrier
         // is judged on the class lattice BEFORE structural unwrap.
         if (formal instanceof Type.GenericType nf2

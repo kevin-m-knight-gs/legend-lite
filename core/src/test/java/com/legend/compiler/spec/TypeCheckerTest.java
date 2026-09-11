@@ -805,9 +805,11 @@ class TypeCheckerTest {
     @Test
     void newTdsRelationAccessorIsSelectAlias() {
         // Engine routes newTDSRelationAccessor through SelectChecker — same here.
-        TypedSpec n = typeQuery(T_PERSON + "->newTDSRelationAccessor()");
+        // upstream's signature (batch 5): newTDSRelationAccessor(tds:TDS<T>[1]) —
+        // the argument is a TDS literal, never a store accessor
+        TypedSpec n = typeQuery("#TDS\n a, b\n 1, x\n#->newTDSRelationAccessor()");
         assertInstanceOf(TypedSelect.class, n);
-        assertEquals(6, schemaOf(n).columns().size());
+        assertEquals(2, schemaOf(n).columns().size());
     }
 
     @Test
@@ -822,7 +824,9 @@ class TypeCheckerTest {
 
     @Test
     void writeReturnsRowCount() {
-        TypedSpec n = typeQuery(T_PERSON + "->write(test::PersonDatabase)");
+        // upstream's signature (batch 5): write(rel:Relation<T>[1], relation:
+        // RelationElementAccessor<T>[1]) — the destination is a store accessor
+        TypedSpec n = typeQuery(T_PERSON + "->write(" + T_PERSON + ")");
         TypedWrite w = assertInstanceOf(TypedWrite.class, n);
         assertTrue(w.destination().isPresent());
         assertEquals(Type.Primitive.INTEGER, n.info().type());

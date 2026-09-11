@@ -156,7 +156,7 @@ class PipelineStageFailureTest {
     @DisplayName("lowering: an unimplemented construct fails loudly naming the node")
     void unimplementedConstruct() {
         var ex = failsWith(com.legend.error.NotImplementedException.class, MODEL,
-                "#>{test::DB.T_PERSON}#->write(test::DB)");
+                "#>{test::DB.T_PERSON}#->write(#>{test::DB.T_PERSON}#)");
         messageNames(ex, "not yet implemented", "TypedWrite");
     }
 

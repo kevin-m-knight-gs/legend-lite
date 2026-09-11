@@ -110,8 +110,12 @@ final class TdsChecker {
                     nullable ? Multiplicity.Bounded.ZERO_ONE
                             : Multiplicity.Bounded.ONE));
         }
+        // the literal IS a TDS<T> (upstream: TDS<T> extends Relation<T>, a relation
+        // carrier) — newTDSRelationAccessor(tds:TDS<T>[1]) takes it as declared
         return new TypedTds(rows,
-                new ExprType(Type.relation(new Type.RelationType(columns)),
+                new ExprType(new Type.GenericType(
+                        com.legend.compiler.element.type.PlatformTypes.TDS_RELATION_CLASS,
+                        java.util.List.of(new Type.RelationType(columns))),
                         sig.output().multiplicity()));
     }
 

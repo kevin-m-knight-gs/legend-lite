@@ -1948,17 +1948,24 @@ final class Typer {
             if (typed[i] == null) {
                 if (raw.get(i) instanceof LambdaFunction
                         || (isLambdaCollection(raw.get(i))
-                                && chosen.parameters().get(i).type()
-                                        instanceof Type.TypeVar)) {
+                                && (chosen.parameters().get(i).type()
+                                        instanceof Type.TypeVar
+                                    || com.legend.compiler.element.type.PlatformTypes
+                                            .isAny(chosen.parameters().get(i).type())))) {
                     // A NOMINAL function carrier (FunctionDefinition<Any> —
                     // no structural signature to solve the lambda's params
                     // from) types like a TypeVar slot: the lambda is
                     // self-typable, then the carrier lattice judges
                     // (LambdaFunction ≤ FunctionDefinition).
+                    // — and a lambda COLLECTION against Any (upstream's size(Any[*])
+                    // over lambdas): the values type themselves, Any takes them
                     if (chosen.parameters().get(i).type()
                             instanceof Type.TypeVar
                             || nominalFunctionCarrier(
-                                    chosen.parameters().get(i).type())) {
+                                    chosen.parameters().get(i).type())
+                            || (isLambdaCollection(raw.get(i))
+                                    && com.legend.compiler.element.type.PlatformTypes
+                                            .isAny(chosen.parameters().get(i).type()))) {
                         // self-typable lambda against T: synthesize
                         // standalone, bind the variable to its type
                         typed[i] = synth(raw.get(i), env);
@@ -2108,14 +2115,14 @@ final class Typer {
                 // standalone and T binds to its function type
                 // (evaluateAndDeactivate<T|m>(var:T[m]) over {|...}).
                 case LambdaFunction lf -> isFunctionTyped(t)
-                        || ((t instanceof Type.TypeVar
-                                || t instanceof Type.ClassType ac
-                                        && ac.fqn().equals("meta::pure::metamodel::type::Any"))
+                        || ((t instanceof Type.TypeVar || com.legend.compiler.element.type.PlatformTypes.isAny(t))
                                 && selfTypable(lf));
                 // a collection of SELF-TYPABLE lambdas also matches a bare
                 // type-variable param ([{|q1},{|q2}]->evaluateAndDeactivate())
+                // — and an Any param (upstream's size(Any[*]) / count(Any[*]) over
+                // a lambda collection: Any accepts a function VALUE as a value)
                 case PureCollection pc0
-                        when t instanceof Type.TypeVar
+                        when (t instanceof Type.TypeVar || com.legend.compiler.element.type.PlatformTypes.isAny(t))
                         && pc0.values().stream().allMatch(v ->
                                 v instanceof LambdaFunction plf
                                         && selfTypable(plf)) -> true;
@@ -2240,8 +2247,7 @@ final class Typer {
                 // param can never type — except the TOP type: a lambda
                 // IS an Any (cast(lambda, @FunctionDefinition<Any>))
                 if (raw.get(i) instanceof LambdaFunction
-                        && !(pt instanceof Type.ClassType ac
-                                && ac.fqn().equals("meta::pure::metamodel::type::Any"))) {
+                        && !(com.legend.compiler.element.type.PlatformTypes.isAny(pt))) {
                     return false;
                 }
                 continue;
@@ -3112,6 +3118,13 @@ final class Typer {
             // always (map.pure's dot rule). A per-row read has a bare
             // struct receiver and takes the row arm below. No walk, no
             // inference, no blind spot.
+            // — a relation CARRIER subclass (TDS<T>: upstream declares csv on it)
+            // serves its own DECLARED property first; the columns otherwise
+            case Type.GenericType g
+                    when Type.relationSchema(g) instanceof Type.RelationType rel
+                    && !g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.RELATION)
+                    && ctx.findProperty(g.rawFqn(), ap.property()).isPresent() ->
+                    genericReceiverProperty(g, ap);
             case Type.GenericType g
                     when Type.relationSchema(g) instanceof Type.RelationType rel -> {
                 Type.Column col = relationColumn(rel, ap.property());

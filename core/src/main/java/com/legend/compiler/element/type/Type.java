@@ -381,7 +381,7 @@ public sealed interface Type permits
      * with an unsolved {@code T} is still a table type). */
     static boolean isRelation(Type t) {
         return t instanceof GenericType g
-                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.RELATION)
+                && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS.contains(g.rawFqn())
                 && g.arguments().size() == 1;
     }
 
@@ -420,7 +420,7 @@ public sealed interface Type permits
      * table, and returns null here. */
     static @com.legend.Nullable RelationType relationSchema(Type t) {
         return t instanceof GenericType g
-                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.RELATION)
+                && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS.contains(g.rawFqn())
                 && g.arguments().size() == 1
                 && g.arguments().get(0) instanceof RelationType r ? r : null;
     }

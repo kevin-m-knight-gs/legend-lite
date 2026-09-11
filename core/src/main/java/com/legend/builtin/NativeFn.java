@@ -452,7 +452,7 @@ public final class NativeFn {
     /** plan-time wrappers ExecuteChainAssembly / StoreResolver read through (identity for row semantics) or fold; relationalExtensions is an ignored test-data-generation argument. */
     public enum PlanWrapper implements Member {
         WITH_FEATURE_FLAGS("meta::pure::executionPlan::featureFlag::withFeatureFlags",
-                Pure.WITH_FEATURE_FLAGS__T_MANY__ANY_MANY),
+                Pure.WITH_FEATURE_FLAGS__T_MANY__ENUM_MANY),
         CONCATENATE_TEMPORAL_TDS_QUERIES("meta::relational::milestoning::concatenateTemporalTdsQueries",
                 Pure.CONCATENATE_TEMPORAL_TDS_QUERIES);
 
@@ -492,7 +492,7 @@ public final class NativeFn {
         DECODE("meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap",
                 Pure.DECODE_OBJECT_REFERENCES__3),
         OBJECT_REFERENCE_IN("meta::pure::functions::collection::objectReferenceIn",
-                Pure.OBJECT_REFERENCE_IN__ANY_1__ANY_MANY);
+                Pure.OBJECT_REFERENCE_IN__ANY_1__STRING_MANY);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;

@@ -75,7 +75,12 @@ final class TableReferenceChecker {
                         "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
         String carried = strictDefault ? tableName.value() : resolvedName;
         return new TypedTableReference(dbRef.fullPath(), carried,
-                new ExprType(Type.relation(schema), sig.output().multiplicity()),
+                // the literal IS the store accessor (upstream: RelationStoreAccessor<T>
+                // extends Relation<T>) — every Relation<T> formal admits it through the
+                // declared hierarchy, and write's RelationElementAccessor<T> demands it
+                new ExprType(new Type.GenericType(
+                        com.legend.compiler.element.type.PlatformTypes.RELATION_STORE_ACCESSOR,
+                        java.util.List.of(schema)), sig.output().multiplicity()),
                 n == 2);
     }
 

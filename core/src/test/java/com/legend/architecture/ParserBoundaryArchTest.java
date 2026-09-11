@@ -64,6 +64,9 @@ class ParserBoundaryArchTest {
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)
             "com/legend/tools/PreludeGeneratorTest.java",
+            // the SIGNATURE generator reads the same declaration files (upstream
+            // boundary batch 5): Pure.java's text is upstream's, parsed as such
+            "com/legend/tools/NativeSignatureGeneratorTest.java",
             // the typing CENSUS parses legend-pure's platform packages —
             // the spec's own declaration files, the same provenance as the
             // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)

@@ -119,6 +119,15 @@ public final class PlatformTypes {
     public static final String ENUMERATION = "meta::pure::metamodel::type::Enumeration";
     /** The relation carrier {@code Relation<T>} (legend-pure relation.pure / m3). */
     public static final String RELATION = "meta::pure::metamodel::relation::Relation";
+    /** The store accessor a {@code #>{db.table}#} literal IS (upstream:
+     * {@code RelationStoreAccessor<T> extends RelationElementAccessor<T>
+     * extends Relation<T>}, all three in the prelude) — batch 5: write's
+     * second parameter is declared over the accessor, as upstream spells it. */
+    public static final String RELATION_STORE_ACCESSOR = "meta::pure::store::RelationStoreAccessor";
+    public static final String RELATION_ELEMENT_ACCESSOR =
+            "meta::pure::metamodel::relation::RelationElementAccessor";
+    public static final String TDS_RELATION_ACCESSOR =
+            "meta::pure::metamodel::relation::TDSRelationAccessor";
     /** The m3 Profile metaclass (a prelude module class since batch 159). */
     public static final String PROFILE = "meta::pure::metamodel::extension::Profile";
 
@@ -139,6 +148,12 @@ public final class PlatformTypes {
     /** The {@code TDS<T>} relation class (tds.pure:17) — a relation
      * literal's own type; {@code csv: String[1]} (tds.pure:19) is its text. */
     public static final String TDS_RELATION_CLASS = "meta::pure::metamodel::relation::TDS";
+    /** Every raw class whose ONE type argument is a relation schema: the
+     * relation itself and its accessor subclasses (the prelude's declared
+     * hierarchy; PlatformTypesSpellingsTest pins each as a Relation subclass). */
+    public static final java.util.Set<String> RELATION_CARRIERS = java.util.Set.of(
+            RELATION, RELATION_ELEMENT_ACCESSOR, RELATION_STORE_ACCESSOR, TDS_RELATION_ACCESSOR,
+            TDS_RELATION_CLASS);
 
     /** The TDS class's csv property name (tds.pure:19); a read of it over a
      * TDS-shaped value is the csv TEXT the engine prints for the relation. */

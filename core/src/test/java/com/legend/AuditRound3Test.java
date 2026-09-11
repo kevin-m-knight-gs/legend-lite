@@ -41,8 +41,11 @@ class AuditRound3Test {
     void emptyIntoRequiredSlotIsLoud() {
         // strict-containment message (multiplicity audit slice 2):
         // the [0..0] literal fails the lower bound of the [1] slot
-        assertTrue(rejects("|abs([])").getMessage()
-                .contains("[0] is not compatible with [1]"));
+        // abs has upstream's FOUR typed overloads since batch 5 (Integer /
+        // Float / Decimal / Number): the [] literal fails every one's [1]
+        // slot and the rejection is the multi-overload form
+        String absMsg = rejects("|abs([])").getMessage();
+        assertTrue(absMsg.contains("no overload of 'meta::pure::functions::math::abs'"), absMsg);
         // Function bodies compile at INLINE time (the execute path) — the
         // return-position check fires there; compileQuery types calls from
         // signatures alone.

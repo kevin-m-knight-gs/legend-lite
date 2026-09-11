@@ -4370,6 +4370,10 @@ Class meta::pure::functions::math::mathUtility::RowMapper<T,U>
   rowB: U[0..1];
 }
 
+Class meta::pure::functions::math::wavgUtility::WavgRowMapper extends meta::pure::functions::math::mathUtility::RowMapper<Number, Number>
+{
+}
+
 
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/io/http/executeHTTPRaw.pure
@@ -5275,7 +5279,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 463 classes, 18 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 464 classes, 18 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 34 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:

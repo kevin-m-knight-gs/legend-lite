@@ -192,10 +192,10 @@ final class NavigateChecker {
         // Class extent (Class.all()) or a RELATION target (a table/pipeline)
         // — the slot column carries the target's row-struct; the lowerer
         // flattens it as a prefixed LEFT join.
-        if (target instanceof Type.GenericType g
-                && g.rawFqn().equals("meta::pure::metamodel::relation::Relation")
-                && g.arguments().size() == 1) {
-            target = g.arguments().get(0);
+        // — any relation CARRIER (the store accessor a #>{db.table}# literal is,
+        // a TDS literal): its schema is the target row-struct
+        if (com.legend.compiler.element.type.Type.relationSchema(target) instanceof Type.RelationType rs) {
+            target = rs;
         }
         if (!(target instanceof Type.ClassType || target instanceof Type.RelationType)) {
             throw new TypeInferenceException(
