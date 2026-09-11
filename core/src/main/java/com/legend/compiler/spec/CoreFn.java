@@ -91,7 +91,7 @@ public enum CoreFn {
     /** Relation {@code extend(~newCol:x|…)} &mdash; adds computed columns ({@code T+Z}). */
     EXTEND("extend"),
     /** {@code groupBy(~keys, ~agg:map:reduce)} &mdash; grouped aggregation ({@code Z+R}); relation + class source. */
-    GROUP_BY("groupBy"),
+    GROUP_BY("groupBy", "groupByOverInstances", "groupByComputedKeys"),
     /** Legacy TDS {@code groupByWithWindowSubset(set, functions, aggValues,
      * ids, subSelectIds, subAggIds)} (tds.pure:867) &mdash; the store's rule
      * (pureToSQLQuery processObjectGroupByWithWindowSubSet) subsets the
@@ -101,9 +101,9 @@ public enum CoreFn {
     /** Relation {@code aggregate(~agg:map:reduce)} &mdash; whole-relation aggregation ({@code Relation<R>}). */
     AGGREGATE("aggregate"),
     /** Relation {@code join(other, JoinKind.INNER, {t,v|cond})} &mdash; schema union {@code T+V}. */
-    JOIN("join"),
+    JOIN("join", "joinWithPrefix"),
     /** Relation {@code asOfJoin(other, {t,v|match} [, {t,v|cond}])} &mdash; temporal join, {@code T+V}. */
-    AS_OF_JOIN("asOfJoin"),
+    AS_OF_JOIN("asOfJoin", "asOfJoinWithPrefix"),
     /** {@code cast(@T)} &mdash; type conversion at the source's multiplicity ({@code T[m]}). */
     CAST("cast"),
     TYPE_AS_DECLARED("typeAsDeclared"),

@@ -233,7 +233,9 @@ final class ViewRelation {
                     syntheticKeyCols = true;
                 }
             }
-            src = new AppliedFunction("groupBy", List.of(src,
+            // the view's rows grouped by key EXPRESSIONS: the internal-desugar
+            // identity (Pure.Lite.GROUP_BY_COMPUTED_KEYS, batch 5 leg 5d)
+            src = new AppliedFunction(com.legend.builtin.Pure.Lite.GROUP_BY_COMPUTED_KEYS, List.of(src,
                     new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
         } else {
             List<ColSpec> cols = new ArrayList<>(view.columnMappings().size());

@@ -1109,7 +1109,7 @@ class RelationalMappingCompositionTest {
         void groupByClassSourceWithAssocKey() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "model::Employee.all()->groupBy(~[firm:e|$e.firm.legalName], ~cnt:x|$x.name:y|$y->count())");
+                    "model::Employee.all()->project(~[firm:e|$e.firm.legalName, name:e|$e.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())");
             assertEquals(2, r.rowCount());
         }
     }

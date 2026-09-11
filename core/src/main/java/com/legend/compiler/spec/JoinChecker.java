@@ -420,11 +420,12 @@ final class JoinChecker {
     }
 
     private static TypedSpec withPrefix(Typer t, AppliedFunction af, Env env) {
-        TypedFunction sig = t.model().findFunction(CoreFn.JOIN.parseName()).stream()
-                .filter(c -> c.parameters().size() == 5)
+        // the PREFIX form is lite surface (Pure.Lite.JOIN_WITH_PREFIX, USER 2026-09-11):
+        // the user's join(l, r, kind, cond, 'p_') spelling routes here by arity
+        TypedFunction sig = t.model().findFunction(com.legend.builtin.Pure.Lite.JOIN_WITH_PREFIX).stream()
                 .findFirst()
                 .orElseThrow(() -> new TypeInferenceException(
-                        "no 5-argument join overload is registered"));
+                        "the lite prefix join is not registered"));
 
         // Validate every argument against the registered signature (never bypassed);
         // the condition lambda types against the signature's function parameter with

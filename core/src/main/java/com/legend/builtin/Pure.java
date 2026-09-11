@@ -460,6 +460,28 @@ public final class Pure {
         public static final String IS_DISTINCT = PKG + "isDistinct";
         public static final String HASH = PKG + "hash";
         public static final String JOIN = PKG + "join";
+        /** LITE SURFACE (USER 2026-09-11): the relation join / asOfJoin with a
+         *  right-column PREFIX — {@code join(l, r, kind, {a,b|…}, 'p_')} renames
+         *  every right-side column p_&lt;name&gt; in the output (JoinChecker
+         *  computes the prefixed union). Upstream's join has no such form (it
+         *  resolves collisions by rename before the join); a lite-dialect feature. */
+        public static final String JOIN_WITH_PREFIX = PKG + "joinWithPrefix";
+        /** INTERNAL DESUGAR IR: the relation-style group-by over a COLLECTION OF
+         *  INSTANCES — the landing shape of the legacy tds::groupBy(K[*], …)
+         *  desugar and of the mapping ~groupBy synthesis (GroupBySynthesis).
+         *  Upstream declares no such overload (its relation groupBy takes a
+         *  Relation; its instance groupBy is the legacy 4-arg form we carry
+         *  byte-identical); this is OUR intermediate form, never user-reachable
+         *  (batch 5 leg 5d). */
+        public static final String GROUP_BY_OVER_INSTANCES = PKG + "groupByOverInstances";
+        /** INTERNAL DESUGAR IR: the relation group-by with COMPUTED keys — the
+         *  mapping ~groupBy synthesis and the view ~groupBy group TABLE rows by
+         *  key EXPRESSIONS (FuncColSpec keys over the row). Upstream's relation
+         *  groupBy takes bare column names; the engine's own SQL for these is
+         *  {@code GROUP BY <expr>}, which this form lowers to directly. OUR
+         *  intermediate form, never user-reachable (batch 5 leg 5d). */
+        public static final String GROUP_BY_COMPUTED_KEYS = PKG + "groupByComputedKeys";
+        public static final String AS_OF_JOIN_WITH_PREFIX = PKG + "asOfJoinWithPrefix";
 
         // -- USER-FACING lite natives (product surface): bare-name
         // resolvable. 'navigate' is the relation-navigation extension
@@ -492,7 +514,8 @@ public final class Pure {
                     Lite.CONVERT_DATE_FORMAT, Lite.CONVERT_DATE_TIME_FORMAT,
                     Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS,
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
-                    Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP)
+                    Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
+                    Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -521,7 +544,9 @@ public final class Pure {
 
     public static final java.util.Set<String> LITE_SURFACE =
             java.util.Set.of(liteLocalName(Lite.NAVIGATE),
-                    liteLocalName(Lite.SOURCE_URL));
+                    liteLocalName(Lite.SOURCE_URL),
+                    liteLocalName(Lite.JOIN_WITH_PREFIX),
+                    liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX));
 
     /**
      * Translation at the engine-wire DATA BOUNDARY: a name arriving
@@ -876,7 +901,7 @@ public final class Pure {
     public static final NativeFunctionDefinition ASIN__NUMBER_1 = signature("native function meta::pure::functions::math::asin(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
     public static final NativeFunctionDefinition AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
-    public static final NativeFunctionDefinition AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1 = signature("native function meta::pure::functions::relation::asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
+    public static final NativeFunctionDefinition AS_OF_JOIN_WITH_PREFIX__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1 = signature("native function meta::legend::lite::asOfJoinWithPrefix<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
     public static final NativeFunctionDefinition ATAN2__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::atan2(number1:meta::pure::metamodel::type::Number[1], number2:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition ATAN__NUMBER_1 = signature("native function meta::pure::functions::math::atan(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition AT__T_MANY__INTEGER_1 = signature("native function meta::pure::functions::collection::at<T>(set:T[*], key:meta::pure::metamodel::type::Integer[1]):T[1];");
@@ -1015,8 +1040,6 @@ public final class Pure {
     public static final NativeFunctionDefinition EVAL__FUNCTION_1__6 = signature("native function meta::pure::functions::lang::eval<T,U,V,W,X,Y,Z|m,n,p,q,r,s,t>(func:meta::pure::metamodel::function::Function<{T[n],U[p],W[q],X[r],Y[s],Z[t]->V[m]}>[1], param1:T[n], param2:U[p], param3:W[q], param4:X[r], param5:Y[s], param6:Z[t]):V[m];");
     public static final NativeFunctionDefinition EXISTS__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::exists<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EXP__NUMBER_1 = signature("native function meta::pure::functions::math::exp(exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition EXTEND__C_MANY__FUNC_COL_SPEC_1 = signature("native function meta::pure::functions::relation::extend<C,Z>(cl:C[*], f:meta::pure::metamodel::relation::FuncColSpec<{C[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):C[*];");
-    public static final NativeFunctionDefinition EXTEND__C_MANY__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::extend<C,Z>(cl:C[*], fs:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):C[*];");
     public static final NativeFunctionDefinition EXTEND__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::extend<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
     public static final NativeFunctionDefinition EXTEND__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::extend<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
     public static final NativeFunctionDefinition EXTEND__RELATION_1__FUNC_COL_SPEC_1 = signature("native function meta::pure::functions::relation::extend<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::relation::FuncColSpec<{T[1]->meta::pure::metamodel::type::Any[0..1]}, Z>[1]):meta::pure::metamodel::relation::Relation<T+Z>[1];");
@@ -1142,12 +1165,14 @@ public final class Pure {
     // {T[1]->V[*]} (to-many paths like $f.employees.age aggregate via the
     // per-PK sub-aggregation route). The RELATION-space AggColSpec below
     // stays {T[1]->K[0..1]} (real relation signature).
-    public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
-    public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     // REAL tds.pure:867 — the legacy window-subset groupBy; a store-handled function (pureToSQLQuery processObjectGroupByWithWindowSubSet), desugared by GroupByChecker.checkWindowSubset
     public static final NativeFunctionDefinition GROUP_BY_WITH_WINDOW_SUBSET__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY__STRING_MANY__STRING_MANY = signature("native function meta::pure::tds::groupByWithWindowSubset<K,V,U>(set:K[*], functions:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggValues:meta::pure::functions::collection::AggregateValue<K, V, U>[*], ids:meta::pure::metamodel::type::String[*], subSelectIds:meta::pure::metamodel::type::String[*], subAggIds:meta::pure::metamodel::type::String[*]):meta::pure::tds::TabularDataSet[1];");
     // legend-pure collection/map/groupBy.pure:18 verbatim (batch 54:
     // toPostgresModel's converter registry groups its spelled pairs)
+    public static final NativeFunctionDefinition GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::legend::lite::groupByOverInstances<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
+    public static final NativeFunctionDefinition GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::groupByOverInstances<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{C[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
+    public static final NativeFunctionDefinition GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::legend::lite::groupByComputedKeys<T,Z,K,V,R>(rel:meta::pure::metamodel::relation::Relation<T>[1], keys:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
+    public static final NativeFunctionDefinition GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::groupByComputedKeys<T,Z,K,V,R>(rel:meta::pure::metamodel::relation::Relation<T>[1], keys:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[*]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__X_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::groupBy<X,K>(set:X[*], f:meta::pure::metamodel::function::Function<{X[1]->K[1]}>[1]):meta::pure::functions::collection::Map<K, meta::pure::functions::collection::List<X>>[1];");
     public static final NativeFunctionDefinition GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY = signature("native function meta::pure::tds::groupBy<K,V,U>(set:K[*], functions:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggValues:meta::pure::functions::collection::AggregateValue<K, V, U>[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
@@ -1252,7 +1277,7 @@ public final class Pure {
     // This is the relational, same-store widening primitive; cross-class
     // widening uses `associate` on Class[*] above.
     public static final NativeFunctionDefinition JOIN__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1 = signature("native function meta::legend::lite::join<S,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], slot:meta::pure::metamodel::relation::FuncColSpec<{->meta::pure::metamodel::relation::Relation<T>[1]},Z>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
-    public static final NativeFunctionDefinition JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1 = signature("native function meta::pure::functions::relation::join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
+    public static final NativeFunctionDefinition JOIN_WITH_PREFIX__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1 = signature("native function meta::legend::lite::joinWithPrefix<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
     public static final NativeFunctionDefinition LAG__RELATION_1__T_1 = signature("native function meta::pure::functions::relation::lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1];");
     public static final NativeFunctionDefinition LAG__RELATION_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     public static final NativeFunctionDefinition LAST__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::last<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], row:T[1]):T[0..1];");

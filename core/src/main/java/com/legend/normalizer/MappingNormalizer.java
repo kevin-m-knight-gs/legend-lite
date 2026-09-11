@@ -2156,7 +2156,7 @@ public final class MappingNormalizer {
         // only to reach a groupBy beneath (the pinned canonical form keeps
         // the mapping filter ABOVE a bare distinct)
         boolean descend = src instanceof AppliedFunction af
-                && ("groupBy".equals(af.function())
+                && (GroupBySynthesis.isGroupByStep(af)
                         || ("distinct".equals(af.function())
                                 && chainHasGroupBy(af.parameters().get(0))));
         if (descend) {
@@ -2170,7 +2170,7 @@ public final class MappingNormalizer {
 
     private static boolean chainHasGroupBy(ValueSpecification v) {
         while (v instanceof AppliedFunction af && !af.parameters().isEmpty()) {
-            if ("groupBy".equals(af.function())) {
+            if (GroupBySynthesis.isGroupByStep(af)) {
                 return true;
             }
             v = af.parameters().get(0);

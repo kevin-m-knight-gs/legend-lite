@@ -585,8 +585,8 @@ class ResolveNavigationTest {
     @Test
     @DisplayName("21: class-source groupBy with an association-path KEY — GROUP BY the joined column")
     void classSourceGroupByAssociationKey() throws SQLException {
-        String sql = sqlOf("m::Person.all()->groupBy(~[legal : p|$p.employer.legal],"
-                + " ~cnt : x|$x : y|$y->count())->from(m::RT)");
+        String sql = sqlOf("m::Person.all()->project(~[legal : p|$p.employer.legal, name : p|$p.name])"
+                + "->groupBy(~legal, ~cnt : x|$x.name : y|$y->count())->from(m::RT)");
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
         assertEquals(1, count(sql, "GROUP BY"), sql);
@@ -598,8 +598,8 @@ class ResolveNavigationTest {
     @DisplayName("21b: filter + class-source groupBy — both lambdas through the one funnel")
     void classSourceGroupByAfterFilter() throws SQLException {
         String sql = sqlOf("m::Person.all()->filter(p|$p.name != 'Bob')"
-                + "->groupBy(~[legal : p|$p.employer.legal],"
-                + " ~cnt : x|$x : y|$y->count())->from(m::RT)");
+                + "->project(~[legal : p|$p.employer.legal, name : p|$p.name])"
+                + "->groupBy(~legal, ~cnt : x|$x.name : y|$y->count())->from(m::RT)");
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(List.of("ACME|2"), exec(sql));
     }

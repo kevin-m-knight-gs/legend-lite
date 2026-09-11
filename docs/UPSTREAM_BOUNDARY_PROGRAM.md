@@ -519,6 +519,15 @@ inference:** that the live protocol differential goes red on landing.
    (function identity = smell; property-on-exact-class = correct; parser = allowed) for
    the batch-5 audit. Remaining 6 = leg 5d: join/asOfJoin 5-arg prefix form, extend/
    groupBy over C[*] ×4.
+15. **Batch 5 LEG 5d LANDED — DIVERGENT ZERO** (2026-09-11): all 752 upstream-claimed
+   signatures byte-identical with the pinned checkouts. USER decisions: the prefix
+   joins stay as LITE SURFACE (`Pure.Lite.JOIN_WITH_PREFIX` / `AS_OF_JOIN_WITH_PREFIX`,
+   2 → 4); extend over a class collection deleted (no consumer); the groupBy `C[*]`
+   wildcard had hidden two shapes — the legacy instance groupBy (upstream's own K[*]
+   function) lands on `Lite.GROUP_BY_OVER_INSTANCES`, the mapping/view computed-key
+   group-by on `Lite.GROUP_BY_COMPUTED_KEYS` over Relation<T> (INTERNAL_DESUGAR 16 → 18).
+   NEXT (USER): the batch-5 audit in this order — every Lite function in Pure.java (41)
+   one by one, then every catalog row's provenance, then the simple-name census (140).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

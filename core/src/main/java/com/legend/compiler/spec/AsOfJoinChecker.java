@@ -47,11 +47,11 @@ final class AsOfJoinChecker {
     }
 
     private static TypedSpec withPrefix(Typer t, AppliedFunction af, Env env) {
-        TypedFunction sig = t.model().findFunction(CoreFn.AS_OF_JOIN.parseName()).stream()
-                .filter(c -> c.parameters().size() == 5)
+        // the PREFIX form is lite surface (Pure.Lite.AS_OF_JOIN_WITH_PREFIX, USER 2026-09-11)
+        TypedFunction sig = t.model().findFunction(com.legend.builtin.Pure.Lite.AS_OF_JOIN_WITH_PREFIX).stream()
                 .findFirst()
                 .orElseThrow(() -> new TypeInferenceException(
-                        "no 5-argument asOfJoin overload is registered"));
+                        "the lite prefix asOfJoin is not registered"));
 
         Bindings b = new Bindings();
         TypedSpec left = Checkers.unifiedArg(t, sig, 0, af, b, env);

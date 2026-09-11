@@ -2271,7 +2271,7 @@ class MappingNormalizerTest {
         // than emits something new) also fails here.
         for (String marker : List.of(
                 "map", "new", "tableReference", "getAll", "filter", "join",
-                "legacyNavigate", "legacyAssocPredicate", "otherwise", "groupBy",
+                "legacyNavigate", "legacyAssocPredicate", "otherwise", "groupByComputedKeys",
                 "distinct", "if", "equal", "sum", "sourceUrl", "get", "to")) {
             assertTrue(emitted.contains(marker),
                     () -> "expected the model corpus to emit '" + marker
@@ -3587,7 +3587,7 @@ class MappingNormalizerTest {
         // Pipeline: map(groupBy(join(tableRef, ~Person_Firm), ~[keys], ~[aggs]), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals("groupBy", groupBy.function());
+        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, groupBy.function());
         AppliedFunction joinCall = (AppliedFunction) groupBy.parameters().get(0);
         assertEquals(Pure.Lite.JOIN, joinCall.function(),
                 "Chain from the groupBy key is hoisted BEFORE the groupBy");
@@ -3639,7 +3639,7 @@ class MappingNormalizerTest {
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         assertEquals("map", mapCall.function());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals("groupBy", groupBy.function(),
+        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, groupBy.function(),
                 "Pipeline must include a groupBy step when ~groupBy is declared");
         AppliedFunction tableRef = (AppliedFunction) groupBy.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
@@ -4326,7 +4326,7 @@ class MappingNormalizerTest {
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         assertEquals("map", mapCall.function());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals("groupBy", groupBy.function(),
+        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, groupBy.function(),
                 "aggregation stays the outermost source op");
         AppliedFunction mappingFilter = (AppliedFunction) groupBy.parameters().get(0);
         assertEquals("filter", mappingFilter.function(),
@@ -4414,7 +4414,7 @@ class MappingNormalizerTest {
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         assertEquals("map", mapCall.function());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals("groupBy", groupBy.function(),
+        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, groupBy.function(),
                 "view-level ~groupBy merges into the pipeline as a groupBy() step");
         AppliedFunction tableRef = (AppliedFunction) groupBy.parameters().get(0);
         assertEquals("tableReference", tableRef.function());

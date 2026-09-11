@@ -6,6 +6,8 @@ import com.legend.compiler.spec.typed.TypedFuncColSpec;
 import com.legend.compiler.spec.typed.TypedFuncColSpecArray;
 import com.legend.compiler.spec.typed.TypedGroupBy;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CInteger;
@@ -181,8 +183,12 @@ final class GroupByChecker {
             }
             aggCols.add(new ColSpec(alias, mapFn, aggFn));
         }
-        // bare name — same reason as tdsLegacyToModern
-        return new AppliedFunction("groupBy",
+        // a RELATION source lands on the modern relation overloads by bare name
+        // (same reason as tdsLegacyToModern); a CLASS source lands on the
+        // internal-desugar identity — upstream declares no colspec groupBy over
+        // instances (batch 5 leg 5d), and a user's bare `groupBy` never reaches it
+        return new AppliedFunction(classSource
+                ? com.legend.builtin.Pure.Lite.GROUP_BY_OVER_INSTANCES : "groupBy",
                 List.of(ps.get(0), new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
     }
 

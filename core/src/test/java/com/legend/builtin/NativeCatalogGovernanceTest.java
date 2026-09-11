@@ -69,7 +69,14 @@ class NativeCatalogGovernanceTest {
         // SQL (base64 + framing regex); the resolver mints them where
         // the engine's objectReferenceIn collection is a runtime value
         // and where decodeObjectReferencesAndGetPkMap reads a frame.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 16,
+        // 16→17 (batch 5 leg 5d, 2026-09-11): groupByOverInstances — the
+        // relation-style group-by over a collection of instances, the landing
+        // shape of the legacy tds::groupBy desugar and the mapping ~groupBy
+        // synthesis; it had been carried as two invented overloads of
+        // upstream's tds::groupBy (divergent rows), now its own internal identity.
+        // 17→18: groupByComputedKeys — the relation group-by with key EXPRESSIONS
+        // (mapping ~groupBy / view ~groupBy synthesis; the engine emits GROUP BY expr)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 18,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -84,7 +91,11 @@ class NativeCatalogGovernanceTest {
         // it had been carried as an invented 2-arg overload of the pure name.
         assertTrue(Pure.ENGINE_VOCAB_SHIMS.size() <= 12,
                 "ENGINE_VOCAB_SHIMS grew: " + Pure.ENGINE_VOCAB_SHIMS);
-        assertTrue(Pure.LITE_SURFACE.size() <= 2,
+        // +2 2026-09-11 (USER, upstream boundary batch 5 leg 5d): joinWithPrefix /
+        // asOfJoinWithPrefix — the relation join with a right-column PREFIX, a
+        // lite-dialect feature kept on purpose (upstream resolves collisions by
+        // rename before the join); the user spelling join(…, 'p_') routes by arity.
+        assertTrue(Pure.LITE_SURFACE.size() <= 4,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

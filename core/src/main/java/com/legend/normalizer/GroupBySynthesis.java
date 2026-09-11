@@ -217,8 +217,18 @@ final class GroupBySynthesis {
                     new LambdaFunction(List.of(rowBind), List.of(selector)),
                     new LambdaFunction(List.of(vals), List.of(aggBody))));
         }
-        return new AppliedFunction("groupBy", List.of(source,
+        // the mapped TABLE's rows are grouped by key EXPRESSIONS: the
+        // internal-desugar identity (Pure.Lite.GROUP_BY_COMPUTED_KEYS —
+        // upstream's relation groupBy takes bare column names; batch 5 leg 5d)
+        return new AppliedFunction(Pure.Lite.GROUP_BY_COMPUTED_KEYS, List.of(source,
                 new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
+    }
+
+    /** The aggregation step of a synthesized pipeline — the normalizer's own
+     *  computed-key emission or a bare relation groupBy. */
+    static boolean isGroupByStep(AppliedFunction af) {
+        return Pure.Lite.GROUP_BY_COMPUTED_KEYS.equals(af.function())
+                || "groupBy".equals(af.function());
     }
 
     static boolean isAggregatePm(PropertyMapping pm) {

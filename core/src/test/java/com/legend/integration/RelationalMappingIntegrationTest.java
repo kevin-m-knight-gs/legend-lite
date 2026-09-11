@@ -5753,7 +5753,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::Q { name: String[1]; age: Integer[1]; }",
                     "ID INTEGER, NAME VARCHAR(100), AGE INTEGER",
                     "name: [store::DB2] T2.NAME, age: [store::DB2] T2.AGE");
-            var result = exec(m, "|model::Q.all()->groupBy(~[grp:x|$x.name], ~[cnt:x|$x.name:y|$y->count()])");
+            var result = exec(m, "|model::Q.all()->project(~[grp:x|$x.name, name:x|$x.name])->groupBy(~grp, ~[cnt:x|$x.name:y|$y->count()])");
             // groupBy returns Relation (not ClassType) → TabularResult
             assertInstanceOf(ExecutionResult.Tabular.class, result);
             assertEquals(2, result.rows().size(), "Should have 2 groups (Alice, Bob)");
