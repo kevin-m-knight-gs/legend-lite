@@ -133,7 +133,16 @@ class PlatformNamesGuardrailTest {
         StringBuilder where = new StringBuilder();
         try (Stream<Path> files = Files.walk(MAIN)) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
-                if (f.toString().contains("/parser/") || CATALOG_FILES.contains(f.getFileName().toString())) {
+                // path ELEMENTS, never a slash-spelled substring: Windows paths
+                // are backslash-separated (CI 2026-09-11: the parser package was
+                // not excluded there and the count read 417)
+                boolean underParser = false;
+                for (Path part : MAIN.relativize(f)) {
+                    if (part.toString().equals("parser")) {
+                        underParser = true;
+                    }
+                }
+                if (underParser || CATALOG_FILES.contains(f.getFileName().toString())) {
                     continue;
                 }
                 int n = 0;
