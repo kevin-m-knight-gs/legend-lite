@@ -156,6 +156,7 @@ final class ProjectChecker {
             return legacyToModern(af.withParameters(List.of(ps.get(0), lambdas, names)));
         }
         if (ps.size() == 2 && (ps.get(1) instanceof LambdaFunction
+                || ps.get(1) instanceof com.legend.protocol.spec.PathLiteral
                 || isLegacyColumnCall(ps.get(1)))) {
             // scalar legacy column: project(col(fn,'name')) — wrap and recurse
             return normalizeLegacyForms(af.withParameters(List.of(ps.get(0), new PureCollection(List.of(ps.get(1))))),
@@ -166,14 +167,11 @@ final class ProjectChecker {
             List<ValueSpecification> names = new ArrayList<>(lambdas.values().size());
             for (ValueSpecification v : lambdas.values()) {
                 // #/Person/address/name!address# — the path ALIAS names the
-                // column (real pure Path.name); the parser wraps the lambda
-                // in a pathWithAlias carrier
-                if (v instanceof AppliedFunction pa
-                        && pa.function().equals("pathWithAlias")
-                        && pa.parameters().size() == 2
-                        && pa.parameters().get(1) instanceof CString alias) {
-                    exprs.add(pa.parameters().get(0));
-                    names.add(alias);
+                // column (real pure Path.name); it rides the path node
+                if (v instanceof com.legend.protocol.spec.PathLiteral pl
+                        && pl.alias() != null) {
+                    exprs.add(pl);
+                    names.add(new CString(pl.alias()));
                     continue;
                 }
                 // legacy TDS col(fn, 'name') inside the project collection;
@@ -183,7 +181,7 @@ final class ProjectChecker {
                 // BasicColumnSpecification metadata, no execution
                 // semantics; carried to the typed column by NAME).
                 if (v instanceof AppliedFunction colCall
-                        && colCall.function().equals("col")
+                        && com.legend.builtin.TdsLegacy.COL.matches(colCall)
                         && (colCall.parameters().size() == 2
                                 || (colCall.parameters().size() == 3
                                         && colCall.parameters().get(2)
@@ -212,17 +210,25 @@ final class ProjectChecker {
         return af;
     }
 
+    /** A column expression's lambda: a path literal stands for its
+     *  navigation lambda (the node survives resolution to carry its alias). */
+    static ValueSpecification columnLambda(ValueSpecification v) {
+        return v instanceof com.legend.protocol.spec.PathLiteral pl ? pl.desugared() : v;
+    }
+
     static boolean isLegacyColumnCall(ValueSpecification v) {
         return v instanceof AppliedFunction c
-                && ((c.function().equals("col")
-                        && (c.parameters().size() == 2
-                                || c.parameters().size() == 3))
-                    || (c.function().equals("pathWithAlias")
-                        && c.parameters().size() == 2));
+                        && com.legend.builtin.TdsLegacy.COL.matches(c)
+                        && (c.parameters().size() == 2 || c.parameters().size() == 3)
+                || v instanceof com.legend.protocol.spec.PathLiteral pl && pl.alias() != null;
     }
 
     /** The leaf property of a navigation lambda/path names its column (engine parity). */
     private static String derivedColumnName(ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.PathLiteral pl) {
+            // a bare path names its column by its leaf, like the lambda it is
+            return derivedColumnName(pl.desugared());
+        }
         if (v instanceof LambdaFunction lf && lf.body().size() == 1) {
             ValueSpecification leaf = lf.body().get(0);
             if (leaf instanceof AppliedProperty ap) {
@@ -281,7 +287,9 @@ final class ProjectChecker {
             if (!(names.values().get(i) instanceof CString name)) {
                 throw new TypeInferenceException("expected a string-literal column name");
             }
-            if (!(lambdas.values().get(i) instanceof LambdaFunction lf)) {
+            // a path literal IS its navigation lambda (the node survives
+            // resolution for its alias; the column takes the lambda)
+            if (!(columnLambda(lambdas.values().get(i)) instanceof LambdaFunction lf)) {
                 throw new TypeInferenceException(
                         "a project column must be a single-parameter, single-expression lambda");
             }

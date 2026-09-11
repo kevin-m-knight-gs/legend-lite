@@ -118,7 +118,7 @@ final class ExtendChecker {
     private static @com.legend.Nullable ColSpec legacyColToSpec(ValueSpecification v) {
         com.legend.protocol.spec.LambdaFunction fn;
         com.legend.protocol.spec.CString nm;
-        if (v instanceof AppliedFunction nw && nw.function().equals("new")
+        if (v instanceof AppliedFunction nw && AppliedFunction.isNew(nw)
                 && nw.parameters().size() >= 2
                 && nw.parameters().get(0)
                         instanceof com.legend.protocol.spec.PackageableElementPtr pep
@@ -135,7 +135,7 @@ final class ExtendChecker {
                         instanceof com.legend.protocol.spec.CString bn) {
             fn = bf;
             nm = bn;
-        } else if (v instanceof AppliedFunction cf && cf.function().equals("col")
+        } else if (v instanceof AppliedFunction cf && com.legend.builtin.TdsLegacy.COL.matches(cf)
                 && cf.parameters().size() == 2
                 && cf.parameters().get(0) instanceof com.legend.protocol.spec.LambdaFunction cfn
                 && cf.parameters().get(1) instanceof com.legend.protocol.spec.CString cnm) {

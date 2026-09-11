@@ -2462,14 +2462,6 @@ public final class ProtocolEmitter {
             newInstance(b, ni, topSpanOverride);
             return;
         }
-        if ("pathWithAlias".equals(f.function())
-                && !f.parameters().isEmpty()
-                && f.parameters().get(0) instanceof com.legend.protocol.spec.PathLiteral pathLit) {
-            // the alias carrier is legend-lite-internal; the wire's whole shape (including
-            // the alias as the path's "name") comes from the PathLiteral itself
-            pathLiteral(b, pathLit);
-            return;
-        }
         if ("tableReference".equals(f.function())
                 && f.parameters().size() == 1
                 && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr store) {

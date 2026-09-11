@@ -439,7 +439,7 @@ final class PlanAllocations {
         }
         // a ->toOne() over the scan is the same scan
         while (scan != null && scan.parameters().size() == 1
-                && scan.function().endsWith("toOne")
+                && com.legend.compiler.ResolvedNames.referents(scan).stream().anyMatch(com.legend.builtin.Pure::isToOneCall)
                 && scan.parameters().get(0)
                         instanceof com.legend.protocol.spec.AppliedFunction inner) {
             scan = inner;

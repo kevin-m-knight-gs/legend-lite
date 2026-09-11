@@ -17,7 +17,7 @@ public final class VerdictRoutes {
      * (two constructed instances compared by their equality keys). */
     public static boolean assertsClassValue(TypedSpec n) {
         return n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && nc.callee().qualifiedName().startsWith("meta::pure::functions::asserts::")
+                && nc.callee().qualifiedName().startsWith(com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE)
                 && nc.args().stream().anyMatch(a -> structValued(a.info().type()));
     }
 

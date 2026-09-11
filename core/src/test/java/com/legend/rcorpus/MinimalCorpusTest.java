@@ -121,6 +121,7 @@ class MinimalCorpusTest {
 
     private static void run() throws Exception {
         String only = System.getProperty("rcorpus.test", "").trim();
+        final boolean TRACE = "1".equals(System.getProperty("rcorpus.trace"));
         MinimalCorpus corpus = new MinimalCorpus();
         for (String w : corpus.libraryWalls()) {
             System.out.println("[corpus2] library skipped: " + w);
@@ -154,6 +155,12 @@ class MinimalCorpusTest {
                 }
                 MinimalCorpus.Result r;
                 long tStart = System.nanoTime();
+                if (TRACE) {
+                    // -Drcorpus.trace=1: name each test BEFORE it runs, so a
+                    // run the JVM never returns from (StackOverflowError,
+                    // a hang) still says which test it was in
+                    System.out.println("[corpus2] run " + t.fqn());
+                }
                 try {
                     r = corpus.run(t);
                 } catch (Exception e) {

@@ -3354,7 +3354,7 @@ public final class MappingNormalizer {
                     : ptName.startsWith("meta::pure::metamodel::type::")
                             && PRIMITIVE_TYPE_NAMES.contains(simpleTypeName(ptName))
                             ? simpleTypeName(ptName) : null;
-            if (v instanceof AppliedFunction gf && gf.function().equals("get")
+            if (v instanceof AppliedFunction gf && com.legend.builtin.NativeFn.RowGetter.GET.property().equals(gf.function())
                     && primitiveName != null) {
                 v = new AppliedFunction("to", List.of(v,
                         new TypeAnnotation.Named(
@@ -3364,10 +3364,10 @@ public final class MappingNormalizer {
                 v = booleanizeCaseLiterals(v);
             }
             boolean exempt = v instanceof AppliedFunction af
-                    && (af.function().equals("navigate")
+                    && (com.legend.compiler.spec.CoreFn.of(af.function()).orElse(null) == com.legend.compiler.spec.CoreFn.NAVIGATE
                         || af.function().equals(Pure.Lite.LEGACY_NAVIGATE)
                         || af.function().equals(Pure.Lite.OTHERWISE)
-                        || af.function().equals("new"));
+                        || AppliedFunction.isNew(af));
             wrapped.put(name, toOneDeclared && !exempt
                     ? new KeyExpression(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(v)),
                             key.isAdd(), key.isLocal())

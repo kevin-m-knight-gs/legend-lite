@@ -79,7 +79,11 @@ class PlatformNamesGuardrailTest {
      *  and walled registries, the system metamodel, the type spellings. */
     private static final java.util.Set<String> CATALOG_FILES = java.util.Set.of(
             "Pure.java", "NativeFn.java", "Subsumed.java", "SystemMetamodel.java",
-            "PlatformTypes.java", "WalledBodies.java");
+            "PlatformTypes.java", "WalledBodies.java",
+            // the legacy TDS vocabulary as a closed enum (batch 5 audit leg C,
+            // 2026-09-11): upstream tds.pure / math::olap identities the Typer
+            // desugars by exact spelling — a catalog of names, like NativeFn
+            "TdsLegacy.java");
 
     /** A function FQN literal: {@code "meta::…::lowerCamel"} (a class or enum
      *  FQN ends in an upper-case segment and is a TYPE spelling, not dispatch). */

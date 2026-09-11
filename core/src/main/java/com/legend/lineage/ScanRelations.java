@@ -640,7 +640,7 @@ public final class ScanRelations {
                 LambdaFunction fn;
                 String alias;
                 if (sp instanceof AppliedFunction col
-                        && col.function().substring(col.function().lastIndexOf(':') + 1).equals("col")
+                        && com.legend.builtin.TdsLegacy.COL.matches(col)
                         && col.parameters().size() >= 2
                         && col.parameters().get(0) instanceof LambdaFunction cf
                         && col.parameters().get(1) instanceof com.legend.protocol.spec.CString cn) {
@@ -736,11 +736,12 @@ public final class ScanRelations {
     private static void collectTableToTds(ModelContext ctx,
             ValueSpecification n, List<Node> out) {
         if (n instanceof AppliedFunction af) {
-            String simple = af.function()
-                    .substring(af.function().lastIndexOf(':') + 1);
-            if ("tableToTDS".equals(simple) && !af.parameters().isEmpty()
+            if (com.legend.compiler.spec.CoreFn.of(af.function()).orElse(null)
+                            == com.legend.compiler.spec.CoreFn.TABLE_TO_TDS
+                    && !af.parameters().isEmpty()
                     && af.parameters().get(0) instanceof AppliedFunction tr
-                    && tr.function().endsWith("tableReference")
+                    && com.legend.compiler.spec.CoreFn.of(tr.function()).orElse(null)
+                            == com.legend.compiler.spec.CoreFn.TABLE_REFERENCE
                     && tr.parameters().size() >= 3
                     && tr.parameters().get(0)
                             instanceof PackageableElementPtr db
@@ -1465,9 +1466,7 @@ public final class ScanRelations {
             // — real pure generates them, no mapping exists): their value
             // is the query's temporal context, and the table's milestone
             // COLUMNS already ride the tdg demand — nothing to scan
-            if (prop.name().equals("businessDate")
-                    || prop.name().equals("processingDate")
-                    || prop.name().equals("snapshotDate")) {
+            if (com.legend.compiler.element.Temporal.isGeneratedDateName(prop.name())) {
                 return;
             }
             // engine scanRelations.pure: an empty propMappings collection
@@ -2756,9 +2755,7 @@ public final class ScanRelations {
         return !probe.isEmpty() && probe.stream().allMatch(c ->
                 !c.isEmpty()
                         && c.get(c.size() - 1) instanceof Seg.Prop pr
-                        && (pr.name().equals("businessDate")
-                                || pr.name().equals("processingDate")
-                                || pr.name().equals("snapshotDate")));
+                        && com.legend.compiler.element.Temporal.isGeneratedDateName(pr.name()));
     }
 
     /** Whether the expression contains a NON-EMPTY var-rooted chain. */

@@ -491,6 +491,21 @@ public final class PlatformTypes {
     public static final String TEST_RUNTIME =
             "meta::external::store::relational::tests::testRuntime";
     public static final String IS_EMPTY = "meta::pure::functions::collection::isEmpty";
+    // -- exact identities the front-end reads through ResolvedNames.names
+    // (the 2026-09-11 simple-name census: no bare or suffix compares)
+    public static final String FIRST = "meta::pure::functions::collection::first";
+    public static final String PAIR_FN = "meta::pure::functions::collection::pair";
+    public static final String COUNT = "meta::pure::functions::collection::count";
+    public static final String ADD = "meta::pure::functions::collection::add";
+    public static final String ZIP = "meta::pure::functions::collection::zip";
+    public static final String AND = "meta::pure::functions::boolean::and";
+    public static final String OR = "meta::pure::functions::boolean::or";
+    public static final String TIMES = "meta::pure::functions::math::times";
+    public static final String RANK = "meta::pure::functions::relation::rank";
+    public static final String DENSE_RANK = "meta::pure::functions::relation::denseRank";
+    public static final String ROW_NUMBER = "meta::pure::functions::relation::rowNumber";
+    public static final String INSTANCE_OF = "meta::pure::functions::meta::instanceOf";
+    public static final String TO_STRING = "meta::pure::functions::string::toString";
     /** The engine's relational execution OPTIONS class (executionContext.pure) — the one
      *  context reader spells its fields. */
     public static final String RELATIONAL_EXECUTION_CONTEXT =

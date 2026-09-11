@@ -42,8 +42,7 @@ final class IfChecker {
         // if(cond:Pair<...>[1], last) — pair(|c,|v)->if(|else)).
         if (args.size() == 2
                 && args.get(0) instanceof AppliedFunction pf
-                && (pf.function().equals("pair")
-                        || pf.function().equals("meta::pure::functions::collection::pair"))
+                && com.legend.compiler.ResolvedNames.names(pf, com.legend.compiler.element.type.PlatformTypes.PAIR_FN)
                 && pf.parameters().size() == 2) {
             return multiIf(t, new com.legend.protocol.spec.PureCollection(
                     List.of(args.get(0))), args.get(1), env);
@@ -95,8 +94,7 @@ final class IfChecker {
             // must not be hijacked and silently never called (audit; the
             // exact-FQN identification rule).
             if (!(elements.get(i) instanceof AppliedFunction pf)
-                    || !(pf.function().equals("pair")
-                            || pf.function().equals("meta::pure::functions::collection::pair"))
+                    || !com.legend.compiler.ResolvedNames.names(pf, com.legend.compiler.element.type.PlatformTypes.PAIR_FN)
                     || pf.parameters().size() != 2) {
                 throw new TypeInferenceException("if(condList, last) expects literal"
                         + " pair(|cond, |value) elements");

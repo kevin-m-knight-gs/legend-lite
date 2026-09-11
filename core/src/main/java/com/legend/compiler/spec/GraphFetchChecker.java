@@ -253,8 +253,7 @@ final class GraphFetchChecker {
             return gf.desugared();
         }
         if (v instanceof AppliedFunction c
-                && (c.function().equals("cast")
-                        || c.function().equals("meta::pure::functions::lang::cast"))
+                && CoreFn.of(c.function()).orElse(null) == CoreFn.CAST
                 && !c.parameters().isEmpty()) {
             ValueSpecification inner = unwrapCompiledTree(c.parameters().get(0));
             return inner instanceof ColSpecArray ? inner : v;

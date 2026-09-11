@@ -147,7 +147,7 @@ public final class SourceSubst {
      * fold and the lambda-local shadow-stop so the spelling lives once. */
     public static @com.legend.Nullable CString letName(ValueSpecification st) {
         return st instanceof AppliedFunction lf
-                && lf.function().equals("letFunction")
+                && CoreFn.of(lf.function()).orElse(null) == CoreFn.LET
                 && lf.parameters().size() == 2
                 && lf.parameters().get(0) instanceof CString name
                 ? name : null;

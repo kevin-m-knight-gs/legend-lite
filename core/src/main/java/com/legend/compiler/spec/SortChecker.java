@@ -121,19 +121,11 @@ final class SortChecker {
      */
     static TypedSpec sortBy(Typer t, AppliedFunction af, Env env, boolean ascending) {
         // #/Person/firstName!fn# — the path ALIAS names the engine's
-        // o_<alias> sort-key column in the root form; strip the carrier
-        // BEFORE typing (the ProjectChecker discipline) and ride the alias
-        // on the typed node
-        String keyAlias = null;
-        if (af.parameters().size() == 2
-                && af.parameters().get(1) instanceof AppliedFunction pa
-                && pa.function().equals("pathWithAlias")
-                && pa.parameters().size() == 2
-                && pa.parameters().get(1) instanceof CString al) {
-            keyAlias = al.value();
-            af = af.withParameters(List.of(
-                    af.parameters().get(0), pa.parameters().get(0)));
-        }
+        // o_<alias> sort-key column in the root form: the alias rides the
+        // path node (real pure Path.name) and moves onto the typed node
+        String keyAlias = af.parameters().size() == 2
+                && af.parameters().get(1) instanceof com.legend.protocol.spec.PathLiteral pl
+                ? pl.alias() : null;
         Application a = t.checkGeneric(af, env);
         return new TypedSortBy(a.args().get(0), Args.lambda(a, 1), ascending,
                 keyAlias, a.out());

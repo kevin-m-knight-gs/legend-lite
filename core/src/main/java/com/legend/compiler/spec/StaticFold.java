@@ -160,7 +160,7 @@ final class StaticFold {
         // map over a STATIC collection with a runtime lambda body: UNROLL —
         // one folded body per element, the parameter bound as a scope fact
         // (a Col element's .name/.type reads fold to literals inside).
-        if (af.function().equals("map") && ps.size() == 2
+        if (com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.MAP) && ps.size() == 2
                 && ps.get(1) instanceof LambdaFunction lam
                 && lam.parameters().size() == 1) {
             List<Object> coll = evalList(ps.get(0), scope);

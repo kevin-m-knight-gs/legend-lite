@@ -261,7 +261,7 @@ final class ContextReading {
         for (TypedSpec pair : ppElements(bind.apply(peel(call.args().get(1), bind)), bind)) {
             TypedSpec p = peel(pair, bind);
             if (!(p instanceof TypedNativeCall pc)
-                    || !pc.callee().qualifiedName().endsWith("::pair")
+                    || !com.legend.compiler.element.type.PlatformTypes.PAIR_FN.equals(pc.callee().qualifiedName())
                     || pc.args().size() != 2) {
                 throw new NotImplementedException("replaceTables pair"
                         + " argument is not a literal pair(): " + pair);

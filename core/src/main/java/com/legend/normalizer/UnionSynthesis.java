@@ -1602,11 +1602,11 @@ final class UnionSynthesis {
      * then the parser/normalizer {@code new(ptr, NewInstance)} wrapper
      * (MappingNormalizer.buildNewInstance emission). Null = not a ctor. */
     private static @com.legend.Nullable NewInstance ctorOf(ValueSpecification v) {
-        if (v instanceof AppliedFunction f && f.function().equals("toOne")
+        if (v instanceof AppliedFunction f && com.legend.compiler.ResolvedNames.referents(f).stream().anyMatch(Pure::isToOneCall)
                 && f.parameters().size() == 1) {
             v = f.parameters().get(0);
         }
-        if (v instanceof AppliedFunction nf && nf.function().equals("new")
+        if (v instanceof AppliedFunction nf && AppliedFunction.isNew(nf)
                 && nf.parameters().size() == 2) {
             v = nf.parameters().get(1);
         }

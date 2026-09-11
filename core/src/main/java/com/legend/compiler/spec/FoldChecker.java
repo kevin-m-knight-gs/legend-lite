@@ -108,17 +108,13 @@ final class FoldChecker {
         String elemParam = lf.parameters().get(0).name();
         String accParam = lf.parameters().get(1).name();
         return lf.body().get(0) instanceof AppliedFunction body
-                && simpleName(body.function()).equals("add")
+                && com.legend.compiler.ResolvedNames.names(body, com.legend.compiler.element.type.PlatformTypes.ADD)
                 && body.parameters().size() == 2
                 && body.parameters().get(0) instanceof Variable acc && acc.name().equals(accParam)
                 && body.parameters().get(1) instanceof Variable elem && elem.name().equals(elemParam);
     }
 
     /** Corpus queries spell natives FULLY QUALIFIED — patterns match the simple name. */
-    private static String simpleName(String fn) {
-        int i = fn.lastIndexOf("::");
-        return i < 0 ? fn : fn.substring(i + 2);
-    }
 
     /**
      * Strip the accumulator off the LEFT spine of a binary op chain, leaving the
@@ -182,16 +178,15 @@ final class FoldChecker {
             return null;
         }
         List<ValueSpecification> run = operands(af);
-        boolean commutative = switch (simpleName(af.function())) {
-            // Commutativity must be PROVEN from the init's type: plus on
-            // Strings is order-sensitive concatenation, and a []-born init
-            // types as Nil — which proves nothing (audit: a Nil-typed
-            // string fold would have been reordered).
-            case "plus", "times" -> init.type() instanceof Type.Primitive p
-                    && p != Type.Primitive.STRING;
-            case "and", "or" -> true;
-            default -> false;
-        };
+        // Commutativity must be PROVEN from the init's type: plus on
+        // Strings is order-sensitive concatenation, and a []-born init
+        // types as Nil — which proves nothing (audit: a Nil-typed
+        // string fold would have been reordered).
+        boolean arithmetic = com.legend.compiler.element.type.PlatformTypes.isPlus(af.function())
+                || com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.TIMES);
+        boolean commutative = arithmetic
+                ? init.type() instanceof Type.Primitive p && p != Type.Primitive.STRING
+                : com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.AND) || com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.OR);
         if (commutative
                 && run.get(1) instanceof Variable v && v.name().equals(accParam)) {
             return run.get(0);

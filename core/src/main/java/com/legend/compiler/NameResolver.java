@@ -1558,9 +1558,14 @@ public final class NameResolver {
             @com.legend.Nullable ValueSpecification vs, Scope scope) {
         if (vs == null) return null;
         return switch (vs) {
-            // A path literal dissolves into its desugared lambda at resolution — nothing
-            // downstream of the resolver ever sees the wire-facing node.
-            case PathLiteral pl -> resolveVs(pl.desugared(), scope);
+            // A path literal KEEPS its node through resolution (its navigation
+            // lambda resolves inside it): the alias of #/A/b!alias# is the node's
+            // own field (real pure Path.name) and the project/sort checkers read
+            // it there — until the 2026-09-11 audit the node dissolved here and
+            // an invented `pathWithAlias` carrier smuggled the alias past this
+            // line. The Typer types the node as its lambda.
+            case PathLiteral pl -> pl.withChildren(java.util.List.of(
+                    java.util.Objects.requireNonNull(resolveVs(pl.desugared(), scope))));
             case com.legend.protocol.spec.CByteArray b -> b;   // literal
             // an inline SQL island has no names to resolve; the typer refuses it
             case com.legend.protocol.spec.SqlIsland si -> si;

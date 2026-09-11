@@ -1679,7 +1679,7 @@ final class Substitution {
         TypedSpec refsArg = oc.args().get(1);
         while (refsArg instanceof TypedNativeCall w && w.args().size() == 1
                 && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
-                        || w.callee().qualifiedName().endsWith("::first"))) {
+                        || com.legend.compiler.element.type.PlatformTypes.FIRST.equals(w.callee().qualifiedName()))) {
             refsArg = w.args().get(0);
         }
         if (refsArg instanceof com.legend.compiler.spec.typed.TypedLimit tk

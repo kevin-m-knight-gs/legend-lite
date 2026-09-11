@@ -1655,7 +1655,7 @@ public final class SpecParser implements TokenStreamCursor {
             expect(TokenType.PAREN_CLOSE,
                     "expected ')' to close ^" + className + "($src) positional cast");
             return new AppliedFunction(
-                    "new",
+                    AppliedFunction.NEW,
                     List.of(
                             receiver,
                             new NewInstanceCast(className, typeArgs, src)));
@@ -1685,7 +1685,7 @@ public final class SpecParser implements TokenStreamCursor {
             List<String> typeMultArgs,
             List<com.legend.protocol.spec.NewInstance.KeyBinding> properties) {
         return new AppliedFunction(
-                "new",
+                AppliedFunction.NEW,
                 List.of(
                         receiver,
                         new NewInstance(className, typeArgs, typeMultArgs, properties)));
@@ -2848,12 +2848,9 @@ public final class SpecParser implements TokenStreamCursor {
         com.legend.protocol.spec.PathLiteral lit = new com.legend.protocol.spec.PathLiteral(
                 segs[0].strip(), pieces, fn, alias, hasDated,
                 spanOf(litTok, litTok), text.length());
-        if (alias == null) {
-            return lit;
-        }
-        // carrier for the alias: consumed by ProjectChecker's legacy-form
-        // normalization; any other position fails LOUD (unknown function)
-        return new AppliedFunction("pathWithAlias", List.of(lit, new CString(alias)));
+        // the alias rides the node (real pure Path.name); the project and
+        // sort checkers read it there — no carrier (2026-09-11 audit)
+        return lit;
     }
 
     /**

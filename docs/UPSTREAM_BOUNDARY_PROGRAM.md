@@ -549,6 +549,14 @@ inference:** that the live protocol differential goes red on landing.
    type-inference map as a second source (227 members). Open: review findings 7–10.
    NEXT: leg B (catalog rows by consumer + PURE dynafunction semantics), leg C
    (simple-name census 140), leg D (owed cleanups).
+18. **Batch 5 AUDIT leg C LANDED** (2026-09-11): the simple-name census burned 82 → 24
+   function-identity string sites — parse-time names read the resolver
+   (`ResolvedNames.names`) or `CoreFn.of`, typed nodes compare exact FQNs, the legacy
+   TDS vocabulary is the closed `TdsLegacy` enum, the invented `pathWithAlias` carrier
+   is retired (the path node carries its alias). Remaining 24 = structure tests,
+   naming conventions, and StaticFold's bare-name switch (follow-up). Leg B's reading
+   (every row claimed; 108/158 PURE dynafunctions corpus-exercised) is in
+   docs/NATIVE_PROVENANCE_2026_09_11.md. NEXT: leg D (owed cleanups), then batch 6.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

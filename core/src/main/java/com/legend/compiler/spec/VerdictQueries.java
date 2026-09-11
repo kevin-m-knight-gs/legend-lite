@@ -433,7 +433,7 @@ public final class VerdictQueries {
         TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet tl
                 ? tl.value() : stmt;
         if (bare instanceof TypedNativeCall an
-                && an.callee().qualifiedName().startsWith("meta::pure::functions::asserts::")) {
+                && an.callee().qualifiedName().startsWith(com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE)) {
             // the MESSAGE arguments drop; the value arity is the assert's
             // own (assertEqWithinTolerance carries its delta as a third
             // VALUE — assertEqWithinTolerance.pure:22)

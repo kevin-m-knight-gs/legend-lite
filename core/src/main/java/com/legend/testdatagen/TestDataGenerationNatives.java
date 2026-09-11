@@ -414,7 +414,7 @@ public final class TestDataGenerationNatives {
         if (ni != null && ROW_IDENTIFIER_FQN.equals(ni.className())) {
             ValueSpecification pairs = field(ni, "columnValuePairs");
             if (pairs instanceof AppliedFunction z
-                    && simple(z.function()).equals("zip")
+                    && com.legend.compiler.ResolvedNames.names(z, com.legend.compiler.element.type.PlatformTypes.ZIP)
                     && z.parameters().size() == 2) {
                 out.add(new TestDataGenerator.RowId(
                         literalStrings(z.parameters().get(0)),

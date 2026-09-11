@@ -59,6 +59,14 @@ public final class Temporal {
      * under {@code strat} — the two spellings live HERE once (shared by
      * the graph envelope's implicit tree and the flat form's k_ carrier
      * rename). */
+    /** The three generated milestoning member names (real pure generates
+     *  them on temporal classes; no mapping exists for them) — the ONE owner
+     *  of the spellings the lineage scan reads. */
+    public static boolean isGeneratedDateName(String prop) {
+        return "businessDate".equals(prop) || "processingDate".equals(prop)
+                || "snapshotDate".equals(prop);
+    }
+
     public static boolean isGeneratedDateProperty(String prop,
             MilestoningStrategy strat) {
         return "businessDate".equals(prop)

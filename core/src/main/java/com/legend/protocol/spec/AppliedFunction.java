@@ -173,4 +173,15 @@ public record AppliedFunction(
     public static boolean isIf(AppliedFunction af) {
         return af.function().equals("if");
     }
+
+    // -- PARSER CARRIERS: applied-function spellings the parser mints for
+    // forms the language has no function for. Each string lives HERE once;
+    // the parser emits and the checkers read through these owners.
+
+    /** {@code ^X(...)} — the constructor wrapped as {@code new(receiver, NewInstance)}. */
+    public static final String NEW = "new";
+
+    public static boolean isNew(AppliedFunction af) {
+        return af.function().equals(NEW);
+    }
 }

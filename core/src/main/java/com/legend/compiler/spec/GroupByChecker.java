@@ -166,7 +166,7 @@ final class GroupByChecker {
         List<ColSpec> keyCols = new ArrayList<>(keyFns.values().size());
         for (int i = 0; i < keyFns.values().size(); i++) {
             String alias = aliasAt(aliases, i);
-            keyCols.add(classSource && keyFns.values().get(i) instanceof LambdaFunction lf
+            keyCols.add(classSource && ProjectChecker.columnLambda(keyFns.values().get(i)) instanceof LambdaFunction lf
                     ? new ColSpec(alias, lf)
                     : new ColSpec(alias));
         }
@@ -176,8 +176,8 @@ final class GroupByChecker {
             if (!(aggs.values().get(i) instanceof AppliedFunction aggCall)
                     || !isAggSpelling(aggCall.function())
                     || aggCall.parameters().size() != 2
-                    || !(aggCall.parameters().get(0) instanceof LambdaFunction mapFn)
-                    || !(aggCall.parameters().get(1) instanceof LambdaFunction aggFn)) {
+                    || !(ProjectChecker.columnLambda(aggCall.parameters().get(0)) instanceof LambdaFunction mapFn)
+                    || !(ProjectChecker.columnLambda(aggCall.parameters().get(1)) instanceof LambdaFunction aggFn)) {
                 throw new TypeInferenceException(
                         "legacy groupBy aggregate " + i + " must be agg(mapFn, aggFn)");
             }
@@ -214,8 +214,8 @@ final class GroupByChecker {
             if (item instanceof AppliedFunction call && isAggSpelling(call.function())
                     && call.parameters().size() == 3
                     && call.parameters().get(0) instanceof CString
-                    && call.parameters().get(1) instanceof LambdaFunction
-                    && call.parameters().get(2) instanceof LambdaFunction) {
+                    && ProjectChecker.columnLambda(call.parameters().get(1)) instanceof LambdaFunction
+                    && ProjectChecker.columnLambda(call.parameters().get(2)) instanceof LambdaFunction) {
                 out.add(call);
             } else {
                 return null;
@@ -264,7 +264,7 @@ final class GroupByChecker {
     private static boolean isCountAgg(LambdaFunction aggFn) {
         return aggFn.parameters().size() == 1 && aggFn.body().size() == 1
                 && aggFn.body().get(0) instanceof AppliedFunction call
-                && call.function().equals("count")
+                && com.legend.compiler.ResolvedNames.names(call, com.legend.compiler.element.type.PlatformTypes.COUNT)
                 && call.parameters().size() == 1
                 && call.parameters().get(0) instanceof Variable av
                 && av.name().equals(aggFn.parameters().get(0).name());

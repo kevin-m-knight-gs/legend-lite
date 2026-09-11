@@ -267,7 +267,7 @@ final class Typer {
                     List<TypedSpec> stmts = new ArrayList<>();
                     for (int si = 0; si < lf.body().size() - 1; si++) {
                         if (lf.body().get(si) instanceof AppliedFunction lset
-                                && lset.function().equals("letFunction")
+                                && CoreFn.of(lset.function()).orElse(null) == CoreFn.LET
                                 && lset.parameters().size() == 2
                                 && lset.parameters().get(0) instanceof CString ln) {
                             // bind-once (family A): deferred-kind rhs
@@ -346,13 +346,13 @@ final class Typer {
         // cell (tds.pure); the cell read is optional-typed, so the tests
         // ARE emptiness (same conform-by-emission as the dynafunction
         // spellings in RelOpTranslator)
-        if ((af.function().equals("isNotNull") || af.function().equals("isNull"))
+        if ((rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NOT_NULL) || rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NULL))
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null
                 && tdsReceiver(synth(af.parameters().get(0), env)
                         .info().type())) {
             return synth(new AppliedFunction(
-                    af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
+                    rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NOT_NULL) ? "isNotEmpty" : "isEmpty",
                     List.of(new AppliedProperty(af.parameters().get(0),
                             java.util.Objects.requireNonNull(
                                     literalColName(af.parameters().get(1)),
@@ -362,9 +362,9 @@ final class Typer {
         // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
         // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;
         // our erasure emits the equivalent conditional string)
-        if (af.function().equals("toString") && af.parameters().size() == 1
+        if (com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.TO_STRING) && af.parameters().size() == 1
                 && af.parameters().get(0) instanceof AppliedFunction g
-                && g.function().equals("get") && g.parameters().size() == 2
+                && rowGetter(g, com.legend.builtin.NativeFn.RowGetter.GET) && g.parameters().size() == 2
                 && g.parameters().get(1) instanceof CString gc) {
             TypedSpec grecv0 = synth(g.parameters().get(0), env);
             if (tdsReceiver(grecv0.info().type())) {
@@ -385,7 +385,7 @@ final class Typer {
         // is relation-shaped (type-aware, unlike the typed getters above).
         // The CELL is one value like the typed getters (engine tds.pure
         // get: Any[1]) — same toOne emission over non-[1] columns.
-        if (af.function().equals("get") && af.parameters().size() == 2
+        if (rowGetter(af, com.legend.builtin.NativeFn.RowGetter.GET) && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString gcol) {
             TypedSpec grecv = synth(af.parameters().get(0), env);
             if (tdsReceiver(grecv.info().type())) {
@@ -465,7 +465,7 @@ final class Typer {
         // gone, batch 5 leg 5 — the lowering folds a literal run to a chain)
         // Legacy TDS surface desugars (engine's TDS-era spellings):
         // col(fn, 'name') is the function-column spec — the modern ~name:fn
-        if (af.function().equals("col") && af.parameters().size() == 2
+        if (com.legend.builtin.TdsLegacy.COL.matches(af) && af.parameters().size() == 2
                 && af.parameters().get(0) instanceof LambdaFunction fn
                 && af.parameters().get(1) instanceof CString name) {
             return synth(new ColSpec(name.value(), fn, null), env);
@@ -476,8 +476,7 @@ final class Typer {
         }
         // tdsRows(tds) = $tds.rows (real tds.pure:301) — the rows-marker
         // read; emptiness et al. compose over it like any rows access
-        if ((af.function().equals("tdsRows")
-                    || af.function().equals("meta::pure::tds::tdsRows"))
+        if (com.legend.builtin.TdsLegacy.TDS_ROWS.matches(af)
                 && af.parameters().size() == 1) {
             return synth(new AppliedProperty(af.parameters().get(0),
                     com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER),
@@ -507,7 +506,7 @@ final class Typer {
             return rowCell;
         }
         // restrict(['c1','c2']) — the legacy TDS column-subset select
-        if ((af.function().equals("restrict") || af.function().equals("restrictDistinct"))
+        if ((com.legend.builtin.TdsLegacy.RESTRICT.matches(af) || com.legend.builtin.TdsLegacy.RESTRICT_DISTINCT.matches(af))
                 && af.parameters().size() == 2) {
             List<ValueSpecification> cols = af.parameters().get(1) instanceof PureCollection c
                     ? c.values() : List.of(af.parameters().get(1));
@@ -518,7 +517,7 @@ final class Typer {
                 AppliedFunction select = new AppliedFunction("select",
                         List.of(af.parameters().get(0),
                                 new com.legend.protocol.spec.ColSpecArray(specs)));
-                return synth(af.function().equals("restrictDistinct")
+                return synth(com.legend.builtin.TdsLegacy.RESTRICT_DISTINCT.matches(af)
                         ? new AppliedFunction("distinct", List.of(select)) : select, env);
             }
         }
@@ -579,7 +578,7 @@ final class Typer {
         // IS NULL lowering. Exact names only; instanceOf against any other
         // type stays the loud unknown (audit 19d B7 — this transplant
         // lived in the harness's pre-typing substitute).
-        if (af.function().equals("instanceOf")
+        if (com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.INSTANCE_OF)
                 && af.parameters().size() == 2
                 && af.parameters().get(1)
                         instanceof com.legend.protocol.spec.PackageableElementPtr pep
@@ -702,7 +701,7 @@ final class Typer {
     private @com.legend.Nullable TypedSpec tdsSchemaDesugars(AppliedFunction af, Env env) {
         // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
         // — desugar to the modern rename native (STATIC pair literals only)
-        if (tdsVocab(af.function(), "renameColumn") && af.parameters().size() == 3
+        if (com.legend.builtin.TdsLegacy.RENAME_COLUMN.matches(af) && af.parameters().size() == 3
                 && af.parameters().get(1) instanceof CString ro
                 && af.parameters().get(2) instanceof CString rn) {
             return synth(new AppliedFunction("rename", List.of(
@@ -710,7 +709,7 @@ final class Typer {
                     new ColSpec(stripQuotes(ro.value()), null, null),
                     new ColSpec(stripQuotes(rn.value()), null, null))), env);
         }
-        if (tdsVocab(af.function(), "renameColumns") && af.parameters().size() == 2) {
+        if (com.legend.builtin.TdsLegacy.RENAME_COLUMNS.matches(af) && af.parameters().size() == 2) {
             return renameColumnsDesugar(af, env);
         }
         // TDSColumn-metadata computations over `.columns` fold to literals
@@ -718,7 +717,7 @@ final class Typer {
         // ':' + $c.type->elementToPath())` — column names and types are
         // STATIC FACTS of the typed relation). Only a FULLY static result
         // rewrites; anything else keeps the ordinary path and its walls.
-        if (af.function().equals("map") && af.parameters().size() == 2
+        if (com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.MAP) && af.parameters().size() == 2
                 && af.parameters().get(0) instanceof AppliedProperty colsRead
                 && colsRead.property().equals("columns")) {
             ValueSpecification lit = new StaticFold(this, env).foldToLiteral(af);
@@ -731,24 +730,18 @@ final class Typer {
         // IS project over the filtered column list. Two spellings:
         // (src, [col(fn,'name')...], [subsetNames]) and
         // (src, [lambdas], [allNames], [subsetNames]).
-        if (tdsVocab(af.function(), "projectWithColumnSubset")) {
+        if (com.legend.builtin.TdsLegacy.PROJECT_WITH_COLUMN_SUBSET.matches(af)) {
             AppliedFunction pcs = projectWithColumnSubsetDesugar(af);
             if (pcs != null) {
                 return synth(pcs, env);
             }
         }
         // window cols in PROJECT position — the OLAP col overloads
-        if (tdsVocab(af.function(), "project")) {
+        if (com.legend.builtin.TdsLegacy.PROJECT.matches(af)) {
             AppliedFunction wcd = windowColsProjectDesugar(af);
             if (wcd != null) {
                 return synth(wcd, env);
             }
-        }
-        // #/A/b!alias# outside project position: the VALUE is the path's
-        // navigation lambda; the alias is projection metadata (ProjectChecker
-        // consumes the raw carrier before typing ever sees it)
-        if (af.function().equals("pathWithAlias") && af.parameters().size() == 2) {
-            return synth(af.parameters().get(0), env);
         }
         // paginated(set, page, size) — real pure collectionExtension.pure:236
         // body verbatim: slice((page-1)*size, page*size)
@@ -765,7 +758,7 @@ final class Typer {
         }
         // olapGroupBy — the legacy TDS OLAP spellings; the modern construct
         // IS the windowed extend (see olapGroupByDesugar)
-        if (tdsVocab(af.function(), "olapGroupBy")) {
+        if (com.legend.builtin.TdsLegacy.OLAP_GROUP_BY.matches(af)) {
             AppliedFunction olap = olapGroupByDesugar(af);
             if (olap != null) {
                 return synth(olap, env);
@@ -787,7 +780,7 @@ final class Typer {
             return synth(new AppliedFunction("distinct", List.of(acc)), env);
         }
         // columnValues(tds,'c') — the rows-mapped cell read
-        if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
+        if (com.legend.builtin.TdsLegacy.COLUMN_VALUES.matches(af) && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString cvCol) {
             return synth(new AppliedFunction("map", List.of(
                     new AppliedProperty(af.parameters().get(0), "rows"),
@@ -851,7 +844,7 @@ final class Typer {
         Variable w = new Variable("_olw");
         Variable r = new Variable("_olr");
         ColSpec col;
-        if (op instanceof AppliedFunction fc && tdsVocab(fc.function(), "func")
+        if (op instanceof AppliedFunction fc && com.legend.builtin.TdsLegacy.FUNC.matches(fc)
                 && fc.parameters().size() == 2
                 && fc.parameters().get(0) instanceof CString aggCol
                 && fc.parameters().get(1) instanceof LambdaFunction aggFn) {
@@ -861,7 +854,7 @@ final class Typer {
                     aggFn);
         } else {
             LambdaFunction rankLam = op instanceof AppliedFunction fr
-                    && tdsVocab(fr.function(), "func")
+                    && com.legend.builtin.TdsLegacy.FUNC.matches(fr)
                     && fr.parameters().size() == 1
                     && fr.parameters().get(0) instanceof LambdaFunction inner
                     ? inner
@@ -882,10 +875,15 @@ final class Typer {
 
     private static boolean isLegacySortKey(ValueSpecification v) {
         return v instanceof AppliedFunction sf
-                && (simpleFnName(sf.function()).equals("asc")
-                        || simpleFnName(sf.function()).equals("desc"))
+                && (CoreFn.of(sf.function()).orElse(null) == CoreFn.ASC
+                        || CoreFn.of(sf.function()).orElse(null) == CoreFn.DESC)
                 && sf.parameters().size() == 1
                 && sf.parameters().get(0) instanceof CString;
+    }
+
+    /** The parse spelling of a modern relation function (its bare name). */
+    private static String modernName(String fqn) {
+        return fqn.substring(fqn.lastIndexOf("::") + 2);
     }
 
     /** The modern window-function name behind a legacy rank lambda
@@ -898,18 +896,26 @@ final class Typer {
                 || !v.name().equals(lam.parameters().get(0).name())) {
             return null;
         }
-        return switch (simpleFnName(call.function())) {
-            case "rank" -> "rank";
-            case "denseRank" -> "denseRank";
-            case "rowNumber" -> "rowNumber";
-            case "averageRank" -> null;   // no modern counterpart yet — loud
-            default -> null;
-        };
+        // the legacy olap rank (upstream math::olap, a TDS-era spelling the
+        // resolver has no catalog row for) maps to the modern window function
+        // of the same name; averageRank has none (null — loud downstream)
+        if (com.legend.builtin.TdsLegacy.OLAP_RANK.matches(call)) {
+            return modernName(com.legend.compiler.element.type.PlatformTypes.RANK);
+        }
+        if (com.legend.builtin.TdsLegacy.OLAP_DENSE_RANK.matches(call)) {
+            return modernName(com.legend.compiler.element.type.PlatformTypes.DENSE_RANK);
+        }
+        if (com.legend.builtin.TdsLegacy.OLAP_ROW_NUMBER.matches(call)) {
+            return modernName(com.legend.compiler.element.type.PlatformTypes.ROW_NUMBER);
+        }
+        return null;
     }
 
-    private static String simpleFnName(String fn) {
-        int cut = fn.lastIndexOf("::");
-        return cut < 0 ? fn : fn.substring(cut + 2);
+    /** A TDS-row getter call spelled as a function ({@code get($r, 'c')},
+     *  {@code isNull($r, 'c')}): the applied name IS the family member's
+     *  registered property name (qualified properties have no FQN spelling). */
+    private static boolean rowGetter(AppliedFunction af, com.legend.builtin.NativeFn.RowGetter g) {
+        return g.property().equals(af.function());
     }
 
     /** A window-col carrier: declared name, hidden partition/map input
@@ -933,10 +939,10 @@ final class Typer {
             return null;
         }
         if (cols.values().stream().noneMatch(v -> v instanceof AppliedFunction cf
-                && simpleFnName(cf.function()).equals("col")
+                && com.legend.builtin.TdsLegacy.COL.matches(cf)
                 && !cf.parameters().isEmpty()
                 && cf.parameters().get(0) instanceof AppliedFunction w0
-                && tdsVocab(w0.function(), "window"))) {
+                && com.legend.builtin.TdsLegacy.WINDOW.matches(w0))) {
             return null;
         }
         List<ValueSpecification> projCols = new ArrayList<>();
@@ -944,12 +950,12 @@ final class Typer {
         List<WinCol> wins = new ArrayList<>();
         for (ValueSpecification v : cols.values()) {
             if (!(v instanceof AppliedFunction cf)
-                    || !simpleFnName(cf.function()).equals("col")) {
+                    || !com.legend.builtin.TdsLegacy.COL.matches(cf)) {
                 return null;
             }
             List<ValueSpecification> cps = cf.parameters();
             if (!(cps.get(0) instanceof AppliedFunction w
-                    && tdsVocab(w.function(), "window"))) {
+                    && com.legend.builtin.TdsLegacy.WINDOW.matches(w))) {
                 // plain col (2-arg or 3-arg with doc): name at index 1
                 if (cps.size() < 2 || !(cps.get(1) instanceof CString pn)) {
                     return null;
@@ -960,7 +966,7 @@ final class Typer {
             }
             if (cps.size() != 3
                     || !(cps.get(1) instanceof AppliedFunction fc)
-                    || !tdsVocab(fc.function(), "func")
+                    || !com.legend.builtin.TdsLegacy.FUNC.matches(fc)
                     || fc.parameters().size() != 2
                     || !(fc.parameters().get(0) instanceof LambdaFunction mapLam)
                     || !(fc.parameters().get(1) instanceof LambdaFunction aggLam)
@@ -1022,7 +1028,7 @@ final class Typer {
                 return null;
             }
             for (ValueSpecification v : cols.values()) {
-                if (v instanceof AppliedFunction cf && cf.function().equals("col")
+                if (v instanceof AppliedFunction cf && com.legend.builtin.TdsLegacy.COL.matches(cf)
                         && cf.parameters().size() == 2
                         && cf.parameters().get(0) instanceof LambdaFunction fn
                         && cf.parameters().get(1) instanceof CString nm) {
@@ -1085,12 +1091,12 @@ final class Typer {
             return cs.value();
         }
         if (v instanceof AppliedFunction tf
-                && (tf.function().equals("toOne") || com.legend.builtin.Pure.isToOneCall(tf.function()))
+                && com.legend.compiler.ResolvedNames.referents(tf).stream().anyMatch(com.legend.builtin.Pure::isToOneCall)
                 && tf.parameters().size() == 1) {
             return literalColName(tf.parameters().get(0));
         }
         if (v instanceof AppliedFunction cf
-                && tdsVocab(cf.function(), "columnByName")
+                && com.legend.builtin.TdsLegacy.COLUMN_BY_NAME.matches(cf)
                 && cf.parameters().size() == 2
                 && cf.parameters().get(1) instanceof CString name) {
             return name.value();
@@ -1215,9 +1221,6 @@ final class Typer {
      * name or the exact {@code meta::pure::tds::} FQN — never a SUFFIX of
      * a longer user name (exact-FQN rule, audit 23 A1;
      * {@code my::customRenameColumn} calls the user function). */
-    private static boolean tdsVocab(String fn, String simple) {
-        return fn.equals(simple) || fn.equals("meta::pure::tds::" + simple);
-    }
 
     /** renameColumns(tds, pairs) desugar — literal pair(,)/^Pair(first=,second=) chains into rename natives. */
     private TypedSpec renameColumnsDesugar(AppliedFunction af, Env env) {
@@ -1229,8 +1232,7 @@ final class Typer {
                 String po = null;
                 String pn = null;
                 if (pv instanceof AppliedFunction pf
-                        && (pf.function().equals("pair") || pf.function()
-                                .equals("meta::pure::functions::collection::pair"))
+                        && com.legend.compiler.ResolvedNames.names(pf, com.legend.compiler.element.type.PlatformTypes.PAIR_FN)
                         && pf.parameters().size() == 2
                         && pf.parameters().get(0) instanceof CString pos
                         && pf.parameters().get(1) instanceof CString pns) {
@@ -1242,7 +1244,7 @@ final class Typer {
                 // parser wraps the ctor as AppliedFunction("new",
                 // [receiver, NewInstance])
                 ValueSpecification pu = pv instanceof AppliedFunction nf
-                        && nf.function().equals("new")
+                        && AppliedFunction.isNew(nf)
                         && nf.parameters().size() == 2
                         ? nf.parameters().get(1) : pv;
                 if (pu instanceof NewInstance ni
@@ -2321,7 +2323,7 @@ final class Typer {
         for (int si = 0; !multiStatement && si < lam.body().size() - 1; si++) {
             ValueSpecification st = lam.body().get(si);
             if (st instanceof AppliedFunction lf2
-                    && lf2.function().equals("letFunction")
+                    && CoreFn.of(lf2.function()).orElse(null) == CoreFn.LET
                     && lf2.parameters().size() == 2
                     && lf2.parameters().get(0) instanceof CString ln) {
                 TypedSpec val = synth(lf2.parameters().get(1), lambdaScope);
@@ -2846,7 +2848,7 @@ final class Typer {
         }
         // getNullableString returns String[0..1] (tds.pure:82/112) —
         // the optional cell read IS the semantics, no strictening
-        if (af.function().equals("getNullableString")
+        if (rowGetter(af, com.legend.builtin.NativeFn.RowGetter.GET_NULLABLE_STRING)
                 || (cell.info().multiplicity() instanceof Multiplicity.Bounded b
                         && Integer.valueOf(1).equals(b.upper())
                         && b.lower() == 1)) {
