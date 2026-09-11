@@ -462,7 +462,7 @@ public final class PlatformTypes {
      * planToString is the engine's MultiResultSequence text. */
     public static final String PLAN_TEST_DATA_GENERATION =
             "meta::relational::testDataGeneration::executionPlan::planTestDataGeneration";
-    public static final String GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY =
+    public static final String GENERATE_SEED_DATA_STRING =
             "meta::relational::testDataGeneration::generateSeedDataString";
 
     // ---- the execution context's vocabulary (ExecutionContext.Reader is
@@ -501,6 +501,7 @@ public final class PlatformTypes {
     public static final String AND = "meta::pure::functions::boolean::and";
     public static final String OR = "meta::pure::functions::boolean::or";
     public static final String TIMES = "meta::pure::functions::math::times";
+    public static final String MINUS = "meta::pure::functions::math::minus";
     public static final String RANK = "meta::pure::functions::relation::rank";
     public static final String DENSE_RANK = "meta::pure::functions::relation::denseRank";
     public static final String ROW_NUMBER = "meta::pure::functions::relation::rowNumber";
@@ -641,7 +642,7 @@ public final class PlatformTypes {
                 || TO_REPRESENTATION.equals(fqn)
                 || ASSERT_FAMILY_OWNED.contains(fqn)
                 || PLAN_TEST_DATA_GENERATION.equals(fqn)
-                || GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY.equals(fqn);
+                || GENERATE_SEED_DATA_STRING.equals(fqn);
     }
 
     /** The registered natives whose NAME the platform owns outright — a
@@ -693,7 +694,7 @@ public final class PlatformTypes {
                 || handle == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY
                 || com.legend.builtin.NativeFn.Carrier.of(fqn).orElse(null)
                         == com.legend.builtin.NativeFn.Carrier.GENERATE_TEST_DATA
-                || GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY.equals(fqn);
+                || GENERATE_SEED_DATA_STRING.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */

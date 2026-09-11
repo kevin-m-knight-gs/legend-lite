@@ -174,12 +174,6 @@ public final class InferenceKernel {
             case Type.ClassType c
                     when c.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
                     && Type.isRelation(actual) -> { }
-            // TDSRow is the ERASED row nominal of the legacy TDS API: any
-            // bare row-struct conforms — the callee is then monomorphized
-            // at its call site (TDSRow params are schema-erased, Typer).
-            case Type.ClassType c
-                    when c.fqn().equals(PlatformTypes.TDS_ROW)
-                    && actual instanceof Type.RelationType -> { }
             case Type.ClassType c -> {
                 // SUBTYPE conformance (a Person flows into an Employee-typed
                 // param's superclass) — matching what overload SCORING already
@@ -641,17 +635,6 @@ public final class InferenceKernel {
                 }
                 Type.RelationType exSchema = Type.schemaView(existing);
                 Type.RelationType acSchema = Type.schemaView(actual);
-                // the declared TDSRow class is the NOMINAL row supertype (real
-                // tds.pure: a `{a:TDSRow[1], b:TDSRow[1] | ...}` join condition
-                // reads any relation's rows) — it never conflicts with a row
-                // schema; the schema wins the binding
-                if (isTdsRowClass(existing) && acSchema != null) {
-                    b.bindType(v.name(), actual);
-                    return;
-                }
-                if (isTdsRowClass(actual) && exSchema != null) {
-                    return;
-                }
                 if (exSchema != null && acSchema != null) {
                     throw new TypeInferenceException("column mismatch: type variable "
                             + v.name() + " bound to relation "
@@ -2049,9 +2032,4 @@ public final class InferenceKernel {
     }
 
 
-    private static boolean isTdsRowClass(Type t) {
-        return t instanceof Type.ClassType ct
-                && ct.fqn().equals(com.legend.compiler.element.type
-                        .PlatformTypes.TDS_ROW);
-    }
 }

@@ -38,7 +38,7 @@ public enum CoreFn {
     /** {@code generateTestData(...)} &mdash; TDG lane S2: RUNTIME data extraction; the checker emits a protocol-capturing carrier ({@code GenerateTestDataChecker}). */
     GENERATE_TEST_DATA("generateTestData"),
     /** {@code generateSeedDataString(...)} &mdash; TDG lane S3 tail: runtime seed-text extraction, same carrier. */
-    GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY("generateSeedDataString"),
+    GENERATE_SEED_DATA_STRING("generateSeedDataString"),
     /** {@code planTestDataGeneration(...)} &mdash; the TDG PLAN: the same
      * protocol-capturing carrier (flavor {@code plan}); {@code planToString}
      * over it prints the engine's MultiResultSequence text. */

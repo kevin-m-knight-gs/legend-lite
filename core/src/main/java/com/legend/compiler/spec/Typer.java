@@ -1346,7 +1346,7 @@ final class Typer {
             case GENERATE_TEST_DATA -> GenerateTestDataChecker.check(this, af, env);
             case MAY_EXECUTE_ALLOY_TEST, MAY_EXECUTE_LEGEND_TEST ->
                     MayExecuteChecker.check(this, af, env);
-            case GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY ->
+            case GENERATE_SEED_DATA_STRING ->
                     GenerateTestDataChecker.checkSeed(this, af, env);
             case PLAN_TEST_DATA_GENERATION ->
                     GenerateTestDataChecker.checkPlan(this, af, env);

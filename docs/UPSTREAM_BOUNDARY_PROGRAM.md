@@ -557,6 +557,12 @@ inference:** that the live protocol differential goes red on landing.
    naming conventions, and StaticFold's bare-name switch (follow-up). Leg B's reading
    (every row claimed; 108/158 PURE dynafunctions corpus-exercised) is in
    docs/NATIVE_PROVENANCE_2026_09_11.md. NEXT: leg D (owed cleanups), then batch 6.
+19. **Batch 5 AUDIT leg D LANDED — THE AUDIT IS COMPLETE** (2026-09-11): the two dead
+   nominal-TDSRow kernel arms deleted (leg 4's erasure made them unreachable; the chain
+   measured it), the `generateSeedDataString` construct renamed back, the plus-family
+   key set and the constant-fold FQN switch read the platform constants. Batch 5 is
+   closed: DIVERGENT ZERO, the registry, and the four audit legs. Open findings live in
+   docs/LITE_REVIEW_2026_09_11.md (7–12). NEXT: batch 6 (protocol live).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

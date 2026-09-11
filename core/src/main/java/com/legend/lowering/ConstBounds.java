@@ -45,9 +45,9 @@ final class ConstBounds {
                 && run.elements().size() >= 2) {
             String q = ar.callee().qualifiedName();
             java.util.function.LongBinaryOperator op = switch (q) {
-                case "meta::pure::functions::math::plus" -> Long::sum;
-                case "meta::pure::functions::math::minus" -> (x, y) -> x - y;
-                case "meta::pure::functions::math::times" -> (x, y) -> x * y;
+                case com.legend.compiler.element.type.PlatformTypes.PLUS -> Long::sum;
+                case com.legend.compiler.element.type.PlatformTypes.MINUS -> (x, y) -> x - y;
+                case com.legend.compiler.element.type.PlatformTypes.TIMES -> (x, y) -> x * y;
                 default -> null;
             };
             if (op != null) {

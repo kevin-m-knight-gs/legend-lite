@@ -144,15 +144,10 @@ public final class Aggregates {
     public static boolean isDemandReducer(TypedFunction callee,
             com.legend.compiler.spec.typed.TypedSpec argument) {
         return isDemandReducer(callee)
-                && !(PLUS_KEYS.contains(callee.signatureKey())
+                && !(com.legend.compiler.element.type.PlatformTypes.isPlus(callee.qualifiedName())
                         && argument instanceof com.legend.compiler.spec.typed.TypedCollection run
                         && run.operatorRun());
     }
-
-    /** The plus-family overload keys (the one FQN family whose infix
-     * spelling is not a reduction). */
-    private static final java.util.Set<String> PLUS_KEYS =
-            java.util.Set.copyOf(Pure.nativeKeysAt("plus"));
 
     static boolean isReducerKey(String signatureKey) {
         return REDUCERS.containsKey(signatureKey);
