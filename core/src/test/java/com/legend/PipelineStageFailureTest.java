@@ -179,17 +179,11 @@ class PipelineStageFailureTest {
         messageNames(ex, "literal expected");
     }
 
-    @Test
-    @DisplayName("lowering: unregistered scalar overload names the function")
-    void unregisteredScalar() {
-        // a CATALOG native (Pure.java) with no lowering rule is the
-        // registration bug — loud, IllegalState (paginated: typed by the
-        // Typer, lowered by nothing; UNCLAIMED in native-claims.tsv)
-        Exception ex = failsWith(IllegalStateException.class, MODEL,
-                "#>{test::DB.T_PERSON}#->filter(x|"
-                        + "meta::pure::functions::math::olap::averageRank() > 1)");
-        messageNames(ex, "averageRank");
-    }
+    // unregisteredScalar DELETED (upstream boundary batch 4b, 2026-09-10): its
+    // witness class — a CATALOG native with no lowering rule — has no honest
+    // member left once every Pure.java entry is registered or gone; the
+    // registry test (ClaimRegistryTest, UNCLAIMED_MAX) is the guard now, and
+    // specDeclaredNativeIsNotImplemented below pins the other truth.
 
     @Test
     void specDeclaredNativeIsNotImplemented() {

@@ -875,8 +875,7 @@ final class Substitution {
         // consumed by the SUBTYPE_KEY switch arm instead
         if (n instanceof TypedPropertyAccess pa0
                 && pa0.source() instanceof TypedNativeCall sc
-                && sc.callee().qualifiedName()
-                        .equals("meta::pure::functions::lang::subType")
+                && com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !sc.args().isEmpty()
                 && Type.asClassType(sc.info().type()) instanceof Type.ClassType sct) {
             // IDENTITY cast (subType(@Product) over a Product-typed nav —
@@ -1041,8 +1040,7 @@ final class Substitution {
                             + " flavor is golden-witnessed)");
                 }
             }
-            if (com.legend.builtin.Pure.nativeNamed("tdsContains",
-                    call.callee().signatureKey())) {
+            if (com.legend.builtin.NativeFn.ResolverForm.of(call.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.TDS_CONTAINS) {
                 return rewriteTdsContains(call, n);
             }
             if (isEmptinessFamily(call)) {
@@ -2133,7 +2131,7 @@ final class Substitution {
     // the value / the cast fails — so does the SQL (fail → ERROR).
     // ------------------------------------------------------------------
 
-    static final String INSTANCE_OF_FQN = "meta::pure::functions::meta::instanceOf";
+    static final String INSTANCE_OF_FQN = com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF.fqn();
     static final String ELEMENT_TO_PATH_FQN = "meta::pure::functions::meta::elementToPath";
 
     /** The row's ONE primary-key pseudo-binding, rewritten into this scope. */
@@ -2219,7 +2217,7 @@ final class Substitution {
                     elementPath(c);
             // $p->instanceOf(Sub)
             case TypedNativeCall c
-                    when c.callee().qualifiedName().equals(INSTANCE_OF_FQN)
+                    when com.legend.builtin.NativeFn.SubtypeForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
                     && c.args().size() == 2
                     && c.args().get(0) instanceof TypedVariable iv
                     && iv.name().equals(target.userVar()) ->
@@ -3028,8 +3026,7 @@ final class Substitution {
      * </ul> */
     private @com.legend.Nullable TypedSpec hoistedRewriteArms(TypedSpec n) {
         if (n instanceof TypedNativeCall oc && oc.args().size() == 2
-                && "meta::pure::functions::collection::objectReferenceIn"
-                        .equals(oc.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.ObjectReference.of(oc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.OBJECT_REFERENCE_IN
                 && rootsAtUserVar(oc.args().get(0))) {
             return objectReferenceInRewrite(oc);
         }
@@ -3127,8 +3124,7 @@ final class Substitution {
      * registries never saw the scan) stays loud. */
     private @com.legend.Nullable TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
         if (!(pa.source() instanceof TypedNativeCall nc)
-                || !nc.callee().qualifiedName()
-                        .equals("meta::pure::functions::lang::subType")
+                || com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 || nc.args().isEmpty()
                 || !(nc.args().get(0) instanceof TypedVariable v)
                 || !v.name().equals(target.userVar())

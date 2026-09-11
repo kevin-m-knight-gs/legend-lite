@@ -102,8 +102,7 @@ public final class ExecuteChainAssembly {
         while (q instanceof TypedNativeCall pv
                 && ("meta::pure::router::preeval::preval"
                         .equals(pv.callee().qualifiedName())
-                    || "meta::pure::executionPlan::featureFlag::withFeatureFlags"
-                        .equals(pv.callee().qualifiedName()))) {
+                    || com.legend.builtin.NativeFn.PlanWrapper.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS)) {
             q = letBound(pv.args().get(0), letPrefix);
         }
         // if(<literal>, |{|q1}, |{|q2}): a query lambda SELECTED by a
@@ -118,8 +117,7 @@ public final class ExecuteChainAssembly {
         // semantics BY EMISSION: fold the lambdas' result expressions
         // into a TypedConcatenate chain under one zero-arg lambda.
         if (q instanceof TypedNativeCall cq
-                && "meta::relational::milestoning::concatenateTemporalTdsQueries"
-                        .equals(cq.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.PlanWrapper.of(cq.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.CONCATENATE_TEMPORAL_TDS_QUERIES) {
             q = concatenateFold(cq, letPrefix, specs);
         }
         if (!(q instanceof TypedLambda lam) || !lam.parameters().isEmpty()) {

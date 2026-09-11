@@ -209,10 +209,6 @@ final class ContextReading {
         };
     }
 
-    private static final String EXTRACT_CTES_FQN =
-            "meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs";
-    private static final String NON_EXECUTABLE_FQN =
-            "meta::relational::postProcessor::nonExecutable";
 
     private static void readHook(TypedSpec hook, Map<String, String> out,
             boolean[] cte, java.util.function.UnaryOperator<TypedSpec> bind) {
@@ -221,7 +217,7 @@ final class ContextReading {
         if (hook instanceof TypedLambda cl && !cl.body().isEmpty()
                 && cl.body().get(cl.body().size() - 1) instanceof TypedNewInstance rni
                 && rni.properties().get("values") instanceof TypedSpec vals
-                && EXTRACT_CTES_FQN.equals(calleeOf(vals))) {
+                && com.legend.builtin.NativeFn.ContextOption.of(calleeOf(vals)).orElse(null) == com.legend.builtin.NativeFn.ContextOption.EXTRACT_SUBQUERIES_AS_CTES) {
             cte[0] = true;
             return;
         }
@@ -229,7 +225,7 @@ final class ContextReading {
         // nonExecutable processor (nonExecutablePostProcessor.pure:24): a
         // platform post-processor, applied as the IR pass nonExecutable()
         if (hook instanceof TypedLambda nl && !nl.body().isEmpty()
-                && NON_EXECUTABLE_FQN.equals(calleeOf(nl.body().get(nl.body().size() - 1)))) {
+                && com.legend.builtin.NativeFn.ContextOption.of(calleeOf(nl.body().get(nl.body().size() - 1))).orElse(null) == com.legend.builtin.NativeFn.ContextOption.NON_EXECUTABLE) {
             cte[1] = true;
             return;
         }
@@ -255,8 +251,7 @@ final class ContextReading {
         if (!(hook instanceof TypedLambda lam) || lam.body().isEmpty()
                 || !(lam.body().get(lam.body().size() - 1)
                         instanceof TypedNativeCall call)
-                || !"meta::relational::postProcessor::replaceTables"
-                        .equals(call.callee().qualifiedName())
+                || com.legend.builtin.NativeFn.ContextOption.of(call.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.ContextOption.REPLACE_TABLES
                 || call.args().size() != 2) {
             throw new NotImplementedException(
                     "sqlQueryPostProcessorsConnectionAware hook shape is"

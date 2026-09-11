@@ -619,8 +619,7 @@ final class InnerDemand {
             // leaf (stc_<Sub>___<leaf>), exactly as the substitution's
             // own inlining reads it (one funnel, batch 107)
             if (am.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
-                    && sc.callee().qualifiedName()
-                            .equals("meta::pure::functions::lang::subType")
+                    && com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                     && !sc.args().isEmpty()
                     && Substitution.pathOf(sc.args().get(0), userVar) != null) {
                 for (com.legend.compiler.spec.typed.TypedSpec mb : am.mapper().body()) {

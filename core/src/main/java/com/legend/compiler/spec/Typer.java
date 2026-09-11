@@ -512,8 +512,7 @@ final class Typer {
                         ? new AppliedFunction("distinct", List.of(select)) : select, env);
             }
         }
-        if ((af.function().equals("extractEnumValue") || af.function().equals(
-                "meta::pure::functions::lang::extractEnumValue"))
+        if (com.legend.builtin.NativeFn.TyperForm.EXTRACT_ENUM_VALUE.matches(af.function())
                 && af.parameters().size() == 2) {
             TypedSpec folded = extractEnumValueFold(af, env);
             if (folded != null) {
@@ -737,8 +736,7 @@ final class Typer {
         }
         // paginated(set, page, size) — real pure collectionExtension.pure:236
         // body verbatim: slice((page-1)*size, page*size)
-        if ((af.function().equals("paginated")
-                || af.function().endsWith("::paginated"))
+        if (com.legend.builtin.NativeFn.TyperForm.PAGINATED.matches(af.function())
                 && af.parameters().size() == 3) {
             ValueSpecification pg = af.parameters().get(1);
             ValueSpecification sz = af.parameters().get(2);

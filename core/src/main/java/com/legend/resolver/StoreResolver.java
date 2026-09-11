@@ -317,8 +317,7 @@ public final class StoreResolver {
         // evaluateAndDeactivate over a metamodel ROW is the row (a tree-as-
         // value native: the rows already are the deactivated tree)
         if (n instanceof TypedNativeCall wf
-                && ("meta::pure::executionPlan::featureFlag::withFeatureFlags"
-                        .equals(wf.callee().qualifiedName())
+                && (com.legend.builtin.NativeFn.PlanWrapper.of(wf.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS
                     || "meta::pure::functions::meta::evaluateAndDeactivate"
                         .equals(wf.callee().qualifiedName()))
                 && !wf.args().isEmpty()) {

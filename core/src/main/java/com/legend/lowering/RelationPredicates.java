@@ -43,7 +43,7 @@ final class RelationPredicates {
      * fact for the resolver, nothing for the database). */
     static boolean isRelationIdentity(TypedNativeCall nc) {
         return isRelationToOne(nc)
-                || (com.legend.builtin.Pure.Lite.UNION_SCAN.equals(nc.callee().qualifiedName())
+                || (com.legend.builtin.NativeFn.LiteDesugar.of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteDesugar.UNION_SCAN
                         && nc.args().size() == 1);
     }
 

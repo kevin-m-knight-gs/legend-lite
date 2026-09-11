@@ -179,8 +179,7 @@ final class JsonSourceFrame {
                 new ExprType(variant, one));
         // the STRING-key overload (real get.pure has two 2-arg forms:
         // String key and Integer index — audit slice 2 registered both)
-        TypedFunction getFn = ctx.findFunction(
-                        "meta::pure::functions::variant::navigation::get")
+        TypedFunction getFn = ctx.findFunction(com.legend.builtin.NativeFn.ResolverForm.VARIANT_GET.fqn())
                 .stream()
                 .filter(f -> f.parameters().size() == 2
                         && f.parameters().get(1).type()

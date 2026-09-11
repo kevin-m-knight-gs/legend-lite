@@ -70,7 +70,14 @@ public class ClaimRegistryTest {
     // row-mappers) registered; assertTdsEquivalent + toCSV joined
     // NativeFn.Verdict; `offset` and `is` left Pure.java (the census's only
     // "handler" for them was the SQL keyword list in the lexicon).
-    static final int UNCLAIMED_MAX = 67;
+    // 67 -> 19 (batch 4b group 2): eight front-end families registered in
+    // NativeFn (LiteralForm, ContextOption, PlanWrapper, ObjectReference,
+    // SubtypeForm, ResolverForm, LiteDesugar, TyperForm — 43 overloads);
+    // convertTimeZone, averageRank, newUnit, sourceInformation left
+    // Pure.java (typed or parsed, never lowered). The 19 are group 3: the
+    // executor kinds that today live in PlatformTypes (fetchDb* x4, the DDL
+    // statement functions, execute) plus createDbConfig and union.
+    static final int UNCLAIMED_MAX = 19;
 
     /** constant name(s) per overload, by reflection over {@link Pure}'s
      *  fields — the catalog's own naming, never a parse of the source. */

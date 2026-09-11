@@ -731,8 +731,7 @@ final class AssertVerdicts {
                 && peel(pa.source())
                         instanceof com.legend.compiler.spec.typed
                                 .TypedNativeCall gt
-                && gt.callee().qualifiedName().equals(
-                        "meta::pure::functions::meta::genericType")
+                && com.legend.builtin.NativeFn.SubtypeForm.of(gt.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.GENERIC_TYPE
                 && !gt.args().isEmpty()) {
             return staticTypeName(gt.args().get(0));
         }

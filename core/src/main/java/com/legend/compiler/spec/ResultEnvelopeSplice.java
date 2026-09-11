@@ -414,8 +414,7 @@ public final class ResultEnvelopeSplice {
      * verbatim in {@code Pure.RELATIONAL_ACTIVITY}). */
     private static final String RELATIONAL_ACTIVITY_FQN =
             "meta::relational::mapping::RelationalActivity";
-    private static final String INSTANCE_OF_FQN =
-            "meta::pure::functions::meta::instanceOf";
+    private static final String INSTANCE_OF_FQN = com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF.fqn();
 
     /** The INLINED {@code sql($result[, n])} chain
      * (helperFunctions.pure:38-60):
@@ -532,7 +531,7 @@ public final class ResultEnvelopeSplice {
             return false;
         }
         return pred.body().get(0) instanceof TypedNativeCall io
-                && INSTANCE_OF_FQN.equals(io.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.SubtypeForm.of(io.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
                 && io.args().size() == 2
                 && io.args().get(0) instanceof TypedVariable v
                 && v.name().equals(pred.parameters().get(0))

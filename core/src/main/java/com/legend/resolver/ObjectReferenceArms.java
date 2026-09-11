@@ -70,10 +70,8 @@ final class ObjectReferenceArms {
                 Multiplicity.Bounded.ONE, java.util.Optional.empty(), true, defs.get(0));
     }
 
-    private static final String GENERATE_REFS =
-            "meta::alloy::objectReference::generateObjectReferences";
-    private static final String GENERATE_REFS_FOR_SET =
-            "meta::alloy::objectReference::generateObjectReferencesForGivenSetId";
+    private static final String GENERATE_REFS = com.legend.builtin.NativeFn.ObjectReference.GENERATE.fqn();
+    private static final String GENERATE_REFS_FOR_SET = com.legend.builtin.NativeFn.ObjectReference.GENERATE_FOR_SET.fqn();
 
     /** The spelled pk maps of a generator call — {@code pkMaps} is the
      * 5th (6-arg) or 6th (7-arg) argument: {@code newMap(pair(k, v))},

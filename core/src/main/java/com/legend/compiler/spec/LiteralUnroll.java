@@ -467,11 +467,11 @@ final class LiteralUnroll {
         }
         // a spelled boolean's assert is a no-op (assert(true, …)); a false
         // one raises and stays the database's
-        if (is(c, "assert") && !a.isEmpty() && a.get(0) instanceof TypedCBoolean tb && tb.value()) {
+        if (com.legend.builtin.NativeFn.Verdict.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Verdict.ASSERT && !a.isEmpty() && a.get(0) instanceof TypedCBoolean tb && tb.value()) {
             return bool(true);
         }
         // an enumeration's values are its declaration (spelled)
-        if (is(c, "enumValues") && a.size() == 1) {
+        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.ENUM_VALUES && a.size() == 1) {
             Optional<String> fqn = switch (a.get(0)) {
                 case TypedTypeRef tr -> tr.target() instanceof Type.EnumType et
                         ? Optional.of(et.fqn()) : Optional.empty();
@@ -489,7 +489,7 @@ final class LiteralUnroll {
         }
         // dynamicNew(Class, [^KeyValue(key, value)…]) over spelled keys IS the
         // instance literal ^Class(key = value, …)
-        if (is(c, "dynamicNew") && a.size() == 2 && literalStructure(a.get(1))) {
+        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.DYNAMIC_NEW && a.size() == 2 && literalStructure(a.get(1))) {
             String cls = typeTargetFqn(a.get(0)).orElse(null);
             java.util.Map<String, TypedSpec> props = new java.util.LinkedHashMap<>();
             boolean spelled = cls != null;
@@ -509,7 +509,7 @@ final class LiteralUnroll {
         }
         // SPELLED MAPS: newMap over spelled pairs is a structure the compiler
         // holds — its key/value pairs, and a lookup by a spelled key
-        if (is(c, "keyValues") && a.size() == 1 && a.get(0) instanceof TypedNativeCall nm
+        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.KEY_VALUES && a.size() == 1 && a.get(0) instanceof TypedNativeCall nm
                 && is(nm, "newMap") && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
             return new TypedCollection(elements(nm.args().get(0)), c.info());
         }

@@ -2015,8 +2015,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * carries the subtype's columns. */
     private static void collectSubTypeFqns(TypedSpec n, Set<String> out) {
         if (n instanceof TypedNativeCall nc
-                && nc.callee().qualifiedName()
-                        .equals("meta::pure::functions::lang::subType")
+                && com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !nc.args().isEmpty()
                 && nc.args().get(0) instanceof TypedVariable
                 && Type.asClassType(nc.info().type()) instanceof Type.ClassType ct) {
@@ -2076,8 +2075,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         if (n instanceof TypedPropertyAccess outer
                 && outer.source() instanceof TypedPropertyAccess mid
                 && mid.source() instanceof TypedNativeCall msc
-                && msc.callee().qualifiedName()
-                        .equals("meta::pure::functions::lang::subType")
+                && com.legend.builtin.NativeFn.SubtypeForm.of(msc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !msc.args().isEmpty()
                 && Type.asClassType(msc.info().type()) instanceof Type.ClassType msct
                 && Type.asClassType(msc.args().get(0).info().type())
@@ -2112,8 +2110,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         || com.legend.builtin.Pure.nativeNamed("isNotEmpty",
                                 em.callee().signatureKey()))
                 && em.args().get(0) instanceof TypedNativeCall sc0
-                && sc0.callee().qualifiedName()
-                        .equals("meta::pure::functions::lang::subType")
+                && com.legend.builtin.NativeFn.SubtypeForm.of(sc0.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !sc0.args().isEmpty()
                 && Type.asClassType(sc0.info().type()) instanceof Type.ClassType sct0
                 && Type.asClassType(sc0.args().get(0).info().type())
@@ -2136,8 +2133,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
         if (!(n instanceof TypedPropertyAccess pa)
                 || !(pa.source() instanceof TypedNativeCall sc)
-                || !sc.callee().qualifiedName()
-                        .equals("meta::pure::functions::lang::subType")
+                || com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 || sc.args().isEmpty()
                 || !(Type.asClassType(sc.info().type()) instanceof Type.ClassType sct)
                 || !(Type.asClassType(sc.args().get(0).info().type())

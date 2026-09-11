@@ -45,6 +45,14 @@ public final class NativeFn {
             String f = fqn();
             return f.substring(f.lastIndexOf(':') + 1);
         }
+
+        /** Whether an APPLIED name (pre-resolution: bare, or qualified) spells
+         *  this member — the CoreFn parse-name rule, for the front-end forms
+         *  the Typer reads before names resolve. */
+        default boolean matches(String appliedName) {
+            return appliedName.equals(fqn()) || appliedName.equals(bareName())
+                    || appliedName.endsWith("::" + bareName());
+        }
     }
 
     /** FQN -> member; immutable (ArchitectureTest invariant 3). */
@@ -66,6 +74,14 @@ public final class NativeFn {
         out.put("RowGetter", List.of(RowGetter.values()));
         out.put("Frame", List.of(Frame.values()));
         out.put("LowererForm", List.of(LowererForm.values()));
+        out.put("LiteralForm", List.of(LiteralForm.values()));
+        out.put("ContextOption", List.of(ContextOption.values()));
+        out.put("PlanWrapper", List.of(PlanWrapper.values()));
+        out.put("ObjectReference", List.of(ObjectReference.values()));
+        out.put("SubtypeForm", List.of(SubtypeForm.values()));
+        out.put("ResolverForm", List.of(ResolverForm.values()));
+        out.put("LiteDesugar", List.of(LiteDesugar.values()));
+        out.put("TyperForm", List.of(TyperForm.values()));
         return out;
     }
 
@@ -158,8 +174,8 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Calendar> of(String calleeFqn) {
-            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        public static Optional<Calendar> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
 
@@ -220,8 +236,8 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Verdict> of(String calleeFqn) {
-            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        public static Optional<Verdict> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
 
@@ -268,8 +284,8 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<RowGetter> of(String calleeFqn) {
-            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        public static Optional<RowGetter> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
 
@@ -304,8 +320,8 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Frame> of(String calleeFqn) {
-            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        public static Optional<Frame> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
 
@@ -350,8 +366,306 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<LowererForm> of(String calleeFqn) {
-            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        public static Optional<LowererForm> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** calls LiteralUnroll rewrites at type-check over spelled operands. */
+    public enum LiteralForm implements Member {
+        DYNAMIC_NEW("meta::pure::functions::lang::dynamicNew",
+                Pure.DYNAMIC_NEW__CLASS_5, Pure.DYNAMIC_NEW__CLASS_6, Pure.DYNAMIC_NEW__GENERIC_5, Pure.DYNAMIC_NEW__GENERIC_6, Pure.DYNAMIC_NEW__CLASS_1__KEYVALUE_MANY, Pure.DYNAMIC_NEW__GENERICTYPE_1__KEYVALUE_MANY),
+        ENUM_VALUES("meta::pure::functions::meta::enumValues",
+                Pure.ENUM_VALUES),
+        KEY_VALUES("meta::pure::functions::collection::keyValues",
+                Pure.KEY_VALUES__MAP_1);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        LiteralForm(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, LiteralForm> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<LiteralForm> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** the execute-context post-processors ContextReading reads as options of the plan. */
+    public enum ContextOption implements Member {
+        EXTRACT_SUBQUERIES_AS_CTES("meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs",
+                Pure.EXTRACT_CTES),
+        NON_EXECUTABLE("meta::relational::postProcessor::nonExecutable",
+                Pure.NON_EXECUTABLE_PP),
+        REPLACE_TABLES("meta::relational::postProcessor::replaceTables",
+                Pure.REPLACE_TABLES);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        ContextOption(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, ContextOption> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<ContextOption> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** plan-time wrappers ExecuteChainAssembly / StoreResolver read through (identity for row semantics) or fold; relationalExtensions is an ignored test-data-generation argument. */
+    public enum PlanWrapper implements Member {
+        WITH_FEATURE_FLAGS("meta::pure::executionPlan::featureFlag::withFeatureFlags",
+                Pure.WITH_FEATURE_FLAGS__T_MANY__ANY_MANY),
+        CONCATENATE_TEMPORAL_TDS_QUERIES("meta::relational::milestoning::concatenateTemporalTdsQueries",
+                Pure.CONCATENATE_TEMPORAL_TDS_QUERIES),
+        RELATIONAL_EXTENSIONS("meta::relational::extension::relationalExtensions",
+                Pure.RELATIONAL_EXTENSIONS__ANY_MANY);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        PlanWrapper(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, PlanWrapper> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<PlanWrapper> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** the object-reference encode / decode / membership arms of the resolver. */
+    public enum ObjectReference implements Member {
+        GENERATE("meta::alloy::objectReference::generateObjectReferences",
+                Pure.GENERATE_OBJECT_REFERENCES__6),
+        GENERATE_FOR_SET("meta::alloy::objectReference::generateObjectReferencesForGivenSetId",
+                Pure.GENERATE_OBJECT_REFERENCES_FOR_GIVEN_SET_ID__7),
+        DECODE("meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap",
+                Pure.DECODE_OBJECT_REFERENCES__3),
+        OBJECT_REFERENCE_IN("meta::pure::functions::collection::objectReferenceIn",
+                Pure.OBJECT_REFERENCE_IN__ANY_1__ANY_MANY);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        ObjectReference(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, ObjectReference> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<ObjectReference> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** type-narrowing forms the resolver and the verdicts read structurally (subType, whenSubType, instanceOf, genericType). */
+    public enum SubtypeForm implements Member {
+        SUB_TYPE("meta::pure::functions::lang::subType",
+                Pure.SUB_TYPE__ANY_m__T_1),
+        WHEN_SUB_TYPE("meta::pure::functions::lang::whenSubType",
+                Pure.WHEN_SUB_TYPE__ANY_1__T_1, Pure.WHEN_SUB_TYPE__ANY_01__T_1, Pure.WHEN_SUB_TYPE__ANY_MANY__T_1),
+        INSTANCE_OF("meta::pure::functions::meta::instanceOf",
+                Pure.INSTANCE_OF__ANY_1__TYPE_1),
+        GENERIC_TYPE("meta::pure::functions::meta::genericType",
+                Pure.GENERIC_TYPE__ANY_MANY);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        SubtypeForm(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, SubtypeForm> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<SubtypeForm> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** forms single resolver / checker sites rewrite: tdsContains (EXISTS), variant get, alloyConfig, the from() mapping markers, the relational-mapper post-processor. */
+    public enum ResolverForm implements Member {
+        TDS_CONTAINS("meta::pure::tds::tdsContains",
+                Pure.TDS_CONTAINS__T_1__FUNCTION_MANY__RELATION_1, Pure.TDS_CONTAINS__T_1__FUNCTION_MANY__STRING_MANY__RELATION_1__FUNCTION_1),
+        VARIANT_GET("meta::pure::functions::variant::navigation::get",
+                Pure.GET__VARIANT_0_1__STRING_1, Pure.GET__VARIANT_0_1__INTEGER_1),
+        ALLOY_CONFIG("meta::pure::graphFetch::execution::alloyConfig",
+                Pure.ALLOY_CONFIG__4, Pure.ALLOY_CONFIG__5, Pure.ALLOY_CONFIG__6, Pure.ALLOY_CONFIG__7, Pure.ALLOY_CONFIG__8),
+        WITH_MAPPING("meta::pure::mapping::withMapping",
+                Pure.WITH_MAPPING),
+        WITH_CHAINED_MAPPINGS("meta::pure::mapping::withChainedMappings",
+                Pure.WITH_CHAINED_MAPPINGS),
+        RELATIONAL_MAPPER_POST_PROCESSOR("meta::pure::alloy::connections::relationalMapperPostProcessor",
+                Pure.RELATIONAL_MAPPER_PP);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        ResolverForm(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, ResolverForm> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<ResolverForm> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** the platform's own desugar IR (meta::legend::lite) the mapping normalizer emits and the lowering consumes. */
+    public enum LiteDesugar implements Member {
+        OTHERWISE("meta::legend::lite::otherwise",
+                Pure.OTHERWISE__T_1__T_0_1),
+        UNION_SCAN("meta::legend::lite::unionScan",
+                Pure.UNION_SCAN__RELATION_1),
+        LEGACY_ASSOC_PREDICATE("meta::legend::lite::legacyAssocPredicate",
+                Pure.LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1, Pure.LEGACY_ASSOC_PREDICATE__A_1__B_1__STRING_1__STRING_1__FUNCTION_1),
+        LEGACY_LOCAL_PROPERTY("meta::legend::lite::legacyLocalProperty",
+                Pure.LEGACY_LOCAL_PROPERTY__ANY_1__STRING_1);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        LiteDesugar(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, LiteDesugar> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<LiteDesugar> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** forms the Typer desugars against the registered signature (paginated -> slice; extractEnumValue over a literal name). */
+    public enum TyperForm implements Member {
+        PAGINATED("meta::pure::functions::collection::paginated",
+                Pure.PAGINATED__T_MANY__INTEGER_1__INTEGER_1),
+        EXTRACT_ENUM_VALUE("meta::pure::functions::lang::extractEnumValue",
+                Pure.EXTRACT_ENUM_VALUE, Pure.EXTRACT_ENUM_VALUE__OPTIONAL);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        TyperForm(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, TyperForm> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<TyperForm> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
 }

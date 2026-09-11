@@ -73,8 +73,8 @@ public final class AggregationAwareRouting {
             "meta::pure::functions::multiplicity::toOneMany",
             "meta::pure::functions::collection::first",
             "meta::pure::functions::lang::cast",
-            "meta::pure::functions::lang::subType",
-            "meta::pure::functions::lang::whenSubType");
+            com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE.fqn(),
+            com.legend.builtin.NativeFn.SubtypeForm.WHEN_SUB_TYPE.fqn());
 
     private static final Set<String> MAP_FNS = Set.of(
             "meta::pure::functions::collection::map",

@@ -36,8 +36,7 @@ import java.util.Map;
  */
 final class ObjectReferenceDecode {
 
-    static final String DECODE_FQN =
-            "meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap";
+    static final String DECODE_FQN = com.legend.builtin.NativeFn.ObjectReference.DECODE.fqn();
 
     private ObjectReferenceDecode() {
     }
@@ -48,7 +47,7 @@ final class ObjectReferenceDecode {
 
     private static TypedSpec walk(TypedSpec n, @com.legend.Nullable TypedSerializeGraph graph,
             ModelContext ctx, ClassSources sources) {
-        if (n instanceof TypedNativeCall c && DECODE_FQN.equals(c.callee().qualifiedName())
+        if (n instanceof TypedNativeCall c && com.legend.builtin.NativeFn.ObjectReference.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.DECODE
                 && c.args().size() == 3) {
             if (graph == null || graph.objectRefPrefix() == null) {
                 throw new NotImplementedException("decodeObjectReferencesAndGetPkMap"

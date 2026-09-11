@@ -191,6 +191,13 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/unit/newUnit.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::newUnit(type:Unit[1], value:Number[1]):Any[1];
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/math/random.pure
 import meta::pure::test::pct::*;
 native function <<functionType.SideEffectFunction, PCT.function>> meta::pure::functions::math::random():Float[1];
@@ -327,6 +334,8 @@ Class meta::pure::functions::meta::SourceInformation
     <<equality.Key>> endLine : Integer[1];
     <<equality.Key>> endColumn : Integer[1];
 }
+
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::sourceInformation(node:Any[1]):SourceInformation[0..1];
 
 
 ###Pure
@@ -789,16 +798,6 @@ native function
     meta::pure::functions::lang::copy<T>(object:T[1], id:String[1], keyExpressions:KeyExpression[*]):T[1];
 
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::copy<T>(object:T[1], id:String[1]):T[1];
-
-
-###Pure
-// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/lang/enum/extractEnumValue.pure
-import meta::pure::test::pct::*;
-import meta::pure::functions::lang::tests::model::*;
-function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::extractEnumValue<T>(enum:Enumeration<T>[1], value:String[0..1]):T[0..1]
-{
-    if ($value->isEmpty(), | [], | $enum->extractEnumValue($value->toOne()));
-}
 
 
 ###Pure
@@ -5276,8 +5275,8 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 463 classes, 18 enums, 119 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
-// RESPELLED NATIVES — 32 upstream `native function` declarations the platform does not implement (carried so they
+// 463 classes, 18 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// RESPELLED NATIVES — 34 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
 // a registered lowering, a family enum, a wall) or an operator special form; not carried:
@@ -5411,8 +5410,6 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::meta::genericType
 //   meta::pure::functions::meta::id
 //   meta::pure::functions::meta::instanceOf
-//   meta::pure::functions::meta::newUnit
-//   meta::pure::functions::meta::sourceInformation
 //   meta::pure::functions::meta::stereotype
 //   meta::pure::functions::meta::type
 //   meta::pure::functions::multiplicity::toOne

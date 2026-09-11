@@ -51,8 +51,7 @@ public final class RelationalMapperRenames {
     private RelationalMapperRenames() {
     }
 
-    private static final String PP_FQN =
-            "meta::pure::alloy::connections::relationalMapperPostProcessor";
+    private static final String PP_FQN = com.legend.builtin.NativeFn.ResolverForm.RELATIONAL_MAPPER_POST_PROCESSOR.fqn();
     private static final String SCHEMA_NAV =
             "meta::relational::metamodel::schema";
 
@@ -136,7 +135,7 @@ public final class RelationalMapperRenames {
 
     private static void readPostProcessor(@com.legend.Nullable TypedSpec p, Cfg c) {
         if (!(p instanceof TypedNativeCall call) || call.args().isEmpty()
-                || !PP_FQN.equals(call.callee().qualifiedName())) {
+                || com.legend.builtin.NativeFn.ResolverForm.of(call.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.ResolverForm.RELATIONAL_MAPPER_POST_PROCESSOR) {
             return;   // other postprocessors ride their own channels
         }
         TypedSpec cfg = c.resolve(call.args().get(0));

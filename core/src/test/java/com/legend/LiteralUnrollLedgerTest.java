@@ -65,6 +65,17 @@ class LiteralUnrollLedgerTest {
         while (m.find()) {
             found.add(m.group(1));
         }
+        // the TYPED form (upstream boundary batch 4b): a fold keyed on a
+        // NativeFn family member — resolve the constant to its bare name
+        // through the enum itself, never a second spelling
+        Matcher t = Pattern.compile("NativeFn\\.(\\w+)\\.of\\(c\\.callee\\(\\)\\.qualifiedName\\(\\)\\)"
+                + "\\.orElse\\(null\\) == com\\.legend\\.builtin\\.NativeFn\\.(\\w+)\\.(\\w+)").matcher(src);
+        while (t.find()) {
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Enum<?> member = Enum.valueOf((Class<Enum>) Class.forName(
+                    "com.legend.builtin.NativeFn$" + t.group(2)), t.group(3));
+            found.add(((com.legend.builtin.NativeFn.Member) member).bareName());
+        }
         assertEquals(new TreeSet<>(COMPARE_ONLY), found,
                 "LiteralUnroll's fold set moved — WORLD_MAP §4: the unroll compares,"
                         + " the database computes; a value-producing fold is not admitted");

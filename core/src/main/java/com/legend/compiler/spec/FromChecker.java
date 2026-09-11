@@ -119,7 +119,7 @@ final class FromChecker {
         // and the node strips (same channel as ModelChainConnection)
         TypedSpec src = a.args().get(0);
         if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall wc
-                && PlatformTypes.WITH_CHAINED_MAPPINGS.equals(wc.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.ResolverForm.of(wc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.WITH_CHAINED_MAPPINGS
                 && wc.args().size() == 2) {
             List<String> queryChain = new ArrayList<>();
             collectMappingRefs(wc.args().get(1), queryChain);
@@ -149,8 +149,7 @@ final class FromChecker {
     private static TypedSpec stripWithMapping(TypedSpec n,
             TypedPackageableRef[] found) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall wm
-                && "meta::pure::mapping::withMapping"
-                        .equals(wm.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.ResolverForm.of(wm.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.WITH_MAPPING
                 && wm.args().size() == 2
                 && wm.args().get(1) instanceof TypedPackageableRef mref) {
             found[0] = mref;
