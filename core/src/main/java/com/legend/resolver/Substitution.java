@@ -684,34 +684,34 @@ final class Substitution {
                 List.of(tFiltered), n.info());
     }
 
-    /** Substitute cross-lambda cell reads: getString($a, id) &rarr; the
-     * outer expression; getString($b, col) &rarr; the relation column
-     * read. Unhandled nodes still referencing either param throw loud. */
+    /** Substitute cross-lambda cell reads: {@code $a.getString(id)} — the
+     * typer's FOLD of a row accessor with a literal name is the row's column
+     * read ({@code TypedPropertyAccess} on the row variable; batch 5 leg 4) —
+     * &rarr; the outer expression; {@code $b.getString(col)} &rarr; the
+     * relation column read. Unhandled nodes still referencing either param
+     * throw loud. */
     private TypedSpec crossCellSubst(TypedSpec e, String aVar, String bVar,
             Map<String, TypedSpec> outerById, Type.RelationType tRow,
             String tv) {
-        if (e instanceof TypedNativeCall g && g.args().size() == 2
-                && g.callee().qualifiedName().equals(
-                        "meta::pure::tds::getString")
-                && g.args().get(0) instanceof TypedVariable rv
-                && g.args().get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedCString col) {
+        if (e instanceof TypedPropertyAccess cell
+                && cell.source() instanceof TypedVariable rv) {
+            String col = cell.property();
             if (rv.name().equals(aVar)) {
-                TypedSpec o = outerById.get(col.value());
+                TypedSpec o = outerById.get(col);
                 if (o == null) {
                     throw new NotImplementedException("tdsContains cross"
-                            + " form: id '" + col.value() + "' is not in"
+                            + " form: id '" + col + "' is not in"
                             + " the ids list");
                 }
                 return o;
             }
             if (rv.name().equals(bVar)) {
                 Type.Column c = tRow.columns().stream()
-                        .filter(cc -> cc.name().equals(col.value()))
+                        .filter(cc -> cc.name().equals(col))
                         .findFirst().orElseThrow(() ->
                                 new NotImplementedException("tdsContains"
                                         + " cross form: column '"
-                                        + col.value() + "' is not on the"
+                                        + col + "' is not on the"
                                         + " TDS relation"));
                 return new TypedPropertyAccess(
                         new TypedVariable(tv, new ExprType(tRow,

@@ -55,18 +55,16 @@ final class FunctionCompiler {
         // is GONE — batch 167, HAND_SHAPE_DIVERGENCE §4 step 5: the catalog
         // holds the primitives alone, every class with a body is a module
         // or graph class and lifts in ModelNormalizer E.2)
-        String[] propRef = com.legend.compiler.DerivedProps.splitPropFqn(fqn);
         // platform-owned FQNs: the native IS the definition; the corpus's
         // own M3-reflective bodies (toDDL.pure) never join the overload set.
         // The suppression is NOT silent — stderr once per FQN (audit 17;
         // a structured wall channel does not reach this layer yet).
-        // a platform-owned DERIVED property's lifted body (TDSRow's cell
-        // accessors, PRELUDE_MODULE_HOMEWORK §9.14) is suppressed the same way
-        boolean ownedDerived = propRef != null
-                && com.legend.compiler.element.type.PlatformTypes
-                        .isPlatformOwnedDerivedProperty(propRef[0], propRef[1]);
+        // a platform-IMPLEMENTED derived property (the row accessors — upstream
+        // declares them as qualified properties, batch 5 leg 4) keeps its lifted
+        // definition as the TYPING source: the call is never inlined
+        // (UserCallInliner) and RowGetters lowers it by property name
         if (!com.legend.compiler.element.type.PlatformTypes
-                .isPlatformOwnedFunction(fqn) && !ownedDerived) {
+                .isPlatformOwnedFunction(fqn)) {
             addModelOverloads(all, model, fqn);
         } else if (!model.findFunction(fqn).isEmpty()
                 && SUPPRESSED_ONCE.add(fqn)) {

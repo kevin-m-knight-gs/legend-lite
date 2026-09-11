@@ -1,37 +1,33 @@
-// Copyright 2026 Legend Contributors
-// SPDX-License-Identifier: Apache-2.0
 package com.legend.lowering;
 
 import com.legend.builtin.NativeFn;
-
 import com.legend.compiler.spec.typed.TypedCString;
-import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.sql.SqlExpr;
 
-
 /**
- * The TDSRow getters (real tds.pure getString/getInteger/…) over the
- * column lambda's ROW variable with a literal name: the column read —
- * the typer's desugar when the row's schema is known at typing; here
- * the row was typed by its TDSRow annotation (a schema-erased source)
- * and the schema is the base's.
+ * The row accessors ({@code $r.getString('COL')} et al) the typer could not
+ * fold to a column read (a NON-literal column name at typing time that
+ * inlining or unroll later made literal): the call is upstream's qualified
+ * property, lifted ({@code TDSRow$prop$getString(this, colName)}), typed by
+ * its own declaration and IMPLEMENTED here — the named column of the row.
  */
 final class RowGetters {
 
     private RowGetters() {
     }
 
-    /** The family is the closed type {@link NativeFn.RowGetter} (batch 3): membership
-     *  by the enum, never a string set beside the code. */
-    static boolean isRowGetter(TypedNativeCall g) {
-        return NativeFn.RowGetter.of(g.callee().qualifiedName()).isPresent()
+    /** The family is the closed type {@link NativeFn.RowGetter}: membership by
+     *  the enum over the lifted callee, never a string set. */
+    static boolean isRowGetter(TypedUserCall g) {
+        return NativeFn.RowGetter.ofLifted(g.callee().qualifiedName()).isPresent()
                 && g.args().size() == 2
                 && g.args().get(0) instanceof TypedVariable
                 && g.args().get(1) instanceof TypedCString;
     }
 
-    static SqlExpr read(TypedNativeCall g, Resolvers.ColumnResolver columns) {
+    static SqlExpr read(TypedUserCall g, Resolvers.ColumnResolver columns) {
         String row = ((TypedVariable) g.args().get(0)).name();
         String column = ((TypedCString) g.args().get(1)).value();
         SqlExpr r = columns.resolve(row, column);

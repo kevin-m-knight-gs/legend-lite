@@ -78,10 +78,6 @@ public final class DerivedProps {
     /** The {@code $prop$} FQN split: {owner, name}, or null if {@code fqn}
      * is not a derived-property reference. */
     public static String @com.legend.Nullable [] splitPropFqn(String fqn) {
-        String sigil = "$" + SynthHat.PROP.segment() + "$";
-        int i = fqn.indexOf(sigil);
-        return i <= 0 ? null
-                : new String[] {fqn.substring(0, i),
-                        fqn.substring(i + sigil.length())};
+        return com.legend.model.DerivedPropertyNames.split(fqn);
     }
 }

@@ -153,16 +153,11 @@ final class JoinChecker {
         return af.withParameters(np);
     }
 
-    private static final java.util.Set<String> TDS_GETTERS = java.util.Set.of(
-            "get", "getInteger", "getString", "getFloat", "getDecimal",
-            "getBoolean", "getDate", "getDateTime", "getStrictDate",
-            "getNumber", "getEnum");
-
     private static ValueSpecification swapMisplacedReads(ValueSpecification n,
             String pa, String pb, java.util.Set<String> lc,
             java.util.Set<String> rc) {
         if (n instanceof AppliedFunction gf
-                && TDS_GETTERS.contains(gf.function())
+                && com.legend.builtin.NativeFn.RowGetter.of(gf.function()).isPresent()
                 && gf.parameters().size() == 2
                 && gf.parameters().get(0) instanceof Variable v
                 && gf.parameters().get(1) instanceof CString col) {

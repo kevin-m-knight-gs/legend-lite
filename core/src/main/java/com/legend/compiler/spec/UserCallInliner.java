@@ -276,6 +276,18 @@ public final class UserCallInliner {
     // WalledBodies.REASONS — ONE list with reasons, batch 173)
 
     private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
+        // a platform-IMPLEMENTED derived property (TDSRow.getString(colName) —
+        // upstream's qualified property; the lifted body reads the m3 row
+        // reflectively): the call stands with its arguments rewritten, and
+        // RowGetters lowers it by name — before any wall or budget
+        if (com.legend.compiler.element.type.PlatformTypes.isPlatformImplementedDerived(
+                call.callee().qualifiedName())) {
+            List<TypedSpec> pargs = new ArrayList<>(call.args().size());
+            for (TypedSpec a : call.args()) {
+                pargs.add(rewrite(a, env));
+            }
+            return new TypedUserCall(call.callee(), pargs, call.info());
+        }
         String wall = WalledBodies.reason(call.callee().qualifiedName());
         if (wall != null) {
             throw new NotImplementedException("walled body '" + call.callee().qualifiedName()

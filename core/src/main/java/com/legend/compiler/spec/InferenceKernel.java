@@ -1049,6 +1049,15 @@ public final class InferenceKernel {
         return new ExprType(resolve(returnType, b), resolveMult(returnMult, b));
     }
 
+    /** The resolved output of a CALL — {@link #resolveOutput(Type, Multiplicity,
+     *  Bindings)} plus the result half of TDS ERASURE ({@link TdsErasure}): a
+     *  declared TabularDataSet output IS the argument's actual relation. Every
+     *  path that types a call's value (eager and deferred) reads this one. */
+    public ExprType resolveOutput(Type returnType, Multiplicity returnMult, Bindings b,
+            List<ExprType> args) {
+        return TdsErasure.refineResult(ctx, args, resolveOutput(returnType, returnMult, b));
+    }
+
     // =====================================================================
     // Overload resolution (engine AbstractChecker:82-226; §3.1)
     // =====================================================================
@@ -1293,7 +1302,7 @@ public final class InferenceKernel {
                         + (i + 1) + ": " + e.getMessage(), e);
             }
         }
-        return new Resolution(c, resolveOutput(c.returnType(), c.returnMultiplicity(), b));
+        return new Resolution(c, resolveOutput(c.returnType(), c.returnMultiplicity(), b, args));
     }
 
     /** The chosen overload and the {@link ExprType} the call produces. */

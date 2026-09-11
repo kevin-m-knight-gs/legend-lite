@@ -59,6 +59,7 @@ import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedTds;
+import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.compiler.spec.typed.TypedWrite;
 import com.legend.error.LegendCompileException;
@@ -2389,7 +2390,7 @@ public final class Lowerer {
 
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
-            case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
+            case TypedUserCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.
             case TypedCInteger c -> c.value() instanceof java.math.BigInteger big

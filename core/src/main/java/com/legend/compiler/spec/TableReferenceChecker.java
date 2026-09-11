@@ -114,10 +114,14 @@ final class TableReferenceChecker {
                     + " Table[1]); a derived relation expression is not a"
                     + " Table");
         }
-        // Validate against the registered native signature — never ignored.
+        // Validate against the registered native signature — never ignored:
+        // upstream's tableToTDS(table:Table[1]) takes the TABLE the accessor
+        // denotes (RelationStoreAccessor.sourceElement), proven just above
+        // to be a table reference — so the signature sees a Table[1]
         t.kernel().resolveOverload(
                 t.model().findFunction(CoreFn.TABLE_TO_TDS.parseName()),
-                List.of(table.info()));
+                List.of(ExprType.one(new Type.ClassType(
+                        com.legend.compiler.element.type.PlatformTypes.RELATIONAL_TABLE))));
         return table;
     }
 }

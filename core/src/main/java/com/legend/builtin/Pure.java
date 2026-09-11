@@ -1000,7 +1000,7 @@ public final class Pure {
     public static final NativeFunctionDefinition FILTER__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::filter<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     // the TDS-era FQN spelling (real tds.pure filter over TabularDataSet;
     // the corpus's tableToTDS chains call it FULLY QUALIFIED)
-    public static final NativeFunctionDefinition TDS_FILTER__RELATION_1__FUNCTION_1 = signature("native function meta::pure::tds::filter<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    public static final NativeFunctionDefinition TDS_FILTER__TDS_1__FUNCTION_1 = signature("native function meta::pure::tds::filter(tds:meta::pure::tds::TabularDataSet[1], f:meta::pure::metamodel::function::Function<{meta::pure::tds::TDSRow[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition FILTER__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::filter<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
     public static final NativeFunctionDefinition FIND__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::find<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[0..1];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_MONTH__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfMonth(date:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
@@ -1448,7 +1448,7 @@ public final class Pure {
     // concatenation (re-spelling TabularDataSet verbatim broke the six
     // testConcatenationOf* downstream sorts/groupBys on the erased
     // schema; audit fix-slice receipt 2026-08-28).
-    public static final NativeFunctionDefinition CONCATENATE_TEMPORAL_TDS_QUERIES = signature("native function meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::metamodel::function::LambdaFunction<{->T[*]}>[*]):meta::pure::metamodel::function::LambdaFunction<{->T[*]}>[1];");
+    public static final NativeFunctionDefinition CONCATENATE_TEMPORAL_TDS_QUERIES = signature("native function meta::relational::milestoning::concatenateTemporalTdsQueries(lfs:meta::pure::metamodel::function::LambdaFunction<{->meta::pure::tds::TabularDataSet[1]}>[*]):meta::pure::metamodel::function::LambdaFunction<{->meta::pure::tds::TabularDataSet[1]}>[1];");
 
     // withFeatureFlags (REAL executionPlanFeature.pure:27): IDENTITY —
     // the flags ride the plan context; the harness reads through it.
@@ -1719,7 +1719,7 @@ public final class Pure {
     // DIVERGENT (batch 5): upstream's relation limit takes Integer[1]; the optional
     // count is the legacy TDS limit over TabularDataSet — the TDS-erasure leg
     // declares it under its real signature and this row goes
-    public static final NativeFunctionDefinition LIMIT__RELATION_1__INTEGER_0_1 = signature("native function meta::pure::functions::relation::limit<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[0..1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    public static final NativeFunctionDefinition LIMIT__TDS_1__INTEGER_0_1 = signature("native function meta::pure::tds::limit(tds:meta::pure::tds::TabularDataSet[1], size:meta::pure::metamodel::type::Integer[0..1]):meta::pure::tds::TabularDataSet[1];");
     /** The LEGACY TDS surface's OPTIONAL-size overload (engine tds.pure:
      * 394 — limit(tds, size:Integer[0..1]); an empty size = no limit),
      * registered on the relation carrier's spelling. */
@@ -2068,30 +2068,21 @@ public final class Pure {
     public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent(one:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1], two:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent(one:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1], two:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1], delta:meta::pure::metamodel::type::Number[1], timeDeltaInSeconds:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
 
-    public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     // Real core/pure/tds/tds.pure:83 (getNumber qualified property, the
     // getString idiom — the tds outlier tests' read spelling).
-    public static final NativeFunctionDefinition GET_NUMBER__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getNumber(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Number[1];");
     // Real core/pure/tds/tds.pure:84-114 — the remaining TDSRow typed
     // getters (qualified properties in real pure; the getString idiom).
     // A let-bound `{a:TDSRow[1], b:TDSRow[1] | $a.getInteger('eID') == ...}`
     // types at its OWN let against the declared TDSRow class (the
     // consuming join re-types the reads against its rows).
-    public static final NativeFunctionDefinition GET_INTEGER__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getInteger(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition GET_FLOAT__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getFloat(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Float[1];");
-    public static final NativeFunctionDefinition GET_DECIMAL__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getDecimal(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Decimal[1];");
-    public static final NativeFunctionDefinition GET_DATE__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getDate(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Date[1];");
-    public static final NativeFunctionDefinition GET_DATE_TIME__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getDateTime(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
-    public static final NativeFunctionDefinition GET_STRICT_DATE__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getStrictDate(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::StrictDate[1];");
-    public static final NativeFunctionDefinition GET_BOOLEAN__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getBoolean(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS
     // carrier is Relation (same divergence as project<K> above) — the
     // relational route rewrites the call to EXISTS over the projected
     // relation (engine pureToSQLQuery tdsContains processor)
-    public static final NativeFunctionDefinition TDS_CONTAINS__T_1__FUNCTION_MANY__RELATION_1 = signature("native function meta::pure::tds::tdsContains<T,Z>(object:T[1], fns:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[0..1]}>[*], tds:meta::pure::metamodel::relation::Relation<Z>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition TDS_CONTAINS__T_1__FUNCTION_MANY__TDS_1 = signature("native function meta::pure::tds::tdsContains<T>(object:T[1], functions:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[0..1]}>[*], tds:meta::pure::tds::TabularDataSet[1]):meta::pure::metamodel::type::Boolean[1];");
 
-    public static final NativeFunctionDefinition TDS_CONTAINS__T_1__FUNCTION_MANY__STRING_MANY__RELATION_1__FUNCTION_1 = signature("native function meta::pure::tds::tdsContains<T,Z>(object:T[1], fns:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[0..1]}>[*], ids:meta::pure::metamodel::type::String[*], tds:meta::pure::metamodel::relation::Relation<Z>[1], crossOperation:meta::pure::metamodel::function::Function<{meta::pure::tds::TDSRow[1],meta::pure::tds::TDSRow[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition TDS_CONTAINS__T_1__FUNCTION_MANY__STRING_MANY__TDS_1__FUNCTION_1 = signature("native function meta::pure::tds::tdsContains<T>(object:T[1], functions:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[0..1]}>[*], ids:meta::pure::metamodel::type::String[*], tds:meta::pure::tds::TabularDataSet[1], crossOperation:meta::pure::metamodel::function::Function<{meta::pure::tds::TDSRow[1],meta::pure::tds::TDSRow[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
 
     public static final NativeFunctionDefinition PROJECT__K_MANY__FUNCTION_MANY__STRING_MANY = signature("native function meta::pure::tds::project<K>(set:K[*], functions:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition PROJECT__RELATION_1__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::project<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], fs:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]}, Z>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
@@ -2160,8 +2151,8 @@ public final class Pure {
     public static final NativeFunctionDefinition SORT_BY_REVERSED__T_m__FUNCTION_0_1 = signature("native function meta::pure::functions::collection::sortByReversed<T,U|m>(col:T[m], key:meta::pure::metamodel::function::Function<{T[1]->U[1]}>[0..1]):T[m];");
     public static final NativeFunctionDefinition SORT_BY__T_m__FUNCTION_0_1 = signature("native function meta::pure::functions::collection::sortBy<T,U|m>(col:T[m], key:meta::pure::metamodel::function::Function<{T[1]->U[1]}>[0..1]):T[m];");
     public static final NativeFunctionDefinition SORT__RELATION_1__SORT_INFO_MANY = signature("native function meta::pure::functions::relation::sort<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<X⊆T>[*]):meta::pure::metamodel::relation::Relation<T>[1];");
-    public static final NativeFunctionDefinition SORT__RELATION_1__STRING_1__SORT_DIRECTION_1 = signature("native function meta::pure::tds::sort<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], col:meta::pure::metamodel::type::String[1], direction:meta::relational::metamodel::SortDirection[1]):meta::pure::metamodel::relation::Relation<T>[1];");
-    public static final NativeFunctionDefinition SORT__RELATION_1__STRING_MANY = signature("native function meta::pure::functions::relation::sort<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<T>[1];");
+    public static final NativeFunctionDefinition SORT__TDS_1__STRING_1__SORT_DIRECTION_1 = signature("native function meta::pure::tds::sort(tds:meta::pure::tds::TabularDataSet[1], column:meta::pure::metamodel::type::String[1], direction:meta::pure::tds::SortDirection[1]):meta::pure::tds::TabularDataSet[1];");
+    public static final NativeFunctionDefinition SORT__TDS_1__STRING_MANY = signature("native function meta::pure::tds::sort(tds:meta::pure::tds::TabularDataSet[1], columns:meta::pure::metamodel::type::String[*]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition SORT__T_m = signature("native function meta::pure::functions::collection::sort<T|m>(col:T[m]):T[m];");
     public static final NativeFunctionDefinition SORT__T_m__FUNCTION_0_1 = signature("native function meta::pure::functions::collection::sort<T|m>(col:T[m], comp:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Integer[1]}>[0..1]):T[m];");
     public static final NativeFunctionDefinition SORT__T_m__FUNCTION_0_1__FUNCTION_0_1 = signature("native function meta::pure::functions::collection::sort<T,U|m>(col:T[m], key:meta::pure::metamodel::function::Function<{T[1]->U[1]}>[0..1], comp:meta::pure::metamodel::function::Function<{U[1],U[1]->meta::pure::metamodel::type::Integer[1]}>[0..1]):T[m];");
@@ -2197,7 +2188,7 @@ public final class Pure {
     // tableToTDS (REAL: meta::pure::tds::tableToTDS(table:Table[1]):TableTDS[1],
     // tableToTDS.pure:22) — over OUR relation carrier the table reference IS
     // the TDS value; the checker validates and emits identity.
-    public static final NativeFunctionDefinition TABLE_TO_TDS__RELATION_1 = signature("native function meta::pure::tds::tableToTDS(table:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
+    public static final NativeFunctionDefinition TABLE_TO_TDS__TABLE_1 = signature("native function meta::pure::tds::tableToTDS(table:meta::relational::metamodel::relation::Table[1]):meta::relational::mapping::TableTDS[1];");
     // REAL engine form (storeContract.pure: tableReference_Database_1__String_1__String_1__Table_1_):
     // (db, SCHEMA, table) — the corpus calls it directly with a schema name.
     public static final NativeFunctionDefinition TABLE_REFERENCE__STRING_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], schema:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");

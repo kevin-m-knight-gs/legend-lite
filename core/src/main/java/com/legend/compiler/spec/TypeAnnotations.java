@@ -151,7 +151,7 @@ final class TypeAnnotations {
                     com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET,
                     List.of());
         }
-        return ctx.findType(name)
+        return com.legend.compiler.element.type.PlatformTypes.eraseTdsRow(ctx.findType(name)
                 .or(() -> "TabularDataSet".equals(name)
                         ? Optional.of((Type) new Type.GenericType(
                                 com.legend.compiler.element.type.PlatformTypes
@@ -162,7 +162,7 @@ final class TypeAnnotations {
                         : ctx.findType("meta::pure::metamodel::type::" + name)
                                 .or(() -> ctx.findType(Pure.VARIANT_PKG + "::" + name)))
                 .orElseThrow(() -> new TypeInferenceException(
-                        "unknown type '" + name + "' in @" + name));
+                        "unknown type '" + name + "' in @" + name)));
     }
 
     /** {@code @Relation<(name:Type[m], …)>}: each column resolves recursively; multiplicity defaults to [1]. */

@@ -476,6 +476,18 @@ inference:** that the live protocol differential goes red on landing.
    batch-147 "signature-broken" reason was stale). OWED: preval's read-through is a
    string literal (ExecuteChainAssembly) — typed lookup + the preeval.pure:63-92 receipt
    (a semantics-preserving partial evaluation), in the next gated tree.
+11. **Batch 5 LEG 4 LANDED** (2026-09-11): TDS erasure — the 8 legacy TDS rows carry
+   upstream's `TabularDataSet`/`TDSRow`/`Table` text, the nine TDSRow getter natives
+   are gone (upstream declares them as qualified properties: `NativeFn.RowGetter`, the
+   lifted prelude definition types the call, a literal name folds to the column read);
+   divergent 59 → 42. USER catch: the first implementation (nominal TDSRow + a per-call
+   "receiver's row" rule + site patches) was hacking to pass tests — reset, the
+   representation written into the design doc §4b, implemented once: an erased-row
+   class (TDSRow, execute::Row — the family's owners) in a TYPE position IS the
+   late-bound row struct (`PlatformTypes.eraseTdsRow`); a TabularDataSet OUTPUT is the
+   argument's relation, the kernel's one output rule (`resolveOutput(…, args)`,
+   `TdsErasure`). Three chains: 19 → 8 → 0 lost, every fix at the rule, receipts in
+   docs/GATES.md. Remaining 42 = leg 5 (all inventions our own checkers synthesize).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

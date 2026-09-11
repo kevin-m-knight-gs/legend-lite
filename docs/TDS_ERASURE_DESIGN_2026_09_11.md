@@ -82,6 +82,58 @@ RowGetter family moves to a `DerivedProperty` registry beside `Subsumed`). Decid
 at implementation: the smallest truthful shape is RowGetter members with zero
 overloads and a `propertyName()`.
 
+## 4b. The representation (after the first attempt — USER 2026-09-11: "are we hacking to pass tests?")
+
+The first implementation put R2 into lambda-parameter typing and the getters into
+three routes; every chain then exposed one more site (two-row lambdas,
+concatenated-query lambdas, non-literal column names, `.rows` values) and each got a
+patch. Measured over the corpus, the engine core and the prelude, the facts that
+settle it:
+
+| fact | corpus | engine core |
+|---|---:|---:|
+| lambda parameters annotated `TDSRow[1]` | 143 | 18 |
+| lambdas with TWO `TDSRow` parameters | 6 | 0 |
+| function parameters typed `TDSRow` / returning `TDSRow` | 22 / 0 | 4 / 1 |
+| `.rows` reads (already row structs in our typer) | 1805 | 43 |
+| getter calls with a LITERAL column name | 1108 | |
+| getter calls with a NON-literal name (`$r.getString($c.name)`) | 52 | |
+| `cast(@TDSRow)` | 0 | 0 |
+
+So a nominal `TDSRow` VALUE arises in exactly one way: a `TDSRow` written in a type
+position (a signature parameter, a lambda annotation, a class property such as
+`TabularDataSet.rows`). And upstream's getters type their result by DECLARATION
+(`getString(colName):String[1]`) — real pure does not know the columns at type
+time either.
+
+**One rule, one place — `TDSRow` erases where a type expression becomes a `Type`.**
+`TypeClassifier.classify` (signatures, class properties) and
+`TypeAnnotations.namedType` (annotations) map the class `TDSRow` to the erased row
+`Type.RelationType.lateBound()`. Nothing downstream ever sees a `ClassType TDSRow`:
+lambda parameters, two-row lambdas, `.rows` elements and function parameters are all
+rows; a concrete row struct conforms to the erased row (the kernel's column
+unification: an empty formal column set admits any actual); the kernel's `TDSRow`
+special arms go. No pairing rule, no context threading.
+
+**The getters are `TDSRow`'s qualified properties, implemented by the platform.**
+The prelude declares them; their lifted definitions (`TDSRow$prop$getString(this,
+colName):String[1]`) are the TYPING source (no longer suppressed in
+`FunctionCompiler`); the inliner never splices them (their bodies are m3
+reflection); the census counts them with the natives (implemented in Java). Two
+shapes, one family (`NativeFn.RowGetter`, keyed by the property NAME — the
+`TDS_ROW_GETTERS` and `JoinChecker.TDS_GETTERS` string sets go):
+- a LITERAL column name FOLDS to the row's column read at type time — a compile-time
+  decision over spelled text, like every LiteralUnroll fold — typed by the schema when
+  the row is concrete and by the getter's DECLARED type when the row is erased;
+- a NON-literal name stays a call to the lifted property (`TypedUserCall`), typed by
+  its declaration, and `RowGetters` lowers it by name once inlining/unroll has made
+  the name literal (the same residual rule the natives followed).
+
+**`TabularDataSet` stays nominal; R1 refines the result** (declared
+`TabularDataSet` → the argument's actual relation, or the relation a query lambda
+argument returns), the `refineDecimalCarrier` pattern. Its parameter half exists in
+the kernel already.
+
 ## 5. Sequence
 
 1. Adopt upstream's text for the six TDS rows + `limit(Integer[0..1])` (re-key the
@@ -102,3 +154,26 @@ overloads and a `propertyName()`.
 `AggregateValue` (upstream declares them over `TabularDataSet` and over `T[*]`
 both): they are in leg 5's invented-arity set (`GROUP_BY__C_MANY…`,
 `EXTEND__C_MANY…`) and get the same R1 treatment once their text is adopted.
+
+## 7. Landed (2026-09-11)
+
+Implemented once from §4b; chain green on the third run (19 → 8 → 0 lost, every
+fix at the representation — receipts in `docs/GATES.md`, "BATCH 5 LEG 4"). What the
+implementation settled beyond §4b: (a) R1 is the KERNEL's output rule
+(`InferenceKernel.resolveOutput(returnType, mult, bindings, args)` → `TdsErasure`),
+read by the eager and the deferred call paths alike, and it substitutes inside the
+output's shape (`concatenateTemporalTdsQueries` returns
+`LambdaFunction<{->TabularDataSet}>`); §5 step 2's "in `Typer.checkGenericTyped`"
+was the eager path only. (b) §3's R2 does not exist: with the row erased at the type
+position there is no per-call "receiver's row" rule to write; a `TDSRow`-typed
+helper is schema-erased (`isSchemaErased` knows `isLateBound`) and inlines. (c) The
+erased-row classes are the accessor family's OWNERS — `TDSRow` and the ResultSet's
+`execute::Row` (`value(name):Any[1]`), one rule (`NativeFn.RowGetter.isOwner`).
+(d) Upstream declares `getString(colName:String[1])` beside
+`getString(col:TDSColumn[1])`: the lifted overload is resolved by the kernel like
+any qualified property. (e) The typed class carries its qualified properties
+(ClassCompiler's owned-accessor skip and the `TDS_ROW_OWNED_ACCESSORS` table are
+gone); the last string-matched getter (`Substitution.crossCellSubst`) reads the
+typer's fold. Not touched, measured: the kernel's two nominal-TDSRow formal arms
+(InferenceKernel ~181, ~2046) — dead once no TDSRow reaches the kernel; leg 5
+deletes them with a measurement.

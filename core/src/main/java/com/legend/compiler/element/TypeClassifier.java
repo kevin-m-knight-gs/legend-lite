@@ -102,8 +102,9 @@ final class TypeClassifier {
                     // (InferenceKernel.UNKNOWN_COLUMN_TYPE)
                     yield new Type.TypeVar("?");
                 }
-                yield findType(nr.name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
-                        "Unknown type: '" + nr.name() + "' is not a known primitive, class, or enum"));
+                yield com.legend.compiler.element.type.PlatformTypes.eraseTdsRow(
+                        findType(nr.name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                                "Unknown type: '" + nr.name() + "' is not a known primitive, class, or enum")));
             }
             case TypeExpression.Generic g -> {
                 if (g.arguments().isEmpty() && !g.typeVariableValues().isEmpty()) {

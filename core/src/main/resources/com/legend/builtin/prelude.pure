@@ -3674,6 +3674,11 @@ Class meta::pure::mapping::StoreQuery
     //sets : Pair<String, List<Any>>[*]; //inputs to either cross store ( query )
 }
 
+Class meta::pure::mapping::TabularDataSetImplementation extends TabularDataSet
+{
+  store : 	meta::pure::store::Store[1];
+}
+
 
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure
@@ -4144,6 +4149,11 @@ meta::pure::tds::BasicColumnSpecification<T> extends meta::pure::tds::ColumnSpec
    func : Function<{T[1]->Any[*]}>[1];
 }
 
+Enum meta::pure::tds::SortDirection
+{
+    ASC, DESC
+}
+
 Class meta::pure::tds::OlapOperation<T>
 {
   //superclass for all operations
@@ -4468,6 +4478,15 @@ Class meta::relational::mapping::SQLExecutionNode extends ExecutionNode
 
 Class meta::relational::mapping::RelationalInstantiationExecutionNode extends ExecutionNode
 {
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tableToTDS.pure
+import meta::pure::mapping::*;
+Class meta::relational::mapping::TableTDS extends TabularDataSetImplementation
+{
+  table : meta::relational::metamodel::relation::NamedRelation[1];
 }
 
 
@@ -5297,7 +5316,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 466 classes, 18 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 468 classes, 19 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 34 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
@@ -5566,6 +5585,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::lineage::scanColumns::ColumnWithContext
 //   meta::pure::lineage::scanRelations::RelationTree
 //   meta::pure::mapping::StoreQuery
+//   meta::pure::mapping::TabularDataSetImplementation
 //   meta::pure::mapping::aggregationAware::AggregationAwareActivity
 //   meta::pure::metamodel::serialization::grammar::GrammarExtension
 //   meta::pure::model::unit::ModelUnit
@@ -5578,6 +5598,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::store::StoreContract
 //   meta::pure::tds::ColumnSpecification
 //   meta::pure::tds::OlapOperation
+//   meta::pure::tds::SortDirection
 //   meta::pure::tds::TDSColumn
 //   meta::pure::tds::TDSNull
 //   meta::pure::tds::TDSRow
@@ -5604,6 +5625,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::relational::mapping::RelationalInstantiationExecutionNode
 //   meta::relational::mapping::SQLExecutionNode
 //   meta::relational::mapping::SQLResultColumn
+//   meta::relational::mapping::TableTDS
 //   meta::relational::metamodel::CommitQuery
 //   meta::relational::metamodel::CreateFunctionSQL
 //   meta::relational::metamodel::CreatePipelineSQL

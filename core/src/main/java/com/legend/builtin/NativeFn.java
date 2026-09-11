@@ -73,6 +73,7 @@ public final class NativeFn {
         out.put("Verdict", List.of(Verdict.values()));
         out.put("RowGetter", List.of(RowGetter.values()));
         out.put("Frame", List.of(Frame.values()));
+        out.put("RowGetter", List.of(RowGetter.values()));
         out.put("LowererForm", List.of(LowererForm.values()));
         out.put("LiteralForm", List.of(LiteralForm.values()));
         out.put("ContextOption", List.of(ContextOption.values()));
@@ -247,53 +248,6 @@ public final class NativeFn {
         }
     }
 
-    /** the TDSRow getters RowGetters lowers to column reads. */
-    public enum RowGetter implements Member {
-        GET_BOOLEAN("meta::pure::tds::getBoolean",
-                Pure.GET_BOOLEAN__TDS_ROW_1__STRING_1),
-        GET_DATE("meta::pure::tds::getDate",
-                Pure.GET_DATE__TDS_ROW_1__STRING_1),
-        GET_DATE_TIME("meta::pure::tds::getDateTime",
-                Pure.GET_DATE_TIME__TDS_ROW_1__STRING_1),
-        GET_DECIMAL("meta::pure::tds::getDecimal",
-                Pure.GET_DECIMAL__TDS_ROW_1__STRING_1),
-        GET_FLOAT("meta::pure::tds::getFloat",
-                Pure.GET_FLOAT__TDS_ROW_1__STRING_1),
-        GET_INTEGER("meta::pure::tds::getInteger",
-                Pure.GET_INTEGER__TDS_ROW_1__STRING_1),
-        GET_NUMBER("meta::pure::tds::getNumber",
-                Pure.GET_NUMBER__TDS_ROW_1__STRING_1),
-        GET_STRICT_DATE("meta::pure::tds::getStrictDate",
-                Pure.GET_STRICT_DATE__TDS_ROW_1__STRING_1),
-        GET_STRING("meta::pure::tds::getString",
-                Pure.GET_STRING__TDS_ROW_1__STRING_1);
-
-        private final String fqn;
-        private final List<NativeFunctionDefinition> overloads;
-
-        RowGetter(String fqn, NativeFunctionDefinition... overloads) {
-            this.fqn = fqn;
-            this.overloads = List.of(overloads);
-        }
-
-        @Override
-        public String fqn() {
-            return fqn;
-        }
-
-        @Override
-        public List<NativeFunctionDefinition> overloads() {
-            return overloads;
-        }
-
-        private static final Map<String, RowGetter> BY_FQN = index(values());
-
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<RowGetter> of(@com.legend.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
-        }
-    }
 
     /** the window-frame keywords Frames classifies and the over() checker consumes by type. */
     public enum Frame implements Member {
@@ -562,7 +516,7 @@ public final class NativeFn {
     /** forms single resolver / checker sites rewrite: tdsContains (EXISTS), variant get, alloyConfig, the from() mapping markers, the relational-mapper post-processor. */
     public enum ResolverForm implements Member {
         TDS_CONTAINS("meta::pure::tds::tdsContains",
-                Pure.TDS_CONTAINS__T_1__FUNCTION_MANY__RELATION_1, Pure.TDS_CONTAINS__T_1__FUNCTION_MANY__STRING_MANY__RELATION_1__FUNCTION_1),
+                Pure.TDS_CONTAINS__T_1__FUNCTION_MANY__TDS_1, Pure.TDS_CONTAINS__T_1__FUNCTION_MANY__STRING_MANY__TDS_1__FUNCTION_1),
         VARIANT_GET("meta::pure::functions::variant::navigation::get",
                 Pure.GET__VARIANT_0_1__STRING_1, Pure.GET__VARIANT_0_1__INTEGER_1),
         ALLOY_CONFIG("meta::pure::graphFetch::execution::alloyConfig",
@@ -976,6 +930,121 @@ public final class NativeFn {
          *  in this family (a normal fall-through, never an error). */
         public static Optional<DdlStatement> of(@com.legend.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** The ROW ACCESSORS — upstream's QUALIFIED PROPERTIES of {@code TDSRow}
+     *  (tds.pure: {@code getString(colName){$this.get($colName)->cast(@String)}})
+     *  and of the ResultSet {@code Row} twin ({@code value}), lifted as
+     *  {@code <owner>$prop$<name>(this, colName)} and IMPLEMENTED by the
+     *  platform: a literal column name FOLDS to the row's column read at type
+     *  time; a non-literal name stays a call to the lifted property that
+     *  RowGetters lowers by name (docs/TDS_ERASURE_DESIGN_2026_09_11.md §4b).
+     *  No Pure.java overload: the prelude's declaration is the signature. */
+    /** THE spelling of TDSRow (PlatformTypes.TDS_ROW reads it). */
+    public static final String TDS_ROW_OWNER = "meta::pure::tds::TDSRow";
+    /** The ResultSet Row (execute.pure). */
+    public static final String EXECUTE_ROW_OWNER = "meta::relational::metamodel::execute::Row";
+
+    public enum RowGetter implements Member {
+        GET(TDS_ROW_OWNER, "get", false),
+        IS_NULL(TDS_ROW_OWNER, "isNull", false),
+        IS_NOT_NULL(TDS_ROW_OWNER, "isNotNull", false),
+        GET_STRING(TDS_ROW_OWNER, "getString", true),
+        GET_NULLABLE_STRING(TDS_ROW_OWNER, "getNullableString", true),
+        GET_NUMBER(TDS_ROW_OWNER, "getNumber", true),
+        GET_INTEGER(TDS_ROW_OWNER, "getInteger", true),
+        GET_FLOAT(TDS_ROW_OWNER, "getFloat", true),
+        GET_DECIMAL(TDS_ROW_OWNER, "getDecimal", true),
+        GET_DATE(TDS_ROW_OWNER, "getDate", true),
+        GET_DATE_TIME(TDS_ROW_OWNER, "getDateTime", true),
+        GET_STRICT_DATE(TDS_ROW_OWNER, "getStrictDate", true),
+        GET_BOOLEAN(TDS_ROW_OWNER, "getBoolean", true),
+        GET_ENUM(TDS_ROW_OWNER, "getEnum", true),
+        /** execute::Row's own by-name cell read (functions.pure: value(name) =
+         *  at($this.values, indexOf($this.parent.columnNames, $name))) — the
+         *  ResultSet twin of the TDSRow getters. */
+        VALUE(EXECUTE_ROW_OWNER, "value", true);
+
+        private final String owner;
+        private final String property;
+        private final boolean typedCell;
+
+        RowGetter(String owner, String property, boolean typedCell) {
+            this.owner = owner;
+            this.property = property;
+            this.typedCell = typedCell;
+        }
+
+        /** The declaring class. */
+        public String owner() {
+            return owner;
+        }
+
+        /** The property name. */
+        public String property() {
+            return property;
+        }
+
+        /** A TYPED cell read (getString, value, …) — folds to the column when
+         *  the name is literal; get / isNull / isNotNull have their own forms. */
+        public boolean typedCell() {
+            return typedCell;
+        }
+
+        @Override
+        public String fqn() {
+            return com.legend.model.DerivedPropertyNames.lifted(owner, property);
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return List.of();
+        }
+
+        private static final Map<String, RowGetter> BY_PROPERTY;
+
+        static {
+            Map<String, RowGetter> m = new java.util.HashMap<>();
+            for (RowGetter g : values()) {
+                m.putIfAbsent(g.property, g);
+            }
+            BY_PROPERTY = Map.copyOf(m);
+        }
+
+        /** The accessor an APPLIED (bare) name spells, or empty. */
+        public static Optional<RowGetter> of(@com.legend.Nullable String appliedName) {
+            if (appliedName == null) {
+                return Optional.empty();
+            }
+            int cut = appliedName.lastIndexOf("::");
+            return Optional.ofNullable(BY_PROPERTY.get(cut < 0 ? appliedName : appliedName.substring(cut + 2)));
+        }
+
+        /** Whether {@code classFqn} is an ERASED ROW class — an owner of this
+         *  family (TDSRow, execute::Row): a row whose columns only its parent
+         *  result knows; in a type position it IS the late-bound row struct. */
+        public static boolean isOwner(String classFqn) {
+            for (RowGetter g : values()) {
+                if (g.owner.equals(classFqn)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** The accessor a lifted derived-property callee spells, or empty. */
+        public static Optional<RowGetter> ofLifted(@com.legend.Nullable String liftedFqn) {
+            String[] ref = liftedFqn == null ? null : com.legend.model.DerivedPropertyNames.split(liftedFqn);
+            if (ref == null) {
+                return Optional.empty();
+            }
+            for (RowGetter g : values()) {
+                if (g.owner.equals(ref[0]) && g.property.equals(ref[1])) {
+                    return Optional.of(g);
+                }
+            }
+            return Optional.empty();
         }
     }
 }

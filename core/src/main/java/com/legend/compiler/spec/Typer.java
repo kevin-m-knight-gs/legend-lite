@@ -480,13 +480,18 @@ final class Typer {
         }
         // $r.getString('COL') / Row.value('COL') — the typed row-cell
         // accessors (TDSRow + the ResultSet Row twin, one owner below)
-        if ((TDS_ROW_GETTERS.contains(af.function())
-                    || af.function().equals("getNullableString"))
-                && af.parameters().size() == 2
-                && literalColName(af.parameters().get(1)) != null
-                && tdsReceiver(synth(af.parameters().get(0), env)
-                        .info().type())) {
-            return rowCellRead(af, env);
+        var getter = com.legend.builtin.NativeFn.RowGetter.of(af.function());
+        if (getter.isPresent() && getter.get().typedCell() && af.parameters().size() == 2) {
+            TypedSpec grecv = synth(af.parameters().get(0), env);
+            if (tdsReceiver(grecv.info().type())) {
+                if (literalColName(af.parameters().get(1)) != null) {
+                    return rowCellRead(af, env, getter.get());   // the FOLD: the row's column
+                }
+                // a NON-literal column name: the call to the lifted qualified
+                // property stands (typed by its declaration; RowGetters lowers it
+                // by name once unroll/inlining has made the name literal)
+                return liftedAccessorCall(getter.get(), grecv, synth(af.parameters().get(1), env));
+            }
         }
         TypedSpec tdsGetter = tdsGetterDesugars(af, env);
         if (tdsGetter != null) {
@@ -1083,17 +1088,6 @@ final class Typer {
         return null;
     }
 
-    /** The legacy TDSRow typed column accessors (getString('COL') et al).
-     * {@code value} is {@code execute::Row}'s own accessor
-     * (functions.pure: {@code value(name) = at($this.values,
-     * indexOf($this.parent.columnNames, $name))}) — a relation row's
-     * by-name cell read exactly like TDSRow's getters (Phase 1c: Row and
-     * TDSRow are convergent spec twins; both bind a relation's row). */
-    private static final java.util.Set<String> TDS_ROW_GETTERS = java.util.Set.of(
-            "getString", "getInteger", "getFloat", "getDecimal", "getNumber",
-            "getBoolean", "getDate", "getDateTime", "getStrictDate", "getEnum",
-            "value");
-
     /** The single-row PICKS whose result a `.values` read treats as ONE
      * TDSRow (cells in column order), not a relation to flatten. */
     private static final java.util.Set<String> ROW_PICK_FQNS = java.util.Set.of(
@@ -1612,6 +1606,10 @@ final class Typer {
         // a FUNCTION over the erased nominals is itself erased — a helper
         // returning Function<{TDSRow[1]->Boolean[1]}> exists only inlined
         // (bare or Function<{...}>-wrapped alike)
+        // the ERASED ROW itself (TDSRow in a type position — PlatformTypes.eraseTdsRow)
+        if (t instanceof com.legend.compiler.element.type.Type.RelationType r && r.isLateBound()) {
+            return true;
+        }
         com.legend.compiler.element.type.Type.FunctionType ft = asFunctionType(t);
         if (ft != null) {
             return ft.params().stream().anyMatch(p -> isSchemaErased(p.type()))
@@ -2049,7 +2047,8 @@ final class Typer {
             }
         }
 
-        ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b);
+        ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
+                java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
         return new Application(chosen, List.of(typed),
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out)));
     }
@@ -2773,7 +2772,31 @@ final class Typer {
      * Row[*] in pure terms) the read AUTO-MAPS per pure's own dot rule
      * (map.pure grammarDoc): the column's values, one per row — never a
      * single-row read over many rows. */
-    private TypedSpec rowCellRead(AppliedFunction af, Env env) {
+    /** The lifted qualified property a row accessor names — TDSRow$prop$getString —
+     *  typed by ITS declaration (the prelude's), the platform's implementation
+     *  being RowGetters. Loud when the module does not carry it. */
+    private TypedSpec liftedAccessorCall(com.legend.builtin.NativeFn.RowGetter getter,
+            TypedSpec receiver, TypedSpec name) {
+        InferenceKernel.Resolution r = liftedAccessor(getter, receiver.info(), name.info());
+        return new com.legend.compiler.spec.typed.TypedUserCall(r.chosen(), List.of(receiver, name), r.output());
+    }
+
+    /** The lifted overload the accessor call resolves to — upstream declares
+     *  {@code getString(colName:String[1])} beside {@code getString(col:TDSColumn[1])};
+     *  the kernel picks, exactly as for any qualified property. Loud when the
+     *  module does not carry the declaration. */
+    private InferenceKernel.Resolution liftedAccessor(com.legend.builtin.NativeFn.RowGetter getter,
+            ExprType receiver, ExprType name) {
+        List<TypedFunction> lifted = ctx.findFunction(getter.fqn());
+        if (lifted.isEmpty()) {
+            throw new TypeInferenceException("row accessor '" + getter.property()
+                    + "': the module carries no declaration of " + getter.fqn());
+        }
+        return kernel.resolveOverload(lifted, List.of(receiver, name));
+    }
+
+    private TypedSpec rowCellRead(AppliedFunction af, Env env,
+            com.legend.builtin.NativeFn.RowGetter getter) {
         // COLLECTION frame BY TYPE (Row-vs-Relation): a WRAPPED
         // Relation<T> receiver is the rows collection — the typed
         // getter AUTO-MAPS per row (map.pure's dot rule); a bare
@@ -2790,11 +2813,24 @@ final class Typer {
                                             af.parameters().get(1))))))),
                     env);
         }
+        return rowCellReadOnRow(af, env, getter, grecv);
+    }
+
+    private TypedSpec rowCellReadOnRow(AppliedFunction af, Env env,
+            com.legend.builtin.NativeFn.RowGetter getter, TypedSpec grecv) {
         String colRef = java.util.Objects.requireNonNull(
                 literalColName(af.parameters().get(1)),
                 "TDS cell read requires a literal column name");
         TypedSpec cell = synth(new AppliedProperty(
                 af.parameters().get(0), colRef), env);
+        // an ERASED row (a TDSRow in a type position): the column's type is
+        // the accessor's DECLARED type (getString: String[1]) — real pure knows
+        // no more at type time either; a concrete row keeps its schema's type
+        if (Type.schemaView(grecv.info().type()) instanceof Type.RelationType erased
+                && erased.isLateBound()) {
+            return cell.withInfo(liftedAccessor(getter, grecv.info(),
+                    ExprType.one(Type.Primitive.STRING)).output());
+        }
         // getNullableString returns String[0..1] (tds.pure:82/112) —
         // the optional cell read IS the semantics, no strictening
         if (af.function().equals("getNullableString")

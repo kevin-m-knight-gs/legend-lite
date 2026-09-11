@@ -94,7 +94,26 @@ public final class PlatformTypes {
      * conversion). */
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
-    public static final String TDS_ROW = "meta::pure::tds::TDSRow";
+    public static final String TDS_ROW = com.legend.builtin.NativeFn.TDS_ROW_OWNER;
+
+    /** TDS ERASURE (docs/TDS_ERASURE_DESIGN_2026_09_11.md §4b): an ERASED ROW
+     * class — an owner of the row-accessor family, TDSRow and the ResultSet's
+     * execute::Row — in a TYPE position (a signature parameter, a lambda
+     * annotation, a class property) IS the erased row: a row struct whose
+     * columns are late-bound. Applied where a type expression becomes a Type
+     * (TypeClassifier, TypeAnnotations), so nothing downstream ever sees the
+     * nominal class. */
+    public static Type eraseTdsRow(Type t) {
+        return t instanceof Type.ClassType c && com.legend.builtin.NativeFn.RowGetter.isOwner(c.fqn())
+                ? Type.RelationType.lateBound() : t;
+    }
+
+    /** Whether a LIFTED derived-property function ({@code <owner>$prop$<name>})
+     *  is one the platform IMPLEMENTS (the row accessors — RowGetters): its
+     *  lifted definition types the call, its body is never spliced. */
+    public static boolean isPlatformImplementedDerived(String liftedFqn) {
+        return com.legend.builtin.NativeFn.RowGetter.ofLifted(liftedFqn).isPresent();
+    }
     /** The mapping METACLASS (platform_dsl_mapping mapping.pure:26) — a prelude
      * module class since batch 165 (mapping leg B); Java names it, the boot
      * layer defines it. */
@@ -109,6 +128,10 @@ public final class PlatformTypes {
     /** The relational store metaclass (relational.pure:29) — a prelude module class
      * since batch 164 (leg A of the mapping legs); the seeds and the extents name it here. */
     public static final String DATABASE = "meta::relational::metamodel::Database";
+    /** The relational Table (the element a #>{db.table}# store accessor
+     * DENOTES — upstream's RelationStoreAccessor.sourceElement): what
+     * tableToTDS(table:Table[1]) is declared over. */
+    public static final String RELATIONAL_TABLE = "meta::relational::metamodel::relation::Table";
     /** m3 metaclasses — prelude module classes since batch 161 (phase 2 family 4);
      * every Java site names them here, definitions come from the boot layer. */
     public static final String ELEMENT_OVERRIDE = "meta::pure::metamodel::type::ElementOverride";
@@ -570,22 +593,6 @@ public final class PlatformTypes {
                     "meta::pure::functions::asserts::assertEqWithinTolerance",
                     "meta::pure::functions::asserts::assertJsonStringsEqual");
 
-    /**
-     * DERIVED properties the platform implements NATIVELY — the function
-     * half's by-name suppression rule (PRELUDE_MODULE_HOMEWORK §3, §9.14)
-     * applied to a class's own qualified properties. The spec's
-     * {@code TDSRow} reads its cells through the engine's row
-     * representation ({@code $this.values}, {@code columnByName}, asserts);
-     * on this platform a row IS a SQL row and the accessors are the natives
-     * {@code meta::pure::tds::get*(row, col)}. The typer's derived-shadow
-     * route and the overload set yield to the native for these; the
-     * module still CARRIES the spec bodies (verbatim, T5).
-     */
-    private static final java.util.Set<String> TDS_ROW_OWNED_ACCESSORS = java.util.Set.of(
-            "get", "isNull", "isNotNull",
-            "getString", "getNullableString", "getNumber", "getInteger", "getFloat",
-            "getDecimal", "getDate", "getDateTime", "getStrictDate", "getBoolean", "getEnum");
-
     /** {@code meta::pure::functions::string::format}: its {@code %s} slots
      * print an argument by the argument's own {@code toString()} — real
      * pure's format calls toString on each value, so a CLASS-typed slot
@@ -607,9 +614,7 @@ public final class PlatformTypes {
         };
     }
 
-    public static boolean isPlatformOwnedDerivedProperty(String ownerFqn, String name) {
-        return TDS_ROW.equals(ownerFqn) && TDS_ROW_OWNED_ACCESSORS.contains(name);
-    }
+
 
     public static boolean isPlatformOwnedFunction(String fqn) {
         return PLATFORM_OWNED_FUNCTIONS.contains(fqn)
