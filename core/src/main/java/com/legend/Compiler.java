@@ -939,7 +939,7 @@ public final class Compiler {
                         .GENERATE_TEST_DATA.equals(
                                 nc.callee().qualifiedName())
                     || com.legend.compiler.element.type.PlatformTypes
-                        .GENERATE_SEED_DATA_STRING.equals(
+                        .GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY.equals(
                                 nc.callee().qualifiedName()))) {
             return true;
         }

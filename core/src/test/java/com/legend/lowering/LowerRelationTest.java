@@ -28,6 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LowerRelationTest {
 
     private static final String MODEL = """
+            ###Mapping
+            Mapping test::M ( )
+            ###Runtime
+            Runtime test::RT { mappings: [test::M]; }
             ###Relational
             Database test::DB
             (
@@ -106,6 +110,17 @@ class LowerRelationTest {
         int c = 0;
         for (int i = sql.indexOf(kw); i >= 0; i = sql.indexOf(kw, i + kw.length())) c++;
         return c;
+    }
+
+    @Test
+    @DisplayName("from(runtime) is a pass-through — zero SQL footprint")
+    void fromPassThrough() throws SQLException {
+        // upstream's from(T[m], PackageableRuntime[1]) (batch 5): a RUNTIME element
+        String withFrom = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)"
+                + "->from(test::RT)");
+        String without = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)");
+        assertEquals(without, withFrom, "from() adds nothing to the SQL");
+        assertEquals(List.of("Dan|55|null"), exec(withFrom));
     }
 
     @Test
@@ -598,16 +613,6 @@ class LowerRelationTest {
                 "REAL Pure precedence: * binds tighter (engine-lite's flat grammar gave 9)");
         assertEquals(List.of("true"), exec(sqlOf("true || true && false")),
                 "&& binds tighter than || (flat grammar gives false)");
-    }
-
-    @Test
-    @DisplayName("from(runtime) is a pass-through — zero SQL footprint")
-    void fromPassThrough() throws SQLException {
-        String withFrom = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)"
-                + "->from(test::DB)");
-        String without = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)");
-        assertEquals(without, withFrom, "from() adds nothing to the SQL");
-        assertEquals(List.of("Dan|55|null"), exec(withFrom));
     }
 
     @Test

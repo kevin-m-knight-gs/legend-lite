@@ -466,6 +466,12 @@ inference:** that the live protocol differential goes red on landing.
    ledger of reasons — every divergence is fixed to upstream's real signature, by leg:
    2 wildcard subsets (17), 3 widened-to-Any (38), 4 TDS/TDSRow erasure (6 + 9 getters),
    5 inventions to Lite or deleted. Receipts in docs/GATES.md.
+10. **Batch 5 LEGS 2+3 LANDED** (2026-09-11): 45 more rows adopt upstream's text
+   (wildcard subsets, widened-to-Any); divergent 104 → 59. USER catch: the first
+   `over` typing was a kernel approximation — reverted for real pure's bidirectional
+   rule (an `over` argument types after the enclosing overload, against the expected
+   `_Window<T>`; `InferenceKernel.resolveOverload(…, expected)`). Runtime elements are
+   `PackageableRuntime`. Leg 4 design: docs/TDS_ERASURE_DESIGN_2026_09_11.md.
    relationalExtensions is Subsumed #2 (same day, chain green, zero movement; the
    batch-147 "signature-broken" reason was stale). OWED: preval's read-through is a
    string literal (ExecuteChainAssembly) — typed lookup + the preeval.pure:63-92 receipt

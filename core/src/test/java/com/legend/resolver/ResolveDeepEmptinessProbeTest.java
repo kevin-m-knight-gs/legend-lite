@@ -114,7 +114,7 @@ class ResolveDeepEmptinessProbeTest {
     void classRootedFrameRead() throws SQLException {
         String query = "{|let result = execute("
                 + "|e::Firm.all()->filter(f|$f.employees.locations->isNotEmpty()),"
-                + " e::M, e::RT, []);"
+                + " e::M, e::RT.runtimeValue, []);"
                 + " $result.values.legalName->removeDuplicates()->sort();}";
         Object r;
         try {

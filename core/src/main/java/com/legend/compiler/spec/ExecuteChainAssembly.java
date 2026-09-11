@@ -521,7 +521,7 @@ public final class ExecuteChainAssembly {
      * exeCtx overload (f, mapping, runtime, exeCtx, extensions); null on
      * the others. Identified by the overload's SIGNATURE, never by shape. */
     public static @com.legend.Nullable TypedSpec executionContextArg(TypedNativeCall ec) {
-        return com.legend.builtin.Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY
+        return com.legend.builtin.Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
                 .signatureKey().equals(ec.callee().signatureKey()) && ec.args().size() == 5
                 ? ec.args().get(3) : null;
     }

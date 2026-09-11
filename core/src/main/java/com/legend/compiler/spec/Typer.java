@@ -1340,7 +1340,7 @@ final class Typer {
             case GENERATE_TEST_DATA -> GenerateTestDataChecker.check(this, af, env);
             case MAY_EXECUTE_ALLOY_TEST, MAY_EXECUTE_LEGEND_TEST ->
                     MayExecuteChecker.check(this, af, env);
-            case GENERATE_SEED_DATA_STRING ->
+            case GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY ->
                     GenerateTestDataChecker.checkSeed(this, af, env);
             case PLAN_TEST_DATA_GENERATION ->
                     GenerateTestDataChecker.checkPlan(this, af, env);
@@ -1800,21 +1800,33 @@ final class Typer {
      * half of the check/emit split ({@link Application}); calls with
      * deferred arguments take {@link #checkWithDeferred}. */
     Application checkGeneric(AppliedFunction af, Env env) {
+        return checkGeneric(af, env, null);
+    }
+
+    /** {@link #checkGeneric(AppliedFunction, Env)} with the caller's EXPECTED
+     *  type of the call's value (bidirectional inference — the deferred slot
+     *  of an enclosing call knows the parameter type it is filling). */
+    Application checkGeneric(AppliedFunction af, Env env, @com.legend.Nullable Type expected) {
         af = expandFunctionValuedHelperArgs(af);
-        if (af.parameters().stream().anyMatch(Typer::deferredArg)) {
+        if (af.parameters().stream().anyMatch(DeferredArgs::deferredArg)) {
             return checkWithDeferred(af, env);
         }
         List<TypedSpec> args = new ArrayList<>(af.parameters().size());
         for (ValueSpecification p : af.parameters()) {
             args.add(synth(p, env));
         }
-        return checkGenericTyped(af, args);
+        return checkGenericTyped(af, args, expected);
     }
 
     /** The generic check over ALREADY-TYPED arguments (ConcatenateChecker
      * reads a type before choosing its rule; each argument synths ONCE —
      * a second synth re-registers typer state: TDS literals, plan params). */
     Application checkGenericTyped(AppliedFunction af, List<TypedSpec> args) {
+        return checkGenericTyped(af, args, null);
+    }
+
+    Application checkGenericTyped(AppliedFunction af, List<TypedSpec> args,
+            @com.legend.Nullable Type expected) {
         List<ExprType> argTypes = args.stream().map(TypedSpec::info).toList();
         List<TypedFunction> candidates = functionCandidates(af);
         if (candidates.isEmpty()) {
@@ -1825,7 +1837,7 @@ final class Typer {
                     + " native or user catalog (unported platform function,"
                     + " or a misspelling)");
         }
-        InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes);
+        InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
         return new Application(r.chosen(), args,
                 refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output())));
     }
@@ -1886,7 +1898,7 @@ final class Typer {
         List<TypedFunction> candidates = functionCandidates(af);
         List<TypedFunction> arity = candidates.stream()
                 .filter(c -> c.parameters().size() == raw.size())
-                .filter(c -> deferredShapesMatch(c, raw))
+                .filter(c -> DeferredArgs.shapesMatch(this, c, raw))
                 .toList();
         if (arity.isEmpty()) {
             throw new TypeInferenceException("no overload of '" + af.function()
@@ -1900,7 +1912,7 @@ final class Typer {
 
         TypedSpec[] typed = new TypedSpec[raw.size()];
         for (int i = 0; i < raw.size(); i++) {
-            if (!deferredArg(raw.get(i))) {
+            if (!DeferredArgs.deferredArg(raw.get(i))) {
                 typed[i] = synth(raw.get(i), env);   // value args first
             }
         }
@@ -1946,8 +1958,18 @@ final class Typer {
 
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] == null) {
+                if (DeferredArgs.isOverCall(raw.get(i))) {
+                    // the expected window type, its T resolved from the bindings the
+                    // relation argument made — real pure's context inference
+                    Type expected = kernel.resolve(chosen.parameters().get(i).type(), b);
+                    typed[i] = OverChecker.check(this, (AppliedFunction) raw.get(i), env, expected);
+                    kernel.unify(chosen.parameters().get(i).type(), typed[i].info().type(), b);
+                    kernel.unifyMult(chosen.parameters().get(i).multiplicity(),
+                            typed[i].info().multiplicity(), typed[i].info().type(), b);
+                    continue;
+                }
                 if (raw.get(i) instanceof LambdaFunction
-                        || (isLambdaCollection(raw.get(i))
+                        || (DeferredArgs.isLambdaCollection(raw.get(i))
                                 && (chosen.parameters().get(i).type()
                                         instanceof Type.TypeVar
                                     || com.legend.compiler.element.type.PlatformTypes
@@ -1963,7 +1985,7 @@ final class Typer {
                             instanceof Type.TypeVar
                             || nominalFunctionCarrier(
                                     chosen.parameters().get(i).type())
-                            || (isLambdaCollection(raw.get(i))
+                            || (DeferredArgs.isLambdaCollection(raw.get(i))
                                     && com.legend.compiler.element.type.PlatformTypes
                                             .isAny(chosen.parameters().get(i).type()))) {
                         // self-typable lambda against T: synthesize
@@ -1993,7 +2015,7 @@ final class Typer {
                         continue;
                     }
                     typed[i] = typeLambda(lam, chosen.parameters().get(i).type(), b, env);
-                } else if (isLambdaCollection(raw.get(i))) {
+                } else if (DeferredArgs.isLambdaCollection(raw.get(i))) {
                     // pure [f] ≡ f in call position — each element types
                     // against the chosen signature's function parameter
                     // (the corpus's filter([t|...]) / project([λ..], names));
@@ -2040,7 +2062,7 @@ final class Typer {
     private ExprType refineImportDataFlow(TypedFunction chosen, List<ValueSpecification> raw,
             TypedSpec[] typed, Env env, ExprType out) {
         if (raw.size() != 5
-                || !Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY.signatureKey()
+                || !Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY.signatureKey()
                         .equals(chosen.signatureKey())
                 || !ImportDataFlow.requested(env.resolveAlias(raw.get(3)), typed[3])) {
             return out;
@@ -2071,88 +2093,7 @@ final class Typer {
             "meta::pure::functions::string::parseDecimal",
             "meta::pure::functions::math::toDecimal");
 
-    /** An argument whose typing must wait for the chosen signature: a lambda, or a
-     * colspec carrying one. An EMPTY colspec array also defers — its flavor
-     * (plain/Func/Agg) is nominal-only and the chosen parameter decides it
-     * (legacy groupBy([], aggs, ids): a global aggregate's keys). */
-    static boolean deferredArg(ValueSpecification p) {
-        return p instanceof LambdaFunction
-                || isLambdaCollection(p)
-                || (p instanceof ColSpec cs && cs.function1() != null)
-                || (p instanceof ColSpecArray arr
-                        && (arr.colSpecs().isEmpty()
-                                || arr.colSpecs().stream()
-                                        .anyMatch(c -> c.function1() != null)));
-    }
-
-    /** A NON-EMPTY collection literal of lambdas — {@code filter([t|...])} /
-     * {@code project([t|...x, t|...y], names)}: pure's [f] ≡ f value
-     * semantics in call position; each element types against the chosen
-     * signature's function parameter. */
-    private static boolean isLambdaCollection(ValueSpecification p) {
-        return p instanceof PureCollection pc && !pc.values().isEmpty()
-                && pc.values().stream().allMatch(v -> v instanceof LambdaFunction);
-    }
-
-    /**
-     * Prefilter candidates by the deferred arguments' <em>syntactic shape</em>
-     * (engine dispatches its colspec overloads the same way): a lambda needs a
-     * function-typed parameter; {@code ~a:x|…} needs {@code FuncColSpec} (or
-     * {@code AggColSpec} when it carries a reducer {@code function2}); the array
-     * forms need the {@code …Array} classes. Value-argument scoring cannot see
-     * this, since deferred slots are not yet typed.
-     */
-    private boolean deferredShapesMatch(TypedFunction c, List<ValueSpecification> raw) {
-        for (int i = 0; i < raw.size(); i++) {
-            ValueSpecification p = raw.get(i);
-            if (!deferredArg(p)) {
-                continue;
-            }
-            Type t = c.parameters().get(i).type();
-            boolean ok = switch (p) {
-                // A SELF-TYPABLE lambda (zero-arg, or fully annotated)
-                // also matches a bare type-variable param — it synthesizes
-                // standalone and T binds to its function type
-                // (evaluateAndDeactivate<T|m>(var:T[m]) over {|...}).
-                case LambdaFunction lf -> isFunctionTyped(t)
-                        || ((t instanceof Type.TypeVar || com.legend.compiler.element.type.PlatformTypes.isAny(t))
-                                && selfTypable(lf));
-                // a collection of SELF-TYPABLE lambdas also matches a bare
-                // type-variable param ([{|q1},{|q2}]->evaluateAndDeactivate())
-                // — and an Any param (upstream's size(Any[*]) / count(Any[*]) over
-                // a lambda collection: Any accepts a function VALUE as a value)
-                case PureCollection pc0
-                        when (t instanceof Type.TypeVar || com.legend.compiler.element.type.PlatformTypes.isAny(t))
-                        && pc0.values().stream().allMatch(v ->
-                                v instanceof LambdaFunction plf
-                                        && selfTypable(plf)) -> true;
-                case PureCollection ignored -> isFunctionTyped(t);
-                case ColSpec cs -> genericRawIs(t,
-                        cs.function2() != null ? com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC : com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC);
-                case ColSpecArray arr when arr.colSpecs().isEmpty() ->
-                        genericRawIs(t, com.legend.compiler.element.type.PlatformTypes.COL_SPEC_ARRAY)
-                                || genericRawIs(t, com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC_ARRAY)
-                                || genericRawIs(t, com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC_ARRAY);
-                case ColSpecArray arr -> genericRawIs(t,
-                        arr.colSpecs().stream().anyMatch(x -> x.function2() != null)
-                                ? com.legend.compiler.element.type.PlatformTypes.AGG_COL_SPEC_ARRAY : com.legend.compiler.element.type.PlatformTypes.FUNC_COL_SPEC_ARRAY);
-                default -> true;
-            };
-            if (!ok) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** A lambda literal that can type WITHOUT an expected signature:
-     * zero-arg, or every parameter annotated (Typer's standalone arm). */
-    private static boolean selfTypable(LambdaFunction lf) {
-        return lf.parameters().isEmpty()
-                || lf.parameters().stream().allMatch(pv -> pv.type() != null);
-    }
-
-    private boolean isFunctionTyped(Type t) {
+    boolean isFunctionTyped(Type t) {
         return t instanceof Type.FunctionType
                 || (t instanceof Type.GenericType g && g.arguments().size() == 1
                         && g.arguments().get(0) instanceof Type.FunctionType)
@@ -2172,7 +2113,7 @@ final class Typer {
         return genericRawIs(t, def.qualifiedName());
     }
 
-    private static boolean genericRawIs(Type t, String rawFqn) {
+    static boolean genericRawIs(Type t, String rawFqn) {
         return t instanceof Type.GenericType g && g.rawFqn().equals(rawFqn);
     }
 
@@ -2690,8 +2631,15 @@ final class Typer {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
                     new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.PACKAGE)));
         }
-        // An execution-context element (runtime/connection) is a value
-        // of type Any[1] — exactly what from/write's signature parameters declare.
+        // a RUNTIME element is upstream's PackageableRuntime — from(T[m],
+        // PackageableRuntime[1]) is declared over it; a Runtime[1] slot
+        // (execute) takes its runtimeValue, spelled by the caller
+        if (ctx.findRuntime(ref.fullPath()).isPresent()) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(new Type.ClassType(
+                    com.legend.compiler.element.type.PlatformTypes.PACKAGEABLE_RUNTIME)));
+        }
+        // a CONNECTION element stays Any[1] — the prelude carries no
+        // PackageableConnection; its typing is owed with the connection natives
         if (ctx.isExecutionContextElement(ref.fullPath())) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(InferenceKernel.anyType()));
         }

@@ -191,7 +191,10 @@ class CompileFunctionTest {
         // engine-verbatim (router_entry.pure:20; audit R4 fix): a lambda
         // conforms (LambdaFunction ≤ FunctionDefinition).
         CompiledFunction cf = compile(
-                "function test::t(): Any[1] { meta::pure::router::execute({|1}, 'm', 'r', []) }",
+                // upstream's signature (batch 5): a Mapping and a Runtime, spelled as
+                // the instances real pure builds — the lambda is the point of the test
+                "function test::t(): Any[1] { meta::pure::router::execute({|1},"
+                        + " ^meta::pure::mapping::Mapping(name='m'), ^meta::core::runtime::Runtime(), []) }",
                 "test::t");
         assertTrue(cf.result().info().type().typeName().contains("Result"),
                 "router execute must produce a Result, got "

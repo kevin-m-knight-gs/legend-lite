@@ -142,6 +142,10 @@ public final class PlatformTypes {
     public static final String AGG_COL_SPEC_ARRAY = "meta::pure::metamodel::relation::AggColSpecArray";
     /** {@code over(...)}'s row-frame marker class (engine rows.pure). */
     public static final String ROWS = "meta::pure::functions::relation::Rows";
+    /** The window value {@code over(...)} builds — {@code extend}'s second
+     * parameter; an {@code over} argument types like a lambda, AFTER the
+     * enclosing overload is chosen, with the expected {@code _Window<T>}. */
+    public static final String WINDOW = "meta::pure::functions::relation::_Window";
     /** The mapping execution result envelope (legend-pure result.pure). */
     public static final String RESULT = "meta::pure::mapping::Result";
 
@@ -434,12 +438,16 @@ public final class PlatformTypes {
      * planToString is the engine's MultiResultSequence text. */
     public static final String PLAN_TEST_DATA_GENERATION =
             "meta::relational::testDataGeneration::executionPlan::planTestDataGeneration";
-    public static final String GENERATE_SEED_DATA_STRING =
+    public static final String GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY =
             "meta::relational::testDataGeneration::generateSeedDataString";
 
     // ---- the execution context's vocabulary (ExecutionContext.Reader is
     // the only reader of these classes' fields) ----
     public static final String RUNTIME = "meta::core::runtime::Runtime";
+    /** A {@code ###Runtime} ELEMENT is upstream's PackageableRuntime (its
+     * {@code runtimeValue} is the Runtime): what a runtime reference types as
+     * — from(T[m], PackageableRuntime[1]) takes it as declared (batch 5). */
+    public static final String PACKAGEABLE_RUNTIME = "meta::pure::runtime::PackageableRuntime";
     public static final String CONNECTION_STORE = "meta::core::runtime::ConnectionStore";
     public static final String WITH_CHAINED_MAPPINGS = "meta::pure::mapping::withChainedMappings";
     public static final String MODEL_CHAIN_CONNECTION =
@@ -608,7 +616,7 @@ public final class PlatformTypes {
                 || TO_REPRESENTATION.equals(fqn)
                 || ASSERT_FAMILY_OWNED.contains(fqn)
                 || PLAN_TEST_DATA_GENERATION.equals(fqn)
-                || GENERATE_SEED_DATA_STRING.equals(fqn);
+                || GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY.equals(fqn);
     }
 
     /** The registered natives whose NAME the platform owns outright — a
@@ -660,7 +668,7 @@ public final class PlatformTypes {
                 || handle == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY
                 || com.legend.builtin.NativeFn.Carrier.of(fqn).orElse(null)
                         == com.legend.builtin.NativeFn.Carrier.GENERATE_TEST_DATA
-                || GENERATE_SEED_DATA_STRING.equals(fqn);
+                || GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */

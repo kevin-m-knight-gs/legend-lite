@@ -121,6 +121,11 @@ final class CallShapes {
         if (ctx.findMapping(fqn).isPresent()) {
             return "meta::pure::mapping::Mapping";
         }
+        // a runtime ELEMENT is upstream's PackageableRuntime (e::RT.runtimeValue
+        // — the Runtime an execute/from slot takes; batch 5)
+        if (ctx.findRuntime(fqn).isPresent()) {
+            return com.legend.compiler.element.type.PlatformTypes.PACKAGEABLE_RUNTIME;
+        }
         // a class named as a VALUE is an instance of the metaclass
         // (m3.pure:213 — LA_Person.properties, the spec's evaluate tests)
         if (ctx.findClass(fqn).isPresent()) {

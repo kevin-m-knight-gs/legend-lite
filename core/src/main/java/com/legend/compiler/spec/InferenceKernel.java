@@ -386,7 +386,11 @@ public final class InferenceKernel {
         }
         switch (sa.op()) {
             case SUBSET -> {
-                Type right = resolve(sa.right(), b);   // param order guarantees T is bound
+                // the superset variable is bound by a PARAMETER (rename's
+                // Relation<T>) or by the CALLER'S EXPECTED TYPE (over<T>(cols:
+                // ColSpec<(?:?)⊆T>) inside extend: real pure's bidirectional
+                // inference — resolveOverload seeds T from the expected _Window<T>)
+                Type right = resolve(sa.right(), b);
                 if (!(right instanceof Type.RelationType schema)) {
                     throw new TypeInferenceException("⊆ right-hand side is not a relation schema: "
                             + right.typeName());
@@ -419,17 +423,17 @@ public final class InferenceKernel {
             case Type.SchemaAlgebra eq when eq.op() == Type.Op.EQUAL -> unifyWildcardEqual(eq, concrete, b);
             case Type.RelationType wildcard when wildcard.columns().size() == 1
                     && wildcard.columns().get(0).name().equals("?") -> {
-                if (concrete.columns().size() != 1) {
-                    throw new TypeInferenceException("expected ONE column, got "
-                            + concrete.typeName());
-                }
+                // a wildcard row admits ONE column under ColSpec and MANY under
+                // ColSpecArray (upstream's over(cols:ColSpecArray<(?:?)⊆T>)) —
+                // the carrier fixes the count, the constraint types each column
                 Type want = wildcard.columns().get(0).type();
-                Type got = concrete.columns().get(0).type();
-                if (!conformsForWildcard(got, want)) {
-                    throw new TypeInferenceException("column '"
-                            + concrete.columns().get(0).name() + "' has type "
-                            + got.typeName() + " but the constraint requires "
-                            + want.typeName());
+                for (Type.Column c : concrete.columns()) {
+                    Type got = c.type();
+                    if (!conformsForWildcard(got, want)) {
+                        throw new TypeInferenceException("column '" + c.name()
+                                + "' has type " + got.typeName()
+                                + " but the constraint requires " + want.typeName());
+                    }
                 }
             }
             default -> throw new TypeInferenceException(
@@ -439,6 +443,11 @@ public final class InferenceKernel {
 
     /** Wildcard-column type conformance: exact, or within the numeric family. */
     private boolean conformsForWildcard(Type got, Type want) {
+        // (?:?) — the column's TYPE is the wildcard too (upstream's over /
+        // rename / variantFlatten spellings): any type conforms
+        if (want instanceof Type.TypeVar wv && wv.name().equals("?")) {
+            return true;
+        }
         if (got.equals(want)) {
             return true;
         }
@@ -1056,6 +1065,17 @@ public final class InferenceKernel {
      * arrive with the bidirectional body checker.
      */
     public Resolution resolveOverload(List<TypedFunction> candidates, List<ExprType> args) {
+        return resolveOverload(candidates, args, null);
+    }
+
+    /** {@link #resolveOverload(List, List)} with the CALLER'S EXPECTED type of the
+     *  call's value, when the caller knows it — real pure's bidirectional
+     *  inference: the expected type unifies with the candidate's declared return
+     *  type BEFORE its parameters, so a type parameter no parameter binds
+     *  (over<T>(cols:ColSpec<(?:?)⊆T>):_Window<T>, T = the enclosing extend's
+     *  relation schema) is bound from the context, never guessed. */
+    public Resolution resolveOverload(List<TypedFunction> candidates, List<ExprType> args,
+            @com.legend.Nullable Type expected) {
         // Diagnostics carry the FUNCTION NAME (from the candidates — every
         // caller has homogeneous candidates); "no overload accepts 2
         // argument(s)" with no callee was an audit finding.
@@ -1071,7 +1091,7 @@ public final class InferenceKernel {
                     + args.size() + " argument(s)");
         }
         if (arityMatches.size() == 1) {
-            return resolveChosen(arityMatches.get(0), args, name);
+            return resolveChosen(arityMatches.get(0), args, name, expected);
         }
 
         long best = Long.MIN_VALUE;
@@ -1133,7 +1153,7 @@ public final class InferenceKernel {
                 if (nativeWinners.isEmpty()) {
                     TypedFunction specific = mostSpecific(winners);
                     if (specific != null) {
-                        return resolveChosen(specific, args, name);
+                        return resolveChosen(specific, args, name, expected);
                     }
                 }
                 if (nativeWinners.size() != 1) {
@@ -1164,7 +1184,7 @@ public final class InferenceKernel {
                         }
                     }
                     if (byBottom.size() == 1) {
-                        return resolveChosen(byBottom.get(0), args, name);
+                        return resolveChosen(byBottom.get(0), args, name, expected);
                     }
                     // LINEARIZATION tie-break (real pure resolves a class's
                     // generalizations in declaration order): among UNRELATED
@@ -1174,7 +1194,7 @@ public final class InferenceKernel {
                     // Class value (m3: Class extends Type, …, PackageableElement)
                     TypedFunction nearest = nearestInLinearization(byBottom, args);
                     if (nearest != null) {
-                        return resolveChosen(nearest, args, name);
+                        return resolveChosen(nearest, args, name, expected);
                     }
                     throw new TypeInferenceException("ambiguous overload of '" + name + "': "
                             + winners.size() + " candidates tie for the argument types ["
@@ -1187,10 +1207,10 @@ public final class InferenceKernel {
                                     .collect(java.util.stream.Collectors.joining("; "))
                             + "]");
                 }
-                return resolveChosen(nativeWinners.get(0), args, name);
+                return resolveChosen(nativeWinners.get(0), args, name, expected);
             }
         }
-        return resolveChosen(winners.get(0), args, name);
+        return resolveChosen(winners.get(0), args, name, expected);
     }
 
     /**
@@ -1242,8 +1262,20 @@ public final class InferenceKernel {
     }
 
     /** Unify the chosen overload's parameters against the args, then resolve its output. */
-    private Resolution resolveChosen(TypedFunction c, List<ExprType> args, String name) {
+    private Resolution resolveChosen(TypedFunction c, List<ExprType> args, String name,
+            @com.legend.Nullable Type expected) {
         Bindings b = new Bindings();
+        if (expected != null) {
+            // the caller's expected type binds the declared return type's variables
+            // first (a mismatch is the call's error, named)
+            try {
+                unify(c.returnType(), expected, b);
+            } catch (TypeInferenceException e) {
+                throw new TypeInferenceException("in call to '" + name + "': the expected "
+                        + expected.typeName() + " does not fit its declared " + c.returnType().typeName()
+                        + " — " + e.getMessage(), e);
+            }
+        }
         for (int i = 0; i < args.size(); i++) {
             TypedParameter p = c.parameters().get(i);
             try {

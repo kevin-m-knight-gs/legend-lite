@@ -678,15 +678,15 @@ public final class NativeFn {
     /** natives the platform computes as a VALUE in Java at orchestration time (compiler-output surfaces: plan text, SQL text); staged by NativeDispatch, the result re-enters the statement as a bound literal. */
     public enum JavaRoutine implements Member {
         PLAN_TO_STRING("meta::pure::executionPlan::toString::planToString",
-                Pure.PLAN_TO_STRING__ANY_1__ANY_MANY),
+                Pure.PLAN_TO_STRING__EXECUTION_PLAN_1__EXTENSION_MANY),
         PLAN_TO_STRING_WITHOUT_FORMATTING("meta::pure::executionPlan::toString::planToStringWithoutFormatting",
-                Pure.PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY),
+                Pure.PLAN_TO_STRING_WITHOUT_FORMATTING__EXECUTION_PLAN_1__EXTENSION_MANY),
         TO_SQL_STRING("meta::relational::functions::sqlstring::toSQLString",
-                Pure.TO_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY, Pure.TO_SQL_STRING__SQLRESULT_1__DBTYPE_1__STRING_01__BOOLEAN_01__FORMAT_1),
+                Pure.TO_SQL_STRING__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY, Pure.TO_SQL_STRING__SQLRESULT_1__DBTYPE_1__STRING_01__BOOLEAN_01__FORMAT_1),
         TO_SQL_STRING_PRETTY("meta::relational::functions::sqlstring::toSQLStringPretty",
-                Pure.TO_SQL_STRING_PRETTY__FN_1__ANY_1__ANY_1__ANY_MANY),
+                Pure.TO_SQL_STRING_PRETTY__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY, Pure.TO_SQL_STRING_PRETTY__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY),
         TO_NON_EXECUTABLE_SQL_STRING("meta::relational::functions::sqlstring::toNonExecutableSQLString",
-                Pure.TO_NON_EXECUTABLE_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY);
+                Pure.TO_NON_EXECUTABLE_SQL_STRING__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
@@ -718,17 +718,17 @@ public final class NativeFn {
     /** natives producing an OPAQUE orchestration value consumers force (execute's result frame, the plan handle, the lineage scans, preval). */
     public enum Handle implements Member {
         EXECUTE("meta::pure::router::execute",
-                Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY, Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY, Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1),
+                Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY, Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY, Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY__DEBUG_CONTEXT_1),
         EXECUTION_PLAN_EXECUTE("meta::pure::executionPlan::execute",
-                Pure.EXECUTION_PLAN_EXECUTE__ANY_1__ANY_MANY__ANY_MANY),
+                Pure.EXECUTION_PLAN_EXECUTE__EXECUTION_PLAN_1__ANY_MANY__EXTENSION_MANY),
         EXECUTE_LEGEND_QUERY("meta::legend::executeLegendQuery",
                 Pure.EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXTENSION_MANY, Pure.EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXECUTION_CONTEXT_1__EXTENSION_MANY),
         TO_SQL("meta::relational::functions::sqlstring::toSQL",
-                Pure.TO_SQL__FN_1__ANY_1__ANY_1__ANY_MANY),
+                Pure.TO_SQL__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY),
         EXECUTION_PLAN("meta::pure::executionPlan::executionPlan",
-                Pure.EXECUTION_PLAN__4, Pure.EXECUTION_PLAN__5, Pure.EXECUTION_PLAN__5_DEBUG, Pure.EXECUTION_PLAN__2, Pure.EXECUTION_PLAN__3),
+                Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY, Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__BOOLEAN_1__EXTENSION_MANY, Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY, Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY__DEBUG_CONTEXT_1, Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__EXTENSION_MANY, Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__EXECUTION_CONTEXT_1__EXTENSION_MANY),
         SCAN_RELATIONS("meta::pure::lineage::scanRelations::scanRelations",
-                Pure.SCAN_RELATIONS__3, Pure.SCAN_RELATIONS__4),
+                Pure.SCAN_RELATIONS__FUNCTION_DEFINITION_1__MAPPING_1__EXTENSION_MANY, Pure.SCAN_RELATIONS__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY),
         SCAN_PROPERTIES("meta::pure::lineage::scanProperties::scanProperties",
                 Pure.SCAN_PROPERTIES__4),
         BUILD_PROPERTY_TREE("meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree",
@@ -736,7 +736,7 @@ public final class NativeFn {
         SCAN_COLUMNS("meta::pure::lineage::scanColumns::scanColumns",
                 Pure.SCAN_COLUMNS__2),
         PREVAL("meta::pure::router::preeval::preval",
-                Pure.PREVAL__FN_1__ANY_MANY, Pure.PREVAL__FN_1__ANY_MANY__DEBUG_1);
+                Pure.PREVAL__FUNCTION_DEFINITION_1__EXTENSION_MANY, Pure.PREVAL__FUNCTION_DEFINITION_1__EXTENSION_MANY__DEBUG_CONTEXT_1);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
@@ -790,7 +790,7 @@ public final class NativeFn {
         LOAD_CSV_TO_DB_TABLE("meta::relational::metamodel::execute::loadCsvToDbTable",
                 Pure.LOAD_CSV_TO_DB_TABLE__STRING_1__TABLE_1__CONN_1),
         SET_UP_DATA_SQLS("meta::alloy::service::execution::setUpDataSQLs",
-                Pure.SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1, Pure.SET_UP_DATA_SQLS__STRING_1__ANY_MANY, Pure.SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1),
+                Pure.SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1, Pure.SET_UP_DATA_SQLS__STRING_1__DATABASE_MANY, Pure.SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1),
         SET_UP_DATA_SQLS_V2("meta::alloy::service::execution::setUpDataSQLsV2",
                 Pure.SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1),
         PRINT("meta::pure::functions::io::print",
@@ -798,7 +798,7 @@ public final class NativeFn {
         PRINTLN("meta::pure::functions::io::println",
                 Pure.PRINTLN__ANY_M__INTEGER_1, Pure.PRINTLN__ANY_M),
         CONNECTION_BY_ELEMENT("meta::core::runtime::connectionByElement",
-                Pure.CONNECTION_BY_ELEMENT__ANY_1__ANY_1);
+                Pure.CONNECTION_BY_ELEMENT__RUNTIME_1__STORE_1);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
@@ -851,9 +851,9 @@ public final class NativeFn {
         EXECUTE_IN_DB_TO_TDS("meta::relational::metamodel::execute::executeInDbToTDS",
                 Pure.EXECUTE_IN_DB_TO_TDS__STRING_1__FN_1),
         GENERATE_TEST_DATA("meta::relational::testDataGeneration::generateTestData",
-                Pure.GENERATE_TEST_DATA__5),
+                Pure.GENERATE_TEST_DATA__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__TABLE_ROW_IDENTIFIERS_MANY__EXTENSION_MANY),
         GET_RELATIONAL_CSV_DATA("meta::relational::testDataGeneration::getRelationalCSVDataFromQuery",
-                Pure.GET_RELATIONAL_CSV_DATA__FN_1__ANY_1),
+                Pure.GET_RELATIONAL_CSV_DATA__FN_1__MAPPING_1),
         FETCH_DB_SCHEMAS_META_DATA("meta::relational::metamodel::execute::fetchDbSchemasMetaData",
                 Pure.FETCH_DB_SCHEMAS_META_DATA),
         FETCH_DB_TABLES_META_DATA("meta::relational::metamodel::execute::fetchDbTablesMetaData",

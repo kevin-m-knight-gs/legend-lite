@@ -71,7 +71,7 @@ class NativeSignatureGeneratorTest {
      *  invented arities, 17 wildcard subsets dropped, 6 TDS-as-Relation,
      *  9 TDSRow getters (qualified properties upstream), 3 type-parameter
      *  names, 39 mixed. Leg 1 (the simple rows) adopts ~30. */
-    static final int DIVERGENT_MAX = 105;
+    static final int DIVERGENT_MAX = 59;
 
     /** One membership row: OUR constant name, the FQN, the overload's key. */
     record Row(String constant, String fqn, String key) {
@@ -91,6 +91,19 @@ class NativeSignatureGeneratorTest {
         }
         List<Row> rows = readMembership();
         Map<String, Decl> upstream = upstreamDeclarations(rows);
+        String dump = System.getProperty("natives.dump");
+        if (dump != null) {
+            // every upstream declaration of a membership FQN, one per line
+            // (fqn, canonical key, canonical text) — the input a re-keying leg
+            // reads instead of scraping this test's report
+            StringBuilder sb = new StringBuilder();
+            for (Decl d : upstream.values()) {
+                sb.append(d.fqn()).append('\t').append(d.key()).append('\t').append(d.text()).append('\n');
+            }
+            Files.writeString(Path.of(dump), sb.toString(), StandardCharsets.UTF_8);
+            System.out.println("[natives] dumped " + upstream.size() + " upstream declarations to " + dump);
+            return;
+        }
         Map<String, String> wanted = new LinkedHashMap<>();
         List<String> orphans = new ArrayList<>();
         for (Row r : rows) {

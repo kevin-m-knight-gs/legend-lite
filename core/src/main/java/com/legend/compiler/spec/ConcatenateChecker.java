@@ -39,7 +39,7 @@ final class ConcatenateChecker {
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().size() == 2
-                && af.parameters().stream().noneMatch(Typer::deferredArg)) {
+                && af.parameters().stream().noneMatch(DeferredArgs::deferredArg)) {
             // each argument types exactly ONCE (a second synth would
             // re-register typer state); the typed pair then picks the rule
             TypedSpec left = t.synth(af.parameters().get(0), env);

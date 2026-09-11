@@ -29,6 +29,7 @@ public final class Bindings {
     private final java.util.Set<String> rigid = new java.util.HashSet<>();
     private int contravariantDepth;
 
+
     void enterContravariant() {
         contravariantDepth++;
     }

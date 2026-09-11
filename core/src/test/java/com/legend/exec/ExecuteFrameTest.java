@@ -70,7 +70,7 @@ class ExecuteFrameTest {
     void relationRootValues() throws Exception {
         ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
-                + " m::M, m::RT, []);\n"
+                + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values;}");
         ExecutionResult.Tabular t = (ExecutionResult.Tabular) r;
         assertEquals(3, t.rows().size());
@@ -81,7 +81,7 @@ class ExecuteFrameTest {
     void relationRootComposes() throws Exception {
         ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name, p|$p.age],"
-                + " ['name', 'age']), m::M, m::RT, []);\n"
+                + " ['name', 'age']), m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->filter(x|$x.age > 30);}");
         ExecutionResult.Tabular t = (ExecutionResult.Tabular) r;
         assertEquals(2, t.rows().size());
@@ -92,7 +92,7 @@ class ExecuteFrameTest {
     void relationRootAtZeroCollapses() throws Exception {
         ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
-                + " m::M, m::RT, []);\n"
+                + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->at(0);}");
         assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
     }
@@ -102,7 +102,7 @@ class ExecuteFrameTest {
     void relationRootOpsOverAtZero() throws Exception {
         ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
-                + " m::M, m::RT, []);\n"
+                + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->at(0)->map(x|$x.name);}");
         assertEquals(3, ((ExecutionResult.Collection) r).values().size());
     }
@@ -113,7 +113,7 @@ class ExecuteFrameTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> run("{| let r = meta::pure::router::execute("
                         + "|m::Person.all()->project([p|$p.name], ['name']),"
-                        + " m::M, m::RT, []);\n"
+                        + " m::M, m::RT.runtimeValue, []);\n"
                         + "$r.values->at(1);}"));
         assertTrue(String.valueOf(ex.getMessage()).contains("at(k>0)"), ex.getMessage());
     }
@@ -123,7 +123,7 @@ class ExecuteFrameTest {
     void envelopeAliasSize() throws Exception {
         ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
-                + " m::M, m::RT, []);\n"
+                + " m::M, m::RT.runtimeValue, []);\n"
                 + "let tds = $r.values->at(0);\n"
                 + "$tds->size();}");
         assertEquals(1, ((Number) ((ExecutionResult.Scalar) r).value()).intValue());
@@ -135,7 +135,7 @@ class ExecuteFrameTest {
         assertThrows(RuntimeException.class,
                 () -> run("{| let r = meta::pure::router::execute("
                         + "|m::Person.all()->project([p|$p.nope], ['nope']),"
-                        + " m::M, m::RT, []);\n"
+                        + " m::M, m::RT.runtimeValue, []);\n"
                         + "true;}"));
     }
 
@@ -144,7 +144,7 @@ class ExecuteFrameTest {
     void executeInResultPosition() throws Exception {
         ExecutionResult r = run("{| meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
-                + " m::M, m::RT, []);}");
+                + " m::M, m::RT.runtimeValue, []);}");
         assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
     }
 
@@ -153,7 +153,7 @@ class ExecuteFrameTest {
     void letBoundQueryLambda() throws Exception {
         ExecutionResult r = run("{| let q = {|m::Person.all()"
                 + "->project([p|$p.name], ['name'])};\n"
-                + "let r = meta::pure::router::execute($q, m::M, m::RT, []);\n"
+                + "let r = meta::pure::router::execute($q, m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values;}");
         assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
     }

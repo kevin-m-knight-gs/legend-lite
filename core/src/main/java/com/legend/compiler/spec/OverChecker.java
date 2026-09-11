@@ -30,7 +30,15 @@ final class OverChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
-        Application a = t.checkGeneric(af, env);
+        return check(t, af, env, null);
+    }
+
+    /** With the caller's EXPECTED {@code _Window<T>} (the enclosing extend's
+     *  relation schema bound into T): upstream's over<T>(cols:ColSpec<(?:?)⊆T>)
+     *  binds T through no parameter — the context does. */
+    static TypedSpec check(Typer t, AppliedFunction af, Env env,
+            @com.legend.Nullable Type expected) {
+        Application a = t.checkGeneric(af, env, expected);
         List<String> partitions = new ArrayList<>();
         List<TypedSort.TypedSortKey> keys = new ArrayList<>();
         Optional<com.legend.compiler.spec.typed.WindowFrame> frame = Optional.empty();

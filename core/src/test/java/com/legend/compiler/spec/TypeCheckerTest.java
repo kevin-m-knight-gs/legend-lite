@@ -96,6 +96,10 @@ class TypeCheckerTest {
               )
             )
 
+            ###Mapping
+            Mapping test::M ( )
+            ###Runtime
+            Runtime test::RT { mappings: [test::M]; }
             ###Pure
             Class test::Person
             {
@@ -814,12 +818,22 @@ class TypeCheckerTest {
 
     @Test
     void fromSlotsRuntimeAndPassesTypeThrough() {
-        TypedSpec n = typeQuery(T_PERSON + "->from(test::PersonDatabase)");
+        // upstream's from(T[m], PackageableRuntime[1]) (batch 5): a RUNTIME element
+        TypedSpec n = typeQuery(T_PERSON + "->from(test::RT)");
         TypedFrom from = assertInstanceOf(TypedFrom.class, n);
         assertTrue(from.runtime().isPresent());
-        assertEquals("test::PersonDatabase", from.runtime().get().fullPath());
+        assertEquals("test::RT", from.runtime().get().fullPath());
         assertTrue(from.mapping().isEmpty());
         assertEquals(6, schemaOf(n).columns().size(), "from is a type passthrough");
+    }
+
+    @Test
+    void fromThreeArgumentM2MSlotsMappingAndRuntime() {
+        // upstream's from(T[m], Mapping[1], PackageableRuntime[1])
+        TypedFrom from = assertInstanceOf(TypedFrom.class, typeQuery(T_PERSON
+                + "->from(test::M, test::RT)"));
+        assertTrue(from.mapping().isPresent());
+        assertTrue(from.runtime().isPresent());
     }
 
     @Test
@@ -1038,14 +1052,6 @@ class TypeCheckerTest {
     }
 
     // ---- remaining construct edges ----
-
-    @Test
-    void fromThreeArgumentM2MSlotsMappingAndRuntime() {
-        TypedFrom from = assertInstanceOf(TypedFrom.class, typeQuery(T_PERSON
-                + "->from(test::PersonDatabase, test::PersonDatabase)"));
-        assertTrue(from.mapping().isPresent());
-        assertTrue(from.runtime().isPresent());
-    }
 
     @Test
     void writeWithoutDestination() {

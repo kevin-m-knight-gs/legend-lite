@@ -3907,6 +3907,24 @@ Class meta::pure::graphFetch::routing::StoreMappingClusteredGraphFetchTree exten
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/runtime/runtimeExtension.pure
+import meta::core::runtime::*;
+import meta::pure::store::*;
+import meta::pure::mapping::*;
+import meta::external::store::model::*;
+Class meta::core::runtime::EngineRuntime extends Runtime
+{
+  mappings: Mapping[*];
+// NOTE: we don't need to process the rest of engine runtime for now
+}
+
+Class meta::pure::runtime::PackageableRuntime extends PackageableElement
+{
+   runtimeValue: meta::core::runtime::EngineRuntime[1];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/serialization/toPureGrammar.pure
 import meta::pure::router::utils::*;
 import meta::pure::router::metamodel::clustering::*;
@@ -5279,7 +5297,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 464 classes, 18 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 466 classes, 18 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 34 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
@@ -5476,6 +5494,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::relational::metamodel::view
 // T4 RECEIPTS — declared by the corpus tree too; the prelude wins, the graph's copy yields
 // (Compiler.withoutPreludeShadows); this list burns to zero in phase 3:
+//   meta::core::runtime::EngineRuntime
 //   meta::external::format::shared::ExternalFormatContract
 //   meta::external::format::shared::ExternalFormatExternalizeConfig
 //   meta::external::format::shared::ExternalFormatFromPureDescriptor
@@ -5555,6 +5574,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::router::metamodel::clustering::ClusteredValueSpecification
 //   meta::pure::router::routing::PropertyMap
 //   meta::pure::router::routing::RoutingState
+//   meta::pure::runtime::PackageableRuntime
 //   meta::pure::store::StoreContract
 //   meta::pure::tds::ColumnSpecification
 //   meta::pure::tds::OlapOperation

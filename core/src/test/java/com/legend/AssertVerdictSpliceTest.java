@@ -125,7 +125,7 @@ class AssertVerdictSpliceTest {
     void assertOverExecuteHandleAdjudicates() throws Exception {
         Object v = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
-                + "->filter(p|$p.age > 0), e::M, e::RT, []);"
+                + "->filter(p|$p.age > 0), e::M, e::RT.runtimeValue, []);"
                 + " assertEquals(['p1','p2'],"
                 + " $result.values.name->sort());}")).value();
         assertEquals(Boolean.TRUE, v);
@@ -137,7 +137,7 @@ class AssertVerdictSpliceTest {
     void sqlReadFoldsToFrameRender() throws Exception {
         Object v = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
-                + "->project([p|$p.name], ['name']), e::M, e::RT, []);"
+                + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
                 + " $result.activities->filter(a|$a->instanceOf("
                 + "meta::relational::mapping::RelationalActivity))->at(0)"
                 + "->cast(@meta::relational::mapping::RelationalActivity)"
@@ -151,7 +151,7 @@ class AssertVerdictSpliceTest {
     void sqlProducerCallFolds() throws Exception {
         Object v = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
-                + "->project([p|$p.name], ['name']), e::M, e::RT, []);"
+                + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
                 + " meta::relational::mapping::sqlRemoveFormatting($result);}"))
                 .value();
         assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
@@ -163,7 +163,7 @@ class AssertVerdictSpliceTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all()"
-                + "->filter(p|$p.age > 0), e::M, e::RT, []);"
+                + "->filter(p|$p.age > 0), e::M, e::RT.runtimeValue, []);"
                 + " assertEquals(['zz'],"
                 + " $result.values.name->sort());}"));
         assertTrue(String.valueOf(e.getMessage()).contains("zz"),
@@ -177,13 +177,13 @@ class AssertVerdictSpliceTest {
         // golden written in the REVERSED order of arrival — engine
         // goldens encode H2's incidental order, ours is DuckDB's
         Object v = ((ExecutionResult.Scalar) run(
-                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
                 + " assertEquals([40, 30], $result.values.age);}")).value();
         assertEquals(Boolean.TRUE, v);
         // a SORTED chain pins the order — the reversed golden FAILS
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
-                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
                 + " assertEquals([40, 30], $result.values.age->sort());}"));
         assertTrue(String.valueOf(e.getMessage()).contains("40"),
                 e.getMessage());
@@ -213,21 +213,21 @@ class AssertVerdictSpliceTest {
     void sizeEnvelopeAndContains() throws Exception {
         Object one = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
-                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertSize($result.values, 1);}")).value();
         assertEquals(Boolean.TRUE, one);
         Object rows = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
-                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertSize($result.values.rows, 2);}")).value();
         assertEquals(Boolean.TRUE, rows);
         Object member = ((ExecutionResult.Scalar) run(
-                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
                 + " assertContains($result.values.age, 30);}")).value();
         assertEquals(Boolean.TRUE, member);
         com.legend.error.AssertFailed miss = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
-                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
                 + " assertContains($result.values.age, 99);}"));
         assertTrue(String.valueOf(miss.getMessage()).contains("99"),
                 miss.getMessage());
@@ -239,7 +239,7 @@ class AssertVerdictSpliceTest {
     void flatCellsRowCohesion() throws Exception {
         String prefix = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
-                + " e::M, e::RT, []);";
+                + " e::M, e::RT.runtimeValue, []);";
         Object ordered = ((ExecutionResult.Scalar) run(prefix
                 + " assertEquals(['p1', 30, 'p2', 40],"
                 + " $result.values.rows.values);}")).value();
@@ -266,7 +266,7 @@ class AssertVerdictSpliceTest {
         Object v = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.nick], ['name','nick']),"
-                + " e::M, e::RT, []);"
+                + " e::M, e::RT.runtimeValue, []);"
                 + " assertEquals(['p1', 'TDSNull', 'p2', 'TDSNull'],"
                 + " $result.values.rows.values);}")).value();
         assertEquals(Boolean.TRUE, v);
@@ -279,7 +279,7 @@ class AssertVerdictSpliceTest {
         Object v = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
-                + " e::M, e::RT, []);"
+                + " e::M, e::RT.runtimeValue, []);"
                 + " assertSameElements(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}")).value();
         assertEquals(Boolean.TRUE, v);
@@ -287,7 +287,7 @@ class AssertVerdictSpliceTest {
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
-                + " e::M, e::RT, []);"
+                + " e::M, e::RT.runtimeValue, []);"
                 + " assertSameElements(['p1', 41, 'p2', 30],"
                 + " $result.values.rows.values);}"));
         assertTrue(String.valueOf(miss.getMessage()).contains("41"),
@@ -299,13 +299,13 @@ class AssertVerdictSpliceTest {
     void gridEmptiness() throws Exception {
         Object notEmpty = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
-                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertNotEmpty($result.values);}")).value();
         assertEquals(Boolean.TRUE, notEmpty);
         Object emptied = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
                 + "->filter(p|$p.age > 99)"
-                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertEmpty($result.values);}")).value();
         assertEquals(Boolean.TRUE, emptied);
     }
@@ -318,7 +318,7 @@ class AssertVerdictSpliceTest {
         Object v = ((ExecutionResult.Scalar) run(
                 "{|let result = execute(|e::Person.all()"
                 + "->graphFetch(#{e::Person{name}}#)"
-                + "->serialize(#{e::Person{name}}#), e::M, e::RT, []);"
+                + "->serialize(#{e::Person{name}}#), e::M, e::RT.runtimeValue, []);"
                 + " assertJsonStringsEqual("
                 + "'[{\"name\":\"p1\"},{\"name\":\"p2\"}]',"
                 + " $result.values);}")).value();
@@ -327,7 +327,7 @@ class AssertVerdictSpliceTest {
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all()"
                 + "->graphFetch(#{e::Person{name}}#)"
-                + "->serialize(#{e::Person{name}}#), e::M, e::RT, []);"
+                + "->serialize(#{e::Person{name}}#), e::M, e::RT.runtimeValue, []);"
                 + " assertJsonStringsEqual("
                 + "'[{\"name\":\"zz\"},{\"name\":\"p2\"}]',"
                 + " $result.values);}"));
@@ -339,11 +339,11 @@ class AssertVerdictSpliceTest {
     @DisplayName("assert condition + assertSize over frame reads adjudicate")
     void conditionAndSizeLanesSplice() throws Exception {
         Object c = ((ExecutionResult.Scalar) run(
-                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
                 + " assert($result.values.name->size() == 2);}")).value();
         assertEquals(Boolean.TRUE, c);
         Object s = ((ExecutionResult.Scalar) run(
-                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
                 + " assertSize($result.values.age, 2);}")).value();
         assertEquals(Boolean.TRUE, s);
     }
