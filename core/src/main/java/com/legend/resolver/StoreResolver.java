@@ -203,7 +203,7 @@ public final class StoreResolver {
             // arm never evaluates the argument) passes through unresolved
             // — its argument may be a lambda VALUE, not a query
             if (stmt instanceof TypedNativeCall dg
-                    && PlatformTypes.isInertDiagnostic(dg.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(dg.callee().qualifiedName())) {
                 out.add(stmt);
                 continue;
             }
@@ -215,7 +215,7 @@ public final class StoreResolver {
         }
         for (TypedSpec stmt : out) {
             if (stmt instanceof TypedNativeCall dg
-                    && PlatformTypes.isInertDiagnostic(dg.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(dg.callee().qualifiedName())) {
                 continue;
             }
             assertNoStoreOnlyEscapees(stmt);

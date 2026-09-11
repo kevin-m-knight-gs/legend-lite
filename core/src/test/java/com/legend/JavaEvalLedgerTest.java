@@ -588,7 +588,7 @@ class JavaEvalLedgerTest {
             // beside DriverPkAppend — four routing lines from the frame's bound
             // context to the resolver pass; no evaluation (the database
             // computes the coalesced key threads)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2033),
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 1995),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -738,7 +738,7 @@ class JavaEvalLedgerTest {
             // 1102 → 1111 (batch 133, Phase 0.7): the referee's per-assert row
             // outcome REPORTED to the listener at the two outcome switches —
             // reporting, no judgment
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1111),
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1110),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

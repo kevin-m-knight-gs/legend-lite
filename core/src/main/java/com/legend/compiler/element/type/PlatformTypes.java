@@ -192,30 +192,8 @@ public final class PlatformTypes {
     public static final String FETCH_DB_PRIMARY_KEYS_META_DATA =
             "meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData";
 
-    public static boolean isFetchDbFn(String fqn) {
-        return FETCH_DB_TABLES_META_DATA.equals(fqn)
-                || FETCH_DB_COLUMNS_META_DATA.equals(fqn)
-                || FETCH_DB_SCHEMAS_META_DATA.equals(fqn)
-                || FETCH_DB_PRIMARY_KEYS_META_DATA.equals(fqn);
-    }
 
-    public enum FetchDbKind { SCHEMAS, TABLES, COLUMNS, PRIMARY_KEYS }
 
-    public static FetchDbKind fetchDbKind(String fqn) {
-        if (FETCH_DB_SCHEMAS_META_DATA.equals(fqn)) {
-            return FetchDbKind.SCHEMAS;
-        }
-        if (FETCH_DB_TABLES_META_DATA.equals(fqn)) {
-            return FetchDbKind.TABLES;
-        }
-        if (FETCH_DB_COLUMNS_META_DATA.equals(fqn)) {
-            return FetchDbKind.COLUMNS;
-        }
-        if (FETCH_DB_PRIMARY_KEYS_META_DATA.equals(fqn)) {
-            return FetchDbKind.PRIMARY_KEYS;
-        }
-        throw new IllegalArgumentException("not a fetchDb native: " + fqn);
-    }
 
     /** K-native sibling of {@link #EXECUTE_IN_DB}: model-derived drop+create DDL. */
     public static final String DROP_AND_CREATE_TABLE_IN_DB =
@@ -259,13 +237,6 @@ public final class PlatformTypes {
         return STORE_SCHEMA_NAV.equals(fqn) || STORE_TABLE_NAV.equals(fqn);
     }
 
-    /** One of the DDL string-generator natives. */
-    public static boolean isDdlStatementFn(String fqn) {
-        return DROP_SCHEMA_STATEMENT.equals(fqn)
-                || CREATE_SCHEMA_STATEMENT.equals(fqn)
-                || CREATE_TABLE_STATEMENT.equals(fqn)
-                || DROP_TABLE_STATEMENT.equals(fqn);
-    }
 
     /** The engine's SQL-text surface — K-dispatched: the query lambda
      * lowers through the platform's own G½->H->I against the given mapping
@@ -330,10 +301,10 @@ public final class PlatformTypes {
      * scanColumns → ColumnWithContext, execute → Result whose activities
      * are the execution's activity rows). Null for a non-handle native
      * or a handle whose result is not a class (preval's function value).
-     * No per-FQN table: the registry labels the kind, the signature
+     * No per-FQN table: NativeFn.Handle labels the kind, the signature
      * names the class. */
     public static @com.legend.Nullable String handleRowClass(String fqn, Type returnType) {
-        if (IMPLEMENTATION_KIND.get(fqn) != NativeImpl.HANDLE) {
+        if (com.legend.builtin.NativeFn.Handle.of(fqn).isEmpty()) {
             return null;
         }
         return switch (returnType) {
@@ -372,9 +343,6 @@ public final class PlatformTypes {
     public static final String EXECUTE_LEGEND_QUERY =
             "meta::legend::executeLegendQuery";
 
-    public static boolean isLegendQueryFqn(String fqn) {
-        return EXECUTE_LEGEND_QUERY.equals(fqn);
-    }
 
     /** The engine's PLAN-EXECUTE entry — real pure's
      * meta::pure::executionPlan::execute(plan, parametersValues,
@@ -387,9 +355,6 @@ public final class PlatformTypes {
     public static final String EXECUTION_PLAN_EXECUTE =
             "meta::pure::executionPlan::execute";
 
-    public static boolean isExecuteFqn(String fqn) {
-        return EXECUTE.equals(fqn) || EXECUTION_PLAN_EXECUTE.equals(fqn);
-    }
 
     /** The m3 profiles the compiler reads semantics from (legend-pure
      * m3.pure / profiles.pure). */
@@ -567,26 +532,6 @@ public final class PlatformTypes {
                 || ASSERT_TDS_EQUIVALENT.equals(fqn);
     }
 
-    /** A call only the STATEMENT channel can run — an execution, a store
-     * effect or a test-data generator: it never lowers inside an
-     * expression, so a user function whose own statements reach one is
-     * a PROGRAM, and a call to a program splices at statement level
-     * ({@link com.legend.compiler.StatementInline}). A verdict is NOT on
-     * this list: a helper that only asserts β-reduces to an assert root
-     * and is adjudicated as that verdict (the statement channel's
-     * inlined-assert routes), never run as statements. */
-    public static boolean isStatementOnly(String fqn) {
-        return isEffectfulNative(fqn)
-                || EXECUTE.equals(fqn)
-                || EXECUTION_PLAN_EXECUTE.equals(fqn)
-                || EXECUTE_LEGEND_QUERY.equals(fqn)
-                || GENERATE_TEST_DATA.equals(fqn)
-                || GENERATE_SEED_DATA_STRING.equals(fqn)
-                // the seed-SQL form (setUpDataSQLs): a statement-channel
-                // form — executed when mapped over executeInDb, compared as
-                // engine text under a TDG assert; never a value expression
-                || isSeedSqlForm(fqn);
-    }
 
     /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
      * correction 2026-08-28: asserts are verdicts ALWAYS —
@@ -652,50 +597,70 @@ public final class PlatformTypes {
     }
 
     public static boolean isPlatformOwnedFunction(String fqn) {
-        return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+        return PLATFORM_OWNED_FUNCTIONS.contains(fqn)
                 || TO_REPRESENTATION.equals(fqn)
-                || ASSERT_ERROR.equals(fqn)
-                || ASSERT_INSTANCE_OF.equals(fqn)
                 || ASSERT_FAMILY_OWNED.contains(fqn)
-                || TO_CSV.equals(fqn)
-                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
-                || isDdlStatementFn(fqn)
-                || EXECUTE_IN_DB_TO_TDS.equals(fqn)
-                || LOAD_CSV_TO_DB_TABLE.equals(fqn)
-                || TO_SQL_STRING.equals(fqn)
-                || TO_SQL_STRING_PRETTY.equals(fqn)
-                || TO_SQL.equals(fqn)
-                || TO_NON_EXECUTABLE_SQL_STRING.equals(fqn)
-                || SET_UP_DATA_SQLS.equals(fqn)
-                || EXECUTION_PLAN.equals(fqn)
-                || PLAN_TO_STRING.equals(fqn)
-                || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
-                || CREATE_DB_CONFIG.equals(fqn)
-                || GET_RELATIONAL_CSV_DATA.equals(fqn)
-                || GENERATE_TEST_DATA.equals(fqn)
                 || PLAN_TEST_DATA_GENERATION.equals(fqn)
-                || GENERATE_SEED_DATA_STRING.equals(fqn)
-                || EXECUTE.equals(fqn)
-                || EXECUTION_PLAN_EXECUTE.equals(fqn);
+                || GENERATE_SEED_DATA_STRING.equals(fqn);
+    }
+
+    /** The registered natives whose NAME the platform owns outright — a
+     * per-FQN fact, NOT "every NativeFn member" (batch 4b measured that:
+     * owning executeInDb's name shadowed the corpus's own ConnectionStore
+     * overload and lost a test). Spelled through the family enums so the
+     * set cannot name a native the platform does not register. */
+    private static final java.util.Set<String> PLATFORM_OWNED_FUNCTIONS = java.util.Set.of(
+            com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(),
+            com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(),
+            com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE.fqn(),
+            com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(),
+            com.legend.builtin.NativeFn.ContextOwner.ASSERT_ERROR.fqn(),
+            com.legend.builtin.NativeFn.Verdict.ASSERT_INSTANCE_OF.fqn(),
+            com.legend.builtin.NativeFn.Verdict.TO_CSV.fqn(),
+            com.legend.builtin.NativeFn.DdlStatement.CREATE_SCHEMA_STATEMENT.fqn(),
+            com.legend.builtin.NativeFn.DdlStatement.CREATE_TABLE_STATEMENT.fqn(),
+            com.legend.builtin.NativeFn.DdlStatement.DROP_SCHEMA_STATEMENT.fqn(),
+            com.legend.builtin.NativeFn.DdlStatement.DROP_TABLE_STATEMENT.fqn(),
+            com.legend.builtin.NativeFn.Carrier.EXECUTE_IN_DB_TO_TDS.fqn(),
+            com.legend.builtin.NativeFn.Carrier.GET_RELATIONAL_CSV_DATA.fqn(),
+            com.legend.builtin.NativeFn.Carrier.GENERATE_TEST_DATA.fqn(),
+            com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING.fqn(),
+            com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING_PRETTY.fqn(),
+            com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(),
+            com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING.fqn(),
+            com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING_WITHOUT_FORMATTING.fqn(),
+            com.legend.builtin.NativeFn.Handle.TO_SQL.fqn(),
+            com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN.fqn(),
+            com.legend.builtin.NativeFn.Handle.EXECUTE.fqn(),
+            com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN_EXECUTE.fqn(),
+            com.legend.builtin.NativeFn.TyperForm.CREATE_DB_CONFIG.fqn());
+
+    /** A call only the STATEMENT channel can run — an execution, a store
+     * effect or a test-data generator: it never lowers inside an
+     * expression, so a user function whose own statements reach one is
+     * a PROGRAM, and a call to a program splices at statement level
+     * ({@link com.legend.compiler.StatementInline}). A verdict is NOT on
+     * this list: a helper that only asserts β-reduces to an assert root
+     * and is adjudicated as that verdict (the statement channel's
+     * inlined-assert routes), never run as statements. The seed-SQL form
+     * (setUpDataSQLs) is a statement-channel form — executed when mapped
+     * over executeInDb, compared as engine text under a TDG assert. */
+    public static boolean isStatementOnly(String fqn) {
+        var handle = com.legend.builtin.NativeFn.Handle.of(fqn).orElse(null);
+        return com.legend.builtin.NativeFn.Effect.isDbEffect(fqn)
+                || com.legend.builtin.NativeFn.Effect.isSeedSqlForm(fqn)
+                || handle == com.legend.builtin.NativeFn.Handle.EXECUTE
+                || handle == com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN_EXECUTE
+                || handle == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY
+                || com.legend.builtin.NativeFn.Carrier.of(fqn).orElse(null)
+                        == com.legend.builtin.NativeFn.Carrier.GENERATE_TEST_DATA
+                || GENERATE_SEED_DATA_STRING.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */
     public static final String PRINT = "meta::pure::functions::io::print";
     public static final String PRINTLN = "meta::pure::functions::io::println";
 
-    /**
-     * K-natives with REAL side effects (raw SQL over the connection).
-     * print/println are K-DISPATCHED but effect-FREE (no-op arm) — the
-     * effectful-let guard and statement-orchestration routing key on THIS,
-     * not on {@link #isKNative} (audit 17: counting print as an effect
-     * made harmless let bindings refuse loudly).
-     */
-    public static boolean isEffectfulNative(String fqn) {
-        return EXECUTE_IN_DB.equals(fqn)
-                || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
-                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
-                || LOAD_CSV_TO_DB_TABLE.equals(fqn);
-    }
 
     /** Post-processor CONFIG property names (runtime/connection hook
      * slots): their values are plan-time SQL-rewrite config, never Pure
@@ -707,34 +672,7 @@ public final class PlatformTypes {
                 || "queryPostProcessorsWithParameter".equals(name);
     }
 
-    /** INERT diagnostics: print/println — the executor's registered arm
-     * never evaluates the argument (engine parity is the statement's
-     * inertness), so the resolver leaves such a statement untouched too:
-     * a printed LAMBDA VALUE ({@code println($l->evaluateAndDeactivate())})
-     * is data, never a query to resolve. */
-    public static boolean isInertDiagnostic(String fqn) {
-        return PRINT.equals(fqn) || PRINTLN.equals(fqn);
-    }
 
-    /** All K-natives: calls that EXECUTE at the K boundary and never lower. */
-    public static boolean isKNative(String fqn) {
-        return EXECUTE_IN_DB.equals(fqn)
-                || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
-                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
-                || LOAD_CSV_TO_DB_TABLE.equals(fqn)
-                || TO_SQL_STRING.equals(fqn)
-                || TO_SQL_STRING_PRETTY.equals(fqn)
-                || TO_SQL.equals(fqn)
-                || TO_NON_EXECUTABLE_SQL_STRING.equals(fqn)
-                || SET_UP_DATA_SQLS_V2.equals(fqn)
-                || SET_UP_DATA_SQLS.equals(fqn)
-                || EXECUTION_PLAN.equals(fqn)
-                || PLAN_TO_STRING.equals(fqn)
-                || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
-                || EXECUTE.equals(fqn)
-                || EXECUTION_PLAN_EXECUTE.equals(fqn)
-                || PRINT.equals(fqn) || PRINTLN.equals(fqn);
-    }
 
     /** The top type. */
     public static boolean isAny(Type t) {
@@ -818,117 +756,14 @@ public final class PlatformTypes {
         return t instanceof Type.GenericType g && g.rawFqn().equals(FUNCTION);
     }
 
-    /**
-     * HOW a registered native is implemented — the catalog FACT the
-     * executor dispatches by (exact FQN lookup, never statement
-     * silhouettes). Absent = the default: an SQL rule (the Lowerer
-     * translates; the database executes — filter, startsWith, ...).
-     */
-    public enum NativeImpl {
-        /** The platform computes a VALUE in Java at orchestration time
-         * (compiler-output surfaces: plan text, SQL text). The result
-         * enters the surrounding statement as a bound literal; the
-         * database still judges every comparison over it. */
-        JAVA_ROUTINE,
-        /** Produces an OPAQUE orchestration value consumed later
-         * (execute's result frame, executionPlan's plan handle) —
-         * resolution does not enter it; consumers force it. */
-        HANDLE,
-        /** An EFFECTFUL Java routine at the execution boundary
-         * (executeInDb's raw SQL, DDL natives, seed forms, print's
-         * no-op): runs via its registered arm when evaluation reaches
-         * the call — NEVER staged (effects happen at execution time,
-         * in statement order, against the session). */
-        EFFECT,
-        /** Bound ONCE at type-check: the checker replaces the call
-         * with a CARRIER node that knows its implementation
-         * (TypedCsvCensus folds from the model; TypedTestDataGen
-         * executes through the database) — the bind-once end-state
-         * form, already achieved for this family; no runtime lookup
-         * ever happens. */
-        CARRIER,
-        /** Establishes its OWN evaluation context for its arguments
-         * (assertError's catch): staging must not enter them — the
-         * function's own arm evaluates them under that context (user
-         * catch 2026-08-31: pre-staging a walling call inside
-         * assertError's lambda would escape the catch the engine
-         * applies; witness test pins the contract). */
-        CONTEXT_OWNER
-    }
 
-    /** The labeled subset (catalog leg, charter §4AG): every entry here
-     * must ALSO be a registered signature; the executor's dispatch table
-     * must cover exactly the JAVA_ROUTINE rows (governance-pinned). The
-     * remaining silhouette arms migrate here one by one — end state is
-     * ZERO function-name checks in the executor (task: full ladder
-     * migration). */
     /** The engine's runtime connection lookup — an orchestration value
      * our session model answers with null (was a RAW STRING LITERAL at
      * its dispatch site; ladder census §10m). */
     public static final String CONNECTION_BY_ELEMENT =
             "meta::core::runtime::connectionByElement";
 
-    public static final java.util.Map<String, NativeImpl> IMPLEMENTATION_KIND =
-            java.util.Map.ofEntries(
-                    java.util.Map.entry(PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE),
-                    java.util.Map.entry(PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE),
-                    // ladder migration #22: each row replaces a deleted
-                    // silhouette arm (statement ladder §10m; the
-                    // toSQLString rows also replaced the ad-hoc
-                    // envelope-splice fold)
-                    java.util.Map.entry(TO_SQL_STRING, NativeImpl.JAVA_ROUTINE),
-                    java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
-                    java.util.Map.entry(TO_NON_EXECUTABLE_SQL_STRING, NativeImpl.JAVA_ROUTINE),
-                    // batch 82: bound ONCE at type-check to the late-bound
-                    // raw-grid relation (Typer.rawGridOrSelf)
-                    java.util.Map.entry(EXECUTE_IN_DB_TO_TDS, NativeImpl.CARRIER),
-                    // batch 75: the SQLResult handle — consumed by the
-                    // 5-argument toSQLString row above (the plan handle's
-                    // twin: no rows of its own, the consumer forces it)
-                    java.util.Map.entry(TO_SQL, NativeImpl.HANDLE),
-                    java.util.Map.entry(EXECUTION_PLAN, NativeImpl.HANDLE),
-                    java.util.Map.entry(SCAN_RELATIONS, NativeImpl.HANDLE),
-                    java.util.Map.entry(SCAN_PROPERTIES, NativeImpl.HANDLE),
-                    java.util.Map.entry(BUILD_PROPERTY_TREE, NativeImpl.HANDLE),
-                    java.util.Map.entry(SCAN_COLUMNS, NativeImpl.HANDLE),
-                    java.util.Map.entry(PREVAL, NativeImpl.HANDLE),
-                    java.util.Map.entry(EXECUTE, NativeImpl.HANDLE),
-                    java.util.Map.entry(EXECUTE_LEGEND_QUERY, NativeImpl.HANDLE),
-                    java.util.Map.entry(ASSERT_ERROR, NativeImpl.CONTEXT_OWNER),
-                    java.util.Map.entry(EXECUTE_IN_DB, NativeImpl.EFFECT),
-                    java.util.Map.entry(DROP_AND_CREATE_TABLE_IN_DB, NativeImpl.EFFECT),
-                    java.util.Map.entry(DROP_AND_CREATE_SCHEMA_IN_DB, NativeImpl.EFFECT),
-                    java.util.Map.entry(LOAD_CSV_TO_DB_TABLE, NativeImpl.EFFECT),
-                    java.util.Map.entry(SET_UP_DATA_SQLS, NativeImpl.EFFECT),
-                    java.util.Map.entry(SET_UP_DATA_SQLS_V2, NativeImpl.EFFECT),
-                    java.util.Map.entry(PRINT, NativeImpl.EFFECT),
-                    java.util.Map.entry(PRINTLN, NativeImpl.EFFECT),
-                    java.util.Map.entry(CONNECTION_BY_ELEMENT, NativeImpl.EFFECT),
-                    java.util.Map.entry(GET_RELATIONAL_CSV_DATA, NativeImpl.CARRIER),
-                    java.util.Map.entry(GENERATE_TEST_DATA, NativeImpl.CARRIER));
 
-    /** Which HANDLE forces EAGERLY when consumed at a statement's value
-     * position: execute's frame run IS the value; plan handles stay
-     * symbolic (navigated by the plan reader). A catalog FACT — the
-     * executor consults it, never a name literal. */
-    public static boolean handleForcesAtValuePosition(String fqn) {
-        return EXECUTE.equals(fqn) || EXECUTE_LEGEND_QUERY.equals(fqn);
-    }
 
-    /** The RAW-SQL boundary fact: executeInDb statements carry
-     * corpus-authored SQL whose recording rides the replay channel
-     * verbatim (the transcript-fidelity contract) — a catalog fact,
-     * never an executor name literal. */
-    public static boolean isRawSqlBoundary(String fqn) {
-        return EXECUTE_IN_DB.equals(fqn);
-    }
-
-    /** The seed-SQL form family (both spellings) — consumers routing
-     * AROUND these (the TDG carrier fold must not classify their
-     * arguments) read this fact, never name pairs. */
-    public static boolean isSeedSqlForm(String fqn) {
-        return SET_UP_DATA_SQLS.equals(fqn)
-                || SET_UP_DATA_SQLS_V2.equals(fqn);
-    }
 
 }

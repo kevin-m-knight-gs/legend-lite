@@ -20,17 +20,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class NativeRegistryGovernanceTest {
 
-    private static Set<String> rows(PlatformTypes.NativeImpl kind) {
-        return PlatformTypes.IMPLEMENTATION_KIND.entrySet().stream()
-                .filter(e -> e.getValue() == kind)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
+    private static Set<String> rows(java.util.List<? extends com.legend.builtin.NativeFn.Member> family) {
+        return family.stream().map(com.legend.builtin.NativeFn.Member::fqn)
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     @Test
     @DisplayName("EFFECT rows == registered effect arms")
     void effectRegistryCoversCatalog() {
-        assertEquals(rows(PlatformTypes.NativeImpl.EFFECT),
+        assertEquals(rows(java.util.List.of(com.legend.builtin.NativeFn.Effect.values())),
                 StatementExecutor.registeredEffectKeys(),
                 "EFFECT rows and registered arms drifted");
     }
@@ -38,7 +36,7 @@ class NativeRegistryGovernanceTest {
     @Test
     @DisplayName("JAVA_ROUTINE rows == registered staged routines")
     void routineRegistryCoversCatalog() {
-        assertEquals(rows(PlatformTypes.NativeImpl.JAVA_ROUTINE),
+        assertEquals(rows(java.util.List.of(com.legend.builtin.NativeFn.JavaRoutine.values())),
                 StatementExecutor.registeredRoutineKeys(),
                 "JAVA_ROUTINE rows and staged routines drifted");
     }

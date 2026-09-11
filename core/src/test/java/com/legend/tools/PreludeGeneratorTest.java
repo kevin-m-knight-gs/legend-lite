@@ -404,8 +404,8 @@ class PreludeGeneratorTest {
         Set<String> platformOwnedNames = new TreeSet<>();
         // THE EXCLUSION RULE KEYS ON CLAIMS (upstream boundary batch 4, D3):
         // the bare names the registry CLAIMS (com.legend.claims.Claims — the
-        // four lowering registries, CoreFn, the walls, IMPLEMENTATION_KIND,
-        // the family enums) plus the CoreFn forms — not "a signature exists in
+        // four lowering registries, CoreFn, the walls, the NativeFn family
+        // enums) plus the CoreFn forms — not "a signature exists in
         // Pure.java". A Pure.java entry nothing implements no longer
         // suppresses upstream's working body: it left Pure.java, or it is
         // UNCLAIMED and the ledger says so. An upstream NATIVE is owned by the

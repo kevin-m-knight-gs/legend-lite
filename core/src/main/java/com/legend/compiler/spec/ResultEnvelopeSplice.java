@@ -159,7 +159,7 @@ public final class ResultEnvelopeSplice {
         // chain (the envelope) stands where the call stood — observed
         // where it stands, no separate eager run
         if (n instanceof TypedNativeCall lq
-                && PlatformTypes.isLegendQueryFqn(lq.callee().qualifiedName())) {
+                && (com.legend.builtin.NativeFn.Handle.of(lq.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
             // the hook fires BEFORE and AFTER the inliner's env
             // substitution: a still-variable query argument (a helper's
             // parameter — runLegendTest($f, …)) waits for the substituted
@@ -282,7 +282,7 @@ public final class ResultEnvelopeSplice {
                 earg = ef.source();
             }
             if (earg instanceof TypedNativeCall ec2
-                    && PlatformTypes.isExecuteFqn(ec2.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec2.callee().qualifiedName())) {
                 frames.inlineExecute(ec2, true);
                 return new TypedCInteger(1L, szi.info());
             }
@@ -394,7 +394,7 @@ public final class ResultEnvelopeSplice {
             src = sf.source();
         }
         if (src instanceof TypedNativeCall ec
-                && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())) {
             frames.inlineExecute(ec, false);
             return n;
         }
@@ -471,7 +471,7 @@ public final class ResultEnvelopeSplice {
                 execSrc = sf.source();
             }
             sql = execSrc instanceof TypedNativeCall ec
-                    && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
                     && k == 0 ? frames.relationalActivitySql(ec) : null;
         }
         return sql == null ? null : new TypedCString(sql, n.info());
@@ -581,7 +581,7 @@ public final class ResultEnvelopeSplice {
                 src = sf.source();
             }
             if (src instanceof TypedNativeCall ec
-                    && PlatformTypes.isExecuteFqn(ec.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())) {
                 // inline read: the value is observed where it stands —
                 // no separate eager run (it would execute twice)
                 return executedExtent(frames.inlineExecute(ec, false));

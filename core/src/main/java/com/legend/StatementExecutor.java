@@ -259,10 +259,8 @@ final class StatementExecutor {
                     rhs = rf.source();
                 }
                 if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                        && (com.legend.compiler.element.type.PlatformTypes
-                                .isExecuteFqn(ec.callee().qualifiedName())
-                            || com.legend.compiler.element.type.PlatformTypes
-                                .isLegendQueryFqn(ec.callee().qualifiedName()))) {
+                        && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
+                            || (com.legend.builtin.NativeFn.Handle.of(ec.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY))) {
                     // EAGER run (engine parity, audit 16 F1): a broken
                     // pipeline surfaces AT the let even when nothing reads
                     // the frame.
@@ -396,20 +394,13 @@ final class StatementExecutor {
             // evaluated over the PLAN NODE MODEL) returns its value.
             if (preRoot instanceof com.legend.compiler.spec.typed
                             .TypedNativeCall cat) {
-                var kind = com.legend.compiler.element.type.PlatformTypes
-                        .IMPLEMENTATION_KIND.get(
-                                cat.callee().qualifiedName());
-                if (kind == com.legend.compiler.element.type.PlatformTypes
-                        .NativeImpl.CONTEXT_OWNER) {
+                String catFqn = cat.callee().qualifiedName();
+                if (com.legend.builtin.NativeFn.ContextOwner.of(catFqn).isPresent()) {
                     result = AssertErrorNative.run(cat, letPrefix, specs,
                             env, frames);
                     continue;
                 }
-                if (kind == com.legend.compiler.element.type.PlatformTypes
-                        .NativeImpl.HANDLE
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .handleForcesAtValuePosition(
-                                        cat.callee().qualifiedName())) {
+                if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(catFqn)) {
                     result = buildFrame(cat, letPrefix, true, specs, env)
                             .result();
                     continue;
@@ -545,8 +536,7 @@ final class StatementExecutor {
                 .apply(es.plan(), env.tableReplace());
         // toNonExecutableSQLString: the engine's nonExecutable post-processor
         // (every SELECT takes `and 1 = 2`) — the IR pass, then the render
-        if (com.legend.compiler.element.type.PlatformTypes
-                .TO_NON_EXECUTABLE_SQL_STRING.equals(call.callee().qualifiedName())) {
+        if (com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn().equals(call.callee().qualifiedName())) {
             post = com.legend.lowering.SqlPostProcessors.nonExecutable(post);
         }
         return new ExecutionResult.Scalar(post == es.plan() ? es.sql()
@@ -689,8 +679,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         boolean rootSetup = bare
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall rnc
-                && com.legend.compiler.element.type.PlatformTypes
-                        .isRawSqlBoundary(rnc.callee().qualifiedName());
+                && (com.legend.builtin.NativeFn.Effect.of(rnc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB);
         if (rootSetup) {
             return null;
         }
@@ -733,18 +722,13 @@ final class StatementExecutor {
                                     "sql text")).value());
                 };
         return java.util.Map.of(
-                com.legend.compiler.element.type.PlatformTypes
-                        .PLAN_TO_STRING, text,
-                com.legend.compiler.element.type.PlatformTypes
-                        .PLAN_TO_STRING_WITHOUT_FORMATTING,
+                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING.fqn(), text,
+                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING_WITHOUT_FORMATTING.fqn(),
                 (call, letPrefix) -> text.value(call, letPrefix)
                         .replace("\n", "").replace(" ", ""),
-                com.legend.compiler.element.type.PlatformTypes
-                        .TO_SQL_STRING, sqlText,
-                com.legend.compiler.element.type.PlatformTypes
-                        .TO_SQL_STRING_PRETTY, sqlText,
-                com.legend.compiler.element.type.PlatformTypes
-                        .TO_NON_EXECUTABLE_SQL_STRING, sqlText);
+                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING.fqn(), sqlText,
+                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING_PRETTY.fqn(), sqlText,
+                com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(), sqlText);
     }
 
     private static @com.legend.Nullable ExecutionResult planToString(
@@ -1443,8 +1427,7 @@ final class StatementExecutor {
         // (envelope emitted over the chain — relationRooted is false:
         // the frame's value is one string). The eager run executes the
         // RAW chain (pipeline validation at the let, engine parity).
-        if (com.legend.compiler.element.type.PlatformTypes
-                .isLegendQueryFqn(ec.callee().qualifiedName())) {
+        if ((com.legend.builtin.NativeFn.Handle.of(ec.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
             var lq = com.legend.compiler.spec.ExecuteChainAssembly
                     .prepareLegendQuery(ec, letPrefix, specs);
             var lqChain = com.legend.compiler.spec.ExecuteChainAssembly
@@ -1695,37 +1678,31 @@ final class StatementExecutor {
 
     private static final java.util.Map<String, EffectRoutine> EFFECT_ARMS =
             java.util.Map.of(
-                    com.legend.compiler.element.type.PlatformTypes
-                            .EXECUTE_IN_DB,
+                    com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn(),
                     StatementExecutor::executeInDb,
-                    com.legend.compiler.element.type.PlatformTypes
-                            .DROP_AND_CREATE_TABLE_IN_DB,
+                    com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(),
                     StatementExecutor::dropAndCreateTableInDb,
-                    com.legend.compiler.element.type.PlatformTypes
-                            .DROP_AND_CREATE_SCHEMA_IN_DB,
+                    com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(),
                     StatementExecutor::dropAndCreateSchemaInDb,
-                    com.legend.compiler.element.type.PlatformTypes
-                            .LOAD_CSV_TO_DB_TABLE,
+                    com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE.fqn(),
                     CsvLoad::loadCsvToDbTable,
-                    com.legend.compiler.element.type.PlatformTypes
-                            .SET_UP_DATA_SQLS,
+                    com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(),
                     SeedSqlForms::assertForm,
                     com.legend.compiler.element.type.PlatformTypes
                             .SET_UP_DATA_SQLS_V2,
                     SeedSqlForms::assertForm,
-                    com.legend.compiler.element.type.PlatformTypes.PRINT,
+                    com.legend.builtin.NativeFn.Effect.PRINT.fqn(),
                     (body, nc, env) -> new ExecutionResult.Scalar(null,
                             com.legend.compiler.element.type.Type
                                     .Primitive.STRING),
-                    com.legend.compiler.element.type.PlatformTypes.PRINTLN,
+                    com.legend.builtin.NativeFn.Effect.PRINTLN.fqn(),
                     // debug output: a NO-OP — the argument is NEVER
                     // evaluated (it may be an unlowerable diagnostic);
                     // engine parity is the statement's inertness
                     (body, nc, env) -> new ExecutionResult.Scalar(null,
                             com.legend.compiler.element.type.Type
                                     .Primitive.STRING),
-                    com.legend.compiler.element.type.PlatformTypes
-                            .CONNECTION_BY_ELEMENT,
+                    com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn(),
                     (body, nc, env) -> new ExecutionResult.Scalar(null,
                             nc.info().type()));
 
@@ -1739,16 +1716,11 @@ final class StatementExecutor {
      * the catalog's JAVA_ROUTINE rows by NativeDispatchTest. */
     public static java.util.Set<String> registeredRoutineKeys() {
         return java.util.Set.of(
-                com.legend.compiler.element.type.PlatformTypes
-                        .PLAN_TO_STRING,
-                com.legend.compiler.element.type.PlatformTypes
-                        .PLAN_TO_STRING_WITHOUT_FORMATTING,
-                com.legend.compiler.element.type.PlatformTypes
-                        .TO_SQL_STRING,
-                com.legend.compiler.element.type.PlatformTypes
-                        .TO_SQL_STRING_PRETTY,
-                com.legend.compiler.element.type.PlatformTypes
-                        .TO_NON_EXECUTABLE_SQL_STRING);
+                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING.fqn(),
+                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING_WITHOUT_FORMATTING.fqn(),
+                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING.fqn(),
+                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING_PRETTY.fqn(),
+                com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn());
     }
 
     /** The member name of a typed enum-shaped read (DatabaseType.H2). */
@@ -1853,8 +1825,7 @@ final class StatementExecutor {
     static boolean containsEffect(TypedSpec node, SpecCompiler specs,
             java.util.Map<String, Boolean> memo) {
         if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.compiler.element.type.PlatformTypes
-                        .isEffectfulNative(nc.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().qualifiedName())) {
             return true;
         }
         if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
@@ -2187,10 +2158,7 @@ final class StatementExecutor {
         // effectful K-natives run their registered arm when evaluation
         // reaches the call — one lookup, no name literals.
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.compiler.element.type.PlatformTypes
-                        .IMPLEMENTATION_KIND.get(nc.callee().qualifiedName())
-                        == com.legend.compiler.element.type.PlatformTypes
-                                .NativeImpl.EFFECT) {
+                && com.legend.builtin.NativeFn.Effect.of(nc.callee().qualifiedName()).isPresent()) {
             EffectRoutine arm = EFFECT_ARMS.get(nc.callee().qualifiedName());
             if (arm == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -2210,8 +2178,7 @@ final class StatementExecutor {
         // the engine walks its Database metamodel, we render from the
         // compiled store model (the lowerer has no model access)
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
-                && com.legend.compiler.element.type.PlatformTypes
-                        .isDdlStatementFn(ds.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().qualifiedName()).isPresent()) {
             return new ExecutionResult.Scalar(ddlStatementString(ds, env),
                     ds.info().type());
         }
@@ -2225,13 +2192,11 @@ final class StatementExecutor {
         if (root instanceof com.legend.compiler.spec.typed.TypedCollection ddlColl
                 && ddlColl.elements().stream().anyMatch(e ->
                         e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .isDdlStatementFn(enc.callee().qualifiedName()))) {
+                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().qualifiedName()).isPresent())) {
             java.util.List<Object> strs = new java.util.ArrayList<>();
             for (TypedSpec e : ddlColl.elements()) {
                 if (e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .isDdlStatementFn(enc.callee().qualifiedName())) {
+                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().qualifiedName()).isPresent()) {
                     strs.add(ddlStatementString(enc, env));
                 } else if (e instanceof com.legend.compiler.spec.typed.TypedCString cs2) {
                     strs.add(cs2.value());
@@ -2330,8 +2295,7 @@ final class StatementExecutor {
         if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
                 && castC.source()
                         instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
-                && com.legend.compiler.element.type.PlatformTypes
-                        .CONNECTION_BY_ELEMENT
+                && com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn()
                         .equals(cbe2.callee().qualifiedName())) {
             return new ExecutionResult.Scalar(null, castC.info().type());
         }
@@ -2754,8 +2718,7 @@ final class StatementExecutor {
     static boolean containsEffectfulNode(java.util.List<TypedSpec> nodes) {
         for (TypedSpec n : nodes) {
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .isEffectfulNative(nc.callee().qualifiedName())
+                    && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().qualifiedName())
                     && !isLiteralSelect(nc)) {
                 return true;
             }
@@ -2769,8 +2732,7 @@ final class StatementExecutor {
     static boolean isLiteralSelect(
             com.legend.compiler.spec.typed.TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
-        boolean sqlCarrier = com.legend.compiler.element.type.PlatformTypes
-                .EXECUTE_IN_DB.equals(fqn);
+        boolean sqlCarrier = com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn().equals(fqn);
         return sqlCarrier && !nc.args().isEmpty()
                 && nc.args().get(0)
                         instanceof com.legend.compiler.spec.typed.TypedCString cs

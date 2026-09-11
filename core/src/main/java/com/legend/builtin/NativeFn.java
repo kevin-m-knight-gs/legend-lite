@@ -82,6 +82,12 @@ public final class NativeFn {
         out.put("ResolverForm", List.of(ResolverForm.values()));
         out.put("LiteDesugar", List.of(LiteDesugar.values()));
         out.put("TyperForm", List.of(TyperForm.values()));
+        out.put("JavaRoutine", List.of(JavaRoutine.values()));
+        out.put("Handle", List.of(Handle.values()));
+        out.put("Effect", List.of(Effect.values()));
+        out.put("Carrier", List.of(Carrier.values()));
+        out.put("ContextOwner", List.of(ContextOwner.values()));
+        out.put("DdlStatement", List.of(DdlStatement.values()));
         return out;
     }
 
@@ -640,7 +646,15 @@ public final class NativeFn {
         PAGINATED("meta::pure::functions::collection::paginated",
                 Pure.PAGINATED__T_MANY__INTEGER_1__INTEGER_1),
         EXTRACT_ENUM_VALUE("meta::pure::functions::lang::extractEnumValue",
-                Pure.EXTRACT_ENUM_VALUE, Pure.EXTRACT_ENUM_VALUE__OPTIONAL);
+                Pure.EXTRACT_ENUM_VALUE, Pure.EXTRACT_ENUM_VALUE__OPTIONAL),
+        UNION("meta::pure::functions::collection::union",
+                Pure.UNION__T_MANY__T_MANY),
+        /** typing-only: the spec's DbConfig value (sqlQueryToString.pure:241-256); the
+         *  kernel's same-shape tie-break resolves the call to this native over the
+         *  corpus's own program, and the extension record's hooks read the value —
+         *  never lowered (batch 147 row 19; removing it lost 51 corpus tests) */
+        CREATE_DB_CONFIG("meta::relational::functions::sqlQueryToString::createDbConfig",
+                Pure.CREATE_DB_CONFIG__DBTYPE_1, Pure.CREATE_DB_CONFIG__DBTYPE_1__STRING_01, Pure.CREATE_DB_CONFIG__CONN_1, Pure.CREATE_DB_CONFIG__DBTYPE_1__STRING_01__BOOLEAN_01, Pure.CREATE_DB_CONFIG__ANY_1, Pure.CREATE_DB_CONFIG__ANY_1__STRING_01, Pure.CREATE_DB_CONFIG__ANY_1__STRING_01__BOOLEAN_01);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
@@ -665,6 +679,310 @@ public final class NativeFn {
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
         public static Optional<TyperForm> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** natives the platform computes as a VALUE in Java at orchestration time (compiler-output surfaces: plan text, SQL text); staged by NativeDispatch, the result re-enters the statement as a bound literal. */
+    public enum JavaRoutine implements Member {
+        PLAN_TO_STRING("meta::pure::executionPlan::toString::planToString",
+                Pure.PLAN_TO_STRING__ANY_1__ANY_MANY),
+        PLAN_TO_STRING_WITHOUT_FORMATTING("meta::pure::executionPlan::toString::planToStringWithoutFormatting",
+                Pure.PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY),
+        TO_SQL_STRING("meta::relational::functions::sqlstring::toSQLString",
+                Pure.TO_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY, Pure.TO_SQL_STRING__SQLRESULT_1__DBTYPE_1__STRING_01__BOOLEAN_01__FORMAT_1),
+        TO_SQL_STRING_PRETTY("meta::relational::functions::sqlstring::toSQLStringPretty",
+                Pure.TO_SQL_STRING_PRETTY__FN_1__ANY_1__ANY_1__ANY_MANY),
+        TO_NON_EXECUTABLE_SQL_STRING("meta::relational::functions::sqlstring::toNonExecutableSQLString",
+                Pure.TO_NON_EXECUTABLE_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        JavaRoutine(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, JavaRoutine> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<JavaRoutine> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** natives producing an OPAQUE orchestration value consumers force (execute's result frame, the plan handle, the lineage scans, preval). */
+    public enum Handle implements Member {
+        EXECUTE("meta::pure::router::execute",
+                Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY, Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_1__ANY_MANY, Pure.ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1),
+        EXECUTION_PLAN_EXECUTE("meta::pure::executionPlan::execute",
+                Pure.EXECUTION_PLAN_EXECUTE__ANY_1__ANY_MANY__ANY_MANY),
+        EXECUTE_LEGEND_QUERY("meta::legend::executeLegendQuery",
+                Pure.EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXTENSION_MANY, Pure.EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXECUTION_CONTEXT_1__EXTENSION_MANY),
+        TO_SQL("meta::relational::functions::sqlstring::toSQL",
+                Pure.TO_SQL__FN_1__ANY_1__ANY_1__ANY_MANY),
+        EXECUTION_PLAN("meta::pure::executionPlan::executionPlan",
+                Pure.EXECUTION_PLAN__4, Pure.EXECUTION_PLAN__5, Pure.EXECUTION_PLAN__5_DEBUG, Pure.EXECUTION_PLAN__2, Pure.EXECUTION_PLAN__3),
+        SCAN_RELATIONS("meta::pure::lineage::scanRelations::scanRelations",
+                Pure.SCAN_RELATIONS__3, Pure.SCAN_RELATIONS__4),
+        SCAN_PROPERTIES("meta::pure::lineage::scanProperties::scanProperties",
+                Pure.SCAN_PROPERTIES__4),
+        BUILD_PROPERTY_TREE("meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree",
+                Pure.BUILD_PROPERTY_TREE__LISTS),
+        SCAN_COLUMNS("meta::pure::lineage::scanColumns::scanColumns",
+                Pure.SCAN_COLUMNS__2),
+        PREVAL("meta::pure::router::preeval::preval",
+                Pure.PREVAL__FN_1__ANY_MANY, Pure.PREVAL__FN_1__ANY_MANY__DEBUG_1);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        Handle(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, Handle> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<Handle> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+
+        /** The two execute spellings (router / executionPlan): the result frame. */
+        public static boolean isExecute(@com.legend.Nullable String fqn) {
+            Handle h = fqn == null ? null : BY_FQN.get(fqn);
+            return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE;
+        }
+
+        /** Which handle forces EAGERLY when consumed at a statement's value
+         *  position: execute's frame run IS the value; plan handles stay
+         *  symbolic (navigated by the plan reader). */
+        public static boolean forcesAtValuePosition(@com.legend.Nullable String fqn) {
+            Handle h = fqn == null ? null : BY_FQN.get(fqn);
+            return h == EXECUTE || h == EXECUTE_LEGEND_QUERY;
+        }
+    }
+
+    /** EFFECTFUL Java routines at the execution boundary, run via their registered arm when evaluation reaches the call (never staged). */
+    public enum Effect implements Member {
+        EXECUTE_IN_DB("meta::relational::metamodel::execute::executeInDb",
+                Pure.EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1, Pure.EXECUTE_IN_DB__STRING_1__CONN_1),
+        DROP_AND_CREATE_TABLE_IN_DB("meta::relational::functions::toDDL::dropAndCreateTableInDb",
+                Pure.DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1, Pure.DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1),
+        DROP_AND_CREATE_SCHEMA_IN_DB("meta::relational::functions::toDDL::dropAndCreateSchemaInDb",
+                Pure.DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1, Pure.DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1__BOOLEAN_1),
+        LOAD_CSV_TO_DB_TABLE("meta::relational::metamodel::execute::loadCsvToDbTable",
+                Pure.LOAD_CSV_TO_DB_TABLE__STRING_1__TABLE_1__CONN_1),
+        SET_UP_DATA_SQLS("meta::alloy::service::execution::setUpDataSQLs",
+                Pure.SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1, Pure.SET_UP_DATA_SQLS__STRING_1__ANY_MANY, Pure.SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1),
+        SET_UP_DATA_SQLS_V2("meta::alloy::service::execution::setUpDataSQLsV2",
+                Pure.SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1),
+        PRINT("meta::pure::functions::io::print",
+                Pure.PRINT__ANY_M__INTEGER_1, Pure.PRINT__ANY_M),
+        PRINTLN("meta::pure::functions::io::println",
+                Pure.PRINTLN__ANY_M__INTEGER_1, Pure.PRINTLN__ANY_M),
+        CONNECTION_BY_ELEMENT("meta::core::runtime::connectionByElement",
+                Pure.CONNECTION_BY_ELEMENT__ANY_1__ANY_1);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        Effect(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, Effect> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<Effect> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+
+        /** The DATABASE effects (raw SQL, DDL, CSV load): statement-ordered, session-bound. */
+        public static boolean isDbEffect(@com.legend.Nullable String fqn) {
+            Effect e = fqn == null ? null : BY_FQN.get(fqn);
+            return e == EXECUTE_IN_DB || e == DROP_AND_CREATE_TABLE_IN_DB
+                    || e == DROP_AND_CREATE_SCHEMA_IN_DB || e == LOAD_CSV_TO_DB_TABLE;
+        }
+
+        /** The seed-SQL forms (setUpDataSQLs / V2). */
+        public static boolean isSeedSqlForm(@com.legend.Nullable String fqn) {
+            Effect e = fqn == null ? null : BY_FQN.get(fqn);
+            return e == SET_UP_DATA_SQLS || e == SET_UP_DATA_SQLS_V2;
+        }
+
+        /** print / println — inert diagnostics (no value, no rows). */
+        public static boolean isInertDiagnostic(@com.legend.Nullable String fqn) {
+            Effect e = fqn == null ? null : BY_FQN.get(fqn);
+            return e == PRINT || e == PRINTLN;
+        }
+    }
+
+    /** natives BOUND ONCE at type-check to a carrier node that knows its implementation (the raw-grid relation, the test-data generators, the JDBC metadata grids). */
+    public enum Carrier implements Member {
+        EXECUTE_IN_DB_TO_TDS("meta::relational::metamodel::execute::executeInDbToTDS",
+                Pure.EXECUTE_IN_DB_TO_TDS__STRING_1__FN_1),
+        GENERATE_TEST_DATA("meta::relational::testDataGeneration::generateTestData",
+                Pure.GENERATE_TEST_DATA__5),
+        GET_RELATIONAL_CSV_DATA("meta::relational::testDataGeneration::getRelationalCSVDataFromQuery",
+                Pure.GET_RELATIONAL_CSV_DATA__FN_1__ANY_1),
+        FETCH_DB_SCHEMAS_META_DATA("meta::relational::metamodel::execute::fetchDbSchemasMetaData",
+                Pure.FETCH_DB_SCHEMAS_META_DATA),
+        FETCH_DB_TABLES_META_DATA("meta::relational::metamodel::execute::fetchDbTablesMetaData",
+                Pure.FETCH_DB_TABLES_META_DATA),
+        FETCH_DB_COLUMNS_META_DATA("meta::relational::metamodel::execute::fetchDbColumnsMetaData",
+                Pure.FETCH_DB_COLUMNS_META_DATA),
+        FETCH_DB_PRIMARY_KEYS_META_DATA("meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData",
+                Pure.FETCH_DB_PRIMARY_KEYS_META_DATA);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        Carrier(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, Carrier> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<Carrier> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+
+        /** The JDBC DatabaseMetaData grid a fetchDb* native reads — host-evaluated
+         *  against the H2 second target (engine-parity metadata casing), never lowered. */
+        public enum FetchDbGrid { SCHEMAS, TABLES, COLUMNS, PRIMARY_KEYS }
+
+        /** The metadata grid of a fetchDb* callee, or null when the callee is not one. */
+        public static @com.legend.Nullable FetchDbGrid fetchDbGrid(@com.legend.Nullable String fqn) {
+            Carrier c = fqn == null ? null : BY_FQN.get(fqn);
+            if (c == null) {
+                return null;
+            }
+            return switch (c) {
+                case FETCH_DB_SCHEMAS_META_DATA -> FetchDbGrid.SCHEMAS;
+                case FETCH_DB_TABLES_META_DATA -> FetchDbGrid.TABLES;
+                case FETCH_DB_COLUMNS_META_DATA -> FetchDbGrid.COLUMNS;
+                case FETCH_DB_PRIMARY_KEYS_META_DATA -> FetchDbGrid.PRIMARY_KEYS;
+                case EXECUTE_IN_DB_TO_TDS, GENERATE_TEST_DATA, GET_RELATIONAL_CSV_DATA -> null;
+            };
+        }
+    }
+
+    /** natives that establish their OWN evaluation context for their arguments (assertError's catch): staging never enters them. */
+    public enum ContextOwner implements Member {
+        ASSERT_ERROR("meta::pure::functions::asserts::assertError",
+                Pure.ASSERT_ERROR__MATCHER, Pure.ASSERT_ERROR__FN_1__STRING_1, Pure.ASSERT_ERROR__FN_1__STRING_1__INTEGER_01__INTEGER_01);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        ContextOwner(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, ContextOwner> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<ContextOwner> of(@com.legend.Nullable String calleeFqn) {
+            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** the DDL statement-string natives the executor renders from the model (create / drop schema and table). */
+    public enum DdlStatement implements Member {
+        CREATE_SCHEMA_STATEMENT("meta::relational::functions::toDDL::createSchemaStatement",
+                Pure.DDL_CREATE_SCHEMA_STATEMENT__STRING_1),
+        CREATE_TABLE_STATEMENT("meta::relational::functions::toDDL::createTableStatement",
+                Pure.DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1__STRING_1, Pure.DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1),
+        DROP_SCHEMA_STATEMENT("meta::relational::functions::toDDL::dropSchemaStatement",
+                Pure.DDL_DROP_SCHEMA_STATEMENT__STRING_1),
+        DROP_TABLE_STATEMENT("meta::relational::functions::toDDL::dropTableStatement",
+                Pure.DDL_DROP_TABLE_STATEMENT__DB_1__STRING_1, Pure.DDL_DROP_TABLE_STATEMENT__DB_1__STRING_1__STRING_1);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        DdlStatement(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, DdlStatement> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  in this family (a normal fall-through, never an error). */
+        public static Optional<DdlStatement> of(@com.legend.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }

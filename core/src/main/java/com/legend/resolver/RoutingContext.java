@@ -37,8 +37,7 @@ final class RoutingContext {
             java.util.function.UnaryOperator<TypedSpec> bind) {
         TypedNativeCall nc = entryCall(nc0, bind);
         String f = nc.callee().qualifiedName();
-        boolean routed = com.legend.compiler.element.type.PlatformTypes
-                .isExecuteFqn(f);
+        boolean routed = com.legend.builtin.NativeFn.Handle.isExecute(f);
         return routed && nc.args().size() >= 2
                 && nc.args().get(1) instanceof com.legend.compiler.spec
                         .typed.TypedPackageableRef mr ? mr : null;

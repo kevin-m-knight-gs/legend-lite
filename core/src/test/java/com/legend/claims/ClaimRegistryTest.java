@@ -52,7 +52,8 @@ public class ClaimRegistryTest {
 
     /** Shrink-only: UNCLAIMED overloads in the ledger. MEASURED at the batch-3
      *  landing (2026-09-10): 133 overloads / 94 FQNs — Pure.java entries no
-     *  registry, CoreFn name, wall, IMPLEMENTATION_KIND row or family enum
+     *  registry, CoreFn name, wall, or NativeFn family enum (which absorbed
+     *  the executor kinds table in batch 4b)
      *  backs (window frames, lateral, reduce, instanceOf, dynamicNew, the
      *  post-processors, createDbConfig, toCSV, the reflection natives, …).
      *  Batch 4 adjudicates every one: register it (a family enum or a rule)
@@ -74,10 +75,13 @@ public class ClaimRegistryTest {
     // NativeFn (LiteralForm, ContextOption, PlanWrapper, ObjectReference,
     // SubtypeForm, ResolverForm, LiteDesugar, TyperForm — 43 overloads);
     // convertTimeZone, averageRank, newUnit, sourceInformation left
-    // Pure.java (typed or parsed, never lowered). The 19 are group 3: the
-    // executor kinds that today live in PlatformTypes (fetchDb* x4, the DDL
-    // statement functions, execute) plus createDbConfig and union.
-    static final int UNCLAIMED_MAX = 19;
+    // Pure.java (typed or parsed, never lowered). Group 3 (batch 4b landing):
+    // the executor kinds left PlatformTypes for NativeFn (JavaRoutine, Handle,
+    // Effect, Carrier, ContextOwner) with DdlStatement and TyperForm.UNION;
+    // createDbConfig (7 overloads) is TyperForm.CREATE_DB_CONFIG: typing-only,
+    // its DbConfig value consumed by the extension hooks (51 corpus tests).
+    // MEASURED 2026-09-10: 826 overloads, 0 unclaimed — the target state.
+    static final int UNCLAIMED_MAX = 0;
 
     /** constant name(s) per overload, by reflection over {@link Pure}'s
      *  fields — the catalog's own naming, never a parse of the source. */

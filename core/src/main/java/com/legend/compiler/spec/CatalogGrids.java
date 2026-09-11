@@ -34,8 +34,7 @@ public final class CatalogGrids {
     public static @com.legend.Nullable String sql(
             com.legend.compiler.spec.typed.TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
-        var kind = com.legend.compiler.element.type.PlatformTypes
-                .fetchDbKind(fqn);
+        var kind = java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn));
         String a1 = literalPattern(nc, 1);
         String a2 = nc.args().size() > 2 ? literalPattern(nc, 2) : null;
         String a3 = nc.args().size() > 3 ? literalPattern(nc, 3) : null;
@@ -82,8 +81,7 @@ public final class CatalogGrids {
             @com.legend.Nullable String schemaPattern,
             @com.legend.Nullable String tablePattern,
             @com.legend.Nullable String columnPattern) {
-        return switch (com.legend.compiler.element.type.PlatformTypes
-                .fetchDbKind(nativeFqn)) {
+        return switch (java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nativeFqn))) {
             case SCHEMAS -> "SELECT upper(schema_name) AS \"TABLE_SCHEM\","
                     + " upper(catalog_name) AS \"TABLE_CATALOG\""
                     + " FROM information_schema.schemata"
@@ -151,7 +149,7 @@ public final class CatalogGrids {
      * {@code KEY_SEQ} (short) are {@code Integer[0..1]}. */
     public static com.legend.compiler.element.type.Type.RelationType
             gridSchema(
-            com.legend.compiler.element.type.PlatformTypes.FetchDbKind k) {
+            com.legend.builtin.NativeFn.Carrier.FetchDbGrid k) {
         List<com.legend.compiler.element.type.Type.Column> cols =
                 new ArrayList<>();
         for (String name : gridColumns(k)) {
@@ -172,7 +170,7 @@ public final class CatalogGrids {
      * projections above, so the names are compilation facts (the E4.e
      * chain compiler's columnNames / positional-index arithmetic). */
     public static List<String> gridColumns(
-            com.legend.compiler.element.type.PlatformTypes.FetchDbKind k) {
+            com.legend.builtin.NativeFn.Carrier.FetchDbGrid k) {
         return switch (k) {
             case SCHEMAS -> List.of("TABLE_SCHEM", "TABLE_CATALOG");
             case TABLES -> List.of("TABLE_CAT", "TABLE_SCHEM",

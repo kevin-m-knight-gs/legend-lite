@@ -759,7 +759,7 @@ final class Typer {
         // union(a, b) — SQL UNION: distinct over the concatenation (the
         // same shape is pure's collection set-union, so both spellings
         // mean exactly this)
-        if (tdsVocab(af.function(), "union") && af.parameters().size() == 2) {
+        if (com.legend.builtin.NativeFn.TyperForm.UNION.matches(af.function()) && af.parameters().size() == 2) {
             // union(a, [b,c,d]) — the collection overload chains the
             // concatenation member by member
             ValueSpecification acc = af.parameters().get(0);
@@ -1566,8 +1566,7 @@ final class Typer {
                         com.legend.compiler.spec.typed.TypedCString lit
                 && com.legend.sql.RawSql.isSingleQuery(lit.value())) {
             sql = com.legend.sql.RawSql.splitStatements(lit.value()).get(0);
-        } else if (com.legend.compiler.element.type.PlatformTypes
-                .isFetchDbFn(fqn)) {
+        } else if (com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn) != null) {
             sql = CatalogGrids.sql(nc);
             if (sql != null) {
                 // §4bZ-U leg 4: the JDBC spec fixes the metadata result
@@ -1576,10 +1575,7 @@ final class Typer {
                 // LIMIT-0 probe, reads stamp statically)
                 return new com.legend.compiler.spec.typed
                         .TypedRawSqlRelation(sql, ExprType.one(
-                                Type.relation(CatalogGrids.gridSchema(
-                                        com.legend.compiler.element.type
-                                                .PlatformTypes
-                                                .fetchDbKind(fqn)))));
+                                Type.relation(CatalogGrids.gridSchema(java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn))))));
             }
         }
         if (sql == null) {

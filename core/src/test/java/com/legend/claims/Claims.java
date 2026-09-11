@@ -5,7 +5,6 @@ package com.legend.claims;
 
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
-import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.CoreFn;
 import com.legend.lowering.LoweringClaims;
 import com.legend.model.NativeFunctionDefinition;
@@ -72,16 +71,6 @@ public final class Claims {
         CORE_FN,
         /** {@code Pure.WALLED_NATIVES} — refused by decision, with a reason */
         WALL,
-        /** {@code IMPLEMENTATION_KIND}: a Java routine computing a value at orchestration time */
-        JAVA_ROUTINE,
-        /** {@code IMPLEMENTATION_KIND}: an opaque orchestration handle consumers force */
-        HANDLE,
-        /** {@code IMPLEMENTATION_KIND}: an effect at the execution boundary */
-        EFFECT,
-        /** {@code IMPLEMENTATION_KIND}: bound once at type-check to a carrier node */
-        CARRIER,
-        /** {@code IMPLEMENTATION_KIND}: establishes its own evaluation context */
-        CONTEXT_OWNER,
         /** a closed family type — an enum whose constants carry their overloads and
          *  whose switches are exhaustive ({@code CalendarFn}, {@code AssertFn}, {@code RowGetter}) */
         FAMILY
@@ -123,10 +112,6 @@ public final class Claims {
             }
             if (Pure.walledNativeFqns().contains(fqn)) {
                 claim(d, Kind.WALL, "Pure.WALLED_NATIVES");
-            }
-            PlatformTypes.NativeImpl impl = PlatformTypes.IMPLEMENTATION_KIND.get(fqn);
-            if (impl != null) {
-                claim(d, Kind.valueOf(impl.name()), "PlatformTypes.IMPLEMENTATION_KIND");
             }
         }
 

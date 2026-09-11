@@ -51,9 +51,7 @@ public final class NativeDispatch {
         // catch): those migrate ONLY together with a real staged
         // environment (lambda boundary + parameter scope).
         if (stmt instanceof TypedNativeCall co
-                && PlatformTypes.IMPLEMENTATION_KIND.get(
-                        co.callee().qualifiedName())
-                        == PlatformTypes.NativeImpl.CONTEXT_OWNER) {
+                && com.legend.builtin.NativeFn.ContextOwner.of(co.callee().qualifiedName()).isPresent()) {
             // the call OWNS its arguments' evaluation context
             // (assertError's catch): staging does not enter them — the
             // arm's own evaluation stages them INSIDE that context
@@ -65,8 +63,7 @@ public final class NativeDispatch {
             return n;
         }
         String fqn = nc.callee().qualifiedName();
-        if (PlatformTypes.IMPLEMENTATION_KIND.get(fqn)
-                != PlatformTypes.NativeImpl.JAVA_ROUTINE) {
+        if (com.legend.builtin.NativeFn.JavaRoutine.of(fqn).isEmpty()) {
             return n;
         }
         Routine r = routines.get(fqn);

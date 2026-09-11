@@ -1244,8 +1244,7 @@ public final class UserCallInliner {
                 // runs their effects once and treats the value as an
                 // opaque handle. Inlining them hits the non-let
                 // intermediate-statement wall on their effect bodies.
-                if (com.legend.compiler.element.type.PlatformTypes
-                        .isExecuteFqn(c.callee().qualifiedName())
+                if (com.legend.builtin.NativeFn.Handle.isExecute(c.callee().qualifiedName())
                         && c.args().size() >= 3) {
                     List<TypedSpec> keepRt = new ArrayList<>(c.args().size());
                     for (int i = 0; i < c.args().size(); i++) {
@@ -1302,8 +1301,7 @@ public final class UserCallInliner {
                 // substitution above — the frame splice (the hook) sees
                 // the lambda only NOW; re-offer the substituted call
                 if (hook != null && rebuilt != c
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .isLegendQueryFqn(c.callee().qualifiedName())) {
+                        && (com.legend.builtin.NativeFn.Handle.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
                     TypedSpec h = hook.apply(rebuilt, bound.keySet());
                     if (h != rebuilt) {
                         yield rewrite(h, env);
