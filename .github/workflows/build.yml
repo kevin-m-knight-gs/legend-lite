@@ -200,6 +200,32 @@ jobs:
     # stops meaning anything. parser-equivalence already has one real defect
     # (MutationFuzzTest) that fires only where a fixture's line endings move
     # the truncation point.
+    #
+    # core.longpaths=true is what lets the windows legs CLONE AT ALL, so it
+    # is THIS step, not the build, that was failing there. Git for Windows
+    # will not write a path over MAX_PATH (259 chars) unless it is set, and
+    # it is OFF by default. Not a near miss either: measured on the pinned
+    # tags, 5,682 of legend-engine 4.138.2's 12,719 tracked files are longer
+    # than the 211 chars that still fit under the runner's 48-character
+    # D:\a\legend-lite\legend-lite\spec\legend-engine\ prefix - the longest
+    # is 344, landing at 392 - and legend-pure 5.92.0 puts 75 files over its
+    # own 213, the longest at 293. The flag is git's OWN workaround (it
+    # addresses those paths in the \\?\ form), so it needs nothing enabled on
+    # the runner image, and it is inert off Windows, where nothing but the
+    # Windows compat layer reads the config - one spelling right on all six
+    # legs again.
+    #
+    # It will look REDUNDANT from a dev box, and that is a trap, not a
+    # licence to drop it. A Windows machine with LongPathsEnabled=1 in the
+    # registry clones these trees fine without it, because then the plain
+    # Win32 calls take the long paths too - measured here, a 322-char
+    # checkout succeeds even with -c core.longpaths=false forced. The runner
+    # image is the machine that does not have that, which is the whole of why
+    # this is a CI-only symptom.
+    #
+    # Only the clones need it: legend-lite's own longest tracked path is 126
+    # characters, so actions/checkout@v6 below has room to spare and is left
+    # alone.
     env:
       MAVEN_OPTS: -Xmx3g
       JAVA_TOOL_OPTIONS: -Xmx3g
@@ -220,17 +246,21 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
 
-      # See the env block above for the version and the two flags. `git clone
-      # -c` writes the config into the new repo BEFORE its initial checkout,
-      # which is the point - setting it afterwards would be too late for the
-      # working tree the tests read.
+      # See the env block above for the version and the three flags. `git
+      # clone -c` writes the config into the new repo BEFORE its initial
+      # checkout, which is the point - setting any of them afterwards would
+      # be too late for the working tree the tests read, and core.longpaths
+      # too late to matter at all, since the checkout it has to survive is
+      # the one the clone itself does.
       - name: spec checkouts (legend-engine, legend-pure)
         shell: bash
         run: |
-          git clone --quiet --depth 1 -c core.autocrlf=false -c core.eol=lf \
+          git clone --quiet --depth 1 \
+            -c core.autocrlf=false -c core.eol=lf -c core.longpaths=true \
             --branch "$LEGEND_ENGINE_TAG" \
             https://github.com/finos/legend-engine "$LEGEND_ENGINE_ROOT"
-          git clone --quiet --depth 1 -c core.autocrlf=false -c core.eol=lf \
+          git clone --quiet --depth 1 \
+            -c core.autocrlf=false -c core.eol=lf -c core.longpaths=true \
             --branch "$LEGEND_PURE_TAG" \
             https://github.com/finos/legend-pure "$LEGEND_PURE_ROOT"
           echo "engine $LEGEND_ENGINE_TAG: $(find "$LEGEND_ENGINE_ROOT" -name '*.pure' | wc -l) .pure files"
