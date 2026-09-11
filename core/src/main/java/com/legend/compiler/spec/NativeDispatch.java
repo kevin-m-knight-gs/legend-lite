@@ -28,8 +28,35 @@ public final class NativeDispatch {
      * the ladder migration. Throws the routine's declared wall. */
     @FunctionalInterface
     public interface Routine {
-        String value(TypedNativeCall call,
+        String value(RoutineCall call,
                 java.util.List<TypedSpec> letPrefix);
+    }
+
+    /** The call a routine computes — a JAVA_ROUTINE native call, or a call
+     *  to the QUALIFIED PROPERTY a routine implements ({@code
+     *  toSQL(…).toSQLString(…)}, {@code NativeFn.JavaRoutine.implementedDerived}):
+     *  one shape for both node kinds — the callee's FQN, the arguments, the
+     *  checked type. */
+    public record RoutineCall(String fqn, java.util.List<TypedSpec> args,
+            com.legend.compiler.element.type.ExprType info) {
+        public static RoutineCall of(TypedNativeCall nc) {
+            return new RoutineCall(nc.callee().qualifiedName(), nc.args(), nc.info());
+        }
+
+        public static RoutineCall of(com.legend.compiler.spec.typed.TypedUserCall uc) {
+            return new RoutineCall(uc.callee().qualifiedName(), uc.args(), uc.info());
+        }
+
+        /** The routine member this call dispatches to: the native's own, or
+         *  the one implementing the qualified property; empty otherwise. */
+        public static java.util.Optional<com.legend.builtin.NativeFn.JavaRoutine> routineOf(TypedSpec n) {
+            return switch (n) {
+                case TypedNativeCall nc -> com.legend.builtin.NativeFn.JavaRoutine.of(nc.callee().qualifiedName());
+                case com.legend.compiler.spec.typed.TypedUserCall uc ->
+                        com.legend.builtin.NativeFn.JavaRoutine.ofDerived(uc.callee().qualifiedName());
+                default -> java.util.Optional.empty();
+            };
+        }
     }
 
     /** Stage one statement: every JAVA_ROUTINE call in it (bottom-up)
@@ -59,20 +86,20 @@ public final class NativeDispatch {
         }
         TypedSpec n = stmt.mapChildren(
                 c -> stage(c, letPrefix, routines));
-        if (!(n instanceof TypedNativeCall nc)) {
+        java.util.Optional<com.legend.builtin.NativeFn.JavaRoutine> member = RoutineCall.routineOf(n);
+        if (member.isEmpty()) {
             return n;
         }
-        String fqn = nc.callee().qualifiedName();
-        if (com.legend.builtin.NativeFn.JavaRoutine.of(fqn).isEmpty()) {
-            return n;
-        }
+        String fqn = member.get().fqn();
         Routine r = routines.get(fqn);
         if (r == null) {
             throw new com.legend.error.NotImplementedException(
                     "catalog says '" + fqn + "' is JAVA_ROUTINE but the"
                     + " executor registered no routine for it");
         }
-        return new TypedCString(r.value(nc, letPrefix), nc.info());
+        RoutineCall call = n instanceof TypedNativeCall nc ? RoutineCall.of(nc)
+                : RoutineCall.of((com.legend.compiler.spec.typed.TypedUserCall) n);
+        return new TypedCString(r.value(call, letPrefix), n.info());
     }
 
 }

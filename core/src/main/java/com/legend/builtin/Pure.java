@@ -454,6 +454,10 @@ public final class Pure {
         public static final String GREATER_THAN_EQUAL_ANY = PKG + "greaterThanEqual";
         public static final String SUB = PKG + "sub";
         public static final String IS_NUMERIC = PKG + "isNumeric";
+        /** The engine's relational dynaFn {@code isDistinct(a, b)} (SQL
+         *  IS DISTINCT FROM; extensionDefaults.pure) — no pure counterpart
+         *  (pure's isDistinct is the 1-arg collection test). */
+        public static final String IS_DISTINCT = PKG + "isDistinct";
         public static final String HASH = PKG + "hash";
         public static final String JOIN = PKG + "join";
 
@@ -496,7 +500,7 @@ public final class Pure {
      *  {@link Lite}). Pinned shrink-only. */
     public static final java.util.Set<String> ENGINE_VOCAB_SHIMS =
             java.util.stream.Stream.of(Lite.AVG, Lite.DIVIDE_ROUND,
-                    Lite.NOT_EQUAL_ANSI, Lite.SUB, Lite.IS_NUMERIC,
+                    Lite.NOT_EQUAL_ANSI, Lite.SUB, Lite.IS_NUMERIC, Lite.IS_DISTINCT,
                     Lite.HASH, Lite.JOIN, Lite.LESS_THAN_ANY,
                     Lite.LESS_THAN_EQUAL_ANY, Lite.GREATER_THAN_ANY,
                     Lite.GREATER_THAN_EQUAL_ANY)
@@ -864,9 +868,11 @@ public final class Pure {
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AND__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::and(first:meta::pure::metamodel::type::Boolean[1], second:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition AND__BOOLEAN_MANY = signature("native function meta::pure::functions::collection::and(vals:meta::pure::metamodel::type::Boolean[*]):meta::pure::metamodel::type::Boolean[1];");
+    // the legacy TDS sort keys asc('col') / desc('col') (SortInformation)
+    public static final NativeFunctionDefinition ASC__STRING_1 = signature("native function meta::pure::tds::asc(column:meta::pure::metamodel::type::String[1]):meta::pure::tds::SortInformation[1];");
+    public static final NativeFunctionDefinition DESC__STRING_1 = signature("native function meta::pure::tds::desc(column:meta::pure::metamodel::type::String[1]):meta::pure::tds::SortInformation[1];");
     public static final NativeFunctionDefinition ASCENDING__COL_SPEC_1 = signature("native function meta::pure::functions::relation::ascending<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
     public static final NativeFunctionDefinition ASCII__STRING_1 = signature("native function meta::pure::functions::string::ascii(source:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition ASC__COL_SPEC_1 = signature("native function meta::pure::tds::asc<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
     public static final NativeFunctionDefinition ASIN__NUMBER_1 = signature("native function meta::pure::functions::math::asin(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
     public static final NativeFunctionDefinition AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
@@ -965,7 +971,6 @@ public final class Pure {
     public static final NativeFunctionDefinition DECODE_BASE64__STRING_1 = signature("native function meta::pure::functions::string::decodeBase64(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition DENSE_RANK__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::denseRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DESCENDING__COL_SPEC_1 = signature("native function meta::pure::functions::relation::descending<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
-    public static final NativeFunctionDefinition DESC__COL_SPEC_1 = signature("native function meta::pure::tds::desc<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
     public static final NativeFunctionDefinition DISTINCT__RELATION_1 = signature("native function meta::pure::functions::relation::distinct<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition DISTINCT__RELATION_1__COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::distinct<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], columns:meta::pure::metamodel::relation::ColSpecArray<X⊆T>[1]):meta::pure::metamodel::relation::Relation<X>[1];");
     public static final NativeFunctionDefinition IS_NUMERIC__STRING_0_1 = signature("native function meta::legend::lite::isNumeric(str:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Boolean[0..1];");
@@ -1052,7 +1057,6 @@ public final class Pure {
      *  A kind-1 native: list-filter-not-null then first (Scalars). */
     public static final NativeFunctionDefinition FIRST_NOT_NULL__T_MANY = signature("native function meta::pure::tds::extensions::firstNotNull<T>(set:T[*]):T[0..1];");
     public static final NativeFunctionDefinition FIRST__T_MANY = signature("native function meta::pure::functions::collection::first<T>(set:T[*]):T[0..1];");
-    public static final NativeFunctionDefinition FIRST__T_MANY__INTEGER_1 = signature("native function meta::pure::functions::collection::first<T>(set:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition FLATTEN__T_MANY__COL_SPEC_1 = signature("native function meta::pure::functions::relation::variant::flatten<T,Z>(valueToFlatten:T[*], columnWithFlattenedValue:meta::pure::metamodel::relation::ColSpec<Z=(?:T)>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
     public static final NativeFunctionDefinition FLOOR__NUMBER_1 = signature("native function meta::pure::functions::math::floor(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition FOLD__T_MANY__FUNCTION_1__V_m = signature("native function meta::pure::functions::collection::fold<T,V|m>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1],V[m]->V[m]}>[1], accumulator:V[m]):V[m];");
@@ -1060,7 +1064,6 @@ public final class Pure {
     public static final NativeFunctionDefinition FOR_ALL__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::forAll<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition FROM_EPOCH_VALUE__INTEGER_1 = signature("native function meta::pure::functions::date::fromEpochValue(secondsSinceEpoch:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition FROM_EPOCH_VALUE__INTEGER_1__DURATION_UNIT_1 = signature("native function meta::pure::functions::date::fromEpochValue(value:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::DateTime[1];");
-    public static final NativeFunctionDefinition FROM__RELATION_1 = signature("native function meta::pure::mapping::from<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition FROM__T_m__PACKAGEABLE_RUNTIME_1 = signature("native function meta::pure::mapping::from<T|m>(t:T[m], packageableRuntime:meta::pure::runtime::PackageableRuntime[1]):T[m];");
     // REAL pure is multiplicity-preserving (mappingExtension.pure:297
     // from<T|m>(t:T[m], m:Mapping[1], r:PackageableRuntime[1]):T[m]) —
@@ -1101,8 +1104,6 @@ public final class Pure {
      * (multiplicity audit slice 2). */
     public static final NativeFunctionDefinition GET__VARIANT_0_1__STRING_1 = signature("native function meta::pure::functions::variant::navigation::get(variant:meta::pure::metamodel::variant::Variant[0..1], key:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::variant::Variant[0..1];");
     public static final NativeFunctionDefinition GET__VARIANT_0_1__INTEGER_1 = signature("native function meta::pure::functions::variant::navigation::get(variant:meta::pure::metamodel::variant::Variant[0..1], index:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::variant::Variant[0..1];");
-    public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__COL_SPEC_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], col:meta::pure::metamodel::relation::ColSpec<T>[1]):T[*];");
-    public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__COL_SPEC_ARRAY_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], cols:meta::pure::metamodel::relation::ColSpecArray<T>[1]):T[*];");
     public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(collection:T[*], graphFetchTree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):T[*];");
     public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1__INTEGER_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(collection:T[*], graphFetchTree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):T[*];");
     // real graphFetch.pure:32/:38 — the CHECKED projection (per-object
@@ -1148,7 +1149,7 @@ public final class Pure {
     // legend-pure collection/map/groupBy.pure:18 verbatim (batch 54:
     // toPostgresModel's converter registry groups its spelled pairs)
     public static final NativeFunctionDefinition GROUP_BY__X_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::groupBy<X,K>(set:X[*], f:meta::pure::metamodel::function::Function<{X[1]->K[1]}>[1]):meta::pure::functions::collection::Map<K, meta::pure::functions::collection::List<X>>[1];");
-    public static final NativeFunctionDefinition GROUP_BY__K_MANY__FUNCTION_MANY__ANY_MANY__STRING_MANY = signature("native function meta::pure::functions::collection::groupBy<K,V,U>(set:K[*], fns:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggs:meta::pure::metamodel::type::Any[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<K>[1];");
+    public static final NativeFunctionDefinition GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY = signature("native function meta::pure::tds::groupBy<K,V,U>(set:K[*], functions:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggValues:meta::pure::functions::collection::AggregateValue<K, V, U>[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::tds::TabularDataSet[1];");
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
@@ -1227,7 +1228,7 @@ public final class Pure {
     public static final NativeFunctionDefinition UNIQUE_VALUE_ONLY__T_MANY = signature("native function meta::pure::functions::collection::uniqueValueOnly<T>(values:T[*]):T[0..1];");
     public static final NativeFunctionDefinition UNIQUE_VALUE_ONLY__T_MANY__T_01 = signature("native function meta::pure::functions::collection::uniqueValueOnly<T>(values:T[*], defaultValue:T[0..1]):T[0..1];");
     public static final NativeFunctionDefinition IS_DISTINCT__T_MANY = signature("native function meta::pure::functions::collection::isDistinct<T>(set:T[*]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition IS_DISTINCT__ANY_1__ANY_1 = signature("native function meta::pure::functions::collection::isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition IS_DISTINCT__ANY_1__ANY_1 = signature("native function meta::legend::lite::isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_EMPTY__T_MANY = signature("native function meta::pure::functions::collection::isEmpty(p:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_NOT_EMPTY__ANY_MANY = signature("native function meta::pure::functions::collection::isNotEmpty(p:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_ON_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isOnDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
@@ -1642,7 +1643,6 @@ public final class Pure {
     // a, b, c, d)` to toSQLString($r, a, b, c, d)); the same K-routine
     // renders it — the dialect from the DatabaseType argument, the format
     // flat (every golden compare strips formatting).
-    public static final NativeFunctionDefinition TO_SQL_STRING__SQLRESULT_1__DBTYPE_1__STRING_01__BOOLEAN_01__FORMAT_1 = signature("native function meta::relational::functions::sqlstring::toSQLString(sqlResult:meta::relational::functions::sqlstring::SQLResult[1], databaseType:meta::relational::runtime::DatabaseType[1], dbTimeZone:meta::pure::metamodel::type::String[0..1], quoteIdentifiers:meta::pure::metamodel::type::Boolean[0..1], format:meta::relational::functions::sqlQueryToString::Format[1]):meta::pure::metamodel::type::String[1];");
     // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
     // walks the Database metamodel to spell DDL) — a K-native here, DDL
     // rendered from the compiled store model (com.legend.exec.Ddl). The
@@ -1794,8 +1794,6 @@ public final class Pure {
     public static final NativeFunctionDefinition MATCH__ANY_MANY__FUNCTION_1_MANY = signature("native function meta::pure::functions::lang::match<T|m,n>(var:meta::pure::metamodel::type::Any[*], functions:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[n]->T[m]}>[1..*]):T[m];");
     public static final NativeFunctionDefinition MATCH__ANY_MANY__FUNCTION_1_MANY__P_o = signature("native function meta::pure::functions::lang::match<T,P|m,n,o>(var:meta::pure::metamodel::type::Any[*], functions:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[n],P[o]->T[m]}>[1..*], with:P[o]):T[m];");
     public static final NativeFunctionDefinition MAX_BY__ROW_MAPPER_MANY = signature("native function meta::pure::functions::math::maxBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::Number>[*]):T[0..1];");
-    public static final NativeFunctionDefinition MAX_BY__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::math::maxBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
-    public static final NativeFunctionDefinition MAX_BY__T_MANY__FUNCTION_1__INTEGER_1 = signature("native function meta::pure::functions::math::maxBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition MAX_BY__T_MANY__NUMBER_MANY = signature("native function meta::pure::functions::math::maxBy<T>(col_to_return:T[*], col_containing_maximum:meta::pure::metamodel::type::Number[*]):T[0..1];");
     public static final NativeFunctionDefinition MAX_BY__T_MANY__NUMBER_MANY__INTEGER_1 = signature("native function meta::pure::functions::math::maxBy<T>(col_to_return:T[*], col_containing_maximum:meta::pure::metamodel::type::Number[*], n:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition MAX__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::max(left:meta::pure::metamodel::type::Date[1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
@@ -1814,8 +1812,6 @@ public final class Pure {
     public static final NativeFunctionDefinition MEDIAN__NUMBER_MANY = signature("native function meta::pure::functions::math::median(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1];");   // engine median.pure:17+:26 — BOTH overloads return Float[1]; Number[1] was a mis-transcription F5.3-B caught when the header overlay stopped concealing it
     public static final NativeFunctionDefinition MINUTE__DATE_1 = signature("native function meta::pure::functions::date::minute(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition MIN_BY__ROW_MAPPER_MANY = signature("native function meta::pure::functions::math::minBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::Number>[*]):T[0..1];");
-    public static final NativeFunctionDefinition MIN_BY__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::math::minBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
-    public static final NativeFunctionDefinition MIN_BY__T_MANY__FUNCTION_1__INTEGER_1 = signature("native function meta::pure::functions::math::minBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition MIN_BY__T_MANY__NUMBER_MANY = signature("native function meta::pure::functions::math::minBy<T>(col_to_return:T[*], col_containing_minimum:meta::pure::metamodel::type::Number[*]):T[0..1];");
     public static final NativeFunctionDefinition MIN_BY__T_MANY__NUMBER_MANY__INTEGER_1 = signature("native function meta::pure::functions::math::minBy<T>(col_to_return:T[*], col_containing_minimum:meta::pure::metamodel::type::Number[*], n:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition MIN__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::min(left:meta::pure::metamodel::type::Date[1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
@@ -2196,16 +2192,15 @@ public final class Pure {
     public static final NativeFunctionDefinition SUM__FLOAT_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition SUM__INTEGER_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition SUM__NUMBER_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
-    public static final NativeFunctionDefinition TABLE_REFERENCE__STRING_1__STRING_1 = signature("native function meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     // tableToTDS (REAL: meta::pure::tds::tableToTDS(table:Table[1]):TableTDS[1],
     // tableToTDS.pure:22) — over OUR relation carrier the table reference IS
     // the TDS value; the checker validates and emits identity.
+    // tableReference(database, schemaName, tableName): the #>{db.T}# desugar validates against THIS
+    public static final NativeFunctionDefinition TABLE_REFERENCE__DATABASE_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::database::tableReference(database:meta::relational::metamodel::Database[1], schemaName:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::Table[1];");
     public static final NativeFunctionDefinition TABLE_TO_TDS__TABLE_1 = signature("native function meta::pure::tds::tableToTDS(table:meta::relational::metamodel::relation::Table[1]):meta::relational::mapping::TableTDS[1];");
     // REAL engine form (storeContract.pure: tableReference_Database_1__String_1__String_1__Table_1_):
     // (db, SCHEMA, table) — the corpus calls it directly with a schema name.
-    public static final NativeFunctionDefinition TABLE_REFERENCE__STRING_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], schema:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition TAIL__T_MANY = signature("native function meta::pure::functions::collection::tail<T>(set:T[*]):T[*];");
-    public static final NativeFunctionDefinition TAKE__RELATION_1__INTEGER_1 = signature("native function meta::pure::functions::collection::take<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition TAKE__T_MANY__INTEGER_1 = signature("native function meta::pure::functions::collection::take<T>(set:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition TANH__NUMBER_1 = signature("native function meta::pure::functions::math::tanh(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition TAN__NUMBER_1 = signature("native function meta::pure::functions::math::tan(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
@@ -2222,7 +2217,7 @@ public final class Pure {
     public static final NativeFunctionDefinition TO_FLOAT__NUMBER_1 = signature("native function meta::pure::functions::math::toFloat(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition TO_LOWER_FIRST_CHARACTER__STRING_1 = signature("native function meta::pure::functions::string::toLowerFirstCharacter(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_LOWER__STRING_1 = signature("native function meta::pure::functions::string::toLower(source:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition TO_MANY__T_0_1__V_0_1 = signature("native function meta::pure::functions::variant::convert::toMany<T,V>(source:T[0..1], type:V[0..1]):V[*];");
+    public static final NativeFunctionDefinition TO_MANY__VARIANT_0_1__T_0_1 = signature("native function meta::pure::functions::variant::convert::toMany<T>(variant:meta::pure::metamodel::variant::Variant[0..1], type:T[0..1]):T[*];");
     public static final NativeFunctionDefinition TO_ONE_MANY__T_MANY = signature("native function meta::pure::functions::multiplicity::toOneMany<T>(values:T[*]):T[1..*];");
     public static final NativeFunctionDefinition TO_ONE_MANY__T_MANY__STRING_1 = signature("native function meta::pure::functions::multiplicity::toOneMany<T>(values:T[*], message:meta::pure::metamodel::type::String[1]):T[1..*];");
     public static final NativeFunctionDefinition TO_ONE__T_MANY = signature("native function meta::pure::functions::multiplicity::toOne<T>(values:T[*]):T[1];");
@@ -2232,7 +2227,7 @@ public final class Pure {
     public static final NativeFunctionDefinition TO_UPPER_FIRST_CHARACTER__STRING_1 = signature("native function meta::pure::functions::string::toUpperFirstCharacter(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_UPPER__STRING_1 = signature("native function meta::pure::functions::string::toUpper(source:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_VARIANT__ANY_MANY = signature("native function meta::pure::functions::variant::convert::toVariant(value:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::variant::Variant[1];");
-    public static final NativeFunctionDefinition TO__T_0_1__V_0_1 = signature("native function meta::pure::functions::variant::convert::to<T,V>(source:T[0..1], type:V[0..1]):V[0..1];");
+    public static final NativeFunctionDefinition TO__VARIANT_0_1__T_0_1 = signature("native function meta::pure::functions::variant::convert::to<T>(variant:meta::pure::metamodel::variant::Variant[0..1], type:T[0..1]):T[0..1];");
     public static final NativeFunctionDefinition TRIM__STRING_1 = signature("native function meta::pure::functions::string::trim(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     // real pure essential/meta/type/type.pure:18 — any:Any[*], NOT [1]
     // (the [1] port broke testConcatenateTypeInference's type([*]) call)
@@ -2255,7 +2250,6 @@ public final class Pure {
     // decompose reads (value, weight) positionally either way).
     public static final NativeFunctionDefinition WAVG_ROW_MAPPER__NUMBER_0_1__NUMBER_0_1 = signature("native function meta::pure::functions::math::wavgUtility::wavgRowMapper(quantity:meta::pure::metamodel::type::Number[0..1], weight:meta::pure::metamodel::type::Number[0..1]):meta::pure::functions::math::wavgUtility::WavgRowMapper[1];");
     public static final NativeFunctionDefinition WEEK_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::weekOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
-    public static final NativeFunctionDefinition WRITE__RELATION_1 = signature("native function meta::pure::functions::relation::write<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition WRITE__RELATION_1__ACCESSOR_1 = signature("native function meta::pure::functions::relation::write<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], relationElementAccessor:meta::pure::metamodel::relation::RelationElementAccessor<T>[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition XOR__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::xor(first:meta::pure::metamodel::type::Boolean[1], second:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition YEAR__DATE_1 = signature("native function meta::pure::functions::date::year(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");

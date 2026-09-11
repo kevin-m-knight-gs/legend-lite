@@ -20,9 +20,9 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * All patterns are taken directly from proven DuckDBIntegrationTest examples:
  * - Standalone over(): extend(over(~grp), ~col:{p,w,r|$r.field}:y|$y->func())
- * - Chaining over(): extend(~grp->over(~sort->desc()),
+ * - Chaining over(): extend(~grp->over(~sort->descending()),
  * ~col:{p,w,r|$p->func($r).field})
- * - Frame spec: over(~grp, ~sort->asc(), unbounded()->rows(unbounded()))
+ * - Frame spec: over(~grp, ~sort->ascending(), unbounded()->rows(unbounded()))
  * - No-window agg: extend(~col:c|$c.field:y|$y->func())
  */
 public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
@@ -411,7 +411,7 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 3. Ranking functions — chaining over()
-    // Pattern: extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r)})
+    // Pattern: extend(~grp->over(~sort->descending()), ~col:{p,w,r|$p->func($r)})
     // 2-param: rowNumber, ntile
     // ========================================================================
 
@@ -509,7 +509,7 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ========================================================================
     // 4. Offset/value window functions — chaining over()
-    // Pattern: extend(~grp->over(~sort->desc()), ~col:{p,w,r|$p->func($r).field})
+    // Pattern: extend(~grp->over(~sort->descending()), ~col:{p,w,r|$p->func($r).field})
     // From DuckDBIntegrationTest lines 3787, 5313
     // ========================================================================
 

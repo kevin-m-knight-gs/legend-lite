@@ -174,7 +174,7 @@ class ResolveFilterDemandTest {
         // demand ordering — never inherit anyone's scan-order habit).
         String sql = sqlOf("m::SOrg.all()->project("
                 + "[o|$o.name, o|$o.parent.name], ['name','p_name'])"
-                + "->sort(asc(~name))->from(m::M, m::RT)");
+                + "->sort(ascending(~name))->from(m::M, m::RT)");
         List<String> rows = exec(sql);
         // SAlpha: no parent -> null. SBeta: parent SAlpha (in extent).
         // SDelta: parent SGamma is FILTERED OUT -> null, row SURVIVES

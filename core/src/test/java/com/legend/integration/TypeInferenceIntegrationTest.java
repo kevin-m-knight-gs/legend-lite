@@ -4202,7 +4202,9 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testNullableComparisonWithVariantTo() throws SQLException {
                 // to(@Integer) returns Integer[0..1], so lessThan must accept nullable args.
-                // This mirrors the PCT test: $x.payload->get(0)->to(@Integer) < 7
+                // This mirrors the PCT test: $x.payload->get(0)->to(@Integer) < 7 — upstream's
+                // to(variant:Variant[0..1], type:T[0..1]) converts a VARIANT, so the cell
+                // becomes one first (a TDS literal cannot spell a Variant column)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|#TDS\n" +
@@ -4210,7 +4212,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "  1, 3\n" +
                                 "  2, 7\n" +
                                 "  3, 10\n" +
-                                "#->filter(x | $x.value->to(@Integer) < 7)" +
+                                "#->filter(x | $x.value->toVariant()->to(@Integer) < 7)" +
                                 "->select(~[id, value])",
                                 "test::TestRuntime", connection);
                 assertEquals(1, result.rows().size(), "Should have 1 row with value < 7");

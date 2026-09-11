@@ -635,8 +635,14 @@ public final class NativeFn {
                 Pure.PLAN_TO_STRING__EXECUTION_PLAN_1__EXTENSION_MANY),
         PLAN_TO_STRING_WITHOUT_FORMATTING("meta::pure::executionPlan::toString::planToStringWithoutFormatting",
                 Pure.PLAN_TO_STRING_WITHOUT_FORMATTING__EXECUTION_PLAN_1__EXTENSION_MANY),
+        /** Also IMPLEMENTS {@code SQLResult.toSQLString(databaseType, dbTimeZone,
+         *  quoteIdentifiers, format)} — upstream's QUALIFIED PROPERTY of the
+         *  toSQL handle (toSQLString.pure), whose body renders engine SQLQuery
+         *  objects this platform never builds: the lifted declaration types the
+         *  call, the routine computes it (the leg-4 row-accessor pattern). */
         TO_SQL_STRING("meta::relational::functions::sqlstring::toSQLString",
-                Pure.TO_SQL_STRING__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY, Pure.TO_SQL_STRING__SQLRESULT_1__DBTYPE_1__STRING_01__BOOLEAN_01__FORMAT_1),
+                "meta::relational::functions::sqlstring::SQLResult", "toSQLString",
+                Pure.TO_SQL_STRING__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY),
         TO_SQL_STRING_PRETTY("meta::relational::functions::sqlstring::toSQLStringPretty",
                 Pure.TO_SQL_STRING_PRETTY__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY, Pure.TO_SQL_STRING_PRETTY__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY),
         TO_NON_EXECUTABLE_SQL_STRING("meta::relational::functions::sqlstring::toNonExecutableSQLString",
@@ -644,10 +650,24 @@ public final class NativeFn {
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
+        /** The lifted qualified property this routine implements, or null. */
+        private final @com.legend.Nullable String implementedDerived;
 
         JavaRoutine(String fqn, NativeFunctionDefinition... overloads) {
+            this(fqn, null, overloads);
+        }
+
+        JavaRoutine(String fqn, @com.legend.Nullable String derivedOwner,
+                NativeFunctionDefinition... overloads) {
+            this(fqn, derivedOwner, null, overloads);
+        }
+
+        JavaRoutine(String fqn, @com.legend.Nullable String derivedOwner,
+                @com.legend.Nullable String derivedProperty, NativeFunctionDefinition... overloads) {
             this.fqn = fqn;
             this.overloads = List.of(overloads);
+            this.implementedDerived = derivedOwner == null || derivedProperty == null ? null
+                    : com.legend.model.DerivedPropertyNames.lifted(derivedOwner, derivedProperty);
         }
 
         @Override
@@ -658,6 +678,21 @@ public final class NativeFn {
         @Override
         public List<NativeFunctionDefinition> overloads() {
             return overloads;
+        }
+
+        /** The lifted qualified property this routine implements, if any. */
+        public Optional<String> implementedDerived() {
+            return Optional.ofNullable(implementedDerived);
+        }
+
+        /** The routine implementing a lifted qualified-property callee, or empty. */
+        public static Optional<JavaRoutine> ofDerived(@com.legend.Nullable String liftedFqn) {
+            for (JavaRoutine r : values()) {
+                if (r.implementedDerived != null && r.implementedDerived.equals(liftedFqn)) {
+                    return Optional.of(r);
+                }
+            }
+            return Optional.empty();
         }
 
         private static final Map<String, JavaRoutine> BY_FQN = index(values());

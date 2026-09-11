@@ -203,7 +203,7 @@ class ResolveSimpleClassTest {
     void wholeChainOneSelect() throws SQLException {
         String sql = sqlOf("m::Person.all()->filter(p|$p.age > 30)"
                 + "->project(~[name: p|$p.name, age: p|$p.age])"
-                + "->sort(desc(~age))->limit(1)->from(m::RT)");
+                + "->sort(descending(~age))->limit(1)->from(m::RT)");
         assertEquals(1, count(sql, "SELECT"), sql);
         assertEquals(List.of("Dan|55"), exec(sql));
     }

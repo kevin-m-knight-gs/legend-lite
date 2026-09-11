@@ -251,7 +251,9 @@ public class SpecBodyCensusTest {
                 () -> "spec body typing census: " + failures.size()
                         + " UNWALLED boot failures (must be zero) —\n  "
                         + String.join("\n  ", failures.keySet()));
-        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 23,
+        // 23 -> 22 (batch 5 leg 5c): SQLResult$prop$toSQLString is platform-IMPLEMENTED
+        // (the toSQLString routine), counted with the natives, no longer a wall
+        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 22,
                 () -> "spec body census WALLED rows GREW: " + walled.size()
                         + " > 23 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
                         + String.join("\n  ", walled.keySet()));

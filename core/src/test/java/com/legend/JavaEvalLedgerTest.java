@@ -741,7 +741,12 @@ class JavaEvalLedgerTest {
             // 1102 → 1111 (batch 133, Phase 0.7): the referee's per-assert row
             // outcome REPORTED to the listener at the two outcome switches —
             // reporting, no judgment
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1110),
+            // 1110 -> 1114 (batch 5 leg 5c, 2026-09-11): the receiver form
+            // toSQL(...).toSQLString(...) is SQLResult's QUALIFIED PROPERTY (a
+            // TypedUserCall to the lifted declaration, implemented by the
+            // toSQLString routine) — the producer finder reads that node
+            // kind beside the native call; no value is computed here
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1114),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

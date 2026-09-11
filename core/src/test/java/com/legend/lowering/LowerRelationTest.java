@@ -404,7 +404,7 @@ class LowerRelationTest {
     @DisplayName("windowed aggregate with a running frame executes correctly")
     void windowedAggWithFrame() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
-                + "->extend(over(~FIRM, [asc(~AGE)], rows(unbounded(), 0)),"
+                + "->extend(over(~FIRM, [ascending(~AGE)], rows(unbounded(), 0)),"
                 + " ~running : {p, w, r | $r.AGE} : y|$y->sum())");
         assertEquals(1, count(sql, "SELECT"));
         assertTrue(sql.contains("SUM(t0.AGE) OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE NULLS LAST"
@@ -445,7 +445,7 @@ class LowerRelationTest {
     @DisplayName("lag with property access + toOne wrapper lowers through scalar composition")
     void lagComposesInScalars() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
-                + "->extend(over([asc(~AGE)]),"
+                + "->extend(over([ascending(~AGE)]),"
                 + " ~delta : {p, w, r | $r.AGE - $p->lag($r).AGE->toOne()})");
         assertEquals(1, count(sql, "SELECT"));
         assertTrue(sql.contains("t0.AGE - LAG(t0.AGE) OVER (ORDER BY t0.AGE NULLS LAST)"),
@@ -471,15 +471,15 @@ class LowerRelationTest {
             // over form fragment                      expected OVER text
             {"over(~FIRM)",
              "OVER (PARTITION BY t0.FIRM)"},
-            {"over(~FIRM, [asc(~AGE)])",
+            {"over(~FIRM, [ascending(~AGE)])",
              "OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE NULLS LAST)"},
             {"over(~[FIRM, NAME])",
              "OVER (PARTITION BY t0.FIRM, t0.NAME)"},
-            {"over(~[FIRM, NAME], [desc(~AGE)])",
+            {"over(~[FIRM, NAME], [descending(~AGE)])",
              "OVER (PARTITION BY t0.FIRM, t0.NAME ORDER BY t0.AGE DESC NULLS FIRST)"},
-            {"over([desc(~AGE)])",
+            {"over([descending(~AGE)])",
              "OVER (ORDER BY t0.AGE DESC NULLS FIRST)"},
-            {"over([asc(~NAME), desc(~AGE)])",
+            {"over([ascending(~NAME), descending(~AGE)])",
              "OVER (ORDER BY t0.NAME NULLS LAST, t0.AGE DESC NULLS FIRST)"},
         };
         for (String[] c : cases) {
@@ -506,7 +506,7 @@ class LowerRelationTest {
             {"_range(-2, 0)", "RANGE BETWEEN 2 PRECEDING AND CURRENT ROW"},
         };
         for (String[] c : cases) {
-            String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(over(~FIRM, [asc(~AGE)], " + c[0]
+            String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(over(~FIRM, [ascending(~AGE)], " + c[0]
                     + "), ~s : {p, w, r | $r.AGE} : y|$y->sum())");
             assertTrue(sql.contains(c[1]), () -> c[0] + " must render " + c[1] + "; got: " + sql);
             assertEquals(4, exec(sql).size(), () -> c[0] + " must execute on DuckDB");
@@ -517,7 +517,7 @@ class LowerRelationTest {
     @DisplayName("frame SEMANTICS: forward-looking frame sums the remaining rows")
     void forwardFrameSemantics() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
-                + "->extend(over(~FIRM, [asc(~AGE)], rows(0, unbounded())),"
+                + "->extend(over(~FIRM, [ascending(~AGE)], rows(0, unbounded())),"
                 + " ~remaining : {p, w, r | $r.AGE} : y|$y->sum())");
         assertEquals(List.of("Ann|25|ACME|60", "Bob|35|ACME|35", "Cat|45|Widget|45", "Dan|55|null|55"),
                 exec(sql + "\nORDER BY t0.AGE"),
@@ -810,7 +810,7 @@ class LowerRelationTest {
     @Test
     @DisplayName("audit: limit THEN sort isolates — folding would sort before limiting")
     void limitThenSortIsolates() throws SQLException {
-        String sql = sqlOf("#>{test::DB.T_PERSON}#->limit(2)->sort(asc(~AGE))");
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->limit(2)->sort(ascending(~AGE))");
         assertEquals(2, count(sql, "SELECT"),
                 "ORDER BY into a limited select would reorder before LIMIT: " + sql);
         assertEquals(2, exec(sql).size());

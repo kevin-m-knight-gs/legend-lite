@@ -163,7 +163,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->desc()), ~rowNum:{p,w,r|$p->rowNumber($r)})
+                    ->extend(over(~department, ~salary->descending()), ~rowNum:{p,w,r|$p->rowNumber($r)})
                 """;
 
         String sql = generateSql(pureQuery);
@@ -201,7 +201,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->desc()), ~salaryRank:{p,w,r|$p->rank($w,$r)})
+                    ->extend(over(~department, ~salary->descending()), ~salaryRank:{p,w,r|$p->rank($w,$r)})
                 """;
 
         var result = executeQuery(pureQuery);
@@ -275,7 +275,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
+                    ->extend(over(~department, ~salary->descending()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
                 """;
 
         var result = executeQuery(pureQuery);
@@ -750,7 +750,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->desc()), ~pctRank:{p,w,r| $p->percentRank($w,$r)})
+                    ->extend(over(~department, ~salary->descending()), ~pctRank:{p,w,r| $p->percentRank($w,$r)})
                 """;
 
         String sql = generateSql(pureQuery);
@@ -781,7 +781,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)})
+                    ->extend(over(~department, ~salary->descending()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)})
                 """;
 
         String sql = generateSql(pureQuery);
@@ -812,7 +812,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)->round(2)})
+                    ->extend(over(~department, ~salary->descending()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)->round(2)})
                 """;
 
         String sql = generateSql(pureQuery);

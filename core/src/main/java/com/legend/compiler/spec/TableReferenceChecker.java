@@ -61,13 +61,17 @@ final class TableReferenceChecker {
                 name = schemaName + "." + name;
             }
         }
-        // Validate the call against the registered native signature — never ignored.
-        java.util.List<ExprType> sigArgs = new java.util.ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            sigArgs.add(ExprType.one(Type.Primitive.STRING));
-        }
+        // Validate the call against the registered native signature — never
+        // ignored: upstream's tableReference(database:Database[1],
+        // schemaName:String[1], tableName:String[1]) — the #>{db.T}# desugar
+        // is the 'default' schema spelled once
         InferenceKernel.Resolution sig = t.kernel().resolveOverload(
-                t.model().findFunction(CoreFn.TABLE_REFERENCE.parseName()), sigArgs);
+                t.model().findFunction(CoreFn.TABLE_REFERENCE.parseName()),
+                java.util.List.of(
+                        ExprType.one(new Type.ClassType(
+                                com.legend.compiler.element.type.PlatformTypes.DATABASE)),
+                        ExprType.one(Type.Primitive.STRING),
+                        ExprType.one(Type.Primitive.STRING)));
 
         final String resolvedName = name;
         Type.RelationType schema = t.model().findTable(dbRef.fullPath(), resolvedName)

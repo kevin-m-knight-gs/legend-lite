@@ -112,7 +112,8 @@ public final class PlatformTypes {
      *  is one the platform IMPLEMENTS (the row accessors — RowGetters): its
      *  lifted definition types the call, its body is never spliced. */
     public static boolean isPlatformImplementedDerived(String liftedFqn) {
-        return com.legend.builtin.NativeFn.RowGetter.ofLifted(liftedFqn).isPresent();
+        return com.legend.builtin.NativeFn.RowGetter.ofLifted(liftedFqn).isPresent()
+                || com.legend.builtin.NativeFn.JavaRoutine.ofDerived(liftedFqn).isPresent();
     }
     /** The mapping METACLASS (platform_dsl_mapping mapping.pure:26) — a prelude
      * module class since batch 165 (mapping leg B); Java names it, the boot

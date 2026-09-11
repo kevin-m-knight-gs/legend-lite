@@ -71,9 +71,9 @@ public enum CoreFn {
     /** {@code map(fn)} &mdash; collection map / relation row-map; checked generically, own HIR node. */
     MAP("map"),
     /** {@code asc(~col)} / {@code ascending(~col)} &mdash; a sort key; checked generically, own HIR node. */
-    ASC("asc", "ascending"),
+    ASC("ascending", "asc"),
     /** {@code desc(~col)} / {@code descending(~col)} &mdash; a sort key; checked generically, own HIR node. */
-    DESC("desc", "descending"),
+    DESC("descending", "desc"),
     /** Relation {@code select(~cols)} &mdash; column projection by name; {@code newTDSRelationAccessor} is its legacy alias. */
     SELECT("select", "newTDSRelationAccessor"),
     /** Relation {@code distinct} / {@code distinct(~[cols])} &mdash; row dedup, optionally narrowing. */

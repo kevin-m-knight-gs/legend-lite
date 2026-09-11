@@ -1867,7 +1867,7 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.TYPEOF, args);
             });
         }
-        // minBy/maxBy(values, key[, count]): sort {k,v} structs by key (list
+        // minBy/maxBy(values, keys[, count]): sort {k,v} structs by key (list
         // sort over structs orders by the FIRST field), take the head or the
         // top count, then unwrap the values.
         for (String name : List.of("minBy", "maxBy")) {
@@ -1888,10 +1888,9 @@ final class Scalars {
                                     args.get(0))));
                     SqlExpr i = SqlExpr.Column.param("_by_i", range);
                     SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0), i);
-                    SqlExpr keyExpr = args.get(1) instanceof SqlExpr.Lambda key
-                            && key.params().size() == 1
-                            ? substituteRef(key.body(), key.params().get(0), valAt)
-                            : SqlExpr.Call.of(SqlFn.LIST_GET, args.get(1), i);
+                    // upstream's maxBy/minBy(values, keys[, n]): the keys are a
+                    // parallel collection (never a key function — that was ours)
+                    SqlExpr keyExpr = SqlExpr.Call.of(SqlFn.LIST_GET, args.get(1), i);
                     SqlExpr idxField = asc ? i
                             : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
                     SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, range,
@@ -2221,7 +2220,7 @@ final class Scalars {
         // isDistinct (DEEP_AUDIT §5k): 2-ARG = SQL IS DISTINCT FROM;
         // 1-ARG = the ALL_DISTINCT semantic node (a blanket family()
         // routed it into the binary SQL — AIOOBE on any input).
-        for (String f : Pure.nativeKeysAt("isDistinct", 2)) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.IS_DISTINCT)) {
             RULES.put(f, (n, args) ->
                     new SqlExpr.Call(SqlFn.IS_DISTINCT, args));
         }

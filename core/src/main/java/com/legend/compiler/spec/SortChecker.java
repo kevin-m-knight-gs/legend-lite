@@ -180,9 +180,13 @@ final class SortChecker {
                 && pc1.values().size() == 1) {
             af = af.withParameters(List.of(pc1.values().get(0)));
         }
-        // legacy TDS string key: asc('COL') -> asc(~COL)
+        // legacy TDS string key asc('COL') (upstream's tds::asc(String):SortInformation)
+        // -> the relation sort key under upstream's MODERN name, ascending(~COL) /
+        // descending(~COL) — the ColSpec overload lives only there (batch 5 leg 5c)
         if (af.parameters().size() == 1 && af.parameters().get(0) instanceof CString c) {
-            af = af.withParameters(List.of(new ColSpec(c.value())));
+            af = new AppliedFunction((ascending ? CoreFn.ASC : CoreFn.DESC).parseName(),
+                    List.of(new ColSpec(c.value())), af.candidateFqns(), af.pos(),
+                    af.propertyCall(), af.grouped(), af.infix());
         }
         Application a = t.checkGeneric(af, env);
         return new TypedSortInfo(Args.colSpecName(a.args().get(0)), ascending, a.out());

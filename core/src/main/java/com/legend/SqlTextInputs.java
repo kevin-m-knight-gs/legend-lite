@@ -40,11 +40,15 @@ record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialect,
      * receiver form over something that is not a {@code toSQL} handle, or
      * a direct form short of its three structured arguments (a caller
      * that owns a wall throws its own). */
-    static @Nullable SqlTextInputs of(TypedNativeCall call,
+    static @Nullable SqlTextInputs of(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             List<TypedSpec> letPrefix) {
-        String fqn = call.callee().qualifiedName();
-        if (com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
-                .equals(fqn) && call.args().size() == 5) {
+        String fqn = call.fqn();
+        // the RECEIVER form: SQLResult's qualified property toSQLString(dbType,
+        // dbTimeZone, quoteIdentifiers, format) — the routine implements it
+        // (NativeFn.JavaRoutine.implementedDerived); the receiver is the
+        // toSQL handle
+        if (com.legend.builtin.NativeFn.JavaRoutine.ofDerived(fqn).isPresent()
+                && call.args().size() == 5) {
             TypedSpec r = com.legend.compiler.spec.ExecuteChainAssembly
                     .letBound(call.args().get(0), letPrefix);
             if (r instanceof TypedNativeCall h

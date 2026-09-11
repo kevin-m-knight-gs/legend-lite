@@ -77,7 +77,12 @@ class NativeCatalogGovernanceTest {
         // Literal); routing them through pure's same-family ordering
         // overloads killed whole class mappings (ledger cluster 18;
         // notEqualAnsi precedent; census row updated).
-        assertTrue(Pure.ENGINE_VOCAB_SHIMS.size() <= 11,
+        // +1 2026-09-11 (upstream boundary batch 5 leg 5c): isDistinct —
+        // the engine's relational dynaFn isDistinct(a, b) (SQL IS DISTINCT
+        // FROM; legend-engine extensionDefaults.pure registers it) has no
+        // pure counterpart (pure's isDistinct is the 1-arg collection test);
+        // it had been carried as an invented 2-arg overload of the pure name.
+        assertTrue(Pure.ENGINE_VOCAB_SHIMS.size() <= 12,
                 "ENGINE_VOCAB_SHIMS grew: " + Pure.ENGINE_VOCAB_SHIMS);
         assertTrue(Pure.LITE_SURFACE.size() <= 2,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);

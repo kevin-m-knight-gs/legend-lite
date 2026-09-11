@@ -55,8 +55,8 @@ final class SqlTextVerdicts {
         if (!wantEqual || args.size() < 2) {
             return null;
         }
-        TypedNativeCall p0 = findProducer(args.get(0), letPrefix);
-        TypedNativeCall p1 = findProducer(args.get(1), letPrefix);
+        com.legend.compiler.spec.NativeDispatch.RoutineCall p0 = findProducer(args.get(0), letPrefix);
+        com.legend.compiler.spec.NativeDispatch.RoutineCall p1 = findProducer(args.get(1), letPrefix);
         if ((p0 == null) == (p1 == null)) {
             if (p0 == null) {
                 // no toSQLString producer anywhere: the exec-sql-read
@@ -69,7 +69,7 @@ final class SqlTextVerdicts {
         }
         TypedSpec producerSide = p0 != null ? args.get(0) : args.get(1);
         TypedSpec goldenSide = p0 != null ? args.get(1) : args.get(0);
-        TypedNativeCall producer = p0 != null ? p0 : p1;
+        com.legend.compiler.spec.NativeDispatch.RoutineCall producer = p0 != null ? p0 : p1;
         // the producer's structured inputs (§3.4, SqlTextInputs across
         // the overloads): query lambda, mapping ref, dialect, runtime.
         // Anything else is a shape this arm does not own yet.
@@ -209,11 +209,11 @@ final class SqlTextVerdicts {
      * DatabaseType, which carries no post-processors), with the
      * nonExecutable pass installed for a toNonExecutableSQLString producer. */
     private static com.legend.compiler.spec.typed.ExecutionContext legContext(
-            TypedNativeCall producer, StatementExecutor.ExecEnv env) {
+            com.legend.compiler.spec.NativeDispatch.RoutineCall producer, StatementExecutor.ExecEnv env) {
         com.legend.compiler.spec.typed.ExecutionContext base = env.frame() == null
                 ? com.legend.compiler.spec.typed.ExecutionContext.NONE : env.frame();
         boolean nonExec = com.legend.compiler.element.type.PlatformTypes
-                .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.callee().qualifiedName());
+                .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.fqn());
         return nonExec
                 ? base.withPostProcessors(base.postProcessors().withNonExecutable(true))
                 : base;
@@ -1356,7 +1356,7 @@ final class SqlTextVerdicts {
      * keeps lets as lets, so {@code let sql = toSQLString(...);
      * assertEquals(golden, $sql)} carries the producer BEHIND the
      * variable. Null when absent. */
-    private static @com.legend.Nullable TypedNativeCall findProducer(
+    private static com.legend.compiler.spec.NativeDispatch.@com.legend.Nullable RoutineCall findProducer(
             TypedSpec t, List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(t);
@@ -1371,8 +1371,14 @@ final class SqlTextVerdicts {
                                 .PlatformTypes.TO_SQL_STRING_PRETTY)
                         || fqn.equals(com.legend.compiler.element.type
                                 .PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING)) {
-                    return nc;
+                    return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(nc);
                 }
+            }
+            // the RECEIVER form: SQLResult's qualified property, implemented
+            // by the toSQLString routine (NativeFn.JavaRoutine.implementedDerived)
+            if (cur instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                    && com.legend.builtin.NativeFn.JavaRoutine.ofDerived(uc.callee().qualifiedName()).isPresent()) {
+                return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(uc);
             }
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedVariable tv && seenVars.add(tv.name())) {

@@ -45,7 +45,9 @@ public final class WalledBodies {
             REASONS.put("meta::relational::functions::sqlQueryToString::DbConfig$prop$" + p, PRINTER);
         }
         REASONS.put("meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql", PRINTER);
-        REASONS.put("meta::relational::functions::sqlstring::SQLResult$prop$toSQLString", PRINTER);
+        // (SQLResult.toSQLString left the wall 2026-09-11, batch 5 leg 5c: it is the
+        // qualified property the toSQLString ROUTINE implements — NativeFn.JavaRoutine
+        // .implementedDerived — its lifted declaration types the call, never its body)
         // SchemaState: plan-time schema inference (the census's B2/B2b/B4 rows)
         for (String p : new String[] {"columnValueDifference", "extend", "groupBy", "join", "olap",
                 "rename", "restrict"}) {

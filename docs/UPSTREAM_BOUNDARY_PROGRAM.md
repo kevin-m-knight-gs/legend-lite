@@ -505,6 +505,20 @@ inference:** that the live protocol differential goes red on landing.
    docs/MULTIPLICITY_AUDIT_2026_08_20.md §4a. Keeping every marker across rebuilds also
    restored the row-cells mark main had been dropping: H2 gained 126 tests (579 → 453
    fails), verified by toggle. Five-chain process breach on leg 5a/5b disclosed.
+14. **Batch 5 LEG 5c LANDED** (2026-09-11): 19 checker-synthesized rows measured for
+   their consumer and adopted or deleted — duplicates of upstream overloads we carried
+   (asc/desc(ColSpec) → ascending/descending canonical; graphFetch(ColSpec)), inventions
+   with no consumer (first(T,Integer), take(Relation), 1-arg from/write, lambda
+   maxBy/minBy, toSQLString(SQLResult…)), re-keys (to/toMany(Variant,T), tds::groupBy
+   with AggregateValue, tableReference(Database,String,String)), the engine's own
+   dynaFn isDistinct(a,b) → Lite shim. SQLResult.toSQLString is the qualified property
+   the toSQLString ROUTINE implements (NativeFn.JavaRoutine.implementedDerived, the
+   leg-4 pattern; NativeDispatch.RoutineCall = one call shape); the typer's third
+   derived route now looks properties up by SIMPLE name like its siblings. Divergent
+   25 → 6. USER: audit every simple-name use — census 140 non-parser sites, bucketed
+   (function identity = smell; property-on-exact-class = correct; parser = allowed) for
+   the batch-5 audit. Remaining 6 = leg 5d: join/asOfJoin 5-arg prefix form, extend/
+   groupBy over C[*] ×4.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

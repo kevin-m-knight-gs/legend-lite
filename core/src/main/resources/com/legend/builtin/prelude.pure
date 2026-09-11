@@ -4154,6 +4154,12 @@ Enum meta::pure::tds::SortDirection
     ASC, DESC
 }
 
+Class meta::pure::tds::SortInformation
+{
+   column : String[1];
+   direction : SortDirection[1];
+}
+
 Class meta::pure::tds::OlapOperation<T>
 {
   //superclass for all operations
@@ -5316,7 +5322,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 468 classes, 19 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 469 classes, 19 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 34 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
@@ -5599,6 +5605,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::tds::ColumnSpecification
 //   meta::pure::tds::OlapOperation
 //   meta::pure::tds::SortDirection
+//   meta::pure::tds::SortInformation
 //   meta::pure::tds::TDSColumn
 //   meta::pure::tds::TDSNull
 //   meta::pure::tds::TDSRow

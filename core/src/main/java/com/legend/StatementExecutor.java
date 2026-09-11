@@ -468,7 +468,7 @@ final class StatementExecutor {
      * their renderers exist. Never lowers, never touches the connection.
      */
     private static @com.legend.Nullable ExecutionResult toSqlString(
-            com.legend.compiler.spec.typed.TypedNativeCall call,
+            com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         // the inputs across the overloads (SqlTextInputs): the receiver
@@ -536,7 +536,7 @@ final class StatementExecutor {
                 .apply(es.plan(), env.tableReplace());
         // toNonExecutableSQLString: the engine's nonExecutable post-processor
         // (every SELECT takes `and 1 = 2`) — the IR pass, then the render
-        if (com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn().equals(call.callee().qualifiedName())) {
+        if (com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn().equals(call.fqn())) {
             post = com.legend.lowering.SqlPostProcessors.nonExecutable(post);
         }
         return new ExecutionResult.Scalar(post == es.plan() ? es.sql()
@@ -732,13 +732,13 @@ final class StatementExecutor {
     }
 
     private static @com.legend.Nullable ExecutionResult planToString(
-            com.legend.compiler.spec.typed.TypedNativeCall call,
+            com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return planToString(call, java.util.List.of(), specs, env);
     }
 
     private static @com.legend.Nullable ExecutionResult planToString(
-            com.legend.compiler.spec.typed.TypedNativeCall call,
+            com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         // the plan value chases through the LET PREFIX (getAll-76 lane:

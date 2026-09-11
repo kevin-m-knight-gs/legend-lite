@@ -599,13 +599,19 @@ final class Typer {
             TypedSpec recv = synth(af.parameters().get(0), env);
             String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
                     : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;
+            // by the SIMPLE name, as the two sibling routes do: the name
+            // resolver qualifies a bare `x.toSQLString(…)` to the same-named
+            // FUNCTION's FQN when one is in scope, and the class declares the
+            // qualified property under its bare name (batch 5 leg 5c)
+            int qcut = af.function().lastIndexOf("::");
+            String qname = qcut < 0 ? af.function() : af.function().substring(qcut + 2);
             if (classFqn != null
-                    && ctx.findProperty(classFqn, af.function()).orElse(null)
+                    && ctx.findProperty(classFqn, qname).orElse(null)
                             instanceof Property.Derived d
                     && (d.parameters().size() == af.parameters().size() - 1
                             // an OVERLOAD by arity (res() / res(z)) shares the lifted FQN;
                             // the call picks among its signatures like any function
-                            || derivedOverloadArity(classFqn, af.function(),
+                            || derivedOverloadArity(classFqn, qname,
                                     af.parameters().size() - 1))) {
                 // AUTO-MAP: a qualifier call on a MANY receiver applies per
                 // element (engine qualified-property auto-map:

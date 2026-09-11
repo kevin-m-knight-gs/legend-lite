@@ -205,12 +205,12 @@ class TypeCheckerTest {
 
     @Test
     void sortValidatesColumns() {
-        assertEquals(6, schemaOf(typeQuery(T_PERSON + "->sort(asc(~AGE))")).columns().size());
+        assertEquals(6, schemaOf(typeQuery(T_PERSON + "->sort(ascending(~AGE))")).columns().size());
     }
 
     @Test
     void sortRejectsInvalidColumn() {
-        assertThrows(TypeInferenceException.class, () -> typeQuery(T_PERSON + "->sort(asc(~NONEXISTENT))"));
+        assertThrows(TypeInferenceException.class, () -> typeQuery(T_PERSON + "->sort(ascending(~NONEXISTENT))"));
     }
 
     @Test
@@ -225,7 +225,7 @@ class TypeCheckerTest {
     void sortMultipleKeysAccumulateAndPreserveSchema() {
         // Both keys flow through ONE generic check: the collection's LUB is
         // SortInfo<(FIRST_NAME:?, AGE:?)>, whose X⊆T accumulates both columns.
-        TypedSpec n = typeQuery(T_PERSON + "->sort([asc(~FIRST_NAME), desc(~AGE)])");
+        TypedSpec n = typeQuery(T_PERSON + "->sort([ascending(~FIRST_NAME), descending(~AGE)])");
         TypedSort sort = assertInstanceOf(TypedSort.class, n);
         assertEquals(java.util.List.of(
                         new TypedSort.TypedSortKey("FIRST_NAME", true),
@@ -236,7 +236,7 @@ class TypeCheckerTest {
 
     @Test
     void sortBareColSpecDefaultsAscending() {
-        // `~col` desugars to asc(~col) (engine SortChecker's default direction).
+        // `~col` desugars to ascending(~col) (engine SortChecker's default direction).
         TypedSort sort = assertInstanceOf(TypedSort.class, typeQuery(T_PERSON + "->sort(~AGE)"));
         assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", true)), sort.keys());
     }
@@ -244,7 +244,7 @@ class TypeCheckerTest {
     @Test
     void sortMixedBareAndDirectedKeys() {
         TypedSort sort = assertInstanceOf(TypedSort.class,
-                typeQuery(T_PERSON + "->sort([~FIRST_NAME, desc(~AGE)])"));
+                typeQuery(T_PERSON + "->sort([~FIRST_NAME, descending(~AGE)])"));
         assertEquals(java.util.List.of(
                         new TypedSort.TypedSortKey("FIRST_NAME", true),
                         new TypedSort.TypedSortKey("AGE", false)),
@@ -254,7 +254,7 @@ class TypeCheckerTest {
     @Test
     void sortRejectsInvalidColumnAmongValidOnes() {
         assertThrows(TypeInferenceException.class,
-                () -> typeQuery(T_PERSON + "->sort([asc(~FIRST_NAME), desc(~NONEXISTENT)])"));
+                () -> typeQuery(T_PERSON + "->sort([ascending(~FIRST_NAME), descending(~NONEXISTENT)])"));
     }
 
     @Test
@@ -631,7 +631,8 @@ class TypeCheckerTest {
 
     @Test
     void toManyWidensToTargetAtStar() {
-        TypedSpec n = typeQuery("1->toMany(@Number)");
+        // upstream's toMany(variant:Variant[0..1], type:T[0..1]):T[*] — a VARIANT converts
+        TypedSpec n = typeQuery("1->toVariant()->toMany(@Number)");
         assertInstanceOf(TypedCast.class, n);
         assertEquals(Type.Primitive.NUMBER, n.info().type());
         assertEquals(Multiplicity.Bounded.ZERO_MANY, n.info().multiplicity());
@@ -639,7 +640,8 @@ class TypeCheckerTest {
 
     @Test
     void toConvertsNullableToTarget() {
-        TypedSpec n = typeQuery("1->to(@String)");
+        // upstream's to(variant:Variant[0..1], type:T[0..1]):T[0..1] — a VARIANT converts
+        TypedSpec n = typeQuery("1->toVariant()->to(@String)");
         assertEquals(Type.Primitive.STRING, n.info().type());
         assertEquals(Multiplicity.Bounded.ZERO_ONE, n.info().multiplicity());
     }
@@ -887,7 +889,7 @@ class TypeCheckerTest {
     @Test
     void overCarriesRowsFrame() {
         TypedExtendWindow ext = assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)], rows(-1, 0)),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)], rows(-1, 0)),"
                 + " ~rnk : {p, w, r | $p->rank($w, $r)})"));
         assertTrue(ext.window().frame().isPresent());
         assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", true)),
@@ -916,7 +918,7 @@ class TypeCheckerTest {
         // Engine's Pattern 2: a property access chained off a window call —
         // lag(p, r) : row[0..1], then .SALARY composes to Float[0..1].
         TypedExtendWindow ext = assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)]),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)]),"
                 + " ~prevSal : {p, w, r | $p->lag($r).SALARY})"));
         Type.RelationType rt = schemaOf(ext);
         assertEquals(Type.Primitive.FLOAT, columnType(rt, "prevSal"));
@@ -931,7 +933,7 @@ class TypeCheckerTest {
         // Engine's Pattern 3: a scalar wrapping the window call — the whole body
         // types on the generic path (minus over Integers).
         TypedExtendWindow ext = assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)]),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)]),"
                 + " ~ageDelta : {p, w, r | $r.AGE - $p->lag($r).AGE->toOne()})"));
         assertEquals(Type.Primitive.INTEGER, columnType(schemaOf(ext), "ageDelta"));
     }
@@ -939,7 +941,7 @@ class TypeCheckerTest {
     @Test
     void overCarriesRangeFrame() {
         TypedExtendWindow ext = assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)], _range(-2, 0)),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)], _range(-2, 0)),"
                 + " ~rnk : {p, w, r | $p->rank($w, $r)})"));
         assertTrue(ext.window().frame().isPresent());
     }
@@ -1054,16 +1056,9 @@ class TypeCheckerTest {
     // ---- remaining construct edges ----
 
     @Test
-    void writeWithoutDestination() {
-        TypedWrite w = assertInstanceOf(TypedWrite.class, typeQuery(T_PERSON + "->write()"));
-        assertTrue(w.destination().isEmpty());
-        assertEquals(Type.Primitive.INTEGER, w.info().type());
-    }
-
-    @Test
     void overWithSortKeysOnlyAndMultiplePartitions() {
         TypedExtendWindow sortsOnly = assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over([asc(~AGE)]), ~rn : {p, w, r | $p->rank($w, $r)})"));
+                + "->extend(over([ascending(~AGE)]), ~rn : {p, w, r | $p->rank($w, $r)})"));
         assertTrue(sortsOnly.window().partitions().isEmpty());
         assertEquals(1, sortsOnly.window().sortKeys().size());
 
@@ -1137,11 +1132,11 @@ class TypeCheckerTest {
     @Test
     void unboundedWindowFrames() {
         TypedExtendWindow ext = assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)], unbounded()->rows(unbounded())),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)], unbounded()->rows(unbounded())),"
                 + " ~rn : {p, w, r | $p->rank($w, $r)})"));
         assertTrue(ext.window().frame().isPresent());
         assertInstanceOf(TypedExtendWindow.class, typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)], unbounded()->rows(0)),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)], unbounded()->rows(0)),"
                 + " ~rn : {p, w, r | $p->rank($w, $r)})"));
     }
 
@@ -1182,10 +1177,10 @@ class TypeCheckerTest {
         // joinStrings reducer carries an extra separator arg; nth(w,r,2).col chains
         // a property off the [0..1] row value — both engine window-test idioms.
         assertEquals(Type.Primitive.STRING, columnType(schemaOf(typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)]),"
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)]),"
                 + " ~ns : {p, w, r | $r.FIRST_NAME} : y|$y->joinStrings('_'))")), "ns"));
         Type.RelationType rt = schemaOf(typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME, [asc(~AGE)]), ~n2 : {p, w, r | $p->nth($w, $r, 2).AGE})"));
+                + "->extend(over(~LAST_NAME, [ascending(~AGE)]), ~n2 : {p, w, r | $p->nth($w, $r, 2).AGE})"));
         Type.Column n2 = rt.columns().stream().filter(c -> c.name().equals("n2")).findFirst().orElseThrow();
         assertEquals(Multiplicity.Bounded.ZERO_ONE, n2.multiplicity(), "nth is [0..1]; the chain stays optional");
     }
@@ -1366,7 +1361,7 @@ class TypeCheckerTest {
     @Test
     void chainedOperationsPreserveType() {
         Type.RelationType rt = schemaOf(typeQuery(
-                T_PERSON + "->filter(x|$x.AGE > 18)->sort(asc(~FIRST_NAME))->limit(5)"));
+                T_PERSON + "->filter(x|$x.AGE > 18)->sort(ascending(~FIRST_NAME))->limit(5)"));
         assertEquals(6, rt.columns().size(), "Chained ops preserve columns");
         assertEquals(Type.Primitive.INTEGER, columnType(rt, "AGE"));
     }

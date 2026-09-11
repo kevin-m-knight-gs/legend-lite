@@ -387,7 +387,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Sort: project(~[fullName])->sort(asc(fullName))")
     void testSortOnM2MColumn() throws SQLException {
-        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(asc(~fullName))";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(ascending(~fullName))";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -465,7 +465,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Sort + take: top 2 fullNames alphabetically")
     void testSortAndTake() throws SQLException {
-        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(asc(~fullName))->take(2)";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(ascending(~fullName))->take(2)";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -477,7 +477,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Sort desc + take: top 2 fullNames reverse")
     void testSortDescAndTake() throws SQLException {
-        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(desc(~fullName))->take(2)";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(descending(~fullName))->take(2)";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -517,7 +517,7 @@ class M2M2RTabularTest {
         String query = "model::PersonView.all()" +
                 "->project(~[name:x|$x.firstName, group:x|$x.ageGroup])" +
                 "->filter(x|$x.group == 'Adult')" +
-                "->sort(asc(~name))" +
+                "->sort(ascending(~name))" +
                 "->take(2)";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
@@ -572,7 +572,7 @@ class M2M2RTabularTest {
         String query = "model::PersonSummary.all()" +
                 "->project(~[n:x|$x.name])" +
                 "->filter(x|$x.n->startsWith('J'))" +
-                "->sort(asc(~n))";
+                "->sort(ascending(~n))";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 

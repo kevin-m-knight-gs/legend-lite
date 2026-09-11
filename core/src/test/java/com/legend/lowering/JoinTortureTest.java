@@ -285,7 +285,7 @@ class JoinTortureTest {
     @DisplayName("join after WINDOW extend: windowed side wraps; window results ride through")
     void joinAfterWindow() throws SQLException {
         String sql = sqlOf(P
-                + "->extend(over(~FIRM, [desc(~AGE)]), ~rnk : {p, w, r | $p->rowNumber($r)})"
+                + "->extend(over(~FIRM, [descending(~AGE)]), ~rnk : {p, w, r | $p->rowNumber($r)})"
                 + "->filter(x|$x.rnk == 1)"
                 + "->join(" + F + ", JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})");
         assertEquals(2, count(sql, "SELECT"), "QUALIFY select wraps as a side: " + sql);
