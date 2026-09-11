@@ -460,7 +460,10 @@ inference:** that the live protocol differential goes red on landing.
    upstream native we cannot do, loud), or SUBSUMED (an engine program that is moot
    here). Before ANY catalog removal: read the constant's comment, grep the Typer and
    kernel for consumption, check ownership — grep classes are not proof (twice).
-   OPEN: relationalExtensions (experiment), preval's string-literal identity.
+   relationalExtensions is Subsumed #2 (same day, chain green, zero movement; the
+   batch-147 "signature-broken" reason was stale). OWED: preval's read-through is a
+   string literal (ExecuteChainAssembly) — typed lookup + the preeval.pure:63-92 receipt
+   (a semantics-preserving partial evaluation), in the next gated tree.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
