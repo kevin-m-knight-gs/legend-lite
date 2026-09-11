@@ -1419,7 +1419,7 @@ class PreludeGeneratorTest {
 
     /** A declaration header, stereotypes/tags and line breaks tolerated
      * ({@code Class <<typemodifiers.abstract>>\n  meta::…::RoutedValueSpecification}). */
-    private static final Pattern DECL_HEADER = Pattern.compile(
+    static final Pattern DECL_HEADER = Pattern.compile(
             "(?m)^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
     private static final Pattern DECL = Pattern.compile(
             "^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");

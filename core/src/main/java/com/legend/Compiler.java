@@ -185,9 +185,12 @@ public final class Compiler {
                 // NOT a duplicate — the dedup key carries the parameter
                 // shape (dropping overloads silently lost the corpus's own
                 // executeInDb wrappers)
-                String key = el instanceof com.legend.model.FunctionDefinition fd
-                        ? "Function::" + fd.qualifiedName() + "(" + fd.parameters()
-                                .stream().map(pd -> String.valueOf(pd.type())
+                // (NATIVE overloads too: keying natives by name alone collapsed
+                // legend-pure's six date(...) declarations to one — batch 5's
+                // signature generator caught it)
+                String key = el instanceof com.legend.model.Function fn
+                        ? el.getClass().getSimpleName() + "::" + fn.qualifiedName() + "("
+                                + fn.parameters().stream().map(pd -> String.valueOf(pd.type())
                                         + String.valueOf(pd.multiplicity()))
                                 .reduce("", (x, y) -> x + "," + y) + ")"
                         : el.getClass().getSimpleName() + "::" + el.qualifiedName();
