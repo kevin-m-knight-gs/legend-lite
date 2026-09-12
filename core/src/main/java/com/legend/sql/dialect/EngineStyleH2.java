@@ -681,6 +681,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // upgraded-H2 plan surface (the bare-quoted DATE args are the
             // legacy goldens of the assertEqualsH2Compatible pairs)
             case DATE, DATETIME -> "\"TIMESTAMP'\" \"'\" {}";
+            case STRICT_DATE -> "\"DATE'\" \"'\" {}";
             case FLOAT -> "\"CAST(\" \" AS FLOAT)\" {}";
             case BOOLEAN, ENUM, OTHER -> "\"\" \"\" {}";
         };
@@ -1124,15 +1125,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 case STRING -> "'${" + p.name()
                         + "?replace(\"'\", \"''\")}'";
                 // h2New spells date-typed placeholders with the type
-                // keyword (TIMESTAMP'${reportEndDate.date}'); a non-default
-                // connection timeZone wraps DATETIME in GMTtoTZ (the same
-                // template the optional holder spells)
-                // DATE spells the h2New TIMESTAMP keyword in every
-                // position — the bare-quoted '${bd}' is the LEGACY
-                // (H2 1.4.200) golden of the assertEqualsH2Compatible
-                // pairs (executionPlanTest testTemporalDateVariable*),
-                // never the upgraded one this oracle replays
+                // keyword by PURE TYPE: Date and DateTime TIMESTAMP (the
+                // bare-quoted '${bd}' is the LEGACY H2 1.4.200 golden of
+                // the assertEqualsH2Compatible pairs), StrictDate DATE
+                // (SqlExpr.PlanParam.Kind); a non-default connection
+                // timeZone wraps DATETIME in GMTtoTZ like the holder
                 case DATE -> "TIMESTAMP'${" + p.name() + "}'";
+                case STRICT_DATE -> "DATE'${" + p.name() + "}'";
                 case DATETIME -> timeZone != null
                         ? "TIMESTAMP'${GMTtoTZ( \"[" + timeZone + "]\" "
                                 + p.name() + ")}'"

@@ -30,10 +30,11 @@ final class Fold {
         if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
             return com.legend.sql.SqlExpr.PlanParam.Kind.STRING;
         }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE
-                || t == com.legend.compiler.element.type.Type.Primitive
-                        .STRICT_DATE) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.DATE) {
             return com.legend.sql.SqlExpr.PlanParam.Kind.DATE;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
+            return com.legend.sql.SqlExpr.PlanParam.Kind.STRICT_DATE;
         }
         if (t == com.legend.compiler.element.type.Type.Primitive
                 .DATE_TIME) {

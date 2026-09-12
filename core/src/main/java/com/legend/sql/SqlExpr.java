@@ -543,7 +543,11 @@ public sealed interface SqlExpr
         /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
          * protocol's {@code inFilterClause_X} wrapper variable
          * (processInOperation.pure); plan-text vocabulary only. */
-        public enum Kind { STRING, DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
+        /** {@code DATE} is pure Date (the h2New surface spells it with the
+         * TIMESTAMP keyword, like DATETIME); {@code STRICT_DATE} is pure
+         * StrictDate, spelled with the DATE keyword ({@code
+         * DATE'${startDate}'} — testGroupByWithTwoOpenVariablesInAggAndFilter). */
+        public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
             OTHER, RAW }
 
         public PlanParam {

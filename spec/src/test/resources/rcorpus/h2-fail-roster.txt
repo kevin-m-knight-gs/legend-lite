@@ -12,8 +12,6 @@ meta::pure::executionPlan::tests::testCrossDbPlanGenerationWithRelationFromWithO
 meta::pure::executionPlan::tests::testEnumPushDownWithExternalFormat
 meta::pure::executionPlan::tests::testGraphFetchH2TempTableStrategy
 meta::pure::executionPlan::tests::testGraphFetchH2TempTableStrategyWithQuoteIdentifiers
-meta::pure::executionPlan::tests::testGroupByWithOpenVariableInAgg
-meta::pure::executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter
 meta::pure::executionPlan::tests::testModelConnectionDeepFunction
 meta::pure::executionPlan::tests::testModelConnectionJoin
 meta::pure::executionPlan::tests::testPlanForExecutionOption

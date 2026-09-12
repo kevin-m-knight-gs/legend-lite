@@ -53,8 +53,8 @@ one or two spellings in the plan-text channel
 
 | test | state |
 |---|---|
-| `executionPlan::tests::testGroupByWithOpenVariableInAgg` | HOMEWORK DONE 2026-09-12 — fixture on demand seeds its store (datePeriods myDB) but the fixture has no calendar row for 2005-10-10: the plan's Allocation is empty, rows cannot judge; text differs only in join order (class groupBy attaches the agg's navigation join before the key's; engine: column order) → FIX = resolver navigation-slot order, next |
-| `executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter` | HOMEWORK DONE 2026-09-12 — same as the row above (empty allocation; join order) |
+| `executionPlan::tests::testGroupByWithOpenVariableInAgg` | BURNED 2026-09-12 (FIX) — fixture on demand seeds its store, but the fixture has no calendar row for 2005-10-10 (empty Allocation: rows cannot judge; text is the verdict). The join order was PHASE order (a nav-date chain registers first and sinks deepest), found by a stack probe in the TypedJoin constructor; `resolver/SlotOrder` now re-sequences the root's step joins into first-read order at the root materialization (GATES: Join order by first read); passes by text, both lanes |
+| `executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter` | BURNED 2026-09-12 (FIX) — the same reorder, plus `PlanParam.Kind.STRICT_DATE`: a StrictDate let spells `DATE'${startDate}'` where pure Date spells TIMESTAMP; passes by text, both lanes |
 | `executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation` | BURNED 2026-09-12 (FIX, referee) — fixture on demand seeds the store its mapping reads; judged by ROWS, both lanes (GATES: Fixture on demand) |
 | `executionPlan::tests::testTwoMappingsOneRuntime` | TODO |
 | `executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping` | TODO |
@@ -71,7 +71,7 @@ a plan node kind the channel does not print yet (PureExp, StoreMappingGlobalGrap
 | `executionPlan::tests::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes` | TODO |
 | `executionPlan::tests::testGraphFetchH2TempTableStrategy` | TODO |
 | `executionPlan::tests::testGraphFetchH2TempTableStrategyWithQuoteIdentifiers` | TODO |
-| `executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch` | HOMEWORK 2026-09-12 — rows leg derivable now; the golden fails on the REFEREE (`Schema "productSchema" not found`): its seed replay never received the schema DDL → referee seed gap (all four testQuoteIdentifiersFlag* rows + testTypedTDSWithEnum*) |
+| `executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch` | HOMEWORK 2026-09-12 — rows leg derivable now; the golden fails on the REFEREE (`Schema "productSchema" not found`): its seed replay never received the schema DDL → NOT a seed gap (homework 2026-09-12): our session ran `Create schema productSchema;` unquoted and H2 (DATABASE_TO_UPPER default; the engine's H2Manager sets it only from a user property) stores PRODUCTSCHEMA, while the quoted golden reads `"productSchema"` — the golden cannot execute on the engine's own fixture either; rows can never judge it, the referee's named gap is right. This row's verdict is text; its burn is the plan-text node-kinds hijack of cluster C, unchanged |
 | `executionPlan::tests::testViewToTDS` | TODO |
 | `executionPlan::tests::withPlatform` | TODO |
 | `meta::relational::graphFetch::tests::milestoning::testMilestonedProperty` | TODO |

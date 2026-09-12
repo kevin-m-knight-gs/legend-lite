@@ -339,7 +339,12 @@ class MinimalCorpusTest {
     // more tests per lane derive their rows (see DUCKDB_TEXT_DECIDED); the
     // differential floor follows the measurement up and the spelling ceiling
     // shrinks with the passes that are now row-judged — measured, both lanes
-    private static final int[] DUCKDB_STRENGTH = {1539, 44, 25};
+    // spelling 44 -> 46 (join order by first read + StrictDate plan
+    // parameters, 2026-09-12): the two calendar plan rows pass by TEXT —
+    // their fixture holds no calendar row for the plan's date, so the
+    // referee's row verdict declines on an empty Allocation and the equal
+    // text decides; new passes, not weakened ones — measured, both lanes
+    private static final int[] DUCKDB_STRENGTH = {1539, 46, 25};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -353,7 +358,8 @@ class MinimalCorpusTest {
     // return of the #4900 goldens on the H2 lane (see DUCKDB_STRENGTH)
     // {1378, 55, 25} -> {1384, 50, 25} on 2026-09-12 (fixture on demand): the
     // same move on the H2 lane (see DUCKDB_STRENGTH)
-    private static final int[] H2_STRENGTH = {1384, 50, 25};
+    // spelling 50 -> 52 (the same two calendar plan rows on the H2 lane)
+    private static final int[] H2_STRENGTH = {1384, 52, 25};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

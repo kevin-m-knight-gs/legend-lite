@@ -1277,3 +1277,61 @@ referee seed gap, ledgered in cluster C.
 
 `SqlTextVerdicts` ledger 1114 → 1145 (model navigation and a listener call, no
 judgment). Chain: `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates 1–9.
+
+## Join order by first read — 2026-09-12 (corpus-zero program, cluster B)
+
+**The row.** The three calendar plan-text rows got their fixture (see the
+record above) and stayed declined by rows — the fixture holds no calendar row
+for `2005-10-10`, so the plan's Allocation is empty and the plan cannot run on
+corpus data. Text is their verdict, and the text differed on one thing: in a
+class `groupBy` we joined `calendar` (the aggregate's navigation) before
+`ORG_CHART_ENTITY` (the group key's); the engine joins the other way.
+
+**Homework, by probe.** Three blind reads of the resolver did not settle
+where the order is decided; a temporary stack print in the `TypedJoin`
+record's constructor (reverted) did, in one run: both joins are navigate
+steps built in `Pipelines.walk` from the root materialization, and the
+calendar step sat deepest because a NAV-DATE chain (a temporal spec date read
+through a navigation) registers FIRST (`InnerDemand.withNavDatePaths`) and
+SINKS to the bottom (`Pipelines.sinkNavSteps`) so a milestoned head's window
+can read its composed column — a phase order, not the query's.
+
+**What landed.** `resolver/SlotOrder.java`: the root materialization
+(`Pipelines.materialize`, the seven-argument form the root uses) re-sequences
+the maximal run of step joins at the top of the class pipeline —
+`TypedNavigate` steps with an alias and `TypedJoinSlot`s — into FIRST-READ
+order: the query's read-path heads as `InnerDemand.firstReadHeads` lists them,
+the terminal's columns first (group keys, aggregates, projection columns left
+to right) and the filter's after — a filter over a column the terminal also
+reads rides that join (`testGroupByWithTwoOpenVariablesInAggAndFilter`). Every
+step stays after the steps it depends on: the sibling aliases its own predicate
+reads, and the sink's invariant carried as a dependency
+(`InnerDemand.navDateConsumers`: a milestoned head follows the nav-date steps
+its spec reads). A LEFT-join chain whose conditions read only the root and
+earlier steps is order-independent on rows, so this is a spelling decision
+made once, in the resolver, never in the lowering. The other 38
+`materialize` callers pass no order and are untouched.
+
+**One more spelling on the filtered row.** `DATE'${startDate}'` versus our
+`TIMESTAMP'${startDate}'`: `let startDate = %2015-02-25` is a StrictDate, and
+`Fold.planKindOf` folded StrictDate into `PlanParam.Kind.DATE`, which the h2New
+surface spells with the TIMESTAMP keyword (that spelling is right for pure
+Date — `${reportEndDate.date}` — and DateTime). `Kind.STRICT_DATE` is its own
+kind now, spelled `DATE'…'` in the bare hole and the optional holder.
+
+**Measured, full corpus, both lanes, 0 LOST:**
+
+| | DuckDB | H2 |
+|---|---|---|
+| fail roster | 115 → 113 | 448 → 446 |
+| strength {differential, spelling, cardinality} | {1539,44,25} → {1539,46,25} | {1384,50,25} → {1384,52,25} |
+| text-decided, leniency, unordered registers | unchanged | unchanged |
+
+`testGroupByWithOpenVariableInAgg` and
+`testGroupByWithTwoOpenVariablesInAggAndFilter` pass by text on both lanes
+(spelling +2: the referee still declines their rows on the empty Allocation).
+No other golden moved — the reorder's blast radius on the corpus is exactly
+these two. Size guards tripped once (StoreResolver 3502 / resolveObject 256,
+EngineStyleH2.expr 254) and were paid by moving the head computation into
+InnerDemand and tightening the renderer's comment. Chain:
+`GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates 1–9.

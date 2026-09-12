@@ -1824,7 +1824,8 @@ public final class StoreResolver {
             Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias,
             Map<String, Substitution.AssocSub> parentAssocs,
             Set<String> dateAliases,
-            Map<String, TypedLambda> compositeConds) {
+            Map<String, TypedLambda> compositeConds,
+            List<String> firstRead, Map<String, Set<String>> mustFollow) {
         Set<String> corrComposed = new LinkedHashSet<>();
         TypedSpec csPipe = augmentNavPredicates(
                 Pipelines.sinkNavSteps(cs.pipeline(), dateAliases), cs,
@@ -1857,7 +1858,8 @@ public final class StoreResolver {
                         ? navMats.get(alias).pipeline()
                         : Pipelines.materialize(
                                 sources.get(cs.mappingFqn(), targetClass, cs.scope()).pipeline(),
-                                Set.of(), targetClass).pipeline());
+                                Set.of(), targetClass).pipeline(),
+                firstRead, mustFollow);
         // §4AD P1 placement bit, slot channel (Pipelines owns the rule)
         m = Pipelines.innerizeValueSlots(m, navHeadByAlias, synthetics);
         Map<String, String> navPrefixToClass = new LinkedHashMap<>();
@@ -2930,6 +2932,9 @@ public final class StoreResolver {
         // that chain like any other read; its step SINKS below every
         // consuming head join (materializeRoot) so the composed date
         // column sits on the head's LEFT row for the outer-date window.
+        // FIRST-READ order of the root's joins (SlotOrder), taken BEFORE
+        // the nav-date chains are prepended for registration
+        List<String> firstReadHeads = InnerDemand.firstReadHeads(projectionPaths, filterPaths);
         paths = InnerDemand.withNavDatePaths(paths, chainSpecs.values());
 
         // View-join pruning on the FRAME path: un-read join-navigating
@@ -2960,7 +2965,9 @@ public final class StoreResolver {
         // Properties: name-only projection must keep BOTH 'IF 2' rows).
         RootPipe rootPipe = materializeRoot(cs, g, demanded, demandedNavs,
                 navMats, navHeadByAlias, assocs, dateAliases,
-                navPlan.compositeConds());
+                navPlan.compositeConds(),
+                InnerDemand.stepOrder(firstReadHeads, navHeadByAlias),
+                InnerDemand.navDateConsumers(chainSpecs, navHeadByAlias));
         Pipelines.Materialized m = rootPipe.m();
         final TypedSpec materializedPipe = rootPipe.materializedPipe();
 

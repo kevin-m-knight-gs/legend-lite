@@ -405,6 +405,20 @@ public final class Pipelines {
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     Set<String> demandedNavs, String classFqn,
                                     @com.legend.Nullable TargetResolver targets) {
+        return materialize(pipeline, demanded, demandedNavs, classFqn, targets,
+                List.of(), Map.of());
+    }
+
+    /** {@link #materialize} with the root's step joins re-sequenced into
+     * {@code firstRead} order under {@code mustFollow} ({@link SlotOrder}):
+     * the root materialization's entry — the engine's join order is the
+     * query's first-read order. */
+    static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
+                                    Set<String> demandedNavs, String classFqn,
+                                    @com.legend.Nullable TargetResolver targets,
+                                    List<String> firstRead,
+                                    Map<String, Set<String>> mustFollow) {
+        pipeline = SlotOrder.byFirstRead(pipeline, firstRead, mustFollow);
         Set<String> all = slotAliases(pipeline);
         Map<String, TypedNavigate> navs = navSteps(pipeline);
         if (all.isEmpty() && navs.isEmpty()) {

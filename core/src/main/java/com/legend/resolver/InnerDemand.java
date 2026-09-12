@@ -177,6 +177,76 @@ final class InnerDemand {
         return merged;
     }
 
+    /** The query's read-path heads in FIRST-READ order: the engine adds the
+     * terminal's joins first (keys, aggregates, projection columns left to
+     * right) and the filter's after — a filter over a column the terminal
+     * also reads rides that join (testGroupByWithTwoOpenVariablesInAggAndFilter). */
+    static List<String> firstReadHeads(Set<List<String>> projectionPaths,
+            Set<List<String>> filterPaths) {
+        List<String> heads = new java.util.ArrayList<>();
+        for (Set<List<String>> group : List.of(projectionPaths, filterPaths)) {
+            for (List<String> p : group) {
+                if (!p.isEmpty() && !heads.contains(p.get(0))) {
+                    heads.add(p.get(0));
+                }
+            }
+        }
+        return heads;
+    }
+
+    /** The root's step aliases in FIRST-READ order ({@link SlotOrder}):
+     * {@code heads} are the query's read-path heads in first-read order
+     * (filter paths, then the terminal's columns); each head names the
+     * navigate steps registered under it ({@code navHeadByAlias}) and
+     * the same-named slot. */
+    static List<String> stepOrder(List<String> heads,
+            java.util.Map<String, String> navHeadByAlias) {
+        List<String> out = new java.util.ArrayList<>();
+        for (String head : heads) {
+            for (String alias : aliasesOf(head, navHeadByAlias)) {
+                if (!out.contains(alias)) {
+                    out.add(alias);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The sink's invariant as a dependency ({@link SlotOrder}): a
+     * milestoned head whose spec date READS A NAVIGATION (a nav-date
+     * chain) must sit ABOVE that chain's steps — consumer alias → the
+     * nav-date aliases it follows. */
+    static java.util.Map<String, Set<String>> navDateConsumers(
+            java.util.Map<String, TemporalFrame.TemporalSpec> chainSpecs,
+            java.util.Map<String, String> navHeadByAlias) {
+        java.util.Map<String, Set<String>> out = new java.util.LinkedHashMap<>();
+        for (var e : chainSpecs.entrySet()) {
+            for (TypedSpec dexp : e.getValue().dates()) {
+                List<String> path = TemporalFrame.singleVarChain(dexp);
+                if (path == null || path.size() < 2) {
+                    continue;
+                }
+                Set<String> dates = aliasesOf(path.get(0), navHeadByAlias);
+                for (String consumer : aliasesOf(e.getKey(), navHeadByAlias)) {
+                    out.computeIfAbsent(consumer, k -> new LinkedHashSet<>()).addAll(dates);
+                }
+            }
+        }
+        return out;
+    }
+
+    private static Set<String> aliasesOf(String head,
+            java.util.Map<String, String> navHeadByAlias) {
+        Set<String> out = new LinkedHashSet<>();
+        out.add(head);
+        for (var e : navHeadByAlias.entrySet()) {
+            if (e.getValue().equals(head)) {
+                out.add(e.getKey());
+            }
+        }
+        return out;
+    }
+
     /** The nav-step aliases carrying NAV-DATE chains — these steps SINK
      * below every consuming head join ({@link Pipelines#sinkNavSteps}):
      * the composed date column must sit on the head's LEFT row. */
