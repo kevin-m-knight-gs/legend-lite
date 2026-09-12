@@ -219,6 +219,20 @@ public abstract class SqlRewriter {
                 yield v == q.value() && sub == q.subquery() ? q
                         : new SqlExpr.Quantified(v, q.comparison(), q.quantifier(), sub);
             }
+            case SqlExpr.CheckedDefects cd -> {
+                java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
+                boolean changed = false;
+                for (SqlExpr c : cd.children()) {
+                    SqlExpr r = rewriteExpr(c);
+                    changed |= r != c;
+                    cs.add(r);
+                }
+                yield changed ? cd.withChildren(cs) : cd;
+            }
+            case SqlExpr.CheckedChildValue cv -> {
+                SqlExpr env = rewriteExpr(cv.envelope());
+                yield env == cv.envelope() ? cv : new SqlExpr.CheckedChildValue(env, cv.toMany());
+            }
             // rewriteExpr, NOT the expr() hook: the hook alone is a
             // SHALLOW visit — nothing under the wrapper gets walked, so
             // dialect passes (SubstringClamp) never reach nested calls.

@@ -1395,3 +1395,97 @@ their equal text (LITERAL → SPELLING), and four more are judged by rows
 by a shorter comment. Chain: `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates
 1–9; per gate: build 24s, G1 68s, G3 12s, G4 95s, G5 47s (stream A 222s = the
 critical path), G6 139s, G7 35s, G9 28s, G8 146s — 246s wall.
+
+## Chain timing, measured A/B — 2026-09-12
+
+**Question (USER):** the parallel chain seemed to have grown from about 3m40s
+to over 4 minutes — when and why? **Method:** on an idle machine, four full
+chains back to back, alternating HEAD (5c29a272a, after today's three referee
+and lowering batches) and the 4.145.0 bump commit (0a4a928c6, same oracle
+pins, before all of today's work); the build-once baseline commit (cfffb65fd)
+cannot run unchanged because it pins the older spec checkouts.
+
+| run | wall | G1 | G3 | G4 (DuckDB corpus) | G5 (H2 corpus) | G6 | G7 | G8 | G9 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| HEAD 1 | 233s | 63 | 9 | 92 | 46 | 134 | 33 | 130 | 28 |
+| HEAD 2 | 244s | 73 | 10 | 92 | 44 | 137 | 33 | 138 | 28 |
+| bump 1 | 236s | 63 | 12 | 91 | 46 | 128 | 36 | 135 | 28 |
+| bump 2 | 255s | 71 | 10 | 97 | 52 | 138 | 37 | 146 | 30 |
+
+**Answer.** Today's batches cost nothing measurable: HEAD and the bump commit
+are within each other's run-to-run spread, and the corpus lanes — the suspects
+— are 92/92s at HEAD against 91/97s before the work. The spread itself is the
+finding: ±10–20s between identical runs on an idle machine, with gate 8
+(untouched parser-equivalence) swinging 130–146s. Against the 229s recorded on
+2026-09-10 the remaining difference is the spec bump (the corpus grew 2558 →
+2613 tests) plus that spread. The critical path is stream A (build + G1 + G3 +
+G4 + G5, 210–240s); streams B and C finish 20–40s earlier. Per-gate "took"
+lines now go into every landing record so drift stays visible per gate.
+
+## Nested-object constraints in checked fetches — 2026-09-12 (corpus-zero program, cluster A)
+
+**The gap.** `graphFetchChecked` evaluated the ROOT class's constraints
+only. The engine (legendJavaPlatformBinding
+`createConstraintCheckingForTree_recurse`) runs every class-typed node's own
+constraints and hoists each nested defect to the root with a
+`RelativePathNode` per hop — `{propertyName, index}`, the element's 0-based
+index for a to-many, null for a to-one; a null to-one child is skipped.
+
+**What landed.**
+- **Emission** (`GraphEmission`): a checked root builds through a CHECKED
+  emitter frame (a final constructor fact, not mutable state — the
+  guardrail refused the first version), and every class-typed child node —
+  correlated, subtype-patch or embedded — gets its own class's constraints
+  through the same per-node evaluation the root uses.
+- **Semantic nodes** (`SqlExpr.CheckedDefects`, `SqlExpr.CheckedChildValue`):
+  the parent's defects = its own list plus its checked children's, each
+  child's defects hoisted under the path from the parent; a child's value =
+  the element values off its envelope. The lowering emits the NODES
+  (CARRIER_REDESIGN tenet #1 — the carrier-purity ratchet refused the first
+  version, which spelled `list_transform` directly; the direct-list count
+  went 142 → 141 in the end).
+- **One evaluation per child** (`CheckedEnvelope.attach`): a checked child's
+  select joins the parent's frame as a LATERAL (CROSS for a to-many — its
+  aggregate always yields one row; LEFT ON TRUE for a to-one) and both the
+  value and the hoisted defects read that one column. Two references to
+  the subquery would have evaluated it twice and, for a to-many, could have
+  disagreed on element order between value and index.
+- **DuckDB strategy** (`sql/dialect/CheckedDefectsToLists`): the list-lambda
+  spelling — `flatten(list_transform(elements(env), (e, i) -> …))` with the
+  index shifted from DuckDB's 1-based lambda index, `json_merge_patch` to
+  replace the path. A dialect without list lambdas walls the node
+  (`DialectCapability`), tenet #5.
+- **Witness** (`GraphFetchCheckedIntegrationTest`): Person → firm (to-one)
+  → addresses (to-many); a violating firm reports its defect at the person
+  under `[{firm, null}]`, a violating second address under
+  `[{firm, null}, {addresses, 1}]`, a person with no firm reports nothing.
+
+**Measured, full corpus, both lanes:**
+
+| | DuckDB | H2 |
+|---|---|---|
+| fail roster | 111 → 112 | 444 → 447 |
+| accepted roster | 14 → 13 | 8 |
+| pins (text-decided, strength, leniency, registers) | unchanged | unchanged (LITERAL 675 → 672) |
+
+- **DuckDB +1, an honest step back:** `testCheckedWithCircularConstraints`
+  leaves the accepted roster. Its Firm constraint `duplicateEmployee` reads
+  `$this.employees->isDistinct(#{Person{firstName,lastName}}#)`: with nested
+  constraints evaluated it now TYPES, and the tree-argument `isDistinct`
+  overload is not registered (the engine's own Pure body is `fail('Not
+  implemented!')`; its Java binding does distinct-by-tree). Until that
+  overload lands the test fails at typing; implementing it keeps the row's
+  intended output (no defects for all four persons) and the accepted
+  witness unchanged — the next cluster-A leg.
+- **H2 +3, a named capability gap:** the three checked tests with nested
+  class children (`testGraphFetchCheckedWithSize`,
+  `testDatePropagationFromMilestonedRootToMilestonedProperty_Checked`,
+  `RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked`) now hoist through
+  list lambdas H2 does not have; the H2 lane's contract is quick wins only.
+- The engine's `canEvaluateForTree` filter (whether a constraint runs at all
+  under a given fetched tree) is implemented at no level, root included;
+  separate homework.
+
+Own-corpus parity 2312 → 2319 (the witness model's seven elements). Chain:
+`GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates 1–9; per gate: build 24s,
+G1 72s, G3 10s, G4 95s, G5 49s, G6 137s, G7 35s, G9 28s, G8 139s.

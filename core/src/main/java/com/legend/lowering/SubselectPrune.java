@@ -248,6 +248,8 @@ final class SubselectPrune {
                 collectExpr(q.value(), r);
                 collectQuery(q.subquery(), r);
             }
+            case SqlExpr.CheckedDefects cd -> cd.children().forEach(c -> collectExpr(c, r));
+            case SqlExpr.CheckedChildValue cv -> collectExpr(cv.envelope(), r);
             case SqlExpr.CheckedOne co -> collectExpr(co.list(), r);
             case SqlExpr.CompactList cl -> collectExpr(cl.list(), r);
             case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);

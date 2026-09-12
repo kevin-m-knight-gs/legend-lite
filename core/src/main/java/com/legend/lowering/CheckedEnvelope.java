@@ -10,6 +10,8 @@ import com.legend.sql.SqlFn;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
 import java.util.function.Function;
 
 /**
@@ -35,8 +37,41 @@ final class CheckedEnvelope {
 
     /** {@code render} lowers one constraint predicate/message lambda into
      * the envelope base select's terms (the Lowerer's own scalar path). */
+    /** A checked CHILD's envelope column on the parent's frame: the
+     * child's own {defects, value} (per element for a to-many), evaluated
+     * ONCE as a lateral join — value and hoisted defects both read it. */
+    /** Install a checked child's select as a LATERAL join of the live frame
+     * {@code fr[0]} (CROSS for a to-many — its aggregate always yields one
+     * row; LEFT ON TRUE for a to-one, which may yield none) and return the
+     * child's envelope column. */
+    static SqlExpr.CheckedDefects.Hoist attach(SqlSelect[] fr, SqlSelect childSelect, List<String> path,
+            boolean toMany, String alias) {
+        fr[0] = fr[0].withFrom(new SqlSource.Join(fr[0].from(),
+                new SqlSource.Subselect(childSelect, alias, null),
+                toMany ? SqlSource.Join.Kind.CROSS_LATERAL : SqlSource.Join.Kind.LEFT_LATERAL,
+                toMany ? null : new SqlExpr.BoolLit(true)));
+        return new SqlExpr.CheckedDefects.Hoist(path,
+                SqlExpr.Column.of(alias, childSelect.outputs(), "result"), toMany);
+    }
+
+    /** A nested child's term in the parent object: a plain scalar subquery,
+     * or — for a CHECKED child — its lateral envelope's value, the hoist
+     * recorded for {@link #wrap}. */
+    static SqlExpr childTerm(SqlSelect[] fr, SqlSelect childSelect,
+            TypedSerializeGraph.Child child, List<SqlExpr.CheckedDefects.Hoist> hoists,
+            java.util.function.Supplier<String> alias, List<String> prefix) {
+        if (child.node().checkedConstraints() == null) {
+            return new SqlExpr.ScalarSubquery(childSelect);
+        }
+        List<String> path = new ArrayList<>(prefix);
+        path.add(child.property());
+        SqlExpr.CheckedDefects.Hoist h = attach(fr, childSelect, path, child.node().arrayWrap(), alias.get());
+        hoists.add(h);
+        return new SqlExpr.CheckedChildValue(h.envelope(), h.toMany());
+    }
+
     static SqlExpr wrap(TypedSerializeGraph g, SqlExpr obj,
-            Function<TypedFuncCol, SqlExpr> render) {
+            Function<TypedFuncCol, SqlExpr> render, List<SqlExpr.CheckedDefects.Hoist> hoists) {
         List<SqlExpr> cases = new ArrayList<>();
         for (var cc : java.util.Objects.requireNonNull(
                 g.checkedConstraints(), "wrap() requires checked constraints")) {
@@ -55,16 +90,16 @@ final class CheckedEnvelope {
                             defect(cc, msg))),
                     new SqlExpr.NullLit()));
         }
-        SqlExpr defects = cases.isEmpty()
-                ? SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                        new SqlExpr.ArrayLit(List.of()))
-                : SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                        SqlExpr.Call.of(SqlFn.LIST_FILTER,
-                                new SqlExpr.ArrayLit(cases),
-                                new SqlExpr.Lambda(List.of("x"),
-                                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
-                                                SqlExpr.Column.derived(null,
-                                                        "x")))));
+        SqlExpr own = cases.isEmpty() ? new SqlExpr.ArrayLit(List.of())
+                : SqlExpr.Call.of(SqlFn.LIST_FILTER,
+                        new SqlExpr.ArrayLit(cases),
+                        new SqlExpr.Lambda(List.of("x"),
+                                SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                                        SqlExpr.Column.derived(null, "x"))));
+        // checked CHILDREN hoist through the semantic node — spelled by the
+        // dialect strategy (CheckedDefectsToLists); absent, the own list stands
+        SqlExpr defects = SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                hoists.isEmpty() ? own : new SqlExpr.CheckedDefects(own, hoists));
         return new SqlExpr.JsonObject(List.of(
                 new SqlExpr.StringLit("defects"), defects,
                 new SqlExpr.StringLit("value"), obj));

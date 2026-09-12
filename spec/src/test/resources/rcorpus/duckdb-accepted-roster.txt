@@ -2,7 +2,6 @@ meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| e
 meta::pure::tds::tests::extensions::testExtendDigest_Relational ||| engine-golden-defect:digest-joinStrings ||| 9e103ea06a6999b4c5a86cf25d68b083
 meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
 meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
-meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints ||| engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix) ||| FIRST DIFF at $[2].defects expected 1 element(s), got 0
 meta::relational::tests::functions::sqlstring::testHashFunctions ||| engine-golden-defect:joinStrings-literal-collection ||| aceae9411805b964e79dd85254a18a64
 meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek ||| engine-golden-defect:firstDayOfWeek-h2-week-start ||| 2014-11-30
