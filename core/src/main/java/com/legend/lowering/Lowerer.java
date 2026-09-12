@@ -835,7 +835,11 @@ public final class Lowerer {
     private SqlSelect serializeGraph(TypedSerializeGraph g,
             boolean streamRoot) {
         SqlSelect src = relation(g.source());
+        // json_group_array is an AGGREGATE and the envelope REPLACES the
+        // projection list — the groupBy folding constraints are exactly right.
         SqlSelect base0 = Fold.groupByFolds(src) ? src : isolate(src);
+        // §4AD batch-6 tail: fr[0] = the LIVE frame (decorrelated
+        // reducer leaves add grouped LEFT joins to it)
         SqlSelect[] fr = {base0};
         ColumnResolver own = scopedResolver(base0, g.rowVar());
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
@@ -846,21 +850,21 @@ public final class Lowerer {
                     envelopeScalar(leaf, fr[0], "serialize leaf"),
                     Fold.leafResultType(leaf)), this::nextAlias));
         }
-        List<SqlExpr.CheckedDefects.Hoist> hoists = new ArrayList<>();
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
             if (child.node().arrayWrap()) {
                 arrayProps.add(child.property());
             }
             if (child.node().inlineChild()) {
-                // EMBEDDED child: same-row json object (task #78 H4b)
-                kv.add(inlineWrapped(fr, child.node(), hoists, List.of(child.property())));
+                // EMBEDDED child: same-row json object, leaves resolve
+                // against the PARENT select — no subquery (task #78 H4b)
+                kv.add(inlineWrapped(fr[0], child.node()));
                 continue;
             }
             enclosing.push(own);
-            try {   // a CHECKED child rides a lateral envelope (CheckedEnvelope.childTerm)
-                kv.add(CheckedEnvelope.childTerm(fr, serializeGraph(child.node(), false),
-                        child, hoists, this::nextAlias, List.of()));
+            try {
+                kv.add(new SqlExpr.ScalarSubquery(
+                        serializeGraph(child.node(), false)));
             } finally {
                 enclosing.pop();
             }
@@ -906,8 +910,8 @@ public final class Lowerer {
                     pkv.add(new SqlExpr.StringLit(child.property()));
                     enclosing.push(own);
                     try {
-                        pkv.add(CheckedEnvelope.childTerm(fr, serializeGraph(child.node(), false),
-                                child, hoists, this::nextAlias, List.of()));
+                        pkv.add(new SqlExpr.ScalarSubquery(
+                                serializeGraph(child.node(), false)));
                     } finally {
                         enclosing.pop();
                     }
@@ -922,7 +926,7 @@ public final class Lowerer {
         // CHECKED envelope: {defects: [...], value: obj} — extracted rule
         if (g.checkedConstraints() != null) {
             obj = CheckedEnvelope.wrap(g, obj,
-                    cc -> envelopeScalar(cc, fr[0], "checked constraint"), hoists);
+                    cc -> envelopeScalar(cc, fr[0], "checked constraint"));
         }
         if (g.objectRefPrefix() != null) {   // ASOR {objectReference, value}
             obj = SnapshotEnvelope.asorWrap(g, obj,
@@ -1003,18 +1007,17 @@ public final class Lowerer {
     /** An inline child, ARRAY-wrapped when the property is to-many
      * (engine: "authors":[{...}] — the embedded instance rides in a
      * one-element JSON array). */
-    /** A CHECKED child inside this embedded object hoists under {@code prefix}. */
-    private SqlExpr inlineWrapped(SqlSelect[] fr, TypedSerializeGraph g,
-            List<SqlExpr.CheckedDefects.Hoist> hoists, List<String> prefix) {
-        SqlExpr obj = inlineChildObject(fr, g, hoists, prefix);
+    private SqlExpr inlineWrapped(SqlSelect base, TypedSerializeGraph g) {
+        SqlExpr obj = inlineChildObject(base, g);
         return g.arrayWrap()
-                ? SqlExpr.Call.of(SqlFn.TO_VARIANT, new SqlExpr.ArrayLit(List.of(obj))) : obj;
+                ? SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                        new SqlExpr.ArrayLit(List.of(obj)))
+                : obj;
     }
 
-    private SqlExpr inlineChildObject(SqlSelect[] fr, TypedSerializeGraph g,
-            List<SqlExpr.CheckedDefects.Hoist> hoists, List<String> prefix) {
-        SqlSelect base = fr[0];
-        List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
+    private SqlExpr inlineChildObject(SqlSelect base, TypedSerializeGraph g) {
+        List<SqlExpr> kv = new ArrayList<>(
+                2 * (g.leaves().size() + g.nested().size()));
         for (TypedFuncCol leaf : g.leaves()) {
             kv.add(new SqlExpr.StringLit(leaf.name()));
             switch (attempt(() -> scalar(last(leaf.fn()),
@@ -1030,14 +1033,12 @@ public final class Lowerer {
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
             if (child.node().inlineChild()) {
-                List<String> path = new ArrayList<>(prefix);
-                path.add(child.property());
-                kv.add(inlineWrapped(fr, child.node(), hoists, path));
+                kv.add(inlineWrapped(base, child.node()));
             } else {
                 enclosing.push(scopedResolver(base, g.rowVar()));
                 try {
-                    kv.add(CheckedEnvelope.childTerm(fr, serializeGraph(child.node(), false),
-                            child, hoists, this::nextAlias, prefix));
+                    kv.add(new SqlExpr.ScalarSubquery(
+                            serializeGraph(child.node(), false)));
                 } finally {
                     enclosing.pop();
                 }

@@ -153,7 +153,6 @@ meta::relational::functions::toPostgresModel::tests::testConvertVarSetPlaceHolde
 meta::relational::functions::toPostgresModel::tests::testConvertWindowColumn
 meta::relational::graphFetch::domain::tests::testGraphFetch
 meta::relational::graphFetch::tests::chain::testRelationalChainExecutionNested
-meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_Checked
 meta::relational::graphFetch::tests::milestoning::testMilestonedProperty
 meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQuery
 meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithFiltersInMapping
@@ -161,11 +160,9 @@ meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQue
 meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithPureDateAsParam
 meta::relational::graphFetch::tests::simple::testCheckedOneComplexProperty
 meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints
-meta::relational::graphFetch::tests::simple::testGraphFetchCheckedWithSize
 meta::relational::graphFetch::tests::simple::testObjectReferenceInUsingResultReferences
 meta::relational::graphFetch::tests::simple::testRelationalGraphFetchWithAlloySerializationConfig
 meta::relational::graphFetch::tests::simple::testSimpleGraphFetchCheckedWithPrimitivesOnly
-meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked
 meta::relational::graphFetch::tests::subType::testInheritanceMappingWithoutSubType
 meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping
 meta::relational::graphFetch::tests::union::propertyLevel::test6

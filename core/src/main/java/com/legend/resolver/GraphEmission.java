@@ -49,33 +49,18 @@ final class GraphEmission {
             String, String> dispatch;
     /** Fresh child row-var mint (shares the resolver's counter). */
     private final IntSupplier freshVar;
-    /** CHECKED reaches every class-typed child of the fetched tree (engine
-     * createConstraintCheckingForTree_recurse: each node runs its own
-     * class's constraints; the lowering hoists a child's defects with the
-     * property's path node) — an emitter FRAME fact: a checked root builds
-     * through a checked emitter, and its children through the same. */
-    private final boolean checked;
 
     GraphEmission(ModelContext ctx, ClassSources sources,
             AssociationJoins assocMaterial, TemporalFrame temporal,
             BiFunction<StoreResolver.Context, String,
                     String> dispatch,
             IntSupplier freshVar) {
-        this(ctx, sources, assocMaterial, temporal, dispatch, freshVar, false);
-    }
-
-    GraphEmission(ModelContext ctx, ClassSources sources,
-            AssociationJoins assocMaterial, TemporalFrame temporal,
-            BiFunction<StoreResolver.Context, String,
-                    String> dispatch,
-            IntSupplier freshVar, boolean checked) {
         this.ctx = ctx;
         this.sources = sources;
         this.assocMaterial = assocMaterial;
         this.temporal = temporal;
         this.dispatch = dispatch;
         this.freshVar = freshVar;
-        this.checked = checked;
     }
 
 
@@ -222,16 +207,6 @@ final class GraphEmission {
     }
 
     TypedSerializeGraph buildGraphNode(ClassSource cs, TypedSpec pipeline,
-            Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
-            List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
-            ExprType info, boolean checked) {
-        GraphEmission em = checked == this.checked ? this
-                : new GraphEmission(ctx, sources, assocMaterial, temporal, dispatch, freshVar, checked);
-        return em.buildGraphNode0(cs, pipeline, slotPrefixes, stripped, rowVar, tree,
-                context, arrayWrap, info, checked);
-    }
-
-    private TypedSerializeGraph buildGraphNode0(ClassSource cs, TypedSpec pipeline,
             Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
             ExprType info, boolean checked) {
@@ -1398,13 +1373,13 @@ final class GraphEmission {
                 node.property());
         GraphEmission em = childFrame == null ? this
                 : new GraphEmission(ctx, sources, assocMaterial, childFrame,
-                        dispatch, freshVar, checked);
+                        dispatch, freshVar);
         Set<String> childStripped = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         childStripped.removeAll(slotPrefixes.keySet());
         TypedSerializeGraph child = em.buildGraphNode(target, childRel,
                 slotPrefixes, childStripped, childVar,
-                node.children(), context, toMany, childInfo, checked);
+                node.children(), context, toMany, childInfo);
         return new TypedSerializeGraph.Child(
                 childKey(node, target.classFqn()), child);
     }

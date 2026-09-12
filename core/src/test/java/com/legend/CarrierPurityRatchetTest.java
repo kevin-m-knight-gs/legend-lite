@@ -170,12 +170,7 @@ class   CarrierPurityRatchetTest {
             // 141→142 (disagree-9 burn 2026-08-31): staticTemporalText's
             // LIST_FILTER see-through — the same structural READ as its
             // UNNEST twin below, not a new emission.
-            // 142→141 (corpus-zero cluster A, 2026-09-12): the checked
-            // envelope's child hoist landed as SEMANTIC nodes
-            // (SqlExpr.CheckedDefects / CheckedChildValue) spelled by the
-            // DuckDB strategy CheckedDefectsToLists — and the envelope's
-            // own-defects list emission folded one direct site away
-            "SqlFn\\.LIST_", 141,
+            "SqlFn\\.LIST_", 142,
             // 12→13 (disagree-9 burn 2026-08-31): staticTemporalText
             // SEE-THROUGH pattern-MATCHES the existing literal-list
             // egress (UNNEST/LIST_FILTER wrappers) to restore written

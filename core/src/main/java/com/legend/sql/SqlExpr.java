@@ -15,7 +15,6 @@ public sealed interface SqlExpr
                 SqlExpr.OrderedListAgg, SqlExpr.JsonArray,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
-                SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
                 SqlExpr.CompactList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
@@ -81,8 +80,6 @@ public sealed interface SqlExpr
             case ScalarSubquery ignored -> List.of();
             case InSubquery i -> List.of(i.value());
             case Quantified q -> List.of(q.value());
-            case CheckedDefects cd -> cd.childList();
-            case CheckedChildValue cv -> List.of(cv.envelope());
             case CheckedOne co -> List.of(co.list());   // flags ride
             case CompactList cl -> List.of(cl.list());
             case DeferredTdsString ignored -> List.of();
@@ -149,8 +146,6 @@ public sealed interface SqlExpr
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
             case InSubquery i -> new InSubquery(cs.get(0), i.subquery());
-            case CheckedDefects cd -> cd.withChildList(cs);
-            case CheckedChildValue cv -> new CheckedChildValue(cs.get(0), cv.toMany());
             case Quantified q -> new Quantified(cs.get(0), q.comparison(), q.quantifier(), q.subquery());
             case CheckedOne co2 -> new CheckedOne(cs.get(0),
                     co2.scalarCarrier(), co2.atLeastOnly());
@@ -745,65 +740,6 @@ public sealed interface SqlExpr
 
         public InSubquery(SqlExpr value, SqlQuery subquery) {
             this(value, subquery, SqlTyping.UNKNOWN);
-        }
-    }
-
-    /** The CHECKED envelope's defects (dataQuality Checked<T>): the
-     *  object's own defect list plus its checked children's, each child's
-     *  defects HOISTED with the engine's RelativePathNode prefix — the
-     *  path's hops before the last with a null index, the last carrying
-     *  the element's 0-based index for a to-many child, null for a to-one.
-     *  A SEMANTIC node (CARRIER_REDESIGN tenet #1): list carriers spell it
-     *  only in a dialect strategy (CheckedDefectsToLists on DuckDB); a
-     *  dialect without list lambdas walls it. Value: a LIST of JSON. */
-    record CheckedDefects(SqlExpr own, List<Hoist> hoists, TypeFact type)
-            implements SqlExpr {
-        /** One checked child: its envelope (per element for a to-many —
-         *  a JSON array of {defects, value}; one envelope or NULL for a
-         *  to-one) under {@code path} from the parent object. */
-        public record Hoist(List<String> path, SqlExpr envelope, boolean toMany) {
-            public Hoist {
-                path = List.copyOf(path);
-            }
-        }
-
-        public CheckedDefects {
-            hoists = List.copyOf(hoists);
-            type = SqlTyping.UNKNOWN;
-        }
-
-        public CheckedDefects(SqlExpr own, List<Hoist> hoists) {
-            this(own, hoists, SqlTyping.UNKNOWN);
-        }
-
-        List<SqlExpr> childList() {
-            List<SqlExpr> out = new java.util.ArrayList<>();
-            out.add(own);
-            hoists.forEach(h -> out.add(h.envelope()));
-            return out;
-        }
-
-        CheckedDefects withChildList(List<SqlExpr> cs) {
-            List<Hoist> hs = new java.util.ArrayList<>();
-            for (int i = 0; i < hoists.size(); i++) {
-                hs.add(new Hoist(hoists.get(i).path(), cs.get(i + 1), hoists.get(i).toMany()));
-            }
-            return new CheckedDefects(cs.get(0), hs);
-        }
-    }
-
-    /** A checked child's VALUE read off its envelope: the element values
-     *  of a to-many (a JSON array), the one value or NULL of a to-one.
-     *  Semantic like {@link CheckedDefects}; the same dialect strategy
-     *  spells it. */
-    record CheckedChildValue(SqlExpr envelope, boolean toMany, TypeFact type)
-            implements SqlExpr {
-        public CheckedChildValue {
-            type = SqlTyping.UNKNOWN;
-        }
-
-        public CheckedChildValue(SqlExpr envelope, boolean toMany) {
-            this(envelope, toMany, SqlTyping.UNKNOWN);
         }
     }
 

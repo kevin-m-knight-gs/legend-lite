@@ -116,8 +116,6 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.ScalarSubquery x -> x;
             case SqlExpr.InSubquery x -> x;
             case SqlExpr.Quantified x -> x;
-            case SqlExpr.CheckedDefects x -> x;
-            case SqlExpr.CheckedChildValue x -> x;
             // guards RECURSE — the audit found these two shallow (same
             // class as SqlRewriter's CheckedOne arm, fixed b0a163af):
             // an elem ref under a value-lane toOne guard inside a fold

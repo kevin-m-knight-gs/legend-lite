@@ -41,10 +41,7 @@ class OwnCorpusParityTest {
     /** EXACT pin on MATCHED elements (measured 2026-09-11). 2292 → 2296
      *  (batch 7a): the product test runner's proof model — four functions
      *  in a core test — joined the own corpus and matched. */
-    // 2312 → 2319 (corpus-zero cluster A, 2026-09-12): the nested-constraint
-    // witness's model (3 classes, a database, a mapping, a connection, a
-    // runtime) joined the own corpus and matched
-    static final int MIN_MATCHED = 2319;   // 4.145.0 bump (batch 8): +16 —
+    static final int MIN_MATCHED = 2312;   // 4.145.0 bump (batch 8): +16 —
                                            // DocumentationTest's snippets
                                            // joined the own corpus
 

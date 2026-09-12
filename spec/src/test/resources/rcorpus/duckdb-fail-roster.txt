@@ -50,7 +50,6 @@ meta::relational::functions::toPostgresModel::tests::testConvertJoinTreeNode
 meta::relational::functions::toPostgresModel::tests::testConvertSelectSQLQuery
 meta::relational::graphFetch::domain::tests::testGraphFetch
 meta::relational::graphFetch::tests::milestoning::testMilestonedProperty
-meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints
 meta::relational::graphFetch::tests::union::propertyLevel::test6
 meta::relational::metamodel::execute::tests::testConnectionEqualityAllButOnePropertySame
 meta::relational::metamodel::execute::tests::testConnectionEqualityAllSameStatic

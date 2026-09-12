@@ -466,10 +466,6 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Case c -> caseExpr(c);
             case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
             case SqlExpr.InSubquery i -> expr(i.value(), 4) + " IN (" + inline(i.subquery()) + ")";
-            case SqlExpr.CheckedDefects ignored -> throw new DialectCapability(
-                    "nested checked defects reached a dialect without list lambdas");
-            case SqlExpr.CheckedChildValue ignored -> throw new DialectCapability(
-                    "a checked child's value reached a dialect without list lambdas");
             case SqlExpr.Quantified q -> expr(q.value(), 4) + " "
                     + java.util.Objects.requireNonNull(INFIX.get(q.comparison()),
                             "quantified comparison must be an infix operator: " + q.comparison()).sql()
