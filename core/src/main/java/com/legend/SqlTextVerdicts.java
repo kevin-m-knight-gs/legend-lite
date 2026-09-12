@@ -1278,6 +1278,7 @@ final class SqlTextVerdicts {
         ExecutionResult rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();
+        provideStores(env, mappingFqn);
         try {
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
             rows = StatementExecutor.evalValue(rowsRead,
@@ -1493,6 +1494,44 @@ final class SqlTextVerdicts {
         if (l != null) {
             l.declined(name, reason);
         }
+    }
+
+    /** Fixture on demand (corpus-zero program, 2026-09-12): before the rows
+     * leg reads, every store the golden's mapping reads (the compiled
+     * mapping model's class-binding sources, includes followed) is offered
+     * to the runner ({@link com.legend.exec.AssertListener#provideStore}),
+     * which seeds it when exactly one fixture does. Model navigation only:
+     * no SQL text, no driver message, no judgment. */
+    private static void provideStores(StatementExecutor.ExecEnv env,
+            @com.legend.Nullable String mappingFqn) {
+        com.legend.exec.AssertListener l = env.assertListener();
+        if (l == null || mappingFqn == null) {
+            return;
+        }
+        for (String store : storesOf(env.ctx(), mappingFqn, new java.util.LinkedHashSet<>())) {
+            l.provideStore(store);
+        }
+    }
+
+    private static java.util.Set<String> storesOf(com.legend.compiler.element.ModelContext ctx,
+            String mappingFqn, java.util.Set<String> visited) {
+        java.util.Set<String> stores = new java.util.LinkedHashSet<>();
+        if (!visited.add(mappingFqn)) {
+            return stores;
+        }
+        ctx.findMapping(mappingFqn).ifPresent(m -> {
+            for (var b : m.classBindings()) {
+                if (b instanceof com.legend.model.MappingDefinition.ClassBinding.Relational r
+                        && r.source() instanceof com.legend.model.MappingDefinition
+                                .RelationalSource.Table t) {
+                    stores.add(t.database());
+                }
+            }
+            for (var inc : m.includes()) {
+                stores.addAll(storesOf(ctx, inc.mappingPath(), visited));
+            }
+        });
+        return stores;
     }
 
     /** The referee's row verdict for this assert, reported to the runner

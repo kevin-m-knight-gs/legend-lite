@@ -761,7 +761,14 @@ class JavaEvalLedgerTest {
             // TypedUserCall to the lifted declaration, implemented by the
             // toSQLString routine) — the producer finder reads that node
             // kind beside the native call; no value is computed here
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1114),
+            // 1114 -> 1145 (corpus-zero program, fixture on demand, 2026-09-12):
+            // before the rows leg reads, the stores the golden's MAPPING reads
+            // (compiled mapping model: class-binding sources, includes) are
+            // offered to the RUNNER (AssertListener.provideStore), which seeds a
+            // store when exactly one corpus fixture does (the platform's
+            // ProgramFacts.seedsStores, typed element references) — model
+            // navigation and a listener call, no SQL text, no judgment
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1145),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

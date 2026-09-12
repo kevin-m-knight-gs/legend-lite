@@ -107,6 +107,12 @@ public final class PureTestRunner implements AutoCloseable {
     private final Set<String> setupsDone = new LinkedHashSet<>();
     /** Each setup's resolved program (or {@link #INERT_SETUP}) — derived once. */
     private final Map<String, ValueSpecification> setupPrograms = new HashMap<>();
+    /** Fixture on demand: store FQN → the setups (every package's and the
+     * shared fixture's) whose program seeds it, from the platform's
+     * {@code ProgramFacts.seedsStores}; built once, at the first ask. */
+    private @com.legend.Nullable Map<String, List<String>> fixturesByStore;
+    /** setup → the stores its program seeds (the same fact, by setup). */
+    private final Map<String, Set<String>> setupStores = new HashMap<>();
     private final Set<String> inertSetups = new LinkedHashSet<>();
 
     /**
@@ -190,16 +196,106 @@ public final class PureTestRunner implements AutoCloseable {
      * between a test's own resolution and its execution. */
     private void deriveSetups(String pkg) {
         for (String fqn : setupCandidates(pkg)) {
-            setupPrograms.computeIfAbsent(fqn, f -> {
-                ValueSpecification resolved = Compiler.resolveQuery(
-                        List.of(new AppliedFunction(f, List.of())), new ImportScope(List.of()), ctx);
-                if (Compiler.hasStatementEffects(resolved, ctx)) {
-                    return resolved;
-                }
-                inertSetups.add(f);
-                return INERT_SETUP;
-            });
+            deriveSetup(fqn);
         }
+    }
+
+    private ValueSpecification deriveSetup(String fqn) {
+        return setupPrograms.computeIfAbsent(fqn, f -> {
+            ValueSpecification resolved = Compiler.resolveQuery(
+                    List.of(new AppliedFunction(f, List.of())), new ImportScope(List.of()), ctx);
+            if (Compiler.hasStatementEffects(resolved, ctx)) {
+                return resolved;
+            }
+            inertSetups.add(f);
+            return INERT_SETUP;
+        });
+    }
+
+    // ---- FIXTURE ON DEMAND --------------------------------------------------
+
+    /** Every setup the corpus declares — the shared fixture's and every
+     * package's BeforePackage — indexed by the stores its program seeds
+     * (the platform's fact, {@code ProgramFacts.seedsStores}). */
+    private Map<String, List<String>> fixturesByStore() {
+        Map<String, List<String>> index = fixturesByStore;
+        if (index == null) {
+            index = new HashMap<>();
+            Set<String> all = new LinkedHashSet<>(sharedSetups);
+            setupsByPackage.values().forEach(all::addAll);
+            for (String fqn : all) {
+                ValueSpecification program = deriveSetup(fqn);
+                if (program == INERT_SETUP) {
+                    continue;
+                }
+                Set<String> stores = Compiler.programFacts(program, ctx).seedsStores();
+                setupStores.put(fqn, stores);
+                for (String store : stores) {
+                    index.computeIfAbsent(store, s -> new ArrayList<>()).add(fqn);
+                }
+            }
+            fixturesByStore = index;
+        }
+        return index;
+    }
+
+    /** The physical tables a store declares, schema-qualified and
+     * case-folded, includes followed — the never-overlay check's
+     * vocabulary (the Database model, not DDL text). */
+    private Set<String> tablesOf(String storeFqn, Set<String> visited) {
+        Set<String> out = new LinkedHashSet<>();
+        if (!visited.add(storeFqn)) {
+            return out;
+        }
+        ctx.findDatabase(storeFqn).ifPresent(db -> {
+            db.tables().forEach(t -> out.add("DEFAULT." + t.name().toUpperCase(java.util.Locale.ROOT)));
+            for (var s : db.schemas()) {
+                s.tables().forEach(t -> out.add(s.name().toUpperCase(java.util.Locale.ROOT)
+                        + "." + t.name().toUpperCase(java.util.Locale.ROOT)));
+            }
+            for (String inc : db.includes()) {
+                out.addAll(tablesOf(inc, visited));
+            }
+        });
+        return out;
+    }
+
+    /** {@link AssertListener#provideStore}: run, in this session, THE
+     * setup that seeds {@code storeFqn}. False when no setup seeds it, or
+     * when several do (the shared test database is seeded by many
+     * packages' fixtures with different contents — which one the golden
+     * meant is not a fact, and an order-dependent pick judged
+     * tdsWithEnumReturn on a stranger's rows), or when the store declares
+     * a table that a setup already run in this session ({@code ran})
+     * seeds — NEVER OVERLAY: a fixture dropping and refilling a table
+     * under the running package's tests lost query::filter::exists 8
+     * rows on the first measurement. A setup that fails raises: a fixture
+     * the platform named but could not seed is a fault of ours, never a
+     * quiet decline. */
+    private boolean provideFixture(String storeFqn, Connection conn,
+            java.util.Collection<String> ran, boolean shared, ExecuteOptions options) {
+        List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
+        if (setups.size() != 1) {
+            return false;
+        }
+        String fqn = setups.get(0);
+        if (ran.contains(fqn)) {
+            return false;
+        }
+        Set<String> mine = tablesOf(storeFqn, new LinkedHashSet<>());
+        for (String done : ran) {
+            for (String store : setupStores.getOrDefault(done, Set.of())) {
+                if (!Collections.disjoint(mine, tablesOf(store, new LinkedHashSet<>()))) {
+                    return false;
+                }
+            }
+        }
+        Compiler.executeResolved(deriveSetup(fqn), ctx, runtimeFqn, conn, null, null, options);
+        if (shared) {
+            setupsDone.add(fqn);
+        }
+        observer.fixtureProvided(storeFqn, fqn);
+        return true;
     }
 
     private List<String> runSetups(PureTests.TestCase t, Connection conn, boolean shared,
@@ -322,6 +418,16 @@ public final class PureTestRunner implements AutoCloseable {
                                     refereeMatched[0] = true;
                                 }
                                 observer.refereed(name, outcome);
+                            }
+
+                            @Override
+                            public boolean provideStore(String storeFqn) {
+                                boolean shared = !facts.seedsInlineCsv();
+                                // a private workspace ran every candidate
+                                // of its package fresh (runSetups)
+                                return provideFixture(storeFqn, conn,
+                                        shared ? setupsDone : setupCandidates(t.pkg()),
+                                        shared, options);
                             }
                         },
                         oracle, options);

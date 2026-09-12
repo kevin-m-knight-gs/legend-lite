@@ -335,7 +335,11 @@ class MinimalCorpusTest {
     // testExecutionPlanGenerationForLambdaFromWithEnumMapping asserts
     // assert(planText->contains(...)), the engine's plan-test shape — a boolean
     // assert this census counts as cardinality-only; measured, both lanes
-    private static final int[] DUCKDB_STRENGTH = {1533, 49, 25};
+    // {1533, 49, 25} -> {1539, 44, 25} on 2026-09-12 (fixture on demand): nine
+    // more tests per lane derive their rows (see DUCKDB_TEXT_DECIDED); the
+    // differential floor follows the measurement up and the spelling ceiling
+    // shrinks with the passes that are now row-judged — measured, both lanes
+    private static final int[] DUCKDB_STRENGTH = {1539, 44, 25};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -347,7 +351,9 @@ class MinimalCorpusTest {
     // the same denominator move as DUCKDB_STRENGTH above, measured on the H2 lane
     // {1264, 51, 20} -> {1378, 55, 22} on 2026-09-12 (batch 8): the same
     // return of the #4900 goldens on the H2 lane (see DUCKDB_STRENGTH)
-    private static final int[] H2_STRENGTH = {1378, 55, 25};
+    // {1378, 55, 25} -> {1384, 50, 25} on 2026-09-12 (fixture on demand): the
+    // same move on the H2 lane (see DUCKDB_STRENGTH)
+    private static final int[] H2_STRENGTH = {1384, 50, 25};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -363,6 +369,8 @@ class MinimalCorpusTest {
             System.out.println("[corpus2] text-decided " + k);
         }
         byReason.forEach((r, n) -> System.out.println("[corpus2] text-decided-tests " + r + "=" + n));
+        corpus.fixturesProvided().forEach((k, setup) ->
+                System.out.println("[corpus2] fixture-on-demand " + k + " <- " + setup));
         long faults = 0;
         for (var e : com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet()) {
             if (e.getKey().startsWith("FAULT ")) {
@@ -435,19 +443,33 @@ class MinimalCorpusTest {
     // 38 -> 36, 2026-09-12 (upstream boundary batch 8): the 4.145.0 spec contains
     // #4900 again, the 14 pre-#4900 goldens are row-judged once more, and the
     // ceilings shrink back to the measurement (shrink-only means shrink).
+    // rows-underivable 28 -> 19 (DuckDB) / 36 -> 27 (H2), oracle-declined 22 -> 27 /
+    // 28 -> 33, 2026-09-12 (corpus-zero program, FIXTURE ON DEMAND): the rows leg
+    // seeds the store a golden's mapping reads when exactly one corpus fixture
+    // seeds it and no already-run setup shares a table (four stores per lane:
+    // datePeriods myDB, modelToModel relationalDB, sqlFunction myDB,
+    // contractmoneyscenario db), so nine more tests per lane DERIVE their rows;
+    // five of those the referee then declines for reasons it already models
+    // (an allocation with no fixture row, unformatted plan text, the golden's
+    // productSchema missing on the referee, datediff-to-now), which is a
+    // more precise decline than "underivable" and moves the count between
+    // the two reasons; the other four are judged by rows (one passes:
+    // testTemporalDateVariableInFunctionExpressionWithPropagation).
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 28, "plan-params-unbindable", 6, "oracle-declined", 22,
+            "rows-underivable", 19, "plan-params-unbindable", 6, "oracle-declined", 27,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 36, "plan-params-unbindable", 6, "oracle-declined", 28,
+            "rows-underivable", 27, "plan-params-unbindable", 6, "oracle-declined", 33,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
+    // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on
+    // demand): one of the newly row-judged tests compares a float column
     private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(
-            "float-10-digits", 48, "micro-floor", 7,
+            "float-10-digits", 49, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
     private static final java.util.Map<String, Integer> H2_LENIENCY = java.util.Map.of(
-            "float-10-digits", 32, "micro-floor", 7,
+            "float-10-digits", 33, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
 
     private static final String ORD_UNMAPPABLE = "ordered-keys-unmappable";

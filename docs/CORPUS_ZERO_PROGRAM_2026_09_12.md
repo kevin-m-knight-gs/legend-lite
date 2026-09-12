@@ -53,12 +53,12 @@ one or two spellings in the plan-text channel
 
 | test | state |
 |---|---|
-| `executionPlan::tests::testGroupByWithOpenVariableInAgg` | TODO |
-| `executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter` | TODO |
-| `executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation` | TODO |
+| `executionPlan::tests::testGroupByWithOpenVariableInAgg` | HOMEWORK DONE 2026-09-12 — fixture on demand seeds its store (datePeriods myDB) but the fixture has no calendar row for 2005-10-10: the plan's Allocation is empty, rows cannot judge; text differs only in join order (class groupBy attaches the agg's navigation join before the key's; engine: column order) → FIX = resolver navigation-slot order, next |
+| `executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter` | HOMEWORK DONE 2026-09-12 — same as the row above (empty allocation; join order) |
+| `executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation` | BURNED 2026-09-12 (FIX, referee) — fixture on demand seeds the store its mapping reads; judged by ROWS, both lanes (GATES: Fixture on demand) |
 | `executionPlan::tests::testTwoMappingsOneRuntime` | TODO |
 | `executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping` | TODO |
-| `query::filter::isempty::testIsEmptyOnCollection` | TODO |
+| `query::filter::isempty::testIsEmptyOnCollection` | HIJACKED 2026-09-12 — the text channel spells an optional collection parameter's emptiness with the engine's `(${collectionSize(name![])})` template (both lanes) |
 
 ### C. plan text — node kinds — 12 rows — ladder: HIJACK
 
@@ -71,7 +71,7 @@ a plan node kind the channel does not print yet (PureExp, StoreMappingGlobalGrap
 | `executionPlan::tests::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes` | TODO |
 | `executionPlan::tests::testGraphFetchH2TempTableStrategy` | TODO |
 | `executionPlan::tests::testGraphFetchH2TempTableStrategyWithQuoteIdentifiers` | TODO |
-| `executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch` | TODO |
+| `executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch` | HOMEWORK 2026-09-12 — rows leg derivable now; the golden fails on the REFEREE (`Schema "productSchema" not found`): its seed replay never received the schema DDL → referee seed gap (all four testQuoteIdentifiersFlag* rows + testTypedTDSWithEnum*) |
 | `executionPlan::tests::testViewToTDS` | TODO |
 | `executionPlan::tests::withPlatform` | TODO |
 | `meta::relational::graphFetch::tests::milestoning::testMilestonedProperty` | TODO |

@@ -22,7 +22,6 @@ meta::pure::executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch
 meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat
 meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions
 meta::pure::executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom
-meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
 meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
 meta::pure::executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping
 meta::pure::executionPlan::tests::testViewToTDS
@@ -397,7 +396,6 @@ meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTa
 meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForDates
 meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForNumbers
 meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForStrings
-meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
 meta::relational::tests::query::function::distinct::testCollectionDistinctFunction
 meta::relational::tests::query::function::round::testFilterUsingRoundFunctionWithScale
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector

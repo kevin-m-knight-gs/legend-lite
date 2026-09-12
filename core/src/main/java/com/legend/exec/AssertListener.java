@@ -31,4 +31,18 @@ public interface AssertListener {
      * MATCH is the differential witness — the strength census reads it. */
     default void refereed(String assertName, String outcome) {
     }
+
+    /** The rows leg is about to read a mapping over {@code storeFqn}
+     * (fixture on demand, corpus-zero program 2026-09-12): the engine's
+     * suite runs a package's BeforePackage setups only for that package's
+     * tests, so a golden whose mapping reads another package's store was
+     * judged by text. A runner that OWNS fixtures may run the one setup
+     * whose program seeds the store (the platform's
+     * {@code ProgramFacts.seedsStores}, a typed element reference) in the
+     * session and return true. Default: no fixture. The platform never
+     * guesses a fixture: an ambiguous store (seeded by several packages
+     * with different data) is not provided. */
+    default boolean provideStore(String storeFqn) {
+        return false;
+    }
 }

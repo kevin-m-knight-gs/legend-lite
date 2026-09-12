@@ -1094,7 +1094,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // element access (:428), never the literal; the ANSI DOUBLE-cast
         // stays a DuckDB execution idiom
         if (e instanceof SqlExpr.FloatLit f) {
-            return String.valueOf(f.value());
+            // a Pure Float LITERAL spells cast(x as float) in the engine's
+            // current H2 text (h2New: sin(...) > cast(0.9 as float),
+            // sum(case ... then cast(5.0 as float) else cast(1.0 as float))
+            // — sqlstring goldens); the bare spelling was pinned on
+            // testProp3's LEGACY-H2 alternative, a failing test's golden
+            return "cast(" + f.value() + " as float)";
         }
         if (e instanceof SqlExpr.DecimalLit d) { // engine H2 decimal spelling (testDecimal)
             return "cast(" + d.value().toPlainString() + " as Decimal(32,16))";
@@ -1586,6 +1591,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     : "SHA-256";
             return "rawtohex(hash('" + digest + "', "
                     + expr(c.args().get(0), 0) + "))";
+        }
+        // an OPTIONAL COLLECTION plan parameter's size (isEmpty/isNotEmpty
+        // over a String[*] param): the engine's collectionSize template —
+        // (${collectionSize(input![])}) — where execution reads the
+        // coalesced list length (testIsEmptyOnCollection golden)
+        if (c.fn() == com.legend.sql.SqlFn.COALESCE && a.size() == 2
+                && a.get(0) instanceof SqlExpr.Call len
+                && len.fn() == com.legend.sql.SqlFn.LIST_LENGTH
+                && len.args().size() == 1
+                && len.args().get(0) instanceof SqlExpr.PlanParam cp
+                && a.get(1) instanceof SqlExpr.IntLit zero && zero.value() == 0) {
+            return "(${collectionSize(" + cp.name() + "![])})";
         }
         return switch (c.fn()) {
             // engine-H2 spellings (sqlstring goldens): cbrt has no H2

@@ -14,6 +14,11 @@ unordered-chain meta::pure::executionPlan::tests::testGreaterThanLessThanEqualsW
 unordered-chain meta::pure::executionPlan::tests::testLessThanGreaterThanEqualsWithOptionalParameter_H2
 unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariable
 unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariableOutsideBlock
+unordered-chain meta::pure::executionPlan::tests::testModelConnectionSimple
+unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableAtRoot
+unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpression
+unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
+unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableInPropertySequence
 unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test1
 unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test2
 unordered-chain meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseJoin
@@ -145,6 +150,8 @@ unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWi
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithLength
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithRepeatString
+unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithStdDevPopulation
+unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithStdDevSample
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfMonth
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek

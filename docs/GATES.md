@@ -1202,3 +1202,78 @@ because the standing rule against concurrent heavy JVMs was written from real
 incidents on smaller machines, and three concurrent Maven processes want cores
 and RAM to spare. It is sound only because THE BUILD already ran: every stream
 reads a finished artifact and none writes another's directory.
+
+## Fixture on demand — 2026-09-12 (corpus-zero program, cluster B)
+
+**The question that opened it:** "do we need to match the SQL, or run the SQL
+in the plan and match rows?" Rows, always. The plan-text goldens of
+`meta::pure::executionPlan::tests` read tables (SALES_GCS, calendar,
+INCOME_FUNCTION) that only `meta::relational::tests::groupBy::datePeriods::setUp`
+creates, and the engine's suite runs a package's BeforePackage setups only for
+that package's tests — that package has none of its own — so those goldens
+were judged by TEXT (`rows-underivable`) and a join-order spelling decided them.
+
+**What landed.** The platform states one more fact about a program:
+`ProgramFacts.seedsStores` — the stores (Database FQNs) it seeds, read off the
+typed tree as the element reference a setup passes to the two K-natives
+`dropAndCreateTableInDb` (its Database argument) and `connectionByElement` (the
+store its inserts run over): `compiler/spec/SeededStores.java`, the same
+memoized walk as `containsEffect`. No SQL text and no table name is read.
+
+The verdict arm (`SqlTextVerdicts`) offers, before the rows leg reads, every
+store the golden's MAPPING reads — the compiled mapping model's class-binding
+sources, includes followed — to the runner through one new listener seam,
+`AssertListener.provideStore`. The corpus runner (`PureTestRunner`) indexes
+every setup of every package by the stores it seeds and runs a fixture only
+when THREE facts hold: exactly one setup seeds the store (the shared test
+database is seeded by many packages with different rows — an order-dependent
+pick judged `tdsWithEnumReturn` on a stranger's rows in the first measurement);
+that setup has not run in this session; and the store declares no table that a
+setup already run seeds (`DatabaseDefinition` tables, includes followed —
+without this rule a fixture dropped and refilled tables under the running
+package and 30 DuckDB / 23 H2 rows were LOST in the second measurement).
+
+**Two versions were measured and rejected before this one.** The first read
+literal `CREATE TABLE` text with a regex and retried on the driver's "table not
+found" message — bespoke string decoding, and it guessed among fixtures. The
+second named stores but overlaid tables. The record keeps both because the
+rules above are their receipts.
+
+**Measured, full corpus, both lanes, 0 LOST:**
+
+| | DuckDB | H2 |
+|---|---|---|
+| fail roster | 117 → 115 | 450 → 448 |
+| rows-underivable (text-decided) | 28 → 19 | 36 → 27 |
+| oracle-declined (text-decided) | 22 → 27 | 28 → 33 |
+| strength {differential, spelling, cardinality} | {1533,49,25} → {1539,44,25} | {1378,55,25} → {1384,50,25} |
+| float-10-digits leniency | 48 → 49 | 32 → 33 |
+| unordered-chain register | 1366 → 1373 | 1277 → 1284 |
+| fixtures provided | 4 stores | 4 stores |
+
+The two roster rows: `query::filter::isempty::testIsEmptyOnCollection` (the
+cluster-B text hijack — the engine's `(${collectionSize(name![])})` template
+and the `cast(0.0 as float)` literal spelling in `EngineStyleH2`, both lanes)
+and `executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation`
+(judged by rows once its mapping's store was seeded). Nine more tests per lane
+derive their rows; five of them the referee then declines for reasons it
+already models (an allocation with no fixture row, unformatted plan text, the
+golden's `productSchema` missing on the referee, datediff-to-now), which is why
+`oracle-declined` grows by exactly what `rows-underivable` loses beyond the
+row-judged four. Seven chains newly judged by rows have no sort and register
+as unordered (exact register, both lanes).
+
+**What it did NOT fix, precisely.** The three calendar plan rows
+(`testGroupByWithOpenVariableInAgg`, `…TwoOpenVariablesInAggAndFilter`,
+`testClassPropertyOpenVariable`) now get their fixture, and the referee still
+declines: the fixture holds no calendar row for `2005-10-10`, the plan's
+Allocation is empty, and the plan cannot execute on the corpus data. Text is
+their only verdict, and our text differs on one thing — in a class `groupBy`
+we attach the aggregate's navigation join before the group key's; the engine
+attaches in column order. That is a lowering leg (the resolver's navigation
+slots), next in cluster B. The `testQuoteIdentifiersFlag*` rows fail inside
+the referee, whose seed replay never received the `productSchema` DDL — a
+referee seed gap, ledgered in cluster C.
+
+`SqlTextVerdicts` ledger 1114 → 1145 (model navigation and a listener call, no
+judgment). Chain: `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates 1–9.

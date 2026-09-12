@@ -13,5 +13,13 @@ package com.legend;
  * adjudicates). Computed by {@link Compiler#programFacts} in ONE typing
  * pass.
  */
-public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verdicts) {
+public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verdicts,
+        java.util.Set<String> seedsStores) {
+
+    /** The stores (Database FQNs) the program seeds through a typed
+     * element reference ({@link com.legend.compiler.spec.SeededStores}):
+     * the corpus runner's fixture-on-demand index. */
+    public ProgramFacts {
+        seedsStores = java.util.Set.copyOf(seedsStores);
+    }
 }

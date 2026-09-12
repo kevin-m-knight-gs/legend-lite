@@ -75,6 +75,13 @@ public interface TestObserver extends AssertListener {
     default void verdict(String assertName, boolean pass, @com.legend.Nullable String detail) {
     }
 
+    /** The runner seeded {@code storeFqn} on demand by running {@code
+     *  setupFqn} mid-test ({@link com.legend.exec.AssertListener#provideStore}):
+     *  the rows leg of an assert reads a mapping over a store another
+     *  package's fixture owns. */
+    default void fixtureProvided(String storeFqn, String setupFqn) {
+    }
+
     /** The observer every runner has when a caller attaches nothing. */
     TestObserver NONE = new TestObserver() {
     };

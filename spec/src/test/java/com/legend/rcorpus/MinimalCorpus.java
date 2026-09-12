@@ -502,6 +502,14 @@ public final class MinimalCorpus {
         return java.util.Collections.unmodifiableMap(textDecided);
     }
 
+    /** Fixtures the runner seeded ON DEMAND (corpus-zero program):
+     * {@code test + ' ' + store} → the setup that seeded it. */
+    private final Map<String, String> fixturesProvided = new LinkedHashMap<>();
+
+    public Map<String, String> fixturesProvided() {
+        return java.util.Collections.unmodifiableMap(fixturesProvided);
+    }
+
     /** Setups the platform derived as INERT (no statement effects) and so
      * never ran — counted and pinned by the run (Phase 0.2). */
     public Set<String> inertSetups() {
@@ -629,6 +637,14 @@ public final class MinimalCorpus {
         public void declined(String name, String reason) {
             // a text-decided verdict, named by the arm (Phase 0.6)
             textDecided.merge(reason + " " + currentTest, 1, Integer::sum);
+        }
+
+        @Override
+        public void fixtureProvided(String storeFqn, String setupFqn) {
+            // fixture on demand (corpus-zero program): the rows leg reads a
+            // mapping over a store another package's setup seeds; the
+            // runner ran that setup
+            fixturesProvided.put(currentTest + " " + storeFqn, setupFqn);
         }
     }
 

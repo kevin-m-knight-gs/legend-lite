@@ -863,14 +863,17 @@ public final class Compiler {
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         java.util.Map<String, Boolean> memo = new java.util.HashMap<>();
         java.util.Map<String, Boolean> verdictMemo = new java.util.HashMap<>();
+        java.util.Map<String, java.util.Set<String>> storeMemo = new java.util.HashMap<>();
         boolean effects = false;
         boolean seeds = false;
         boolean verdicts = false;
+        java.util.Set<String> stores = new java.util.LinkedHashSet<>();
         for (int i = 0; i < body.size(); i++) {
             TypedSpec s = body.get(i);
             java.util.List<TypedSpec> preceding = body.subList(0, i);
             effects |= StatementExecutor.containsEffect(s, specs, memo)
                     || containsTdgGenerator(s);
+            stores.addAll(com.legend.compiler.spec.SeededStores.of(s, specs, storeMemo));
             // the ONE reader of runtime shapes: inline CSV test data anywhere
             // in the statement (a from(), an execute's runtime argument, a
             // let-bound connection copy) is a bound-context fact; values the
@@ -881,7 +884,7 @@ public final class Compiler {
                     .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
             verdicts |= callsVerdict(s, specs, verdictMemo);
         }
-        return new ProgramFacts(effects, seeds, verdicts);
+        return new ProgramFacts(effects, seeds, verdicts, stores);
     }
 
     /** Does the program REACH a verdict function — directly, or through
