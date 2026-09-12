@@ -44,7 +44,7 @@ constraints see the fetched tree; unfetched reference → 'data not available' m
 
 | test | state |
 |---|---|
-| `meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints` | ACCEPTED 2026-09-12 — the golden encodes an engine bug the test's own `toFix` comment names (isDistinct inside a checked constraint); upstream's intended output is no defects for all four persons, which is ours. Accepted-roster bucket `engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix)`. |
+| `meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints` | ACCEPTED 2026-09-12 — the golden encodes an engine bug the test's own `toFix` comment names (isDistinct inside a checked constraint); upstream's intended output is no defects for all four persons, which is ours. Accepted-roster bucket `engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix)` — DuckDB lane. On H2 the checked envelope fails earlier (`LIST_FILTER` has no H2 encoding): an H2-lane capability gap, stays a FAIL there. |
 | (own witness) NESTED-OBJECT CONSTRAINTS: the engine evaluates a nested class's constraints and hoists their defects to the root with a path (`[{propertyName: firm}]`); we evaluate the root class's only (SQL dumped: 3 predicates, Firm's 2 absent) | FIX — next batch, with our own checked-fetch test as the witness (no corpus row exercises it correctly) |
 
 ### B. plan text — near misses — 6 rows — ladder: HIJACK

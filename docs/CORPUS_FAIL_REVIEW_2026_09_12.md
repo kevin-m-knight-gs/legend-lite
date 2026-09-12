@@ -237,3 +237,7 @@ small leg on the metamodel-API natives (`resolveStore` first — one row, a clea
 
 So the "hijack" of plan text that makes sense is REAL and measured: 5 rows are one or two
 spellings away, 4 are one node kind away (PureExp ×2, graph-fetch ×2), the rest are lanes.
+
+## Row 1 outcome (2026-09-12, f4ef6eea0)
+
+`testCheckedWithCircularConstraints` — ACCEPTED on the DuckDB lane: the golden encodes an engine bug the test's own `toFix` comment names (isDistinct inside a checked constraint); upstream's intended output is no defects for all four persons, which is ours. On H2 the checked envelope fails earlier (`LIST_FILTER` has no H2 encoding) — an H2 capability gap, kept as a FAIL. Found beside it: nested objects' constraints are not evaluated (only the root's) — a FIX with our own witness, ledgered in the program.
