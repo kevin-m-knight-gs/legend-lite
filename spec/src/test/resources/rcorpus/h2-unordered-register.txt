@@ -1,3 +1,4 @@
+unordered-chain meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting
 unordered-chain meta::pure::executionPlan::tests::tdsJoinOneDBOneExpression
 unordered-chain meta::pure::executionPlan::tests::tdsReturn
 unordered-chain meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterInteger
@@ -19,6 +20,8 @@ unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableAtRoot
 unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpression
 unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
 unordered-chain meta::pure::executionPlan::tests::testTemporalDateVariableInPropertySequence
+unordered-chain meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
+unordered-chain meta::pure::executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping
 unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test1
 unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test2
 unordered-chain meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseJoin

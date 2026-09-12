@@ -768,7 +768,11 @@ class JavaEvalLedgerTest {
             // store when exactly one corpus fixture does (the platform's
             // ProgramFacts.seedsStores, typed element references) — model
             // navigation and a listener call, no SQL text, no judgment
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1145),
+            // 1145 -> 1143 (corpus-zero cluster B, 2026-09-12): the plan-text
+            // arm accepts the MAPPING-LESS executionPlan(lambda, extensions)
+            // — the rows read is the statement as written (its from() binds
+            // the mappings) — two lines fewer; shrink re-pinned
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1143),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

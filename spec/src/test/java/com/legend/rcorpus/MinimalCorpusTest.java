@@ -344,7 +344,13 @@ class MinimalCorpusTest {
     // their fixture holds no calendar row for the plan's date, so the
     // referee's row verdict declines on an empty Allocation and the equal
     // text decides; new passes, not weakened ones — measured, both lanes
-    private static final int[] DUCKDB_STRENGTH = {1539, 46, 25};
+    // {1539, 46, 25} -> {1543, 53, 25} (the mapping-less plan arm, 2026-09-12):
+    // the plan tests of that shape leave the LITERAL bucket (a plain literal
+    // compare, never counted as text-decided) — seven are decided by text
+    // (the same passes, now counted where they belong: LITERAL 862 -> 853,
+    // SPELLING 46 -> 53) and four are judged by ROWS (differential 1539 ->
+    // 1543, two of them new passes: testTwoMappingsOneRuntime ×2); measured
+    private static final int[] DUCKDB_STRENGTH = {1543, 53, 25};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -359,7 +365,9 @@ class MinimalCorpusTest {
     // {1378, 55, 25} -> {1384, 50, 25} on 2026-09-12 (fixture on demand): the
     // same move on the H2 lane (see DUCKDB_STRENGTH)
     // spelling 50 -> 52 (the same two calendar plan rows on the H2 lane)
-    private static final int[] H2_STRENGTH = {1384, 52, 25};
+    // {1384, 52, 25} -> {1387, 60, 25}: the same bucket move on the H2 lane
+    // (LITERAL 684 -> 675, SPELLING 52 -> 60, differential 1384 -> 1387)
+    private static final int[] H2_STRENGTH = {1387, 60, 25};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -461,12 +469,21 @@ class MinimalCorpusTest {
     // more precise decline than "underivable" and moves the count between
     // the two reasons; the other four are judged by rows (one passes:
     // testTemporalDateVariableInFunctionExpressionWithPropagation).
+    // rows-underivable 19 -> 24 (DuckDB) / 27 -> 33 (H2), oracle-declined 27 -> 28 /
+    // 33 -> 34, 2026-09-12 (corpus-zero cluster B, the MAPPING-LESS plan arm):
+    // plain assertEquals over executionPlan(lambda, extensions) text now routes
+    // to the plan arm (rows first) instead of a plain literal compare, so the
+    // tests of that shape are COUNTED for the first time: five read stores no
+    // fixture seeds (the plan tests' own Firm / SPerson tables — fixture on
+    // demand finds no unique seeder) and decline as underivable, one hits the
+    // in-list temp table the referee lacks; all six still pass by their equal
+    // text, and two more (testTwoMappingsOneRuntime ×2) pass by ROWS
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 19, "plan-params-unbindable", 6, "oracle-declined", 27,
+            "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 28,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 27, "plan-params-unbindable", 6, "oracle-declined", 33,
+            "rows-underivable", 33, "plan-params-unbindable", 6, "oracle-declined", 34,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on

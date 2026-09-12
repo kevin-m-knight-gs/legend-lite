@@ -242,11 +242,16 @@ final class JoinChecker {
     /**
      * The legacy TDS SHARED-KEY join {@code join(tds2, JoinType, ['id'])}:
      * both sides carry the key columns under the SAME names, and the engine
-     * keeps exactly ONE copy in the output. The modern {@code T+V} algebra
-     * would (rightly) reject the collision, so: rename the right side's keys
-     * to synthetic names, run the modern join on the renamed condition, then
-     * SELECT the synthetic copies away — the whole dedup is visible in the
-     * typed tree, no schema-algebra bypass.
+     * keeps exactly ONE copy in the output — MERGE BY NAME (engine tds.pure
+     * join/5 + processTdsJoinOnColumns: a qualified equality per key pair,
+     * the left's columns then the right's minus the shared names;
+     * RIGHT_OUTER keeps the right's). Typed like the prefix form: every
+     * argument against the modern join's registered signature, the
+     * condition with T and V bound, the merged schema stated here (the
+     * generic's T+V algebra would rightly reject the shared names). The
+     * lowering projects the merged list explicitly where sides overlap.
+     * (Until 2026-09-12 the right keys were renamed to a synthetic __jk_
+     * copy and selected away — row-equal, one subselect too many.)
      */
     private static @com.legend.Nullable TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
@@ -269,73 +274,52 @@ final class JoinChecker {
         // DUPLICATE key entries (corpus DupeJoinKeys: ['tradeDate','tradeDate'])
         // are redundant equalities — one rename + one condition per distinct key
         keys = new java.util.ArrayList<>(new java.util.LinkedHashSet<>(keys));
-        // WHICH side's key values survive is join-type-dependent (engine
-        // tds.pure requiredLeftCols/requiredRightCols + the RightOuter
-        // golden: fID carries the RIGHT side's values, no TDSNull): the
-        // OUTER-PRESERVED side keeps its keys — RIGHT_OUTER renames the
-        // LEFT copies away; everything else keeps the left.
         boolean rightKeeps = kind.value().equals("RIGHT_OUTER");
-        // collision-safe synthetic prefix (ordinal bump against BOTH
-        // sides' columns — a real __jk_* column must survive untouched)
-        java.util.Set<String> taken = new java.util.LinkedHashSet<>();
-        for (ValueSpecification side : List.of(ps.get(0), ps.get(1))) {
-            if (Type.relationSchema(t.synth(side, env).info().type())
-                    instanceof Type.RelationType srt) {
-                srt.columns().forEach(c -> taken.add(c.name()));
-            }
-        }
-        String jkPrefix = "__jk_";
-        int ordinal = 2;
-        while (hasJkCollision(jkPrefix, taken)) {
-            jkPrefix = "__jk" + ordinal++ + "_";
-        }
-        ValueSpecification left = ps.get(0);
-        ValueSpecification right = ps.get(1);
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification cond = null;
-        List<String> synthetic = new java.util.ArrayList<>(keys.size());
         for (String k : keys) {
-            String s = jkPrefix + k;
-            synthetic.add(s);
-            ValueSpecification eq;
-            if (rightKeeps) {
-                left = new AppliedFunction("rename",
-                        List.of(left, new ColSpec(k), new ColSpec(s)));
-                eq = new AppliedFunction("equal", List.of(
-                        new AppliedProperty(a, s), new AppliedProperty(b, k)));
-            } else {
-                right = new AppliedFunction("rename",
-                        List.of(right, new ColSpec(k), new ColSpec(s)));
-                eq = new AppliedFunction("equal", List.of(
-                        new AppliedProperty(a, k), new AppliedProperty(b, s)));
-            }
+            ValueSpecification eq = new AppliedFunction("equal", List.of(
+                    new AppliedProperty(a, k), new AppliedProperty(b, k)));
             cond = cond == null ? eq : new AppliedFunction("and", List.of(cond, eq));
         }
         AppliedFunction modern = new AppliedFunction("join", List.of(
-                left, right,
+                ps.get(0), ps.get(1),
                 new EnumValue("meta::pure::functions::relation::JoinKind",
                         joinKindNameOf(kind)),
                 new LambdaFunction(List.of(a, b), List.of(cond))));
-        TypedSpec joined = check(t, modern, env);
-        Type.RelationType rt = java.util.Objects.requireNonNull(
-                Type.relationSchema(joined.info().type()),
-                "join result must be a relation");
-        List<Type.Column> kept = rt.columns().stream()
-                .filter(c -> !synthetic.contains(c.name())).toList();
-        return new com.legend.compiler.spec.typed.TypedSelect(joined,
-                kept.stream().map(Type.Column::name).toList(),
-                new ExprType(Type.relation(new Type.RelationType(kept)),
-                        joined.info().multiplicity()));
-    }
-
-    private static boolean hasJkCollision(String prefix, java.util.Set<String> taken) {
-        for (String t : taken) {
-            if (t.startsWith(prefix)) {
-                return true;
+        TypedFunction sig = t.model().findFunction(com.legend.builtin.Pure
+                        .JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1.qualifiedName())
+                .stream().filter(f -> f.parameters().size() == 4).findFirst()
+                .orElseThrow(() -> new TypeInferenceException(
+                        "the relation join is not registered"));
+        Bindings bnd = new Bindings();
+        TypedSpec left = Checkers.unifiedArg(t, sig, 0, modern, bnd, env);
+        TypedSpec right = Checkers.unifiedArg(t, sig, 1, modern, bnd, env);
+        TypedSpec kindArg = Checkers.unifiedArg(t, sig, 2, modern, bnd, env);
+        if (!(kindArg instanceof TypedEnumValue tk)) {
+            throw new TypeInferenceException("join expects a JoinKind");
+        }
+        TypedLambda tc = (TypedLambda) t.typeLambda(
+                (LambdaFunction) modern.parameters().get(3),
+                sig.parameters().get(3).type(), bnd, env);
+        Type.RelationType lrt = Type.requireRelationSchema(left.info().type());
+        Type.RelationType rrt = Type.requireRelationSchema(right.info().type());
+        List<Type.Column> kept = new java.util.ArrayList<>();
+        for (Type.Column c : lrt.columns()) {
+            if (!(rightKeeps && keys.contains(c.name()))) {
+                kept.add(c);
             }
         }
-        return false;
+        for (Type.Column c : rrt.columns()) {
+            if (!(!rightKeeps && keys.contains(c.name()))) {
+                kept.add(c);
+            }
+        }
+        return new TypedJoin(left, right, tk, tc, Optional.empty(), null,
+                new ExprType(Type.relation(new Type.RelationType(kept)),
+                        sig.returnMultiplicity()),
+                true /* USER condition: the legacy keys, equated */);
     }
 
     private static String joinKindNameOf(EnumValue kind) {

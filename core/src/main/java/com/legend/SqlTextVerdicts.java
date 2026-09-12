@@ -771,13 +771,16 @@ final class SqlTextVerdicts {
                 }
             }
         }
-        if (!(lamArg instanceof TypedLambda lam)
-                || lam.body().isEmpty()
-                || producer.args().size() < 2
-                || !(producer.args().get(1)
-                        instanceof TypedPackageableRef mapping)) {
+        if (!(lamArg instanceof TypedLambda lam) || lam.body().isEmpty()) {
             return null;
         }
+        // the MAPPING-LESS executionPlan(lambda, extensions) (corpus-zero
+        // cluster B, 2026-09-12): the query binds its mappings itself
+        // through from() — testTwoMappingsOneRuntime joins two from()
+        // sides over two mappings — so the rows read is the statement
+        // as written, and the referee decodes no enum by mapping
+        TypedPackageableRef mapping = producer.args().size() >= 2
+                && producer.args().get(1) instanceof TypedPackageableRef m ? m : null;
         String golden = scalarString(StatementExecutor.evalValue(
                 goldenSide, letPrefix, specs, env, null, false, hook));
         String ours = scalarString(StatementExecutor.evalValue(
@@ -825,13 +828,13 @@ final class SqlTextVerdicts {
         // renderCollection, GMTtoTZ, ...) is the oracle's plan replay
         // (batch 66): the referee runs the plan's nodes in order.
         String replay = filled.contains("${") ? null : planReplaySql(filled);
-        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
-                com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                        lam.body().get(lam.body().size() - 1), mapping, planCtx),
-                replay, mapping.fullPath(), rootClassFqn(lam),
-                AssertVerdicts.replayFacts(lam.body().get(lam.body().size() - 1), bound),
-                AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                        lam.body().get(lam.body().size() - 1), mapping, planCtx)), bound,
+        TypedSpec last = lam.body().get(lam.body().size() - 1);
+        TypedSpec read = mapping == null ? last
+                : com.legend.compiler.spec.VerdictQueries.fromWrapped(last, mapping, planCtx);
+        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle, read,
+                replay, mapping == null ? null : mapping.fullPath(), rootClassFqn(lam),
+                AssertVerdicts.replayFacts(last, bound),
+                AssertVerdicts.unpagedRead(read), bound,
                 specs, env, hook, lam,
                 replay == null ? golden : null, bindings.lists());
     }

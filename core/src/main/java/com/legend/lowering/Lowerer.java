@@ -2046,9 +2046,10 @@ public final class Lowerer {
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
-            // star frame: outputs are the SOURCE's own (Join.outputs()
-            // carries the pad truth) — starOf already read them
-            return out;
+            // star frame (Join.outputs() carries the pad truth); sides that
+            // SHARE names project the merged list (SqlProbes.mergedByName)
+            return SqlProbes.mergedByName(source, outputsOf(info))
+                    .map(out::withProjections).orElse(out);
         }
         // Outputs-from-projections: the star carries the left side's
         // whole list; explicit columns attach their contract slot —

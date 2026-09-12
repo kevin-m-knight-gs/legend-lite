@@ -1335,3 +1335,63 @@ these two. Size guards tripped once (StoreResolver 3502 / resolveObject 256,
 EngineStyleH2.expr 254) and were paid by moving the head computation into
 InnerDemand and tightening the renderer's comment. Chain:
 `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates 1–9.
+
+## Lean shared-key join + the mapping-less plan arm — 2026-09-12 (corpus-zero program, cluster B)
+
+**Ruling that shaped it (USER, this session):** product SQL is LEAN — the
+fewest wrappers and subselects, human-readable, only as lean as correct and no
+more; SQL text may diverge from the engine when ours is better and rows match;
+the ruling governs the product renderer, not the engine-style parity channel.
+
+**The rows.** `testTwoMappingsOneRuntime` and `…WithoutExternalMapping`: the
+legacy shared-key TDS join `join(tds, tds, JoinType, ['legalName'])`, judged by
+plain `assertEquals` over the plan text.
+
+**Homework (engine, read).** `tds.pure join/5` and
+`pureToSqlQuery_deprecated.pure processTdsJoinOnColumns:541`: both sides become
+aliased subselects, the condition is one qualified equality per key pair — NO
+rename — and the joined select's columns are MERGED BY NAME: the left's, then
+the right's minus the shared names (RIGHT_OUTER keeps the right's); a shared
+non-key name is an assertion error; the whole join is wrapped once more. Ours
+renamed the right key to a synthetic `__jk_k`, ran the modern join and selected
+the copy away — row-equal, one subselect too many, and a shape the engine
+never emits. Corpus usage of the shared-name form: three tests (this pair plus
+one calendar test, row-judged). A first attempt through the generic check
+failed on the duplicate name (the typer's T+V algebra, as the old comment
+said); the registered-signature route is the design, like the prefix form.
+
+**What landed.**
+- `JoinChecker.sharedKeyLegacyJoin`: arguments checked against the modern
+  join's registered signature, the condition typed with T and V bound, the
+  merged schema stated by the engine's rule. No synthetic column anywhere.
+- `Lowerer.joined` + `SqlProbes.mergedByName`: a join whose sides share names
+  projects the merged list explicitly (qualified by side, padded by kind); a
+  star frame otherwise. The product SQL is now one select over the two sides —
+  no rename subselect, no outer wrapper — leaner than both our old text and the
+  engine's.
+- `SqlTextVerdicts.tryArmPlanText`: the MAPPING-LESS `executionPlan(lambda,
+  extensions)` — the query binds its mappings through `from()` — routes to the
+  plan arm; the rows read is the statement as written, the referee decodes no
+  enum by mapping. Before, that shape fell to a plain literal compare and its
+  rows were never judged.
+
+**Measured, full corpus, both lanes, 0 LOST:**
+
+| | DuckDB | H2 |
+|---|---|---|
+| fail roster | 113 → 111 | 446 → 444 |
+| rows-underivable / oracle-declined (text-decided) | 19 → 24 / 27 → 28 | 27 → 33 / 33 → 34 |
+| strength {differential, spelling, cardinality} | {1539,46,25} → {1543,53,25} | {1384,52,25} → {1387,60,25} |
+| unordered-chain register | 1373 → 1377 | 1284 → 1287 |
+
+The two rows pass by ROWS with the lean SQL (the referee replays the engine's
+plan text and compares). The ceiling and strength moves are one
+re-classification: plain-literal plan asserts were never counted; routed to the
+arm, seven per lane decline honestly (five read the plan tests' own `Firm` /
+`SPerson` tables that no fixture seeds — fixture on demand finds no unique
+seeder; one hits the in-list temp table the referee lacks) and still pass by
+their equal text (LITERAL → SPELLING), and four more are judged by rows
+(differential +4, two of them the new passes). Size guard: Lowerer 3502 → 3500
+by a shorter comment. Chain: `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates
+1–9; per gate: build 24s, G1 68s, G3 12s, G4 95s, G5 47s (stream A 222s = the
+critical path), G6 139s, G7 35s, G9 28s, G8 146s — 246s wall.

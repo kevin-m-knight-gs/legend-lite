@@ -56,8 +56,8 @@ one or two spellings in the plan-text channel
 | `executionPlan::tests::testGroupByWithOpenVariableInAgg` | BURNED 2026-09-12 (FIX) — fixture on demand seeds its store, but the fixture has no calendar row for 2005-10-10 (empty Allocation: rows cannot judge; text is the verdict). The join order was PHASE order (a nav-date chain registers first and sinks deepest), found by a stack probe in the TypedJoin constructor; `resolver/SlotOrder` now re-sequences the root's step joins into first-read order at the root materialization (GATES: Join order by first read); passes by text, both lanes |
 | `executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter` | BURNED 2026-09-12 (FIX) — the same reorder, plus `PlanParam.Kind.STRICT_DATE`: a StrictDate let spells `DATE'${startDate}'` where pure Date spells TIMESTAMP; passes by text, both lanes |
 | `executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation` | BURNED 2026-09-12 (FIX, referee) — fixture on demand seeds the store its mapping reads; judged by ROWS, both lanes (GATES: Fixture on demand) |
-| `executionPlan::tests::testTwoMappingsOneRuntime` | TODO |
-| `executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping` | TODO |
+| `executionPlan::tests::testTwoMappingsOneRuntime` | BURNED 2026-09-12 (FIX + referee) — the legacy shared-key TDS join types as its own thing (merged schema by the engine's tds.pure rule, no synthetic `__jk_` rename) and lowers to ONE select over the two sides (lean product SQL, USER ruling); the plan arm accepts the mapping-less `executionPlan(lambda, extensions)`; passes by ROWS, both lanes (GATES: Lean shared-key join) |
+| `executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping` | BURNED 2026-09-12 — same as the row above; passes by ROWS, both lanes |
 | `query::filter::isempty::testIsEmptyOnCollection` | HIJACKED 2026-09-12 — the text channel spells an optional collection parameter's emptiness with the engine's `(${collectionSize(name![])})` template (both lanes) |
 
 ### C. plan text — node kinds — 12 rows — ladder: HIJACK
