@@ -8,6 +8,21 @@ main at ce7136e8f. Corrections to the sampled draft are marked **[full-read]**. 
 built. Parent: docs/ARCHITECTURE_REMEDIATION.md §T4.1 (pending since 2026-08-06); trigger:
 docs/WALKS_AND_REACHBACKS_CENSUS_2026_09_13.md.
 
+## NOT YET VERIFIED — treat as questions, not facts
+
+1. **Mapped-class ordering (step 2).** Whether a LATER mapping's synthesis in one normalize
+   pass reads a mapped-ness an EARLIER mapping's implicit Inheritance op registered
+   (`ImplicitInheritance.java:202` → `JoinChainEmission.java:817`). If yes, "compute
+   mapped-ness up front from every mapping's class mappings" must reproduce that; if no, the
+   up-front form is simply correct. Settle by a println probe at `:202` and `:817` over the
+   corpus before step 2 is designed in detail.
+2. **F1 before ≡ F1 after (the no-loss argument).** Verified by READING (§5), not by the
+   test that makes it unarguable: build the knowledge layer twice, before and after E, and
+   diff. That test is step 2's first deliverable, before any index is moved.
+3. **Step 3's true shape.** Fourteen walkers, ~100 call sites, and the sites consume raw
+   `TypeExpression`s (§4 caveat). The per-family cost is an ESTIMATE until the first family
+   (subtype, 10 sites) is migrated and measured.
+
 ## 0. The one-paragraph version
 
 The compiler runs `parse → name-resolve → E (normalize) → F (compile elements, type kernel,
@@ -252,3 +267,92 @@ package-info idempotence claim.
   the pin in `tools/oracle-pins.env`.
 - Land: GATES record with per-gate times; ledger row; commit named files only; push; watch CI
   with the full sha.
+
+## 11. The first hour of a fresh session (do this before writing any code)
+
+**Read, in this order (about 40 minutes):**
+1. This document, whole.
+2. `ModelNormalizer.java` whole (408 lines) — E.0 at `:146-209` is what step 1 moves.
+3. `MappingNormalizer.java:127-486` — the per-mapping driver; nothing below it changes in
+   steps 1–2.
+4. `Compiler.java:225-345` — both normalize callers (`:271` boot, `:331` user) and the layer
+   union (`:339-344`).
+5. `PureModelContext.java:60-135` — the gate, the copies, the memoized subtype.
+6. `ModelBuilder.java:257-345` — `from`, the phases, the cross-bake (`:292-296`).
+
+**Two probes (already run 2026-09-13, results below — re-run if the pin moved):**
+- *Which real models exercise E.0?* Associations declaring qualified properties in the
+  corpus universe: `meta::relational::tests::model::simple::ProdSynonym`
+  (`core_relational/relational/tests/testModel/simpleTestModel.pure:449-456`: distinct end
+  classes Synonym/Product; `synonymByType(type)` returns `Synonym[1]`, `synonymsByTypes(types)`
+  returns `Synonym[*]` → owner = the OTHER end, Product), `…::inheritance::VehicleOwnerVehicle`
+  (`inheritanceTestModel.pure:124-132`: `ownedVehiclesWithEmptyDescription()` returns
+  `Vehicle[*]` → owner VehicleOwner), the validation showcase's `ProdSynonym`, and legend-pure's
+  `meta::pure::functions::tests::model::ProdSynonym`. Twelve corpus files read those qualified
+  properties. So E.0 is exercised on every corpus run — step 1's zero-rows-moved expectation
+  is a REAL measurement, not a vacuous one.
+- *Is there an existing witness of E.0?* No. `ResolveDerivedLeafProbeTest` tests a CLASS
+  derived property, not association adoption. Step 1's witness is new; model it on
+  ProdSynonym's shape (distinct ends, parameterized qualifier, both return multiplicities),
+  add a self-association case, and the no-unique-end error.
+
+**Then, and only then:** step 1.
+
+## 12. Stop rules (stop and REPORT — do not push on)
+
+- A LOST corpus row that you cannot explain as a wrong-all-along answer with the engine's
+  own source as the receipt.
+- A guard that needs a pin moved and you cannot write the reason in one honest sentence.
+- The third fix cycle on one step (the clean-sheet rule: revert, write what you learned,
+  re-plan one decided batch).
+- The step requires editing a file this document does not name for that step.
+- A "not yet verified" item (top of this doc) turns out false.
+- Anything that makes the DuckDB or H2 roster GROW, for any reason, before the batch lands.
+
+Reporting means: what was tried, what the corpus/guard said verbatim, what you think it means,
+and the options — then wait. Never choose a fix because it makes the failing thing pass.
+
+## 13. Done criteria per step (a step is done when ALL of these hold; none before)
+
+**Step 1.**
+- `ModelNormalizer.java` contains no `adoptAssociationDerivedProperties` and no
+  `new ClassDefinition`; it asserts (throws) if any association still carries qualified
+  properties when normalize runs.
+- `compiler/KnowledgeLayer` (or the name the session chooses in `compiler`) carries the
+  adoption verbatim; its two errors are Phase.MODEL and tolerant-aware (strict: throw;
+  module: wall the association, message unchanged).
+- Both callers routed (`Compiler.java:271` and `:331`); the boot layer still compiles once.
+- Witness with four cases (distinct ends → other-end owner, parameterized qualifier, self-
+  association → self owner, no-unique-end error) green.
+- Full corpus both lanes: 0 LOST, 0 GAINED (rosters DuckDB 108 / H2 444 unchanged).
+- Chain green; GATES record with per-gate times; ledger row; pushed; CI green on the full sha.
+
+**Step 2.**
+- Exactly ONE `ModelBuilder.from(` call in the model-compile path (grep receipt in the
+  GATES record); `ModelNormalizer.java:123` and `PureModelContext.java:98` gone.
+- The five §3 channels: no `model.mappingPoisons|mixedUnions|unionKeyThreads|
+  requiredNullableRows()|registerMappedClass` write anywhere under `normalizer/` (an
+  ArchitectureTest rule pins it); each fact stamped on its artifact or carried as a
+  `NormalizedModel` product.
+- The F1-before ≡ F1-after test exists and passes (verified item 2).
+- Verified item 1 settled and written in the GATES record with its probe output.
+- 0 LOST / 0 GAINED; chain, record, ledger, push, CI as step 1.
+
+**Step 3 (per family).**
+- The family's shadow functions have zero callers under `normalizer/` (the shrink-only pin
+  moved DOWN by the family's count, with the new number in the pin's reason).
+- Every site's null guard is gone; a loud path replaced it.
+- Any LOST row adjudicated in the ledger (FIX or ACCEPT with the engine receipt) before
+  landing; 0 GAINED-for-the-wrong-reason.
+- The bare-superclass-name gap (§9) closed in name-resolve BEFORE the subtype family lands.
+
+**Step 4.**
+- `LegacyReachbackCensusTest` at ZERO for the normalizer's include walks (the pinned nine
+  gone); `collectIncludedSetIds`, `collectMappingClosure`, `findSetById`, `memberOrdinalOf`,
+  `unionForClass`, `inheritanceForClass`, `collectRootClassMappings`,
+  `collectPairAssociationEntries` deleted or reduced to readers of the stamped fact.
+- Include cycles still loud (the `resolveAllStores` witness extended to the new facts).
+
+**Steps 5–6.** Validation before E with §6's line held (strict rejects, module defers — a
+witness for each); the walkers deleted; the package-info doc corrected; the shadow-walker
+pin at zero.
