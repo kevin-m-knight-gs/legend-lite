@@ -50,14 +50,22 @@ final class MappingLedger {
     /** The graph-wide mapped-class fact (computed before any synthesis). */
     final MappedClasses mapped;
 
+    /** The PRE-PASSED records of this mapping's closure (extends
+     * flattened): the routes a set navigates with, inherited ones
+     * included — what the link-key publication and the union's inbound
+     * chain scan both read. Empty for a scratch ledger. */
+    final List<com.legend.model.LegacyMappingDefinition> closureRecords;
+
     MappingLedger(MappedClasses mapped) {
-        this(mapped, Map.of());
+        this(mapped, Map.of(), List.of());
     }
 
     MappingLedger(MappedClasses mapped,
-            Map<String, Map<String, Map<String, String>>> everyPublication) {
+            Map<String, Map<String, Map<String, String>>> everyPublication,
+            List<com.legend.model.LegacyMappingDefinition> closureRecords) {
         this.mapped = mapped;
         this.everyPublication = everyPublication;
+        this.closureRecords = closureRecords;
     }
 
     void census(String bucket, String witness) {

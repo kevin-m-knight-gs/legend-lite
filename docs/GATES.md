@@ -2269,3 +2269,70 @@ and the re-bind criterion); Pipelines 2,271 → 1,990 (the per-set widening gone
 1,512 → 1,510; MemberColumns deleted. Diff: 24 files, +897 / −687.
 
 **Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** second run GREEN: G1 72s, G2 24s, G3 11s, G4 117s, G5 60s, G6 139s, G7 38s, G8 144s, G9 29s (GATES_PARALLEL=1). No own-corpus pin moved. **CI.** b5076e4f0: gates green.
+
+## Clean-sheet B3.2 — chained routes keep their mids in the arm — 2026-09-13
+
+**Why.** After B3.1b every navigator into a union read one link-key name — except a per-arm
+CHAINED route (member routes that diverge before their last hop), whose arm still projected
+ordinal-named chain keys (`fk1__y_1`) that the navigator read by ordinal: the last set-ordinal
+spelling in any generated function. The homework note planned the engine's 2-set form (the
+chain's prefix as the navigator's own joins, the last hop one more single-hop route).
+
+**What the receipts said, after building that form.** Built, installed, judged: nine rows
+LOST on both lanes — the whole `multipleChainedJoins` V4/V5 family, both
+`unionMappingWithJoinSequenceInProperty` tests, `unionOfViews2`. Two causes, both in the rows.
+Two mids joined as navigator siblings MULTIPLY the rows (each union row matches through one
+disjunct while the other mid's rows fan out: 5 → 13, and 5 → 9 after keys were shape-indexed
+by prefix); a three-hop prefix hits the resolver's deep-composite wall. The engine's goldens
+for exactly those tests (`testUnionWithChainedJoinsAcross3SetsV4`, `testUnionOfViewsWithFilter
+InQualifiedPropertyAndNonOverlappingJoinSequnece`) root each arm at the chain's FIRST mid and
+project that mid's column as the arm's key; the navigator-side form appears only in the 2-set
+goldens, the one-mid special case. Reverted the attempt; kept push-into-arm (docs/NORMALIZER_
+CLEAN_SHEET_HOMEWORK_2026_09_13.md §6 B3.2 has the receipts).
+
+**What landed.**
+- The arm's chain key is spelled by the link-key rule: `linkKeyName(navigating identity,
+  property, shape, position)` over the route's FIRST hop. `UnionSynthesis.routeKeyCondition`
+  picks the hop both sides name by — the last hop for a single-hop or shared-prefix route, the
+  first hop for a per-arm chain — from the group's `uniform` verdict; `hopCondition(j, idx)`
+  generalizes the B3.1b `lastHopCondition`. The navigator's in-arm branch and `RouteEntry.inArm`
+  are gone: every route, chained or not, reads one name; the `col__prop_ord` spelling is gone
+  from every navigator.
+- A chain key is a published FACT like any key (`linkKeys`: name → the mid's column), so an
+  includer whose closure adds such a route re-binds the union by the same publication comparison
+  (`extend::testProjectThroughAssoWithMultiJoinInMapping`: the child set inherits the parent's
+  chained PMs). The union's inbound chain scan reads the PRE-PASSED closure records
+  (`MappingLedger.closureRecords`, a final constructor argument) exactly as the publication does.
+- Every thread projects the union-wide key names in ONE order: the concatenation aligns by
+  position, so a thread that skipped a name had its columns RENAMED by position
+  (`ConcatenateChecker`) and hit the "TypedRename above join slot" wall. The owning thread reads a
+  chain key off its mid slot; a member's own published column beats a sibling chain's typed NULL;
+  a sibling types the NULL by the mid's column kind (`chainKeyNull`).
+- KEPT: `inboundArmSteps`, `LiftChain`, `chainsSink` (the mids in the arm ARE the design);
+  `routedTargetGainsOperation` (include-direction reclassification); a union's own lifted-chain
+  source keys (`fk1__z_1`, thread-internal, never read by another class).
+
+**Corpus adjudication (rows judged).** Navigator-side attempt 9 → 7 LOST, reverted. Push-into-arm
+respelling: 6 → 1 → 0 (the duplicate `z0_y` column: a chain key colliding with a sibling's
+published name; the renamed threads; the extend family's inherited routes; the missing y0 row
+when a sibling chain's NULL outranked the member's own column).
+
+**Witness.** `RoutedChainKeyTest`: one single-hop route and one chained route into a union; rows
+`1|11`, `2|22` with a trap row sharing the direct key; the SQL carries `a0_b`, one equality, no
+OR, no `__b_<n>` name, the mid inside the arm after `UNION ALL`.
+
+**OWED.** A member's own outbound lift and an inbound chain can join the same mid twice (2SetsV4:
+`A` twice in y1's thread — pre-existing, dedup is by slot alias, not by table + condition).
+
+**Pins (first chain RED on G1 only).** `JdbcSurfaceCensusTest`: the new witness opens its own
+DuckDB connection like `ResolveUnionChainTest` beside it — registered with the tenet line (rows
+are the verdict). A test-only pin move: gate 1 re-run alone after the registration, every other
+gate green on the first run (G7 Relation PCT at its floor 469 / 1 / 26).
+
+**Sizes (against B3.1b).** UnionSynthesis 3,217 → 3,288 (the fact publication for chain keys,
+`hopCondition`/`routeKeyCondition`, the one-order projection, `chainKeyNull`); JoinChainEmission
+1,076 → 1,063 (the in-arm branch gone); MappingLedger +12 (`closureRecords`); MappingNormalizer
++2. Diff: 7 files.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** Green (G1 on the re-run after the
+census registration; G2–G9 on the first run).

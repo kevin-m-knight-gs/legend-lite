@@ -470,7 +470,7 @@ final class JoinChainEmission {
 
     /** One routed entry before suffixing: its RAW translated condition. */
     private record RouteEntry(UnionSynthesis.UnionRoute route, ValueSpecification raw,
-            String db, String tgt, boolean inArm) {
+            String db, String tgt) {
     }
 
     private static RoutedNav routedNavigation(Pipeline p,
@@ -492,8 +492,8 @@ final class JoinChainEmission {
             // physical joins above). PER-ARM chains contribute
             // their FIRST hop sourced at the main table — the
             // mids live INSIDE the owning member's thread
-            // (push-into-arm) and the target side reads the
-            // property-scoped chain keys that thread projects.
+            // (push-into-arm) and the target side reads the link
+            // key that thread publishes for the route.
             List<JoinChainElement> rChain = route.join().joins();
             boolean rInArm = perArm && rChain.size() > 1;
             JoinChainElement rHop = rInArm ? rChain.get(0)
@@ -529,33 +529,20 @@ final class JoinChainEmission {
             ValueSpecification rCond = RelOpTranslator.translate(
                     rJd.operation(), rScope, t, null,
                     RelOpTranslator.PipelineView.NONE);
-            entries.add(new RouteEntry(route, rCond, rDb, rTgt, rInArm));
+            entries.add(new RouteEntry(route, rCond, rDb, rTgt));
         }
-        // IN-ARM chained routes (B3.2 moves them here): each reads the
-        // PROPERTY-SCOPED chain keys its member thread projects, one
-        // disjunct per route
-        List<RouteEntry> singleHop = new ArrayList<>();
-        for (RouteEntry e : entries) {
-            if (!e.inArm()) {
-                singleHop.add(e);
-                continue;
-            }
-            Map<String, String> out = new LinkedHashMap<>();
-            ValueSpecification rCond = UnionSynthesis.suffixTargetReads(e.raw(), t,
-                    "__" + propName + "_" + e.route().targetOrdinal(), out);
-            for (var en : out.entrySet()) {
-                keyCols.put(en.getValue(), new String[]{en.getKey(), e.db(), e.tgt()});
-            }
-            orCond = UnionSynthesis.orDistinct(orCond, rCond);
-        }
-        // SINGLE-HOP routes (B3.1b): the target reads are the LINK KEYS
-        // the routed members publish — named by THIS set and the property,
-        // by position — so every route's condition reads the same names
-        // and routes that share a source side collapse to ONE condition
-        // (one equality the database hashes, whether the members' physical
-        // columns agree or not). The navigating class says only what its
-        // own property mapping and Joins say: no member ordinal, no set
-        // id, no column of another set.
+        // The target reads are the LINK KEYS the routed members publish —
+        // named by THIS set and the property, by position — so every
+        // route's condition reads the same names and routes that share a
+        // source side collapse to ONE condition (one equality the database
+        // hashes, whether the members' physical columns agree or not). A
+        // per-arm chained route's key is the column of its FIRST mid,
+        // which the member's thread carries (B3.2: the engine's 3-set
+        // chained-union and non-overlapping join-sequence goldens root each
+        // arm at its first mid and project that column as the arm's key).
+        // The navigating class says only what its own property mapping and
+        // Joins say: no member ordinal, no set id, no column of another set.
+        List<RouteEntry> singleHop = entries;
         String navProp = java.util.Objects.requireNonNull(propName,
                 "a routed navigation names its property");
         String navSet = UnionSynthesis.navigatingIdentity(md,

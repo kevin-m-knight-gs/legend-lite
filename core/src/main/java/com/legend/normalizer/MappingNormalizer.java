@@ -195,7 +195,8 @@ public final class MappingNormalizer {
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
                 // What this mapping's synthesis learns rides its own ledger,
                 // stamped on the compiled mapping — never the shared index.
-                MappingLedger ledger = new MappingLedger(pp.mapped(), published);
+                MappingLedger ledger = new MappingLedger(pp.mapped(), published,
+                        UnionSynthesis.prePassedClosure(pp, resolved));
                 java.util.Map<String, java.util.Map<String, String>> mine =
                         published.getOrDefault(md.qualifiedName(), java.util.Map.of());
                 mine.forEach((set, keys) -> ledger.linkKeys.computeIfAbsent(set,

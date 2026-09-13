@@ -989,7 +989,12 @@ final class UnionSynthesis {
                 srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>()).putAll(published);
             }
         }
-        collectInboundRouteKeys(md, new ArrayList<>(md.closure()), model,
+        // the inbound CHAINS (per-arm chained routes into a member: its
+        // thread carries the mids and publishes the first mid's column as
+        // the route's link key) — over the pre-passed records, so a set
+        // that extends another registers the routes it inherited
+        collectInboundRouteKeys(md, ledger.closureRecords.isEmpty()
+                        ? new ArrayList<>(md.closure()) : ledger.closureRecords, model,
                 members.stream().map(MappingView::idOf).toList(),
                 members, new LinkedHashMap<>(), chainsByOrdinal, ledger);
         recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model, ledger);
@@ -1201,14 +1206,42 @@ final class UnionSynthesis {
                     keyPhysical.putIfAbsent(key.getKey(), key.getValue());
                 }
             }
+            // a key this thread's OWN chain carries (B3.2: a per-arm chained
+            // route's key is its first mid's column) is read off the mid
+            // slot, whatever another member publishes under the name; the
+            // column ORDER is the union-wide key order in every thread (the
+            // concatenation aligns by position)
+            Map<String, ValueSpecification> ownChainReads = new LinkedHashMap<>();
+            Map<String, ValueSpecification> chainNulls = new LinkedHashMap<>();
+            for (var en : chainsByOrdinal.entrySet()) {
+                for (LiftChain ch : en.getValue()) {
+                    for (var key : ch.keys().entrySet()) {
+                        if (en.getKey() == ordinal) {
+                            ownChainReads.putIfAbsent(key.getValue(), new AppliedProperty(
+                                    new AppliedProperty(pp.rowBind(), java.util.Objects.requireNonNull(
+                                            ch.keyAlias(), "lift chain without a key alias")),
+                                    key.getKey()));
+                        }
+                        chainNulls.computeIfAbsent(key.getValue(),
+                                k -> chainKeyNull(ch, key.getKey(), md, model));
+                    }
+                }
+            }
+            Set<String> projectedKeys = new LinkedHashSet<>();
             for (var kn : keyNames.entrySet()) {
                 String name = kn.getKey();
+                projectedKeys.add(name);
                 String physical = java.util.Objects.requireNonNull(keyPhysical.get(name));
                 // a link key names a DIFFERENT physical column per member
-                // (FIRM_ID here, OWNER_ID there): this thread reads its own
+                // (FIRM_ID here, OWNER_ID there): this thread reads its own;
+                // a chain key is a MID's column: the owning thread reads it
+                // off its mid slot, the others type the NULL by the mid
                 String own = ownKeys.get(name);
-                ValueSpecification read = own != null
-                        ? new AppliedProperty(pp.rowBind(), own)
+                ValueSpecification chainRead = ownChainReads.get(name);
+                ValueSpecification chainNull = chainNulls.get(name);
+                ValueSpecification read = chainRead != null ? chainRead
+                        : own != null ? new AppliedProperty(pp.rowBind(), own)
+                        : chainNull != null ? chainNull
                         : MappingNormalizer.nullOfPhysicalKind((ClassMapping.Relational)
                                 members.get(kn.getValue()[0]), physical, md, model);
                 // toOne types both threads identically (real read vs
@@ -1259,7 +1292,7 @@ final class UnionSynthesis {
                             st.cond()));
                 }
             }
-            addChainedLiftCols(chainsByOrdinal, ordinal, pp, md, model, cols);
+            addChainedLiftCols(chainsByOrdinal, ownChainReads, pp, md, model, cols, projectedKeys);
             return new Thread(threadPipe, cols);
     }
 
@@ -1405,39 +1438,24 @@ final class UnionSynthesis {
      * ordinal reads its last-mid-slot keys; other ordinals project typed
      * NULLs of the mid table's column kind (engine 3-sets golden). */
     private static void addChainedLiftCols(
-            Map<Integer, List<LiftChain>> chainsByOrdinal, int ordinal,
+            Map<Integer, List<LiftChain>> chainsByOrdinal,
+            Map<String, ValueSpecification> ownChainReads,
             MappingNormalizer.RelationalParts pp, ResolvedMapping md,
-            ModelBuilder model, List<ColSpec> cols) {
-        // two chains may demand the same suffixed key column (two lifted
-        // props sharing one mid hop): ONE projection serves both
-        Set<String> projected = new LinkedHashSet<>();
+            ModelBuilder model, List<ColSpec> cols, Set<String> projectedKeys) {
+        // ONE projection per chain key name, in the same (registration)
+        // order for every thread, never a name the published keys already
+        // projected: this thread's own read where its chain carries the
+        // name, else a typed NULL of the mid column's kind
+        Set<String> projected = new LinkedHashSet<>(projectedKeys);
         for (var en : chainsByOrdinal.entrySet()) {
             for (LiftChain ch : en.getValue()) {
                 for (var key : ch.keys().entrySet()) {
                     if (!projected.add(key.getValue())) {
                         continue;
                     }
-                    ValueSpecification read;
-                    if (en.getKey() == ordinal) {
-                        read = new AppliedProperty(new AppliedProperty(
-                                pp.rowBind(), java.util.Objects.requireNonNull(ch.keyAlias(),
-                                        "lift chain without a key alias")),
-                                key.getKey());
-                    } else {
-                        // view-aware: chained lifts land on VIEW mid tables
-                        // too (unionOfViewsToViewToUnion)
-                        String kind = model.knowledge().columnKind(ch.keyDb(), ch.keyTable(), key.getKey());
-                        if (kind == null) {
-                            throw new NotImplementedException(
-                                    "chained union key column '" + key.getKey()
-                                    + "' has no derivable pure kind on table '"
-                                    + ch.keyTable() + "'; mapping="
-                                    + md.qualifiedName());
-                        }
-                        read = new AppliedFunction("cast", List.of(
-                                new PureCollection(List.of()),
-                                new TypeAnnotation.Named(
-                                        new TypeExpression.NameRef(kind))));
+                    ValueSpecification read = ownChainReads.get(key.getValue());
+                    if (read == null) {
+                        read = chainKeyNull(ch, key.getKey(), md, model);
                     }
                     read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
                     cols.add(new ColSpec(key.getValue(), new LambdaFunction(
@@ -1445,6 +1463,22 @@ final class UnionSynthesis {
                 }
             }
         }
+    }
+
+    /** A typed NULL of a chain key's mid column (view-aware: chained lifts
+     * land on VIEW mid tables too — unionOfViewsToViewToUnion). */
+    private static ValueSpecification chainKeyNull(LiftChain ch, String col,
+            ResolvedMapping md, ModelBuilder model) {
+        String kind = model.knowledge().columnKind(ch.keyDb(), ch.keyTable(), col);
+        if (kind == null) {
+            throw new NotImplementedException(
+                    "chained union key column '" + col
+                    + "' has no derivable pure kind on table '"
+                    + ch.keyTable() + "'; mapping=" + md.qualifiedName());
+        }
+        return new AppliedFunction("cast", List.of(
+                new PureCollection(List.of()),
+                new TypeAnnotation.Named(new TypeExpression.NameRef(kind))));
     }
 
     /** The embedded distribution: dotted-path leaf sets ("firm" ->
@@ -1921,15 +1955,38 @@ final class UnionSynthesis {
     static @com.legend.Nullable ValueSpecification lastHopCondition(PropertyMapping.Join j,
             @com.legend.Nullable String navigatingTable, ResolvedMapping md,
             ModelBuilder model, Variable s, Variable t) {
-        JoinChainElement hop = j.joins().get(j.joins().size() - 1);
+        return hopCondition(j, j.joins().size() - 1, navigatingTable, md, model, s, t);
+    }
+
+    /** The condition a route's link key is named and paired by: its LAST
+     * hop for a single-hop route or a chain whose group shares a prefix
+     * (the navigator lands there), its FIRST hop for a per-arm chain (the
+     * mids ride the routed member's thread, which projects the first mid's
+     * column as the key — B3.2). The navigator and the member side call
+     * this with the same {@code uniform} verdict over the same group. */
+    static @com.legend.Nullable ValueSpecification routeKeyCondition(PropertyMapping.Join j,
+            boolean uniform, @com.legend.Nullable String navigatingTable, ResolvedMapping md,
+            ModelBuilder model, Variable s, Variable t) {
+        return uniform || j.joins().size() <= 1
+                ? lastHopCondition(j, navigatingTable, md, model, s, t)
+                : hopCondition(j, 0, navigatingTable, md, model, s, t);
+    }
+
+    /** Hop {@code idx} of a route translated over {@code s} (its previous
+     * table: the navigating table for the first hop, else the table the
+     * previous hop shares with it) and {@code t} (the landing table). */
+    static @com.legend.Nullable ValueSpecification hopCondition(PropertyMapping.Join j, int idx,
+            @com.legend.Nullable String navigatingTable, ResolvedMapping md,
+            ModelBuilder model, Variable s, Variable t) {
+        JoinChainElement hop = j.joins().get(idx);
         String db = hop.databaseName() != null ? hop.databaseName() : j.database();
         DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName()).orElse(null);
         if (jd == null) {
             return null;
         }
         String prevTable = navigatingTable;
-        if (j.joins().size() > 1) {
-            JoinChainElement prevHop = j.joins().get(j.joins().size() - 2);
+        if (idx > 0) {
+            JoinChainElement prevHop = j.joins().get(idx - 1);
             String pdb = prevHop.databaseName() != null ? prevHop.databaseName() : j.database();
             DatabaseDefinition.JoinDefinition pjd = model.findJoin(pdb, prevHop.joinName()).orElse(null);
             if (pjd == null) {
@@ -2824,16 +2881,22 @@ final class UnionSynthesis {
      * (B3.1b): routed into by class PMs or association pair entries,
      * each set publishes the columns those routes read under the key
      * names the navigators spell — stamped on the ledger as a fact. */
-    static void publishLinkKeys(ResolvedMapping md,
-            Map<String, ResolvedMapping> resolved, ModelBuilder model, MappingLedger ledger) {
-        // the PRE-PASSED records of the closure: a set that extends another
-        // navigates with the routes it INHERITED, and names its keys by
-        // its own id (the navigator side reads the flattened record too)
+    /** The PRE-PASSED records of the closure: a set that extends another
+     * navigates with the routes it INHERITED, and names its keys by its
+     * own id (the navigator side reads the flattened record too). */
+    static List<LegacyMappingDefinition> prePassedClosure(ResolvedMapping md,
+            Map<String, ResolvedMapping> resolved) {
         List<LegacyMappingDefinition> records = new ArrayList<>();
         for (LegacyMappingDefinition m : md.closure()) {
             ResolvedMapping r = resolved.get(m.qualifiedName());
             records.add(r != null ? r.raw() : m);
         }
+        return records;
+    }
+
+    static void publishLinkKeys(ResolvedMapping md,
+            Map<String, ResolvedMapping> resolved, ModelBuilder model, MappingLedger ledger) {
+        List<LegacyMappingDefinition> records = prePassedClosure(md, resolved);
         List<ClassMapping> sets = new ArrayList<>();
         for (LegacyMappingDefinition m : records) {
             for (ClassMapping cm : m.classMappings()) {
@@ -2973,12 +3036,10 @@ final class UnionSynthesis {
         Variable t = new Variable("t");
         List<ValueSpecification> conds = new ArrayList<>();
         for (var en : ords) {
-            PropertyMapping.Join j = en.getKey();
-            if (uniform || j.joins().size() <= 1) {
-                ValueSpecification c = lastHopCondition(j, navigatingTable, md, model, s, t);
-                if (c != null) {
-                    conds.add(c);
-                }
+            ValueSpecification c = routeKeyCondition(en.getKey(), uniform, navigatingTable,
+                    md, model, s, t);
+            if (c != null) {
+                conds.add(c);
             }
         }
         List<ValueSpecification> shapes = routeShapes(conds, s, t);
@@ -3014,27 +3075,37 @@ final class UnionSynthesis {
         }
         String memberTable = memberMain.table();
         if (!uniform && j.joins().size() > 1) {
+            Variable s = new Variable("s");
+            Variable t = new Variable("t");
+            ValueSpecification first = hopCondition(j, 0, navigatingTable, md, model, s, t);
+            if (first == null) {
+                return;     // loud at the route's own emission
+            }
+            // the arm's key: the first mid's columns the navigator's first
+            // hop reads, published under the link key's name (same shape
+            // list, same positions as the navigator spells them). The fact
+            // names the MID's column: the member's thread reads it off the
+            // mid slot it carries (an includer whose closure adds such a
+            // route re-binds the union by this fact, like any key)
+            int shape = shapeIndex(shapes, first, s, t);
+            List<String> reads = new ArrayList<>();
+            collectTargetReads(first, t, reads);
+            Map<String, String> keys = new LinkedHashMap<>();
+            Map<String, String> mine = sink.computeIfAbsent(ord, k -> new LinkedHashMap<>());
+            Map<String, String> facts = ledger.linkKeys.computeIfAbsent(
+                    MappingView.idOf(routedMember), k -> new LinkedHashMap<>());
+            for (int k = 0; k < reads.size(); k++) {
+                String name = linkKeyName(navigatingSet, j.propertyName(), shape, k);
+                keys.put(reads.get(k), name);
+                facts.putIfAbsent(name, reads.get(k));
+                mine.putIfAbsent(name, reads.get(k));
+            }
             if (chainsSink == null) {
-                return;     // the key publication: chains ride the union's own scan
+                return;     // the key publication: the mids ride the union's own scan
             }
             List<LiftMidStep> steps = inboundArmSteps(j, j.propertyName(),
                     memberTable, md, model);
             LiftMidStep landing = steps.get(steps.size() - 1);
-            JoinChainElement firstHop = j.joins().get(0);
-            String fdb = firstHop.databaseName() != null
-                    ? firstHop.databaseName() : j.database();
-            DatabaseDefinition.JoinDefinition fjd =
-                    model.findJoin(fdb, firstHop.joinName()).orElse(null);
-            if (fjd == null) {
-                return;     // loud at the route's own emission
-            }
-            Set<String> fcols = new LinkedHashSet<>();
-            MappingNormalizer.collectColumnsOfTable(fjd.operation(),
-                    landing.table(), fcols);
-            Map<String, String> keys = new LinkedHashMap<>();
-            for (String c : fcols) {
-                keys.put(c, c + "__" + j.propertyName() + "_" + ord);
-            }
             List<LiftChain> have = chainsSink.computeIfAbsent(ord,
                     k -> new ArrayList<>());
             boolean dup = have.stream().anyMatch(ch -> ch.keys().values()

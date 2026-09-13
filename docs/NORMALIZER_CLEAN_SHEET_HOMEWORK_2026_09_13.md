@@ -29,7 +29,8 @@ loud, one implementation per knowledge question.
 2. **The union navigation rewrite (B3).** SETTLED by B3.1 (2026-09-13): the non-uniform plan is
    measured (§6 B3: OR 8.9 ms nested loop, coalesce 1.5 ms hash, merged column 0.8 ms hash) and
    the resolver change is built and sized (GATES "Clean-sheet B3.1"). What remains unverified is
-   B3.2's chained-route form (navigator-side prefixes) against the `multipleChainedJoins` rows.
+   B3.2's chained-route form against the `multipleChainedJoins` rows — SETTLED 2026-09-13:
+   the engine pushes a per-arm chain's mids INTO the arm (§6 B3.2), and so do we.
 3. **The 60 null-tolerant sites (B5).** How many are "the miss is the answer" versus a hidden
    wrong-all-along answer is unknown until each is made loud and the corpus adjudicates.
 
@@ -354,11 +355,38 @@ guard, the deleted union-to-union arms.
   the mixed-union child route reads the column per arm structurally (`stripMemberSuffix` dies);
   the `<col>_<i>` widening branch and the three dead arms die. `CastReRoot` reads the union's own
   shared primary-key thread, which the union keeps for members sharing one table.
-- **B3.2 — chained routes.** The navigating class emits each chain's prefix as its own physical
-  joins and the last hop as `memberColumn` (the engine's own flat chain); `chainsSink`, the
-  push-into-arm threads and the property-scoped chain keys die; with no ordinal left in any
-  navigator, the re-synthesis block and `routedTargetGainsOperation` die. Judge: the
-  `multipleChainedJoins` family's rows.
+- **B3.2 — chained routes (LANDED 2026-09-13).** Two receipts, read AFTER the first attempt
+  failed. (1) `testUnionWithChainedJoinsAcross2SetsV2/V4` goldens join the chain's mid OUTSIDE
+  the union on the navigator's side (`X0 left outer join A as "a_0"` … `on ("a_0".fk1 =
+  "unionalias_0".fk_1 or "root".fk = "unionalias_0".fk_0)`). (2) `testUnionWithChainedJoinsAcross
+  3SetsV4` and `unionOfViews2` (`testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlapping
+  JoinSequnece`) goldens root each arm at the chain's FIRST mid and project that mid's column as
+  the arm's key (`select "root".fk0 as fk0_1 … from A as "root" left outer join Y1 … left outer
+  join G`; `from midTable as "root" inner join PersonExtensionT1 …`). Form (1) built and measured
+  first: every `multipleChainedJoins` V4/V5 row and both `JoinSequenceInProperty` rows LOST —
+  two mids joined as navigator siblings multiply the rows (each union row matches through one
+  disjunct while the other mid's rows fan out: 5 → 13, 5 → 9 after shape-indexing by prefix), and
+  a three-hop prefix hits the resolver's deep-composite wall. Form (2) is the engine's general
+  rule and row-correct; (1) is its special case for one mid. REVERTED (1), kept push-into-arm.
+  What B3.2 changed: the arm's chain key is spelled by the LINK-KEY rule — `linkKeyName(navigating
+  identity, property, shape, position)` over the route's FIRST hop (`routeKeyCondition`: last hop
+  for single-hop and shared-prefix routes, first hop for a per-arm chain; both sides call it with
+  the group's `uniform` verdict) — and is a published FACT like any key (`linkKeys`: name → the
+  mid's column), so an includer whose closure adds such a route (`extend::` mapping, child set
+  inheriting the parent's chained PMs) re-binds the union by the same publication comparison;
+  the union's inbound chain scan reads the PRE-PASSED closure records (`MappingLedger.closure
+  Records`) like the publication does; every thread projects the union-wide key names in ONE
+  order (the concatenation aligns by position — a thread that skipped a name got its columns
+  renamed by position by `ConcatenateChecker`, the "TypedRename above join slot" wall): the
+  owning thread reads a chain key off its mid slot, a sibling types the NULL by the mid's
+  column, a member's own published column beats a sibling chain's NULL. The navigator's in-arm
+  branch and `RouteEntry.inArm` are gone: every route, chained or not, reads one link-key name.
+  The `col__prop_ord` spelling is gone from every navigator; `fk1__z_1`-style names remain ONLY
+  as a union's own lifted-chain source keys (thread-internal, never read by another class).
+  OWED: a member's own outbound lift and an inbound chain can join the same mid twice (2SetsV4:
+  `A` as t5 and t7 in y1's thread — pre-existing, dedup is by alias); `routedTargetGainsOperation`
+  stays (include-direction reclassification). Judge: `multipleChainedJoins` ×20, `JoinSequence
+  InProperty` ×2, `unionOfViews2`; 108 / 444 EXACT.
 - **B3.3 — implicit sets at resolution.** The implicit Operation sets the pre-pass appends
   become resolve-time answers; then `ResolvedMapping` is built in ONE construction from a
   mapping's text and its closure, and `MappingView`, `MappedClasses` and `TransitionalShapesTest`
@@ -394,4 +422,5 @@ record; ledger row here; CI green on the full sha.
 | B1 — `MappingView` (transitional, pinned) + `ResolvedMapping`; nine walkers deleted; synthesis takes the record | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | none | docs/GATES.md "Clean-sheet B1" |
 | B2 — R1 last-wins in the resolver and for operation sets; R5 duplicate ids and duplicate includes rejected; the ambiguity wall deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (probe: 0 wall hits, 0 duplicate ids, 0 first-vs-last differences) | own-corpus 2405 → 2425 | docs/GATES.md "Clean-sheet B2" |
 | B3.1 — `memberColumn` (a routed navigation's target read per SET, minted by the Typer) + `unionArm` markers + the resolver's per-set widening; the inbound key scan cut to chains; the union-to-union arms, the suffix stripper, the `__pk` routed form, the coalesce form and `routesMerge` deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (from 144 / 143 LOST on the first run — twelve consumers found by rows) | ArchitectureTest register +1; INTERNAL_DESUGAR 16 → 18; ResolveUnionTest asserts the member column | docs/GATES.md "Clean-sheet B3.1" |
+| B3.2 — chained routes: push-into-arm KEPT (engine 3-set / unionOfViews2 goldens; the navigator-side form multiplies rows with two mids and walls at three hops — built, measured, reverted); the arm's chain key spelled by the link-key rule over the route's FIRST hop and published as a fact; chain scan over pre-passed records; one key order per union; `RouteEntry.inArm` and the `col__prop_ord` navigator spelling deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (navigator-side attempt: 9 → 7 LOST; push-into-arm respelling: 6 → 1 → 0) | RoutedChainKeyTest pins the spelling | docs/GATES.md "Clean-sheet B3.2" |
 | B3.1b — SUPERSEDES B3.1's spelling (USER review: set ids inside generated Pure): each set publishes its link keys as a mapping fact (`linkKeys`), union threads project them, the navigating class reads one name (identity = set, or the operation's class when its members route alike; shape index when routes differ on the source side); included operations re-bound by the includer when they gain its keys; `memberColumn`, `unionArm`, the registry and both natives deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (43 → 27 → 17 → 3 → 0 on the way) | INTERNAL_DESUGAR 18 → 16; register row removed; ResolveUnionTest asserts the link key | docs/GATES.md "Clean-sheet B3.1b" |
