@@ -57,10 +57,11 @@
  * it does not resolve, look up scopes, or invoke other phases. AGENTS.md
  * invariant 1 (F-must-not-trigger-G).
  *
- * <h2>Idempotence</h2>
+ * <h2>One pass, by type</h2>
  *
- * <p>{@link com.legend.normalizer.MappingNormalizer#normalize} is idempotent:
- * a second pass over an already-normalized model is a no-op (existing
- * {@code mappingFunctions} are replaced by structurally-equal lists).
+ * <p>Normalization runs ONCE per graph: it accepts a {@code ParsedModel} and
+ * returns a {@code NormalizedModel}, which it does not accept back, so
+ * re-normalization is impossible at the type level (the earlier
+ * "idempotent" claim described a shape this package no longer has).
  */
 package com.legend.normalizer;

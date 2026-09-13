@@ -43,7 +43,8 @@ final class MappingPrePass {
      * sets' OWN key text, captured before {@code extends} merged the
      * parents' in. */
     record PrePassed(LegacyMappingDefinition surface, LegacyMappingDefinition md,
-            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys) {}
+            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
+            Map<ClassMapping, String> invalid) {}
 
     /** Pre-pass every legacy mapping of {@code parsed}, element order. A
      * mapping whose pre-pass fails is walled under a tolerant build (and
@@ -58,7 +59,7 @@ final class MappingPrePass {
             }
             try {
                 out.put(md.qualifiedName(), MappingNormalizer.withElement(
-                        md.qualifiedName(), () -> prePass(md, model)));
+                        md.qualifiedName(), () -> prePass(md, model, wallSink != null)));
             } catch (ModelException e) {
                 if (wallSink == null || e.element() == null) {
                     throw e;
@@ -70,7 +71,8 @@ final class MappingPrePass {
         return out;
     }
 
-    private static PrePassed prePass(LegacyMappingDefinition authored, ModelBuilder model) {
+    private static PrePassed prePass(LegacyMappingDefinition authored, ModelBuilder model,
+            boolean tolerant) {
         LegacyMappingDefinition surface = MappingClosures.of(model).surface(authored);
         detectM2MCycles(surface);
         // the sets' OWN key text, captured BEFORE the extends pre-pass
@@ -94,7 +96,8 @@ final class MappingPrePass {
         // (association ends, routed class-typed properties) — must precede
         // the multi-hop injection (op visibility).
         md = ImplicitInheritance.implicitOpsForRoutedTargets(md, model);
-        return new PrePassed(surface, md, declaredKeys);
+        // VALIDATION before synthesis (step 5): strict rejects, module poisons
+        return new PrePassed(surface, md, declaredKeys, MappingValidation.run(md, model, tolerant));
     }
 
 

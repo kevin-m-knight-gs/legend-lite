@@ -138,9 +138,11 @@ class OneIndexTest {
         MappingDefinition md = ctx.findMapping("w::M").orElseThrow();
         assertTrue(md.facts().poisons().isEmpty(), md.facts().poisons().toString());
         assertTrue(ctx.mappingPoison("w::M", "w::Person").isEmpty());
-        // an unmapped class-typed target is a per-class POISON stamped
-        // under the class key, raised at use
-        ModelContext poisoned = Compiler.compileModel("""
+        // an unmapped class-typed target is a USER-model error: a strict
+        // build rejects it (§6's line, step 6); a MODULE build stamps a
+        // per-class POISON under the class key, raised at use
+        ModelContext poisoned = Compiler.buildModule(Compiler.parseSources(List.of(
+                new Compiler.ModelSource("m.pure", """
                 Class w::Person { name: String[1]; firm: w::Firm[0..1]; }
                 Class w::Firm { legalName: String[1]; }
                 ###Relational
@@ -153,7 +155,7 @@ class OneIndexTest {
                 Mapping w::M2 (
                   *w::Person : Pure { ~src w::Person name: $src.name, firm: $src.firm }
                 )
-                """);
+                """))).model()).context();
         String reason = poisoned.findMapping("w::M2").orElseThrow().facts().poisons().get("w::Person");
         assertTrue(reason != null && reason.contains("w::Firm"), String.valueOf(reason));
         assertEquals(reason, poisoned.mappingPoison("w::M2", "w::Person").orElseThrow());

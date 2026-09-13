@@ -374,6 +374,7 @@ pin at zero.
 | 3d — store family retired (`table`/`column`/`columnKind`; `RelationalKinds` → compiler; `PhysicalTables` deleted); STEP 3 CLOSED (13 of 14 walkers; `inferViewMainTable` owed) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | own-corpus parity 2379 → 2381; census store rows → 0 | docs/GATES.md "T4.1 step 3d" |
 | 4a — `MappingClosures`: one include-order fact per mapping over SURFACES, memoized on the kernel; the nine walkers readers; step 2's identity-set visibility drift closed | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | reach-back MappingNormalizer 4 + UnionSynthesis 3 + AssociationSynthesis 1 → MappingClosures 2; own-corpus 2381 → 2392 | docs/GATES.md "T4.1 step 4a" |
 | 4b — surface facts stamped (`unionMembers`, `routedTargetClasses`, `routedSets`); `ModelBuilder.routedTargetSetOf` deleted; STEP 4 CLOSED | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | reach-back PureModelContext 6 → 4; own-corpus 2392 → 2398 | docs/GATES.md "T4.1 step 4b" |
+| 5–6 — `MappingValidation` before synthesis (PM names, M2M routes); §6's line: strict rejects, module poisons; the strict-build deferral deleted; package-info and MissProbe docs corrected — T4.1 CLOSED | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | own-corpus 2398 → 2405 | docs/GATES.md "T4.1 steps 5–6" |
 
 Step-1 findings that amend the text above: E.0 never stripped the association (§13's "still
 carries" is unverifiable; the landed check is adoption-by-identity), and the owner-absent
@@ -384,3 +385,8 @@ mapping's synthesis read a mapped-ness an earlier UNRELATED mapping's implicit o
 and one class answered FALSE to two mappings that ran before its implying mapping. Landed as
 the honest up-front form (`MappedClasses` over every mapping's pre-passed class mappings).
 **Verified item 2 — DONE:** `OneIndexTest.knowledgeBeforeEqualsKnowledgeAfter`.
+
+**Program closed 2026-09-13.** All six steps landed (eleven batches, each 108 / 444 EXACT). The
+context-before-E shape §7 sketched became a KERNEL on the one index (`ModelBuilder.knowledge()`)
+that Phase E and Phase F ask alike — it needed no parameter sweep and no F1/F2 integrity split.
+Owed items are listed in the GATES record "T4.1 steps 5–6".

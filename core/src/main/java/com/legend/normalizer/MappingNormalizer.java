@@ -294,6 +294,11 @@ public final class MappingNormalizer {
                                         + " (implicit union) is a roadmap"
                                         + " feature");
                     }
+                    String invalidSet = pp.invalid().get(cm);
+                    if (invalidSet != null) {
+                        ledger.poisons.putIfAbsent(cm.className() + "[" + setIdOf(cm) + "]", invalidSet);
+                        continue;
+                    }
                     try {
                         FunctionDefinition setFn =
                                 synthesizeClassMapping(md, cm, model, true, ledger);
@@ -314,11 +319,19 @@ public final class MappingNormalizer {
                                         setFn.qualifiedName(),
                                         declaredPrimaryKeyColumns(cm)));
                     } catch (NotImplementedException | ModelException e) {
-                        // per-SET fault isolation, same trade as per-class
+                        // per-SET fault isolation, same line as per-class
+                        if (e instanceof ModelException && !tolerant) {
+                            throw e;
+                        }
                         ledger.poisons.putIfAbsent(cm.className() + "[" + setIdOf(cm) + "]",
                                 String.valueOf(e.getMessage()));
                     }
                 }
+                continue;
+            }
+            String invalid = pp.invalid().get(cm);
+            if (invalid != null) {
+                ledger.poisons.put(cm.className(), invalid);
                 continue;
             }
             FunctionDefinition fn;
@@ -326,15 +339,17 @@ public final class MappingNormalizer {
                 fn = synthesizeClassMapping(md, cm, model, false, ledger);
             } catch (NotImplementedException
                     | ModelException e) {
+                // §6's line (step 6): a USER-model error the engine rejects
+                // at compile time is rejected by a STRICT build too; only a
+                // MODULE build defers it, and a ROADMAP gap defers in both
+                if (e instanceof ModelException && !tolerant) {
+                    throw e;
+                }
                 // PER-CLASS fault isolation: one class mapping using a
                 // roadmap feature must not sink the whole mapping. The
                 // binding is withheld; fetching THIS class raises the
                 // recorded reason (loud at use, never silent).
-                // DELIBERATE TRADE (audit 6, adjudicated): ModelException
-                // here means a USER-model error the real engine rejects at
-                // compile time; we defer it to query time so the rest of a
-                // partially-broken model stays loadable/queryable. The full
-                // message rides on the poison and surfaces via
+                // The full message rides on the poison and surfaces via
                 // StoreResolver's 0-binder error.
                 ledger.poisons.put(cm.className(), String.valueOf(e.getMessage()));
                 continue;
@@ -405,6 +420,9 @@ public final class MappingNormalizer {
                     try {
                         fn = synthesizeClassMapping(md, rcm, model, false, ledger);
                     } catch (NotImplementedException | ModelException e) {
+                        if (e instanceof ModelException && !tolerant) {
+                            throw e;
+                        }
                         ledger.poisons.put(rcm.className(), String.valueOf(e.getMessage()));
                         continue;
                     }
@@ -1287,7 +1305,6 @@ public final class MappingNormalizer {
                 }
                 String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
                         b -> model.knowledge().propertyType(tgt, b) != null);
-                M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
                 fields.put(keyName,
                         new KeyExpression(m2mPropertyValue(pb, tgt, md, model, ledger, cycleStack), false, false));
             }
@@ -1988,8 +2005,6 @@ public final class MappingNormalizer {
                                                              ModelBuilder model, MappingLedger ledger,
                                                               @com.legend.Nullable String backingView,
                                                               @com.legend.Nullable ValueSpecification sourceOverride) {
-        validatePmNames(rcm, model, md);
-
         // A mapping ~filter with an EXPLICIT (INNER) join type row-explodes:
         // the engine swaps the main table for a subselect that joins the
         // filter chain, applies the condition, and projects every base
@@ -2234,23 +2249,6 @@ public final class MappingNormalizer {
     }
 
 
-    private static void validatePmNames(ClassMapping.Relational rcm,
-                                       ModelBuilder model, LegacyMappingDefinition md) {
-        ClassDefinition cd = MissProbe.knownMiss(model.knowledge().hierarchyClass(rcm.className()));
-        if (cd == null) return;
-        for (PropertyMapping pm : rcm.propertyMappings()) {
-            if (pm instanceof PropertyMapping.LocalProperty) continue;
-            // Resolve through the superclass chain: a PM may target an
-            // inherited property (engine parity: property lookup walks
-            // generalizations).
-            if (model.knowledge().propertyType(cd, pm.propertyName()) == null) {
-                throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                        "PropertyMapping '" + pm.propertyName() + "' references property "
-                      + "not declared on class '" + rcm.className() + "'; mapping="
-                      + md.qualifiedName());
-            }
-        }
-    }
 
     // ====================================================================
     // Hop emission  —  Pass 1 (structural) and Pass 2 (nested JoinNav)

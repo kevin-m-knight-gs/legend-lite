@@ -2466,8 +2466,18 @@ class MappingNormalizerTest {
         return out;
     }
 
-    private static NormalizedModel normalizeViaPipeline(ParsedModel parsed) {
+    /** A STRICT normalization: the first user-model error throws. */
+    private static NormalizedModel normalizeStrict(ParsedModel parsed) {
         return MappingNormalizer.normalize(parsed, ModelBuilder.from(new com.legend.model.ParsedModel(parsed.elements(), parsed.imports())));
+    }
+
+    /** A MODULE (tolerant) normalization: user-model errors poison the
+     * set instead of throwing, so the recorded reasons are observable —
+     * a STRICT build rejects them (T4.1 step 6, §6's line;
+     * ValidationLineTest witnesses both). */
+    private static NormalizedModel normalizeViaPipeline(ParsedModel parsed) {
+        return MappingNormalizer.normalize(parsed, ModelBuilder.from(new com.legend.model.ParsedModel(parsed.elements(), parsed.imports())),
+                new java.util.LinkedHashMap<>());
     }
 
     /**
@@ -4053,7 +4063,7 @@ class MappingNormalizerTest {
                         + ")");
         com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
+                () -> normalizeStrict(parsed));
         assertTrue(String.valueOf(ex.getMessage()).contains("Circular M2M"),
                 () -> "Expected circular-M2M diagnostic; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("model::A") && ex.getMessage().contains("model::B"),
@@ -4763,7 +4773,7 @@ class MappingNormalizerTest {
                         + ")");
         com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
+                () -> normalizeStrict(parsed));
         assertTrue(String.valueOf(ex.getMessage()).contains("nope"),
                 () -> "Expected the unknown parent set id to be named; got: " + ex.getMessage());
     }

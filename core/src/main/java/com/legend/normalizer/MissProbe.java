@@ -12,15 +12,14 @@ package com.legend.normalizer;
  *   <li>23 sites NEVER fired — they now {@code orElseThrow} at the call
  *       site (an unresolvable class was the audit's feared silent
  *       semantic default; it is loud there now).</li>
- *   <li>10 sites fire LEGITIMATELY and funnel through
- *       {@link #knownMiss}: UnionSynthesis's metamodel probe (the miss
- *       IS the answer — engine metamodel/protocol class names are not
- *       user classes), and nine sites whose keys are BARE super-class
- *       simple names ("Person", "Firm") the normalizer never
- *       import-resolved — a REAL name-resolution gap, filed in
- *       FOUNDATIONS_PLAN §9: a temporal superclass referenced by bare
- *       name would silently contribute nothing. The corpus carries no
- *       such case today; the funnel keeps the sites enumerable.</li>
+ *   <li>the sites that fire LEGITIMATELY funnel through
+ *       {@link #knownMiss}: the metamodel probes (the miss IS the answer
+ *       — engine metamodel/protocol class names are not user classes)
+ *       and owner classes a synthesis asks about before it knows they
+ *       exist. (An earlier version of this note named a bare-superclass
+ *       name-resolution gap; {@code NameResolver.resolveClass} resolves
+ *       superclasses through the import scope, and
+ *       {@code KnowledgeLayerTest} pins it — T4.1 step 3a.)</li>
  * </ul>
  */
 final class MissProbe {

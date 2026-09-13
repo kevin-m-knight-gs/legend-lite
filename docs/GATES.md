@@ -1974,3 +1974,43 @@ class-typed property, the sole-set hint — all three answered off the compiled 
 **Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** build 24s, G1 77s, G3 11s,
 G4 120s, G5 61s, G6 152s, G7 39s, G9 28s, G8 157s — G8 RED on the own-corpus pin alone
 (2392 → 2398); G8 re-ran alone (87s) GREEN. No production file changed between the runs.
+
+## T4.1 steps 5–6 — validation before synthesis; §6's line held; the deletions — 2026-09-13
+
+**Step 5 — validation before synthesis.** `MappingValidation` runs in the pre-pass, after the
+rewrites and before any synthesis, over every set of the pre-passed mapping: a property
+mapping naming a property its class neither declares nor inherits (was `validatePmNames`
+inside table-backed synthesis), an M2M binding whose `[source, target]` route is not benign
+(was `requireBenignRoute` inside M2M synthesis). §6's line: a STRICT build throws the first
+(Phase.MODEL, attributed to the mapping); a MODULE build records the set (by identity) and the
+driver poisons it under the arm's own key (`class` / `class[setId]`) and skips its synthesis —
+the binding withheld, the reason raised at use, exactly the poison the synthesis used to
+record. The M2M cycle check and the circular-`extends` check already ran in the pre-pass
+(strict throw, module wall of the whole mapping) and stay there.
+
+**Step 6 — the strict-build poison sites.** The driver's three synthesis catch arms
+(per-class, per-set, include-direction re-synthesis) rethrow a `ModelException` in a strict
+build and poison only in a module build; a `NotImplementedException` (a roadmap gap of ours,
+never the user's error) still poisons in both. The "DELIBERATE TRADE (audit 6)" comment that
+deferred user errors to query time is retired with the behaviour. Also: the package-info
+idempotence claim replaced by the type-level one-pass rule; MissProbe's note on a bare-superclass
+name-resolution gap corrected (closed by `NameResolver`, pinned in step 3a). The walkers and
+the E→F re-index were already deleted in steps 2–4.
+
+**Tests.** `ValidationLineTest` (new): the bad PM name and a missing join — strict rejects,
+module poisons the set and keeps the healthy class bound. `MappingNormalizerTest`'s seven
+poison-reason tests now normalize in MODULE form (their reasons are still the recorded text);
+its two strict-reject witnesses (M2M cycle, unknown `extends` parent) keep the strict form.
+`OneIndexTest`'s poisoned-mapping half builds a module.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED); G1 (the full core suite, 4,400+
+tests) green under the strict/module line. **Chain.** build 23s, G1 73s, G3 13s, G4 116s,
+G5 59s, G6 140s, G7 38s, G9 27s, G8 142s — G8 RED on the own-corpus pin alone (2398 → 2405, the
+witness's seven elements); G8 re-ran alone (88s) GREEN. No production file changed between the runs.
+
+**T4.1 closed (design doc §13).** Six steps, eleven batches, every one at 108 / 444 EXACT.
+Owed and written: `inferViewMainTable` (a store fact still inferred in the normalizer with
+its own record collectors; with `MetamodelSeeds.viewBaseTable` its F-side twin), the mapped-class
+fact being GLOBAL where the engine asks per include closure, the owner-absent qualified-property
+adoption staying silent, and the parser's flattening of schema tables to the top level (a wrong
+schema qualifier resolves).
