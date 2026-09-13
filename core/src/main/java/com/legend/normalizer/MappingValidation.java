@@ -12,6 +12,7 @@ import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PropertyMapping;
 
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +35,19 @@ final class MappingValidation {
      * Strict: the first invalid set throws. */
     static Map<ClassMapping, String> run(LegacyMappingDefinition md, ModelBuilder model,
             boolean tolerant) {
+        // MAPPING-level errors the engine's compiler raises (R5): a class
+        // mapping id taken by two distinct sets across the include closure,
+        // (an include listed twice is rejected where the include graph is
+        // first walked, StoreSubstitutionRewrite.resolveAllStores). Thrown in BOTH builds — a module build
+        // walls the whole mapping through the pre-pass's own catch, exactly
+        // as the engine rejects the mapping.
+        MappingClosures.Closure closure = MappingClosures.of(model).closure(md.qualifiedName());
+        List<String> dupIds = closure.duplicateIds();
+        if (!dupIds.isEmpty()) {
+            throw new ModelException(LegendCompileException.Phase.MODEL,
+                    "Duplicated class mappings found with ID " + dupIds
+                    + " in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
+        }
         Map<ClassMapping, String> invalid = new IdentityHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             try {

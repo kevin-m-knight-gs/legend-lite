@@ -1379,17 +1379,19 @@ public final class ClassSources {
             }
         }
         if (local.size() == 1) {
-            // local shadows included — DELIBERATELY more permissive than
-            // real Legend, which errors on duplicate set IDs across
-            // includes (audit 23 #75, reviewed): the corpus include
-            // families rely on the local-wins read, and the divergence
-            // direction is over-acceptance of models the engine rejects,
-            // never wrong rows on models both accept.
+            // the mapping's own binding beats every include's (the engine's
+            // rootClassMappingByClass: includes' answers first, then own,
+            // the LAST root wins — clean-sheet homework R1); duplicate set
+            // ids across a closure are rejected at Phase E (R5), as the
+            // engine's compiler rejects them
             return local.get(0);
         }
         visited.add(mapping.qualifiedName());
-        List<MappingDefinition.ClassBinding> included = new ArrayList<>();
-        List<String> sources = new ArrayList<>();
+        // R1 among the includes: each include answers with its own rule
+        // (own beats its includes'); the LATER include beats the earlier.
+        // A class mapped in two included mappings is legal in the engine;
+        // the old "ambiguously mapped" wall here was ours alone.
+        MappingDefinition.ClassBinding last = null;
         for (MappingInclude inc : mapping.includes()) {
             if (visited.contains(inc.mappingPath())) {
                 continue;
@@ -1399,16 +1401,10 @@ public final class ClassSources {
                             + "' includes unknown mapping '" + inc.mappingPath() + "'"));
             MappingDefinition.ClassBinding found = findBinding(inner, classFqn, setId, visited);
             if (found != null) {
-                included.add(found);
-                sources.add(inc.mappingPath());
+                last = found;
             }
         }
-        if (included.size() > 1) {
-            throw new MappingResolutionException("class '" + classFqn
-                    + "' is ambiguously mapped in '" + mapping.qualifiedName()
-                    + "' via includes " + sources, classFqn);
-        }
-        return included.isEmpty() ? null : included.get(0);
+        return last;
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins. */

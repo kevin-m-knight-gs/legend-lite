@@ -265,7 +265,16 @@ final class StoreSubstitutionRewrite {
         Map<String, Integer> pending = new java.util.LinkedHashMap<>();
         for (LegacyMappingDefinition md : mappings) {
             List<String> incs = new java.util.ArrayList<>();
+            java.util.Set<String> listed = new java.util.HashSet<>();
             for (MappingInclude inc : md.includes()) {
+                // the engine's compiler rejects an include listed twice
+                // (MappingCompilerExtension: "Duplicated mapping include");
+                // here, before the ordering, so it never masquerades as a cycle
+                if (!listed.add(inc.mappingPath())) {
+                    throw new ModelException(LegendCompileException.Phase.MODEL,
+                            "Duplicated mapping include '" + inc.mappingPath() + "' in mapping '"
+                            + md.qualifiedName() + "'", md.qualifiedName());
+                }
                 String fqn = includeFqn(md.qualifiedName(), inc.mappingPath(), byFqn.keySet());
                 if (fqn != null) {
                     incs.add(fqn);

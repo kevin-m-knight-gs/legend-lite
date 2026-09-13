@@ -204,7 +204,9 @@ final class MappingClosures {
         }
 
         /** The Union operation set for {@code classFqn} through the
-         * includes, depth-first, the FIRST found. */
+         * includes in the engine's order (an include's includes first, then
+         * its own sets; the LATER include after the earlier), the LAST found
+         * — {@code rootClassMappingByClass}'s {@code last()} (R1). */
         ClassMapping.@com.legend.Nullable Union union(@com.legend.Nullable String classFqn) {
             Map<String, ClassMapping.Union> out = unions;
             if (out == null) {
@@ -220,8 +222,8 @@ final class MappingClosures {
             return classFqn == null ? null : out.get(classFqn);
         }
 
-        /** The Inheritance operation set for {@code classFqn} through the
-         * includes, depth-first, the FIRST found. */
+        /** The Inheritance operation set for {@code classFqn}, the same
+         * last-wins rule. */
         ClassMapping.@com.legend.Nullable Inheritance inheritance(String classFqn) {
             union("");   // builds both
             return java.util.Objects.requireNonNull(inheritances).get(classFqn);
@@ -229,15 +231,56 @@ final class MappingClosures {
 
         private void walkOps(LegacyMappingDefinition md, Map<String, ClassMapping.Union> out,
                 Map<String, ClassMapping.Inheritance> outI) {
-            for (ClassMapping cm : md.classMappings()) {
-                if (cm instanceof ClassMapping.Union u) {
-                    out.putIfAbsent(u.className(), u);
-                } else if (cm instanceof ClassMapping.Inheritance ih) {
-                    outI.putIfAbsent(ih.className(), ih);
-                }
-            }
             for (MappingInclude inc : md.includes()) {
                 surfaceOf(inc.mappingPath()).ifPresent(m -> walkOps(m, out, outI));
+            }
+            for (ClassMapping cm : md.classMappings()) {
+                if (cm instanceof ClassMapping.Union u) {
+                    out.put(u.className(), u);
+                } else if (cm instanceof ClassMapping.Inheritance ih) {
+                    outI.put(ih.className(), ih);
+                }
+            }
+        }
+
+        /** Set ids taken by more than one DISTINCT set across this mapping's
+         * closure (an include's includes first, then its own; then this
+         * mapping's own), each with the two mappings — the engine's
+         * {@code collectAndValidateClassMappingIds} (R5). */
+        List<String> duplicateIds() {
+            Map<String, String> owner = new LinkedHashMap<>();
+            Map<String, ClassMapping> first = new LinkedHashMap<>();
+            List<String> dups = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            walkIds(fqn, owner, first, dups, seen);
+            return dups;
+        }
+
+        private void walkIds(String mappingFqn, Map<String, String> owner,
+                Map<String, ClassMapping> first, List<String> dups, Set<String> seen) {
+            if (!seen.add(mappingFqn)) {
+                return;
+            }
+            LegacyMappingDefinition md = surfaceOf(mappingFqn).orElse(null);
+            if (md == null) {
+                return;
+            }
+            for (MappingInclude inc : md.includes()) {
+                walkIds(inc.mappingPath(), owner, first, dups, seen);
+            }
+            Set<String> own = new HashSet<>();
+            for (ClassMapping cm : md.classMappings()) {
+                String id = MappingView.idOf(cm);
+                String prev = owner.get(id);
+                if (prev != null && !prev.equals(mappingFqn) && first.get(id) != cm) {
+                    dups.add(id + " (" + prev + ", " + mappingFqn + ")");
+                } else if (prev == null) {
+                    owner.put(id, mappingFqn);
+                    first.put(id, cm);
+                }
+                if (!own.add(id)) {
+                    dups.add(id + " (twice in " + mappingFqn + ")");
+                }
             }
         }
 

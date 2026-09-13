@@ -2059,3 +2059,45 @@ unchanged (they become reference checks in B3 when routes resolve to sets).
 444 EXACT, no pin moved. The split tree: chain GREEN first run — build 23s, G1 72s, G3 10s,
 G4 104s, G5 56s, G6 136s, G7 33s, G9 26s, G8 139s — DuckDB 108 / H2 444 EXACT (0 LOST, 0 GAINED),
 no pin moved.
+
+## Clean-sheet B2 — the engine's include rules — 2026-09-13
+
+**Probe first (temporary printlns, removed).** Over the DuckDB corpus: the resolver's "ambiguously
+mapped via includes" wall fired 0 times; a set id taken by two distinct sets across an include
+closure occurred 0 times; the first-found and last-wins operation-set rules disagreed 0 times. So
+this batch cannot move a corpus row; its judges are its own witnesses, and its receipts are the
+engine's functions quoted in docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md §2.
+
+**What landed.**
+- R1 in the resolver: `ClassSources.findBinding`'s include walk takes the LATER include's answer
+  (each include answering with its own rule, own beating its includes'); the wall that refused a
+  class mapped in two included mappings is deleted — the engine's `rootClassMappingByClass` is
+  `filter(root)->last()` and its compiler rejects duplicate IDS, not duplicate classes. The
+  lookup's own comment had already recorded the divergence ("deliberately more permissive than
+  real Legend", audit 23 #75); the wall was ours alone.
+- R1 for operation sets: `MappingClosures.walkOps` walks in the engine's order (an include's
+  includes first, then its own sets; the later include after the earlier) and the LAST union or
+  inheritance set per class wins (was: first found, pre-order).
+- R5 as validation: `MappingClosures.Closure.duplicateIds()` reproduces
+  `MappingValidator.collectAndValidateClassMappingIds` (includes first, then own; an id already
+  owned by ANOTHER mapping, or repeated within one, is a duplicate); `MappingValidation` throws
+  "Duplicated class mappings found with ID … in mapping …" (Phase.MODEL) in both builds — a module
+  build walls the mapping through the pre-pass's catch, as the engine rejects the mapping. A
+  duplicated include is rejected in `resolveAllStores`, where the include graph is first walked,
+  with the engine's "Duplicated mapping include" — it used to fall through the ordering and be
+  misreported as an include cycle.
+- Roots already followed R1; `MappingView.set(id)` keeps own-first, which is equivalent to the
+  engine's includes-first once ids are unique (R5 guarantees that).
+
+**Witness.** `IncludeRulesTest`: the later include's root wins end to end (the SQL reads the
+later include's table, both orders); the mapping's own root beats every include; two includes
+each declaring a union for the same class resolve to the later one; a duplicate id across the
+closure and a duplicate include are compile errors, the former walling only the including mapping
+in a module build. One witness first wrote two union sets with no explicit id, which both default
+to `w_Person` — R5 rejected the model, correctly, and the witness gained explicit ids.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED), as the probe predicted. **Chain.** build
+24s, G1 75s, G3 11s, G4 108s, G5 58s, G6 138s, G7 35s, G9 26s, G8 143s — G8 RED on the witness
+snippets alone (three mapping fragments without their `###Mapping` header; own-corpus parity
+2405 → 2425 for the witness's twenty elements); G8 re-ran alone (85s) GREEN. No production file
+changed between the runs.

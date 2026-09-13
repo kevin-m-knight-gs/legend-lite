@@ -261,6 +261,17 @@ union's single key, building the branching predicate from the stamped routing fa
 joins when the predicate branches on the member. Witness: `UnionTargetLeanJoinTest` (uniform and
 non-uniform), plans measured as in the earlier record. Expected: 0 LOST; the 2 re-synthesis hits
 reproduce by the uniform rule; the OR disappears from the non-uniform plan.
+**B3 homework note (2026-09-13).** The member-numbered keys have three consumers: the union
+body that emits them (`UnionSynthesis`), the navigating class's OR condition and the resolver's
+`stripMemberSuffix` path (`ClassSources`), and `ImportDataFlow`, which surfaces a union's
+per-member primary keys because the engine's `importDataFlow` option does exactly that. The
+third is a FEATURE: the union's key threads stay as a stamped fact for it. What B3 removes is the
+NAVIGATION's dependence on them — the OR in the navigating class, the suffix stripping in the
+resolver, and the member-suffixed key projection made for other classes' benefit. `mergedTargetRoutes`
+already coalesces to one key when every route names the same join (the uniform case, landed
+earlier); B3 generalizes that to the union's single key plus member tag and moves the
+per-member branch to the resolver and the lowering.
+
 **B3 done also requires:** `MappingView` (the transitional pre-pass view of B1) and
 `MappedClasses` (the graph-wide mapped set) DELETED together, `ResolvedMapping` built in ONE
 construction from a mapping's text and its closure (nothing depends on another mapping's rewrite
@@ -294,3 +305,4 @@ record; ledger row here; CI green on the full sha.
 | batch | landed | rows | pins | record |
 |---|---|---|---|---|
 | B1 — `MappingView` (transitional, pinned) + `ResolvedMapping`; nine walkers deleted; synthesis takes the record | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | none | docs/GATES.md "Clean-sheet B1" |
+| B2 — R1 last-wins in the resolver and for operation sets; R5 duplicate ids and duplicate includes rejected; the ambiguity wall deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (probe: 0 wall hits, 0 duplicate ids, 0 first-vs-last differences) | own-corpus 2405 → 2425 | docs/GATES.md "Clean-sheet B2" |
