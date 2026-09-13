@@ -261,12 +261,17 @@ package-info idempotence claim.
   compiler layers; add the package-direction and no-index-write rules), `JavaEvalLedgerTest`,
   `OwnCorpusParityTest` (re-pin with a reason when a witness model joins), `MinimalCorpusTest`
   strength pins.
-- Measure: `bash /Users/neema/.claude/jobs/664ac178/tmp/corpus-both.sh` (both lanes,
-  LOST/GAINED), then `GATES_PARALLEL=1 tools/allgates.sh` once in the background; rosters at
-  DuckDB 108 / H2 444 on main ce7136e8f. Corpus engine root = `$HOME/legend/legend-engine` at
+- Measure: `CORPUS_LOG_DIR=<your tmp> bash tools/corpus-both.sh` (both lanes, LOST/GAINED;
+  logs in that dir), then `GATES_PARALLEL=1 tools/allgates.sh` once IN THE BACKGROUND (never
+  block-wait; the tree is FROZEN while it runs); per-gate times in
+  `$TMPDIR/gates-<user>.log`; rosters at DuckDB 108 / H2 444 on main 5b2f5ba69. Corpus engine root = `$HOME/legend/legend-engine` at
   the pin in `tools/oracle-pins.env`.
-- Land: GATES record with per-gate times; ledger row; commit named files only; push; watch CI
-  with the full sha.
+- Land: GATES record with per-gate times; ledger row (`docs/CORPUS_ZERO_PROGRAM_2026_09_12.md`
+  or a new T4.1 ledger section); commit NAMED files only (never `git add -A`); push; then
+  `bash tools/ci-watch.sh <full sha>` in the background and read its `CI …` line. Commit
+  trailers: `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` and the session URL.
+- Working rules that saved this program twice: homework before code, report before choosing a
+  fix, every batch moves the ratchet or is not a batch, pins move only with a written reason.
 
 ## 11. The first hour of a fresh session (do this before writing any code)
 
