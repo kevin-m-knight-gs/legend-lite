@@ -2144,7 +2144,7 @@ public final class StoreResolver {
             for (AggDemand d : entry.getValue()) {
                 aggReads.put(d.node(), new Substitution.AggRead(
                         prefix + "agg_" + ord++,
-                        CorrelatedSubselects.isCountFamily(d.node())));
+                        CorrelatedSubselects.emptyGroupValue(d.node())));
             }
         }
         m = new Pipelines.Materialized(withJoins, m.slotPrefixes(), m.stripped());

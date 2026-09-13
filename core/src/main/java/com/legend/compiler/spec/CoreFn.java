@@ -162,6 +162,8 @@ public enum CoreFn {
     /** {@code navigate} &mdash; the clean-sheet graph-traversal primitive (pre-map/post-map/inline). */
     NAVIGATE("navigate"),
     LEGACY_NAVIGATE("legacyNavigate"),
+    /** {@code isDistinct(collection, #{Class{a, b}}#)} &mdash; no duplicates comparing by the tree's leaves (the 1-arg collection form types generically). */
+    IS_DISTINCT("isDistinct"),
     /** {@code graphFetch(#{Class{…}}#)} &mdash; object-graph projection; result = source type. */
     GRAPH_FETCH("graphFetch"),
     /** {@code graphFetchChecked(#{Class{…}}#)} &mdash; checked projection; {@code Checked<T>[*]}. */

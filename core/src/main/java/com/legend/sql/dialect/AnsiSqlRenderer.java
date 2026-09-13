@@ -639,7 +639,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case IS_NULL -> expr(a.get(0), 4) + " IS NULL";
             case IS_NOT_NULL -> expr(a.get(0), 4) + " IS NOT NULL";
             case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
-            case IS_DISTINCT -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
+            case IS_DISTINCT_FROM -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
                     + expr(a.get(1), 4) + ")";
             // the SEMANTIC null-safe (in)equality nodes (engine
             // nullSafeEqual/nullSafeNotEqual DynaFunctions) — dialects

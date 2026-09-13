@@ -636,7 +636,7 @@ public class H2 extends AnsiSqlRenderer {
             case SqlExpr.Call c -> switch (c.fn()) {
                 case AND, OR, NOT, XOR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL,
                      GREATER, GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN,
-                     IS_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
+                     IS_DISTINCT_FROM, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
                      STARTS_WITH, ENDS_WITH -> true;
                 default -> false;
             };

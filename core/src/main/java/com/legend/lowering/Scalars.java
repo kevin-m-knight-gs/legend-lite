@@ -1183,6 +1183,9 @@ final class Scalars {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                     args.get(0), args.get(1)));
         }
+        for (String f : Pure.nativeKeysAt(Pure.Lite.TUPLE)) {   // the row of a tree's leaves
+            RULES.put(f, (n, args) -> TupleValue.of(args));
+        }
 
         // Temporal EXTRACT parts: one SqlFn entry, part-name literal first.
         for (var e : Map.of(
@@ -2224,12 +2227,11 @@ final class Scalars {
                 return pureToString(t, args.get(0));
             });
         }
-        // isDistinct (DEEP_AUDIT §5k): 2-ARG = SQL IS DISTINCT FROM;
-        // 1-ARG = the ALL_DISTINCT semantic node (a blanket family()
-        // routed it into the binary SQL — AIOOBE on any input).
-        for (String f : Pure.nativeKeysAt(Pure.Lite.IS_DISTINCT)) {
+        // isDistinctFrom (DEEP_AUDIT §5k) = SQL IS DISTINCT FROM; pure's 1-arg isDistinct
+        // = the ALL_DISTINCT semantic node (a blanket family() once routed it here — AIOOBE)
+        for (String f : Pure.nativeKeysAt(Pure.Lite.IS_DISTINCT_FROM)) {
             RULES.put(f, (n, args) ->
-                    new SqlExpr.Call(SqlFn.IS_DISTINCT, args));
+                    new SqlExpr.Call(SqlFn.IS_DISTINCT_FROM, args));
         }
         for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))

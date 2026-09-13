@@ -184,6 +184,7 @@ IN__ANY_1__ANY_MANY	meta::pure::functions::collection::in	meta::pure::functions:
 INDEX_OF__T_MANY__T_1	meta::pure::functions::collection::indexOf	meta::pure::functions::collection::indexOf(T[*],T[1])
 INIT__T_MANY	meta::pure::functions::collection::init	meta::pure::functions::collection::init(T[*])
 IS_DISTINCT__T_MANY	meta::pure::functions::collection::isDistinct	meta::pure::functions::collection::isDistinct(T[*])
+IS_DISTINCT__T_MANY__ROOT_GRAPH_FETCH_TREE_1	meta::pure::functions::collection::isDistinct	meta::pure::functions::collection::isDistinct(T[*],meta::pure::graphFetch::RootGraphFetchTree<T>[1])
 IS_EMPTY__T_MANY	meta::pure::functions::collection::isEmpty	meta::pure::functions::collection::isEmpty(meta::pure::metamodel::type::Any[*])
 IS_NOT_EMPTY__ANY_MANY	meta::pure::functions::collection::isNotEmpty	meta::pure::functions::collection::isNotEmpty(meta::pure::metamodel::type::Any[*])
 IS_NOT_EMPTY__ANY_0_1	meta::pure::functions::collection::isNotEmpty	meta::pure::functions::collection::isNotEmpty(meta::pure::metamodel::type::Any[0..1])

@@ -1813,6 +1813,23 @@ static boolean isCountFamily(TypedNativeCall nc) {
                 || q.equals("meta::pure::functions::collection::size");
     }
 
+    /** The reducer's value over an EMPTY group, read where the decorrelated
+     * grouped row is absent: 0 for the count family, TRUE for pure's
+     * isDistinct ({@code []->isDistinct()} — removeDuplicates of nothing is
+     * nothing, sizes equal), null (stays NULL) for every other reducer. */
+    static @com.legend.Nullable TypedSpec emptyGroupValue(TypedNativeCall nc) {
+        if (isCountFamily(nc)) {
+            return new com.legend.compiler.spec.typed.TypedCInteger(0L,
+                    new ExprType(Type.Primitive.INTEGER, com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        }
+        if (nc.callee().qualifiedName().equals(
+                com.legend.builtin.Pure.IS_DISTINCT__T_MANY.qualifiedName())) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(true,
+                    new ExprType(Type.Primitive.BOOLEAN, com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        }
+        return null;
+    }
+
 
 static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
         String src = cond.parameters().get(0);
@@ -2350,8 +2367,14 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // is the same ORDER metadata as above.
             if (nc.args().get(0) instanceof TypedMap tmap
                     && tmap.mapper().parameters().size() == 1
-                    && !(Type.asClassType(tmap.mapper().functionType().result().type())
-                            instanceof Type.ClassType)) {
+                    && (!(Type.asClassType(tmap.mapper().functionType().result().type())
+                            instanceof Type.ClassType)
+                            // the tuple VALUE (declared Any[1]) is not an object mapper:
+                            // the by-tree isDistinct's row of leaves (IsDistinctChecker)
+                            || tmap.mapper().body().get(tmap.mapper().body().size() - 1)
+                                    instanceof TypedNativeCall tc
+                                    && tc.callee().qualifiedName().equals(
+                                            com.legend.builtin.Pure.Lite.TUPLE))) {
                 TypedSpec mapSrc = tmap.source();
                 TypedLambda mOrder = null;
                 boolean mAsc = true;

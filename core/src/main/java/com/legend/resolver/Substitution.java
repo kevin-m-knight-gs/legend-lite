@@ -307,7 +307,7 @@ final class Substitution {
     /** An aggregated-navigation column read: {@code column} on the joined
      * row; {@code zeroWhenEmpty} wraps count-family reads (COUNT over no
      * children is pure 0, but the LEFT join delivers NULL). */
-    record AggRead(String column, boolean zeroWhenEmpty) {}
+    record AggRead(String column, @com.legend.Nullable TypedSpec whenEmpty) {}
 
     /** A to-many association head consumable under exists/isEmpty/isNotEmpty.
      * {@code targetSlotPrefixes}: the target's DEMANDED slots, materialized
@@ -1874,13 +1874,16 @@ final class Substitution {
 
     /** The grouped-subselect read a registered aggregate node becomes —
      * same ExprType as the node it replaces (discipline, plan risk #1);
-     * a count-family read is 0 when the group is absent. */
+     * {@code whenEmpty} is the reducer's value over an ABSENT group (the
+     * decorrelated row is NULL there): 0 for the count family, true for
+     * isDistinct ({@code []->isDistinct()} — CorrelatedSubselects
+     * .emptyGroupValue); other reducers stay NULL. */
     private TypedSpec aggReadExpr(TypedSpec n, AggRead aggRead) {
         TypedSpec read = new TypedPropertyAccess(
                 new TypedVariable(target.freshRowVar(),
                         new ExprType(target.rowType(), Multiplicity.Bounded.ONE)),
                 aggRead.column(), n.info());
-        if (!aggRead.zeroWhenEmpty()) {
+        if (aggRead.whenEmpty() == null) {
             return read;
         }
         return new TypedIf(
@@ -1888,9 +1891,7 @@ final class Substitution {
                         new ExprType(Type.Primitive.BOOLEAN,
                                 Multiplicity.Bounded.ONE)),
                 read,
-                Optional.of(new com.legend.compiler.spec.typed
-                        .TypedCInteger(0L, new ExprType(Type.Primitive.INTEGER,
-                                Multiplicity.Bounded.ONE))),
+                Optional.of(aggRead.whenEmpty()),
                 n.info());
     }
 

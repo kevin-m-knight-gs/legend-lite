@@ -204,6 +204,11 @@ class JdbcSurfaceCensusTest {
             // JSON is the assertion (NULL-predicate unable-to-evaluate
             // arm vs violation arm vs null-safe equality)
             "core/src/test/java/com/legend/integration/GraphFetchCheckedIntegrationTest.java",
+            // corpus-zero cluster A (2026-09-12): the by-tree isDistinct
+            // witness — the distinct-by-leaves test EXECUTES in the
+            // database (COUNT(DISTINCT row) = COUNT(row) over the grouped
+            // navigation); the rows are the assertion
+            "core/src/test/java/com/legend/integration/IsDistinctByTreeIntegrationTest.java",
             // group F burn (2026-09-02): the mapping-metamodel query
             // functions as Pure bodies over store rows — the in-memory
             // DuckDB IS the database the rows are the verdict on

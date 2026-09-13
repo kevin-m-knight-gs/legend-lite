@@ -1267,8 +1267,7 @@ public final class Lowerer {
             value = CastPolicy.castByPolicy(value,
                     valueCast.source().info().type(), valueCast.target(), valueCast.wire());
         }
-        // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) — no single
-        // SQL reducer (engine testGroupByIsDistinct golden).
+        // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
             if (!extra.isEmpty()) {
                 throw new IllegalStateException("isDistinct aggregate with"

@@ -60,7 +60,7 @@ class SpellingsTest {
             SqlFn.GUID,
             SqlFn.IN,
             SqlFn.INT_DIVIDE,
-            SqlFn.IS_DISTINCT,
+            SqlFn.IS_DISTINCT_FROM,
             SqlFn.NULL_SAFE_EQUAL,
             SqlFn.NULL_SAFE_NOT_EQUAL,
             SqlFn.IS_NOT_NULL,

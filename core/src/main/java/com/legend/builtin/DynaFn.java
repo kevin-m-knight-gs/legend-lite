@@ -147,7 +147,7 @@ public enum DynaFn {
     IN("in", Resolution.PURE, null, Inference.MAPPED, Dialect.DEFAULT, Dialect.SPANNER),
     INDEX_OF("indexOf", Resolution.TRANSLATED, null, Inference.MAPPED, Dialect.BIGQUERY, Dialect.CLICKHOUSE, Dialect.DATABRICKS, Dialect.DUCKDB, Dialect.H2, Dialect.MEMSQL, Dialect.ORACLE, Dialect.POSTGRES, Dialect.PRESTO, Dialect.REDSHIFT, Dialect.SNOWFLAKE, Dialect.SPANNER, Dialect.SPARKSQL, Dialect.SQLSERVER, Dialect.SYBASE, Dialect.SYBASEIQ, Dialect.TRINO),
     IS_ALPHA_NUMERIC("isAlphaNumeric", Resolution.UNSUPPORTED, null, Inference.NONE, Dialect.DATABRICKS, Dialect.DUCKDB, Dialect.H2, Dialect.SNOWFLAKE, Dialect.SPARKSQL, Dialect.SYBASE, Dialect.SYBASEIQ),
-    IS_DISTINCT("isDistinct", Resolution.SHIM, Pure.Lite.IS_DISTINCT, Inference.NONE, Dialect.DEFAULT),
+    IS_DISTINCT("isDistinct", Resolution.SHIM, Pure.Lite.IS_DISTINCT_FROM, Inference.NONE, Dialect.DEFAULT),
     IS_EMPTY("isEmpty", Resolution.PURE, null, Inference.MAPPED, Dialect.DEFAULT, Dialect.ORACLE, Dialect.SPARKSQL, Dialect.SQLSERVER, Dialect.SYBASE, Dialect.SYBASEIQ),
     IS_NOT_EMPTY("isNotEmpty", Resolution.PURE, null, Inference.MAPPED, Dialect.DEFAULT, Dialect.ORACLE, Dialect.SPANNER, Dialect.SPARKSQL, Dialect.SQLSERVER, Dialect.SYBASE, Dialect.SYBASEIQ),
     IS_NOT_NULL("isNotNull", Resolution.TRANSLATED, null, Inference.MAPPED, Dialect.DEFAULT, Dialect.ORACLE, Dialect.SPARKSQL, Dialect.SQLSERVER, Dialect.SYBASE, Dialect.SYBASEIQ),

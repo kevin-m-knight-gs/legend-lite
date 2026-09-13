@@ -453,9 +453,18 @@ public final class Pure {
         public static final String GREATER_THAN_EQUAL_ANY = PKG + "greaterThanEqual";
         public static final String IS_NUMERIC = PKG + "isNumeric";
         /** The engine's relational dynaFn {@code isDistinct(a, b)} (SQL
-         *  IS DISTINCT FROM; extensionDefaults.pure) — no pure counterpart
-         *  (pure's isDistinct is the 1-arg collection test). */
-        public static final String IS_DISTINCT = PKG + "isDistinct";
+         *  IS DISTINCT FROM; extensionDefaults.pure) — spelled
+         *  {@code isDistinctFrom} here so it never shares a name with pure's
+         *  {@code isDistinct} (the collection test, 1-arg, and the
+         *  by-tree form, 2-arg); the dyna-function's own name stays
+         *  {@code isDistinct} in DynaFn (engine vocabulary). */
+        public static final String IS_DISTINCT_FROM = PKG + "isDistinctFrom";
+        /** INTERNAL VALUE: the ROW of a tree's leaf values — what the by-tree
+         *  {@code isDistinct(collection, #{T{a, b}}#)} compares on
+         *  (IsDistinctChecker desugars to {@code map(e | tuple([$e.a, $e.b]))
+         *  ->isDistinct()}); lowers to a struct literal, distinct-counted as
+         *  one value. */
+        public static final String TUPLE = PKG + "tuple";
         /** INTERNAL DESUGAR IR: the pipeline SLOT join the normalizer emits
          *  (JoinChecker: "lite-INTERNAL vocabulary, exists ONLY under its exact
          *  spelling") — never user-reachable; the user's relation join is
@@ -518,7 +527,8 @@ public final class Pure {
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
-                    Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS)
+                    Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
+                    Lite.TUPLE)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -526,7 +536,7 @@ public final class Pure {
      *  {@link Lite}). Pinned shrink-only. */
     public static final java.util.Set<String> ENGINE_VOCAB_SHIMS =
             java.util.stream.Stream.of(Lite.DIVIDE_ROUND,
-                    Lite.NOT_EQUAL_ANSI, Lite.IS_NUMERIC, Lite.IS_DISTINCT,
+                    Lite.NOT_EQUAL_ANSI, Lite.IS_NUMERIC, Lite.IS_DISTINCT_FROM,
                     Lite.LESS_THAN_ANY, Lite.LESS_THAN_EQUAL_ANY,
                     Lite.GREATER_THAN_ANY, Lite.GREATER_THAN_EQUAL_ANY,
                     Lite.PARSE_DATE_FORMAT, Lite.CONVERT_DATE_FORMAT,
@@ -1247,7 +1257,12 @@ public final class Pure {
     public static final NativeFunctionDefinition UNIQUE_VALUE_ONLY__T_MANY = signature("native function meta::pure::functions::collection::uniqueValueOnly<T>(values:T[*]):T[0..1];");
     public static final NativeFunctionDefinition UNIQUE_VALUE_ONLY__T_MANY__T_01 = signature("native function meta::pure::functions::collection::uniqueValueOnly<T>(values:T[*], defaultValue:T[0..1]):T[0..1];");
     public static final NativeFunctionDefinition IS_DISTINCT__T_MANY = signature("native function meta::pure::functions::collection::isDistinct<T>(set:T[*]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition IS_DISTINCT__ANY_1__ANY_1 = signature("native function meta::legend::lite::isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition IS_DISTINCT_FROM__ANY_1__ANY_1 = signature("native function meta::legend::lite::isDistinctFrom(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition TUPLE__ANY_1__ANY_1 = signature("native function meta::legend::lite::tuple(v0:meta::pure::metamodel::type::Any[1], v1:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition TUPLE__ANY_1__ANY_1__ANY_1 = signature("native function meta::legend::lite::tuple(v0:meta::pure::metamodel::type::Any[1], v1:meta::pure::metamodel::type::Any[1], v2:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition TUPLE__ANY_1__ANY_1__ANY_1__ANY_1 = signature("native function meta::legend::lite::tuple(v0:meta::pure::metamodel::type::Any[1], v1:meta::pure::metamodel::type::Any[1], v2:meta::pure::metamodel::type::Any[1], v3:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1 = signature("native function meta::legend::lite::tuple(v0:meta::pure::metamodel::type::Any[1], v1:meta::pure::metamodel::type::Any[1], v2:meta::pure::metamodel::type::Any[1], v3:meta::pure::metamodel::type::Any[1], v4:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1 = signature("native function meta::legend::lite::tuple(v0:meta::pure::metamodel::type::Any[1], v1:meta::pure::metamodel::type::Any[1], v2:meta::pure::metamodel::type::Any[1], v3:meta::pure::metamodel::type::Any[1], v4:meta::pure::metamodel::type::Any[1], v5:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
     public static final NativeFunctionDefinition IS_EMPTY__T_MANY = signature("native function meta::pure::functions::collection::isEmpty(p:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_NOT_EMPTY__ANY_MANY = signature("native function meta::pure::functions::collection::isNotEmpty(p:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_ON_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isOnDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
@@ -2315,6 +2330,7 @@ public final class Pure {
     public static final NativeFunctionDefinition JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1__SORT_INFO_MANY = signature("native function meta::pure::functions::relation::joinStrings<T,X>(rel:meta::pure::metamodel::relation::Relation<T>[1], col:meta::pure::metamodel::relation::ColSpec<(?:meta::pure::metamodel::type::String)⊆T>[1], separator:meta::pure::metamodel::type::String[1], sortInfo:meta::pure::functions::relation::SortInfo<X⊆T>[*]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUBSTR__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::substr(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUBSTR__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::string::substr(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition IS_DISTINCT__T_MANY__ROOT_GRAPH_FETCH_TREE_1 = signature("native function meta::pure::functions::collection::isDistinct<T>(collection:T[*], graphFetchTree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // The GENERATED prelude is a MODULE (Prelude.java reads prelude.pure;
     // Compiler.bootLayer compiles it beside the system metamodel —

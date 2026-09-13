@@ -246,7 +246,7 @@ final class GraphFetchChecker {
      * grammar does not carry yet) returns the ORIGINAL node so the loud
      * arity message stands.
      */
-    private static ValueSpecification unwrapCompiledTree(ValueSpecification v) {
+    static ValueSpecification unwrapCompiledTree(ValueSpecification v) {
         // the wire-facing literal carrier dissolves to its desugared tree on
         // first checker touch (same rule as PathLiteral in the resolver)
         if (v instanceof com.legend.protocol.spec.GraphFetchLiteral gf) {
@@ -268,7 +268,7 @@ final class GraphFetchChecker {
 
 
     /** The nested sub-tree a colspec's {@code function2} wraps, or {@code null} for a leaf. */
-    private static @com.legend.Nullable ColSpecArray nestedTree(ColSpec cs) {
+    static @com.legend.Nullable ColSpecArray nestedTree(ColSpec cs) {
         if (cs.function2() == null || cs.function2().body().isEmpty()) {
             return null;
         }

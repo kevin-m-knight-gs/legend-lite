@@ -406,7 +406,7 @@ public final class SqlTyping {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER,
                     GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN, STARTS_WITH,
                     ENDS_WITH, MATCHES, REGEXP_FULL_MATCH, LIST_EXISTS,
-                    LIST_FOR_ALL, IS_DISTINCT, ALL_DISTINCT, NULL_SAFE_EQUAL,
+                    LIST_FOR_ALL, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL,
                     NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR,
                     XOR -> T_BOOLEAN;
             case CONCAT, CONCAT_JOIN, UPPER, LOWER, TRIM, LTRIM, RTRIM,
@@ -771,7 +771,7 @@ public final class SqlTyping {
         if (e instanceof SqlExpr.Call c) {
             switch (c.fn()) {
                 case IS_NULL, COALESCE, OR, NULL_SAFE_EQUAL,
-                        NULL_SAFE_NOT_EQUAL, IS_DISTINCT, ALL_DISTINCT,
+                        NULL_SAFE_NOT_EQUAL, IS_DISTINCT_FROM, ALL_DISTINCT,
                         LIST_BOOL_AND, LIST_BOOL_OR -> {
                     return false;
                 }

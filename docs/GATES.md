@@ -1395,3 +1395,58 @@ their equal text (LITERAL → SPELLING), and four more are judged by rows
 by a shorter comment. Chain: `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates
 1–9; per gate: build 24s, G1 68s, G3 12s, G4 95s, G5 47s (stream A 222s = the
 critical path), G6 139s, G7 35s, G9 28s, G8 146s — 246s wall.
+
+## `isDistinct`, three things under one name — 2026-09-12 (corpus-zero cluster A)
+
+**Why it kept coming up.** Three different things wore the name:
+1. pure's `isDistinct(list)` — "no duplicates"; upstream's Pure body is
+   remove-duplicates-and-compare-sizes and its SQL generator spells the group
+   reducer `COUNT(DISTINCT x) = COUNT(x)`; ours the same (Aggregates);
+2. pure's `isDistinct(list, tree)` — "no duplicates comparing by the tree's
+   leaf properties"; upstream's Pure body is `fail('Not implemented!')`
+   (collectionExtension.pure) and ONLY its generated-Java plan binding
+   implements it (IsDistinctFetchTreeCoder: an equality method from the
+   tree); no SQL translation exists upstream; one corpus use, the Firm
+   constraint `duplicateEmployee` inside a checked graph fetch (the accepted
+   row's constraint);
+3. our internal `meta::legend::lite::isDistinct(a, b)` — the engine's
+   relational dyna-function `isDistinct`, SQL `IS DISTINCT FROM`, nothing to
+   do with pure's function; a name collision of ours with guard comments
+   everywhere it was touched.
+
+**What landed.**
+- **Rename.** The internal native is `meta::legend::lite::isDistinctFrom`
+  (`Pure.Lite.IS_DISTINCT_FROM`, `SqlFn.IS_DISTINCT_FROM`); the engine's
+  dyna-function name `isDistinct` stays in DynaFn as its vocabulary.
+- **Form 2 as a Pure.java native with its SQL rule.** The signature
+  `isDistinct<T>(collection:T[*], graphFetchTree:RootGraphFetchTree<T>[1])`
+  joins the membership file (claimed by `CoreFn.IS_DISTINCT`);
+  `IsDistinctChecker` desugars it to form 1 over the row of the tree's
+  leaves — `collection->map(e | tuple($e.a, $e.b))->isDistinct()` — with
+  `tuple` a new internal value native (`Pure.Lite.TUPLE`, explicit arities
+  2–6; a struct literal, `TupleValue`), so the database counts distinct
+  rows: `COUNT(DISTINCT {'f0': a, 'f1': b}) = COUNT({…})`. A nested
+  sub-tree is not a leaf and walls loudly. The aggregate demand scan
+  accepts the tuple mapper by exact name (its declared `Any[1]` would read
+  as an object mapper).
+- **Empty groups are distinct.** `[]->isDistinct()` is true in pure; the
+  decorrelated grouped read was NULL over an absent group. The aggregate
+  read's "zero when empty" (counts) is now "the reducer's value over an
+  empty group" — 0 for the count family, true for `isDistinct`, NULL
+  otherwise (`CorrelatedSubselects.emptyGroupValue`). The witness's
+  employee-less firm exposed it; the one-argument form had it too.
+- **Witness:** `IsDistinctByTreeIntegrationTest` — distinct by name vs by
+  name-and-age vs an empty firm, rows asserted.
+
+**Measured, full corpus, both lanes:** no roster or pin moved (the by-tree
+form is reached only through the nested constraints on branch
+`nested-constraints-wip`; the empty-group rule and the rename changed no
+verdict). Guards paid: JDBC census (the new witness registered), lite
+governance (INTERNAL_DESUGAR 15 → 16, census row), claims ledger
+regenerated (825 overloads, 0 unclaimed), own-corpus parity 2312 → 2318.
+Chain: `GATES_PARALLEL=1 tools/allgates.sh` GREEN, gates 1–9; per gate:
+build 24s, G1 68s, G3 10s, G4 94s, G5 51s, G6 139s, G7 34s, G9 27s, G8 138s.
+
+**Why this batch moved no roster row and was still landed:** it is the
+prerequisite the revert named — re-landing nested constraints now keeps
+`testCheckedWithCircularConstraints` accepted with its witness unchanged.

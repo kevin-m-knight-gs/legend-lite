@@ -80,7 +80,13 @@ class NativeCatalogGovernanceTest {
         // are ENGINE vocabulary (the translator's format arms land on them) and
         // move to ENGINE_VOCAB_SHIMS; the pipeline SLOT join (internal IR the
         // normalizer emits) moves IN from the shim set where it was mis-filed.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 15,
+        // 15→16 (corpus-zero cluster A, 2026-09-12): tuple — the ROW of a
+        // graph-fetch tree's leaf values, the desugar target of pure's by-tree
+        // isDistinct(collection, tree) (IsDistinctChecker: map(e | tuple($e.a,
+        // $e.b))->isDistinct()); upstream implements that overload only in
+        // generated Java (IsDistinctFetchTreeCoder) — here it is a struct
+        // literal distinct-counted as one value; census row added.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 16,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
