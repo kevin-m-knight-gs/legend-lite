@@ -876,13 +876,6 @@ final class ArchitectureTest {
                 "com.legend.compiler.NameResolver.PRELUDE_TYPES",
                 "com.legend.compiler.NameResolver.PRELUDE_COLLISIONS",
                 "com.legend.parser.SectionGrammarRegistry.REGISTRY",
-                // content-addressed memo of a PURE FUNCTION (B3.1): a
-                // minted member-column name -> the (set, column) pairs it
-                // was minted from; the same pairs always mint the same
-                // name and a differing re-mint under one name is loud, so
-                // the table's content is fixed by its keys — never
-                // statement state (MemberColumns)
-                "com.legend.compiler.spec.MemberColumns.BY_NAME",
                 // warn-once diagnostic suppression set: genuinely mutable
                 // runtime state, bounded by the model's FQN universe
                 "com.legend.compiler.element.FunctionCompiler.SUPPRESSED_ONCE",

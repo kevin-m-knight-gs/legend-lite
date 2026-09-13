@@ -2,6 +2,7 @@
 
 package com.legend.normalizer;
 
+import com.legend.model.ClassMapping;
 import com.legend.model.JoinChainElement;
 import com.legend.protocol.spec.ValueSpecification;
 import java.util.HashSet;
@@ -56,6 +57,10 @@ final class Pipeline {
      * over ALL entries, each target-side member-suffixed
      * ({@code FirmID_1}) so exactly the routed members' threads match. */
     final Map<String, List<UnionSynthesis.UnionRoute>> unionRoutes = new LinkedHashMap<>();
+    /** The id of the set this pipeline realizes — the NAVIGATING set a
+     * routed navigation's link keys are named by (B3.1b); null for a
+     * view pipeline. */
+    @com.legend.Nullable ClassMapping ownerSet;
     /** Routed properties DROPPED from this synthesis (unresolvable or
      * unsupported route shape — reason on the poison ledger). Their PMs
      * emit nothing and bind no field; demand fails loudly. */

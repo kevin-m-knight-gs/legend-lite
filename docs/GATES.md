@@ -2194,3 +2194,78 @@ member column instead of the `ID_1` suffix. `CodeShapeGuardrailTest`: the first 
 
 **Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** First run RED on G1 (the four
 pins above; every other gate green); second run GREEN: build, G1 72s, G2 24s, G3 11s, G4 114s, G5 60s, G6 144s, G7 35s, G8 147s, G9 27s (GATES_PARALLEL=1). No own-corpus pin moved. **CI.** 435070647: gates and diagnostics green (the Linux gate-1 job first failed on the version-invariant step, "Central unreachable", before any test ran; the rerun passed).
+
+## Clean-sheet B3.1b — the member owns its link key — 2026-09-13
+
+**Why (USER review of B3.1, same day).** B3.1 spelled the per-member fact on the navigating class
+as `memberColumn($t, @Kind, 'p1', 'FIRM_ID', 'p2', 'FIRM_ID')` — mapping-DSL set ids as string
+literals inside generated Pure — with a `unionArm` marker tagging every thread by set id and a
+registry carrying that identity through the resolver. USER: "did you just carry mapping DSL syntax
+into our clean function design?" Yes. The hand-written form (docs/MAPPING_CLEAN_SHEET.md §2, §3,
+§4.2, E6) has each member set publish its own link column as a mapping-local property, the union
+concatenate the members, and the navigation read one name: `navigate(~employees: Person.all(),
+{r, p | $r.ID == $p.firmId})`. A link is defined by its owner in one of three places (USER):
+the member's own outbound navigate on its own key, an association binding bound once, or the
+owning class's function for a plain class-typed property. Union or single table, uniform columns
+or not, the words are the same. Design in docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md §6.
+
+**What landed.**
+- Every relational set's LINK KEYS are a fact of the mapping, published once per mapping before
+  any synthesis (`UnionSynthesis.publishLinkKeys`, over the PRE-PASSED records of the closure so
+  a set that extends another navigates with the routes it inherited) and stamped as
+  `NormalizationFacts.linkKeys` (set id → key name → the set's own physical column). Union
+  threads project their member's keys (own column, typed NULL elsewhere; a merged single-table
+  scan gates them by the member filter as every other column); a set that extends another
+  publishes the parent's keys too; the resolver's mixed-union arms read the fact
+  (`ClassSources.linkKeyOnArm`).
+- The key NAME is the navigating identity + property (+ a route-shape index when a property's
+  routes differ on the source side, + a position for composite conditions). The navigating
+  identity is the set's id, or its union/inheritance CLASS when every member of that operation
+  routes the property identically (same target sets through the same joins, class PMs and
+  association pair entries alike) — one key for all, so the members' navigations stay textually
+  equal and a single-table hierarchy whose kinds navigate alike still merges into one scan
+  (`navigatingIdentity`, `routeSignature`); routes that differ per source member keep per-set
+  keys, so each source member pairs with its own target member (`ResolveUnionChainTest`'s trap
+  row). Both sides derive shapes from one translation (`lastHopCondition`); a miss is loud.
+- The navigating class reads the name and nothing else: `JoinChainEmission.routedNavigation`
+  rewrites each route's target reads to key names and keeps one condition per shape; the
+  union's own lifted routed navigations do the same; the typing bridge declares the key's kind
+  from the store (`linkKeySpecs`, a shim). A same-table inheritance target reached through one
+  join keeps the plain physical condition (`sameTableInheritanceMerge`, the pre-B3 rule).
+- Include direction: an included union/inheritance whose members gain keys under THIS mapping
+  that the defining mapping's own publication never gave them is re-bound by the includer with
+  its own ledger (`includedOperationGainsLinkKeys`, comparing publication to publication; the
+  guard now counts DEFINING mappings, not class mappings — a union plus its members in one
+  included mapping is one definer). That is the re-synthesis block's job, kept for exactly this.
+- Association pair entries register per PAIR: several pairs of one source set share one Join
+  body, and a map keyed by the body kept only the last (the metamodel's 21 datatype kinds lost
+  their key). Routes inside embedded property blocks publish and sign like top-level ones.
+- Deleted: `memberColumn`, `unionArm`, `MemberColumns`, both natives (claims ledger regenerated,
+  INTERNAL_DESUGAR 18 → 16, census rows removed, register row removed), the per-set widening,
+  the raw-scan wrap and the composed-shape widening branches (the resolver is back to plain
+  widening: own column or sibling-typed NULL), `CoreFn.MEMBER_COLUMN`, the Typer arm.
+- Kept from B3.1: the shape grouping, `Pipelines.widenForCondition` and its consumers (harmless
+  now that bodies carry the keys), the flat-equi-key guard, the deleted union-to-union arms.
+
+**Corpus adjudication (rows judged).** 43 → 27 → 17 → 3 → 0 LOST on DuckDB (H2 alike): the
+extends family (inherited routes named by the child), the metamodel hierarchy (identity by
+class, then the pair-entry map collapse), the include-direction unions (definer count, then
+publication comparison), embedded routes.
+
+**Witnesses.** `UnionTargetLeanJoinTest`: one join, one equality on `ul_Firm_employees` /
+`ul_Firm_contractors`, no OR, no coalesce, rows unchanged. `ResolveUnionChainTest` trap row.
+`ResolveUnionTest` asserts the routed member's link key; audit 12's FirmID/LegacyID witness keeps
+both routes on their own members (shape-indexed keys).
+
+**Pins (first chain RED on G1, three shape guards).** `normalizeMapping` passed 250 lines with
+the widened re-synthesis loop — the loop is its own method (`resynthesizeIncluded`); the
+ledger's publication table is a final constructor argument, not a mutable field; the member
+side's Join translation catches the two loud kinds (`NotImplementedException`,
+`ModelException`), not `RuntimeException`. Every other gate green on the first run.
+
+**Sizes (against B3.1).** UnionSynthesis 2,835 → 3,217 (the publication, identity and shape
+rules); JoinChainEmission 1,095 → 1,076; MappingNormalizer 3,059 → 3,151 (the publication loop
+and the re-bind criterion); Pipelines 2,271 → 1,990 (the per-set widening gone); ClassSources
+1,512 → 1,510; MemberColumns deleted. Diff: 24 files, +897 / −687.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** second run GREEN: G1 72s, G2 24s, G3 11s, G4 117s, G5 60s, G6 139s, G7 38s, G8 144s, G9 29s (GATES_PARALLEL=1). No own-corpus pin moved.

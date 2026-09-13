@@ -1419,7 +1419,6 @@ final class Typer {
             case NAVIGATE -> NavigateChecker.check(this, af, env);
             // legacyNavigate: the pre-map rule, target table rows spelled in
             case LEGACY_NAVIGATE -> NavigateChecker.legacy(this, af, env);
-            case MEMBER_COLUMN -> MemberColumns.check(this, af, env);
             case IS_DISTINCT -> IsDistinctChecker.check(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
             case GRAPH_FETCH_CHECKED ->

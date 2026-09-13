@@ -424,25 +424,6 @@ public final class Pure {
          * widening, nested-slot demands) instead of the concatenate shape
          * that no longer exists. Lowering is erasure. */
         public static final String UNION_SCAN = PKG + "unionScan";
-        /** THE MEMBER COLUMN of a routed navigation (clean-sheet B3.1,
-         * 2026-09-13): {@code memberColumn($t, @Kind, 'set1', 'col1',
-         * 'set2', 'col2', ...)} reads, off a target row, the named column
-         * of the SET the row came from — NULL for a row from any other
-         * set. The navigating class spells the sets its own property
-         * mapping routes to and the columns its Joins read; it never
-         * learns whether the target is one set or a union, nor a member
-         * ordinal. The resolver rewrites every call into a plain read of
-         * a minted column and widens the target's arms per set
-         * ({@code Pipelines.widenUnionMember}); the lowering never sees
-         * one (loud if it does). */
-        public static final String MEMBER_COLUMN = PKG + "memberColumn";
-        /** THE UNION ARM MARKER (B3.1): {@code unionArm(rows, 'set1', '',
-         * 'set2', 'in_set2', ...)} names the member SETS a union thread
-         * holds and, for a merged single-table scan, the boolean column of
-         * the thread's projection that gates each set ('' when every row of
-         * the arm belongs to the set) — the structural fact the per-set
-         * widening reads. Identity on the rows; lowering is erasure. */
-        public static final String UNION_ARM = PKG + "unionArm";
         /** ASOR store-object-reference readers (batch 72b): the pk value
          *  at position i of a reference (typed by the resolver as the pk
          *  column's type), and the engine's decode-to-pkMap JSON over a
@@ -545,7 +526,6 @@ public final class Pure {
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
-                    Lite.MEMBER_COLUMN, Lite.UNION_ARM,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE)
@@ -908,15 +888,6 @@ public final class Pure {
     /** The union-scan marker (see {@link Lite#UNION_SCAN}): identity on
      * the relation, a structural fact for the resolver. */
     public static final NativeFunctionDefinition UNION_SCAN__RELATION_1 = signature("native function meta::legend::lite::unionScan<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
-    /** The member column of a routed navigation (see {@link Lite#MEMBER_COLUMN}):
-     * the kind rides as a type reference argument, exactly as cast's does;
-     * the set/column pairs are string literals. */
-    public static final NativeFunctionDefinition MEMBER_COLUMN__T_1__K_1__STRING_MANY = signature("native function meta::legend::lite::memberColumn<T,K>(row:T[1], kind:K[1], setsAndColumns:meta::pure::metamodel::type::String[*]):K[0..1];");
-    /** The union arm marker (see {@link Lite#UNION_ARM}): identity on the
-     * rows; {@code setsAndGates} alternates a set id with the name of the
-     * arm's boolean gate column for that set ('' when every row of the arm
-     * belongs to the set). */
-    public static final NativeFunctionDefinition UNION_ARM__RELATION_1__STRING_MANY = signature("native function meta::legend::lite::unionArm<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], setsAndGates:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AND__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::and(first:meta::pure::metamodel::type::Boolean[1], second:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");

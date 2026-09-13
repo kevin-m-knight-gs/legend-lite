@@ -958,8 +958,8 @@ final class UnionSynthesis {
         // entry routes to a union member of the TARGET class). Downstream,
         // the union class then looks like any nav-slot class.
         List<NavLift> lifts = collectNavLifts(md, className, members, model, ledger);
-        // ordinal -> (base column -> suffixed name): the source keys each
-        // member thread projects (its own reads; typed NULL elsewhere)
+        // ordinal -> (projected name -> physical column): the key columns
+        // each member thread projects (its own reads; typed NULL elsewhere)
         Map<Integer, Map<String, String>> srcKeysByOrdinal = new LinkedHashMap<>();
         Map<Integer, List<LiftChain>> chainsByOrdinal = new LinkedHashMap<>();
         for (NavLift lf : lifts) {
@@ -976,13 +976,22 @@ final class UnionSynthesis {
         // threads project once (see TABLE_KEY_SUFFIX) — the union's OWN
         // decision from its members alone (B3.1)
         Map<List<String>, Integer> sharedKeys = ownSharedKeys(members, model);
-        // CHAINED per-arm routes INTO this union still push their mid hops
-        // into the owning member's thread (B3.2 moves them to the
-        // navigating class); single-hop routes demand nothing of the body
-        // any more — the resolver widens the arms per set on demand
-        collectInboundChains(md, model,
+        // THE MEMBERS' LINK KEYS (B3.1b): every route INTO a member of
+        // this union names, through its Join, the column of the MEMBER's
+        // table that links it — the member publishes that column under
+        // the key's name (linkKeyName), NULL in the other members' threads;
+        // the navigating class reads the name and nothing else. CHAINED
+        // per-arm routes still push their mid hops into the owning
+        // member's thread (B3.2 moves them to the navigating class).
+        for (int o = 0; o < members.size(); o++) {
+            Map<String, String> published = ledger.linkKeys.get(MappingView.idOf(members.get(o)));
+            if (published != null) {
+                srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>()).putAll(published);
+            }
+        }
+        collectInboundRouteKeys(md, new ArrayList<>(md.closure()), model,
                 members.stream().map(MappingView::idOf).toList(),
-                members, chainsByOrdinal);
+                members, new LinkedHashMap<>(), chainsByOrdinal, ledger);
         recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model, ledger);
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
@@ -1035,31 +1044,16 @@ final class UnionSynthesis {
                 Thread t = threadOf(ordinal, parts.get(ordinal), members, common, owner,
                         className, embSubs, embInner, subTypeProps, srcKeysByOrdinal,
                         chainsByOrdinal, sharedKeys, md, model);
-                // the arm marker names the ONE set this thread holds
-                // (Pure.Lite.UNION_ARM — the per-set widening reads it)
-                projected = new AppliedFunction(Pure.Lite.UNION_ARM, List.of(
-                        new AppliedFunction("project",
-                                List.of(t.pipe(), new ColSpecArray(t.cols()))),
-                        new PureCollection(List.of(
-                                new CString(MappingView.idOf(members.get(ordinal))),
-                                new CString("")))));
+                projected = new AppliedFunction("project",
+                        List.of(t.pipe(), new ColSpecArray(t.cols())));
             } else {
                 // the marker: "this projection IS a union body" (the
                 // resolver's union facts read it where a concatenate no
-                // longer exists — Pure.Lite.UNION_SCAN, lowering identity),
-                // inside the arm marker that names the merged sets and
-                // their gates
-                MergedScan ms = mergedScan(group, parts, members, common, owner, className,
-                        embSubs, embInner, subTypeProps, srcKeysByOrdinal,
-                        chainsByOrdinal, sharedKeys, md, model);
-                List<ValueSpecification> setsAndGates = new ArrayList<>();
-                for (String[] sg : ms.setsAndGates()) {
-                    setsAndGates.add(new CString(sg[0]));
-                    setsAndGates.add(new CString(sg[1]));
-                }
-                projected = new AppliedFunction(Pure.Lite.UNION_ARM, List.of(
-                        new AppliedFunction(Pure.Lite.UNION_SCAN, List.of(ms.projected())),
-                        new PureCollection(setsAndGates)));
+                // longer exists — Pure.Lite.UNION_SCAN, lowering identity)
+                projected = new AppliedFunction(Pure.Lite.UNION_SCAN, List.of(
+                        mergedScan(group, parts, members, common, owner, className,
+                                embSubs, embInner, subTypeProps, srcKeysByOrdinal,
+                                chainsByOrdinal, sharedKeys, md, model)));
             }
             union = union == null ? projected
                     : new AppliedFunction("concatenate", List.of(union, projected));
@@ -1200,20 +1194,21 @@ final class UnionSynthesis {
             // are typed NULL (nullable — no toOne wrap)
             Map<String, String> ownKeys = srcKeysByOrdinal.getOrDefault(ordinal, Map.of());
             Map<String, int[]> keyNames = new LinkedHashMap<>();   // name -> first ordinal
-            Map<String, String> keyPhysical = new LinkedHashMap<>(); // name -> physical column
+            Map<String, String> keyPhysical = new LinkedHashMap<>(); // name -> a physical column
             for (var en : srcKeysByOrdinal.entrySet()) {
                 for (var key : en.getValue().entrySet()) {
-                    keyNames.putIfAbsent(key.getValue(), new int[]{en.getKey()});
-                    keyPhysical.putIfAbsent(key.getValue(), key.getKey());
+                    keyNames.putIfAbsent(key.getKey(), new int[]{en.getKey()});
+                    keyPhysical.putIfAbsent(key.getKey(), key.getValue());
                 }
             }
             for (var kn : keyNames.entrySet()) {
                 String name = kn.getKey();
                 String physical = java.util.Objects.requireNonNull(keyPhysical.get(name));
-                boolean mine = ownKeys.entrySet().stream()
-                        .anyMatch(e -> e.getValue().equals(name));
-                ValueSpecification read = mine
-                        ? new AppliedProperty(pp.rowBind(), physical)
+                // a link key names a DIFFERENT physical column per member
+                // (FIRM_ID here, OWNER_ID there): this thread reads its own
+                String own = ownKeys.get(name);
+                ValueSpecification read = own != null
+                        ? new AppliedProperty(pp.rowBind(), own)
                         : MappingNormalizer.nullOfPhysicalKind((ClassMapping.Relational)
                                 members.get(kn.getValue()[0]), physical, md, model);
                 // toOne types both threads identically (real read vs
@@ -1271,26 +1266,7 @@ final class UnionSynthesis {
     /** The single-scan thread of a filtered same-table group: each column
      * is the member-gated if-chain over the members' own values, the source
      * is the shared unfiltered scan restricted to rows any member claims. */
-    /** A merged single-table scan: the projection (its last columns the
-     * boolean GATES, one per merged set: the set's own filter over the
-     * scan row) and the (set id, gate column) pairs the arm marker names. */
-    record MergedScan(ValueSpecification projected, List<String[]> setsAndGates) {
-    }
-
-    /** The gate column of a merged set: {@code in__<set>}, minted past any
-     * projected column of that name. */
-    private static String gateColumn(String setId, List<ColSpec> cols) {
-        String name = "in__" + setId;
-        while (true) {
-            String n = name;
-            if (cols.stream().noneMatch(c -> c.name().equals(n))) {
-                return n;
-            }
-            name = "_" + name;
-        }
-    }
-
-    private static MergedScan mergedScan(List<Integer> group,
+    private static ValueSpecification mergedScan(List<Integer> group,
             List<MappingNormalizer.RelationalParts> parts, List<ClassMapping> members,
             List<String> common, @com.legend.Nullable ClassDefinition owner,
             String className, Map<String, LinkedHashSet<String>> embSubs,
@@ -1342,17 +1318,7 @@ final class UnionSynthesis {
             value = new AppliedFunction(Pure.Lite.TRUST_ONE, List.of(value));
             cols.add(new ColSpec(name, new LambdaFunction(List.of(row), List.of(value)), null));
         }
-        List<String[]> setsAndGates = new ArrayList<>();
-        for (int k = 0; k < group.size(); k++) {
-            String set = MappingView.idOf(members.get(group.get(k)));
-            String gate = gateColumn(set, cols);
-            cols.add(new ColSpec(gate,
-                    new LambdaFunction(List.of(row), List.of(scans.get(k).pred())), null));
-            setsAndGates.add(new String[]{set, gate});
-        }
-        return new MergedScan(
-                new AppliedFunction("project", List.of(pipe, new ColSpecArray(cols))),
-                setsAndGates);
+        return new AppliedFunction("project", List.of(pipe, new ColSpecArray(cols)));
     }
 
     /** A member column's value without its {@code trustOne} alignment wrap
@@ -1751,23 +1717,293 @@ final class UnionSynthesis {
     }
 
     /**
-     * THE MEMBER COLUMN (clean-sheet B3.1): {@code memberColumn($t, @Kind,
-     * set1, col1, set2, col2, ...)} — the column of the target's row read
-     * PER SET (see {@link Pure.Lite#MEMBER_COLUMN}). The navigating class
-     * spells only what its own property mapping and Joins say: which set
-     * each route names and which column of that set's table the Join
-     * reads. It never learns the target's member count or order.
+     * THE LINK KEY NAME (clean-sheet B3.1b): the column a navigation joins
+     * on, as the member set publishes it — named by the NAVIGATING set and
+     * the property ({@code ul_Firm_employees}; a union member navigating
+     * carries its own set id, so {@code a1_b} and {@code a2_b} pair each
+     * source member with its own target member), plus a position suffix
+     * for a condition reading several target columns. Every routed member
+     * projects its OWN physical column under the name, un-routed members a
+     * typed NULL; the navigating class reads the name and nothing else.
+     * A hand author names by meaning; the translator names by the route.
      */
-    static AppliedFunction memberColumn(Variable t, String kind,
-            List<String[]> setsAndColumns) {
-        List<ValueSpecification> args = new ArrayList<>();
-        args.add(t);
-        args.add(new TypeAnnotation.Named(new TypeExpression.NameRef(kind)));
-        for (String[] sc : setsAndColumns) {
-            args.add(new CString(sc[0]));
-            args.add(new CString(sc[1]));
+    /**
+     * THE NAVIGATING IDENTITY a link key is named by: the navigating set's
+     * id — or its CLASS when the set is a member of a union whose members
+     * all route {@code property} identically (same target sets through the
+     * same joins). Identical routes pair every source member with every
+     * routed target member, so one key serves them all and the members'
+     * navigations stay textually equal (a single-table hierarchy whose
+     * kinds navigate alike still merges into one scan); routes that differ
+     * per source member keep per-set keys, so each pairs with its own
+     * target member (the union-to-union trap row).
+     */
+    static String navigatingIdentity(ResolvedMapping md, ClassMapping navSet, String property,
+            ModelBuilder model) {
+        String own = MappingView.idOf(navSet);
+        // the operation (union, or inheritance whose members are the
+        // subclasses' sets) the set is a MEMBER of
+        String opClass = null;
+        List<String> memberIds = List.of();
+        for (LegacyMappingDefinition m : md.closure()) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm instanceof ClassMapping.Union cu && cu.memberSetIds().contains(own)) {
+                    opClass = cu.className();
+                    memberIds = cu.memberSetIds();
+                } else if (cm instanceof ClassMapping.Inheritance ih) {
+                    List<String> ids = inheritanceMembers(md, ih, model).stream()
+                            .map(MappingView::idOf).toList();
+                    if (ids.contains(own)) {
+                        opClass = ih.className();
+                        memberIds = ids;
+                    }
+                }
+            }
         }
-        return new AppliedFunction(Pure.Lite.MEMBER_COLUMN, args);
+        if (opClass == null) {
+            return own;
+        }
+        Set<String> mine = routeSignature(md, own, property);
+        for (String id : memberIds) {
+            if (!routeSignature(md, id, property).equals(mine)) {
+                return own;
+            }
+        }
+        return opClass.replace("::", "_");
+    }
+
+    /** Every routed Join PM of a set, through its embedded blocks (an
+     * embedded property's sub-PMs navigate for the owning set — the
+     * navigator emits them with the set's own identity). */
+    static List<PropertyMapping.Join> routedJoins(ClassMapping cm) {
+        List<PropertyMapping.Join> out = new ArrayList<>();
+        if (cm instanceof ClassMapping.Relational r) {
+            collectRoutedJoins(r.propertyMappings(), out);
+        }
+        return out;
+    }
+
+    private static void collectRoutedJoins(List<PropertyMapping> pms, List<PropertyMapping.Join> out) {
+        for (PropertyMapping pm : pms) {
+            switch (pm) {
+                case PropertyMapping.Join j -> {
+                    if (j.targetSetId() != null) {
+                        out.add(j);
+                    }
+                }
+                case PropertyMapping.Embedded e -> collectRoutedJoins(e.propertyMappings(), out);
+                case PropertyMapping.OtherwiseEmbedded oe -> collectRoutedJoins(oe.embedded(), out);
+                case PropertyMapping.LocalProperty lp -> collectRoutedJoins(List.of(lp.body()), out);
+                default -> { }
+            }
+        }
+    }
+
+    /** A set's routes of {@code property}: its own class-PM routes (the
+     * mapping's record, never an injected copy) plus the association pair
+     * entries of the closure whose SOURCE set it is — as (target set,
+     * join chain) — the one signature both the publisher and the
+     * navigator compare. */
+    private static Set<String> routeSignature(ResolvedMapping md, String setId, String property) {
+        Set<String> out = new LinkedHashSet<>();
+        ClassMapping cm = md.set(setId);
+        if (cm != null) {
+            for (PropertyMapping.Join j : routedJoins(cm)) {
+                if (j.propertyName().equals(property)) {
+                    out.add(joinSignature(j, java.util.Objects.requireNonNull(j.targetSetId())));
+                }
+            }
+        }
+        for (LegacyMappingDefinition m : md.closure()) {
+            for (AssociationMapping am : m.associationMappings()) {
+                if (!(am instanceof AssociationMapping.Relational rel)) {
+                    continue;
+                }
+                for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+                    if (setId.equals(apm.sourceSetId()) && property.equals(apm.propertyName())
+                            && apm.body() instanceof PropertyMapping.Join j) {
+                        String tgt = j.targetSetId() != null ? j.targetSetId() : apm.targetSetId();
+                        if (tgt != null) {
+                            out.add(joinSignature(j, tgt));
+                        }
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    private static String joinSignature(PropertyMapping.Join j, String targetSet) {
+        StringBuilder b = new StringBuilder(targetSet).append('=');
+        for (JoinChainElement h : j.joins()) {
+            b.append(h.databaseName() != null ? h.databaseName() : j.database())
+                    .append('@').append(h.joinName()).append('>');
+        }
+        return b.toString();
+    }
+
+    static String linkKeyName(String navigatingSetId, String property, int shape, int position) {
+        return navigatingSetId + "_" + property + (shape < 0 ? "" : "_s" + shape)
+                + (position == 0 ? "" : "_" + position);
+    }
+
+    /**
+     * THE SHAPES of one property's routes: a route's condition with its
+     * target reads erased and its source reads reduced to bare columns
+     * (a shared-prefix chain reads {@code $s.alias.col}; the member side
+     * translates {@code $s.col} — the same shape). Routes of ONE shape
+     * share ONE link key (their source sides agree, so every routed
+     * member's key may carry one name and the join is one equality);
+     * routes of different shapes (audit 12 F3: FirmID into one member,
+     * LegacyID into another) keep separate keys, each published only by
+     * its own members, so a source column never matches the other
+     * route's member. Both the navigator and the member side compute
+     * this list from the same route conditions, in route order.
+     */
+    static List<ValueSpecification> routeShapes(List<ValueSpecification> rawConds,
+            Variable s, Variable t) {
+        List<ValueSpecification> shapes = new ArrayList<>();
+        for (ValueSpecification raw : rawConds) {
+            ValueSpecification shape = routeShape(raw, s, t);
+            if (!shapes.contains(shape)) {
+                shapes.add(shape);
+            }
+        }
+        return shapes;
+    }
+
+    static ValueSpecification routeShape(ValueSpecification raw, Variable s, Variable t) {
+        ValueSpecification erased = rewriteTargetReads(raw, t, col -> new AppliedProperty(t, "?"));
+        return bareSourceReads(erased, s);
+    }
+
+    private static ValueSpecification bareSourceReads(ValueSpecification n, Variable s) {
+        if (n instanceof AppliedProperty ap
+                && ap.receiver() instanceof AppliedProperty inner
+                && inner.receiver() instanceof Variable v
+                && v.name().equals(s.name())) {
+            return new AppliedProperty(v, ap.property());
+        }
+        return switch (n) {
+            case AppliedFunction af -> af.withParameters(
+                    af.parameters().stream().map(x -> bareSourceReads(x, s)).toList());
+            case AppliedProperty ap -> new AppliedProperty(bareSourceReads(ap.receiver(), s),
+                    ap.property());
+            case PureCollection pc -> new PureCollection(pc.values().stream()
+                    .map(x -> bareSourceReads(x, s)).toList());
+            default -> n;
+        };
+    }
+
+    /** The shapes of one set's routes of {@code prop} (its single-hop and
+     * shared-prefix Join PMs): the member side of a lifted navigation's
+     * key names, computed exactly as the target union's inbound scan
+     * computes them. */
+    static List<ValueSpecification> memberRouteShapes(ClassMapping member, String prop,
+            String memberTable, ResolvedMapping md, ModelBuilder model,
+            Variable s, Variable t) {
+        List<ValueSpecification> conds = new ArrayList<>();
+        for (PropertyMapping.Join j : routedJoins(member)) {
+            if (j.propertyName().equals(prop)) {
+                ValueSpecification c = lastHopCondition(j, memberTable, md, model, s, t);
+                if (c != null) {
+                    conds.add(c);
+                }
+            }
+        }
+        return routeShapes(conds, s, t);
+    }
+
+    /** A route's LAST hop translated over {@code s} (its previous table)
+     * and {@code t} (the landing table) — the condition the navigator and
+     * the member side both derive their key names from; null when the
+     * Join is unknown (loud at the route's own emission). */
+    static @com.legend.Nullable ValueSpecification lastHopCondition(PropertyMapping.Join j,
+            @com.legend.Nullable String navigatingTable, ResolvedMapping md,
+            ModelBuilder model, Variable s, Variable t) {
+        JoinChainElement hop = j.joins().get(j.joins().size() - 1);
+        String db = hop.databaseName() != null ? hop.databaseName() : j.database();
+        DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName()).orElse(null);
+        if (jd == null) {
+            return null;
+        }
+        String prevTable = navigatingTable;
+        if (j.joins().size() > 1) {
+            JoinChainElement prevHop = j.joins().get(j.joins().size() - 2);
+            String pdb = prevHop.databaseName() != null ? prevHop.databaseName() : j.database();
+            DatabaseDefinition.JoinDefinition pjd = model.findJoin(pdb, prevHop.joinName()).orElse(null);
+            if (pjd == null) {
+                return null;
+            }
+            Set<String> pt = new LinkedHashSet<>();
+            RelOpTranslator.collectTablesIn(pjd.operation(), pt);
+            Set<String> ht = new LinkedHashSet<>();
+            RelOpTranslator.collectTablesIn(jd.operation(), ht);
+            pt.retainAll(ht);
+            prevTable = pt.isEmpty() ? null : pt.iterator().next();
+        }
+        Set<String> tables = new LinkedHashSet<>();
+        RelOpTranslator.collectTablesIn(jd.operation(), tables);
+        if (prevTable != null) {
+            tables.remove(MappingNormalizer.canonicalTable(prevTable));
+            tables.remove(prevTable);
+        }
+        Map<String, ValueSpecification> scope = new LinkedHashMap<>();
+        if (prevTable != null) {
+            scope.put(MappingNormalizer.canonicalTable(prevTable), s);
+        }
+        for (String tb : tables) {
+            scope.put(tb, t);
+        }
+        try {
+            return RelOpTranslator.translate(jd.operation(), scope, t, null,
+                    RelOpTranslator.PipelineView.NONE);
+        } catch (NotImplementedException | ModelException e) {
+            return null;    // loud at the route's own emission
+        }
+    }
+
+    /** A SAME-TABLE inheritance target reached through ONE join: its body
+     * is the shared table itself (no member threads to publish a key), and
+     * every member is that table's rows, so the navigation reads the
+     * physical column plainly (the pre-B3 rule, restored). */
+    static boolean sameTableInheritanceMerge(ResolvedMapping md,
+            ModelBuilder model, @com.legend.Nullable String targetClassFqn,
+            List<UnionRoute> routes) {
+        if (targetClassFqn == null) {
+            return false;
+        }
+        ClassMapping.Inheritance ih = md.inheritanceOf(targetClassFqn);
+        if (ih == null) {
+            return false;
+        }
+        Set<String> joins = new HashSet<>();
+        for (UnionRoute r : routes) {
+            if (r.join().joins().size() != 1) {
+                return false;
+            }
+            JoinChainElement hop = r.join().joins().get(0);
+            joins.add((hop.databaseName() != null ? hop.databaseName()
+                    : r.join().database()) + "@" + hop.joinName());
+        }
+        return joins.size() == 1
+                && sharedInheritanceTable(inheritanceMembers(md, ih, model)) != null;
+    }
+
+    /** The shape index a route's key names carry: -1 when the property's
+     * routes all share one shape. */
+    static int shapeIndex(List<ValueSpecification> shapes, ValueSpecification raw,
+            Variable s, Variable t) {
+        if (shapes.size() <= 1) {
+            return -1;
+        }
+        int i = shapes.indexOf(routeShape(raw, s, t));
+        if (i < 0) {
+            throw new IllegalStateException("normalizer bug: a route's condition is not"
+                    + " among its property's shapes — the navigator and the member side"
+                    + " translated the Join differently");
+        }
+        return i;
     }
 
     /** The target-side reads ({@code $t.col}) of a translated join
@@ -1824,17 +2060,23 @@ final class UnionSynthesis {
         return kind;
     }
 
-    /** One route's condition with every target read spelled as the member
-     * column of the route's own target set. */
-    static ValueSpecification memberColumnReads(ValueSpecification cond, Variable t,
-            String targetSetId, String db, String table, ModelBuilder model,
-            String mappingName) {
-        return rewriteTargetReads(cond, t, col -> {
-            List<String[]> pair = new ArrayList<>();
-            pair.add(new String[]{targetSetId, col});
-            return memberColumn(t,
-                    targetColumnKind(db, table, col, model, mappingName), pair);
-        });
+    /** Typing colspecs for link keys read off a navigate's target rows:
+     * each key types as its own landing table's column kind (a NULL cast
+     * — the typing shim of the legacy bridge, no semantics). */
+    static List<ColSpec> linkKeySpecs(Map<String, String[]> keyCols,
+            ModelBuilder model, String mappingName) {
+        List<ColSpec> specs = new ArrayList<>();
+        for (var en : keyCols.entrySet()) {
+            Variable kr = new Variable("kr");
+            String[] v = en.getValue();
+            String kind = targetColumnKind(v[1], v[2], v[0], model, mappingName);
+            specs.add(new ColSpec(en.getKey(), new LambdaFunction(List.of(kr),
+                    List.of(new AppliedFunction("cast", List.of(
+                            new PureCollection(List.of()),
+                            new TypeAnnotation.Named(new TypeExpression.NameRef(kind)))))),
+                    null));
+        }
+        return specs;
     }
 
     /**
@@ -2401,6 +2643,8 @@ final class UnionSynthesis {
             boolean allSingleHop = true;
             String landingDb = null;
             String landingTable = null;
+            // link key name -> [physical column, db, landing table] (typing)
+            Map<String, String[]> tgtKeyCols = new LinkedHashMap<>();
             Map<Integer, Map<String, String>> srcKeys = new LinkedHashMap<>();
             Map<Integer, List<LiftChain>> chains = new LinkedHashMap<>();
             List<int[]> ords = found.get(prop);
@@ -2466,27 +2710,49 @@ final class UnionSynthesis {
                     allSingleHop = false;
                 }
                 if (midSteps.isEmpty()) {
-                    srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
-                            .putAll(srcOut);
+                    Map<String, String> byName = srcKeys.computeIfAbsent(memberOrd,
+                            x -> new LinkedHashMap<>());
+                    for (var so : srcOut.entrySet()) {
+                        byName.put(so.getValue(), so.getKey());   // name -> physical
+                    }
                 } else {
                     chains.computeIfAbsent(memberOrd, x -> new ArrayList<>())
                             .add(new LiftChain(midSteps, prevAlias,
                                     midSteps.get(midSteps.size() - 1).db(),
                                     prevTable, srcOut));
                 }
-                // the PAIRED (per-set target) variant builds ALWAYS; the
-                // emitted predicate is the MERGED (raw-target) form only
-                // when liftTargetMerged — the paired variant then rides
+                // the PAIRED variant builds ALWAYS; the emitted predicate
+                // is the MERGED (raw-target) form only when
+                // liftTargetMerged — the paired variant then rides
                 // alongside for GRAPH children, whose engine subsystem
                 // pairs strictly (TypedNavigate.pairedPredicate). The
-                // target side is spelled per SET (memberColumn, B3.1):
-                // the route's own target set id and column — no member
-                // ordinal of the target union is read
+                // target side reads the LINK KEY this member's route
+                // published on the target union's member (B3.1b: named by
+                // this member's set and the property, so each source
+                // member pairs with its own target member)
                 ValueSpecification pairedEntry = cond;
                 if (j.targetSetId() != null && targetUnion != null
                         && targetUnion.memberSetIds().contains(j.targetSetId())) {
-                    pairedEntry = memberColumnReads(cond, t, j.targetSetId(),
-                            hopDb, tgtTable, model, md.qualifiedName());
+                    // a member's own routes of this property: their shapes
+                    // (one member set navigates with its own set id, so a
+                    // member's routes rarely differ in shape)
+                    String navSet = navigatingIdentity(md, members.get(memberOrd), prop, model);
+                    ValueSpecification shapeCond = lastHopCondition(j, srcTable, md, model, s, t);
+                    int shape = shapeCond == null ? -1
+                            : shapeIndex(memberRouteShapes(members.get(memberOrd), prop,
+                                    srcTable, md, model, s, t), shapeCond, s, t);
+                    int[] pos = {0};
+                    pairedEntry = rewriteTargetReads(cond, t, col -> {
+                        String name = linkKeyName(navSet, prop, shape, pos[0]++);
+                        tgtKeyCols.put(name, new String[]{col, hopDb, tgtTable});
+                        if (liftTargetMerged) {
+                            // the MERGED predicate keeps the RAW read (a
+                            // projected value column of the target): it
+                            // types through the shim beside the key
+                            tgtKeyCols.putIfAbsent(col, new String[]{col, hopDb, tgtTable});
+                        }
+                        return new AppliedProperty(t, name);
+                    });
                 }
                 if (!liftTargetMerged) {
                     cond = pairedEntry;
@@ -2506,11 +2772,15 @@ final class UnionSynthesis {
                     && orPaired != orCond
                     ? new LambdaFunction(List.of(s, t), List.of(orPaired))
                     : null;
-            // the typing arg: the landing table's own row (a MERGED
-            // predicate reads its projected value columns; a per-set read
-            // types itself through memberColumn's kind argument)
+            // the typing arg: the landing table's own row, plus the link
+            // keys the paired predicate reads (a typing shim: each key's
+            // kind from its own landing table; no semantics)
             ValueSpecification targetRows = ViewRelation.relationExpr(
                     java.util.Objects.requireNonNull(landingDb), java.util.Objects.requireNonNull(landingTable), model, md);
+            if (!tgtKeyCols.isEmpty()) {
+                targetRows = new AppliedFunction("project", List.of(targetRows,
+                        new ColSpecArray(linkKeySpecs(tgtKeyCols, model, md.qualifiedName()))));
+            }
             lifts.add(new NavLift(prop, targetClassFqn, targetRows,
                     new LambdaFunction(List.of(s, t), List.of(orCond)),
                     pairedLam, srcKeys, chains));
@@ -2550,66 +2820,109 @@ final class UnionSynthesis {
         return out;
     }
 
+    /** The LINK KEYS of every relational set in the mapping's closure
+     * (B3.1b): routed into by class PMs or association pair entries,
+     * each set publishes the columns those routes read under the key
+     * names the navigators spell — stamped on the ledger as a fact. */
+    static void publishLinkKeys(ResolvedMapping md,
+            Map<String, ResolvedMapping> resolved, ModelBuilder model, MappingLedger ledger) {
+        // the PRE-PASSED records of the closure: a set that extends another
+        // navigates with the routes it INHERITED, and names its keys by
+        // its own id (the navigator side reads the flattened record too)
+        List<LegacyMappingDefinition> records = new ArrayList<>();
+        for (LegacyMappingDefinition m : md.closure()) {
+            ResolvedMapping r = resolved.get(m.qualifiedName());
+            records.add(r != null ? r.raw() : m);
+        }
+        List<ClassMapping> sets = new ArrayList<>();
+        for (LegacyMappingDefinition m : records) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm instanceof ClassMapping.Relational) {
+                    sets.add(cm);
+                }
+            }
+        }
+        collectInboundRouteKeys(md, records, model, sets.stream().map(MappingView::idOf).toList(),
+                sets, new LinkedHashMap<>(), null, ledger);
+        // a set that EXTENDS another is that set's rows too: a route into
+        // the parent reaches the child (the engine resolves routes through
+        // the extends chain) — the child publishes the parent's keys, its
+        // own entries winning
+        for (ClassMapping cm : sets) {
+                if (!(cm instanceof ClassMapping.Relational r) || r.extendsSetId() == null) {
+                continue;
+            }
+            Map<String, String> mine = ledger.linkKeys.computeIfAbsent(
+                    MappingView.idOf(cm), k -> new LinkedHashMap<>());
+            Set<String> seen = new HashSet<>();
+            ClassMapping parent = md.set(r.extendsSetId());
+            while (parent instanceof ClassMapping.Relational pr && seen.add(MappingView.idOf(pr))) {
+                Map<String, String> theirs = ledger.linkKeys.get(MappingView.idOf(pr));
+                if (theirs != null) {
+                    theirs.forEach(mine::putIfAbsent);
+                }
+                parent = pr.extendsSetId() == null ? null : md.set(pr.extendsSetId());
+            }
+        }
+    }
+
     /**
-     * Scan the mapping closure (own + includes) for CHAINED per-arm routed
-     * Join PMs whose target set is one of this union's members; each
-     * route's mid hops push into the owning member's thread and its
-     * property-scoped chain keys are projected there. Single-hop routes
-     * register nothing (B3.1: the resolver widens per set on demand);
-     * B3.2 moves the chains to the navigating class and deletes this.
+     * Scan the mapping closure (own + includes) for routed Join PMs (class
+     * PMs and per-pair association entries) whose target set is one of
+     * this union's members. A SINGLE-HOP route registers the member's LINK
+     * KEY: the columns of the member's table its Join reads, published
+     * under {@link #linkKeyName} (ordinal &rarr; physical column &rarr;
+     * name, into {@code sink}; the (set, name, column) fact onto the
+     * ledger for the resolver's mixed-union arms). A CHAINED per-arm route
+     * pushes its mid hops into the owning member's thread and projects
+     * its property-scoped chain keys there (B3.2 moves these).
      */
-    static void collectInboundChains(ResolvedMapping md,
+    static void collectInboundRouteKeys(ResolvedMapping md,
+            List<LegacyMappingDefinition> records,
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
-            Map<Integer, List<LiftChain>> chainsSink) {
-        List<LegacyMappingDefinition> closure = new ArrayList<>();
-        closure.addAll(md.closure());
-        for (LegacyMappingDefinition m : closure) {
+            Map<Integer, Map<String, String>> sink,
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
+            MappingLedger ledger) {
+        for (LegacyMappingDefinition m : records) {
             for (ClassMapping cm : m.classMappings()) {
                 if (!(cm instanceof ClassMapping.Relational rcm)) {
                     continue;
                 }
-                // group per property: chained-route shape (shared-prefix
-                // vs per-arm) is a PER-PROPERTY judgment over its member
-                // routes — the same uniformChainedRoutes predicate the
-                // emitter applies
                 Map<String, List<PropertyMapping.Join>> byProp =
                         new LinkedHashMap<>();
-                for (PropertyMapping pm : rcm.propertyMappings()) {
-                    if (pm instanceof PropertyMapping.Join j
-                            && j.targetSetId() != null) {
-                        byProp.computeIfAbsent(j.propertyName(),
-                                k -> new ArrayList<>()).add(j);
-                    }
+                for (PropertyMapping.Join j : routedJoins(rcm)) {
+                    byProp.computeIfAbsent(j.propertyName(), k -> new ArrayList<>()).add(j);
                 }
-                for (List<PropertyMapping.Join> group : byProp.values()) {
-                    Map<PropertyMapping.Join, Integer> ords =
-                            new LinkedHashMap<>();
+                LegacyMappingDefinition.TableReference navMain = rcm.mainTable() != null
+                        ? rcm.mainTable() : MappingNormalizer.inferMainTableQuiet(rcm);
+                for (var bpe : byProp.entrySet()) {
+                    List<PropertyMapping.Join> group = bpe.getValue();
+                    String navSet = navigatingIdentity(md, rcm, bpe.getKey(), model);
+                    List<Map.Entry<PropertyMapping.Join, Integer>> ords = new ArrayList<>();
                     for (PropertyMapping.Join j : group) {
                         int ord = md.memberOrdinal(memberIds, j.targetSetId());
                         if (ord >= 0) {
-                            ords.put(j, ord);
+                            ords.add(Map.entry(j, ord));
                         }
                     }
                     boolean uniform = uniformChainedRoutes(
-                            List.copyOf(ords.keySet()));
-                    for (var en : ords.entrySet()) {
-                        registerInboundChain(en.getKey(), en.getValue(),
-                                members, uniform, md, model, chainsSink);
-                    }
+                            ords.stream().map(Map.Entry::getKey).toList());
+                    registerInboundGroup(ords, navSet, navMain == null ? null : navMain.table(),
+                            members, uniform, md, model, sink, chainsSink, ledger);
                 }
             }
-            // per-pair ASSOCIATION entries route INTO this union too
-            // (multipleChainedJoins)
+            // per-pair ASSOCIATION entries route INTO this union too: the
+            // navigating set is the pair's SOURCE set
             for (AssociationMapping am : m.associationMappings()) {
                 if (!(am instanceof AssociationMapping.Relational rel)) {
                     continue;
                 }
-                // group per (source set, property): pair entries of ONE
-                // navigation judge chain-shape together, exactly like the
-                // class-PM arm above
-                Map<String, Map<PropertyMapping.Join, Integer>> byProp =
+                // one entry per PAIR (several pairs of one source set share
+                // one Join body: the target set is the pair's, not the body's)
+                Map<String, List<Map.Entry<PropertyMapping.Join, Integer>>> byProp =
                         new LinkedHashMap<>();
+                Map<String, String> sourceSetByKey = new LinkedHashMap<>();
                 for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                     if (!(apm.body() instanceof PropertyMapping.Join j)) {
                         continue;
@@ -2623,43 +2936,87 @@ final class UnionSynthesis {
                     if (ord < 0) {
                         continue;
                     }
-                    byProp.computeIfAbsent(apm.sourceSetId() + "\u0000"
-                            + apm.propertyName(), k -> new LinkedHashMap<>())
-                            .put(j, ord);
+                    String key = apm.sourceSetId() + "\u0000" + apm.propertyName();
+                    byProp.computeIfAbsent(key, k -> new ArrayList<>()).add(Map.entry(j, ord));
+                    sourceSetByKey.put(key, apm.sourceSetId());
                 }
-                for (Map<PropertyMapping.Join, Integer> ords
-                        : byProp.values()) {
+                for (var bp : byProp.entrySet()) {
+                    List<Map.Entry<PropertyMapping.Join, Integer>> ords = bp.getValue();
                     boolean uniform = uniformChainedRoutes(
-                            List.copyOf(ords.keySet()));
-                    for (var en : ords.entrySet()) {
-                        registerInboundChain(en.getKey(), en.getValue(),
-                                members, uniform, md, model, chainsSink);
-                    }
+                            ords.stream().map(Map.Entry::getKey).toList());
+                    String srcSetId = java.util.Objects.requireNonNull(sourceSetByKey.get(bp.getKey()));
+                    ClassMapping srcCm = md.set(srcSetId);
+                    String prop = bp.getKey().substring(bp.getKey().indexOf('\u0000') + 1);
+                    String srcSet = srcCm == null ? srcSetId : navigatingIdentity(md, srcCm, prop, model);
+                    String srcTable = srcCm instanceof ClassMapping.Relational sr
+                            ? (sr.mainTable() != null ? sr.mainTable().table()
+                                    : java.util.Optional.ofNullable(MappingNormalizer.inferMainTableQuiet(sr))
+                                            .map(LegacyMappingDefinition.TableReference::table).orElse(null))
+                            : null;
+                    registerInboundGroup(ords, srcSet, srcTable,
+                            members, uniform, md, model, sink, chainsSink, ledger);
                 }
             }
         }
     }
 
-    /**
-     * One inbound PER-ARM chained route: its mid hops push into the owning
-     * member's thread, which projects the route's property-scoped chain
-     * keys ({@code col__prop_ord}) for the navigate's first hop to read.
-     * Single-hop and shared-prefix routes register nothing.
-     */
-    private static void registerInboundChain(PropertyMapping.Join j, int ord,
+    /** One navigating set's routes of one property into this union: the
+     * shapes over the whole group first (the key names carry the shape
+     * index exactly as the navigator spells them), then each entry. */
+    private static void registerInboundGroup(List<Map.Entry<PropertyMapping.Join, Integer>> ords,
+            String navigatingSet, @com.legend.Nullable String navigatingTable,
             List<ClassMapping> members, boolean uniform,
             ResolvedMapping md, ModelBuilder model,
-            Map<Integer, List<LiftChain>> chainsSink) {
+            Map<Integer, Map<String, String>> sink,
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink, MappingLedger ledger) {
+        Variable s = new Variable("s");
+        Variable t = new Variable("t");
+        List<ValueSpecification> conds = new ArrayList<>();
+        for (var en : ords) {
+            PropertyMapping.Join j = en.getKey();
+            if (uniform || j.joins().size() <= 1) {
+                ValueSpecification c = lastHopCondition(j, navigatingTable, md, model, s, t);
+                if (c != null) {
+                    conds.add(c);
+                }
+            }
+        }
+        List<ValueSpecification> shapes = routeShapes(conds, s, t);
+        for (var en : ords) {
+            registerInboundEntry(en.getKey(), en.getValue(), navigatingSet, navigatingTable,
+                    shapes, members, uniform, md, model, sink, chainsSink, ledger);
+        }
+    }
+
+    /**
+     * One inbound routed entry. SINGLE-HOP (and shared-prefix chained,
+     * whose prefix the navigator emits as physical joins): the member's
+     * link key columns are the target reads of the route's LAST hop
+     * translated exactly as the navigator translates it, in the same
+     * order, named by position. PER-ARM chained: the mid hops push into
+     * the member's thread with property-scoped chain keys.
+     */
+    private static void registerInboundEntry(PropertyMapping.Join j, int ord,
+            String navigatingSet, @com.legend.Nullable String navigatingTable,
+            List<ValueSpecification> shapes,
+            List<ClassMapping> members, boolean uniform,
+            ResolvedMapping md, ModelBuilder model,
+            Map<Integer, Map<String, String>> sink,
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink, MappingLedger ledger) {
         if (!(members.get(ord) instanceof ClassMapping.Relational routedMember)) {
             return;     // routes into Relation(~func) members have no
                         // physical key table (loud at navigation if demanded)
         }
-        if (uniform || j.joins().size() <= 1) {
-            return;
+        LegacyMappingDefinition.TableReference memberMain = routedMember.mainTable() != null
+                ? routedMember.mainTable() : MappingNormalizer.inferMainTableQuiet(routedMember);
+        if (memberMain == null) {
+            return;     // a set with no table of its own: loud at navigation
         }
-        String memberTable = java.util.Objects.requireNonNull(routedMember.mainTable(),
-                "routed member set without ~mainTable").table();
-        {
+        String memberTable = memberMain.table();
+        if (!uniform && j.joins().size() > 1) {
+            if (chainsSink == null) {
+                return;     // the key publication: chains ride the union's own scan
+            }
             List<LiftMidStep> steps = inboundArmSteps(j, j.propertyName(),
                     memberTable, md, model);
             LiftMidStep landing = steps.get(steps.size() - 1);
@@ -2680,14 +3037,39 @@ final class UnionSynthesis {
             }
             List<LiftChain> have = chainsSink.computeIfAbsent(ord,
                     k -> new ArrayList<>());
-            // the closure may surface the same route twice (class PM +
-            // association pair) — one projection per suffixed key
             boolean dup = have.stream().anyMatch(ch -> ch.keys().values()
                     .stream().anyMatch(keys.values()::contains));
             if (!dup && !keys.isEmpty()) {
                 have.add(new LiftChain(steps, landing.alias(), landing.db(),
                         landing.table(), keys));
             }
+            return;
+        }
+        if (chainsSink != null) {
+            return;     // the union's own scan registers chains only; keys are published
+        }
+        Variable s = new Variable("s");
+        Variable t = new Variable("t");
+        ValueSpecification cond = lastHopCondition(j, navigatingTable, md, model, s, t);
+        if (cond == null) {
+            return;     // loud at the route's own emission
+        }
+        int shape = shapeIndex(shapes, cond, s, t);
+        List<String> reads = new ArrayList<>();
+        collectTargetReads(cond, t, reads);
+        Map<String, String> mine = sink.computeIfAbsent(ord, k -> new LinkedHashMap<>());
+        Map<String, String> facts = ledger.linkKeys.computeIfAbsent(
+                MappingView.idOf(routedMember), k -> new LinkedHashMap<>());
+        for (int k = 0; k < reads.size(); k++) {
+            String name = linkKeyName(navigatingSet, j.propertyName(), shape, k);
+            String prev = facts.put(name, reads.get(k));
+            if (prev != null && !prev.equals(reads.get(k))) {
+                throw new NotImplementedException("member set '" + MappingView.idOf(routedMember)
+                        + "' is routed to by '" + navigatingSet + "." + j.propertyName()
+                        + "' through two joins reading different columns (" + prev + ", "
+                        + reads.get(k) + "); mapping=" + md.qualifiedName());
+            }
+            mine.put(name, reads.get(k));
         }
     }
 
@@ -2724,7 +3106,7 @@ final class UnionSynthesis {
                 }
                 String name = col + "_" + o;
                 srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>())
-                        .putIfAbsent(col, name);
+                        .putIfAbsent(name, col);
                 threads.add(new com.legend.model.KeyThread(name,
                         model.knowledge().columnKind(db, table, col)));
             }

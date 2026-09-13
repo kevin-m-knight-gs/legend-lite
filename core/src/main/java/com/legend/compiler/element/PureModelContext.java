@@ -329,6 +329,13 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Map<String, String> linkKeys(String mappingFqn, String setId) {
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().linkKeys().getOrDefault(setId, java.util.Map.of()))
+                .orElse(java.util.Map.of());
+    }
+
+    @Override
     public java.util.@com.legend.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
             String mappingFqn, String classFqn) {
         return model.findMapping(mappingFqn)

@@ -424,8 +424,14 @@ final class JoinChainEmission {
                 List<UnionSynthesis.UnionRoute> routes = propName == null ? null
                         : p.unionRoutes.get(propName);
                 LambdaFunction navCond = condLambda;
+                // a SAME-TABLE inheritance target reached through one join
+                // has no member threads: the plain condition serves
+                if (routes != null && UnionSynthesis.sameTableInheritanceMerge(
+                        routes.isEmpty() ? md : md, model, targetClassFqn, routes)) {
+                    routes = null;
+                }
                 if (routes != null) {
-                    RoutedNav rn = routedNavigation(routes, propName,
+                    RoutedNav rn = routedNavigation(p, routes, propName,
                             prevTable, prevAlias, hopDb, targetTable,
                             targetRows, s, t, model, md);
                     navCond = rn.cond();
@@ -467,7 +473,7 @@ final class JoinChainEmission {
             String db, String tgt, boolean inArm) {
     }
 
-    private static RoutedNav routedNavigation(
+    private static RoutedNav routedNavigation(Pipeline p,
             List<UnionSynthesis.UnionRoute> routes, @com.legend.Nullable String propName,
             @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
             String hopDb, String targetTable, ValueSpecification targetRows,
@@ -542,71 +548,45 @@ final class JoinChainEmission {
             }
             orCond = UnionSynthesis.orDistinct(orCond, rCond);
         }
-        // SINGLE-HOP routes grouped by SHAPE (B3.1): the same condition once
-        // its target reads are erased, with the same column kind per read.
-        // Such routes differ only in WHICH set and WHICH column each target
-        // read names, so they merge into ONE condition whose target reads
-        // are member columns listing every route's (set, column) — one
-        // equality the database hashes, whether the members share a column
-        // name or not. Routes whose source side differs stay separate
-        // disjuncts. No member ordinal, no key projection: the navigating
-        // class says only what its own property mapping and Joins say, and
-        // the resolver widens the target's arms per set on demand.
-        record Shape(ValueSpecification erased, List<String> kinds) {
-        }
-        Map<Shape, List<RouteEntry>> groups = new LinkedHashMap<>();
-        Map<RouteEntry, List<String>> readsOf = new java.util.IdentityHashMap<>();
+        // SINGLE-HOP routes (B3.1b): the target reads are the LINK KEYS
+        // the routed members publish — named by THIS set and the property,
+        // by position — so every route's condition reads the same names
+        // and routes that share a source side collapse to ONE condition
+        // (one equality the database hashes, whether the members' physical
+        // columns agree or not). The navigating class says only what its
+        // own property mapping and Joins say: no member ordinal, no set
+        // id, no column of another set.
+        String navProp = java.util.Objects.requireNonNull(propName,
+                "a routed navigation names its property");
+        String navSet = UnionSynthesis.navigatingIdentity(md,
+                java.util.Objects.requireNonNull(p.ownerSet, "a routed navigation needs its navigating set"),
+                navProp, model);
+        List<ValueSpecification> shapes = UnionSynthesis.routeShapes(
+                singleHop.stream().map(RouteEntry::raw).toList(), s, t);
+        java.util.Set<ValueSpecification> keyedConds = new LinkedHashSet<>();
         for (RouteEntry e : singleHop) {
+            int shape = UnionSynthesis.shapeIndex(shapes, e.raw(), s, t);
             List<String> reads = new ArrayList<>();
             UnionSynthesis.collectTargetReads(e.raw(), t, reads);
-            List<String> kinds = new ArrayList<>();
-            for (String col : reads) {
-                kinds.add(UnionSynthesis.targetColumnKind(e.db(), e.tgt(), col,
-                        model, md.qualifiedName()));
+            for (int k = 0; k < reads.size(); k++) {
+                keyCols.putIfAbsent(UnionSynthesis.linkKeyName(navSet, navProp, shape, k),
+                        new String[]{reads.get(k), e.db(), e.tgt()});
             }
-            ValueSpecification erased = UnionSynthesis.rewriteTargetReads(e.raw(), t,
-                    col -> new AppliedProperty(t, "?"));
-            readsOf.put(e, reads);
-            groups.computeIfAbsent(new Shape(erased, kinds), k -> new ArrayList<>()).add(e);
-        }
-        for (var g : groups.entrySet()) {
-            List<RouteEntry> es = g.getValue();
-            List<String> kinds = g.getKey().kinds();
             int[] pos = {0};
-            ValueSpecification merged = UnionSynthesis.rewriteTargetReads(
-                    es.get(0).raw(), t, col -> {
-                        int k = pos[0]++;
-                        Map<String, String> bySet = new LinkedHashMap<>();
-                        for (RouteEntry e : es) {
-                            String set = java.util.Objects.requireNonNull(
-                                    e.route().join().targetSetId(), "routed entry without a set");
-                            String col2 = java.util.Objects.requireNonNull(readsOf.get(e)).get(k);
-                            String prev = bySet.putIfAbsent(set, col2);
-                            if (prev != null && !prev.equals(col2)) {
-                                throw new NotImplementedException("property '" + propName
-                                        + "' routes to set '" + set + "' through two"
-                                        + " joins reading different columns (" + prev
-                                        + ", " + col2 + "); mapping="
-                                        + md.qualifiedName());
-                            }
-                        }
-                        List<String[]> pairs = new ArrayList<>();
-                        for (var sc : bySet.entrySet()) {
-                            pairs.add(new String[]{sc.getKey(), sc.getValue()});
-                        }
-                        return UnionSynthesis.memberColumn(t, kinds.get(k), pairs);
-                    });
-            orCond = UnionSynthesis.orDistinct(orCond, merged);
+            keyedConds.add(UnionSynthesis.rewriteTargetReads(e.raw(), t,
+                    col -> new AppliedProperty(t,
+                            UnionSynthesis.linkKeyName(navSet, navProp, shape, pos[0]++))));
+        }
+        for (ValueSpecification keyed : keyedConds) {
+            orCond = UnionSynthesis.orDistinct(orCond, keyed);
         }
         LambdaFunction navCond = new LambdaFunction(List.of(s, t), List.of(orCond));
         if (keyCols.isEmpty()) {
             return new RoutedNav(navCond, targetRows);
         }
-        // typing arg for the in-arm chain keys: the suffixed key schema
-        // off the FIRST landing table; a key whose base column is absent
-        // there types as a NULL cast of ITS OWN landing table's column
-        // kind (audit 11: heterogeneous target key names across routed
-        // members)
+        // typing arg: the key schema off the FIRST landing table; a key
+        // whose physical column is absent there types as a NULL cast of
+        // ITS OWN landing table's column kind (a typing shim, no semantics)
         List<ColSpec> keySpecs = new ArrayList<>();
         for (var en : keyCols.entrySet()) {
             Variable kr = new Variable("kr");
@@ -953,6 +933,7 @@ final class JoinChainEmission {
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
                 null, ledger);
+        p.ownerSet = rcm;
         JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
                 /* propName */ null, rcm.className(), mainDb, mainTable,
                 r, model, md, /* classTypedTerminus */ false);

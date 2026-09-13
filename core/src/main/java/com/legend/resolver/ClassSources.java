@@ -517,31 +517,29 @@ public final class ClassSources {
     }
 
 
-    /** A member-column read ({@link com.legend.compiler.spec.MemberColumns})
-     * on the pair's own arm row: the column the arm's set is named with,
-     * else a typed NULL. Plain reads pass through. */
-    private static TypedSpec memberColumnOnArm(TypedSpec n, String setId,
+    /** A LINK KEY read on the pair's own arm row (B3.1b): the child union
+     * member publishes the key under the navigation's name; on the arm the
+     * read is the member's own physical column (the stamped fact
+     * {@code linkKeys}), a typed NULL when the set publishes no such key.
+     * Plain reads pass through. */
+    private TypedSpec linkKeyOnArm(TypedSpec n, String mappingFqn, String setId,
             Type.RelationType armRow) {
         if (n instanceof TypedPropertyAccess pa) {
-            var d = com.legend.compiler.spec.MemberColumns.demand(pa.property());
-            if (d != null) {
-                String col = d.columnBySet().get(setId);
-                Type.Column c = col == null ? null : armRow.columns().stream()
+            String col = ctx.linkKeys(mappingFqn, setId).get(pa.property());
+            if (col != null) {
+                Type.Column c = armRow.columns().stream()
                         .filter(x -> x.name().equals(col)).findFirst().orElse(null);
-                if (col != null && c == null) {
+                if (c == null) {
                     throw new NotImplementedException("mixed-union child arm '"
-                            + setId + "' does not carry the routed key column '"
-                            + col + "'");
+                            + setId + "' does not carry its link key column '"
+                            + col + "' (" + pa.property() + ")");
                 }
-                return c == null
-                        ? new TypedCollection(List.of(), new ExprType(d.kind(),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE))
-                        : new TypedPropertyAccess(pa.source(), c.name(),
-                                new ExprType(c.type(), c.multiplicity()));
+                return new TypedPropertyAccess(pa.source(), c.name(),
+                        new ExprType(c.type(), c.multiplicity()));
             }
         }
         return SyntheticHeads.rebuildChildren(n,
-                c -> memberColumnOnArm(c, setId, armRow));
+                c -> linkKeyOnArm(c, mappingFqn, setId, armRow));
     }
     /** The KEYED CHILD UNION for a class-typed property over a mixed
      * extent: one arm per parent member (paired by the route's declared
@@ -625,11 +623,11 @@ public final class ClassSources {
                 // column its target set names, a typed NULL when the set
                 // is not named
                 String targetSet = java.util.Objects.requireNonNull(r.targetSetId());
-                tKeys = tk.stream().map(x -> memberColumnOnArm(
+                tKeys = tk.stream().map(x -> linkKeyOnArm(
                         Pipelines.rewriteRowReads(x, p1,
                                 Map.of(), java.util.Set.of(),
                                 v -> new TypedVariable(arm.rowVar(), ari)),
-                        targetSet, aRow)).toList();
+                        mappingFqn, targetSet, aRow)).toList();
             }
             List<com.legend.compiler.spec.typed.TypedFuncCol> pcols =
                     new ArrayList<>(allCols.size());

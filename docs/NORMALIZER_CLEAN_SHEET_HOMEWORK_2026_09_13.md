@@ -303,6 +303,49 @@ scan inbound routes; 14 mixed-union sources and 6 suffix strips (one test,
 (`memberPairedCondition`, `chainedUnionHop`, `pairChainedUnionHop`) fired 0 times — their only
 witness is `ResolveUnionChainTest`, whose rows judge the new form.
 
+**B3.1b — the member owns its link key (USER review of B3.1, 2026-09-13).** B3.1 put the
+per-member fact on the navigating class as `memberColumn($t, @Kind, 'p1', 'FIRM_ID', 'p2',
+'FIRM_ID')` — mapping-DSL set ids as string literals inside generated Pure, a `unionArm` marker
+tagging every thread by set id, and a registry to carry that identity through the resolver. USER:
+"did you just carry mapping DSL syntax into our clean function design?" Yes. The version that a
+person would write by hand (docs/MAPPING_CLEAN_SHEET.md §2, §3, §4.2 `+local`, E6): each member
+set's function binds a mapping-local property to the column of ITS OWN table that links it —
+`^Person(lastName = ..., +firmKey = $r.FIRM_ID)` in p1 and p2, `+firmKey = $r.OWNER_ID` in c2 — the
+union is the members concatenated. Each set publishes ONLY its own key; a link is defined in
+one of three places, always by its owner (USER, 2026-09-13): (1) the member's own function
+navigates OUT on its own key — `-> navigate(~firm: Firm.all(), {p, f | $p.firmId == $f.id})`,
+the DSL's per-member `firm: @f_p1` — needing only Firm's published `id`; (2) an Association is
+bound ONCE, `Firm_Person: AssociationMapping { {p, f | $p.firmId == $f.id} }`, both directions
+derived, neither class function mentioning the other; (3) a plain class-typed property with no
+association keeps its predicate in the owning class's function, reading the other side's one
+published key — `navigate(~employees: Person.all(), {r, p | $r.ID == $p.firmId})`. Union or
+single table, uniform columns or not, the words are the same in all three. Visibility rule (the
+one semantic addition): a local is readable by navigate predicates of functions and association
+bindings in the same Mapping or in a Mapping that includes it, and invisible to queries. Two
+groups owning Person and Firm: the DSL already makes Firm's author read Person's tables and set
+ids through the Join; here each group publishes one name of its own. When an owner did not
+publish a key, the including mapping re-binds that member with the extra local — today's
+re-synthesis block, kept for exactly that case. The translator today folds association mappings
+into both class functions as navigates; keeping the predicate in the association binding is the
+reverse of that fold (the `legacyAssocPredicate` bridge exists) — done in this batch if the
+corpus rows stay put under it, else split off as B3.1c.
+
+What the translator generates from the DSL to match: for route `employees[p1]: @f_p1` with
+`f_p1(FIRM.ID = P1.FIRM_ID)`, member p1's thread projects `P1.FIRM_ID` under the key name and
+Firm's navigate compares `FIRM.ID` with `$p.<key>`. The key NAME is derived from the navigating
+SET and property (`Firm_employees`; a union member navigating carries its own set id, so
+`a1_b` and `a2_b` keep the engine's member pairing — the `ResolveUnionChainTest` trap row), plus
+a position suffix for composite conditions; a hand author names by meaning. Members not routed
+project a typed NULL under the name (the engine's un-routed thread), a merged single-table scan
+gates by the member filter as every other column does. The typing bridge for `legacyNavigate`
+declares the key's kind from the store (a typing shim, no semantics). Deleted: `memberColumn`,
+`unionArm`, `MemberColumns`, both natives and their pins, the per-set widening and the raw-scan
+wrap; the inbound route scan over the member's mapping closure returns (it is the translator
+finding the member's own link column from the Join, not the union learning about navigators).
+Kept from B3.1: the shape grouping in the navigator, `Pipelines.widenForCondition` and the
+consumers that widen (harmless: the columns are now projected by the body), the flat-equi-key
+guard, the deleted union-to-union arms.
+
 **B3 in three measured slices** (each 0 LOST on both lanes, each its own GATES record):
 - **B3.1 — single-hop routes.** `memberColumn` in the IR (registered signature, generic typing
   through the annotation argument, never reaches the lowering); `routedNavigation` and the
@@ -351,3 +394,4 @@ record; ledger row here; CI green on the full sha.
 | B1 — `MappingView` (transitional, pinned) + `ResolvedMapping`; nine walkers deleted; synthesis takes the record | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | none | docs/GATES.md "Clean-sheet B1" |
 | B2 — R1 last-wins in the resolver and for operation sets; R5 duplicate ids and duplicate includes rejected; the ambiguity wall deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (probe: 0 wall hits, 0 duplicate ids, 0 first-vs-last differences) | own-corpus 2405 → 2425 | docs/GATES.md "Clean-sheet B2" |
 | B3.1 — `memberColumn` (a routed navigation's target read per SET, minted by the Typer) + `unionArm` markers + the resolver's per-set widening; the inbound key scan cut to chains; the union-to-union arms, the suffix stripper, the `__pk` routed form, the coalesce form and `routesMerge` deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (from 144 / 143 LOST on the first run — twelve consumers found by rows) | ArchitectureTest register +1; INTERNAL_DESUGAR 16 → 18; ResolveUnionTest asserts the member column | docs/GATES.md "Clean-sheet B3.1" |
+| B3.1b — SUPERSEDES B3.1's spelling (USER review: set ids inside generated Pure): each set publishes its link keys as a mapping fact (`linkKeys`), union threads project them, the navigating class reads one name (identity = set, or the operation's class when its members route alike; shape index when routes differ on the source side); included operations re-bound by the includer when they gain its keys; `memberColumn`, `unionArm`, the registry and both natives deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (43 → 27 → 17 → 3 → 0 on the way) | INTERNAL_DESUGAR 18 → 16; register row removed; ResolveUnionTest asserts the link key | docs/GATES.md "Clean-sheet B3.1b" |

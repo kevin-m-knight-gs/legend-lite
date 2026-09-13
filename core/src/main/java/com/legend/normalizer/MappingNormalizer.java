@@ -164,6 +164,26 @@ public final class MappingNormalizer {
         // normalized before it (T4.1 step 2, verified item 1).
         java.util.Map<String, ResolvedMapping> resolved =
                 MappingPrePass.run(parsed, model, wallSink);
+        // every mapping's LINK KEYS (B3.1b), published once each before any
+        // synthesis: a set publishes the columns the routes into it read,
+        // under the names the navigators spell — under EVERY mapping whose
+        // closure carries such a route, so an includer knows what an
+        // included body already carries and what it must re-bind
+        java.util.Map<String, java.util.Map<String, java.util.Map<String, String>>> published =
+                new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> publishPoison = new java.util.LinkedHashMap<>();
+        for (ResolvedMapping pp : resolved.values()) {
+            MappingLedger scratch = new MappingLedger(pp.mapped());
+            try {
+                UnionSynthesis.publishLinkKeys(pp, resolved, model, scratch);
+            } catch (NotImplementedException | ModelException e) {
+                if (e instanceof ModelException && wallSink == null) {
+                    throw e;
+                }
+                publishPoison.put(pp.qualifiedName(), String.valueOf(e.getMessage()));
+            }
+            published.put(pp.qualifiedName(), scratch.linkKeys);
+        }
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof LegacyMappingDefinition md) {
                 ResolvedMapping pp = resolved.get(md.qualifiedName());
@@ -175,7 +195,15 @@ public final class MappingNormalizer {
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
                 // What this mapping's synthesis learns rides its own ledger,
                 // stamped on the compiled mapping — never the shared index.
-                MappingLedger ledger = new MappingLedger(pp.mapped());
+                MappingLedger ledger = new MappingLedger(pp.mapped(), published);
+                java.util.Map<String, java.util.Map<String, String>> mine =
+                        published.getOrDefault(md.qualifiedName(), java.util.Map.of());
+                mine.forEach((set, keys) -> ledger.linkKeys.computeIfAbsent(set,
+                        k -> new java.util.LinkedHashMap<>()).putAll(keys));
+                String pp0 = publishPoison.get(md.qualifiedName());
+                if (pp0 != null) {
+                    ledger.poisons.put(md.qualifiedName(), pp0);
+                }
                 try {
                     out.add(withElement(md.qualifiedName(),
                             () -> normalizeMapping(pp, model, lifted,
@@ -381,60 +409,7 @@ public final class MappingNormalizer {
         // routes vs the RoadVehicle Operation declared one include up).
         // Such classes RE-SYNTHESIZE under this mapping; the local binding
         // shadows the included one at lookup (ClassSources.findBinding).
-        {
-            List<LegacyMappingDefinition> closure = new ArrayList<>();
-            closure.addAll(md.closure());
-            Set<String> bound = new HashSet<>();
-            for (ClassMapping cm : md.classMappings()) {
-                bound.add(cm.className());
-            }
-            // A class mapped in MORE THAN ONE included mapping is
-            // findBinding's documented AMBIGUITY wall — the re-synthesis
-            // must not first-wins past it (audit 22b F9: closure order
-            // must never become semantics). Only sole definitions
-            // re-synthesize; ambiguous ones stay with the loud lookup.
-            Map<String, Integer> defCount = new HashMap<>();
-            for (LegacyMappingDefinition m : closure) {
-                if (m == md.raw()) {
-                    continue;
-                }
-                for (ClassMapping cm : m.classMappings()) {
-                    defCount.merge(cm.className(), 1, Integer::sum);
-                }
-            }
-            for (LegacyMappingDefinition m : closure) {
-                if (m == md.raw()) {
-                    continue;
-                }
-                for (ClassMapping cm : m.classMappings()) {
-                    if (!(cm instanceof ClassMapping.Relational rcm)
-                            || defCount.getOrDefault(rcm.className(), 0) != 1
-                            || !bound.add(rcm.className())
-                            || !routedTargetGainsOperation(md, m, rcm, model)) {
-                        continue;
-                    }
-                    FunctionDefinition fn;
-                    try {
-                        fn = synthesizeClassMapping(md, rcm, model, false, ledger);
-                    } catch (NotImplementedException | ModelException e) {
-                        if (e instanceof ModelException && !tolerant) {
-                            throw e;
-                        }
-                        ledger.poisons.put(rcm.className(), String.valueOf(e.getMessage()));
-                        continue;
-                    }
-                    lifted.add(fn);
-                    classBindings.add(new MappingDefinition.ClassBinding.Relational(
-                            rcm.className(),
-                            rcm.setId(), rcm.extendsSetId(), rcm.root(),
-                            fn.qualifiedName(),
-                            declaredPrimaryKeyColumns(rcm),
-                            SetKeyFacts.declaredKeysOf(rcm),
-                            relationalSourceOf(rcm),
-                            List.of()));
-                }
-            }
-        }
+        resynthesizeIncluded(md, model, lifted, classBindings, ledger, tolerant);
         List<MappingDefinition.AssociationBinding> assocBindings =
                 new ArrayList<>(md.associationMappings().size());
         for (AssociationMapping am : md.associationMappings()) {
@@ -800,6 +775,122 @@ public final class MappingNormalizer {
         if (v instanceof AppliedFunction af2 && af2.parameters().size() == 2
                 && Pure.Lite.LEGACY_LOCAL_PROPERTY.equals(af2.function())) {
             return rootedAt(af2.parameters().get(0), var);
+        }
+        return false;
+    }
+
+    /** The include-direction re-synthesis (the comment above the call
+     * site): an included class re-bound under THIS mapping when its
+     * routes classify differently here, or when an included operation's
+     * members gain this mapping's link keys (B3.1b). */
+    private static void resynthesizeIncluded(ResolvedMapping md, ModelBuilder model,
+            List<FunctionDefinition> lifted,
+            List<MappingDefinition.ClassBinding> classBindings,
+            MappingLedger ledger, boolean tolerant) {
+            List<LegacyMappingDefinition> closure = new ArrayList<>();
+            closure.addAll(md.closure());
+            Set<String> bound = new HashSet<>();
+            for (ClassMapping cm : md.classMappings()) {
+                bound.add(cm.className());
+            }
+            // A class mapped in MORE THAN ONE included mapping is
+            // findBinding's documented AMBIGUITY wall — the re-synthesis
+            // must not first-wins past it (audit 22b F9: closure order
+            // must never become semantics). Only sole definitions
+            // re-synthesize; ambiguous ones stay with the loud lookup.
+            // ... counted per DEFINING MAPPING: a union and its member sets
+            // are several class mappings of one class in one mapping
+            Map<String, Set<String>> definers = new HashMap<>();
+            for (LegacyMappingDefinition m : closure) {
+                if (m == md.raw()) {
+                    continue;
+                }
+                for (ClassMapping cm : m.classMappings()) {
+                    definers.computeIfAbsent(cm.className(), k -> new HashSet<>())
+                            .add(m.qualifiedName());
+                }
+            }
+            for (LegacyMappingDefinition m : closure) {
+                if (m == md.raw()) {
+                    continue;
+                }
+                for (ClassMapping cm : m.classMappings()) {
+                    if (definers.getOrDefault(cm.className(), Set.of()).size() != 1
+                            || bound.contains(cm.className())) {
+                        continue;
+                    }
+                    boolean regenerate = cm instanceof ClassMapping.Relational rcm0
+                            ? routedTargetGainsOperation(md, m, rcm0, model)
+                            // B3.1b: an included UNION whose members THIS
+                            // mapping's own sets route into must publish
+                            // this mapping's link keys — the owner did not
+                            // (it never saw these routes), so the includer
+                            // re-binds the union with them
+                            : (cm instanceof ClassMapping.Union || cm instanceof ClassMapping.Inheritance)
+                                    && includedOperationGainsLinkKeys(md, m, cm, model, ledger);
+                    if (!regenerate) {
+                        continue;
+                    }
+                    bound.add(cm.className());
+                    FunctionDefinition fn;
+                    try {
+                        fn = synthesizeClassMapping(md, cm, model, false, ledger);
+                    } catch (NotImplementedException | ModelException e) {
+                        if (e instanceof ModelException && !tolerant) {
+                            throw e;
+                        }
+                        ledger.poisons.put(cm.className(), String.valueOf(e.getMessage()));
+                        continue;
+                    }
+                    lifted.add(fn);
+                    classBindings.add(cm instanceof ClassMapping.Relational rcm
+                            ? new MappingDefinition.ClassBinding.Relational(
+                                    rcm.className(),
+                                    rcm.setId(), rcm.extendsSetId(), rcm.root(),
+                                    fn.qualifiedName(),
+                                    declaredPrimaryKeyColumns(rcm),
+                                    SetKeyFacts.declaredKeysOf(rcm),
+                                    relationalSourceOf(rcm),
+                                    List.of())
+                            : new MappingDefinition.ClassBinding.Pure(
+                                    cm.className(), cm.setId(), cm.extendsSetId(),
+                                    cm.root(), fn.qualifiedName(),
+                                    declaredPrimaryKeyColumns(cm)));
+                }
+            }
+    }
+
+    /** Whether an included union/inheritance {@code op} has a member some
+     * set of THIS mapping's own record routes into — a link key the owner
+     * never published (it never saw the route), so the includer re-binds
+     * the operation with its own ledger's keys (B3.1b). */
+    private static boolean includedOperationGainsLinkKeys(ResolvedMapping md,
+            LegacyMappingDefinition defining, ClassMapping op, ModelBuilder model,
+            MappingLedger ledger) {
+        List<String> memberIds = op instanceof ClassMapping.Union u ? u.memberSetIds()
+                : op instanceof ClassMapping.Inheritance ih
+                        ? UnionSynthesis.inheritanceMembers(md, ih, model).stream()
+                                .map(MappingView::idOf).toList()
+                        : List.of();
+        if (memberIds.isEmpty()) {
+            return false;
+        }
+        // the included body carries exactly the keys the DEFINING mapping's
+        // own publication gave its members; any key THIS mapping's
+        // publication adds is one the body lacks
+        Map<String, Map<String, String>> theirs = ledger.everyPublication
+                .getOrDefault(defining.qualifiedName(), Map.of());
+        for (String id : memberIds) {
+            Map<String, String> keys = ledger.linkKeys.get(id);
+            if (keys == null) {
+                continue;
+            }
+            Map<String, String> had = theirs.getOrDefault(id, Map.of());
+            for (String key : keys.keySet()) {
+                if (!had.containsKey(key)) {
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -1977,6 +2068,7 @@ public final class MappingNormalizer {
                 : new AppliedFunction("tableReference",
                         List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
                 backingView, ledger);
+        p.ownerSet = rcm;
         UnionSynthesis.classifyUnionRoutes(md, rcm, model, p);
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,

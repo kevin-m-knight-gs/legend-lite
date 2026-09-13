@@ -44,9 +44,7 @@ final class RelationPredicates {
     static boolean isRelationIdentity(TypedNativeCall nc) {
         return isRelationToOne(nc)
                 || (com.legend.builtin.NativeFn.LiteDesugar.of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteDesugar.UNION_SCAN
-                        && nc.args().size() == 1)
-                || (com.legend.builtin.NativeFn.LiteDesugar.of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteDesugar.UNION_ARM
-                        && nc.args().size() == 2);
+                        && nc.args().size() == 1);
     }
 
     /** Does {@code s} read any column whose alias is not bound in an

@@ -36,13 +36,28 @@ final class MappingLedger {
     final Map<String, List<String>> mixedUnions = new LinkedHashMap<>();
     /** class &rarr; the primary-key threads of an Operation union's row. */
     final Map<String, List<KeyThread>> unionKeyThreads = new LinkedHashMap<>();
+    /** set id &rarr; (link key name &rarr; the set's physical column): the
+     * keys a member set publishes for the navigations routed into it
+     * (B3.1b) — the resolver's mixed-union arms read them per set. */
+    final Map<String, Map<String, String>> linkKeys = new LinkedHashMap<>();
+    /** mapping FQN &rarr; the link keys THAT mapping publishes on its own
+     * (every mapping's publication, computed once): the includer compares
+     * an included operation's members against it to know whether the
+     * included body already carries the keys this mapping needs. */
+    final Map<String, Map<String, Map<String, String>>> everyPublication;
     /** bucket &rarr; witnesses of the [1]-over-nullable-column census. */
     final Map<String, Set<String>> nullableCensus = new TreeMap<>();
     /** The graph-wide mapped-class fact (computed before any synthesis). */
     final MappedClasses mapped;
 
     MappingLedger(MappedClasses mapped) {
+        this(mapped, Map.of());
+    }
+
+    MappingLedger(MappedClasses mapped,
+            Map<String, Map<String, Map<String, String>>> everyPublication) {
         this.mapped = mapped;
+        this.everyPublication = everyPublication;
     }
 
     void census(String bucket, String witness) {
@@ -56,6 +71,6 @@ final class MappingLedger {
         return new MappingDefinition.NormalizationFacts(
                 poisons, mixedUnions, unionKeyThreads, nullableCensus,
                 MappingFacts.unionMembers(surface), MappingFacts.routedTargetClasses(surface),
-                MappingFacts.routedSets(md, model));
+                MappingFacts.routedSets(md, model), linkKeys);
     }
 }
