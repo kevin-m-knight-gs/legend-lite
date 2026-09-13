@@ -468,6 +468,54 @@ guard, the deleted union-to-union arms.
   `TransitionalShapesTest` deleted together. USER 2026-09-13: "let's make sure it does not stay
   this way" — it did not.
 
+**B3 ARC AUDIT (2026-09-13, after B3.3; what the plan said would die, checked in the code).**
+DELETED as promised: `memberColumn`, `unionArm`, `MemberColumns`, both natives and their pins
+(B3.1b); `stripMemberSuffix`, `routesMerge`, the union-to-union arms, the coalesce form, the
+`__pk` ROUTED form (B3.1; the union's own shared table-key thread `<col>__pk_<table>` stays, as
+written); the navigator's in-arm branch, `RouteEntry.inArm`, the `col__prop_ord` navigator
+spelling (B3.2); `MappingView` and every `MappingView.of` site, `MappedClasses`,
+`TransitionalShapesTest`, `MappedClassesTest` (B3.3). The remaining `memberColumns` /
+`unionArmsPrunable` names in the resolver and lowering are unrelated (a union head's own columns;
+SQL union arms).
+KEPT AGAINST THE ORIGINAL TEXT, by receipts, each written where it happened: the push-into-arm
+threads, `chainsSink`, `inboundArmSteps`, `LiftChain` (B3.2: the engine's 3-set / unionOfViews2
+goldens; the navigator-side form multiplies rows).
+DEFERRED — owed, not done:
+1. **The re-synthesis block did not die; it grew.** The original B3.2 text: "with no ordinal left in
+   any navigator, the re-synthesis block and `routedTargetGainsOperation` die"; the plan's R6 row:
+   "every navigation resolves in the queried mapping; no special case; the uniform rule subsumes
+   it". Today `resynthesizeIncluded` carries THREE criteria (`routedTargetGainsOperation`,
+   `includedOperationGainsLinkKeys`, `unmappedTargetGainsSet`), each a special case of R6 found by
+   a row. The uniform rule — an included set is synthesized under the QUERYING mapping's closure,
+   never reused from the defining mapping when its navigations differ — is the design; the block
+   is its approximation. → its own slice before B6 (measure: how many included bindings differ
+   between defining-closure and includer-closure synthesis; the answer is the cost of the uniform
+   rule).
+2. **"Implicit sets become resolve-time answers" was reinterpreted.** B3.3 kept the appended
+   `Inheritance` set (`implicitOpsForRoutedTargets` still appends to the record) as a step of
+   the one construction; it is not an answer computed at the point of resolution. Consistent with
+   the pins (the implied set IS a class binding), and per mapping over its own closure; but the
+   construction still materializes a set the author never wrote. → B6 candidate; no row depends
+   on which of the two it is.
+3. **"One construction" has one rewrite outside it**: the multi-hop association injection
+   (`injectMultiHopAssociationPMs`) runs in the driver (`normalizeMapping`, `withMapping`) after
+   `MappingPrePass` returned. It needs only the record and the model → move into the construction.
+4. **A union's own OUTBOUND lifted chains still spell `col__prop_ord`** (`UnionSynthesis` ~2762,
+   thread-internal: the source side of the union's own navigation through its mids, never read by
+   another class). The original B3.2 text said the property-scoped chain keys die; the inbound
+   ones did, the outbound spelling stays. → the link-key rule applies on the source side too:
+   one key name per (property, shape), the member's own prefix — B6.
+5. **The resolver's mixed-union child arms mint per-ordinal key names** (`ClassSources` ~406:
+   `k__<prop>__<ord>_<k>`), the resolver-side sibling of the deleted normalizer spelling. Not in
+   generated Pure; still an ordinal identity. → B6.
+6. **`CastReRoot` finds the shared key by `startsWith(prefix + col + "__pk")`** — a string-prefix
+   identity read (the string-hacking audit's rule: no new `startsWith` identity arms; this one is
+   old). → B6 with the typed link-key fact (audit finding 4 of B3.2).
+CLOSED OWED ITEMS: T4.1's "mapped-class fact is GLOBAL (engine asks per closure)" — closed by B3.3.
+STILL OPEN from earlier records: `inferViewMainTable` + `MetamodelSeeds.viewBaseTable` (store fact),
+owner-absent adoption silent, the parser flattening schema tables, the duplicate mid join (B3.2),
+the B3.2 audit's eight findings (B5: 1–3, 6; B6: 4, 5, 7).
+
 **B4 — policy out of the translator.** The translator reports (throws) and produces facts; the
 driver alone applies strict/module; `UnionSynthesis:2408` moves to the driver's ledger; the
 dropped-route and mixed-union facts stay facts. Expected: 0 rows.
