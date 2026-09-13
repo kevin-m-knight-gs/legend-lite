@@ -145,7 +145,13 @@ public final class KnowledgeLayer {
             if (cur.equals(root) || !out.add(cur)) {
                 continue;
             }
-            hierarchyClass(cur).ifPresent(cd -> work.addAll(superClassFqns(cd)));
+            if (cur.equals(cls)) {
+                // the starting class may be a name the index does not know
+                // (a metamodel probe): it contributes itself and nothing above
+                hierarchyClass(cur).ifPresent(cd -> work.addAll(superClassFqns(cd)));
+            } else {
+                work.addAll(superClassFqns(superClass(cur)));
+            }
         }
         return out;
     }
@@ -188,6 +194,114 @@ public final class KnowledgeLayer {
         }
         subtree.remove(base);
         return subtree;
+    }
+
+    // ====================================================================
+    // Properties over the hierarchy
+    // ====================================================================
+
+    /** The class behind a superclass FQN met on a hierarchy walk — LOUD
+     * when unresolved: a superclass the index cannot answer is a real
+     * model gap, never a silently empty answer (F7.8). */
+    private ClassDefinition superClass(String fqn) {
+        return hierarchyClass(fqn).orElseThrow(() -> new IllegalStateException(
+                "class unresolved on a hierarchy walk (a real model gap): " + fqn));
+    }
+
+    /** The declared type of property {@code name} as seen from
+     * {@code cd}: its own stored property, else an association end
+     * injected onto it, else the same on each superclass in turn
+     * (association ends are inherited too). Null when nothing declares
+     * it; null class, null answer. */
+    public @com.legend.Nullable TypeExpression propertyType(
+            @com.legend.Nullable ClassDefinition cd, String name) {
+        return propertyType(cd, name, new java.util.HashSet<>());
+    }
+
+    private @com.legend.Nullable TypeExpression propertyType(
+            @com.legend.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
+        if (cd == null || !visited.add(cd.qualifiedName())) {
+            return null;
+        }
+        for (ClassDefinition.PropertyDefinition p : cd.properties()) {
+            if (p.name().equals(name)) {
+                return p.type();
+            }
+        }
+        TypeExpression assoc = model.findAssociationProperty(cd.qualifiedName(), name).orElse(null);
+        if (assoc != null) {
+            return assoc;
+        }
+        for (String sup : superClassFqns(cd)) {
+            TypeExpression inherited = propertyType(superClass(sup), name, visited);
+            if (inherited != null) {
+                return inherited;
+            }
+        }
+        return null;
+    }
+
+    /** The stored-property DEFINITION {@code name} on {@code cd} or the
+     * nearest superclass declaring it (no association ends). */
+    public ClassDefinition.@com.legend.Nullable PropertyDefinition propertyDef(
+            @com.legend.Nullable ClassDefinition cd, String name) {
+        return propertyDef(cd, name, new java.util.HashSet<>());
+    }
+
+    private ClassDefinition.@com.legend.Nullable PropertyDefinition propertyDef(
+            @com.legend.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
+        if (cd == null || !visited.add(cd.qualifiedName())) {
+            return null;
+        }
+        for (ClassDefinition.PropertyDefinition p : cd.properties()) {
+            if (p.name().equals(name)) {
+                return p;
+            }
+        }
+        for (String sup : superClassFqns(cd)) {
+            ClassDefinition.PropertyDefinition inherited = propertyDef(superClass(sup), name, visited);
+            if (inherited != null) {
+                return inherited;
+            }
+        }
+        return null;
+    }
+
+    /** The declared multiplicity of stored property {@code name} on
+     * {@code cd} or the nearest superclass declaring it. */
+    public com.legend.protocol.@com.legend.Nullable Multiplicity propertyMultiplicity(
+            ClassDefinition cd, String name) {
+        ClassDefinition.PropertyDefinition pd = propertyDef(cd, name);
+        return pd == null ? null : pd.multiplicity();
+    }
+
+    /** The zero-argument, single-expression INLINE derived property
+     * {@code name} on {@code cd} or the nearest superclass declaring one
+     * &mdash; the only shape a join-condition inliner serves. */
+    public com.legend.protocol.@com.legend.Nullable DerivedPropertyDefinition derivedInline(
+            @com.legend.Nullable ClassDefinition cd, String name) {
+        return derivedInline(cd, name, new java.util.HashSet<>());
+    }
+
+    private com.legend.protocol.@com.legend.Nullable DerivedPropertyDefinition derivedInline(
+            @com.legend.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
+        if (cd == null || !visited.add(cd.qualifiedName())) {
+            return null;
+        }
+        for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
+            if (dp.name().equals(name) && dp.parameters().isEmpty()
+                    && dp.realization() instanceof com.legend.protocol.Realization.Inline inl
+                    && inl.body().size() == 1) {
+                return dp;
+            }
+        }
+        for (String sup : superClassFqns(cd)) {
+            DerivedPropertyDefinition r = derivedInline(superClass(sup), name, visited);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
     }
 
     // ====================================================================

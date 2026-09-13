@@ -74,14 +74,14 @@ final class DeclaredCoercions {
         if (ownerClassFqn == null) {
             return null;
         }
-        ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
+        ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
         TypeExpression t = owner == null ? null
-                : MappingNormalizer.findPropertyTypeDeep(owner, propName, model);
+                : model.knowledge().propertyType(owner, propName);
         String name = t instanceof TypeExpression.NameRef nr ? nr.name() : null;
         if (name == null) {
             return null;
         }
-        if (!name.contains("::") && MappingNormalizer.classDef(model, name).isEmpty()) {
+        if (!name.contains("::") && model.knowledge().hierarchyClass(name).isEmpty()) {
             return name;
         }
         if (name.startsWith("meta::pure::metamodel::type::")) {

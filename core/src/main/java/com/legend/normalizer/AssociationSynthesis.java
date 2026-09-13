@@ -632,10 +632,9 @@ final class AssociationSynthesis {
                         continue;
                     }
                     ClassDefinition owner =
-                            MappingNormalizer.classDef(model, rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at AssociationSynthesis#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
+                            model.knowledge().hierarchyClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at AssociationSynthesis#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
                     TypeExpression pt = owner == null ? null
-                            : MappingNormalizer.findPropertyTypeDeep(owner,
-                                    pm.propertyName(), model);
+                            : model.knowledge().propertyType(owner, pm.propertyName());
                     if (pt instanceof TypeExpression.NameRef nr
                             && nr.name().equals(classFqn)) {
                         LegacyMappingDefinition.TableReference mt =

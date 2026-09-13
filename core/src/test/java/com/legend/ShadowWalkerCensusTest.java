@@ -42,13 +42,15 @@ class ShadowWalkerCensusTest {
             Map.entry("collectInheritanceMembers", 2),
             Map.entry("nearestMappedAncestor", 1),
             Map.entry("hasMappedSubclass", 1),
-            // PROPERTY FAMILY
-            Map.entry("findPropertyTypeDeep", 45),
-            Map.entry("findPropertyDefDeep", 3),
-            Map.entry("findPropertyType", 1),
-            Map.entry("classDef", 53),
-            Map.entry("findDerivedInline", 3),
-            Map.entry("findPropertyDeclared", 2),
+            // PROPERTY FAMILY — RETIRED (T4.1 step 3b, 2026-09-13): the kernel's
+            // hierarchyClass / propertyType / propertyDef / derivedInline /
+            // propertyMultiplicity answer (45 + 3 + 1 + 53 + 3 + 2 sites)
+            Map.entry("findPropertyTypeDeep", 0),
+            Map.entry("findPropertyDefDeep", 0),
+            Map.entry("findPropertyType", 0),
+            Map.entry("classDef", 0),
+            Map.entry("findDerivedInline", 0),
+            Map.entry("findPropertyDeclared", 0),
             // STEREOTYPE FAMILY
             Map.entry("isBitemporalClass", 2),
             Map.entry("isTemporalClass", 3),

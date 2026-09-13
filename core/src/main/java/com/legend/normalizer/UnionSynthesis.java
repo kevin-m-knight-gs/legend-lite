@@ -250,11 +250,11 @@ final class UnionSynthesis {
 
     private static @com.legend.Nullable String embeddedOwner(String ownerCls,
             String prop, ModelBuilder model) {
-        ClassDefinition oc = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerCls));
+        ClassDefinition oc = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerCls));
         TypeExpression pt = oc == null ? null
-                : MappingNormalizer.findPropertyTypeDeep(oc, prop, model);
+                : model.knowledge().propertyType(oc, prop);
         return pt instanceof TypeExpression.NameRef nr
-                && MappingNormalizer.classDef(model, nr.name()).isPresent() ? nr.name() : null;
+                && model.knowledge().hierarchyClass(nr.name()).isPresent() ? nr.name() : null;
     }
 
     static void classifyUnionRoutes(LegacyMappingDefinition md,
@@ -265,12 +265,12 @@ final class UnionSynthesis {
                 model, routedByProp, ownerByProp);
         for (var e : routedByProp.entrySet()) {
             String prop = e.getKey();
-            ClassDefinition owner = MappingNormalizer.classDef(model, ownerByProp
+            ClassDefinition owner = model.knowledge().hierarchyClass(ownerByProp
                     .getOrDefault(prop, rcm.className())).orElse(null);
             TypeExpression pt = owner == null ? null
-                    : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
+                    : model.knowledge().propertyType(owner, prop);
             String targetClass = pt instanceof TypeExpression.NameRef nr
-                    && MappingNormalizer.classDef(model, nr.name()).isPresent() ? nr.name() : null;
+                    && model.knowledge().hierarchyClass(nr.name()).isPresent() ? nr.name() : null;
             ClassMapping.Union tu = targetClass == null ? null
                     : unionForClass(md, model, targetClass);
             // FIX-A (audit-17 bucket analysis): an INHERITANCE op is a
@@ -574,7 +574,7 @@ final class UnionSynthesis {
             LegacyMappingDefinition md, ClassMapping.Inheritance ih,
             List<ClassMapping.Relational> members, ModelBuilder model,
             MappingLedger ledger) {
-        ClassDefinition base = MappingNormalizer.classDef(model, ih.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ih.className()));
+        ClassDefinition base = model.knowledge().hierarchyClass(ih.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ih.className()));
         if (base == null) {
             return null;
         }
@@ -591,8 +591,7 @@ final class UnionSynthesis {
                 new LinkedHashMap<>();
         for (ClassMapping.Relational mr : members) {
             for (PropertyMapping pm : mr.propertyMappings()) {
-                if (MappingNormalizer.findPropertyTypeDeep(base,
-                        pm.propertyName(), model) != null) {
+                if (model.knowledge().propertyType(base, pm.propertyName()) != null) {
                     baseProps.computeIfAbsent(pm.propertyName(),
                             k -> new LinkedHashSet<>()).add(pm);
                 }
@@ -796,7 +795,7 @@ final class UnionSynthesis {
                         }
                         break outer;
                     }
-                    ClassDefinition cd = MappingNormalizer.classDef(model, c).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + c));
+                    ClassDefinition cd = model.knowledge().hierarchyClass(c).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + c));
                     if (cd != null) {
                         for (TypeExpression sup : cd.superClasses()) {
                             if (sup instanceof TypeExpression.NameRef nr) {
@@ -854,13 +853,13 @@ final class UnionSynthesis {
             if (memberClass.equals(className)) {
                 continue;
             }
-            ClassDefinition mcd = MappingNormalizer.classDef(model, memberClass).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#5 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + memberClass));
+            ClassDefinition mcd = model.knowledge().hierarchyClass(memberClass).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#5 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + memberClass));
             // cast TARGETS: the member class and every ancestor strictly
             // below the union root — a cast to an INTERMEDIATE class
             // (subType(@RoadVehicle) over a Car|Bicycle union) is owned by
             // every conforming member thread
             for (String target : model.knowledge().ancestorsBelow(memberClass, className)) {
-                ClassDefinition tcd = MappingNormalizer.classDef(model, target).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#6 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + target));
+                ClassDefinition tcd = model.knowledge().hierarchyClass(target).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#6 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + target));
                 // every cast target is a DISPATCH target even when the
                 // member maps no scalar property of its own (a property-
                 // less subtype — the datatype metamodel's Integer / Bit
@@ -869,12 +868,11 @@ final class UnionSynthesis {
                 subTypeProps.computeIfAbsent(target, k -> new LinkedHashSet<>());
                 for (String prop : parts.get(j).fields().keySet()) {
                     TypeExpression t = mcd == null ? null
-                            : MappingNormalizer.findPropertyTypeDeep(mcd, prop, model);
+                            : model.knowledge().propertyType(mcd, prop);
                     boolean scalar = t instanceof TypeExpression.NameRef nr
-                            && MappingNormalizer.classDef(model, nr.name()).isEmpty();
+                            && model.knowledge().hierarchyClass(nr.name()).isEmpty();
                     boolean visibleOnTarget = tcd != null
-                            && MappingNormalizer.findPropertyTypeDeep(tcd, prop,
-                                    model) != null;
+                            && model.knowledge().propertyType(tcd, prop) != null;
                     if (scalar && visibleOnTarget) {
                         subTypeProps.computeIfAbsent(target,
                                 k -> new LinkedHashSet<>()).add(prop);
@@ -927,7 +925,7 @@ final class UnionSynthesis {
             ClassMapping member, MappingNormalizer.RelationalParts pp,
             ModelBuilder model, List<ColSpec> cols) {
         for (var stEn : subTypeProps.entrySet()) {
-            ClassDefinition subDef = MappingNormalizer.classDef(model, stEn.getKey()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#8 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + stEn.getKey()));
+            ClassDefinition subDef = model.knowledge().hierarchyClass(stEn.getKey()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#8 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + stEn.getKey()));
             boolean own = model.knowledge().isSubtype(member.className(), stEn.getKey());
             for (String prop : stEn.getValue()) {
                 if (prop.equals(MEMBER_WITNESS)) {
@@ -948,8 +946,7 @@ final class UnionSynthesis {
                 }
                 int embCut = prop.indexOf("__");
                 if (embCut > 0 && subDef != null
-                        && MappingNormalizer.findPropertyTypeDeep(subDef,
-                                prop, model) == null) {
+                        && model.knowledge().propertyType(subDef, prop) == null) {
                     addStcEmbeddedLeaf(stEn.getKey(), prop, embCut,
                             java.util.Objects.requireNonNull(subDef),
                             own, pp, model, cols);
@@ -961,7 +958,7 @@ final class UnionSynthesis {
                         : DeclaredCoercions.coerceToDeclaredNumeric(
                                 mapped.value(), prop, stEn.getKey(), model);
                 TypeExpression dt = subDef == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(subDef, prop, model);
+                        : model.knowledge().propertyType(subDef, prop);
                 if (dt instanceof TypeExpression.NameRef dn
                         && "String".equals(MappingNormalizer.simpleTypeName(dn.name()))) {
                     value = new AppliedFunction("cast", List.of(value,
@@ -985,10 +982,9 @@ final class UnionSynthesis {
             List<ColSpec> cols) {
         String top = flatProp.substring(0, cut);
         String sub = flatProp.substring(cut + 2);
-        TypeExpression it = MappingNormalizer.findPropertyTypeDeep(
-                subDef, top, model);
+        TypeExpression it = model.knowledge().propertyType(subDef, top);
         ClassDefinition inner = it instanceof TypeExpression.NameRef inr
-                ? MappingNormalizer.classDef(model, inr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#9 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + inr.name())) : null;
+                ? model.knowledge().hierarchyClass(inr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#9 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + inr.name())) : null;
         KeyExpression fv = own ? pp.fields().get(top) : null;
         NewInstance ector = fv == null ? null : ctorOf(fv.value());
         ValueSpecification value = ector != null
@@ -998,7 +994,7 @@ final class UnionSynthesis {
         value = DeclaredCoercions.coerceToDeclaredNumeric(value, sub,
                 inner == null ? target : inner.qualifiedName(), model);
         TypeExpression sdt = inner == null ? null
-                : MappingNormalizer.findPropertyTypeDeep(inner, sub, model);
+                : model.knowledge().propertyType(inner, sub);
         if (sdt instanceof TypeExpression.NameRef sdn
                 && "String".equals(MappingNormalizer.simpleTypeName(sdn.name()))) {
             value = new AppliedFunction("cast", List.of(value,
@@ -1081,14 +1077,14 @@ final class UnionSynthesis {
         // order — a member that does not map a property contributes a typed
         // NULL in its thread (engine: 'null as ...' / __SQLNULL__ columns;
         // partial-union reads come back TDSNull, testUnionPartial goldens)
-        ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, className));
+        ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(className));
         List<String> common = new ArrayList<>();
         for (MappingNormalizer.RelationalParts pp : parts) {
             for (String prop : pp.fields().keySet()) {
                 TypeExpression t = owner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
+                        : model.knowledge().propertyType(owner, prop);
                 boolean scalar = t instanceof TypeExpression.NameRef nr
-                        && MappingNormalizer.classDef(model, nr.name()).isEmpty();
+                        && model.knowledge().hierarchyClass(nr.name()).isEmpty();
                 if (scalar && !common.contains(prop)) {
                     common.add(prop);
                 }
@@ -1332,7 +1328,7 @@ final class UnionSynthesis {
                 // must agree on the declared kind, and the engine's union
                 // coerces at the SQL boundary
                 TypeExpression dt = owner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
+                        : model.knowledge().propertyType(owner, prop);
                 if (dt instanceof TypeExpression.NameRef dn
                         && ("String".equals(MappingNormalizer.simpleTypeName(dn.name())))) {
                     value = new AppliedFunction("cast", List.of(value,
@@ -1636,9 +1632,7 @@ final class UnionSynthesis {
                 // union class does not declare) belong to the stc subtype
                 // dispatch, never the base recompose — distributing them
                 // types ^Base(subProp=...) loudly (partial subtype family)
-                if (unionClass == null || MappingNormalizer
-                        .findPropertyTypeDeep(unionClass, fe.getKey(),
-                                model) == null) {
+                if (unionClass == null || model.knowledge().propertyType(unionClass, fe.getKey()) == null) {
                     continue;
                 }
                 NewInstance ni = ctorOf(fe.getValue().value());
@@ -1662,10 +1656,9 @@ final class UnionSynthesis {
             String path = pce.getKey();
             ClassDefinition decl = unionClass;
             for (String seg : path.split("\\.")) {
-                TypeExpression t = decl == null ? null : MappingNormalizer
-                        .findPropertyTypeDeep(decl, seg, model);
+                TypeExpression t = decl == null ? null : model.knowledge().propertyType(decl, seg);
                 decl = t instanceof TypeExpression.NameRef nr
-                        ? MappingNormalizer.classDef(model, nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#11 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name())) : null;
+                        ? model.knowledge().hierarchyClass(nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#11 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name())) : null;
             }
             if (decl == null) {
                 poisoned.add(path.contains(".")
@@ -1676,16 +1669,14 @@ final class UnionSynthesis {
             ClassDefinition decl0 = decl;
             LinkedHashSet<String> lv = embSubs.get(path);
             if (lv != null) {
-                lv.removeIf(leaf -> MappingNormalizer
-                        .findPropertyTypeDeep(decl0, leaf, model) == null);
+                lv.removeIf(leaf -> model.knowledge().propertyType(decl0, leaf) == null);
                 if (lv.isEmpty()) {
                     embSubs.remove(path);
                 }
             }
             LinkedHashSet<String> nv = navSubs.get(path);
             if (nv != null) {
-                nv.removeIf(leaf -> MappingNormalizer
-                        .findPropertyTypeDeep(decl0, leaf, model) == null);
+                nv.removeIf(leaf -> model.knowledge().propertyType(decl0, leaf) == null);
                 if (nv.isEmpty()) {
                     navSubs.remove(path);
                 }
@@ -1695,9 +1686,7 @@ final class UnionSynthesis {
             // the recompose loop would re-enter them as ctor fields
             java.util.function.Predicate<String> off = k ->
                     k.startsWith(path + ".")
-                    && MappingNormalizer.findPropertyTypeDeep(decl0,
-                            k.substring(path.length() + 1).split("\\.")[0],
-                            model) == null;
+                    && model.knowledge().propertyType(decl0, k.substring(path.length() + 1).split("\\.")[0]) == null;
             embInner.keySet().removeIf(off);
             embSubs.keySet().removeIf(off);
             navSubs.keySet().removeIf(off);
@@ -1730,7 +1719,7 @@ final class UnionSynthesis {
             List<ColSpec> cols) {
         for (var epe : embSubs.entrySet()) {
             String epath = epe.getKey();
-            ClassDefinition inner = MappingNormalizer.classDef(model, embInner.get(epath))
+            ClassDefinition inner = model.knowledge().hierarchyClass(embInner.get(epath))
                     .orElse(null);
             NewInstance ector = ctorAtPath(pp.fields(), epath);
             for (String sub : epe.getValue()) {
@@ -1743,8 +1732,7 @@ final class UnionSynthesis {
                 sv = DeclaredCoercions.coerceToDeclaredNumeric(
                         sv, sub, embInner.get(epath), model);
                 TypeExpression sdt = inner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(
-                                inner, sub, model);
+                        : model.knowledge().propertyType(inner, sub);
                 if (sdt instanceof TypeExpression.NameRef sdn
                         && "String".equals(MappingNormalizer
                                 .simpleTypeName(sdn.name()))) {
@@ -1785,9 +1773,7 @@ final class UnionSynthesis {
             // as a plain UNION-LEVEL read served by the nav lift
             // (scanJoinPms' embedded descent — one navigation
             // mechanism, no member-level twin).
-            TypeExpression st = MappingNormalizer.findPropertyTypeDeep(
-                    MissProbe.knownMiss(MappingNormalizer.classDef(model, ni.className())),
-                    pe.key(), model);
+            TypeExpression st = model.knowledge().propertyType(MissProbe.knownMiss(model.knowledge().hierarchyClass(ni.className())), pe.key());
             boolean sameNameRead = pe.expression().value()
                     instanceof AppliedProperty ap0
                     && ap0.receiver()
@@ -1795,7 +1781,7 @@ final class UnionSynthesis {
                     && rv0.name().equals(rowVar)
                     && ap0.property().equals(pe.key());
             if (sameNameRead && st instanceof TypeExpression.NameRef snr
-                    && MappingNormalizer.classDef(model, snr.name()).isPresent()) {
+                    && model.knowledge().hierarchyClass(snr.name()).isPresent()) {
                 navSubs.computeIfAbsent(pathKey,
                         k -> new LinkedHashSet<>()).add(pe.key());
                 continue;
@@ -2263,11 +2249,10 @@ final class UnionSynthesis {
         if (tgtColSets.size() != 1) {
             return false;
         }
-        ClassDefinition tgtOwner = MappingNormalizer.classDef(model, targetClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#12 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + targetClassFqn));
+        ClassDefinition tgtOwner = model.knowledge().hierarchyClass(targetClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#12 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + targetClassFqn));
         for (String c : tgtColSets.iterator().next().split(",")) {
             if (c.isEmpty() || tgtOwner == null
-                    || MappingNormalizer.findPropertyTypeDeep(
-                            tgtOwner, c, model) == null) {
+                    || model.knowledge().propertyType(tgtOwner, c) == null) {
                 return false;
             }
         }
@@ -2311,15 +2296,13 @@ final class UnionSynthesis {
                 // unservable read). Both owner chains step through the
                 // embedded property's type.
                 TypeExpression et = owner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(owner,
-                                e.propertyName(), model);
+                        : model.knowledge().propertyType(owner, e.propertyName());
                 ClassDefinition subOwner = et instanceof TypeExpression.NameRef nr
-                        ? MappingNormalizer.classDef(model, nr.name()).orElse(null) : null;
+                        ? model.knowledge().hierarchyClass(nr.name()).orElse(null) : null;
                 TypeExpression edt = declaredOwner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(declaredOwner,
-                                e.propertyName(), model);
+                        : model.knowledge().propertyType(declaredOwner, e.propertyName());
                 ClassDefinition subDeclared = edt instanceof TypeExpression.NameRef enr
-                        ? MappingNormalizer.classDef(model, enr.name()).orElse(null) : null;
+                        ? model.knowledge().hierarchyClass(enr.name()).orElse(null) : null;
                 scanJoinPms(e.propertyMappings(), subOwner, subDeclared,
                         ordinal, found, joins, targetByProp, model);
                 continue;
@@ -2328,15 +2311,13 @@ final class UnionSynthesis {
                 continue;
             }
             TypeExpression pt = owner == null ? null
-                    : MappingNormalizer.findPropertyTypeDeep(owner,
-                            pm.propertyName(), model);
+                    : model.knowledge().propertyType(owner, pm.propertyName());
             if (!(pt instanceof TypeExpression.NameRef pnr)
-                    || MappingNormalizer.classDef(model, pnr.name()).isEmpty()) {
+                    || model.knowledge().hierarchyClass(pnr.name()).isEmpty()) {
                 continue;   // scalar join-terminal shapes stay member-local
             }
             TypeExpression dt = declaredOwner == null ? null
-                    : MappingNormalizer.findPropertyTypeDeep(declaredOwner,
-                            pm.propertyName(), model);
+                    : model.knowledge().propertyType(declaredOwner, pm.propertyName());
             if (!(dt instanceof TypeExpression.NameRef dnr)) {
                 // SUBTYPE-ONLY class-typed Join PM (Bicycle[map2].person
                 // under a Vehicle union — `person` is declared on
@@ -2353,10 +2334,9 @@ final class UnionSynthesis {
                 if (unionRoot != null && owner != null) {
                     for (String target : model.knowledge().ancestorsBelow(
                             owner.qualifiedName(), unionRoot)) {
-                        ClassDefinition tcd = MappingNormalizer.classDef(model, target)
+                        ClassDefinition tcd = model.knowledge().hierarchyClass(target)
                                 .orElse(null);
-                        if (tcd == null || MappingNormalizer.findPropertyTypeDeep(
-                                tcd, pm.propertyName(), model) == null) {
+                        if (tcd == null || model.knowledge().propertyType(tcd, pm.propertyName()) == null) {
                             continue;
                         }
                         String key = ClassMapping.subTypeColumn(target,
@@ -2401,12 +2381,12 @@ final class UnionSynthesis {
         Map<String, List<int[]>> found = new LinkedHashMap<>();
         Map<String, List<PropertyMapping.Join>> joins = new LinkedHashMap<>();
         Map<String, String> targetByProp = new LinkedHashMap<>();
-        ClassDefinition declared = MappingNormalizer.classDef(model, className).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#14 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + className));
+        ClassDefinition declared = model.knowledge().hierarchyClass(className).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#14 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + className));
         for (int i = 0; i < members.size(); i++) {
             if (!(members.get(i) instanceof ClassMapping.Relational mr)) {
                 continue;   // Relation(~func) members carry no Join PMs
             }
-            ClassDefinition memberOwner = MappingNormalizer.classDef(model, mr.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#13 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + mr.className()));
+            ClassDefinition memberOwner = model.knowledge().hierarchyClass(mr.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#13 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + mr.className()));
             scanJoinPms(mr.propertyMappings(), memberOwner, declared, i,
                     found, joins, targetByProp, model, className);
         }

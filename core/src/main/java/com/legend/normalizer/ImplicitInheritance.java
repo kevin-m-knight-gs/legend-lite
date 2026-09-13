@@ -171,13 +171,12 @@ final class ImplicitInheritance {
                     rcm.className(), md, model, routedByProp, ownerByProp);
             for (var e : routedByProp.entrySet()) {
                 String prop = e.getKey();
-                com.legend.model.ClassDefinition owner = MappingNormalizer
-                        .classDef(model, ownerByProp.getOrDefault(prop,
+                com.legend.model.ClassDefinition owner = model.knowledge().hierarchyClass(ownerByProp.getOrDefault(prop,
                                 rcm.className())).orElse(null);
                 com.legend.protocol.TypeExpression pt = owner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
+                        : model.knowledge().propertyType(owner, prop);
                 if (!(pt instanceof com.legend.protocol.TypeExpression.NameRef nr)
-                        || MappingNormalizer.classDef(model, nr.name()).isEmpty()
+                        || model.knowledge().hierarchyClass(nr.name()).isEmpty()
                         || mappedClasses.contains(nr.name())) {
                     continue;
                 }

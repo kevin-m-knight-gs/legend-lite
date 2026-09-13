@@ -1836,3 +1836,28 @@ on the witness snippets alone (a generic class is platform-dialect grammar the p
 refuses: the witness now builds records, not text; own-corpus parity 2376 → 2379 for the
 bare-superclass witness's three classes); after that G8 re-ran alone (83s) GREEN. No production
 file changed between the two runs.
+
+## T4.1 step 3b — the property family retired onto the kernel — 2026-09-13
+
+**What landed.** `KnowledgeLayer` gains `propertyType` (own stored property → association end
+injected onto the class → each superclass in turn; the `findPropertyTypeDeep` rule verbatim),
+`propertyDef`, `propertyMultiplicity`, `derivedInline` (the zero-arg single-expression inline
+shape), and the LOUD superclass rule: a superclass FQN the index cannot answer on a hierarchy
+walk throws (the shadows' F7.8 `orElseThrow`), while the starting class of an ancestor walk may
+be a metamodel probe (contributes itself, nothing above). Retired from the normalizer:
+`MappingNormalizer.classDef` (53 sites → `hierarchyClass`), `findPropertyTypeDeep` (45 →
+`propertyType`), `findPropertyDefDeep` (3), `findPropertyType` (1), `RelationReads.findDerivedInline`
+(3) and `findPropertyDeclared` (2). MappingNormalizer 3321 → 3239 lines. The rewrite was a
+scripted, paren-balanced call transform (two split-line call forms needed a second pass; one
+adjacent helper the definition cut swallowed was restored from the commit).
+
+**Semantic widenings, measured.** `derivedInline` and `propertyMultiplicity` walked `NameRef`
+superclasses only; the kernel walks generic heads too. `nearestMappedAncestor`'s silent
+superclass miss joins the loud rule. Rows: 0 moved.
+
+**Pins.** `ShadowWalkerCensusTest` property rows 45/3/1/53/3/2 → 0.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED).
+
+**Chain.** build 23s, G1 75s, G3 11s, G4 111s, G5 57s, G6 137s, G7 36s, G9 26s, G8 141s — GREEN
+first run.

@@ -94,11 +94,10 @@ final class JoinChainEmission {
                 // embedded block (bondClassification: @J inside
                 // Otherwise(...)) — without them the partial's ctor
                 // field reads a slot that was never minted
-                ClassDefinition oeOwner = MappingNormalizer.classDef(model, ownerClassFqn)
+                ClassDefinition oeOwner = model.knowledge().hierarchyClass(ownerClassFqn)
                         .orElse(null);
                 TypeExpression oeType = oeOwner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(oeOwner,
-                                oe.propertyName(), model);
+                        : model.knowledge().propertyType(oeOwner, oe.propertyName());
                 if (oeType instanceof TypeExpression.NameRef nr) {
                     for (PropertyMapping sub : oe.embedded()) {
                         if (sub instanceof PropertyMapping.Join j
@@ -124,9 +123,9 @@ final class JoinChainEmission {
                 // sub-PM join chains hoist into the TOP pipeline (the
                 // embedded instance shares the owner's row); the owner for
                 // class-typed detection is the EMBEDDED class
-                ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
+                ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
                 TypeExpression propType = owner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(owner, emb.propertyName(), model);
+                        : model.knowledge().propertyType(owner, emb.propertyName());
                 if (propType instanceof TypeExpression.NameRef nr) {
                     for (PropertyMapping sub : emb.propertyMappings()) {
                         if (sub instanceof PropertyMapping.Join j
@@ -164,10 +163,9 @@ final class JoinChainEmission {
                         break;
                     }
                 }
-                ClassDefinition owner = MappingNormalizer.classDef(model, ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
+                ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
                 TypeExpression propType = owner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(owner,
-                                ie.propertyName(), model);
+                        : model.knowledge().propertyType(owner, ie.propertyName());
                 if (referenced != null
                         && propType instanceof TypeExpression.NameRef) {
                     // the spliced PMs belong to the REFERENCED set's class
@@ -215,12 +213,12 @@ final class JoinChainEmission {
                   + oe.fallback().getClass().getSimpleName()
                   + " not supported (Join only). Mapping=" + md.qualifiedName());
         }
-        ClassDefinition owner = MappingNormalizer.classDef(model, ownerClassFqn).orElseThrow(() ->
+        ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() ->
                 new ModelException(LegendCompileException.Phase.NORMALIZE,
                         "OtherwiseEmbedded PM '" + oe.propertyName()
                         + "': unknown owner class '" + ownerClassFqn
                         + "'; mapping=" + md.qualifiedName()));
-        TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, oe.propertyName(), model);
+        TypeExpression propType = model.knowledge().propertyType(owner, oe.propertyName());
         if (!(propType instanceof TypeExpression.NameRef nr)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "OtherwiseEmbedded PM '" + oe.propertyName()
@@ -801,9 +799,9 @@ final class JoinChainEmission {
     static @com.legend.Nullable String classTypedTargetIfMapped(
             @com.legend.Nullable String ownerClassFqn,
             String propName, ModelBuilder model, MappedClasses mapped) {
-        ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
+        ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) return null;
-        TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, propName, model);
+        TypeExpression propType = model.knowledge().propertyType(owner, propName);
         // a parameterized declaration (SetImplementation.class: Class<Any>,
         // PropertyMapping.property: Property<Nil,Any|*> — the real m3 ends)
         // targets its RAW class: the mapped set is the raw class's

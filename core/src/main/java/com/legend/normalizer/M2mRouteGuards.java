@@ -76,9 +76,9 @@ final class M2mRouteGuards {
         }
         String routedClass = null;
         if (tgt != null
-                && MappingNormalizer.findPropertyTypeDeep(tgt, pb.propertyName(), model)
+                && model.knowledge().propertyType(tgt, pb.propertyName())
                         instanceof TypeExpression.NameRef nr
-                && MappingNormalizer.classDef(model, nr.name()).isPresent()) {
+                && model.knowledge().hierarchyClass(nr.name()).isPresent()) {
             routedClass = nr.name();
         }
         if (routedClass != null) {

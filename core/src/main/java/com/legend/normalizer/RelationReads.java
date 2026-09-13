@@ -113,10 +113,10 @@ final class RelationReads {
                     // (physical nullability) and would summon comparison
                     // guards the engine never spells (masking trap #4)
                     ClassDefinition rcd = model == null ? null
-                            : MappingNormalizer.classDef(model, rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
+                            : model.knowledge().hierarchyClass(rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
                     if (model != null && rcd != null
                             && Multiplicity.Concrete.PURE_ONE.equals(
-                            findPropertyDeclared(rcd, ap.property(), model))) {
+                            model.knowledge().propertyMultiplicity(rcd, ap.property()))) {
                         read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
                     }
                     return read;
@@ -142,9 +142,9 @@ final class RelationReads {
             // through to the loud wall below.
             if (model != null && derivedDepth < 16) {
                 ClassDefinition dcd =
-                        MappingNormalizer.classDef(model, rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
+                        model.knowledge().hierarchyClass(rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
                 com.legend.protocol.DerivedPropertyDefinition dp =
-                        findDerivedInline(dcd, ap.property(), model);
+                        model.knowledge().derivedInline(dcd, ap.property());
                 if (dp != null) {
                     return rewrite(
                             substVars(dp.expression().get(0),
@@ -180,36 +180,6 @@ final class RelationReads {
         };
     }
 
-    /** The owner's (or a superclass's) zero-arg derived property with a
-     * single-expression Inline body — the only shape the join-condition
-     * inliner serves; anything else stays loud at the caller's wall. */
-    private static com.legend.protocol.@com.legend.Nullable DerivedPropertyDefinition
-            findDerivedInline(@com.legend.Nullable ClassDefinition owner,
-                    String prop, ModelBuilder model) {
-        if (owner == null) {
-            return null;
-        }
-        for (com.legend.protocol.DerivedPropertyDefinition dp
-                : owner.derivedProperties()) {
-            if (dp.name().equals(prop) && dp.parameters().isEmpty()
-                    && dp.realization() instanceof
-                            com.legend.protocol.Realization.Inline inl
-                    && inl.body().size() == 1) {
-                return dp;
-            }
-        }
-        for (TypeExpression sup : owner.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr) {
-                var r = findDerivedInline(
-                        MappingNormalizer.classDef(model, nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name())), prop, model);
-                if (r != null) {
-                    return r;
-                }
-            }
-        }
-        return null;
-    }
-
     /** Name-keyed binder substitution — the same map-keyed idiom the
      * xstore/rewrite entry points use for {@code this}/{@code that}. */
     private static ValueSpecification substVars(ValueSpecification v,
@@ -219,27 +189,5 @@ final class RelationReads {
             return r != null ? r : vv;
         }
         return v.mapChildren(x -> substVars(x, binds));
-    }
-
-    static @com.legend.Nullable Multiplicity findPropertyDeclared(
-            ClassDefinition owner, String prop, ModelBuilder model) {
-        for (ClassDefinition.PropertyDefinition pd
-                : owner.properties()) {
-            if (pd.name().equals(prop)) {
-                return pd.multiplicity();
-            }
-        }
-        for (TypeExpression sup : owner.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr) {
-                ClassDefinition sc = MappingNormalizer.classDef(model, nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#4 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name()));
-                if (sc != null) {
-                    Multiplicity m = findPropertyDeclared(sc, prop, model);
-                    if (m != null) {
-                        return m;
-                    }
-                }
-            }
-        }
-        return null;
     }
 }

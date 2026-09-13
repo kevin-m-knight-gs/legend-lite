@@ -88,14 +88,13 @@ final class RequiredNullableCensus {
         // system mapping binds properties of a native metaclass; the
         // census must SEE the pairing, not file it under blindness
         ClassDefinition owner = MissProbe.knownMiss(
-                MappingNormalizer.classDef(model, ownerClassFqn));
+                model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) {
             owner = com.legend.builtin.Pure.findNativeClass(ownerClassFqn)
                     .orElse(null);
         }
         ClassDefinition.PropertyDefinition prop = owner == null ? null
-                : MappingNormalizer.findPropertyDefDeep(owner, propName,
-                        model, new HashSet<>());
+                : model.knowledge().propertyDef(owner, propName);
         if (prop == null) {
             ledger.census("unresolved-property",
                     ownerClassFqn + "." + propName);
