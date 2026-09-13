@@ -2392,3 +2392,6 @@ deleted; MappingPrePass 258 → 250; MappingLedger +resolved / −closureRecords
 
 **Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** Green (G8 on the re-run after the
 pin move; G1–G7, G9 on the first run).
+**CI.** GREEN on 421063da7, every job on the first run. **Audit.** docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_
+2026_09_13.md §6 "B3 ARC AUDIT": deleted as promised, kept by receipts, six deferrals — the re-synthesis
+block (three R6 special cases) is the one to fix before B4 (B3.4).
