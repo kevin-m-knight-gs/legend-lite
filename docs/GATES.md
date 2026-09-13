@@ -2014,3 +2014,48 @@ its own record collectors; with `MetamodelSeeds.viewBaseTable` its F-side twin),
 fact being GLOBAL where the engine asks per include closure, the owner-absent qualified-property
 adoption staying silent, and the parser's flattening of schema tables to the top level (a wrong
 schema qualifier resolves).
+
+## Clean-sheet B1 — one resolved mapping record — 2026-09-13
+
+**What landed.** Two types, one of them transitional and pinned to die. `MappingView`: a
+mapping as it currently stands plus its include closure — every question that depends only on
+its own sets and the mappings it includes (`set(id)`: own first then the closure; `closure()`;
+`includedSets()`/`visibleSets()`; `unionOf`/`inheritanceOf` per class; `roots()`;
+`enumerationMappingsWithIncludes()`; `pairEntries(class)`; `memberOrdinal`; `idOf(set)`, the one
+effective-id rule); complete at every stage of the pre-pass, because nothing in it depends on
+another mapping's rewrite. `ResolvedMapping extends MappingView`: adds the facts that exist only
+once every mapping's pre-pass has run — the graph-wide mapped set, the declared keys, the
+validation results, the surface. Both mirror the raw record's accessors, so synthesis reads
+`md.classMappings()` unchanged. `MappingPrePass.run` returns the resolved records (pre-pass every
+mapping, then the mapped set, then one record per mapping over `MappingClosures`). Every synthesis
+signature (about 110 across twelve files) takes `ResolvedMapping`; the pre-pass rewrites
+(`ImplicitInheritance`, the multi-hop injection, `MappingValidation`, the re-synthesis detector)
+take or build a `MappingView` (five construction sites, pinned shrink-only by
+`TransitionalShapesTest`, which also asserts `MappingView` and `MappedClasses` are deleted
+together). The shared helpers the rewrites and synthesis both use (`collectRoutedJoins`,
+`resolveAssociation`, `requireBenignRoute`, `anchorTableOf`, `hasMainTable`, `mainTableDefOf`,
+`relationalMappingsInClosure`) take the view. Deleted: `MappingNormalizer.findSetById`,
+`setIdOf`, `collectMappingClosure`, `collectIncludedSetIds`, `enumerationMappingsWithIncludes`;
+`UnionSynthesis.unionForClass`, `inheritanceForClass`, `collectRootClassMappings`,
+`memberOrdinalOf`; `AssociationSynthesis.collectPairAssociationEntries`; the public
+`MappingPrePass.PrePassed`. The rules are today's, verbatim (B2 changes them, in the view).
+
+**Why two types, and why that is temporary (USER: "make sure it does not stay this way").** A
+record cannot be completed per mapping while two facts depend on EVERY mapping's rewrite: the
+graph-wide mapped set and the implicit sets the rewrite appends. Both are our devices; the
+engine answers "is X mapped" per queried mapping (R1) and resolves an unmapped base class to its
+mapped leaves at query time. B2 makes mapped-ness closure-local and B3 moves the implicit sets to
+resolution; then a mapping's record is complete in one construction from its text and its closure,
+and `MappingView`, `MappedClasses` and the pin are deleted (B3 done criteria in the homework doc).
+The first draft of this batch built a half-initialized "pre-pass view" of the resolved type with
+placeholder fields; it was replaced by the split before measuring.
+
+**Sizes.** MappingNormalizer 3,121 → 3,060; UnionSynthesis 2,900 → 2,839; MappingView 150,
+ResolvedMapping 60. Of the 81 set-id sites: 13 reference resolutions are record lookups, 26
+effective-id computations are `MappingView.idOf`, 25 record copies and the id comparisons are
+unchanged (they become reference checks in B3 when routes resolve to sets).
+
+**Measured twice.** The mechanical sweep alone (one type, placeholder view): chain GREEN, 108 /
+444 EXACT, no pin moved. The split tree: chain GREEN first run — build 23s, G1 72s, G3 10s,
+G4 104s, G5 56s, G6 136s, G7 33s, G9 26s, G8 139s — DuckDB 108 / H2 444 EXACT (0 LOST, 0 GAINED),
+no pin moved.

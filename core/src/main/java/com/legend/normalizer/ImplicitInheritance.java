@@ -38,9 +38,9 @@ final class ImplicitInheritance {
     static LegacyMappingDefinition apply(
             LegacyMappingDefinition md, ModelBuilder model) {
         Map<String, ClassMapping> bySetId = new HashMap<>();
-        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
+        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
         for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingNormalizer.setIdOf(cm), cm);
+            bySetId.put(MappingView.idOf(cm), cm);
         }
         // class fqn -> its Relational mappings in scope
         Map<String, List<ClassMapping.Relational>> byClass = new HashMap<>();
@@ -122,9 +122,9 @@ final class ImplicitInheritance {
     static LegacyMappingDefinition implicitOpsForRoutedTargets(
             LegacyMappingDefinition md, ModelBuilder model) {
         Map<String, ClassMapping> bySetId = new HashMap<>();
-        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
+        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
         for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingNormalizer.setIdOf(cm), cm);
+            bySetId.put(MappingView.idOf(cm), cm);
         }
         Set<String> mappedClasses = new HashSet<>();
         for (ClassMapping cm : bySetId.values()) {
@@ -135,7 +135,7 @@ final class ImplicitInheritance {
             if (!(am instanceof com.legend.model.AssociationMapping.Relational rel)) {
                 continue;
             }
-            var ad = AssociationSynthesis.resolveAssociation(model, md, am)
+            var ad = AssociationSynthesis.resolveAssociation(model, MappingView.of(md, model), am)
                     .orElse(null);
             if (ad == null) {
                 continue;
@@ -168,7 +168,8 @@ final class ImplicitInheritance {
                     new java.util.LinkedHashMap<>();
             Map<String, String> ownerByProp = new HashMap<>();
             UnionSynthesis.collectRoutedJoins(rcm.propertyMappings(),
-                    rcm.className(), md, model, routedByProp, ownerByProp);
+                    rcm.className(), MappingView.of(md, model), model,
+                    routedByProp, ownerByProp);
             for (var e : routedByProp.entrySet()) {
                 String prop = e.getKey();
                 com.legend.model.ClassDefinition owner = model.knowledge().hierarchyClass(ownerByProp.getOrDefault(prop,

@@ -32,9 +32,9 @@ final class SetDispatch {
      * union machinery instead). Conflicting routes drop the entry.
      */
     static Map<String, String> routedTargetSets(
-            LegacyMappingDefinition md, ModelBuilder model) {
+            ResolvedMapping md, ModelBuilder model) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
+        closure.addAll(md.closure());
         Map<String, String> out = new LinkedHashMap<>();
         Set<String> conflicted = new HashSet<>();
         for (LegacyMappingDefinition m : closure) {
@@ -67,15 +67,14 @@ final class SetDispatch {
         return out;
     }
 
-    private static void recordRoutedSet(LegacyMappingDefinition md,
+    private static void recordRoutedSet(ResolvedMapping md,
             ModelBuilder model, String prop, String setId,
             Map<String, String> out, Set<String> conflicted) {
-        ClassMapping set = MappingNormalizer.findSetById(md, model, setId);
+        ClassMapping set = md.set(setId);
         if (!(set instanceof ClassMapping.Relational tr) || tr.root()) {
             return;   // root/sole/unknown: class-level dispatch serves
         }
-        ClassMapping.Union tu = UnionSynthesis.unionForClass(md, model,
-                tr.className());
+        ClassMapping.Union tu = md.unionOf(tr.className());
         if (tu != null && !hasPureMember(md, model, tu)) {
             return;   // union member: the union machinery dispatches
         }
@@ -87,10 +86,10 @@ final class SetDispatch {
         }
     }
 
-    private static boolean hasPureMember(LegacyMappingDefinition md,
+    private static boolean hasPureMember(ResolvedMapping md,
             ModelBuilder model, ClassMapping.Union u) {
         for (String sid : u.memberSetIds()) {
-            if (MappingNormalizer.findSetById(md, model, sid)
+            if (md.set(sid)
                     instanceof ClassMapping.Pure) {
                 return true;
             }

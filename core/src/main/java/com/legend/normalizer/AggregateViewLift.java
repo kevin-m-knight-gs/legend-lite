@@ -26,7 +26,7 @@ final class AggregateViewLift {
     /** The AggregationAware node's views compile as SETS like any set
      * (non-root, their own ids); the main binding carries their
      * specification facts for the router. */
-    static void lift(LegacyMappingDefinition md,
+    static void lift(ResolvedMapping md,
             ClassMapping.Relational aggMain, ModelBuilder model,
             List<FunctionDefinition> lifted,
             List<MappingDefinition.ClassBinding> classBindings,

@@ -73,22 +73,6 @@ final class UnionSynthesis {
 
     private UnionSynthesis() {}
 
-    /**
-     * The Union operation mapping for {@code classFqn} in {@code md} or its
-     * includes (own wins), or {@code null}. Member ORDINAL order = the
-     * union's declaration order = the synthesized concatenate's thread
-     * order = the engine's {@code _N} key suffix.
-     */
-    static ClassMapping.@com.legend.Nullable Union unionForClass(LegacyMappingDefinition md,
-            ModelBuilder model, @com.legend.Nullable String classFqn) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Union u
-                    && u.className().equals(classFqn)) {
-                return u;
-            }
-        }
-        return MappingClosures.of(model).closure(md.qualifiedName()).union(classFqn);
-    }
 
     /** One routed navigation entry: the target's union-member ORDINAL
      * (declaration order = concatenate thread order = the engine's
@@ -145,26 +129,6 @@ final class UnionSynthesis {
                 && joins.size() == 1;
     }
 
-    static int memberOrdinalOf(List<String> memberIds,
-            LegacyMappingDefinition md, ModelBuilder model,
-            @com.legend.Nullable String setId) {
-        int direct = memberIds.indexOf(setId);
-        if (direct >= 0) {
-            return direct;
-        }
-        for (int i = 0; i < memberIds.size(); i++) {
-            ClassMapping m = MappingNormalizer.findSetById(md, model, memberIds.get(i));
-            Set<String> seen = new HashSet<>();
-            while (m instanceof ClassMapping.Relational r
-                    && r.extendsSetId() != null && seen.add(r.extendsSetId())) {
-                if (r.extendsSetId().equals(setId)) {
-                    return i;
-                }
-                m = MappingNormalizer.findSetById(md, model, r.extendsSetId());
-            }
-        }
-        return -1;
-    }
 
     /**
      * Classify every {@code prop[setId]}-routed class-typed Join PM of
@@ -190,7 +154,7 @@ final class UnionSynthesis {
      * declared inside an embedded block). Owner recorded per property so
      * the route's target class resolves against the EMBEDDED class. */
     static void collectRoutedJoins(List<PropertyMapping> pms,
-            String ownerCls, LegacyMappingDefinition md, ModelBuilder model,
+            String ownerCls, MappingView md, ModelBuilder model,
             Map<String, List<PropertyMapping.Join>> routedByProp,
             Map<String, String> ownerByProp) {
         for (PropertyMapping pm : pms) {
@@ -220,7 +184,7 @@ final class UnionSynthesis {
                     for (ClassMapping cm : md.classMappings()) {
                         if (cm instanceof ClassMapping.Relational r2
                                 && java.util.Objects.equals(
-                                        MappingNormalizer.setIdOf(r2),
+                                        MappingView.idOf(r2),
                                         ie.setId())) {
                             collectRoutedJoins(r2.propertyMappings(),
                                     r2.className(), md, model,
@@ -247,7 +211,7 @@ final class UnionSynthesis {
                 && model.knowledge().hierarchyClass(nr.name()).isPresent() ? nr.name() : null;
     }
 
-    static void classifyUnionRoutes(LegacyMappingDefinition md,
+    static void classifyUnionRoutes(ResolvedMapping md,
             ClassMapping.Relational rcm, ModelBuilder model, Pipeline p) {
         Map<String, List<PropertyMapping.Join>> routedByProp = new LinkedHashMap<>();
         Map<String, String> ownerByProp = new LinkedHashMap<>();
@@ -262,30 +226,29 @@ final class UnionSynthesis {
             String targetClass = pt instanceof TypeExpression.NameRef nr
                     && model.knowledge().hierarchyClass(nr.name()).isPresent() ? nr.name() : null;
             ClassMapping.Union tu = targetClass == null ? null
-                    : unionForClass(md, model, targetClass);
+                    : md.unionOf(targetClass);
             // FIX-A (audit-17 bucket analysis): an INHERITANCE op is a
             // union at the routing level — member set ids in the shared
             // enumeration's order
             List<String> memberIds = tu != null ? tu.memberSetIds() : null;
             if (memberIds == null && targetClass != null) {
                 ClassMapping.Inheritance tih =
-                        inheritanceForClass(md, model, targetClass);
+                        md.inheritanceOf(targetClass);
                 if (tih != null) {
                     memberIds = inheritanceMembers(md, tih, model).stream()
-                            .map(MappingNormalizer::setIdOf).toList();
+                            .map(MappingView::idOf).toList();
                 }
             }
             List<UnionRoute> routes = new ArrayList<>();
             String poison = null;
             for (PropertyMapping.Join j : e.getValue()) {
-                ClassMapping set = MappingNormalizer.findSetById(md, model, j.targetSetId());
+                ClassMapping set = md.set(j.targetSetId());
                 if (set == null) {
                     poison = "unknown mapping set '" + j.targetSetId() + "'";
                     break;
                 }
                 int ord = memberIds == null ? -1
-                        : memberOrdinalOf(memberIds, md, model,
-                                j.targetSetId());
+                        : md.memberOrdinal(memberIds, j.targetSetId());
                 // engine rootClassMappingByClass: the * set, or the class's
                 // SOLE set (sole-ness judged in the OWNING mapping's scope)
                 boolean rootOrSole = set instanceof ClassMapping.Relational tr
@@ -358,7 +321,7 @@ final class UnionSynthesis {
      * terminal reads the aligned row. Properties outside the shared set are
      * absent from the binding table — demanding one is loud downstream.
      */
-    static ValueSpecification synthUnion(LegacyMappingDefinition md,
+    static ValueSpecification synthUnion(ResolvedMapping md,
                                                 ClassMapping.Union u,
                                                 ModelBuilder model,
                                                 MappingLedger ledger) {
@@ -372,9 +335,9 @@ final class UnionSynthesis {
         // inheritance hierarchy) — the shared-property projection over the
         // operation class is the semantics either way
         Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
-        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
+        bySetId.putAll(md.includedSets());
         for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingNormalizer.setIdOf(cm), cm);
+            bySetId.put(MappingView.idOf(cm), cm);
         }
         List<ClassMapping> memberSets = new ArrayList<>();
         for (String setId : u.memberSetIds()) {
@@ -417,8 +380,7 @@ final class UnionSynthesis {
         // on their owning MEMBER set as routed class-typed Join PMs — the
         // engine dispatches union navigation per member pair
         Map<String, List<PropertyMapping.Join>> pairEntries = new LinkedHashMap<>();
-        AssociationSynthesis.collectPairAssociationEntries(md, model, u.className(), pairEntries,
-                new HashSet<>());
+        md.pairEntries(u.className()).forEach((k, v) -> pairEntries.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
         if (!pairEntries.isEmpty()) {
             for (int i = 0; i < memberSets.size(); i++) {
                 if (!(memberSets.get(i) instanceof ClassMapping.Relational mr)) {
@@ -431,7 +393,7 @@ final class UnionSynthesis {
                 // other thread carries a NULL key). Own entries first;
                 // the pmIdentity dedup below keeps them authoritative.
                 List<PropertyMapping.Join> add = new ArrayList<>();
-                String cur = MappingNormalizer.setIdOf(mr);
+                String cur = MappingView.idOf(mr);
                 Set<String> seenSets = new HashSet<>();
                 while (cur != null && seenSets.add(cur)) {
                     List<PropertyMapping.Join> lvl = pairEntries.get(cur);
@@ -439,7 +401,7 @@ final class UnionSynthesis {
                         add.addAll(lvl);
                     }
                     ClassMapping up =
-                            MappingNormalizer.findSetById(md, model, cur);
+                            md.set(cur);
                     cur = up instanceof ClassMapping.Relational ur
                             ? ur.extendsSetId() : null;
                 }
@@ -471,7 +433,7 @@ final class UnionSynthesis {
      * so the shared-property projection over the base owner is exactly the
      * engine's router semantics.
      */
-    static ValueSpecification synthInheritance(LegacyMappingDefinition md,
+    static ValueSpecification synthInheritance(ResolvedMapping md,
             ClassMapping.Inheritance ih, ModelBuilder model, MappingLedger ledger) {
         // ENGINE ALGORITHM (router_operations.pure getMappedLeafTypes) —
         // the ordered member enumeration is SHARED with route
@@ -505,26 +467,25 @@ final class UnionSynthesis {
      * entries (own set id + extends lineage), deduped by pmIdentity —
      * the same distribution the Union-op arm performs inline. */
     private static List<ClassMapping.Relational> withPairEntries(
-            LegacyMappingDefinition md, String className,
+            ResolvedMapping md, String className,
             List<ClassMapping.Relational> members, ModelBuilder model) {
         Map<String, List<PropertyMapping.Join>> pairEntries =
                 new LinkedHashMap<>();
-        AssociationSynthesis.collectPairAssociationEntries(md, model,
-                className, pairEntries, new HashSet<>());
+        md.pairEntries(className).forEach((k, v) -> pairEntries.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
         if (pairEntries.isEmpty()) {
             return members;
         }
         List<ClassMapping.Relational> out = new ArrayList<>(members.size());
         for (ClassMapping.Relational mr : members) {
             List<PropertyMapping.Join> add = new ArrayList<>();
-            String cur = MappingNormalizer.setIdOf(mr);
+            String cur = MappingView.idOf(mr);
             Set<String> seenSets = new HashSet<>();
             while (cur != null && seenSets.add(cur)) {
                 List<PropertyMapping.Join> lvl = pairEntries.get(cur);
                 if (lvl != null) {
                     add.addAll(lvl);
                 }
-                ClassMapping up = MappingNormalizer.findSetById(md, model, cur);
+                ClassMapping up = md.set(cur);
                 cur = up instanceof ClassMapping.Relational ur
                         ? ur.extendsSetId() : null;
             }
@@ -561,7 +522,7 @@ final class UnionSynthesis {
      * casts read it through the same-source stc transplants. Anything
      * outside this shape keeps the member union. */
     private static @com.legend.Nullable ValueSpecification synthSameTableInheritance(
-            LegacyMappingDefinition md, ClassMapping.Inheritance ih,
+            ResolvedMapping md, ClassMapping.Inheritance ih,
             List<ClassMapping.Relational> members, ModelBuilder model,
             MappingLedger ledger) {
         ClassDefinition base = model.knowledge().hierarchyClass(ih.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ih.className()));
@@ -631,14 +592,14 @@ final class UnionSynthesis {
      * (engine merge-by-join-name folds the per-entry emissions; the
      * inheritanceWithEmbedded golden pins one shared LEFT JOIN). Distinct
      * joins keep the routed form (loud downstream, never silently wrong). */
-    static boolean sameTableInheritanceMerge(LegacyMappingDefinition md,
+    static boolean sameTableInheritanceMerge(ResolvedMapping md,
             ModelBuilder model, @com.legend.Nullable String targetClassFqn,
             List<UnionRoute> routes) {
         if (targetClassFqn == null) {
             return false;
         }
         ClassMapping.Inheritance ih =
-                inheritanceForClass(md, model, targetClassFqn);
+                md.inheritanceOf(targetClassFqn);
         if (ih == null) {
             return false;
         }
@@ -663,7 +624,7 @@ final class UnionSynthesis {
      * ordinals align BY CONSTRUCTION (misalignment = silently wrong rows).
      */
     static List<ClassMapping.Relational> inheritanceMembers(
-            LegacyMappingDefinition md, ClassMapping.Inheritance ih,
+            ResolvedMapping md, ClassMapping.Inheritance ih,
             ModelBuilder model) {
         LinkedHashSet<ClassMapping> chosen = new LinkedHashSet<>();
         collectInheritanceMembers(md, ih.className(), model, chosen);
@@ -673,9 +634,9 @@ final class UnionSynthesis {
                 case ClassMapping.Relational mr -> members.add(mr);
                 case ClassMapping.Union u2 -> {
                     Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
-                    MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
+                    bySetId.putAll(md.includedSets());
                     for (ClassMapping own : md.classMappings()) {
-                        bySetId.put(MappingNormalizer.setIdOf(own), own);
+                        bySetId.put(MappingView.idOf(own), own);
                     }
                     for (String setId : u2.memberSetIds()) {
                         if (bySetId.get(setId) instanceof ClassMapping.Relational mr2) {
@@ -698,25 +659,13 @@ final class UnionSynthesis {
         return members;
     }
 
-    /** The inheritance op mapping a class, own then includes — the
-     * Inheritance sibling of {@link #unionForClass}. */
-    static ClassMapping.@com.legend.Nullable Inheritance inheritanceForClass(LegacyMappingDefinition md,
-            ModelBuilder model, String classFqn) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Inheritance ih
-                    && ih.className().equals(classFqn)) {
-                return ih;
-            }
-        }
-        return MappingClosures.of(model).closure(md.qualifiedName()).inheritance(classFqn);
-    }
 
     /** The engine's leaf-most-root member selection for an inheritance op. */
-    static void collectInheritanceMembers(LegacyMappingDefinition md,
+    static void collectInheritanceMembers(ResolvedMapping md,
             String base, ModelBuilder model, Set<ClassMapping> chosen) {
         // ROOT class mapping per class, includes first (own definitions win)
         Map<String, ClassMapping> rootByClass = new LinkedHashMap<>();
-        collectRootClassMappings(md, model, rootByClass, new HashSet<>());
+        rootByClass.putAll(md.roots());
         // strict specializations of base, and their leaves — over the
         // WHOLE class universe (user classes AND the native catalog: a
         // mapped metaclass's subclasses are natives; engine
@@ -788,12 +737,6 @@ final class UnionSynthesis {
         }
     }
 
-    /** ROOT set per class across this mapping + its includes (own wins). */
-    static void collectRootClassMappings(LegacyMappingDefinition md,
-            ModelBuilder model, Map<String, ClassMapping> out, Set<String> seen) {
-        out.putAll(MappingClosures.of(model).closure(md.qualifiedName()).roots());
-        MappingClosures.Closure.ownRoots(md, out);
-    }
 
 
     /**
@@ -970,7 +913,7 @@ final class UnionSynthesis {
     }
 
     /** The shared-property UNION ALL over resolved member sets. */
-    static ValueSpecification synthMemberUnion(LegacyMappingDefinition md,
+    static ValueSpecification synthMemberUnion(ResolvedMapping md,
             String className, List<? extends ClassMapping> memberSets,
             ModelBuilder model, MappingLedger ledger) {
         List<MappingNormalizer.RelationalParts> parts = new ArrayList<>(memberSets.size());
@@ -994,7 +937,7 @@ final class UnionSynthesis {
                 continue;
             }
             ClassMapping.Relational mr = (ClassMapping.Relational) cmIn;
-            String setId = MappingNormalizer.setIdOf(mr);
+            String setId = MappingView.idOf(mr);
             if (mr.sourceUrl() != null) {
                 throw new NotImplementedException(
                         "Operation union over a JSON-source member set is not"
@@ -1109,7 +1052,7 @@ final class UnionSynthesis {
         // the threads project once (see TABLE_KEY_SUFFIX)
         Map<List<String>, Integer> sharedKeys = new LinkedHashMap<>();
         collectInboundRouteKeys(md, model,
-                members.stream().map(MappingNormalizer::setIdOf).toList(),
+                members.stream().map(MappingView::idOf).toList(),
                 members, srcKeysByOrdinal, chainsByOrdinal, sharedKeys);
         recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model, ledger);
         Map<String, LinkedHashSet<String>> subTypeProps =
@@ -1272,7 +1215,7 @@ final class UnionSynthesis {
             Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<Integer, List<LiftChain>> chainsByOrdinal,
             Map<List<String>, Integer> sharedKeys,
-            LegacyMappingDefinition md, ModelBuilder model) {
+            ResolvedMapping md, ModelBuilder model) {
             List<ColSpec> cols = new ArrayList<>(common.size());
             for (String prop : common) {
                 // member sets may disagree on the COLUMN kind (String col in
@@ -1393,7 +1336,7 @@ final class UnionSynthesis {
             Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<Integer, List<LiftChain>> chainsByOrdinal,
             Map<List<String>, Integer> sharedKeys,
-            LegacyMappingDefinition md, ModelBuilder model) {
+            ResolvedMapping md, ModelBuilder model) {
         List<FilteredScan> scans = new ArrayList<>();
         List<Thread> threads = new ArrayList<>();
         for (int o : group) {
@@ -1524,7 +1467,7 @@ final class UnionSynthesis {
      * NULLs of the mid table's column kind (engine 3-sets golden). */
     private static void addChainedLiftCols(
             Map<Integer, List<LiftChain>> chainsByOrdinal, int ordinal,
-            MappingNormalizer.RelationalParts pp, LegacyMappingDefinition md,
+            MappingNormalizer.RelationalParts pp, ResolvedMapping md,
             ModelBuilder model, List<ColSpec> cols) {
         // two chains may demand the same suffixed key column (two lifted
         // props sharing one mid hop): ONE projection serves both
@@ -1959,7 +1902,7 @@ final class UnionSynthesis {
      * {@link #liftMidSteps} for outbound lifts.
      */
     static List<LiftMidStep> inboundArmSteps(PropertyMapping.Join j,
-            String prop, String memberTable, LegacyMappingDefinition md,
+            String prop, String memberTable, ResolvedMapping md,
             ModelBuilder model) {
         List<LiftMidStep> steps = new ArrayList<>();
         String prevTable = memberTable;
@@ -2009,7 +1952,7 @@ final class UnionSynthesis {
     private static boolean liftTargetMerged(List<int[]> ordsPre,
             List<PropertyMapping.Join> jsPre, String prop,
             ClassMapping.@com.legend.Nullable Union targetUnion, String targetClassFqn,
-            List<ClassMapping> members, LegacyMappingDefinition md,
+            List<ClassMapping> members, ResolvedMapping md,
             ModelBuilder model) {
         if (targetUnion == null) {
             return false;
@@ -2024,8 +1967,7 @@ final class UnionSynthesis {
                 mergeable = false;
                 break;
             }
-            int o = memberOrdinalOf(targetUnion.memberSetIds(), md,
-                    model, j0.targetSetId());
+            int o = md.memberOrdinal(targetUnion.memberSetIds(), j0.targetSetId());
             if (o < 0 || !srcMembers.add(ordsPre.get(k2)[0])) {
                 mergeable = false;   // 2 routes on one source member
                 break;
@@ -2101,7 +2043,7 @@ final class UnionSynthesis {
     }
 
     static List<LiftMidStep> liftMidSteps(PropertyMapping.Join j,
-            String prop, String srcTable, LegacyMappingDefinition md,
+            String prop, String srcTable, ResolvedMapping md,
             ModelBuilder model) {
         List<LiftMidStep> midSteps = new ArrayList<>();
         String prevTable = srcTable;
@@ -2166,7 +2108,7 @@ final class UnionSynthesis {
      * names across routed members). */
     private static List<ColSpec> routedLiftKeySpecs(
             Map<String, String[]> tgtKeyCols, String landingDb,
-            String landingTable, LegacyMappingDefinition md,
+            String landingTable, ResolvedMapping md,
             ModelBuilder model) {
         List<ColSpec> keySpecs = new ArrayList<>();
         for (var en2 : tgtKeyCols.entrySet()) {
@@ -2332,7 +2274,7 @@ final class UnionSynthesis {
         }
     }
 
-    static List<NavLift> collectNavLifts(LegacyMappingDefinition md,
+    static List<NavLift> collectNavLifts(ResolvedMapping md,
             String className, List<ClassMapping> members,
             ModelBuilder model, MappingLedger ledger) {
         // property -> per-member entries, member order
@@ -2363,7 +2305,7 @@ final class UnionSynthesis {
             // hybrid over-match (12 vs 18) is retired; the hybrid family
             // gates the rows.
 
-            ClassMapping.Union targetUnion = unionForClass(md, model, targetClassFqn);
+            ClassMapping.Union targetUnion = md.unionOf(targetClassFqn);
             // Pre-validate the property's entries: any unsupported or
             // unresolvable entry SKIPS the whole property's lift (poison
             // reason recorded; demanding the property fails loudly) —
@@ -2372,12 +2314,11 @@ final class UnionSynthesis {
             String skipReason = null;
             for (PropertyMapping.Join j0 : java.util.Objects.requireNonNull(joins.get(prop))) {
                 if (j0.targetSetId() != null && (targetUnion == null
-                        || memberOrdinalOf(targetUnion.memberSetIds(), md,
-                                model, j0.targetSetId()) < 0)) {
+                        || md.memberOrdinal(targetUnion.memberSetIds(), j0.targetSetId()) < 0)) {
                     // a route naming the target's ROOT/SOLE set is the
                     // UN-routed navigation (engine rootClassMappingByClass;
                     // multipleChainedJoins V2: z[y1, z0] into single-set Z)
-                    ClassMapping set = MappingNormalizer.findSetById(md, model, j0.targetSetId());
+                    ClassMapping set = md.set(j0.targetSetId());
                     // <= 1 RETAINED (audit 23 probed-and-reverted): the
                     // V5 chained-union family routes into a class whose
                     // sets live in an INCLUDE (zero own-mapping sets) and
@@ -2513,8 +2454,7 @@ final class UnionSynthesis {
                                     prevTable, srcOut));
                 }
                 Integer tgtOrd = j.targetSetId() != null && targetUnion != null
-                        ? memberOrdinalOf(targetUnion.memberSetIds(), md,
-                                model, j.targetSetId())
+                        ? md.memberOrdinal(targetUnion.memberSetIds(), j.targetSetId())
                         : null;
                 // the PAIRED (member-suffixed target) variant builds
                 // ALWAYS; the emitted predicate is the MERGED (raw-target)
@@ -2584,21 +2524,21 @@ final class UnionSynthesis {
      * ordinal &rarr; (base &rarr; {@code base_ordinal}) so the union body
      * projects them with full provenance.
      */
-    static void collectInboundRouteKeys(LegacyMappingDefinition md,
+    static void collectInboundRouteKeys(ResolvedMapping md,
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink) {
         collectInboundRouteKeys(md, model, memberIds, members, sink, null, null);
     }
 
-    static void collectInboundRouteKeys(LegacyMappingDefinition md,
+    static void collectInboundRouteKeys(ResolvedMapping md,
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink,
             @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
             @com.legend.Nullable Map<List<String>, Integer> sharedKeys) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
+        closure.addAll(md.closure());
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
                 if (!(cm instanceof ClassMapping.Relational rcm)) {
@@ -2621,8 +2561,7 @@ final class UnionSynthesis {
                     Map<PropertyMapping.Join, Integer> ords =
                             new LinkedHashMap<>();
                     for (PropertyMapping.Join j : group) {
-                        int ord = memberOrdinalOf(memberIds, md, model,
-                                j.targetSetId());
+                        int ord = md.memberOrdinal(memberIds, j.targetSetId());
                         if (ord >= 0) {
                             ords.put(j, ord);
                         }
@@ -2658,7 +2597,7 @@ final class UnionSynthesis {
                     if (tgtSet == null) {
                         continue;
                     }
-                    int ord = memberOrdinalOf(memberIds, md, model, tgtSet);
+                    int ord = md.memberOrdinal(memberIds, tgtSet);
                     if (ord < 0) {
                         continue;
                     }
@@ -2689,7 +2628,7 @@ final class UnionSynthesis {
      */
     private static void registerInboundEntry(PropertyMapping.Join j, int ord,
             List<ClassMapping> members, boolean uniform,
-            LegacyMappingDefinition md, ModelBuilder model,
+            ResolvedMapping md, ModelBuilder model,
             Map<Integer, Map<String, String>> sink,
             @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
             @com.legend.Nullable Map<List<String>, Integer> sharedKeys) {
@@ -2770,7 +2709,7 @@ final class UnionSynthesis {
      * option that surfaces the threads as result columns
      * ({@code ModelContext.unionKeyThreads}).
      */
-    private static void recordKeyThreads(LegacyMappingDefinition md, String className,
+    private static void recordKeyThreads(ResolvedMapping md, String className,
             List<ClassMapping> members, Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<List<String>, Integer> sharedKeys, ModelBuilder model,
             MappingLedger ledger) {

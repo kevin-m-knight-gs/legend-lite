@@ -74,7 +74,7 @@ final class MappingValidation {
             ModelBuilder model, LegacyMappingDefinition md) {
         ClassDefinition tgt = MissProbe.knownMiss(model.knowledge().hierarchyClass(pcm.className()));
         for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
-            M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
+            M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, MappingView.of(md, model), model);
         }
     }
 }

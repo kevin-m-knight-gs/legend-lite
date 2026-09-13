@@ -37,28 +37,20 @@ final class MappingPrePass {
 
     private MappingPrePass() {}
 
-    /** One mapping after the pre-pass: {@code surface} is the authored
-     * mapping plus its JSON identity sets (the analysis archive's form);
-     * {@code md} is what synthesis consumes; {@code declaredKeys} is the
-     * sets' OWN key text, captured before {@code extends} merged the
-     * parents' in. */
-    record PrePassed(LegacyMappingDefinition surface, LegacyMappingDefinition md,
-            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
-            Map<ClassMapping, String> invalid) {}
-
-    /** Pre-pass every legacy mapping of {@code parsed}, element order. A
+    /** Pre-pass every legacy mapping of {@code parsed}, element order, then
+     * build every mapping's RESOLVED record over the graph-wide facts. A
      * mapping whose pre-pass fails is walled under a tolerant build (and
      * absent from the result) or thrown under a strict one &mdash; exactly
      * the driver's own per-mapping discipline. */
-    static Map<String, PrePassed> run(ParsedModel parsed, ModelBuilder model,
+    static Map<String, ResolvedMapping> run(ParsedModel parsed, ModelBuilder model,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
-        Map<String, PrePassed> out = new LinkedHashMap<>();
+        Map<String, PrePassed> pre = new LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof LegacyMappingDefinition md)) {
                 continue;
             }
             try {
-                out.put(md.qualifiedName(), MappingNormalizer.withElement(
+                pre.put(md.qualifiedName(), MappingNormalizer.withElement(
                         md.qualifiedName(), () -> prePass(md, model, wallSink != null)));
             } catch (ModelException e) {
                 if (wallSink == null || e.element() == null) {
@@ -68,8 +60,19 @@ final class MappingPrePass {
                         String.valueOf(e.getMessage()).split("\n")[0]);
             }
         }
+        // the graph-wide mapped-class fact, over EVERY mapping's pre-passed sets
+        MappedClasses mapped = MappedClasses.of(
+                pre.values().stream().map(PrePassed::md).toList(), parsed.elements());
+        MappingClosures closures = MappingClosures.of(model);
+        Map<String, ResolvedMapping> out = new LinkedHashMap<>();
+        pre.forEach((fqn, pp) -> out.put(fqn, new ResolvedMapping(pp.md(), pp.surface(),
+                pp.declaredKeys(), pp.invalid(), closures.closure(fqn), mapped)));
         return out;
     }
+
+    private record PrePassed(LegacyMappingDefinition surface, LegacyMappingDefinition md,
+            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
+            Map<ClassMapping, String> invalid) {}
 
     private static PrePassed prePass(LegacyMappingDefinition authored, ModelBuilder model,
             boolean tolerant) {
@@ -119,9 +122,9 @@ final class MappingPrePass {
         // own definitions win) — extends [set] across an include is the
         // union::extend corpus family's normal shape
         Map<String, ClassMapping> bySetId = new HashMap<>();
-        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
+        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
         for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingNormalizer.setIdOf(cm), cm);
+            bySetId.put(MappingView.idOf(cm), cm);
         }
         List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
         for (ClassMapping cm : md.classMappings()) {

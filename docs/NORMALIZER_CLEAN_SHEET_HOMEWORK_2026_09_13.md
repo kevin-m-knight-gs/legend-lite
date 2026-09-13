@@ -234,6 +234,12 @@ move); identity sets; implied sets; declared keys; per-set store facts from the 
 string sites read the record; `findSetById`, `setIdOf` and `memberOrdinalOf` become record
 accessors or die. Expected: 0 LOST / 0 GAINED. Pins: the reach-back and walker censuses.
 
+**B2 homework note (probe, 2026-09-13).** The 43 mappings with a class mapped in more than one
+included mapping sit almost entirely in two corpus families that declare their OWN union set over
+the included ones (`union::multipleChainedJoins` 20, `union::extend` 16): there the resolver finds
+the local binding first and the ambiguity wall never fires. The wall's real exposure is the seven
+outside those families (milestoning 2, embedded::advanced 2, classMappingByClass 2, lineage 1).
+
 **B2 — the engine's rules (semantics change, receipted).** R1 for roots and operation sets (last
 root; delete `findBinding`'s ambiguity wall), R2 + R5 as validation (duplicate ids across the
 closure are a MODEL error: strict throws, module walls the mapping), duplicate includes an error.
@@ -255,6 +261,11 @@ union's single key, building the branching predicate from the stamped routing fa
 joins when the predicate branches on the member. Witness: `UnionTargetLeanJoinTest` (uniform and
 non-uniform), plans measured as in the earlier record. Expected: 0 LOST; the 2 re-synthesis hits
 reproduce by the uniform rule; the OR disappears from the non-uniform plan.
+**B3 done also requires:** `MappingView` (the transitional pre-pass view of B1) and
+`MappedClasses` (the graph-wide mapped set) DELETED together, `ResolvedMapping` built in ONE
+construction from a mapping's text and its closure (nothing depends on another mapping's rewrite
+any more), and `TransitionalShapesTest` retired with them. USER 2026-09-13: "let's make sure it
+does not stay this way".
 
 **B4 — policy out of the translator.** The translator reports (throws) and produces facts; the
 driver alone applies strict/module; `UnionSynthesis:2408` moves to the driver's ledger; the
@@ -282,4 +293,4 @@ record; ledger row here; CI green on the full sha.
 
 | batch | landed | rows | pins | record |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| B1 — `MappingView` (transitional, pinned) + `ResolvedMapping`; nine walkers deleted; synthesis takes the record | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | none | docs/GATES.md "Clean-sheet B1" |

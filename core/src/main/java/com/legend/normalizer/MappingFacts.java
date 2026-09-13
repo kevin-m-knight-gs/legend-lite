@@ -120,7 +120,8 @@ final class MappingFacts {
      * the resolver consults when the class-level binding is absent. */
     static Map<String, String> routedSets(LegacyMappingDefinition md, ModelBuilder model) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure, new java.util.HashSet<>());
+        closure.add(md);
+        closure.addAll(MappingClosures.of(model).closure(md.qualifiedName()).mappings());
         Map<String, Set<String>> byHead = new LinkedHashMap<>();
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {

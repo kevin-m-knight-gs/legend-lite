@@ -47,7 +47,7 @@ final class ViewRelation {
      * tableReference, or — when the ~mainTable is a VIEW — the view's
      * RELATION expression (the identity-carrying frame; a bare
      * tableReference would name an unknown physical table). */
-    static ValueSpecification mainSourceRef(LegacyMappingDefinition md,
+    static ValueSpecification mainSourceRef(ResolvedMapping md,
             String classFqn, ModelBuilder model) {
         return sourceRefFor(MappingNormalizer.mainTableDefOf(md, classFqn, model),
                 model, md);
@@ -58,7 +58,7 @@ final class ViewRelation {
      * on a table other than its own ~mainTable (embedded-owner anchors). */
     static ValueSpecification sourceRefFor(
             LegacyMappingDefinition.TableReference ref, ModelBuilder model,
-            LegacyMappingDefinition md) {
+            ResolvedMapping md) {
         String table = MappingNormalizer.canonicalTable(ref.table());
         DatabaseDefinition.ViewDefinition view =
                 model.findView(ref.database(), table).orElse(null);
@@ -78,14 +78,14 @@ final class ViewRelation {
      */
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, LegacyMappingDefinition md) {
+            ModelBuilder model, ResolvedMapping md) {
         return viewRelationExpr(view, viewName, db, model, md,
                 new java.util.HashSet<>());
     }
 
     private static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, LegacyMappingDefinition md,
+            ModelBuilder model, ResolvedMapping md,
             java.util.Set<String> expanding) {
         if (!expanding.add(viewName)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
@@ -444,12 +444,12 @@ final class ViewRelation {
 
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, LegacyMappingDefinition md) {
+                                            String viewName, ResolvedMapping md) {
         return inferViewMainTable(view, viewName, md, null, null);
     }
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, LegacyMappingDefinition md,
+                                            String viewName, ResolvedMapping md,
                                             @com.legend.Nullable ModelBuilder model, @com.legend.Nullable String dbFqn) {
         Set<String> tables = new LinkedHashSet<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
@@ -530,7 +530,7 @@ final class ViewRelation {
      * frames as its own relation (Leg 4 — a view NEVER emits as a raw
      * tableReference), a physical table is a tableReference. */
     static ValueSpecification relationExpr(String db, String table,
-            ModelBuilder model, LegacyMappingDefinition md) {
+            ModelBuilder model, ResolvedMapping md) {
         DatabaseDefinition.ViewDefinition v =
                 model.findView(db, table).orElse(null);
         return v != null ? viewRelationExpr(v, table, db, model, md)

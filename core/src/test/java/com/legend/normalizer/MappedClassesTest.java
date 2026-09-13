@@ -30,9 +30,9 @@ class MappedClassesTest {
     private static MappedClasses mapped(String src) {
         ParsedModel resolved = NameResolver.resolve(com.legend.testing.Own.model(src));
         ModelBuilder index = ModelBuilder.from(resolved);
-        Map<String, MappingPrePass.PrePassed> pre = MappingPrePass.run(resolved, index, null);
-        return MappedClasses.of(pre.values().stream().map(MappingPrePass.PrePassed::md).toList(),
-                resolved.elements());
+        Map<String, ResolvedMapping> pre = MappingPrePass.run(resolved, index, null);
+        // every resolved mapping carries the same graph-wide fact
+        return pre.values().stream().findFirst().map(ResolvedMapping::mapped).orElseThrow();
     }
 
     @Test

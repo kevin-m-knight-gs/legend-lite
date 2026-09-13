@@ -80,6 +80,7 @@ final class AssociationSynthesis {
      */
     static LegacyMappingDefinition injectMultiHopAssociationPMs(LegacyMappingDefinition md,
                                                                  ModelBuilder model) {
+        MappingView view = MappingView.of(md, model);
         // INCLUDE-CLOSURE: the association entries, the owning class
         // mappings and the target unions may live in DIFFERENT mapping
         // definitions (multipleChainedJoins V4: top mapping = unions only,
@@ -89,7 +90,8 @@ final class AssociationSynthesis {
         // set into this definition when needed (the hoisted copy shadows
         // the included one for this mapping's synthesis).
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
+        closure.add(md);
+        closure.addAll(MappingClosures.of(model).closure(md.qualifiedName()).mappings());
         List<AssociationMapping.Relational> rels = new ArrayList<>();
         for (LegacyMappingDefinition m : closure) {
             for (AssociationMapping am : m.associationMappings()) {
@@ -124,9 +126,9 @@ final class AssociationSynthesis {
                     continue;
                 }
                 boolean unionTgt =
-                        UnionSynthesis.unionForClass(md, model, target) != null;
+                        view.unionOf(target) != null;
                 boolean inheritanceTgt = !unionTgt
-                        && UnionSynthesis.inheritanceForClass(md, model, target)
+                        && view.inheritanceOf(target)
                                 != null;
                 // an INHERITANCE-op target has NO set of its own class —
                 // the predicate path cannot anchor it (no ~mainTable);
@@ -142,8 +144,8 @@ final class AssociationSynthesis {
                 // owner's table — hasMainTable alone misjudged those and
                 // regressed 30 inheritance tests when tried, 2026-09-02)
                 boolean bindingPossible = owner0 != null
-                        && anchorTableOf(md, owner0, model) != null
-                        && anchorTableOf(md, target, model) != null;
+                        && anchorTableOf(view, owner0, model) != null
+                        && anchorTableOf(view, target, model) != null;
                 if (!unionTgt && !inheritanceTgt && bindingPossible) {
                     continue;   // plain pair: the predicate path
                 }
@@ -168,9 +170,8 @@ final class AssociationSynthesis {
                 String owner = associationOwnerClass(ad, apm.propertyName());
                 if (owner == null) continue;
                 if (apm.sourceSetId() != null
-                        && UnionSynthesis.unionForClass(md, model, owner) != null
-                        && MappingNormalizer.findSetById(md, model,
-                                apm.sourceSetId()) instanceof ClassMapping src0
+                        && view.unionOf(owner) != null
+                        && view.set(apm.sourceSetId()) instanceof ClassMapping src0
                         && src0.className().equals(owner)) {
                     // per-pair entries on a UNION-mapped owner land on their
                     // member set at union synthesis instead
@@ -216,7 +217,7 @@ final class AssociationSynthesis {
             if (m == md) continue;
             for (ClassMapping cm : m.classMappings()) {
                 if (ownClasses.contains(cm.className())
-                        || !hoisted.add(MappingNormalizer.setIdOf(cm))) {
+                        || !hoisted.add(MappingView.idOf(cm))) {
                     continue;
                 }
                 ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet);
@@ -242,7 +243,7 @@ final class AssociationSynthesis {
         // (ownedVehicles on VehicleOwner, set per1 maps Person — the
         // sourceSetId pins the exact set; set ids are unique in scope)
         for (Map<String, List<PropertyMapping>> sets : bySet.values()) {
-            List<PropertyMapping> forSet = sets.get(MappingNormalizer.setIdOf(rcm));
+            List<PropertyMapping> forSet = sets.get(MappingView.idOf(rcm));
             if (forSet != null) add.addAll(forSet);
         }
         // EMBEDDED-set sources: an entry keyed <thisSetId>_<embProp> (or
@@ -252,7 +253,7 @@ final class AssociationSynthesis {
         // the ordinary embedded sub-PM machinery.
         List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings());
         boolean nested = false;
-        String sid = MappingNormalizer.setIdOf(rcm);
+        String sid = MappingView.idOf(rcm);
         String classId = rcm.className().replace("::", "_");
         for (Map<String, List<PropertyMapping>> anySets : bySet.values()) {
             for (var en : anySets.entrySet()) {
@@ -286,25 +287,6 @@ final class AssociationSynthesis {
                 rcm.propertyTargetSets(), rcm.aggregation());
     }
 
-    /**
-     * SET-QUALIFIED per-pair AssociationMapping entries
-     * ({@code y[x1, y1]: [db]@X1_A > @A_Y1} — multipleChainedJoins) whose
-     * OWNING end is union class {@code classFqn}, gathered across the
-     * INCLUDE CLOSURE (the entries, the members and the union operation
-     * may live in different mapping definitions), keyed by the owning
-     * member's set id with the target route stamped on the Join.
-     */
-    static void collectPairAssociationEntries(LegacyMappingDefinition md,
-            ModelBuilder model, String classFqn,
-            Map<String, List<PropertyMapping.Join>> out, Set<String> seen) {
-        if (!seen.add(md.qualifiedName())) {
-            return;
-        }
-        MappingClosures.Closure closure = MappingClosures.of(model).closure(md.qualifiedName());
-        closure.ownPairs(md, classFqn, out);
-        closure.pairEntries(classFqn).forEach((setId, joins) ->
-                out.computeIfAbsent(setId, k -> new ArrayList<>()).addAll(joins));
-    }
 
     /**
      * The class that <em>owns</em> association property {@code propName}: in
@@ -339,7 +321,7 @@ final class AssociationSynthesis {
      * {@code Driver : Relational { AssociationMapping (...) }} inside a
      * file importing the model package). */
     static java.util.Optional<AssociationDefinition> resolveAssociation(
-            ModelBuilder model, LegacyMappingDefinition md,
+            ModelBuilder model, MappingView md,
             AssociationMapping am) {
         String name = am.associationName();
         var direct = model.findAssociation(name);
@@ -359,7 +341,7 @@ final class AssociationSynthesis {
                         md.qualifiedName().substring(0, cut) + "::" + name);
     }
 
-    static @com.legend.Nullable FunctionDefinition synthesizeAssociationMapping(LegacyMappingDefinition md,
+    static @com.legend.Nullable FunctionDefinition synthesizeAssociationMapping(ResolvedMapping md,
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
         AssociationDefinition ad0 = resolveAssociation(model, md, am)
@@ -441,8 +423,7 @@ final class AssociationSynthesis {
         // destination on tgtRow; the resolver reverses by property name).
         boolean targetIsA = false;
         if (!classA.equals(classB) && firstAm.sourceSetId() != null) {
-            ClassMapping srcSet = MappingNormalizer.findSetById(md, model,
-                    firstAm.sourceSetId());
+            ClassMapping srcSet = md.set(firstAm.sourceSetId());
             targetIsA = srcSet != null && srcSet.className().equals(classB);
         }
         ValueSpecification predicateBody = buildAssocPredicateBody(firstJoin, classA,
@@ -496,7 +477,7 @@ final class AssociationSynthesis {
                                                              String classA, String classB,
                                                              Variable srcRow, Variable tgtRow,
                                                              String associationName,
-                                                             LegacyMappingDefinition md,
+                                                             ResolvedMapping md,
                                                              ModelBuilder model) {
         return buildAssocPredicateBody(join, classA, classB, srcRow, tgtRow,
                 associationName, md, model, false);
@@ -508,7 +489,7 @@ final class AssociationSynthesis {
                                                              String classA, String classB,
                                                              Variable srcRow, Variable tgtRow,
                                                              String associationName,
-                                                             LegacyMappingDefinition md,
+                                                             ResolvedMapping md,
                                                              ModelBuilder model,
                                                              boolean targetIsA) {
         if (join.joins().isEmpty()) {
@@ -584,14 +565,13 @@ final class AssociationSynthesis {
      * set implementation shares its owner's table; Join Firm_Organizations
      * anchors on PERSON_FIRM_DENORM). Null when neither resolves. */
     static LegacyMappingDefinition.@com.legend.Nullable TableReference
-            anchorTableOf(LegacyMappingDefinition md, String classFqn,
+            anchorTableOf(MappingView md, String classFqn,
             ModelBuilder model) {
         if (MappingNormalizer.hasMainTable(md, classFqn, model)) {
             return MappingNormalizer.mainTableDefOf(md, classFqn, model);
         }
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure,
-                new HashSet<>());
+        closure.addAll(md.closure());
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
                 if (!(cm instanceof ClassMapping.Relational rcm)) {
@@ -625,7 +605,7 @@ final class AssociationSynthesis {
 
     /** {@link #anchorTableOf}'s table NAME — loud when unresolvable (the
      * synthesis gate already null-checked). */
-    private static String anchorNameOf(LegacyMappingDefinition md,
+    private static String anchorNameOf(ResolvedMapping md,
             String classFqn, ModelBuilder model) {
         return java.util.Objects.requireNonNull(
                 anchorTableOf(md, classFqn, model),

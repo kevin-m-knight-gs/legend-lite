@@ -71,7 +71,7 @@ final class JoinChainEmission {
     static void emitHopsForStructuralPm(Pipeline p, PropertyMapping pm,
                                                String ownerClassFqn, String mainDb,
                                                String mainTable, Variable rowBind,
-                                               ModelBuilder model, LegacyMappingDefinition md) {
+                                               ModelBuilder model, ResolvedMapping md) {
         switch (pm) {
             case PropertyMapping.Join j when p.droppedRoutedProps
                     .contains(j.propertyName()) -> {
@@ -158,7 +158,7 @@ final class JoinChainEmission {
                 for (ClassMapping cm : md.classMappings()) {
                     if (cm instanceof ClassMapping.Relational r2
                             && java.util.Objects.equals(
-                                    MappingNormalizer.setIdOf(r2), ie.setId())) {
+                                    MappingView.idOf(r2), ie.setId())) {
                         referenced = r2;
                         break;
                     }
@@ -206,7 +206,7 @@ final class JoinChainEmission {
                                                 PropertyMapping.OtherwiseEmbedded oe,
                                                 String ownerClassFqn, String mainDb,
                                                 String mainTable, Variable rowBind,
-                                                ModelBuilder model, LegacyMappingDefinition md) {
+                                                ModelBuilder model, ResolvedMapping md) {
         if (!(oe.fallback() instanceof PropertyMapping.Join joinFallback)) {
             throw new NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' fallback kind "
@@ -273,7 +273,7 @@ final class JoinChainEmission {
                                      @com.legend.Nullable String propName,
                                      @com.legend.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, LegacyMappingDefinition md,
+                                     ModelBuilder model, ResolvedMapping md,
                                      boolean classTypedTerminus) {
         emitJoinChain(p, hops, chainDb, propName, ownerClassFqn, mainDb, mainTable,
                 rowBind, model, md, classTypedTerminus, null);
@@ -292,7 +292,7 @@ final class JoinChainEmission {
                                      @com.legend.Nullable String propName,
                                      @com.legend.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, LegacyMappingDefinition md,
+                                     ModelBuilder model, ResolvedMapping md,
                                      boolean classTypedTerminus,
                                      @com.legend.Nullable String routedSetId) {
         String targetClassFqn = null;
@@ -304,7 +304,7 @@ final class JoinChainEmission {
             if (targetClassFqn != null && routedSetId != null
                     && (routeEntries == null || routeEntries.size() == 1)
                     && !MappingNormalizer.hasMainTable(md, targetClassFqn, model)
-                    && MappingNormalizer.findSetById(md, model, routedSetId)
+                    && md.set(routedSetId)
                             instanceof ClassMapping routed
                     && !routed.className().equals(targetClassFqn)
                     && model.knowledge().isSubtype(routed.className(), targetClassFqn)) {
@@ -479,7 +479,7 @@ final class JoinChainEmission {
      * all on ONE table, and the condition's only target read is that key;
      * else null (the per-route form stays). */
     private static String @com.legend.Nullable [] sharedTableKey(List<RouteEntry> es,
-            Variable t, LegacyMappingDefinition md, ModelBuilder model) {
+            Variable t, ResolvedMapping md, ModelBuilder model) {
         String key = null;
         String table = null;
         String db = null;
@@ -487,8 +487,7 @@ final class JoinChainEmission {
             if (e.inArm()) {
                 return null;
             }
-            ClassMapping set = MappingNormalizer.findSetById(md, model,
-                    e.route().join().targetSetId());
+            ClassMapping set = md.set(e.route().join().targetSetId());
             String k = UnionSynthesis.tableKey(set, model);
             if (k == null || !(set instanceof ClassMapping.Relational r) || r.mainTable() == null) {
                 return null;
@@ -516,7 +515,7 @@ final class JoinChainEmission {
             @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
             String hopDb, String targetTable, ValueSpecification targetRows,
             Variable s, Variable t, ModelBuilder model,
-            LegacyMappingDefinition md) {
+            ResolvedMapping md) {
         ValueSpecification orCond = null;
         // suffixed name -> [base column, its route's db, its
         // route's landing table] (the typing arg needs the kind)
@@ -808,7 +807,7 @@ final class JoinChainEmission {
      * referenced set's expression-level {@code @Join} navigations hoist
      * into the OWNER pipeline exactly like a direct embedded block. */
     static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
-            List<JoinNavSpec> out, @com.legend.Nullable LegacyMappingDefinition md) {
+            List<JoinNavSpec> out, @com.legend.Nullable ResolvedMapping md) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.EnumeratedExpression ee -> collectJoinNavigations(ee.expression(), out);
@@ -828,7 +827,7 @@ final class JoinChainEmission {
                         for (var cm : md.classMappings()) {
                             if (cm instanceof ClassMapping.Relational r2
                                     && java.util.Objects.equals(
-                                            MappingNormalizer.setIdOf(r2),
+                                            MappingView.idOf(r2),
                                             ie.setId())) {
                                 collectJoinNavigationsInPms(
                                         r2.propertyMappings(), out, md);
@@ -886,7 +885,7 @@ final class JoinChainEmission {
     private static HopTarget hopTarget(RelationalOperation joinCond,
             @com.legend.Nullable String viewTarget, @com.legend.Nullable String prevTable, String hopDb,
             String joinName, @com.legend.Nullable String propName, int i, Pipeline p,
-            ModelBuilder model, LegacyMappingDefinition md) {
+            ModelBuilder model, ResolvedMapping md) {
         if (viewTarget != null) {
             return new HopTarget(joinCond, viewTarget, viewTarget);
         }
@@ -916,7 +915,7 @@ final class JoinChainEmission {
     private static @com.legend.Nullable RelationalOperation plainClassViewCond(
             RelationalOperation joinCond, String viewTarget,
             @com.legend.Nullable String targetClassFqn, String hopDb, ModelBuilder model,
-            LegacyMappingDefinition md) {
+            ResolvedMapping md) {
         if (targetClassFqn == null) {
             return null;
         }
@@ -979,7 +978,7 @@ final class JoinChainEmission {
      */
     static ValueSpecification innerFilteredSource(
             ClassMapping.Relational rcm, FilterMapping.JoinMediated jm,
-            ModelBuilder model, LegacyMappingDefinition md, MappingLedger ledger) {
+            ModelBuilder model, ResolvedMapping md, MappingLedger ledger) {
         var jmMain = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "join-mediated filter on a set without ~mainTable");
         String mainDb = jmMain.database();
@@ -1133,10 +1132,10 @@ final class JoinChainEmission {
      * target is a SAME-TABLE inheritance hierarchy (one physical
      * relation — member suffixes don't exist on its row). */
     private static boolean routesMerge(List<UnionSynthesis.UnionRoute> routes,
-            LegacyMappingDefinition md, ModelBuilder model,
+            ResolvedMapping md, ModelBuilder model,
             @com.legend.Nullable String targetClassFqn) {
         return UnionSynthesis.mergedTargetRoutes(routes,
-                UnionSynthesis.unionForClass(md, model, targetClassFqn))
+                md.unionOf(targetClassFqn))
                 || UnionSynthesis.sameTableInheritanceMerge(md, model,
                         targetClassFqn, routes);
     }

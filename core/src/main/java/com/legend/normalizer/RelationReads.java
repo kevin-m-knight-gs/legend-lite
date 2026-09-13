@@ -37,7 +37,7 @@ final class RelationReads {
     static ValueSpecification xstore(ValueSpecification v,
             Variable thisRow, ClassMapping.@com.legend.Nullable RelationFunction thisRf,
             Variable thatRow, ClassMapping.@com.legend.Nullable RelationFunction thatRf,
-            String assocName, LegacyMappingDefinition md, ModelBuilder model) {
+            String assocName, ResolvedMapping md, ModelBuilder model) {
         return rewrite(v,
                 Map.of("this", thisRow, "that", thatRow),
                 Map.of("this", thisRf, "that", thatRf), assocName, md,
@@ -50,7 +50,7 @@ final class RelationReads {
     static ValueSpecification rewrite(ValueSpecification v,
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
-            String assocName, LegacyMappingDefinition md,
+            String assocName, ResolvedMapping md,
             @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols) {
         return rewrite(v, rowByVar, rfByVar, assocName, md,
                 nestedCols, null);
@@ -59,7 +59,7 @@ final class RelationReads {
     static ValueSpecification rewrite(ValueSpecification v,
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
-            String assocName, LegacyMappingDefinition md,
+            String assocName, ResolvedMapping md,
             @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
             @com.legend.Nullable ModelBuilder model) {
         return rewrite(v, rowByVar, rfByVar, assocName, md, nestedCols, model, 0);
@@ -72,7 +72,7 @@ final class RelationReads {
     private static ValueSpecification rewrite(ValueSpecification v,
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
-            String assocName, LegacyMappingDefinition md,
+            String assocName, ResolvedMapping md,
             @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
             @com.legend.Nullable ModelBuilder model, int derivedDepth) {
         // NESTED hop read: $end.assocProp.leaf resolves to the nested

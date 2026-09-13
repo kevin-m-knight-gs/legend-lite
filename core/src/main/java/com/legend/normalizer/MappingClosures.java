@@ -194,7 +194,7 @@ final class MappingClosures {
                 Map<String, ClassMapping> local = new LinkedHashMap<>();
                 walkSets(included.includes(), local, seen);
                 for (ClassMapping cm : included.classMappings()) {
-                    local.put(MappingNormalizer.setIdOf(cm), cm);
+                    local.put(MappingView.idOf(cm), cm);
                 }
                 if (!inc.substitutions().isEmpty()) {
                     local.replaceAll((k, v) -> StoreSubstitutionRewrite.apply(v, inc.substitutions()));

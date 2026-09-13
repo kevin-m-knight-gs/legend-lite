@@ -28,7 +28,7 @@ final class M2mRouteGuards {
      * undeclared key throws (normalize-phase contract).  */
     static String m2mBindingKey(ClassMapping.Pure.PropertyBinding pb,
             @com.legend.Nullable ClassDefinition tgt,
-            LegacyMappingDefinition md,
+            ResolvedMapping md,
             java.util.function.Predicate<String> declared) {
         if (tgt == null || declared.test(pb.propertyName())) {
             return pb.propertyName();
@@ -63,7 +63,7 @@ final class M2mRouteGuards {
      */
     static void requireBenignRoute(ClassMapping.Pure.PropertyBinding pb,
             ClassMapping.Pure pcm, @com.legend.Nullable ClassDefinition tgt,
-            LegacyMappingDefinition md, ModelBuilder model) {
+            MappingView md, ModelBuilder model) {
         if (pb.sourceSetId() == null && pb.targetSetId() == null) {
             return;
         }
@@ -82,8 +82,7 @@ final class M2mRouteGuards {
             routedClass = nr.name();
         }
         if (routedClass != null) {
-            List<LegacyMappingDefinition> closure = new ArrayList<>();
-            MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
+            List<LegacyMappingDefinition> closure = md.closure();
             List<ClassMapping> sets = new ArrayList<>();
             for (LegacyMappingDefinition m : closure) {
                 for (ClassMapping cm : m.classMappings()) {
@@ -143,7 +142,7 @@ final class M2mRouteGuards {
     static com.legend.protocol.spec.KeyExpression localField(
             com.legend.model.ClassMapping.Pure.PropertyBinding pb,
             com.legend.model.@com.legend.Nullable ClassDefinition tgt,
-            com.legend.model.LegacyMappingDefinition md,
+            ResolvedMapping md,
             com.legend.compiler.ModelBuilder model, boolean collides) {
         if (tgt != null && collides) {
             throw new com.legend.error.ModelException(

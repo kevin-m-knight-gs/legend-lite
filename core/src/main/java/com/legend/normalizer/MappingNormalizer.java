@@ -162,14 +162,11 @@ public final class MappingNormalizer {
         // refs, implicit ops), then the graph-wide mapped-class fact is
         // fixed — a mapping's synthesis never depends on which mappings
         // normalized before it (T4.1 step 2, verified item 1).
-        java.util.Map<String, MappingPrePass.PrePassed> prePassed =
+        java.util.Map<String, ResolvedMapping> resolved =
                 MappingPrePass.run(parsed, model, wallSink);
-        MappedClasses mapped = MappedClasses.of(
-                prePassed.values().stream().map(MappingPrePass.PrePassed::md).toList(),
-                parsed.elements());
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof LegacyMappingDefinition md) {
-                MappingPrePass.PrePassed pp = prePassed.get(md.qualifiedName());
+                ResolvedMapping pp = resolved.get(md.qualifiedName());
                 if (pp == null) {
                     continue;   // walled by the pre-pass (tolerant build)
                 }
@@ -178,7 +175,7 @@ public final class MappingNormalizer {
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
                 // What this mapping's synthesis learns rides its own ledger,
                 // stamped on the compiled mapping — never the shared index.
-                MappingLedger ledger = new MappingLedger(mapped);
+                MappingLedger ledger = new MappingLedger(pp.mapped());
                 try {
                     out.add(withElement(md.qualifiedName(),
                             () -> normalizeMapping(pp, model, lifted,
@@ -245,7 +242,7 @@ public final class MappingNormalizer {
         }
     }
 
-    private static MappingDefinition normalizeMapping(MappingPrePass.PrePassed pp,
+    private static MappingDefinition normalizeMapping(ResolvedMapping pp,
                                                      ModelBuilder model,
                                                      List<FunctionDefinition> lifted,
                                                      boolean tolerant, java.util.Map<String, String> resolvedStores,
@@ -254,7 +251,7 @@ public final class MappingNormalizer {
         Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys = pp.declaredKeys();
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join
         // PMs (Option A, docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b).
-        LegacyMappingDefinition md = AssociationSynthesis.injectMultiHopAssociationPMs(pp.md(), model);
+        ResolvedMapping md = pp.withMapping(AssociationSynthesis.injectMultiHopAssociationPMs(pp.raw(), model));
 
         // A class mapped through MULTIPLE set IDs synthesizes its ROOT set
         // only — .all() dispatches to the root; non-root sets await the H5
@@ -273,7 +270,7 @@ public final class MappingNormalizer {
                 unionRooted.add(un.className());
                 // MIXED-KIND (route b): resolver arms need PER-SET bindings
                 for (String sid : un.memberSetIds()) {
-                    if (findSetById(md, model, sid) instanceof ClassMapping.Pure) {
+                    if (md.set(sid) instanceof ClassMapping.Pure) {
                         mixedUnionRooted.add(un.className());
                         break;
                     }
@@ -296,7 +293,7 @@ public final class MappingNormalizer {
                     }
                     String invalidSet = pp.invalid().get(cm);
                     if (invalidSet != null) {
-                        ledger.poisons.putIfAbsent(cm.className() + "[" + setIdOf(cm) + "]", invalidSet);
+                        ledger.poisons.putIfAbsent(cm.className() + "[" + MappingView.idOf(cm) + "]", invalidSet);
                         continue;
                     }
                     try {
@@ -323,7 +320,7 @@ public final class MappingNormalizer {
                         if (e instanceof ModelException && !tolerant) {
                             throw e;
                         }
-                        ledger.poisons.putIfAbsent(cm.className() + "[" + setIdOf(cm) + "]",
+                        ledger.poisons.putIfAbsent(cm.className() + "[" + MappingView.idOf(cm) + "]",
                                 String.valueOf(e.getMessage()));
                     }
                 }
@@ -386,7 +383,7 @@ public final class MappingNormalizer {
         // shadows the included one at lookup (ClassSources.findBinding).
         {
             List<LegacyMappingDefinition> closure = new ArrayList<>();
-            collectMappingClosure(md, model, closure, new HashSet<>());
+            closure.addAll(md.closure());
             Set<String> bound = new HashSet<>();
             for (ClassMapping cm : md.classMappings()) {
                 bound.add(cm.className());
@@ -398,7 +395,7 @@ public final class MappingNormalizer {
             // re-synthesize; ambiguous ones stay with the loud lookup.
             Map<String, Integer> defCount = new HashMap<>();
             for (LegacyMappingDefinition m : closure) {
-                if (m == md) {
+                if (m == md.raw()) {
                     continue;
                 }
                 for (ClassMapping cm : m.classMappings()) {
@@ -406,7 +403,7 @@ public final class MappingNormalizer {
                 }
             }
             for (LegacyMappingDefinition m : closure) {
-                if (m == md) {
+                if (m == md.raw()) {
                     continue;
                 }
                 for (ClassMapping cm : m.classMappings()) {
@@ -480,10 +477,10 @@ public final class MappingNormalizer {
                 md.includes(),
                 classBindings,
                 assocBindings,
-                enumerationMappingsWithIncludes(md, model),
+                md.enumerationMappingsWithIncludes(),
                 md.testSuitesSource(),
                 SetDispatch.routedTargetSets(md, model), resolvedStores,
-                ledger.facts(pp.surface(), md, model));
+                ledger.facts(pp.surface(), md.raw(), model));
     }
 
     // ====================================================================
@@ -721,17 +718,6 @@ public final class MappingNormalizer {
     // Pre-pass: flatten `extends [parentSetId]`  —  doc §5.2.3
     // ====================================================================
 
-    /**
-     * The set-implementation ID of a class mapping: the explicit
-     * {@code [id]}, else the class FQN with {@code ::} &rarr; {@code _}
-     * &mdash; the engine's default ({@code HelperMappingBuilder
-     * .getClassMappingId}); corpus mappings reference singleton sets by
-     * that implicit spelling ({@code extends [meta_relational_tests_model
-     * _simple_Firm]}).
-     */
-    static String setIdOf(ClassMapping cm) {
-        return cm.setId() != null ? cm.setId() : cm.className().replace("::", "_");
-    }
 
     /**
      * Rewrite the condition's target-side reads ({@code $t.COL}) to the
@@ -749,31 +735,7 @@ public final class MappingNormalizer {
      * (and the engine's {@code _N} key-column suffix). {@code null} when
      * the property isn't class-typed or no local Union covers the set.
      */
-    /**
-     * The set-implementation with effective id {@code setId}, resolved in
-     * {@code md} and its includes transitively (engine {@code
-     * classMappingById} is include-recursive — audit 11: own-mapping-only
-     * lookup dropped routes to included sets). Own definitions win.
-     */
-    static @com.legend.Nullable ClassMapping findSetById(LegacyMappingDefinition md,
-            ModelBuilder model, @com.legend.Nullable String setId) {
-        if (setId == null) {
-            return null;
-        }
-        for (ClassMapping cm : md.classMappings()) {
-            if (setId.equals(setIdOf(cm))) {
-                return cm;
-            }
-        }
-        return MappingClosures.of(model).closure(md.qualifiedName()).sets().get(setId);
-    }
 
-    /** Set-ids of {@code md}'s includes, transitively (nearer include wins). */
-    static void collectIncludedSetIds(LegacyMappingDefinition md,
-            ModelBuilder model, Map<String, ClassMapping> bySetId,
-            Set<String> seen) {
-        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
-    }
 
     // ====================================================================
     // Pre-pass: inject multi-hop association ends as class-typed Join PMs
@@ -847,7 +809,7 @@ public final class MappingNormalizer {
      * (union/inheritance) in {@code md}'s closure but NOT in
      * {@code defining}'s — the include-direction classification change
      * that requires re-synthesis under {@code md}. */
-    private static boolean routedTargetGainsOperation(LegacyMappingDefinition md,
+    private static boolean routedTargetGainsOperation(ResolvedMapping md,
             LegacyMappingDefinition defining, ClassMapping.Relational rcm,
             ModelBuilder model) {
         ClassDefinition owner = model.knowledge().hierarchyClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
@@ -861,13 +823,13 @@ public final class MappingNormalizer {
                 continue;
             }
             String tc = nr.name();
-            boolean underMd = UnionSynthesis.unionForClass(md, model, tc) != null
-                    || UnionSynthesis.inheritanceForClass(md, model, tc) != null;
+            boolean underMd = md.unionOf(tc) != null
+                    || md.inheritanceOf(tc) != null;
             if (!underMd) {
                 continue;
             }
-            boolean underOwn = UnionSynthesis.unionForClass(defining, model, tc) != null
-                    || UnionSynthesis.inheritanceForClass(defining, model, tc) != null;
+            MappingView own = MappingView.of(defining, model);
+            boolean underOwn = own.unionOf(tc) != null || own.inheritanceOf(tc) != null;
             if (!underOwn) {
                 return true;
             }
@@ -875,7 +837,7 @@ public final class MappingNormalizer {
         return false;
     }
 
-    static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
+    static FunctionDefinition synthesizeClassMapping(ResolvedMapping md,
                                                             ClassMapping cm,
                                                             ModelBuilder model,
                                                             boolean setDiscriminated,
@@ -895,7 +857,7 @@ public final class MappingNormalizer {
         return new FunctionDefinition(
                 setDiscriminated
                         ? SynthFqn.mappingClassSet(md.qualifiedName(),
-                                cm.className(), setIdOf(cm))
+                                cm.className(), MappingView.idOf(cm))
                         : SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
                 List.of(), List.of(), List.of(),
                 new TypeExpression.NameRef(cm.className()),
@@ -918,7 +880,7 @@ public final class MappingNormalizer {
      * by XStore association support when it lands.
      */
     private static ValueSpecification synthRelationFunction(
-            LegacyMappingDefinition md,
+            ResolvedMapping md,
             ClassMapping.RelationFunction rf, ModelBuilder model) {
         ValueSpecification pipeline = relationFunctionPipeline(rf, model);
         Variable row = new Variable("rf_row");
@@ -935,7 +897,7 @@ public final class MappingNormalizer {
      * recursively. */
     static void putRelationCols(Map<String, KeyExpression> fields,
             List<ClassMapping.RelationFunction.Col> cols, Variable row,
-            String ownerClassFqn, LegacyMappingDefinition md,
+            String ownerClassFqn, ResolvedMapping md,
             ModelBuilder model) {
         for (ClassMapping.RelationFunction.Col c : cols) {
             if (c.local()) {
@@ -949,7 +911,7 @@ public final class MappingNormalizer {
                 ClassMapping.RelationFunction sibling = null;
                 for (ClassMapping cm : md.classMappings()) {
                     if (cm instanceof ClassMapping.RelationFunction rf2
-                            && c.inlineSetId().equals(setIdOf(rf2))) {
+                            && c.inlineSetId().equals(MappingView.idOf(rf2))) {
                         sibling = rf2;
                         break;
                     }
@@ -1048,7 +1010,7 @@ public final class MappingNormalizer {
      * lambda's rows through the ordinary kernel, and the resolver reads
      * the oriented condition off the call.
      */
-    static FunctionDefinition synthesizeXStoreMapping(LegacyMappingDefinition md,
+    static FunctionDefinition synthesizeXStoreMapping(ResolvedMapping md,
             AssociationMapping.Cross xs, ModelBuilder model,
             String classA, String classB) {
         AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
@@ -1163,7 +1125,7 @@ public final class MappingNormalizer {
      * contract as {@link #synthesizeXStoreMapping}). Param-to-end matching
      * is by DECLARED TYPE (the corpus writes them fully qualified).
      */
-    static FunctionDefinition synthesizeModelJoinMapping(LegacyMappingDefinition md,
+    static FunctionDefinition synthesizeModelJoinMapping(ResolvedMapping md,
             AssociationMapping.ModelJoin mj, ModelBuilder model,
             String classA, String classB) {
         AssociationDefinition ad2 = model.findAssociation(mj.associationName()).orElseThrow();
@@ -1236,7 +1198,7 @@ public final class MappingNormalizer {
     // M2M (ClassMapping.Pure)  —  doc §5.5
     // ====================================================================
 
-    private static ValueSpecification synthM2M(LegacyMappingDefinition md,
+    private static ValueSpecification synthM2M(ResolvedMapping md,
                                               ClassMapping.Pure pcm,
                                               ModelBuilder model,
                                               MappingLedger ledger,
@@ -1318,7 +1280,7 @@ public final class MappingNormalizer {
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, @com.legend.Nullable ClassDefinition tgt,
-            LegacyMappingDefinition md, ModelBuilder model, MappingLedger ledger,
+            ResolvedMapping md, ModelBuilder model, MappingLedger ledger,
             Set<String> cycleStack) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = model.knowledge().propertyType(tgt, pb.propertyName());
@@ -1355,30 +1317,7 @@ public final class MappingNormalizer {
     // Relational dispatch:  JsonSource | View-backed | Table-backed
     // ====================================================================
 
-    /** The mapping's enumeration mappings plus its includes', transitively
-     * (the fact rides the compiled artifact). */
-    static List<com.legend.model.EnumerationMapping> enumerationMappingsWithIncludes(
-            LegacyMappingDefinition md, ModelBuilder model) {
-        List<com.legend.model.EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
-        out.addAll(MappingClosures.of(model).closure(md.qualifiedName()).enumerationMappings());
-        return out;
-    }
 
-    /** {@code md} plus its includes, transitively. */
-    static void collectMappingClosure(LegacyMappingDefinition md,
-            ModelBuilder model, List<LegacyMappingDefinition> out,
-            Set<String> seen) {
-        if (!seen.add(md.qualifiedName())) {
-            return;
-        }
-        out.add(md);
-        for (LegacyMappingDefinition m
-                : MappingClosures.of(model).closure(md.qualifiedName()).mappings()) {
-            if (seen.add(m.qualifiedName())) {
-                out.add(m);
-            }
-        }
-    }
 
     /** Column names of {@code table} referenced anywhere in the condition. */
     static void collectColumnsOfTable(RelationalOperation cond,
@@ -1451,7 +1390,7 @@ public final class MappingNormalizer {
      */
     static ValueSpecification nullOfPhysicalKind(
             ClassMapping.Relational routedMember, String col,
-            LegacyMappingDefinition md, ModelBuilder model) {
+            ResolvedMapping md, ModelBuilder model) {
         // view-aware: routed members can be VIEW-backed (unionOfViews)
         var rmMain = java.util.Objects.requireNonNull(routedMember.mainTable(),
                 "routed member set without ~mainTable");
@@ -1495,7 +1434,7 @@ public final class MappingNormalizer {
 
     /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
 
-    static ValueSpecification synthRelational(LegacyMappingDefinition md,
+    static ValueSpecification synthRelational(ResolvedMapping md,
                                                      ClassMapping.Relational rcm,
                                                      ModelBuilder model,
                                                      MappingLedger ledger) {
@@ -1735,7 +1674,7 @@ public final class MappingNormalizer {
      * properties; the class mapping itself carries no PMs (the cross-
      * bake from ModelBuilder synthesizes an empty PM list).
      */
-    private static ValueSpecification synthJsonSourceMapping(LegacyMappingDefinition md,
+    private static ValueSpecification synthJsonSourceMapping(ResolvedMapping md,
                                                             ClassMapping.Relational rcm,
                                                             ModelBuilder model) {
         ValueSpecification source = new AppliedFunction(Pure.Lite.SOURCE_URL,
@@ -1791,7 +1730,7 @@ public final class MappingNormalizer {
      *       sequences first).</li>
      * </ol>
      */
-    private static ValueSpecification synthViewBackedMapping(LegacyMappingDefinition md,
+    private static ValueSpecification synthViewBackedMapping(ResolvedMapping md,
                                                             ClassMapping.Relational rcm,
                                                             DatabaseDefinition.ViewDefinition view,
                                                             ModelBuilder model,
@@ -1875,7 +1814,7 @@ public final class MappingNormalizer {
                                                               ClassMapping.Relational rcm,
                                                               String physicalTable,
                                                               ModelBuilder model,
-                                                              LegacyMappingDefinition md) {
+                                                              ResolvedMapping md) {
         FilterMapping fm = rcm.filter();
         if (!(fm instanceof FilterMapping.Direct direct)) {
             // A JoinMediated mapping filter over a view that already carries
@@ -1973,7 +1912,7 @@ public final class MappingNormalizer {
                            Map<String, KeyExpression> fields) {
     }
 
-    private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
+    private static ValueSpecification synthTableBackedMapping(ResolvedMapping md,
                                                               ClassMapping.Relational rcm,
                                                               ModelBuilder model,
                                                               MappingLedger ledger,
@@ -1986,7 +1925,7 @@ public final class MappingNormalizer {
                         List.of(buildNewInstanceToOne(rcm.className(), parts.fields(), model)))));
     }
 
-    static RelationalParts synthTableBackedParts(LegacyMappingDefinition md,
+    static RelationalParts synthTableBackedParts(ResolvedMapping md,
                                                              ClassMapping.Relational rcm,
                                                              ModelBuilder model, MappingLedger ledger,
                                                               @com.legend.Nullable String backingView) {
@@ -2000,7 +1939,7 @@ public final class MappingNormalizer {
      * names the SOURCE ROW SCOPE (the view name) that column PMs and join
      * conditions resolve against.
      */
-    static RelationalParts synthTableBackedParts(LegacyMappingDefinition md,
+    static RelationalParts synthTableBackedParts(ResolvedMapping md,
                                                              ClassMapping.Relational rcm,
                                                              ModelBuilder model, MappingLedger ledger,
                                                               @com.legend.Nullable String backingView,
@@ -2267,7 +2206,7 @@ public final class MappingNormalizer {
     private static CtorField translatePmToField(PropertyMapping pm, Variable rowBind,
                                                Map<String, ValueSpecification> tableScope,
                                                String defaultTable, Pipeline pipeline,
-                                               String ownerClassFqn, LegacyMappingDefinition md,
+                                               String ownerClassFqn, ResolvedMapping md,
                                                ModelBuilder model,
                                                boolean underGroupBy) {
         // Under ~groupBy, every PM (key-matching or aggregate) reads
@@ -2362,7 +2301,7 @@ public final class MappingNormalizer {
     private static ValueSpecification materializeEmbedded(
             String propName, List<PropertyMapping> subPms, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
-            Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
+            Pipeline pipeline, String ownerClassFqn, ResolvedMapping md,
             ModelBuilder model, Set<String> cycleStack,
             @com.legend.Nullable String innerOverride) {
         ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
@@ -2422,7 +2361,7 @@ public final class MappingNormalizer {
     private static ValueSpecification materializeOtherwiseEmbedded(
             PropertyMapping.OtherwiseEmbedded oe, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
-            Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
+            Pipeline pipeline, String ownerClassFqn, ResolvedMapping md,
             ModelBuilder model) {
         ValueSpecification partial = materializeEmbedded(oe.propertyName(),
                 oe.embedded(), rowBind, tableScope, defaultTable, pipeline,
@@ -2436,19 +2375,19 @@ public final class MappingNormalizer {
     private static ValueSpecification materializeInlineEmbedded(
             PropertyMapping.InlineEmbedded ie, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
-            Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
+            Pipeline pipeline, String ownerClassFqn, ResolvedMapping md,
             ModelBuilder model) {
         ClassMapping.Relational referenced = null;
         // the referenced set may live in an INCLUDED mapping (engine
         // resolves Inline set ids across the include closure —
         // testMappingEmbeddedTargetIdsWithIncludes)
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        collectMappingClosure(md, model, closure, new HashSet<>());
+        closure.addAll(md.closure());
         outer:
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
                 if (cm instanceof ClassMapping.Relational rcm
-                        && Objects.equals(setIdOf(rcm), ie.setId())) {
+                        && Objects.equals(MappingView.idOf(rcm), ie.setId())) {
                     referenced = rcm;
                     break outer;
                 }
@@ -2474,7 +2413,7 @@ public final class MappingNormalizer {
                                                  ClassMapping.Relational rcm,
                                                  Variable rowBind, String mainDb,
                                                  String mainTable, Pipeline p,
-                                                 ModelBuilder model, LegacyMappingDefinition md) {
+                                                 ModelBuilder model, ResolvedMapping md) {
         return switch (rcm.filter()) {
             case null -> source;
             case FilterMapping.Direct direct ->
@@ -2492,7 +2431,7 @@ public final class MappingNormalizer {
                                                        String mainTable, Pipeline p,
                                                        ModelBuilder model,
                                                        FilterMapping.Direct direct,
-                                                       LegacyMappingDefinition md) {
+                                                       ResolvedMapping md) {
         String dbFqn = switch (direct.filter()) {
             case FilterPointer.Cross c -> c.db();
             case FilterPointer.Local l -> mainDb;
@@ -2516,7 +2455,7 @@ public final class MappingNormalizer {
                                                              String mainTable, Pipeline p,
                                                              ModelBuilder model,
                                                              FilterMapping.JoinMediated jm,
-                                                             LegacyMappingDefinition md) {
+                                                             ResolvedMapping md) {
         String dbFqn = switch (jm.filter()) {
             case FilterPointer.Cross c -> c.db();
             case FilterPointer.Local l -> jm.sourceDb();
@@ -2565,7 +2504,7 @@ public final class MappingNormalizer {
     // AssociationMapping → predicate function  —  doc §5.6.1
     // ====================================================================
 
-    static boolean hasMainTable(LegacyMappingDefinition md, String classFqn,
+    static boolean hasMainTable(MappingView md, String classFqn,
             ModelBuilder model) {
         for (ClassMapping.Relational rcm
                 : relationalMappingsInClosure(md, model, classFqn)) {
@@ -2579,10 +2518,9 @@ public final class MappingNormalizer {
     /** {@code classFqn}'s Relational class mappings across the INCLUDE
      * CLOSURE, own mapping first (union V3: assoc mappings routinely live
      * in a mapping that only INCLUDES the class-mapping definitions). */
-    static List<ClassMapping.Relational> relationalMappingsInClosure(
-            LegacyMappingDefinition md, ModelBuilder model, @com.legend.Nullable String classFqn) {
+    static List<ClassMapping.Relational> relationalMappingsInClosure(MappingView md, ModelBuilder model, @com.legend.Nullable String classFqn) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        collectMappingClosure(md, model, closure, new LinkedHashSet<>());
+        closure.addAll(md.closure());
         List<ClassMapping.Relational> out = new ArrayList<>();
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
@@ -2597,7 +2535,7 @@ public final class MappingNormalizer {
 
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
     static LegacyMappingDefinition.TableReference mainTableDefOf(
-            LegacyMappingDefinition md, @com.legend.Nullable String classFqn, ModelBuilder model) {
+            MappingView md, @com.legend.Nullable String classFqn, ModelBuilder model) {
         // The ROOT set's table — with multiple set IDs, .all() and every
         // synthesized association predicate anchor on the root; taking the
         // FIRST declared set bound predicates to the wrong table whenever a
@@ -2628,7 +2566,7 @@ public final class MappingNormalizer {
     }
 
     /** The {@code #>{db.T}#}-shaped source of {@code classFqn}'s ~mainTable row. */
-    static String mainTableOf(LegacyMappingDefinition md,
+    static String mainTableOf(ResolvedMapping md,
             @com.legend.Nullable String classFqn,
             ModelBuilder model) {
         return mainTableDefOf(md, classFqn, model).table();
@@ -2641,7 +2579,7 @@ public final class MappingNormalizer {
     private static ValueSpecification translateEnumeratedColumn(
             PropertyMapping.EnumeratedColumn ec,
             Map<String, ValueSpecification> tableScope,
-            String defaultTable, LegacyMappingDefinition md, Pipeline p,
+            String defaultTable, ResolvedMapping md, Pipeline p,
             String ownerClassFqn, ModelBuilder model) {
         ValueSpecification colRead = RelOpTranslator.columnRead(ec.table(), ec.column(),
                 tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());
@@ -2657,10 +2595,10 @@ public final class MappingNormalizer {
      */
     static ValueSpecification translateEnumeratedSource(
             String propertyName, @com.legend.Nullable String enumMappingId, ValueSpecification sourceRead,
-            LegacyMappingDefinition md, String ownerClassFqn, ModelBuilder model) {
+            ResolvedMapping md, String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
         List<EnumerationMapping> ems =
-                enumerationMappingsWithIncludes(md, model);
+                md.enumerationMappingsWithIncludes();
         if (enumMappingId != null) {
             // engine getEnumerationMappingId (HelperMappingBuilder:348-351):
             // an anonymous enum mapping's IMPLICIT id is its enumeration FQN
@@ -2790,7 +2728,7 @@ public final class MappingNormalizer {
      */
     static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
             String db, @com.legend.Nullable String sourceTable,
-            ModelBuilder model, LegacyMappingDefinition md,
+            ModelBuilder model, ResolvedMapping md,
             @com.legend.Nullable String backingView,
             @com.legend.Nullable String onlyView) {
         return resolveViewRefsInJoin(op, db, sourceTable, model, md,
@@ -2805,7 +2743,7 @@ public final class MappingNormalizer {
      * carry the declared view columns. */
     static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
             String db, @com.legend.Nullable String sourceTable,
-            ModelBuilder model, LegacyMappingDefinition md,
+            ModelBuilder model, ResolvedMapping md,
             @com.legend.Nullable String backingView,
             @com.legend.Nullable String onlyView,
             @com.legend.Nullable String keepTargetView,
@@ -2892,7 +2830,7 @@ public final class MappingNormalizer {
      * (over ProductTableView over ProductTable) as the pipeline's own row. */
     private static boolean viewChainReaches(String start,
             @com.legend.Nullable String sourceTable, String db,
-            LegacyMappingDefinition md, ModelBuilder model) {
+            ResolvedMapping md, ModelBuilder model) {
         String walk = start;
         java.util.Set<String> seen = new java.util.HashSet<>();
         while (seen.add(walk)) {
@@ -2917,7 +2855,7 @@ public final class MappingNormalizer {
      * mapping for every class. Views as join targets = roadmap slice.
      */
     static void requireNonViewTarget(String targetTable, String db,
-            String joinName, ModelBuilder model, LegacyMappingDefinition md) {
+            String joinName, ModelBuilder model, ResolvedMapping md) {
         if (model.findView(db, targetTable).isPresent()) {
             throw new NotImplementedException(
                     "Join '" + joinName + "' targets view '" + targetTable

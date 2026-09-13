@@ -68,14 +68,13 @@ final class XStorePureEnds {
         }
     }
 
-    static XEnd xstoreEndOf(LegacyMappingDefinition md,
+    static XEnd xstoreEndOf(ResolvedMapping md,
             String classFqn, @com.legend.Nullable String setId, ModelBuilder model) {
         // the end sets may live in INCLUDED mappings (modelJoins:
         // XStore lines over include LegalEntityMapping/TradesMapping) —
         // the engine compiles the include closure as one mapping
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure,
-                new LinkedHashSet<>());
+        closure.addAll(md.closure());
         List<ClassMapping> cms = new ArrayList<>();
         for (LegacyMappingDefinition m : closure) {
             cms.addAll(m.classMappings());
@@ -84,7 +83,7 @@ final class XStorePureEnds {
             if (cm instanceof ClassMapping.RelationFunction rf
                     && rf.className().equals(classFqn)
                     && (setId == null
-                            || setId.equals(MappingNormalizer.setIdOf(rf)))) {
+                            || setId.equals(MappingView.idOf(rf)))) {
                 Set<String> locals = new LinkedHashSet<>();
                 for (ClassMapping.RelationFunction.Col c : rf.columns()) {
                     if (c.local()) {
@@ -93,14 +92,14 @@ final class XStorePureEnds {
                 }
                 return new XEnd(
                         MappingNormalizer.relationFunctionPipeline(rf, model),
-                        rf, MappingNormalizer.setIdOf(rf), false, locals);
+                        rf, MappingView.idOf(rf), false, locals);
             }
         }
         for (ClassMapping cm : cms) {
             if (cm instanceof ClassMapping.Relational rcm
                     && rcm.className().equals(classFqn)
                     && (setId == null
-                            || setId.equals(MappingNormalizer.setIdOf(rcm)))) {
+                            || setId.equals(MappingView.idOf(rcm)))) {
                 List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
                 Set<String> locals = new LinkedHashSet<>();
                 Map<String, TypeExpression> localTypes = new LinkedHashMap<>();
@@ -139,9 +138,9 @@ final class XStorePureEnds {
                 return new XEnd(
                         ViewRelation.mainSourceRef(md, classFqn, model),
                         new ClassMapping.RelationFunction(classFqn,
-                                MappingNormalizer.setIdOf(rcm), null, rcm.root(),
+                                MappingView.idOf(rcm), null, rcm.root(),
                                 "<relational>", cols),
-                        MappingNormalizer.setIdOf(rcm), false, locals, lossy,
+                        MappingView.idOf(rcm), false, locals, lossy,
                         localTypes);
             }
         }
@@ -149,7 +148,7 @@ final class XStorePureEnds {
             if (cm instanceof ClassMapping.Pure pcm
                     && pcm.className().equals(classFqn)
                     && (setId == null
-                            || setId.equals(MappingNormalizer.setIdOf(pcm)))) {
+                            || setId.equals(MappingView.idOf(pcm)))) {
                 Set<String> locals = new LinkedHashSet<>();
                 for (ClassMapping.Pure.PropertyBinding pb
                         : pcm.propertyBindings()) {
@@ -158,7 +157,7 @@ final class XStorePureEnds {
                     }
                 }
                 return new XEnd(null, null,
-                        MappingNormalizer.setIdOf(pcm), true, locals);
+                        MappingView.idOf(pcm), true, locals);
             }
         }
         throw new NotImplementedException(
@@ -173,7 +172,7 @@ final class XStorePureEnds {
      * direction-agreement rules as the column-space emission, condition
      * kept over the end classes with set-local reads marked.
      */
-    static FunctionDefinition synthesize(LegacyMappingDefinition md,
+    static FunctionDefinition synthesize(ResolvedMapping md,
             AssociationMapping.Cross xs, AssociationDefinition ad,
             String classA, String classB, XEnd endA, XEnd endB) {
         Variable srcRow = new Variable("srcRow");

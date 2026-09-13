@@ -40,7 +40,7 @@ final class ModelJoinNesting {
             @com.legend.Nullable ValueSpecification pipeB,
             Map<String, Map<String, Map<String, String>>> nestedCols) {}
 
-    static Composed compose(LegacyMappingDefinition md, ModelBuilder model,
+    static Composed compose(ResolvedMapping md, ModelBuilder model,
             AssociationMapping.ModelJoin mj, AssociationDefinition ad2,
             String classA, String classB, String aVar, String bVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,

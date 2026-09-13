@@ -82,7 +82,7 @@ final class GroupBySynthesis {
      */
     static ValueSpecification renameGroupedNavCond(
             ValueSpecification expr, Map<String, String> groupedNames,
-            String propName, LegacyMappingDefinition md) {
+            String propName, ResolvedMapping md) {
         if (!(expr instanceof AppliedFunction nav
                 && nav.function().equals(Pure.Lite.LEGACY_NAVIGATE)
                 && nav.parameters().size() == 4
@@ -104,7 +104,7 @@ final class GroupBySynthesis {
 
     private static ValueSpecification renameSourceReads(ValueSpecification v,
             String srcVar, Map<String, String> groupedNames, String propName,
-            LegacyMappingDefinition md) {
+            ResolvedMapping md) {
         if (v instanceof AppliedProperty ap
                 && ap.receiver() instanceof Variable rv
                 && rv.name().equals(srcVar)) {
@@ -132,7 +132,7 @@ final class GroupBySynthesis {
     static ValueSpecification applyGroupBy(ValueSpecification source,
                                                   ClassMapping.Relational rcm,
                                                   Variable rowBind, String mainTable,
-                                                  Pipeline p, LegacyMappingDefinition md) {
+                                                  Pipeline p, ResolvedMapping md) {
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
         MappingNormalizer.seedAliasScope(scope, p, rowBind, mainTable);
