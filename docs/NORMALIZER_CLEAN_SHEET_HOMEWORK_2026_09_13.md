@@ -11,9 +11,12 @@ corpus, names where our code diverges, and sets a batch plan. Nothing here is bu
    than one included mapping. Our resolver walls that as ambiguous at query time; the engine takes
    the last root. Which corpus tests reach the wall today, and what they do under the engine rule,
    is unmeasured until B2 runs.
-2. **Compile-time cost of per-viewpoint translation (B3).** At most 779 extra set translations
-   (+38 % over 2,058); the corpus normalizes in ~75 s today. Whether the ceiling is reached and
-   what it costs is unmeasured.
+2. **The union navigation rewrite (B3).** The resolver-side expansion of a navigation into a
+   union target and the lowering's join-over-union distribution are designed from receipts but
+   unbuilt; the non-uniform case (members joined on different columns) has NO plan measurement
+   yet — the earlier numbers (GATES "Non-uniform union witness + step 1b parked") cover the
+   uniform coalesce and the parked merged-column form only. The size of the resolver change is
+   unmeasured until `AssociationJoins`/`ClassSources` are read with this question in mind.
 3. **The 60 null-tolerant sites (B5).** How many are "the miss is the answer" versus a hidden
    wrong-all-along answer is unknown until each is made loud and the corpus adjudicates.
 
@@ -97,6 +100,37 @@ mapping: a navigation's target set is resolved in the QUERIED mapping's closure.
 "translate per mapping viewpoint" (§1 step 6), and it is why our include-direction re-synthesis
 block exists as a special case.
 
+## 2b. Receipts — how a generated function reaches another class today
+
+- docs/MAPPING_CLEAN_SHEET.md §2–§4: the hand-written form is
+  `-> navigate(~firm: acme::Firm.all(), {p, f | acme::funcs::personFirmMatch($p, $f)})`; a mapping
+  function "MAY NOT reference another class's specific mapping function by name (only
+  active-mapping dispatch via `Class.all()`)". The "which set" question is answered at query time.
+- `MappingNormalizerTest:1048`: the legacy-derived class-typed join "emits a pipeline
+  `legacyNavigate(~firm: getAll(Firm), {s,t | <cond>})`"; `Anchors.java:34`: "SLOT's target is
+  getAll-shaped BY CONVENTION". So a plain navigation does NOT bake in the target set.
+- `AssociationJoins.java:1338-1420`: an association binding's predicate function is looked up in
+  the include closure and turned into a column-space join condition (`propertyCondToColumns`) —
+  the extension point for expanding a navigation into a union.
+- `UnionSynthesis.recordKeyThreads` / `collectNavLifts` (the NAV LIFT block): "member i's thread
+  carries its join keys member-suffixed (`<col>_<i>`, NULL in the other threads) and the navigate
+  condition ORs the per-entry conditions" — the union's row layout leaking into the navigating
+  class's function. The re-synthesis block (`routedTargetGainsOperation`, 2 corpus hits) exists
+  only because of this.
+- docs/GATES.md "Non-uniform union witness + step 1b parked — 2026-09-13": uniform members
+  coalesce to ONE key (landed, HASH_JOIN ≈ 1.5 ms vs the OR's BLOCKWISE_NL_JOIN ≈ 9.1 ms); the
+  non-uniform case (members keyed on DIFFERENT columns, `UnionTargetLeanJoinTest`) keeps the
+  per-member OR; the merged-column form was parked because "the union body's key registry holds
+  ONE projected name per physical column per member" — the very leak above.
+
+**Rule (R7), the one this doc adds.** A union's rows carry their key once plus which member they
+came from. A navigation into a union is ONE predicate over (source, target); when the routes differ
+per member it branches on the member tag. The generator writes no member numbering into any other
+class's function. The lowering chooses: predicate independent of the member → one join on the
+key; predicate branching on the member → the join distributes into the union's arms (join each
+member with its own condition, then stack), so each arm is an equality join. Measured per the
+witness before it replaces the OR.
+
 ## 3. Receipts — the corpus (probe run 2026-09-13, DuckDB lane, one graph)
 
 | count | value |
@@ -159,10 +193,20 @@ closure are a MODEL error: strict throws, module walls the mapping), duplicate i
 Expected: rows may GAIN (tests that hit the wall today); any LOST row adjudicated with R1/R5 as
 the receipt.
 
-**B3 — per-viewpoint translation (R6).** Every mapping translates every set visible to it, named
-(mapping, class, set); the re-synthesis block, `routedTargetGainsOperation`, and `MappedClasses`'
-global set die; mapped-ness is per closure. Ceiling +779 translations; measure the corpus time.
-Expected: 0 LOST; the 2 re-synthesis hits reproduce by the uniform rule.
+**B3 — union navigation by one logical key (R7), not functions per queried mapping.** (The
+earlier draft of this step generated every visible set's function under every mapping, ceiling
++779 functions. Rejected: plain navigations already dispatch through `Class.all()`; only union
+targets leak, and the fix for that is a resolver and lowering change, not more functions.)
+Normalizer: the union function projects its key once plus a member tag and stops emitting
+member-numbered key columns; the navigating class emits one `navigate` to `Target.all()` with a
+predicate (branching on the member only when the routes differ per member); the re-synthesis
+block, `routedTargetGainsOperation` and `MappedClasses`' global set die. Resolver: when
+`Target.all()` resolves to a union under the active mapping, expand the navigation against the
+union's single key, building the branching predicate from the stamped routing facts (extending
+`propertyCondToColumns`). Lowering: one rewrite rule, join over union distributes into per-arm
+joins when the predicate branches on the member. Witness: `UnionTargetLeanJoinTest` (uniform and
+non-uniform), plans measured as in the earlier record. Expected: 0 LOST; the 2 re-synthesis hits
+reproduce by the uniform rule; the OR disappears from the non-uniform plan.
 
 **B4 — policy out of the translator.** The translator reports (throws) and produces facts; the
 driver alone applies strict/module; `UnionSynthesis:2408` moves to the driver's ledger; the
@@ -177,8 +221,8 @@ kernel with the two subtype questions named (typing lattice vs mapping calculus)
 reconciled by receipt (the engine's `schema('default')->table()` rule, case sensitivity) into the
 kernel; `inferViewMainTable` and `viewBaseTable` become one compiled-store fact. Expected: 0 rows.
 
-Order: B1 → B2 → B3 → B4 → B5 → B6. B2 and B3 are the only ones that can move rows by design; both
-carry engine receipts above.
+Order: B1 → B2 → B3 → B4 → B5 → B6. B2 is the only one expected to move rows by design (engine
+receipts R1/R5); B3 changes SQL shape and plans, judged by the union witness and its measurements.
 
 ## 7. Stop rules and done criteria
 
