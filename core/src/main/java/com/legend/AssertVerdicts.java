@@ -518,8 +518,19 @@ final class AssertVerdicts {
                         && actual instanceof List<?> al && al.size() == 1) {
                     actual = al.get(0);
                 }
-                String diff = com.legend.exec.JsonCompare.document(
-                        expected, actual);
+                // D3 for graph results: an INCIDENTAL-order chain (a root
+                // read with no sort) has SQL arrival order on BOTH sides —
+                // the golden's is H2's, ours DuckDB's — so the ROOT array
+                // compares as a multiset, exactly the row verdict's policy
+                // under the same compile-time fact; nested arrays stay
+                // ordered (a property's order is the mapping's)
+                boolean incidentalRoot = orderView(args.get(1), letPrefix)
+                        == OrderView.INCIDENTAL;
+                                String diff = incidentalRoot
+                        ? com.legend.exec.JsonCompare.documentUnorderedRoot(
+                                expected, actual)
+                        : com.legend.exec.JsonCompare.document(
+                                expected, actual);
                 yield diff == null ? ok()
                         : fail("assertJsonStringsEqual: FIRST DIFF at "
                                 + diff);
@@ -1219,7 +1230,9 @@ final class AssertVerdicts {
             java.util.Set.of("map", "limit", "take", "drop", "slice",
                     "rows", "toOne", "at", "makeString", "toCSV",
                     "toString", "from", "filter", "select", "rename",
-                    "renameColumns", "restrict", "project", "distinct");
+                    "renameColumns", "restrict", "project", "distinct",
+                    // a graph fetch / serialize keeps its root's order
+                    "graphFetch", "graphFetchChecked", "serialize");
 
     static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix) {
         return orderView(s0, letPrefix, new java.util.HashSet<>());
@@ -1310,6 +1323,11 @@ final class AssertVerdicts {
         if (s instanceof TypedNativeCall c) {
             String fqn = c.callee().qualifiedName();
             String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
+            if (simple.equals("execute") && !c.args().isEmpty()
+                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
+                    && !lam.body().isEmpty()) {
+                return sortKeys(lam.body().get(lam.body().size() - 1), lets, seen);
+            }
             return !SORT_FQNS.contains(fqn) && ORDER_PRESERVING.contains(simple)
                     && !c.args().isEmpty() ? sortKeys(c.args().get(0), lets, seen) : null;
         }
@@ -1360,6 +1378,13 @@ final class AssertVerdicts {
             if (ORDER_PRESERVING.contains(simple) && !c.args().isEmpty()) {
                 return orderView(c.args().get(0), lets, seen);
             }
+            // an execute() FRAME returns its query's rows in the query's
+            // order: descend into the lambda's tail expression
+            if (simple.equals("execute") && !c.args().isEmpty()
+                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
+                    && !lam.body().isEmpty()) {
+                return orderView(lam.body().get(lam.body().size() - 1), lets, seen);
+            }
             return OrderView.DEFINED;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedGetAll
@@ -1383,6 +1408,18 @@ final class AssertVerdicts {
             // unresolvable binding = an execution frame ($result) —
             // its chain is a store query by construction
             return OrderView.INCIDENTAL;
+        }
+        // a graph fetch / serialize keeps its ROOT query's order (the
+        // engine's graph result is the root SQL's arrival order; a nested
+        // property's order is the mapping's, not the chain's)
+        if (s instanceof com.legend.compiler.spec.typed.TypedGraphFetch gf) {
+            return orderView(gf.source(), lets, seen);
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedSerializeGraph sg) {
+            return orderView(sg.source(), lets, seen);
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedSerialize sz) {
+            return orderView(sz.source(), lets, seen);
         }
         // order-preserving wrappers descend to their SOURCE (first
         // child); anything else keeps the language's defined order

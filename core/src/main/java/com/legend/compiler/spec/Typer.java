@@ -797,11 +797,9 @@ final class Typer {
      * The legacy TDS OLAP spellings as the modern windowed extend:
      * {@code olapGroupBy([parts]?, [sortKeys]?, func('col',agg) | rankLambda,
      * 'name')} &rarr; {@code extend(over(~parts, [sortKeys]), ~name:…)}.
-     * The agg form's column becomes the {p,w,r|$r.col} map lambda with the
-     * user's reducer; a bare rank lambda ({@code x|$x->rank()}) becomes the
-     * modern window-function call ({@code {p,w,r|$p->rank($w,$r)}}). Null on
-     * any other shape — the unknown-function wall stays loud.
-     */
+     * The agg form's column becomes the {p,w,r|$r.col} map lambda with the user's
+     * reducer; a bare rank lambda becomes the modern window-function call. Null on
+     * any other shape — the unknown-function wall stays loud. */
     private static @com.legend.Nullable AppliedFunction olapGroupByDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() < 3 || !(ps.get(ps.size() - 1) instanceof CString outName)) {
@@ -832,8 +830,10 @@ final class Typer {
         }
         ValueSpecification op = ps.get(i);
         List<ValueSpecification> overArgs = new ArrayList<>();
-        if (!partSpecs.isEmpty()) {
+        if (partSpecs.size() == 1) {
             overArgs.add(new PureCollection(partSpecs));
+        } else if (!partSpecs.isEmpty()) {   // several partition columns = ONE ColSpecArray (`~[a, b]`)
+            overArgs.add(new ColSpecArray(partSpecs.stream().map(ColSpec.class::cast).toList()));
         }
         if (!sortKeys.isEmpty()) {
             overArgs.add(new PureCollection(sortKeys));

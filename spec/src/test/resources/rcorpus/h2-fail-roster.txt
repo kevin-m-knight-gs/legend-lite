@@ -168,7 +168,6 @@ meta::relational::graphFetch::tests::simple::testSimpleGraphFetchCheckedWithPrim
 meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked
 meta::relational::graphFetch::tests::subType::testInheritanceMappingWithoutSubType
 meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping
-meta::relational::graphFetch::tests::union::propertyLevel::test6
 meta::relational::metamodel::execute::tests::testConnectionEqualityAllButOnePropertySame
 meta::relational::metamodel::execute::tests::testConnectionEqualityAllSameStatic
 meta::relational::metamodel::execute::tests::testConnectionEqualityTypeDiff

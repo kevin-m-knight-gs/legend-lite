@@ -175,7 +175,13 @@ class HarnessDisciplineTest {
             // a bucket, test names — the same display-only class
             // (WholeTestFlip, the old runner and the walk: DELETED in
             // batch 115 — their rows left this list)
-            Map.entry("TdsCompare.java", 4));
+            Map.entry("TdsCompare.java", 4),
+            // graph-root order rule (2026-09-13): the multiset ROOT compare
+            // for a JSON verdict on an INCIDENTAL-order chain renders each
+            // unpaired element with sorted keys for its MESSAGE only — the
+            // pairing itself is order-free document equality, gated on the
+            // same compile-time order view the row verdict reads
+            Map.entry("JsonCompare.java", 1));
 
     /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
      * original audit's probe 12 — {@code Collections.max} in the

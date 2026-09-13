@@ -1552,3 +1552,32 @@ rather than unifying them — a design leg, recorded, not a next batch.
 product feature nobody has asked for yet. Each piece is defensible; the
 sequencing was not — after the first revert the arc should have been parked
 for cluster C. Cluster A closes here.
+
+## Graph-root order rule — 2026-09-13 (corpus-zero, union family)
+
+**The row.** `graphFetch::tests::union::propertyLevel::test6`: a graph fetch over a
+three-set `special_union` root. Probed (a temporary message, reverted): the three firms
+and every employee list are IDENTICAL element for element; only the ROOT order differs —
+ours X, A, B (set order), the golden B, X, A (H2's arrival order of the engine's union).
+Pure specifies no order for `Firm.all()->graphFetch(...)`.
+
+**The rule.** The JSON verdict now reads the chain's ORDER VIEW, the same compile-time
+fact the row verdict reads (`AssertVerdicts.orderView`): on an INCIDENTAL-order chain
+(a root read with no sort) the ROOT array compares as a multiset — each expected element
+paired with an equal actual one by document equality, unpaired elements named in the
+message; nested arrays stay ORDERED (a property's order is the mapping's). SORTED and
+DEFINED chains stay strictly ordered. The view learned to descend an `execute()` frame
+into its lambda's tail and through graph-fetch / serialize nodes to the root read (the
+sort-key walker mirrors it), which is why the corpus was the measure: 0 LOST on both lanes.
+
+**Measured.** DuckDB 111 → 110, H2 447 → 446 (the row gained on both), 0 LOST.
+Guards: JavaEvalLedger pins JsonCompare 64 → 110 and AssertVerdicts 1775 → 1800
+(comparison policy, nothing evaluates); HarnessDiscipline census +JsonCompare.java=1 (a
+message-only key sort); Typer trimmed back to 3500 (the window one-liner rides here:
+legacy `olapGroupBy` with several partition columns now spells ONE ColSpecArray).
+Witness: `JsonCompareUnorderedRootTest` (order-free root, nested order still judges,
+a missing element never passes, object roots unchanged). Chain: build 24s, G1 70s,
+G3 11s, G4 94s, G5 47s, G6 141s, G7 34s, G9 29s, G8 143s — GREEN.
+
+**Also in this batch:** `docs/UNION_OR_JOIN_REMOVAL_DESIGN_2026_09_13.md` — the spec of
+the engine's union OR-join removal (the five union rows' missing half), design only.

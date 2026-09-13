@@ -83,23 +83,25 @@ a plan node kind the channel does not print yet (PureExp, StoreMappingGlobalGrap
 
 engine functions over facts we hold (metamodel-as-relations / typed context): return the engine's answer from our data
 
+HOMEWORK 2026-09-13 (read at the PINNED root $HOME/legend/legend-engine 4.145.0 — the neemsandv checkout is 4.137 and lacks the feature-flag suite): four families. (1) FEATURE FLAGS, 5 rows: `useDbNativeImplicitNullOrdering(conn, ctx)` = `isOptionSet('…')` (engine JAVA native; the platform has no runtime options → false) OR `conn.queryGenerationConfigs` has a GenerationFeaturesConfig with the name enabled OR `contextHasFlag(ctx, Feature)` (core `executionPlanFeature.pure`, over `getContexts` in the plan-generation file); all inputs are INSTANCE LITERALS. Open mechanism question: the two helpers live in engine-core files that are the plan generator (never admitted whole as LIBRARY_FILES); `withFeatureFlags` beside them is a lowering native. (2) CONNECTION EQUALITY, 5 rows: `runRelationalRouterExtensionConnectionEquality` matches over `relationalExtensions().routerExtensions().connectionEquality` arms — the extension registry is SUBSUMED (Subsumed.RELATIONAL_EXTENSIONS: 'no arm reads an Extension value' — these five do); the relational arm compares type/timeZone/quoteIdentifiers/datasourceSpecification (classes carry <<equality.Key>> → InstanceEquality's keyed half)/authenticationStrategy via `compareObjectsWithPossiblyNoProperties` (hierarchicalProperties()->size() reflection)/postProcessors. Hijack = the platform folds the subsumed registry's arm to ITS OWN arm (the platform is its own extensions). (3) STORE SUBSTITUTION, 2 rows: `resolveStore` (legend-pure functions_Mapping.pure: fold over includes' substitutions) and `extractDBs` (includes recursion + RootRelational mainTableAlias.database, dedupe) — facts we hold (MappingInclude.substitutions, class-mapping main tables); natives over our compiled mapping model. (4) SINGLES refiled: testPlanForExecutionOption → C (Allocation plan text + extension option variables); testPreprocessFunctionOnRuntime → J (hand-built SimpleFunctionExpression = code-as-data); testRoutingContextBuilderFunctions → J (store-contract routeFunctionExpressions = router internals).
+
 | test | state |
 |---|---|
-| `executionPlan::tests::testPlanForExecutionOption` | TODO |
-| `executionPlan::tests::testPreprocessFunctionOnRuntime` | TODO |
-| `executionPlan::tests::testRoutingContextBuilderFunctions` | TODO |
-| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionConnectionDisabledIsInert` | TODO |
-| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionConnectionEnabled` | TODO |
-| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionExeCtxFlag` | TODO |
-| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionOffByDefault` | TODO |
-| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionOrPrecedence` | TODO |
-| `meta::relational::metamodel::execute::tests::testConnectionEqualityAllButOnePropertySame` | TODO |
-| `meta::relational::metamodel::execute::tests::testConnectionEqualityAllSameStatic` | TODO |
-| `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeDiff` | TODO |
-| `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSameSpecDiff` | TODO |
-| `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSpecSameAuthDiff` | TODO |
-| `mapping::include::testStoreSubstitution` | TODO |
-| `runtime::extractDBs::testExtractDBsWithSubstituition` | TODO |
+| `executionPlan::tests::testPlanForExecutionOption` | REFILED → C (2026-09-13): plan-text golden with Allocation/let nodes + `extractVariablesFromExecutionOption`; `isExecutionOptionPresent` is trivial, the golden is not |
+| `executionPlan::tests::testPreprocessFunctionOnRuntime` | REFILED → J (2026-09-13): builds a SimpleFunctionExpression by hand (`functionReturnType`, `expressionSequence`) = code-as-data, PARKED |
+| `executionPlan::tests::testRoutingContextBuilderFunctions` | REFILED → J (2026-09-13): rewrites the store contract's routeFunctionExpressions (router internals); the plan golden itself is plain |
+| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionConnectionDisabledIsInert` | HOMEWORK DONE (family 1, feature flags): mechanism decision owed — where core helper functions (contextHasFlag/getContexts) live; isOptionSet = platform constant false |
+| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionConnectionEnabled` | HOMEWORK DONE (family 1, feature flags): mechanism decision owed — where core helper functions (contextHasFlag/getContexts) live; isOptionSet = platform constant false |
+| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionExeCtxFlag` | HOMEWORK DONE (family 1, feature flags): mechanism decision owed — where core helper functions (contextHasFlag/getContexts) live; isOptionSet = platform constant false |
+| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionOffByDefault` | HOMEWORK DONE (family 1, feature flags): mechanism decision owed — where core helper functions (contextHasFlag/getContexts) live; isOptionSet = platform constant false |
+| `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionOrPrecedence` | HOMEWORK DONE (family 1, feature flags): mechanism decision owed — where core helper functions (contextHasFlag/getContexts) live; isOptionSet = platform constant false |
+| `meta::relational::metamodel::execute::tests::testConnectionEqualityAllButOnePropertySame` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
+| `meta::relational::metamodel::execute::tests::testConnectionEqualityAllSameStatic` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
+| `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeDiff` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
+| `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSameSpecDiff` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
+| `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSpecSameAuthDiff` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
+| `mapping::include::testStoreSubstitution` | HOMEWORK DONE (family 3): `resolveStore(mapping, store)` over MappingInclude.substitutions (legend-pure functions_Mapping.pure body) — native over our mapping model |
+| `runtime::extractDBs::testExtractDBsWithSubstituition` | HOMEWORK DONE (family 3): `extractDBs(mapping)` = includes recursion + each RootRelational class mapping's main-table database, deduped (engine runtime.pure:75-86); the test's 'substitution' is a DATABASE include (DB1 includes DB1_Inc; `[DB1]testTable1` → DB1) |
 
 ### E. our own compiler as the engine's — 10 rows — ladder: HIJACK
 
@@ -120,13 +122,13 @@ compileLegendGrammar / protocol transforms / DDL statements: the platform alread
 
 ### F. typer gaps — 3 rows — ladder: FIX
 
-a typing refusal on a real query shape
+a typing refusal on a real query shape — HOMEWORK DONE 2026-09-13: two rows were misfiled (the typer refusal was only the first wall; → D/I and J), one is a real one-line typer bug with a 1-row lowering leg behind it (parked). Cluster F burns 0 rows on its own.
 
 | test | state |
 |---|---|
-| `executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom` | TODO |
-| `router::preeval::tests::testPrerouting42` | TODO |
-| `tds::window::routing::testExecutionPlanGeneration` | TODO |
+| `executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom` | HOMEWORK 2026-09-13 — NOT a typer gap. The assert is a PLAN-STRUCTURE fact: `FunctionParametersValidationNode.functionParameters.supportsStream` for `firmName` (engine executionPlan_generation.pure: `findParamsSupportedForStreamInput` on the routed function). Behind the deferred-let refusal: `calculateSourceTree` (uncatalogued), a chained model-connection runtime (`getRuntimeWithModelConnection` over `$sourceFirms`), and the plan-node API (`allNodes`, node class casts). RECLASSIFIED → D (plan/metamodel API) + I (chained M2M runtime). The only engine test asserting supportsStream. |
+| `router::preeval::tests::testPrerouting42` | HOMEWORK 2026-09-13 — NOT a typer gap. `assertRoundTrip` runs the engine's `preval` router pass on the input lambda and compares `transformFunctionBody->toJSON(50000)` with the expected lambda: router internals over code-as-data (PARKED). Our refusal comes from the EXPECTED lambda's `^BasicColumnSpecification(name=, func=)` literals inside `project([...])` (ProjectChecker admits `col(fn,'n')` and paths, not instances). RECLASSIFIED → J. Side note: `^BasicColumnSpecification` in project appears in 18 engine files; the only other fail-roster row from them is `lineage::scanColumns::test::testNonDataTypeProperty` (a lineage test, not this shape). |
+| `tds::window::routing::testExecutionPlanGeneration` | HOMEWORK 2026-09-13 — the typer gap is REAL and one line: legacy `olapGroupBy(['a','b'], …)` desugared its partition columns as a COLLECTION of ColSpecs, so `over` had no overload (the modern spelling is ONE ColSpecArray `~[a,b]`, restrict's precedent); fixed in Typer.olapGroupByDesugar (witness owed; rides the next row-moving batch). Behind it, measured with the fix: `plan: star-top TDS column 'ageSum' resolves through no FROM-tree table` — our lowering wraps the grouped select and windows over it; the golden (H2 text, no fixture → rows cannot judge) is ONE grouped select with `count(sum(age)) over (…)` in the same select. The fold (window over a grouped select into one select) is the lean shape but a lowering leg whose only corpus row is THIS one (no other engine test chains groupBy → olapGroupBy). PARKED: 1 row, text-exact bar, behind two walls. |
 
 ### G. text idioms — 12 rows — ladder: HIJACK
 
@@ -160,6 +162,16 @@ DB2 / SQL Server spellings in the text renderer — product value only if those 
 | `query::take::testFilterLimitInSequenceForTableAccessor` | TODO |
 | `query::take::testLimitFilterInSequenceForTableAccessor` | TODO |
 | `tds::sort::testSortQuotes` | TODO |
+
+### UNION FAMILY — homework 2026-09-13 (8 rows, USER: "let's do the homework for union")
+
+Read at the pinned root, each row run scoped with the SQL dump; the graph-fetch row probed for its full JSON (temporary message, reverted).
+
+- **5 rows fail ONLY on the engine's `removeUnionOrJoins` post-processor half** (testProjectThroughAsso, testProjectThroughAssoWithJoinInMapping, testChainedUnions, testUnionWithSinglePropertyMapping, testUnionOnViewsMapping): their rows halves PASS today (the row asserts and even the exact-text `assertSameSQL`/`assertEquals(sql)` of the unflagged form pass through our engine-style writer); the second half runs the runtime with the connection feature `REMOVE_UNION_OR_JOINS` enabled and asserts `sql()->contains('union_gen_source_pk_0')` + csv equality with the unflagged result. We have no such pass. WHAT IT IS (engine pureToSQLQuery_union.pure:870-1399, ~530 lines): for a join whose source and/or target is a UnionAll of PK-carrying sets, build a BRIDGE union-all — one leg per (source set, target set) pair, each an INNER join carrying only the primary keys as `"union_gen_source_pk_i"` / `"union_gen_target_pk_i"` — and join both sides to the bridge on PKs, replacing the OR-join over the union (`x.FirmID_0 = root.ID or x.FirmID_1 = root.ID`) with equi-joins; on by default for Snowflake, else by the connection's GenerationFeaturesConfig (the connection-level flag carrier the platform does not read yet). A real optimizer capability (a compiler pass by ruling; docs/... post-processors are IR passes), 5 rows + their H2 mirrors; sized as a DESIGN LEG (2-3 sessions): IR pass + connection flag carrier + the bridge's PK naming — SPEC WRITTEN: docs/UNION_OR_JOIN_REMOVAL_DESIGN_2026_09_13.md.
+- **test6 — FIXED 2026-09-13 (GATES: Graph-root order rule; DuckDB 111→110, H2 447→446).** Was: CONTENT IDENTICAL, ROOT ORDER ONLY — ours X, A, B (set order), golden B, X, A; every firm's employee list matches element for element. Pure specifies no order for `Firm.all()->graphFetch()`; the golden's order is H2's execution order of the engine's union. REFEREE RULE OWED: the unordered-chain register (rows as a multiset) extended to a graph-fetch ROOT ARRAY when the query carries no sort — 1 row (+H2). Not a product defect.
+- **2 bitemporal rows**: pure TEXT asserts (`sql()->contains('"unionalias_1"."lake_thru_0"')` etc.) pinning the engine's nested-union alias convention and a quoting fix for H2 case sensitivity; our SQL spells the milestoning columns as its own union aliases (`lake_thru_1` …) and executes. No rows asserted. WALL candidates (text contract on an engine alias convention), unless the union-removal leg happens to align the spelling.
+
+Verdict: the union family holds ZERO wrong-result rows. 5 = one optimizer feature (design leg), 1 = referee order rule, 2 = text contracts.
 
 ### I. lanes (design first) — 21 rows — ladder: FIX (lane)
 

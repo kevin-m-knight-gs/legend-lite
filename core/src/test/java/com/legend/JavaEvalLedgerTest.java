@@ -473,7 +473,7 @@ class JavaEvalLedgerTest {
             // 1765 -> 1774 (batch 143): the quantified verdict's SOURCE reduces through the
             // inliner with the literal arms on (enumValues()->filter(in) unrolls) — which
             // elements to judge, never a judgment
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1775),   // 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1800),   // 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -781,7 +781,7 @@ class JavaEvalLedgerTest {
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
-            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 64),
+            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 110),   // 64 -> 110 (graph-root order rule, 2026-09-13: the multiset ROOT compare + its unpaired-element message — comparison policy under the row verdict's own compile-time order fact; nothing evaluates)
             // 295 -> 431 (V7 §8 leg 1 + user consolidation ruling
             // 2026-08-28): the GRID-CANON byte-channel policies land
             // with the OTHER grid comparison rules — row/cell canon

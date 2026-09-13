@@ -48,6 +48,68 @@ public final class JsonCompare {
         return firstDiff(expected, actual, "$", JsonCompare::documentLeaf);
     }
 
+    /** PARSED-DOCUMENT equality whose ROOT ARRAY is a multiset: the
+     * verdict for a graph result on an INCIDENTAL-order chain (a root
+     * read with no sort — SQL arrival order, which the engine's golden
+     * took from H2 and ours from DuckDB; the same declared policy the
+     * row verdict applies under the same compile-time fact). Both root
+     * lists are sorted by a canonical text of each element and then
+     * compared element-wise; nested arrays stay ORDERED (a property's
+     * order is the mapping's). Non-array roots compare as
+     * {@link #document}. */
+    public static @com.legend.Nullable String documentUnorderedRoot(
+            @com.legend.Nullable Object expected,
+            @com.legend.Nullable Object actual) {
+        if (expected instanceof List<?> el && actual instanceof List<?> al) {
+            // pair each expected element with an equal actual one (document
+            // equality, order-free); the unpaired elements name the difference
+            List<Object> unmatched = new java.util.ArrayList<>(al);
+            List<Object> missing = new java.util.ArrayList<>();
+            for (Object e : el) {
+                int at = -1;
+                for (int i = 0; i < unmatched.size() && at < 0; i++) {
+                    if (firstDiff(e, unmatched.get(i), "$", JsonCompare::documentLeaf) == null) {
+                        at = i;
+                    }
+                }
+                if (at < 0) {
+                    missing.add(e);
+                } else {
+                    unmatched.remove(at);
+                }
+            }
+            if (missing.isEmpty() && unmatched.isEmpty()) {
+                return null;
+            }
+            return "$ (root array as a multiset) expected " + el.size()
+                    + " element(s), got " + al.size() + "; missing "
+                    + abbreviate(canonicalText(missing)) + ", unexpected "
+                    + abbreviate(canonicalText(unmatched));
+        }
+        return document(expected, actual);
+    }
+
+    /** A canonical text of a parsed value — objects by sorted key,
+     * arrays in order, numbers by numeric value — used ONLY as a sort
+     * key for the multiset root compare (never as the equality). */
+    static String canonicalText(@com.legend.Nullable Object v) {
+        if (v instanceof Map<?, ?> m) {
+            StringBuilder sb = new StringBuilder("{");
+            m.keySet().stream().map(String::valueOf).sorted().forEach(k ->
+                    sb.append(k).append(':').append(canonicalText(m.get(k))).append(','));
+            return sb.append('}').toString();
+        }
+        if (v instanceof List<?> l) {
+            StringBuilder sb = new StringBuilder("[");
+            l.forEach(e -> sb.append(canonicalText(e)).append(','));
+            return sb.append(']').toString();
+        }
+        if (v instanceof java.math.BigDecimal d) {
+            return d.stripTrailingZeros().toPlainString();
+        }
+        return String.valueOf(v);
+    }
+
     /** WIRE-VALUE tree equality: leaves under
      * {@link PureAsserts#equalScalar} (policies included). */
     public static boolean wireTree(@com.legend.Nullable Object expected,
