@@ -2268,4 +2268,4 @@ rules); JoinChainEmission 1,095 → 1,076; MappingNormalizer 3,059 → 3,151 (th
 and the re-bind criterion); Pipelines 2,271 → 1,990 (the per-set widening gone); ClassSources
 1,512 → 1,510; MemberColumns deleted. Diff: 24 files, +897 / −687.
 
-**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** second run GREEN: G1 72s, G2 24s, G3 11s, G4 117s, G5 60s, G6 139s, G7 38s, G8 144s, G9 29s (GATES_PARALLEL=1). No own-corpus pin moved.
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** second run GREEN: G1 72s, G2 24s, G3 11s, G4 117s, G5 60s, G6 139s, G7 38s, G8 144s, G9 29s (GATES_PARALLEL=1). No own-corpus pin moved. **CI.** b5076e4f0: gates green.
