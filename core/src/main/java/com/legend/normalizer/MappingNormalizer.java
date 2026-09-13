@@ -1452,8 +1452,7 @@ public final class MappingNormalizer {
         // view-aware: routed members can be VIEW-backed (unionOfViews)
         var rmMain = java.util.Objects.requireNonNull(routedMember.mainTable(),
                 "routed member set without ~mainTable");
-        String kind = ViewRelation.columnPureKind(rmMain.database(),
-                rmMain.table(), col, model);
+        String kind = model.knowledge().columnKind(rmMain.database(), rmMain.table(), col);
         if (kind == null) {
             throw new NotImplementedException(
                     "union navigation key column '" + col + "' of table '"
@@ -1630,8 +1629,7 @@ public final class MappingNormalizer {
      * is spelling, not identity. THE one canonicalization site (audit 15:
      * RelOpTranslator spelled it independently). */
     static String canonicalTable(String table) {
-        return table.startsWith("default.")
-                ? table.substring("default.".length()) : table;
+        return com.legend.compiler.KnowledgeLayer.canonicalTable(table);
     }
 
     /** {@link #inferMainTable} as a PROBE: null on ambiguity instead of loud. */
@@ -2249,59 +2247,6 @@ public final class MappingNormalizer {
         return out;
     }
 
-    /** The pure primitive kind a physical SQL type reads as, or null. */
-
-    /** The column's declared SQL type — schema-aware, include-walking. */
-    static DatabaseDefinition.@com.legend.Nullable ColumnDefinition findPhysicalColumn(
-            String dbFqn, String table, String column, ModelBuilder model) {
-        if (dbFqn == null || table == null) {
-            return null;
-        }
-        String t = canonicalTable(table);
-        String schema = null;
-        int dot = t.indexOf('.');
-        if (dot > 0) {
-            schema = t.substring(0, dot);
-            t = t.substring(dot + 1);
-        }
-        return findPhysicalColumn(dbFqn, schema, t, column, model,
-                new HashSet<>());
-    }
-
-    static DatabaseDefinition.@com.legend.Nullable ColumnDefinition findPhysicalColumn(
-            String dbFqn, @com.legend.Nullable String schema, String table, String column,
-            ModelBuilder model, Set<String> seen) {
-        if (!seen.add(dbFqn)) {
-            return null;
-        }
-        DatabaseDefinition db = model.findDatabase(dbFqn).orElse(null);
-        if (db == null) {
-            return null;
-        }
-        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            if (schema == null || s.name().equals(schema)) {
-                tables.addAll(s.tables());
-            }
-        }
-        for (DatabaseDefinition.TableDefinition td : tables) {
-            if (td.name().equalsIgnoreCase(table)) {
-                for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
-                    if (cd.name().equalsIgnoreCase(column)) {
-                        return cd;
-                    }
-                }
-            }
-        }
-        for (String inc : db.includes()) {
-            DatabaseDefinition.ColumnDefinition hit =
-                    findPhysicalColumn(inc, schema, table, column, model, seen);
-            if (hit != null) {
-                return hit;
-            }
-        }
-        return null;
-    }
 
     private static void validatePmNames(ClassMapping.Relational rcm,
                                        ModelBuilder model, LegacyMappingDefinition md) {

@@ -7,6 +7,7 @@ import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;
+import com.legend.model.DatabaseDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
 import com.legend.protocol.DerivedPropertyDefinition;
@@ -320,6 +321,105 @@ public final class KnowledgeLayer {
             DerivedPropertyDefinition r = derivedInline(superClass(sup), name, visited);
             if (r != null) {
                 return r;
+            }
+        }
+        return null;
+    }
+
+    // ====================================================================
+    // Stores: tables and columns over the database include closure
+    // ====================================================================
+
+    /** A table spelled {@code default.T} is the top-level table {@code T}
+     * (a database's top-level tables ARE schema 'default'). */
+    public static String canonicalTable(String table) {
+        return table.startsWith("default.") ? table.substring("default.".length()) : table;
+    }
+
+    /** The physical TABLE behind a mapping's table spelling in database
+     * {@code dbFqn}: schema-aware ({@code SCHEMA.T} matches the named
+     * schema's table only; a bare name matches the top level and every
+     * schema), case-insensitive on the table name, the database's own
+     * tables first then its includes, transitively. Empty for a null
+     * spelling, an unknown database, or a view. */
+    public Optional<DatabaseDefinition.TableDefinition> table(
+            @com.legend.Nullable String dbFqn, @com.legend.Nullable String table) {
+        if (dbFqn == null || table == null) {
+            return Optional.empty();
+        }
+        String t = canonicalTable(table);
+        String schema = null;
+        int dot = t.indexOf('.');
+        if (dot > 0) {
+            schema = t.substring(0, dot);
+            t = t.substring(dot + 1);
+        }
+        return Optional.ofNullable(table(dbFqn, schema, t, new java.util.HashSet<>()));
+    }
+
+    private DatabaseDefinition.@com.legend.Nullable TableDefinition table(String dbFqn,
+            @com.legend.Nullable String schema, String table, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return null;
+        }
+        DatabaseDefinition db = model.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return null;
+        }
+        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            if (schema == null || s.name().equals(schema)) {
+                tables.addAll(s.tables());
+            }
+        }
+        for (DatabaseDefinition.TableDefinition td : tables) {
+            if (td.name().equalsIgnoreCase(table)) {
+                return td;
+            }
+        }
+        for (String inc : db.includes()) {
+            DatabaseDefinition.TableDefinition hit = table(inc, schema, table, seen);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
+    }
+
+    /** The physical COLUMN {@code column} of {@link #table}, case-insensitive
+     * on the column name; the same include walk. */
+    public Optional<DatabaseDefinition.ColumnDefinition> column(
+            @com.legend.Nullable String dbFqn, @com.legend.Nullable String table, String column) {
+        return table(dbFqn, table).flatMap(td -> td.columns().stream()
+                .filter(cd -> cd.name().equalsIgnoreCase(column)).findFirst());
+    }
+
+    /** The pure KIND ("String", "Integer", …; {@link RelationalKinds}) of a
+     * column of a table OR of a VIEW — a view column that reads one
+     * physical column (a ColumnRef) has that column's kind, through views
+     * of views; null when nothing physical is behind the name. */
+    public @com.legend.Nullable String columnKind(String db, String table, String col) {
+        return columnKind(db, table, col, new java.util.HashSet<>());
+    }
+
+    private @com.legend.Nullable String columnKind(String db, String table, String col,
+            java.util.Set<String> seen) {
+        if (!seen.add(db + "@" + table + "." + col)) {
+            return null;
+        }
+        DatabaseDefinition.ColumnDefinition cd = column(db, table, col).orElse(null);
+        if (cd != null) {
+            return RelationalKinds.pureKindOf(cd.dataType());
+        }
+        DatabaseDefinition.ViewDefinition view = model.findView(db, table).orElse(null);
+        if (view == null) {
+            return null;
+        }
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+            if (vc.name().equals(col)
+                    && vc.expression() instanceof com.legend.model.RelationalOperation.ColumnRef cr) {
+                String cdb = cr.databaseName() != null ? cr.databaseName() : db;
+                return columnKind(cdb, cr.table(), cr.column(), seen);
             }
         }
         return null;

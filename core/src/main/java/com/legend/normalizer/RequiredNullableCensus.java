@@ -105,8 +105,7 @@ final class RequiredNullableCensus {
             return;
         }
         DatabaseDefinition.ColumnDefinition cd = db == null ? null
-                : MappingNormalizer.findPhysicalColumn(db, table, column,
-                        model);
+                : model.knowledge().column(db, table, column).orElse(null);
         if (cd == null) {
             ledger.census("unresolved-column", (db == null ? "<no-db>" : db)
                     + "." + table + "." + column);

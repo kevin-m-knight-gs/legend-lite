@@ -1582,8 +1582,7 @@ final class UnionSynthesis {
                     } else {
                         // view-aware: chained lifts land on VIEW mid tables
                         // too (unionOfViewsToViewToUnion)
-                        String kind = ViewRelation.columnPureKind(
-                                ch.keyDb(), ch.keyTable(), key.getKey(), model);
+                        String kind = model.knowledge().columnKind(ch.keyDb(), ch.keyTable(), key.getKey());
                         if (kind == null) {
                             throw new NotImplementedException(
                                     "chained union key column '" + key.getKey()
@@ -1891,8 +1890,7 @@ final class UnionSynthesis {
         if (!(cm instanceof ClassMapping.Relational r) || r.mainTable() == null) {
             return null;
         }
-        DatabaseDefinition.TableDefinition td = PhysicalTables.find(
-                r.mainTable().database(), r.mainTable().table(), model);
+        DatabaseDefinition.TableDefinition td = model.knowledge().table(r.mainTable().database(), r.mainTable().table()).orElse(null);
         if (td == null) {
             return null;
         }
@@ -2213,12 +2211,10 @@ final class UnionSynthesis {
             Variable kr = new Variable("kr");
             String base = en2.getValue()[0];
             ValueSpecification read;
-            if (ViewRelation.columnPureKind(landingDb, landingTable,
-                    base, model) != null) {
+            if (model.knowledge().columnKind(landingDb, landingTable, base) != null) {
                 read = new AppliedProperty(kr, base);
             } else {
-                String kind = ViewRelation.columnPureKind(
-                        en2.getValue()[1], en2.getValue()[2], base, model);
+                String kind = model.knowledge().columnKind(en2.getValue()[1], en2.getValue()[2], base);
                 if (kind == null) {
                     throw new NotImplementedException(
                             "routed lift key column '" + base
@@ -2833,7 +2829,7 @@ final class UnionSynthesis {
                 srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>())
                         .putIfAbsent(col, name);
                 threads.add(new com.legend.model.KeyThread(name,
-                        ViewRelation.columnPureKind(db, table, col, model)));
+                        model.knowledge().columnKind(db, table, col)));
             }
         }
         ledger.unionKeyThreads.put(className, List.copyOf(threads));
@@ -2855,8 +2851,7 @@ final class UnionSynthesis {
         if (!declared.isEmpty()) {
             return declared;
         }
-        DatabaseDefinition.TableDefinition td = PhysicalTables.find(
-                main.database(), main.table(), model);
+        DatabaseDefinition.TableDefinition td = model.knowledge().table(main.database(), main.table()).orElse(null);
         if (td == null) {
             return List.of();   // a view-backed member: no physical key
         }

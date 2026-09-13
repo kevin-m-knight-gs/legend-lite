@@ -3,6 +3,7 @@
 
 package com.legend;
 
+
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -55,13 +56,20 @@ class ShadowWalkerCensusTest {
             // the kernel's lineage (MilestoningFacts)
             Map.entry("isBitemporalClass", 0),
             Map.entry("isTemporalClass", 0),
-            // STORE FAMILY
-            Map.entry("columnPureKind", 9),
-            Map.entry("pureKindOf", 3),
-            Map.entry("declaredPlatformKind", 3),
-            Map.entry("findPhysicalColumn", 7),
-            Map.entry("findPhysicalTable", 2),
-            Map.entry("tableHasColumn", 2),
+            // STORE FAMILY — RETIRED (T4.1 step 3d, 2026-09-13): the kernel's
+            // table / column / columnKind (include-closure aware, schema-aware,
+            // view-following) answer; PhysicalTables is deleted; RelationalKinds
+            // moved to compiler as the one kind reader (its calls are not
+            // shadows and are no longer counted)
+            Map.entry("columnPureKind", 0),
+            Map.entry("findPhysicalColumn", 0),
+            Map.entry("findPhysicalTable", 0),
+            Map.entry("tableHasColumn", 0),
+            // OWED: a view's root table is a STORE fact (T4.1 §8 step 3: "the
+            // view root and column kind stamped on compiled stores") — it
+            // still walks RelationalOperation records with the normalizer's
+            // own collectors and names the mapping in its errors; retire
+            // with step 4/6's compiled-store facts
             Map.entry("inferViewMainTable", 6)));
 
     @Test

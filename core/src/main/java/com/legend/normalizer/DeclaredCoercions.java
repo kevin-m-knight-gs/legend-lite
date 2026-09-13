@@ -3,6 +3,8 @@
 
 package com.legend.normalizer;
 
+import com.legend.compiler.RelationalKinds;
+
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.model.ClassDefinition;
@@ -109,8 +111,7 @@ final class DeclaredCoercions {
         if (db == null) {
             return read;
         }
-        DatabaseDefinition.ColumnDefinition cd = MappingNormalizer
-                .findPhysicalColumn(db, cr.table(), cr.column(), model);
+        DatabaseDefinition.ColumnDefinition cd = model.knowledge().column(db, cr.table(), cr.column()).orElse(null);
         String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
         if (colKind == null || colKind.equals(declared)) {
             return read;
@@ -140,7 +141,7 @@ final class DeclaredCoercions {
         // scope-block columns carry no [db] — skip (checker stays loud)
         String db = col.database();
         DatabaseDefinition.ColumnDefinition cd =
-                MappingNormalizer.findPhysicalColumn(db, col.table(), col.column(), model);
+                model.knowledge().column(db, col.table(), col.column()).orElse(null);
         String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
         if (colKind == null || colKind.equals(declared)) {
             return read;

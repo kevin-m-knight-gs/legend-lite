@@ -1,5 +1,7 @@
 package com.legend.normalizer;
 
+import com.legend.compiler.RelationalKinds;
+
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
@@ -440,57 +442,6 @@ final class ViewRelation {
         return tables.contains(tableOrView);
     }
 
-    /** The RELATION expression for a {@code (db, table)} target: a VIEW
-     * frames as its own relation (Leg 4 — a view NEVER emits as a raw
-     * tableReference), a physical table is a tableReference. */
-    static ValueSpecification relationExpr(String db, String table,
-            ModelBuilder model, LegacyMappingDefinition md) {
-        DatabaseDefinition.ViewDefinition v =
-                model.findView(db, table).orElse(null);
-        return v != null ? viewRelationExpr(v, table, db, model, md)
-                : new AppliedFunction("tableReference",
-                        List.of(new PackageableElementPtr(db),
-                                new CString(table)));
-    }
-
-    /** The pure kind of {@code col} on {@code table}: a physical column's
-     * kind directly, or a VIEW's declared column resolved through its
-     * plain ColumnRef expression — recursively, since the referenced
-     * relation may itself be a view (view-on-view:
-     * orderNegativePnlViewOnView.ORDER_ID → orderPnlView.ORDER_ID →
-     * orderTable.ID). Computed view columns yield null — the caller's
-     * loud wall names them. */
-    static @com.legend.Nullable String columnPureKind(String db, String table, String col,
-            ModelBuilder model) {
-        return columnPureKind(db, table, col, model,
-                new java.util.HashSet<>());
-    }
-
-    private static @com.legend.Nullable String columnPureKind(String db, String table, String col,
-            ModelBuilder model, java.util.Set<String> seen) {
-        if (!seen.add(db + "@" + table + "." + col)) {
-            return null;
-        }
-        DatabaseDefinition.ColumnDefinition cd =
-                MappingNormalizer.findPhysicalColumn(db, table, col, model);
-        if (cd != null) {
-            return RelationalKinds.pureKindOf(cd.dataType());
-        }
-        DatabaseDefinition.ViewDefinition view =
-                model.findView(db, table).orElse(null);
-        if (view == null) {
-            return null;
-        }
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
-                : view.columnMappings()) {
-            if (vc.name().equals(col) && vc.expression()
-                    instanceof RelationalOperation.ColumnRef cr) {
-                String cdb = cr.databaseName() != null ? cr.databaseName() : db;
-                return columnPureKind(cdb, cr.table(), cr.column(), model, seen);
-            }
-        }
-        return null;
-    }
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
                                             String viewName, LegacyMappingDefinition md) {
@@ -573,5 +524,18 @@ final class ViewRelation {
         RelOpTranslator.collectTablesIn(jd.operation(), condTables);
         condTables.removeAll(terminals);
         return condTables.size() == 1 ? condTables.iterator().next() : null;
+    }
+
+    /** The RELATION expression for a {@code (db, table)} target: a VIEW
+     * frames as its own relation (Leg 4 — a view NEVER emits as a raw
+     * tableReference), a physical table is a tableReference. */
+    static ValueSpecification relationExpr(String db, String table,
+            ModelBuilder model, LegacyMappingDefinition md) {
+        DatabaseDefinition.ViewDefinition v =
+                model.findView(db, table).orElse(null);
+        return v != null ? viewRelationExpr(v, table, db, model, md)
+                : new AppliedFunction("tableReference",
+                        List.of(new PackageableElementPtr(db),
+                                new CString(table)));
     }
 }

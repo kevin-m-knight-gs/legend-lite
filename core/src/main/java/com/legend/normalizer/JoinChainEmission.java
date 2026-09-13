@@ -655,8 +655,7 @@ final class JoinChainEmission {
             if (relationHasColumn(hopDb, targetTable, base, model)) {
                 read = new AppliedProperty(kr, base);
             } else {
-                String kind = columnPureKind(en.getValue()[1],
-                        en.getValue()[2], base, model);
+                String kind = model.knowledge().columnKind(en.getValue()[1], en.getValue()[2], base);
                 if (kind == null) {
                     throw new NotImplementedException(
                             "routed union key column '" + base
@@ -718,8 +717,7 @@ final class JoinChainEmission {
         // milestoning db that declares ProductTable.exchange)
         // a slot named after the platform's RELATION accessors (`columns`,
         // `rows`) would read as the accessor on the row var — mint clear
-        boolean collides = tableHasColumn(model, mainDb, tableName, propName,
-                new java.util.LinkedHashSet<>())
+        boolean collides = model.knowledge().column(mainDb, tableName, propName).isPresent()
                 || propName.equals("columns")
                 || propName.equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER);
         String alias = propName;
@@ -733,30 +731,6 @@ final class JoinChainEmission {
         return alias;
     }
 
-    /** Whether {@code table} (in {@code dbFqn} or any INCLUDED database)
-     * declares a column named {@code col} — the slot-alias collision test. */
-    private static boolean tableHasColumn(ModelBuilder model, String dbFqn,
-            String table, String col, java.util.Set<String> seen) {
-        if (dbFqn == null || !seen.add(dbFqn)) {
-            return false;
-        }
-        var db = model.findDatabase(dbFqn).orElse(null);
-        if (db == null) {
-            return false;
-        }
-        if (db.tables().stream()
-                .filter(t -> t.name().equalsIgnoreCase(table))
-                .flatMap(t -> t.columns().stream())
-                .anyMatch(c -> c.name().equalsIgnoreCase(col))) {
-            return true;
-        }
-        for (String inc : db.includes()) {
-            if (tableHasColumn(model, inc, table, col, seen)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     static String uniqueSlotName(Pipeline p,
             @com.legend.Nullable List<String> path) {
@@ -1063,8 +1037,7 @@ final class JoinChainEmission {
                 scope, terminalRow, r, p.view());
         ValueSpecification src = new AppliedFunction("filter", List.of(p.expr,
                 new LambdaFunction(List.of(r), List.of(cond))));
-        DatabaseDefinition.TableDefinition td = findPhysicalTable(
-                mainDb, mainTable, model, new HashSet<>());
+        DatabaseDefinition.TableDefinition td = model.knowledge().table(mainDb, mainTable).orElse(null);
         if (td == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "main table '" + mainTable + "' not found in db '" + mainDb
@@ -1132,47 +1105,20 @@ final class JoinChainEmission {
             return out;
         }
         DatabaseDefinition.TableDefinition t =
-                PhysicalTables.find(dbFqn, targetTable, model);
+                model.knowledge().table(dbFqn, targetTable).orElse(null);
         if (t != null) {
             t.columns().forEach(c -> out.add(c.name()));
         }
         return out;
     }
 
-    private static DatabaseDefinition.@com.legend.Nullable TableDefinition findPhysicalTable(
-            String dbFqn, String table, ModelBuilder model, Set<String> seen) {
-        if (!seen.add(dbFqn)) {
-            return null;
-        }
-        DatabaseDefinition db = model.findDatabase(dbFqn).orElse(null);
-        if (db == null) {
-            return null;
-        }
-        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            tables.addAll(s.tables());
-        }
-        for (DatabaseDefinition.TableDefinition td : tables) {
-            if (td.name().equalsIgnoreCase(table)) {
-                return td;
-            }
-        }
-        for (String inc : db.includes()) {
-            DatabaseDefinition.TableDefinition hit =
-                    findPhysicalTable(inc, table, model, seen);
-            if (hit != null) {
-                return hit;
-            }
-        }
-        return null;
-    }
 
     /** Whether the relation named {@code table} (physical table OR view)
      * carries a column named {@code col} — routed union keys land on
      * VIEW-backed members too (unionOfViews). */
     private static boolean relationHasColumn(String db, String table,
             String col, ModelBuilder model) {
-        if (MappingNormalizer.findPhysicalColumn(db, table, col, model) != null) {
+        if (model.knowledge().column(db, table, col).orElse(null) != null) {
             return true;
         }
         DatabaseDefinition.ViewDefinition view =
@@ -1181,11 +1127,6 @@ final class JoinChainEmission {
                 .anyMatch(vc -> vc.name().equals(col));
     }
 
-    /** View-aware column kind — see {@link ViewRelation#columnPureKind}. */
-    private static @com.legend.Nullable String columnPureKind(String db, String table, String col,
-            ModelBuilder model) {
-        return ViewRelation.columnPureKind(db, table, col, model);
-    }
 
     /** Routed navigation collapses to the ONE plain condition when the
      * routes are full-coverage same-join over a union target, or the

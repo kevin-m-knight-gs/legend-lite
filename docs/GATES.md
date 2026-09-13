@@ -1871,3 +1871,35 @@ the bitemporal twin had no caller at all and is simply deleted. Census stereotyp
 
 **Rows.** DuckDB 108 / H2 444, EXACT. **Chain.** build 26s, G1 79s, G3 10s, G4 119s, G5 57s,
 G6 146s, G7 38s, G9 26s, G8 153s — GREEN first run.
+
+## T4.1 step 3d — the store family retired; step 3 CLOSED — 2026-09-13
+
+**What landed.** `KnowledgeLayer` gains the ONE store lookup over the database include closure:
+`table(db, spelling)` (schema-aware: `SCHEMA.T` names the schema's table, a bare name reaches the
+top level and every schema; `default.` canonicalized; case-insensitive; own database first,
+then includes), `column(db, table, col)` and `columnKind(db, table, col)` (a VIEW column that
+reads one physical column has that column's kind, through views of views). `RelationalKinds`
+moved to `compiler` as the one kind reader. Retired: `MappingNormalizer.findPhysicalColumn`
+(both overloads, 7 sites), `PhysicalTables` (file deleted), `JoinChainEmission.findPhysicalTable`
+and `tableHasColumn` and its `columnPureKind` wrapper, `ViewRelation.columnPureKind` (both).
+Census store rows → 0; `pureKindOf`/`declaredPlatformKind` rows dropped (not shadows).
+
+**Widenings, measured.** `findPhysicalTable` did not split a dotted spelling and `tableHasColumn`
+searched top-level tables only; both now use the schema-aware walk. Rows: 0 moved.
+
+**Finding.** The parser lists every schema's tables at the database's top level too, so a
+WRONG schema qualifier still resolves under the walk (the shadow's rule, kept); the engine
+refuses it. Owed to the store compiler's schema work.
+
+**Owed.** `inferViewMainTable` (6 sites) stays in the normalizer: a view's root table is a store
+fact, but the inference walks `RelationalOperation` records with the normalizer's own collectors
+and names the mapping in its errors — retire with the compiled-store facts (step 4/6), together
+with `MetamodelSeeds.viewBaseTable`, its F-side twin.
+
+**Rows.** DuckDB 108 / H2 444, EXACT. **Chain.** build 25s, G1 75s, G3 11s, G4 126s, G5 61s,
+G6 153s, G7 39s, G9 29s, G8 157s — G8 RED on the own-corpus pin alone (2379 → 2381: the store
+witness's two databases); G8 re-ran alone GREEN. No production file changed between the runs.
+
+**Step 3 closed.** Fourteen walkers: thirteen retired onto the kernel, one owed with its reason;
+`ShadowWalkerCensusTest` pins the state, shrink-only. The doc's "step 0" (the bare-superclass-name
+gap) was already closed by name-resolve and is pinned by a witness.

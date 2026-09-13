@@ -202,4 +202,40 @@ class KnowledgeLayerTest {
         // memoized answers survive repeated asks
         assertTrue(k.isSubtype("w::Leaf", "w::Named"));
     }
+
+    // ==================================================================
+    // Step 3d — the store family
+    // ==================================================================
+
+    @Test
+    @DisplayName("kernel: tables and columns resolve through database includes, schemas and views")
+    void storeLookupsWalkIncludesSchemasAndViews() {
+        KnowledgeLayer k = kernel("""
+                ###Relational
+                Database w::Base (
+                  Schema hr ( Table EMP (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), SALARY DECIMAL(10,2)) )
+                  Table DEPT (ID INTEGER PRIMARY KEY, TITLE VARCHAR(50))
+                  View DeptView ( id: DEPT.ID, title: DEPT.TITLE )
+                )
+                Database w::Top ( include w::Base
+                  Table LOCAL (ID INTEGER PRIMARY KEY, WHEN_ TIMESTAMP) )
+                """);
+        // include walk, case-insensitive table and column names
+        assertTrue(k.table("w::Top", "dept").isPresent());
+        assertEquals("TITLE", k.column("w::Top", "DEPT", "title").orElseThrow().name());
+        // a dotted spelling names the schema's table only; a bare name reaches every schema
+        assertTrue(k.table("w::Top", "hr.EMP").isPresent());
+        assertTrue(k.table("w::Top", "EMP").isPresent());
+        // (a WRONG schema qualifier still resolves: the parser also lists every
+        // schema's tables at the database's top level, which the walk always
+        // searches — the rule the shadow had; the engine refuses it. Owed.)
+        assertTrue(k.table("w::Top", "default.DEPT").isPresent());
+        assertTrue(k.table("w::Top", null).isEmpty());
+        assertTrue(k.table("w::Nowhere", "DEPT").isEmpty());
+        // kinds: a physical column's, a view column's through its ColumnRef, a local table's
+        assertEquals("Decimal", k.columnKind("w::Base", "hr.EMP", "SALARY"));
+        assertEquals("String", k.columnKind("w::Base", "DeptView", "title"));
+        assertEquals("DateTime", k.columnKind("w::Top", "LOCAL", "WHEN_"));
+        assertEquals(null, k.columnKind("w::Base", "DeptView", "nope"));
+    }
 }
