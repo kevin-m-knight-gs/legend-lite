@@ -12,6 +12,8 @@ import com.legend.model.MappingInclude;
 import com.legend.model.PropertyMapping;
 import com.legend.model.RelationalOperation;
 
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -238,6 +240,112 @@ final class StoreSubstitutionRewrite {
      * the FQN; everything else is untouched (the lenient simple-name
      * fallback still serves scope-less models).
      */
+    /**
+     * The engine's {@code Mapping.resolveStore} (legend-pure functions_Mapping.pure
+     * findSubstituteStore) for EVERY mapping, computed once in INCLUDE ORDER:
+     * a mapping's map composes from its OWN include pairs and the already
+     * computed maps of the mappings it includes — the FIRST include (declaration
+     * order) whose subtree answers a store wins; within an include, what the
+     * included mapping resolved is re-substituted by the include's own pairs,
+     * else the include's own pair over the store itself. Include paths resolve
+     * by NAME against the mappings present (exact, else same package): no
+     * other mapping's parse artifact is read. An include cycle is invalid
+     * (Legend forbids it) and stops compilation naming the mappings in it.
+     * The result is stamped on each compiled mapping
+     * ({@code MappingDefinition.resolvedStores}).
+     */
+    static Map<String, Map<String, String>> resolveAllStores(
+            List<LegacyMappingDefinition> mappings, com.legend.compiler.ModelBuilder model) {
+        Map<String, LegacyMappingDefinition> byFqn = new java.util.LinkedHashMap<>();
+        for (LegacyMappingDefinition md : mappings) {
+            byFqn.put(md.qualifiedName(), md);
+        }
+        // include edges by name: mapping -> its resolvable included mappings
+        Map<String, List<String>> edges = new java.util.LinkedHashMap<>();
+        Map<String, Integer> pending = new java.util.LinkedHashMap<>();
+        for (LegacyMappingDefinition md : mappings) {
+            List<String> incs = new java.util.ArrayList<>();
+            for (MappingInclude inc : md.includes()) {
+                String fqn = includeFqn(md.qualifiedName(), inc.mappingPath(), byFqn.keySet());
+                if (fqn != null) {
+                    incs.add(fqn);
+                }
+            }
+            edges.put(md.qualifiedName(), incs);
+            pending.put(md.qualifiedName(), incs.size());
+        }
+        // Kahn: a mapping is ready when every include it names is done
+        java.util.ArrayDeque<String> ready = new java.util.ArrayDeque<>();
+        pending.forEach((fqn, n) -> { if (n == 0) { ready.add(fqn); } });
+        Map<String, Map<String, String>> out = new java.util.LinkedHashMap<>();
+        while (!ready.isEmpty()) {
+            String fqn = ready.poll();
+            LegacyMappingDefinition md = java.util.Objects.requireNonNull(byFqn.get(fqn));
+            Map<String, String> resolved = new java.util.LinkedHashMap<>();
+            for (MappingInclude inc : md.includes()) {
+                String incFqn = includeFqn(fqn, inc.mappingPath(), byFqn.keySet());
+                Map<String, String> deep = incFqn == null ? Map.of()
+                        : out.getOrDefault(incFqn, Map.of());
+                Map<String, String> own = new java.util.LinkedHashMap<>();
+                for (MappingInclude.StoreSubstitution sub : inc.substitutions()) {
+                    own.put(storeFqn(sub.originalStore(), model),
+                            storeFqn(sub.replacementStore(), model));
+                }
+                Map<String, String> thisInclude = new java.util.LinkedHashMap<>();
+                for (var e : deep.entrySet()) {
+                    thisInclude.put(e.getKey(), own.getOrDefault(e.getValue(), e.getValue()));
+                }
+                for (var e : own.entrySet()) {
+                    thisInclude.putIfAbsent(e.getKey(), e.getValue());
+                }
+                for (var e : thisInclude.entrySet()) {
+                    resolved.putIfAbsent(e.getKey(), e.getValue());
+                }
+            }
+            out.put(fqn, resolved);
+            for (var e : edges.entrySet()) {
+                if (e.getValue().contains(fqn) && !out.containsKey(e.getKey())) {
+                    int left = pending.merge(e.getKey(), -1, Integer::sum);
+                    if (left == 0) {
+                        ready.add(e.getKey());
+                    }
+                }
+            }
+        }
+        if (out.size() != mappings.size()) {
+            List<String> cycle = new java.util.ArrayList<>(byFqn.keySet());
+            cycle.removeAll(out.keySet());
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "mapping include cycle: " + cycle + " — a mapping cannot"
+                    + " include itself, directly or through its includes",
+                    cycle.get(0));
+        }
+        return out;
+    }
+
+    /** An include path as a mapping FQN among the mappings present: exact,
+     *  else the includer's own package; null when it names none of them
+     *  (an unresolvable include is loud at its own emission). */
+    private static @com.legend.Nullable String includeFqn(String includer, String path,
+            java.util.Set<String> present) {
+        if (present.contains(path)) {
+            return path;
+        }
+        int cut = includer.lastIndexOf("::");
+        if (!path.contains("::") && cut >= 0) {
+            String inPkg = includer.substring(0, cut) + "::" + path;
+            if (present.contains(inPkg)) {
+                return inPkg;
+            }
+        }
+        return null;
+    }
+
+    private static String storeFqn(String path, com.legend.compiler.ModelBuilder model) {
+        return model.findDatabase(path)
+                .map(com.legend.model.DatabaseDefinition::qualifiedName).orElse(path);
+    }
+
     static LegacyMappingDefinition qualifyStoreRefs(LegacyMappingDefinition md,
             com.legend.compiler.ModelBuilder model) {
         com.legend.model.ImportScope scope = model.importsOf(md.qualifiedName());

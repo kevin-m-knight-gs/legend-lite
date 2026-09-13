@@ -668,7 +668,25 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                yield isVerdict(args.get(0), args.get(1));
+                ExecutionResult isv = isVerdict(args.get(0), args.get(1));
+                if (isv != null) {
+                    yield isv;
+                }
+                // ELEMENT IDENTITY (metamodel-as-relations D2/D3): a tracked
+                // element's identity is its row's primary key — `is` over an
+                // element reference and a metamodel row is the same equality
+                // the chain normalizer rewrites to a key compare
+                // (ChainNormalizer.identityEquality); adjudicated as the
+                // condition assert on the identity lane
+                if (elementTyped(args.get(0), specs) && elementTyped(args.get(1), specs)) {
+                    TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
+                            specs.ctx(), args.get(0), args.get(1));
+                    Object c2 = one(identitySide(cond, letPrefix, specs, env, hook),
+                            name + " condition");
+                    yield Boolean.TRUE.equals(c2) ? ok()
+                            : fail("assertIs: the element references differ");
+                }
+                yield null;
             }
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> {
                 if (args.isEmpty()) {
@@ -689,6 +707,25 @@ final class AssertVerdicts {
                                 : "collection is empty");
             }
         };
+    }
+
+    /** A side typed as a SEEDED metaclass (its extent is in the system
+     *  database — a Database, a Mapping, a Class …): its identity is a row key. */
+    private static boolean elementTyped(TypedSpec s, SpecCompiler specs) {
+        if (!(peel(s).info().type() instanceof com.legend.compiler.element.type.Type.ClassType ct)) {
+            return false;
+        }
+        // the seeded metaclass itself, or a SUPERTYPE a system function
+        // answers with (resolveStore returns Store; the rows are Databases):
+        // some system-mapped, seeded metaclass conforms to the side's type
+        var ctx = specs.ctx();
+        if (ctx.classifierInstances(ct.fqn()) != null) {
+            return true;
+        }
+        var sys = ctx.findMapping(com.legend.builtin.SystemMetamodel.MAPPING_FQN).orElse(null);
+        return sys != null && sys.classBindings().stream().anyMatch(cb ->
+                ctx.classifierInstances(cb.classFqn()) != null
+                        && ctx.isSubtype(cb.classFqn(), ct.fqn()));
     }
 
     /** The IDENTITY verdict ({@code assertIs} → {@code is()}, real pure

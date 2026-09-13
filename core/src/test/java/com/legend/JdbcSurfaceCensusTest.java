@@ -327,6 +327,10 @@ class JdbcSurfaceCensusTest {
             // go in through JDBC; the query reaches the database only through
             // the platform (QueryService)
             "core/src/test/java/com/legend/integration/UnionTargetLeanJoinTest.java",
+            // store-substitution witness (2026-09-13): an in-memory DuckDB
+            // connection for the system database; every query runs through
+            // the platform (Compiler.execute)
+            "core/src/test/java/com/legend/integration/MetamodelStoreSubstitutionTest.java",
             "core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java",
             "core/src/test/java/com/legend/integration/EnumIntegrationTest.java",
             "core/src/test/java/com/legend/integration/ExecutionResultIntegrationTest.java",

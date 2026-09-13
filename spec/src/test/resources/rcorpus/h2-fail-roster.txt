@@ -302,7 +302,6 @@ meta::relational::tests::mapping::embedded::advanced::testGroupBy
 meta::relational::tests::mapping::embedded::advanced::testGroupByComplexAgg
 meta::relational::tests::mapping::embedded::testGroupByEmbeddedProperty
 meta::relational::tests::mapping::filter::testFilterMappingWithProjectionOverlapp
-meta::relational::tests::mapping::include::testStoreSubstitution
 meta::relational::tests::mapping::join::testChainedInnerJoinsMerge
 meta::relational::tests::mapping::join::testChainedInnerJoinsWithFilterMerge
 meta::relational::tests::mapping::join::testChainedOuterJoinsMerge
@@ -419,7 +418,6 @@ meta::relational::tests::query::take::testTakeWithVariables
 meta::relational::tests::query::view::testAllWithJoinToView
 meta::relational::tests::query::view::testViewAll
 meta::relational::tests::query::view::testViewSimpleFilter
-meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition
 meta::relational::tests::tds::groupBy::GroupByWithIfInMap
 meta::relational::tests::tds::groupBy::GroupByWithMapFnColumns
 meta::relational::tests::tds::groupBy::GroupByWithMapFnConstant

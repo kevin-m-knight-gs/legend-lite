@@ -1632,3 +1632,46 @@ per column is a registry change across every consumer.
 **Measured (spec §11, DuckDB).** OR → BLOCKWISE_NL_JOIN 9.1 ms; coalesce (1a) → HASH_JOIN
 1.5 ms; merged column (1b) → HASH_JOIN 1.2 ms. The plan benefit lives in the predicate; 1a
 stays (USER decision on "roll the whole thing back?").
+
+## Store substitution as relations — 2026-09-13 (corpus-zero cluster D family 3)
+
+**Rows.** `mapping::include::testStoreSubstitution` and
+`runtime::extractDBs::testExtractDBsWithSubstituition`: DuckDB 110 → 108, H2 446 → 444,
+0 LOST on both lanes.
+
+**What landed.** (1) `MappingDefinition.resolvedStores` — the engine's `Mapping.resolveStore`
+answer for every store a mapping's include chain substitutes, STAMPED at Phase E: computed
+once for all mappings in INCLUDE ORDER by `StoreSubstitutionRewrite.resolveAllStores`, each
+map composed from the mapping's own include pairs and the already-compiled maps of the
+mappings it includes (first include answering wins; an include re-substitutes what its
+included mapping resolved). Include paths resolve by NAME against the mappings present — no
+other mapping's parse artifact is read (the reach-back census stays at its baseline). An
+include cycle stops compilation naming the mappings (USER: never fall back). (2) The system
+database: `mapping_store_resolutions` (one row per mapping × database, a projection of the
+stamped field), `TableAlias.database` (the store the mapping REFERENCES for its main table),
+`meta::lite::metamodel::StoreResolution` + three associations. (3) System-layer Pure with the
+engine's signatures — `resolveStore` (one-row read, no conditional) and `extractDBs` (every
+visible root set's referenced database, deduplicated) — the engine's recursive bodies drop
+out through the shadow seam. (4) Verdicts: `assertIs` over ELEMENT rows adjudicates the
+identity condition the resolver mints (`ChainNormalizer.identityCondition` — key equality,
+the D2 ruling); the identity-equality rewrite looks through `toOne`/`first`/`at(0)`/
+`removeDuplicates` to the row read (a many-row pick stays loud at the condition egress).
+
+**Two designs discarded on the way (USER audit).** A seed-time recursion over compiled
+include records (a second walker with its own copy of the rule) and a normalize-time
+recursion reading included mappings' parse artifacts (a reach-back, pinned — then unpinned:
+the census's spirit, not its letter). The stamped-in-include-order form replaced both and
+deleted the six-file side registry.
+
+**Witness.** `MetamodelStoreSubstitutionTest`: resolution through one and two include
+levels, untouched stores, the referenced-vs-declaring database, the engine tests' assert
+shapes, and the loud include cycle. Pins with reasons: JDBC census +1, own-corpus parity
+2338 → 2349, evaluator size AssertVerdicts 1800 → 1825, strength ceilings +1 per lane (the
+rows assert identity — boolean by the engine test's shape; the witness carries content),
+prelude regenerated (the system layer now declares `resolveStore`), claims regenerated
+(`equal` gains the resolver as a consumer). Chain: build 23s, G1 74s, G3 11s, G4 109s,
+G5 45s, G6 136s, G7 36s, G9 27s, G8 142s — GREEN.
+
+**Owed.** The RAW relation `MappingInclude.storeSubstitutions` in the system database (only
+the resolved facts are seeded); the walks/reach-backs census
+(docs/WALKS_AND_REACHBACKS_CENSUS_2026_09_13.md) and T4.1.

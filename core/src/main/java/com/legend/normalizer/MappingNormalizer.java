@@ -152,6 +152,11 @@ public final class MappingNormalizer {
         List<FunctionDefinition> lifted = new ArrayList<>();
         java.util.Map<String, LegacyMappingDefinition> legacySurfaces =
                 new java.util.LinkedHashMap<>();
+        // store substitutions resolved ONCE for every mapping, include order (stamped on each)
+        java.util.Map<String, java.util.Map<String, String>> resolvedStores =
+                StoreSubstitutionRewrite.resolveAllStores(parsed.elements().stream()
+                        .filter(LegacyMappingDefinition.class::isInstance)
+                        .map(LegacyMappingDefinition.class::cast).toList(), model);
         for (PackageableElement el : parsed.elements()) {
             // The legacy mapping we read from `parsed` may have been
             // cross-baked (e.g., by JsonModelConnection bindings) in
@@ -166,7 +171,9 @@ public final class MappingNormalizer {
                 try {
                     out.add(withElement(md.qualifiedName(),
                             () -> normalizeMapping(latest, model, lifted,
-                                    wallSink != null)));
+                                    wallSink != null,
+                                    resolvedStores.getOrDefault(md.qualifiedName(),
+                                            java.util.Map.of()))));
                 } catch (ModelException e) {
                     if (wallSink == null || e.element() == null) {
                         throw e;
@@ -231,7 +238,7 @@ public final class MappingNormalizer {
     private static MappingDefinition normalizeMapping(LegacyMappingDefinition md,
                                                      ModelBuilder model,
                                                      List<FunctionDefinition> lifted,
-                                                     boolean tolerant) {
+                                                     boolean tolerant, java.util.Map<String, String> resolvedStores) {
         detectM2MCycles(md, model);
 
         // Pre-pass: flatten `extends [parentSetId]` by merging inherited
@@ -475,7 +482,7 @@ public final class MappingNormalizer {
                 assocBindings,
                 md.enumerationMappingsWithIncludes(model::findLegacyMapping),
                 md.testSuitesSource(),
-                SetDispatch.routedTargetSets(md, model));
+                SetDispatch.routedTargetSets(md, model), resolvedStores);
     }
 
     // ====================================================================

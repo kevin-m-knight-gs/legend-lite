@@ -41,7 +41,7 @@ import java.util.function.Function;
  *   here). Pure's instance equality over metamodel elements IS identity.</li>
  * </ul>
  */
-final class ChainNormalizer {
+public final class ChainNormalizer {
 
     private ChainNormalizer() {
     }
@@ -106,6 +106,12 @@ final class ChainNormalizer {
             Function<TypedPackageableRef, java.util.Optional<String>> trackedElementClass) {
         // the row read's class: bare or parameterized (the spec's
         // SetImplementation.class is Class<Any> — Type.classFqn)
+        // a SINGLE-ELEMENT pick around the read (toOne / first / at(0) —
+        // the system functions' `.resolved->toOne()`, a test's `->at(0)`)
+        // is the read itself for identity: the rewrite yields one boolean
+        // per picked row, and a many-row pick stays loud downstream (the
+        // condition egress demands exactly one)
+        row = unwrapSinglePick(row);
         String rowCls = row instanceof TypedPropertyAccess rpa
                 ? Type.classFqn(rpa.info().type()) : null;
         if (!(ref instanceof TypedPackageableRef pr)
@@ -134,6 +140,38 @@ final class ChainNormalizer {
                 com.legend.model.ClassMapping.foreignKeyBinding(pa.property()), str);
         return new TypedNativeCall(eq.callee(),
                 List.of(keyRead, new TypedCString(pr.fullPath(), str)), eq.info());
+    }
+
+    /** {@code equal(a, b)} as the identity condition of two element-typed
+     *  sides — minted HERE (a compiler layer) for the verdict layer's
+     *  {@code assertIs} arm; the normalizer's own identity rewrite then
+     *  turns it into the key compare. */
+    public static TypedSpec identityCondition(ModelContext ctx, TypedSpec a, TypedSpec b) {
+        var eqFns = ctx.findFunction("meta::pure::functions::boolean::equal")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (eqFns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected one 2-arg boolean::equal");
+        }
+        return new TypedNativeCall(eqFns.get(0), List.of(a, b),
+                new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+    }
+
+    private static TypedSpec unwrapSinglePick(TypedSpec n) {
+        while (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
+            String key = c.callee().signatureKey();
+            boolean pick = (Pure.nativeNamed("toOne", key) && c.args().size() == 1)
+                    || (Pure.nativeNamed("first", key) && c.args().size() == 1)
+                    // distinctness does not change WHICH elements: identity-preserving
+                    || (Pure.nativeNamed("removeDuplicates", key) && c.args().size() == 1)
+                    || (Pure.nativeNamed("at", key) && c.args().size() == 2
+                            && c.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger i
+                            && i.value().longValue() == 0);
+            if (!pick) {
+                break;
+            }
+            n = c.args().get(0);
+        }
+        return n;
     }
 
     /** The one-parameter registration of a collection native by FQN. */

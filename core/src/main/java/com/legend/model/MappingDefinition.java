@@ -38,10 +38,11 @@ public record MappingDefinition(
         List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
         @com.legend.Nullable String testSuitesSource,
-        java.util.Map<String, String> routedTargetSets)
+        java.util.Map<String, String> routedTargetSets,
+        java.util.Map<String, String> resolvedStores)
         implements PackageableElement {
 
-    /** The common form: no per-property set-dispatch table. */
+    /** The common form: no per-property set-dispatch table, no store substitutions. */
     public MappingDefinition(String qualifiedName,
             List<MappingInclude> includes,
             List<ClassBinding> classBindings,
@@ -49,7 +50,19 @@ public record MappingDefinition(
             List<EnumerationMapping> enumerationMappings,
             @com.legend.Nullable String testSuitesSource) {
         this(qualifiedName, includes, classBindings, associationBindings,
-                enumerationMappings, testSuitesSource, java.util.Map.of());
+                enumerationMappings, testSuitesSource, java.util.Map.of(), java.util.Map.of());
+    }
+
+    /** With the set-dispatch table, no store substitutions. */
+    public MappingDefinition(String qualifiedName,
+            List<MappingInclude> includes,
+            List<ClassBinding> classBindings,
+            List<AssociationBinding> associationBindings,
+            List<EnumerationMapping> enumerationMappings,
+            @com.legend.Nullable String testSuitesSource,
+            java.util.Map<String, String> routedTargetSets) {
+        this(qualifiedName, includes, classBindings, associationBindings,
+                enumerationMappings, testSuitesSource, routedTargetSets, java.util.Map.of());
     }
 
     public MappingDefinition {
@@ -60,6 +73,13 @@ public record MappingDefinition(
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
         routedTargetSets = routedTargetSets == null
                 ? java.util.Map.of() : java.util.Map.copyOf(routedTargetSets);
+        // original store FQN -> resolved store FQN: the engine's
+        // Mapping.resolveStore for every store this mapping's include chain
+        // substitutes, STAMPED at Phase E (composed from the includes' own
+        // maps, in include order — never re-walked); the system database's
+        // mapping_store_resolutions projects it
+        resolvedStores = resolvedStores == null
+                ? java.util.Map.of() : java.util.Map.copyOf(resolvedStores);
     }
 
     /**

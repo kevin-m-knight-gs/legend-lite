@@ -163,3 +163,21 @@ The plan benefit lives in the predicate: the OR forces a nested-loop join; the c
 same hash join as the merged column. 1b is cosmetic (two null-padded columns fewer). DECISION
 (USER 2026-09-13, "roll the whole thing back?"): keep 1a; 1b only if the key registry is ever
 generalized to several names per column for another reason.
+
+## 12. The bridge measured (DuckDB, same rows on all forms)
+
+| form | joins | 1k firms / 20k people | 20k firms / 400k people |
+|---|---|---|---|
+| OR (engine default) | 1 BLOCKWISE_NL_JOIN | 12.7 ms | 2.77 s |
+| coalesce (step 1a, ours) | 1 HASH_JOIN | 1.8 ms | 3.8–5.0 ms (3 runs) |
+| merged column (step 1b, parked) | 1 HASH_JOIN | 1.2 ms | 3.2–3.3 ms (3 runs) |
+| bridge (engine rewrite under the flag) | 4 HASH_JOIN | 2.2 ms | 10.5 ms |
+
+On a hash-join engine the bridge is NOT the optimized form: it trades one nested-loop join for
+four hash joins (source→bridge, bridge→target, plus the legs). Our coalesce keeps one hash
+join. DECISION (USER 2026-09-13, "do the non-uniform one for all and pass the tests?"): no —
+the five bridge rows are TEXT CONTRACTS (they assert the marker column under a flag whose
+purpose the default already exceeds); the bridge stays a product option for NON-UNIFORM
+routes only, where the OR (and its nested-loop plan) remains — with its own witness when
+that leg starts, and a cheaper form to look for first (the OR there is over groups of
+different expressions).

@@ -582,6 +582,12 @@ public final class SystemMetamodel {
                         included_fqn VARCHAR(1024) PRIMARY KEY,
                         ordinal INTEGER NOT NULL
                     )
+                    Table mapping_store_resolutions
+                    (
+                        mapping_fqn VARCHAR(1024) PRIMARY KEY,
+                        original_fqn VARCHAR(1024) PRIMARY KEY,
+                        resolved_fqn VARCHAR(1024) NOT NULL
+                    )
                     Table class_mappings
                     (
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
@@ -827,6 +833,10 @@ public final class SystemMetamodel {
                     and metamodel.enum_value_mappings.em_name = metamodel.enum_value_sources.em_name
                     and metamodel.enum_value_mappings.enum_value = metamodel.enum_value_sources.enum_value)
                 Join ClosureToClassMappings(metamodel.mapping_includes_closure.included_fqn = metamodel.class_mappings.mapping_fqn)
+                Join MappingsToStoreResolutions(metamodel.mappings.fqn = metamodel.mapping_store_resolutions.mapping_fqn)
+                Join ResolutionToOriginal(metamodel.mapping_store_resolutions.original_fqn = metamodel.databases.fqn)
+                Join ResolutionToResolved(metamodel.mapping_store_resolutions.resolved_fqn = metamodel.databases.fqn)
+                Join AliasToDatabase(metamodel.relational_elements.db_fqn = metamodel.databases.fqn)
                 Join ClassMappingsToAlias(metamodel.class_mappings.mapping_fqn = metamodel.relational_elements.mapping_fqn and metamodel.class_mappings.id = metamodel.relational_elements.set_id)
                 Join AliasToTables(metamodel.relational_elements.main_element_id = {target}.id)
                 Join AliasToViews(metamodel.relational_elements.main_element_id = {target}.id)
@@ -886,6 +896,28 @@ public final class SystemMetamodel {
             {
                 visibilityOf: meta::lite::metamodel::MappingVisibility[*];
                 visibleSets: meta::relational::mapping::RootRelationalInstanceSetImplementation[*];
+            }
+
+            Class meta::lite::metamodel::StoreResolution
+            {
+            }
+
+            Association meta::lite::metamodel::MappingStoreResolutions
+            {
+                resolver: meta::pure::mapping::Mapping[1];
+                storeResolutions: meta::lite::metamodel::StoreResolution[*];
+            }
+
+            Association meta::lite::metamodel::StoreResolutionOriginal
+            {
+                original: meta::pure::store::Store[1];
+                originalOf: meta::lite::metamodel::StoreResolution[*];
+            }
+
+            Association meta::lite::metamodel::StoreResolutionResolved
+            {
+                resolved: meta::pure::store::Store[1];
+                resolvedOf: meta::lite::metamodel::StoreResolution[*];
             }
 
             Association meta::lite::metamodel::AliasBaseTables
@@ -1120,6 +1152,14 @@ public final class SystemMetamodel {
             {
                 $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))->joinStrings('', '\n', '\n')
             }
+            function meta::pure::mapping::resolveStore(_this:meta::pure::mapping::Mapping[1], store:meta::pure::store::Store[1]):meta::pure::store::Store[1]
+            {
+                $_this.storeResolutions->filter(r|$r.original == $store).resolved->toOne()
+            }
+            function meta::relational::runtime::extractDBs(m:meta::pure::mapping::Mapping[1]):meta::relational::metamodel::Database[*]
+            {
+                $m.visibility.visible.classMappings->filter(cm|$cm->instanceOf(meta::relational::mapping::RootRelationalInstanceSetImplementation))->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).mainTableAlias.database->removeDuplicates()
+            }
             function meta::pure::mapping::classMappings(_this:meta::pure::mapping::Mapping[1]):meta::pure::mapping::SetImplementation[*]
             {
                 $_this.visibility->sortBy(v|$v.includeRank).visible.classMappings
@@ -1200,6 +1240,11 @@ public final class SystemMetamodel {
                     ~mainTable %1$s metamodel.mapping_includes_closure
                     includeRank: %1$s metamodel.mapping_includes_closure.include_rank
                 }
+                *meta::lite::metamodel::StoreResolution[sres]: Relational
+                {
+                    ~primaryKey(%1$s metamodel.mapping_store_resolutions.mapping_fqn, %1$s metamodel.mapping_store_resolutions.original_fqn)
+                    ~mainTable %1$s metamodel.mapping_store_resolutions
+                }
                 *meta::pure::mapping::SetImplementation: Operation
                 {
                     %2$s
@@ -1236,6 +1281,7 @@ public final class SystemMetamodel {
                     ~primaryKey(%1$s metamodel.relational_elements.id)
                     ~mainTable %1$s metamodel.relational_elements
                     name: %1$s metamodel.relational_elements.name,
+                    database[db]: %1$s@AliasToDatabase,
                     relationalElement[tbl]: %1$s@AliasToTables,
                     relationalElement[vw]: %1$s@AliasToViews
                 }
@@ -1385,6 +1431,30 @@ public final class SystemMetamodel {
                     (
                         visibilityOf[rootRel, vis]: %1$s@ClosureToClassMappings,
                         visibleSets[vis, rootRel]: %1$s@ClosureToClassMappings
+                    )
+                }
+                meta::lite::metamodel::MappingStoreResolutions: Relational
+                {
+                    AssociationMapping
+                    (
+                        resolver[sres, mapping]: %1$s@MappingsToStoreResolutions,
+                        storeResolutions[mapping, sres]: %1$s@MappingsToStoreResolutions
+                    )
+                }
+                meta::lite::metamodel::StoreResolutionOriginal: Relational
+                {
+                    AssociationMapping
+                    (
+                        original[sres, db]: %1$s@ResolutionToOriginal,
+                        originalOf[db, sres]: %1$s@ResolutionToOriginal
+                    )
+                }
+                meta::lite::metamodel::StoreResolutionResolved: Relational
+                {
+                    AssociationMapping
+                    (
+                        resolved[sres, db]: %1$s@ResolutionToResolved,
+                        resolvedOf[db, sres]: %1$s@ResolutionToResolved
                     )
                 }
             )

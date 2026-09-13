@@ -2477,12 +2477,6 @@ function meta::pure::mapping::findSubstituteStore(_this:Mapping[1], store:Store[
     $_this.includes->fold({inc:MappingInclude[1], sub:Store[0..1] | if($sub->isEmpty(), |$inc->findSubstituteStore($store), |$sub)}, [])
 }
 
-function meta::pure::mapping::resolveStore(_this:Mapping[1], store:Store[1]):Store[1]
-{
-    let substitute = $_this->findSubstituteStore($store);
-    if($substitute->isEmpty(), |$store, |$substitute->toOne());
-}
-
 function meta::pure::mapping::allSuperSetImplementationIds(_this:Mapping[1], id : String[1]):String[*]
 {
     let setImplementation = $_this->classMappingById($id);
@@ -6583,7 +6577,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 155 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 485 classes, 23 enums, 154 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 68 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
@@ -6851,6 +6845,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::mapping::classMappings
 //   meta::pure::mapping::enumerationMappingByName
 //   meta::pure::mapping::propertyMappingsByPropertyName
+//   meta::pure::mapping::resolveStore
 //   meta::pure::mapping::rootClassMappingByClass
 //   meta::pure::mapping::superMapping
 //   meta::pure::mapping::toDomainValue

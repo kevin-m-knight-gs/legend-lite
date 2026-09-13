@@ -100,8 +100,8 @@ HOMEWORK 2026-09-13 (read at the PINNED root $HOME/legend/legend-engine 4.145.0 
 | `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeDiff` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
 | `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSameSpecDiff` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
 | `meta::relational::metamodel::execute::tests::testConnectionEqualityTypeSpecSameAuthDiff` | HOMEWORK DONE (family 2, connection equality): fold the subsumed registry's arm to the platform's own; keyed instance equality exists; reflection helper (hierarchicalProperties size) to check |
-| `mapping::include::testStoreSubstitution` | HOMEWORK DONE (family 3): `resolveStore(mapping, store)` over MappingInclude.substitutions (legend-pure functions_Mapping.pure body) — native over our mapping model |
-| `runtime::extractDBs::testExtractDBsWithSubstituition` | HOMEWORK DONE (family 3): `extractDBs(mapping)` = includes recursion + each RootRelational class mapping's main-table database, deduped (engine runtime.pure:75-86); the test's 'substitution' is a DATABASE include (DB1 includes DB1_Inc; `[DB1]testTable1` → DB1) |
+| `mapping::include::testStoreSubstitution` | FIXED 2026-09-13 (GATES: Store substitution as relations; DuckDB 110→108, H2 446→444). Was HOMEWORK (family 3): `resolveStore(mapping, store)` over MappingInclude.substitutions (legend-pure functions_Mapping.pure body) — native over our mapping model |
+| `runtime::extractDBs::testExtractDBsWithSubstituition` | FIXED 2026-09-13 (same batch). Was HOMEWORK (family 3): `extractDBs(mapping)` = includes recursion + each RootRelational class mapping's main-table database, deduped (engine runtime.pure:75-86); the test's 'substitution' is a DATABASE include (DB1 includes DB1_Inc; `[DB1]testTable1` → DB1) |
 
 ### E. our own compiler as the engine's — 10 rows — ladder: HIJACK
 
@@ -171,7 +171,7 @@ Read at the pinned root, each row run scoped with the SQL dump; the graph-fetch 
 - **test6 — FIXED 2026-09-13 (GATES: Graph-root order rule; DuckDB 111→110, H2 447→446).** Was: CONTENT IDENTICAL, ROOT ORDER ONLY — ours X, A, B (set order), golden B, X, A; every firm's employee list matches element for element. Pure specifies no order for `Firm.all()->graphFetch()`; the golden's order is H2's execution order of the engine's union. REFEREE RULE OWED: the unordered-chain register (rows as a multiset) extended to a graph-fetch ROOT ARRAY when the query carries no sort — 1 row (+H2). Not a product defect.
 - **2 bitemporal rows**: pure TEXT asserts (`sql()->contains('"unionalias_1"."lake_thru_0"')` etc.) pinning the engine's nested-union alias convention and a quoting fix for H2 case sensitivity; our SQL spells the milestoning columns as its own union aliases (`lake_thru_1` …) and executes. No rows asserted. WALL candidates (text contract on an engine alias convention), unless the union-removal leg happens to align the spelling.
 
-LEAN UNION JOIN step 1a LANDED 2026-09-13 (coalesce equality for uniform routes; 0 rows moved; GATES record). Verdict: the union family holds ZERO wrong-result rows. 5 = one optimizer feature (design leg), 1 = referee order rule, 2 = text contracts.
+LEAN UNION JOIN step 1a LANDED 2026-09-13 (coalesce equality for uniform routes; 0 rows moved; GATES record). The 5 bridge rows → TEXT CONTRACTS by decision (spec §12: the bridge is 4 hash joins vs our 1; measured 10.5 ms vs 3.8 ms at 400k rows; the OR 2.77 s). Verdict: the union family holds ZERO wrong-result rows. 5 = one optimizer feature (design leg), 1 = referee order rule, 2 = text contracts.
 
 ### I. lanes (design first) — 21 rows — ladder: FIX (lane)
 

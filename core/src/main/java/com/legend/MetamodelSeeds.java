@@ -42,6 +42,7 @@ public final class MetamodelSeeds {
                     com.legend.compiler.element.type.PlatformTypes.MAPPING));
             case "mapping_includes_closure" -> includesClosure(ctx);
             case "mapping_includes" -> includes(ctx);
+            case "mapping_store_resolutions" -> storeResolutions(ctx);
             case "class_mappings" -> classMappings(ctx);
             case "enumeration_mappings" -> enumerationMappings(ctx, 0);
             case "enum_value_mappings" -> enumerationMappings(ctx, 1);
@@ -151,6 +152,27 @@ public final class MetamodelSeeds {
             for (var inc : md.includes()) {
                 rows.add(List.of(fqn, resolveIncludePath(ctx, fqn, inc.mappingPath()),
                         Integer.toString(i++)));
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * STORE SUBSTITUTION as a relation: for every (mapping, database) pair the
+     * store the engine's {@code Mapping.resolveStore} answers — a PROJECTION
+     * of the compiled fact the normalizer's one include walk recorded
+     * ({@code MappingDefinition.resolvedStores}, stamped at Phase E by
+     * StoreSubstitutionRewrite.resolveAllStores), the store itself when the chain leaves it alone. Every
+     * pair has a row, so the system function reads ONE row, no conditional.
+     */
+    private static List<List<String>> storeResolutions(ModelContext ctx) {
+        List<List<String>> rows = new ArrayList<>();
+        List<String> dbs = extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE);
+        for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
+            var resolved = ctx.findMapping(fqn).map(MappingDefinition::resolvedStores)
+                    .orElse(java.util.Map.of());
+            for (String db : dbs) {
+                rows.add(List.of(fqn, db, resolved.getOrDefault(db, db)));
             }
         }
         return rows;
@@ -502,11 +524,16 @@ public final class MetamodelSeeds {
         for (List<String> cm : classMappings(ctx)) {
             // (mapping_fqn, id, class_fqn, super_set_id, main_db, main_schema, main_table, …)
             String[] base = baseTableOf(ctx, cm.get(4), cm.get(5), cm.get(6));
-            rows.add(com.legend.compiler.element.RelationalOpRows.aliasRow(
+            List<String> alias = com.legend.compiler.element.RelationalOpRows.aliasRow(
                     cm.get(0), cm.get(1), cm.get(6),
                     mainElementId(ctx, cm.get(4), cm.get(5), cm.get(6)), null,
                     base == null ? null : com.legend.compiler.element.RelationalOpRows
-                            .tableId(cm.get(4), base[0], base[1])));
+                            .tableId(cm.get(4), base[0], base[1]));
+            // TableAlias.database (engine metamodel): the database the
+            // mapping REFERENCES for its main table — `[DB1]testTable1`
+            // names DB1 even when DB1 only includes the declaring store
+            alias.set(3, cm.get(4));
+            rows.add(alias);
         }
         for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);

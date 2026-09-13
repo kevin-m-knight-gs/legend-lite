@@ -310,6 +310,12 @@ class MinimalCorpusTest {
                 "cardinality-only passes GREW: " + weak + " > " + floor[2]);
     }
 
+    // cardinality +1 per lane (store-substitution leg, 2026-09-13): the two
+    // returning rows assert IDENTITY (assertIs over element rows, assertSize +
+    // an element equality) — boolean verdicts by the engine test's own shape;
+    // the rows' content is judged by MetamodelStoreSubstitutionTest's name
+    // projections (a rows witness), so the weak class grows by the one test
+    // whose every assert is an identity condition.
     /** {differential floor, spelling ceiling, cardinality ceiling} per lane
      * (Phase 0.7; measured 2026-09-08, batch 133). */
     // {1512, 49, 22} -> {1491, 45, 20} on 2026-09-10 (upstream boundary batch 1):
@@ -350,7 +356,7 @@ class MinimalCorpusTest {
     // (the same passes, now counted where they belong: LITERAL 862 -> 853,
     // SPELLING 46 -> 53) and four are judged by ROWS (differential 1539 ->
     // 1543, two of them new passes: testTwoMappingsOneRuntime ×2); measured
-    private static final int[] DUCKDB_STRENGTH = {1543, 53, 25};
+    private static final int[] DUCKDB_STRENGTH = {1543, 53, 26};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -367,7 +373,7 @@ class MinimalCorpusTest {
     // spelling 50 -> 52 (the same two calendar plan rows on the H2 lane)
     // {1384, 52, 25} -> {1387, 60, 25}: the same bucket move on the H2 lane
     // (LITERAL 684 -> 675, SPELLING 52 -> 60, differential 1384 -> 1387)
-    private static final int[] H2_STRENGTH = {1387, 60, 25};
+    private static final int[] H2_STRENGTH = {1387, 60, 26};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
