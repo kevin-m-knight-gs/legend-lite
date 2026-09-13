@@ -314,7 +314,7 @@ final class AssociationSynthesis {
                 // the union class may INHERIT the end (B extends A picking
                 // up AE's 'e' — extends/union family): owner-or-superclass
                 if (owner == null || !(owner.equals(classFqn)
-                        || UnionSynthesis.isSubclassOf(classFqn, owner, model))) {
+                        || model.knowledge().isSubtype(classFqn, owner))) {
                     continue;
                 }
                 PropertyMapping.Join stamped = join.targetSetId() == null

@@ -20,17 +20,179 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * F1 &mdash; the KNOWLEDGE layer's passes over a name-resolved model
- * (docs/T4_1_KNOWLEDGE_BEFORE_NORMALIZATION_2026_09_13.md &sect;7): what
- * the compiled model knows about classes, properties and associations is
- * settled here, BEFORE Phase E normalizes mappings against it. Step 1 of
- * that program: association qualified-property adoption, moved out of the
- * normalizer (it created the package's one {@code ClassDefinition} and
- * raised two model errors from inside E).
+ * F1 &mdash; the KNOWLEDGE layer (docs/T4_1_KNOWLEDGE_BEFORE_NORMALIZATION_2026_09_13.md
+ * &sect;7): what the compiled model knows about classes, their hierarchy,
+ * their properties and associations, settled BEFORE Phase E normalizes
+ * mappings against it and asked by E and F alike through ONE
+ * implementation. Two faces:
+ * <ul>
+ *   <li>the static PASSES over a name-resolved model (step 1: association
+ *       qualified-property adoption);</li>
+ *   <li>the per-graph KERNEL over the one model index
+ *       ({@link ModelBuilder#knowledge()}): class lookup native-first
+ *       (the platform catalog, then the graph &mdash; the rule
+ *       {@code TypeClassifier.classDef} and the normalizer's shadow
+ *       walkers each carried), the subtype relation (memoized: asked
+ *       millions of times per corpus run), the ancestor and subtree walks
+ *       over the two direct-subclass indexes. Step 3 retires the
+ *       normalizer's shadow copies family by family onto this kernel.</li>
+ * </ul>
+ * Read-only over the index; rebuilt when the index gains a batch.
  */
 public final class KnowledgeLayer {
 
-    private KnowledgeLayer() {}
+    private final ModelBuilder model;
+    private final Map<String, Boolean> subtypeMemo = new java.util.HashMap<>();
+
+    KnowledgeLayer(ModelBuilder model) {
+        this.model = Objects.requireNonNull(model, "model");
+    }
+
+    // ====================================================================
+    // Classes and their hierarchy
+    // ====================================================================
+
+    /** The class behind an FQN, NATIVE-FIRST: a platform class the
+     * catalog declares is read from the catalog even when the graph
+     * carries a copy (a corpus re-declaration of a platform class is
+     * parsed against parents the corpus doesn't carry, so its chain
+     * dead-ends). User classes live outside the native FQN set. */
+    public Optional<ClassDefinition> classDef(String fqn) {
+        Optional<ClassDefinition> nat = com.legend.builtin.Pure.findNativeClass(fqn);
+        return nat.isPresent() ? nat : model.findClass(fqn);
+    }
+
+    /** {@link #classDef} for the MAPPING CALCULUS and the hierarchy
+     * walks: a PRIMITIVE is not a class there (scalar detection reads
+     * "no class at this name") even though the catalog declares its
+     * lattice node as a native Class; a null name is no class. */
+    public Optional<ClassDefinition> hierarchyClass(@com.legend.Nullable String fqn) {
+        if (fqn == null
+                || com.legend.compiler.element.type.Type.Primitive.findByFqn(fqn).isPresent()) {
+            return Optional.empty();
+        }
+        return classDef(fqn);
+    }
+
+    /** The declared superclass FQNs of {@code cd}: bare and generic
+     * heads alike ({@code extends Foo<T>} IS a superclass). */
+    public List<String> superClassFqns(ClassDefinition cd) {
+        List<String> out = new ArrayList<>(cd.superClasses().size());
+        for (TypeExpression sup : cd.superClasses()) {
+            String fqn = TypeExpression.rawClassName(sup);
+            if (fqn != null) {
+                out.add(fqn);
+            }
+        }
+        return out;
+    }
+
+    /** Whether {@code child} is {@code parent} or a (transitive) declared
+     * subclass of it. An unknown class is nobody's subtype (the miss is
+     * the answer: metamodel and protocol class names are not user
+     * classes). Memoized for the graph's lifetime. */
+    public boolean isSubtype(String child, String parent) {
+        if (child.equals(parent)) {
+            return true;
+        }
+        String key = child + '\u0000' + parent;
+        Boolean hit = subtypeMemo.get(key);
+        if (hit != null) {
+            return hit;
+        }
+        boolean answer = isSubtype(child, parent, new java.util.HashSet<>());
+        subtypeMemo.put(key, answer);
+        return answer;
+    }
+
+    private boolean isSubtype(String child, String parent, java.util.Set<String> visited) {
+        if (child.equals(parent)) {
+            return true;
+        }
+        if (!visited.add(child)) {
+            return false;
+        }
+        ClassDefinition cd = hierarchyClass(child).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (String sup : superClassFqns(cd)) {
+            if (isSubtype(sup, parent, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code cls} and every ancestor, breadth-first from {@code cls}
+     * (nearest first), cycle-guarded; a class the index does not know
+     * contributes itself and nothing above. */
+    public java.util.LinkedHashSet<String> ancestorsAndSelf(String cls) {
+        return ancestorsBelow(cls, null);
+    }
+
+    /** {@code cls} and its ancestors breadth-first, STOPPING at
+     * {@code root}: {@code root} itself is not included and nothing is
+     * climbed through it (an ancestor reached only through {@code root}
+     * stays out; one reached along another parent chain stays in). */
+    public java.util.LinkedHashSet<String> ancestorsBelow(String cls,
+            @com.legend.Nullable String root) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        work.add(cls);
+        while (!work.isEmpty()) {
+            String cur = work.poll();
+            if (cur.equals(root) || !out.add(cur)) {
+                continue;
+            }
+            hierarchyClass(cur).ifPresent(cd -> work.addAll(superClassFqns(cd)));
+        }
+        return out;
+    }
+
+    /** The classes that DIRECTLY extend {@code cls}: the graph's, off the
+     * index's direct-subclass index, then the platform catalog's. A
+     * natively declared FQN reads the native declaration (its edges come
+     * from the native index); a primitive is not a class for the
+     * calculus. */
+    public List<String> directSubtypes(String cls) {
+        List<String> out = new ArrayList<>();
+        for (String sub : model.directSubclasses(cls)) {
+            if (com.legend.builtin.Pure.findNativeClass(sub).isEmpty()
+                    && com.legend.compiler.element.type.Type.Primitive.findByFqn(sub).isEmpty()) {
+                out.add(sub);
+            }
+        }
+        for (String sub : com.legend.builtin.Pure.directNativeSubclasses(cls)) {
+            if (com.legend.compiler.element.type.Type.Primitive.findByFqn(sub).isEmpty()) {
+                out.add(sub);
+            }
+        }
+        return out;
+    }
+
+    /** The STRICT subtree of {@code base} (every transitive subclass,
+     * graph and catalog), discovery order. Was: a per-call scan of every
+     * class of the universe. */
+    public java.util.Set<String> subtree(String base) {
+        java.util.Set<String> subtree = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<String> frontier = new java.util.ArrayDeque<>();
+        frontier.add(base);
+        while (!frontier.isEmpty()) {
+            String c = frontier.poll();
+            for (String sub : directSubtypes(c)) {
+                if (subtree.add(sub)) {
+                    frontier.add(sub);
+                }
+            }
+        }
+        subtree.remove(base);
+        return subtree;
+    }
+
+    // ====================================================================
+    // Passes over a name-resolved model
+    // ====================================================================
 
     /**
      * Association QUALIFIED properties adopt into the class that owns

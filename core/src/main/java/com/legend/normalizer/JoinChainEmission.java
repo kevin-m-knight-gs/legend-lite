@@ -309,8 +309,7 @@ final class JoinChainEmission {
                     && MappingNormalizer.findSetById(md, model, routedSetId)
                             instanceof ClassMapping routed
                     && !routed.className().equals(targetClassFqn)
-                    && UnionSynthesis.isSubclassOf(routed.className(),
-                            targetClassFqn, model)) {
+                    && model.knowledge().isSubtype(routed.className(), targetClassFqn)) {
                 targetClassFqn = routed.className();
                 // the navigation is no longer a union route: its target
                 // rows are the member's own extent, keys unsuffixed
@@ -820,8 +819,10 @@ final class JoinChainEmission {
 
     private static boolean hasMappedSubclass(String base, ModelBuilder model,
             MappedClasses mapped) {
-        return model.classes().anyMatch(c -> mapped.contains(c.qualifiedName())
-                && UnionSynthesis.isSubclassOf(c.qualifiedName(), base, model));
+        // the graph's classes strictly below base (the catalog's are not
+        // the graph's), any of them mapped
+        return model.knowledge().subtree(base).stream().anyMatch(c ->
+                model.findClass(c).isPresent() && mapped.contains(c));
     }
 
     record JoinNavSpec(List<JoinChainElement> chain, @com.legend.Nullable String chainDb) {}

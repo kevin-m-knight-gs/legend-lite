@@ -8,7 +8,9 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.Property;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
-import com.legend.normalizer.ModelNormalizer;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import com.legend.protocol.TypeExpression;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -134,5 +136,66 @@ class KnowledgeLayerTest {
                         NameResolver.resolve(com.legend.testing.Own.model(PROD_SYNONYM))));
         assertTrue(ex.getMessage().contains("w::ProdSynonym"), ex.getMessage());
         assertTrue(ex.getMessage().contains("synonymByType"), ex.getMessage());
+    }
+
+    // ==================================================================
+    // Step 3a — the knowledge kernel (subtype family)
+    // ==================================================================
+
+    private static KnowledgeLayer kernel(String src) {
+        return ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model(src))).knowledge();
+    }
+
+    @Test
+    @DisplayName("kernel: a bare superclass name under an import resolves — no bare-name gap")
+    void bareSuperclassNameUnderImportIsResolved() {
+        KnowledgeLayer k = kernel("""
+                import w::base::*;
+                Class w::base::Person { name: String[1]; }
+                Class w::Employee extends Person { grade: Integer[1]; }
+                Class w::Manager extends w::Employee { reports: Integer[1]; }
+                """);
+        assertTrue(k.isSubtype("w::Employee", "w::base::Person"));
+        assertTrue(k.isSubtype("w::Manager", "w::base::Person"));
+        assertFalse(k.isSubtype("w::base::Person", "w::Employee"));
+        assertFalse(k.isSubtype("w::Nobody", "w::base::Person"));
+        // a primitive is not a class for the hierarchy (the catalog's lattice
+        // node is not walked), while classDef still answers the catalog
+        assertFalse(k.isSubtype("Integer", "Number"));
+        assertTrue(k.hierarchyClass("Integer").isEmpty());
+        assertTrue(k.hierarchyClass(null).isEmpty());
+        assertEquals(List.of("w::Manager", "w::Employee", "w::base::Person"),
+                List.copyOf(k.ancestorsAndSelf("w::Manager")));
+        assertEquals(java.util.Set.of("w::Employee", "w::Manager"), k.subtree("w::base::Person"));
+        assertEquals(List.of("w::Employee"), k.directSubtypes("w::base::Person"));
+    }
+
+    private static ClassDefinition cls(String fqn, TypeExpression... supers) {
+        return new ClassDefinition(fqn, List.of(), List.of(), List.of(supers), List.of(),
+                List.of(), List.of(), List.of(), List.of(), false);
+    }
+
+    @Test
+    @DisplayName("kernel: a generic superclass head IS a superclass; ancestorsBelow stops at the root")
+    void genericSuperAndAncestorsBelow() {
+        // records, not Pure text: generics are platform-dialect grammar the
+        // product surface refuses, and the kernel's rule is what is pinned
+        ParsedModel parsed = new ParsedModel(List.of(
+                cls("w::Box"),
+                cls("w::Named"),
+                cls("w::Root", new TypeExpression.NameRef("w::Named")),
+                cls("w::Mid", new TypeExpression.NameRef("w::Root"),
+                        new TypeExpression.Generic("w::Box",
+                                List.of(new TypeExpression.NameRef("String")))),
+                cls("w::Leaf", new TypeExpression.NameRef("w::Mid"))),
+                com.legend.model.ImportScope.empty());
+        KnowledgeLayer k = ModelBuilder.from(parsed).knowledge();
+        assertTrue(k.isSubtype("w::Mid", "w::Box"), "extends Box<String> is a subtype of Box");
+        assertTrue(k.isSubtype("w::Leaf", "w::Named"));
+        // below Root: Leaf, Mid and Mid's OTHER parent Box — never Root or Named
+        assertEquals(List.of("w::Leaf", "w::Mid", "w::Box"),
+                List.copyOf(k.ancestorsBelow("w::Leaf", "w::Root")));
+        // memoized answers survive repeated asks
+        assertTrue(k.isSubtype("w::Leaf", "w::Named"));
     }
 }

@@ -153,8 +153,7 @@ final class ImplicitInheritance {
                 ClassMapping tgt = bySetId.get(tgtSet);
                 if (end == null || mappedClasses.contains(end)
                         || tgt == null || tgt.className().equals(end)
-                        || !UnionSynthesis.isSubclassOf(
-                                tgt.className(), end, model)) {
+                        || !model.knowledge().isSubtype(tgt.className(), end)) {
                     continue;
                 }
                 implied.add(end);
@@ -185,8 +184,7 @@ final class ImplicitInheritance {
                 for (PropertyMapping.Join j : e.getValue()) {
                     ClassMapping tgt = bySetId.get(j.targetSetId());
                     if (tgt != null && !tgt.className().equals(nr.name())
-                            && UnionSynthesis.isSubclassOf(
-                                    tgt.className(), nr.name(), model)) {
+                            && model.knowledge().isSubtype(tgt.className(), nr.name())) {
                         implied.add(nr.name());
                         break;
                     }
@@ -209,37 +207,25 @@ final class ImplicitInheritance {
             LegacyMappingDefinition.TableReference childMain,
             String childClass, ModelBuilder model,
             Map<String, List<ClassMapping.Relational>> byClass) {
-        java.util.ArrayDeque<String> level = new java.util.ArrayDeque<>();
-        Set<String> visited = new HashSet<>();
-        level.add(childClass);
-        while (!level.isEmpty()) {
-            String cls = level.poll();
-            if (!visited.add(cls)) {
+        // ancestors nearest-first (the kernel's breadth-first order)
+        for (String cls : model.knowledge().ancestorsAndSelf(childClass)) {
+            if (cls.equals(childClass)) {
                 continue;
             }
-            if (!cls.equals(childClass)) {
-                List<ClassMapping.Relational> cands = byClass
-                        .getOrDefault(cls, List.of()).stream()
-                        .filter(a -> {
-                            var am = a.mainTable() != null ? a.mainTable()
-                                    : MappingNormalizer.inferMainTableQuiet(a);
-                            return am != null && am.equals(childMain);
-                        })
-                        .toList();
-                if (cands.size() == 1) {
-                    return cands.get(0);
-                }
-                if (!cands.isEmpty()) {
-                    return null;   // ambiguous — stay loud downstream
-                }
+            List<ClassMapping.Relational> cands = byClass
+                    .getOrDefault(cls, List.of()).stream()
+                    .filter(a -> {
+                        var am = a.mainTable() != null ? a.mainTable()
+                                : MappingNormalizer.inferMainTableQuiet(a);
+                        return am != null && am.equals(childMain);
+                    })
+                    .toList();
+            if (cands.size() == 1) {
+                return cands.get(0);
             }
-            MappingNormalizer.classDef(model, cls).ifPresent(cd -> {
-                for (var sup : cd.superClasses()) {
-                    if (sup instanceof com.legend.protocol.TypeExpression.NameRef nr) {
-                        level.add(nr.name());
-                    }
-                }
-            });
+            if (!cands.isEmpty()) {
+                return null;   // ambiguous — stay loud downstream
+            }
         }
         return null;
     }

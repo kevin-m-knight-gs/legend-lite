@@ -1,0 +1,93 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * T4.1 invariant 3 — the normalizer's SHADOW TYPE SYSTEM is a shrink-only
+ * pin. Fourteen walkers re-derived the class hierarchy, property lookup,
+ * stereotypes and store facts over the parse records
+ * (docs/T4_1_KNOWLEDGE_BEFORE_NORMALIZATION_2026_09_13.md &sect;4); step 3
+ * retires them family by family onto the one knowledge kernel
+ * ({@code ModelBuilder.knowledge()}). Each row is that walker's CALL-SITE
+ * count under {@code normalizer/} (definitions excluded). GROWTH is a new
+ * shadow; SHRINKAGE means a family moved — ratchet the row down in the
+ * same commit with the batch's name.
+ */
+class ShadowWalkerCensusTest {
+
+    private static final Path NORMALIZER = Path.of("src/main/java/com/legend/normalizer");
+
+    private static final Map<String, Integer> REGISTER = new TreeMap<>(Map.ofEntries(
+            // SUBTYPE FAMILY — RETIRED (T4.1 step 3a, 2026-09-13): the kernel's
+            // isSubtype / ancestorsBelow / subtree / directSubtypes answer;
+            // the three mapping-aware walkers below keep their E logic and
+            // delegate their walks
+            Map.entry("isSubclassOf", 0),
+            Map.entry("selfAndAncestorsBelow", 0),
+            Map.entry("collectInheritanceMembers", 2),
+            Map.entry("nearestMappedAncestor", 1),
+            Map.entry("hasMappedSubclass", 1),
+            // PROPERTY FAMILY
+            Map.entry("findPropertyTypeDeep", 45),
+            Map.entry("findPropertyDefDeep", 3),
+            Map.entry("findPropertyType", 1),
+            Map.entry("classDef", 53),
+            Map.entry("findDerivedInline", 3),
+            Map.entry("findPropertyDeclared", 2),
+            // STEREOTYPE FAMILY
+            Map.entry("isBitemporalClass", 2),
+            Map.entry("isTemporalClass", 3),
+            // STORE FAMILY
+            Map.entry("columnPureKind", 9),
+            Map.entry("pureKindOf", 3),
+            Map.entry("declaredPlatformKind", 3),
+            Map.entry("findPhysicalColumn", 7),
+            Map.entry("findPhysicalTable", 2),
+            Map.entry("tableHasColumn", 2),
+            Map.entry("inferViewMainTable", 6)));
+
+    @Test
+    void shadowWalkerCallSitesArePinned() throws IOException {
+        Map<String, Integer> actual = new TreeMap<>();
+        REGISTER.keySet().forEach(k -> actual.put(k, 0));
+        List<Path> files;
+        try (Stream<Path> s = Files.walk(NORMALIZER)) {
+            files = s.filter(p -> p.toString().endsWith(".java")).toList();
+        }
+        for (Path f : files) {
+            for (String line : Files.readAllLines(f)) {
+                for (String walker : REGISTER.keySet()) {
+                    Pattern call = Pattern.compile("\\b" + walker + "\\(");
+                    Pattern def = Pattern.compile("static\\b.*\\b" + walker + "\\(");
+                    if (def.matcher(line).find()) {
+                        continue;
+                    }
+                    Matcher m = call.matcher(line);
+                    while (m.find()) {
+                        actual.merge(walker, 1, Integer::sum);
+                    }
+                }
+            }
+        }
+        assertEquals(REGISTER, actual, "shadow-walker census drifted"
+                + " (docs/T4_1_KNOWLEDGE_BEFORE_NORMALIZATION_2026_09_13.md §4):"
+                + " GROWTH is a new shadow of the knowledge kernel — ask"
+                + " ModelBuilder.knowledge() instead; SHRINKAGE means a family"
+                + " moved — ratchet the row down in the same commit");
+    }
+}

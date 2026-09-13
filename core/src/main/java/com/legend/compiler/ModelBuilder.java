@@ -272,6 +272,7 @@ public final class ModelBuilder {
         }
         directSubclasses = null;
         associationEndsByOwner = null;
+        knowledge = null;
 
         // Phase 1: intern every FQN so cross-references (e.g. a
         // RuntimeDefinition naming a Class) can resolve in any order;
@@ -595,6 +596,21 @@ public final class ModelBuilder {
      * FQN &rarr; declaring classes, ingest order); the model is fully
      * ingested before any consumer asks. */
     private @com.legend.Nullable Map<String, List<String>> directSubclasses;
+
+    /** THE knowledge kernel over this index (F1): class lookup
+     * native-first, the memoized subtype relation, the ancestor and
+     * subtree walks — one implementation for Phase E and Phase F alike.
+     * Derived from the index and rebuilt when a batch is added. */
+    private @com.legend.Nullable KnowledgeLayer knowledge;
+
+    public KnowledgeLayer knowledge() {
+        KnowledgeLayer k = knowledge;
+        if (k == null) {
+            k = new KnowledgeLayer(this);
+            knowledge = k;
+        }
+        return k;
+    }
 
     /** The model classes that DIRECTLY extend {@code fqn} (ingest order;
      * empty when none) — "the subclasses of X" as a walk of X's subtree,

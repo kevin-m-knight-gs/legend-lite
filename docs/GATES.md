@@ -1800,3 +1800,39 @@ asks per include closure — step 4's visible-set fact is where that sharpens; t
 rides the ledger because the ten reader sites and eleven writer sites sit under ~170
 `ModelBuilder model` signatures (a parameter sweep would have pushed MappingNormalizer past
 its guardrail); the owner-absent adoption case (step 1's finding) is still silent.
+
+## T4.1 step 3a — the knowledge kernel; the subtype family retired — 2026-09-13
+
+**What landed.** `KnowledgeLayer` is now the per-graph knowledge KERNEL over the one index
+(`ModelBuilder.knowledge()`, derived, rebuilt when a batch is added): `classDef` native-first
+(the ONE rule — `TypeClassifier.classDef` delegates), `hierarchyClass` (the mapping calculus'
+variant: a primitive is not a class, a null name is no class — the normalizer's own rule),
+`isSubtype` (memoized; bare AND generic superclass heads), `ancestorsAndSelf` /
+`ancestorsBelow(cls, root)` (breadth-first, the stop-at-root rule kept verbatim),
+`directSubtypes` and `subtree` (the two direct-subclass indexes, graph then catalog — the walk
+`collectInheritanceMembers` carried). Retired from the normalizer: `UnionSynthesis.isSubclassOf`
+(both overloads, 10 call sites), `selfAndAncestorsBelow` (2); `collectInheritanceMembers`'
+subtree block, `nearestMappedAncestor`'s superclass BFS and `hasMappedSubclass`'s every-class
+scan now delegate (the three keep their mapping logic).
+
+**Deliberate semantic choice, measured.** The shadow walked `NameRef` superclasses only; the
+kernel walks generic heads too (`extends Foo<T>` IS a superclass — the F-side typed answer).
+Rows: 0 moved on either lane, so the corpus carries no mapped class whose subtype answer
+hinged on a generic parent.
+
+**The bare-superclass-name gap (step 3's "step 0").** The MissProbe doc names nine sites keyed
+on bare superclass names "never import-resolved". Read against the code: `NameResolver.resolveClass`
+resolves `superClasses` through the import scope (`:656`), so the gap is already closed;
+`KnowledgeLayerTest.bareSuperclassNameUnderImportIsResolved` pins it. No name-resolve change.
+
+**Pins.** `ShadowWalkerCensusTest` (new, shrink-only): the fourteen walkers' call sites under
+`normalizer/`, subtype family rows at 0/0/2/1/1.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED) — measured twice: before and after the
+primitive-rule alignment.
+
+**Chain.** build 23s, G1 74s, G3 10s, G4 110s, G5 57s, G6 137s, G7 34s, G9 26s, G8 141s — G8 RED
+on the witness snippets alone (a generic class is platform-dialect grammar the product surface
+refuses: the witness now builds records, not text; own-corpus parity 2376 → 2379 for the
+bare-superclass witness's three classes); after that G8 re-ran alone (83s) GREEN. No production
+file changed between the two runs.

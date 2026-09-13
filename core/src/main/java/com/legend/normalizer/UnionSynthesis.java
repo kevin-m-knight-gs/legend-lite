@@ -414,7 +414,7 @@ final class UnionSynthesis {
             // a member must map the operation class or a SUBCLASS — a
             // stray setId landing on an unrelated class with coincidental
             // property names would union unrelated rows (audit 8 S8)
-            if (!isSubclassOf(member.className(), u.className(), model)) {
+            if (!model.knowledge().isSubtype(member.className(), u.className())) {
                 throw new ModelException(
                         LegendCompileException.Phase.NORMALIZE,
                         "Operation union member set '" + setId + "' maps '"
@@ -747,30 +747,7 @@ final class UnionSynthesis {
         // order (model classes, then natives — the member order the
         // rosters pin) restricted to it. Was: isSubclassOf per universe
         // class per call — 45% of the metamodel's 22ms normalization.
-        java.util.Set<String> subtree = new HashSet<>();
-        ArrayDeque<String> frontier = new ArrayDeque<>();
-        frontier.add(base);
-        while (!frontier.isEmpty()) {
-            String c = frontier.poll();
-            for (String sub : model.directSubclasses(c)) {
-                // MappingNormalizer.classDef: a natively declared FQN reads
-                // the NATIVE declaration (its edges come from the native
-                // index); a primitive is not a class for the calculus
-                if (com.legend.builtin.Pure.findNativeClass(sub).isEmpty()
-                        && com.legend.compiler.element.type.Type.Primitive
-                                .findByFqn(sub).isEmpty()
-                        && subtree.add(sub)) {
-                    frontier.add(sub);
-                }
-            }
-            for (String sub : com.legend.builtin.Pure.directNativeSubclasses(c)) {
-                if (com.legend.compiler.element.type.Type.Primitive
-                        .findByFqn(sub).isEmpty() && subtree.add(sub)) {
-                    frontier.add(sub);
-                }
-            }
-        }
-        subtree.remove(base);
+        java.util.Set<String> subtree = model.knowledge().subtree(base);
         List<String> subs = new ArrayList<>();
         model.classes().forEach(cd -> {
             if (subtree.contains(cd.qualifiedName())) {
@@ -785,8 +762,7 @@ final class UnionSynthesis {
         // a leaf has no subclass at all (every subclass of a member of the
         // subtree is itself in the subtree)
         List<String> leaves = subs.stream()
-                .filter(c -> model.directSubclasses(c).isEmpty()
-                        && com.legend.builtin.Pure.directNativeSubclasses(c).isEmpty())
+                .filter(c -> model.knowledge().directSubtypes(c).isEmpty())
                 .toList();
         for (String leaf : leaves) {
             // nearest mapped ancestor at or above the leaf, STRICTLY below base
@@ -858,34 +834,6 @@ final class UnionSynthesis {
         }
     }
 
-    /** {@code candidate} equals {@code base} or transitively extends it. */
-    static boolean isSubclassOf(String candidate, String base, ModelBuilder model) {
-        return isSubclassOf(candidate, base, model, new HashSet<>());
-    }
-
-    /** The walk with a VISITED set: an inheritance CYCLE (A extends B,
-     * B extends A — the frontend still accepts it) terminates instead of
-     * overflowing; a revisited class contributes no new ancestors. */
-    private static boolean isSubclassOf(String candidate, String base,
-            ModelBuilder model, Set<String> visited) {
-        if (candidate.equals(base)) {
-            return true;
-        }
-        if (!visited.add(candidate)) {
-            return false;
-        }
-        ClassDefinition cd = MissProbe.knownMiss(MappingNormalizer.classDef(model, candidate));
-        if (cd == null) {
-            return false;
-        }
-        for (TypeExpression sup : cd.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr
-                    && isSubclassOf(nr.name(), base, model, visited)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * SUBTYPE COLUMNS (engine router subType dispatch): each member whose
@@ -911,8 +859,7 @@ final class UnionSynthesis {
             // below the union root — a cast to an INTERMEDIATE class
             // (subType(@RoadVehicle) over a Car|Bicycle union) is owned by
             // every conforming member thread
-            for (String target : selfAndAncestorsBelow(memberClass, className,
-                    model)) {
+            for (String target : model.knowledge().ancestorsBelow(memberClass, className)) {
                 ClassDefinition tcd = MappingNormalizer.classDef(model, target).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#6 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + target));
                 // every cast target is a DISPATCH target even when the
                 // member maps no scalar property of its own (a property-
@@ -962,7 +909,7 @@ final class UnionSynthesis {
         for (var en : subTypeProps.entrySet()) {
             for (ClassMapping m : members) {
                 if (!m.className().equals(className)
-                        && !isSubclassOf(m.className(), en.getKey(), model)) {
+                        && !model.knowledge().isSubtype(m.className(), en.getKey())) {
                     en.getValue().add(MEMBER_WITNESS);
                     break;
                 }
@@ -973,30 +920,6 @@ final class UnionSynthesis {
 
     static final String MEMBER_WITNESS = ClassMapping.memberWitness();
 
-    /** {@code cls} plus its transitive superclasses, excluding {@code root}
-     * and anything above it. */
-    private static LinkedHashSet<String> selfAndAncestorsBelow(String cls,
-            String root, ModelBuilder model) {
-        LinkedHashSet<String> out = new LinkedHashSet<>();
-        ArrayDeque<String> work = new ArrayDeque<>();
-        work.add(cls);
-        while (!work.isEmpty()) {
-            String cur = work.poll();
-            if (cur.equals(root) || !out.add(cur)) {
-                continue;
-            }
-            ClassDefinition cd = MappingNormalizer.classDef(model, cur).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#7 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + cur));
-            if (cd == null) {
-                continue;
-            }
-            for (TypeExpression sup : cd.superClasses()) {
-                if (sup instanceof TypeExpression.NameRef nr) {
-                    work.add(nr.name());
-                }
-            }
-        }
-        return out;
-    }
 
     /** One thread's subtype-dispatch columns — same order in every thread. */
     private static void addSubTypeDispatchCols(
@@ -1005,7 +928,7 @@ final class UnionSynthesis {
             ModelBuilder model, List<ColSpec> cols) {
         for (var stEn : subTypeProps.entrySet()) {
             ClassDefinition subDef = MappingNormalizer.classDef(model, stEn.getKey()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#8 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + stEn.getKey()));
-            boolean own = isSubclassOf(member.className(), stEn.getKey(), model);
+            boolean own = model.knowledge().isSubtype(member.className(), stEn.getKey());
             for (String prop : stEn.getValue()) {
                 if (prop.equals(MEMBER_WITNESS)) {
                     // toOne types both threads identically (literal vs NULL
@@ -2428,8 +2351,8 @@ final class UnionSynthesis {
                 // testInheritanceMultipleLevel). The recomposed ctor skips
                 // stc keys — the resolver's row pseudo-bindings serve them.
                 if (unionRoot != null && owner != null) {
-                    for (String target : selfAndAncestorsBelow(
-                            owner.qualifiedName(), unionRoot, model)) {
+                    for (String target : model.knowledge().ancestorsBelow(
+                            owner.qualifiedName(), unionRoot)) {
                         ClassDefinition tcd = MappingNormalizer.classDef(model, target)
                                 .orElse(null);
                         if (tcd == null || MappingNormalizer.findPropertyTypeDeep(

@@ -74,8 +74,7 @@ final class TypeClassifier {
      * live outside the native FQN set and resolve as before.
      */
     Optional<ClassDefinition> classDef(String fqn) {
-        Optional<ClassDefinition> nat = Pure.findNativeClass(fqn);
-        return nat.isPresent() ? nat : model.findClass(fqn);
+        return model.knowledge().classDef(fqn);
     }
 
     /** The parser definition behind an enum FQN — user model first, then the native catalog. */
