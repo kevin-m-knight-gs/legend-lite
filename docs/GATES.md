@@ -1496,3 +1496,59 @@ failing row vanish; and a per-row scalar subquery for TO-ONE CHILD ENVELOPES
 in place of the lateral join, to buy a loud guard. Neither is on main or the
 branch. The rule kept: joins for reads and child relations, a scalar subquery
 for a single aggregate value, and the decision written before the code.
+
+## Nested-object constraints, re-landed — 2026-09-12 (corpus-zero cluster A, closes the arc)
+
+**What it is.** Every class-typed node of a checked graph fetch runs its own
+class constraints; a child's defects hoist into the root's `defects` with a
+RelativePathNode path (`{"propertyName":"firm","index":null}` for a to-one
+hop, `{"propertyName":"addresses","index":1}` for the second element of a
+to-many hop, 0-based as the engine's). The first landing (172d8f151) was
+reverted (dfe5ce991) because it moved both rosters back; it returns over the
+two legs it needed underneath — the by-tree `isDistinct` (9d5d3ad33) and
+reducers over navigations in derived leaves (f69fca42e).
+
+**Shape (unchanged from the branch, audited):** `SqlExpr.CheckedDefects(own,
+hoists)` / `CheckedChildValue(envelope, toMany)` are SEMANTIC nodes; the
+lowering emits them (`CheckedEnvelope.wrap/attach/childTerm`, one lateral
+evaluation per child — LEFT LATERAL ON TRUE for a to-one child, CROSS
+LATERAL for a to-many), the DuckDB dialect spells them
+(`sql/dialect/CheckedDefectsToLists`: list lambdas, index i-1, a JSON merge
+patch for the path); every other dialect walls with a named capability. The
+emitter carries `checked` as a final frame fact. Witness
+(`GraphFetchCheckedIntegrationTest.nestedObjectConstraintsHoistWithPath`):
+person→firm (to-one) and person→addresses (to-many) with a violating firm and
+a violating second address; a person with no firm reports nothing.
+
+**Measured, both lanes, full corpus.** DuckDB: 0 LOST / 0 GAINED (fail 111,
+accepted 14): `testCheckedWithCircularConstraints` now EVALUATES its nested
+Firm constraint (the branch's regression is gone) and keeps its accepted
+witness, the engine golden's own defect. H2: 444 → 447 by USER ruling ("skip
+h2 for now") — three rows whose checked trees have class-typed children wall
+on the list-lambda capability, a lane gap named in the roster, not a product
+regression to hide. Own-corpus parity 2324 → 2331 (the witness model's seven
+elements). Guards: CodeShapeGuardrail, CarrierPurityRatchet (pin 141),
+JdbcSurfaceCensus, claims, natives — unchanged.
+
+**Chain (parallel): build 23s, G1 75s, G3 10s, G4 95s, G5 51s, G6 143s, G7
+35s, G9 29s, G8 145s — GREEN.**
+
+**Audit (USER: "are you sure our implementation of the constraint stuff was
+actually good?") — what stands and what is owed.** Sound: semantic nodes +
+dialect strategy, one evaluation per child, a final frame fact — the two
+guards that refused the first version were right. Owed, in the ledger: hoist
+order across several checked children follows tree order (the engine sorts
+subtrees — needs an engine-produced golden); embedded (inline) children's own
+constraints are not evaluated; a broken to-one mapping duplicates the parent
+through the LEFT LATERAL instead of raising; constraints are evaluated against
+the STORE, the engine's against the fetched tree (canEvaluateForTree) — a
+product decision carried by default, to be ruled on. Structural: the
+derived-leaf inliner (`GraphEmission.inlineThis`) is a second expression
+compiler over the object graph next to the projection path's demand
+machinery; this arc extended it (emptiness, to-one navigation, reducers)
+rather than unifying them — a design leg, recorded, not a next batch.
+
+**On the effort:** three batches and two reverts for one accepted row and a
+product feature nobody has asked for yet. Each piece is defensible; the
+sequencing was not — after the first revert the arc should have been parked
+for cluster C. Cluster A closes here.

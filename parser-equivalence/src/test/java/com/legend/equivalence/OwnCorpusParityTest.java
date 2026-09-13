@@ -47,7 +47,9 @@ class OwnCorpusParityTest {
     // 2318 → 2324 (reducers over navigations in derived leaves, 2026-09-12):
     // the constraint-reducer witness's model (2 classes, a database, a
     // mapping, a connection, a runtime) joined the own corpus and matched
-    static final int MIN_MATCHED = 2324;   // 4.145.0 bump (batch 8): +16 —
+    // 2324 → 2331 (nested-constraint witness re-landed, 2026-09-12): its
+    // model's seven elements joined the own corpus and matched
+    static final int MIN_MATCHED = 2331;   // 4.145.0 bump (batch 8): +16 —
                                            // DocumentationTest's snippets
                                            // joined the own corpus
 

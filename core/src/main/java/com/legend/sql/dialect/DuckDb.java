@@ -106,6 +106,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                         new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
                         new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
+                        new CheckedDefectsToLists(),
                         new SubstringClamp(), new RawSqlAdapt()));
         if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
             ps.add(new StableScanOrder());
