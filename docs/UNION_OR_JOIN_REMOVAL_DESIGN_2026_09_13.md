@@ -133,3 +133,33 @@ so the engine's bridge only fires on non-uniform routes; the five corpus rows ar
 mappings run with the flag and assert the bridge's marker column. Decision owed when the
 bridge leg starts: apply the bridge to uniform cases too under the flag (engine parity), or
 treat the five as text contracts because the lean form is already the better plan.
+
+## 10. Step 1b attempted and parked (2026-09-13) — the finding
+
+Built as designed: one decision (`sharedRouteSuffixes`: single-hop routes of one property with
+one raw condition, members on ≥2 distinct tables — the member table derived from the JOIN
+definition, never a set-id lookup, since corpus members declare no `~mainTable`; the routing
+class's main table declared-or-inferred) consulted by the union body's inbound-key
+registration and the routed navigation. The condition side worked
+(`on ("personset1_0".FirmID__employees = "root".ID)`). The union body did not: its key
+registry is ONE projected name per physical column per member (`srcKeysByOrdinal`:
+ordinal → physical column → name), and the REVERSE lift (Person→firm) already projects the same
+physical column as `FirmID_0` for its own condition; the shared name overwrote it and the lift's
+condition lost its column ("relation has no column 'FirmID_0'"). Two demands on one physical
+column need two projected names — a registry of names-per-column, touching the projection
+loop, recordKeyThreads, the lift and chain registrations. That is 1b's real cost; parked after
+three fix cycles (the rule). Step 1a (coalesce) stays as the lean form; the non-uniform witness
+(different key columns per member keep the OR) rides with it.
+
+## 11. Measured plans (DuckDB, witness shape, 1,000 firms × 10,000 people in two tables)
+
+| join condition | operator | time |
+|---|---|---|
+| `u.k0 = f.ID or u.k1 = f.ID` (engine form) | BLOCKWISE_NL_JOIN | 9.1 ms |
+| `coalesce(u.k0, u.k1) = f.ID` (step 1a) | HASH_JOIN | 1.5 ms |
+| `u.k = f.ID` (step 1b, merged column) | HASH_JOIN | 1.2 ms |
+
+The plan benefit lives in the predicate: the OR forces a nested-loop join; the coalesce gets the
+same hash join as the merged column. 1b is cosmetic (two null-padded columns fewer). DECISION
+(USER 2026-09-13, "roll the whole thing back?"): keep 1a; 1b only if the key registry is ever
+generalized to several names per column for another reason.

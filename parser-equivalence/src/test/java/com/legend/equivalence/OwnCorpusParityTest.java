@@ -49,7 +49,7 @@ class OwnCorpusParityTest {
     // mapping, a connection, a runtime) joined the own corpus and matched
     // 2324 → 2331 (nested-constraint witness re-landed, 2026-09-12): its
     // model's seven elements joined the own corpus and matched
-    static final int MIN_MATCHED = 2337;   // 2331 -> 2337 (lean union join witness, 2026-09-13: its model's six elements joined the own corpus and matched) | 4.145.0 bump (batch 8): +16 —
+    static final int MIN_MATCHED = 2338;   // 2337 -> 2338 (non-uniform union witness, 2026-09-13: the Contractor union joined the own corpus and matched) | 2331 -> 2337 (lean union join witness, 2026-09-13: its model's six elements joined the own corpus and matched) | 4.145.0 bump (batch 8): +16 —
                                            // DocumentationTest's snippets
                                            // joined the own corpus
 

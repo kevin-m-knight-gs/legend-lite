@@ -1616,3 +1616,19 @@ G6 138s, G7 35s, G9 28s, G8 141s — GREEN.
 no coalesce; one grouping decision shared by the union synthesis and the emission; the
 strict member-paired predicate keeps its suffixed columns only when it rides); then the
 connection flag carrier; then the bridge under the flag for the non-uniform case.
+
+## Non-uniform union witness + step 1b parked — 2026-09-13
+
+**Witness.** `UnionTargetLeanJoinTest` gains the NON-UNIFORM case: two members keyed on
+DIFFERENT columns (FIRM_ID vs OWNER_ID) keep the per-member OR and return the right rows.
+Parity 2337 → 2338 (the Contractor union). Chain: build 26s, G1 66s, G3 10s, G4 104s,
+G5 46s, G6 133s, G7 35s, G9 29s, G8 139s — GREEN.
+
+**Step 1b parked (spec §10).** Built as designed and reverted after three fix cycles: the
+union body's key registry holds ONE projected name per physical column per member, and the
+reverse lift already projects the same column under its own suffixed name; a second name
+per column is a registry change across every consumer.
+
+**Measured (spec §11, DuckDB).** OR → BLOCKWISE_NL_JOIN 9.1 ms; coalesce (1a) → HASH_JOIN
+1.5 ms; merged column (1b) → HASH_JOIN 1.2 ms. The plan benefit lives in the predicate; 1a
+stays (USER decision on "roll the whole thing back?").

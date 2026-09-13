@@ -25,16 +25,21 @@ import org.junit.jupiter.api.Test;
 class UnionTargetLeanJoinTest {
     private static final String MODEL = """
             ###Pure
-            Class ul::Firm { name: String[1]; employees: ul::Person[*]; }
+            Class ul::Firm { name: String[1]; employees: ul::Person[*]; contractors: ul::Contractor[*]; }
             Class ul::Person { lastName: String[1]; }
+            Class ul::Contractor { lastName: String[1]; }
             ###Relational
             Database ul::db
             (
                 Table FIRM (ID INT PRIMARY KEY, NAME VARCHAR(20))
                 Table P1 (ID INT PRIMARY KEY, LAST VARCHAR(20), FIRM_ID INT)
                 Table P2 (ID INT PRIMARY KEY, LAST VARCHAR(20), FIRM_ID INT)
+                Table C1 (ID INT PRIMARY KEY, LAST VARCHAR(20), FIRM_ID INT)
+                Table C2 (ID INT PRIMARY KEY, LAST VARCHAR(20), OWNER_ID INT)
                 Join f_p1(FIRM.ID = P1.FIRM_ID)
                 Join f_p2(FIRM.ID = P2.FIRM_ID)
+                Join f_c1(FIRM.ID = C1.FIRM_ID)
+                Join f_c2(FIRM.ID = C2.OWNER_ID)
             )
             ###Mapping
             Mapping ul::m
@@ -44,7 +49,23 @@ class UnionTargetLeanJoinTest {
                     ~mainTable [ul::db]FIRM
                     name: [ul::db]FIRM.NAME,
                     employees[p1]: [ul::db]@f_p1,
-                    employees[p2]: [ul::db]@f_p2
+                    employees[p2]: [ul::db]@f_p2,
+                    contractors[c1]: [ul::db]@f_c1,
+                    contractors[c2]: [ul::db]@f_c2
+                }
+                *ul::Contractor: Operation
+                {
+                    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(c1, c2)
+                }
+                ul::Contractor[c1]: Relational
+                {
+                    ~mainTable [ul::db]C1
+                    lastName: [ul::db]C1.LAST
+                }
+                ul::Contractor[c2]: Relational
+                {
+                    ~mainTable [ul::db]C2
+                    lastName: [ul::db]C2.LAST
                 }
                 *ul::Person: Operation
                 {
@@ -88,6 +109,10 @@ class UnionTargetLeanJoinTest {
                 stmt.execute("insert into FIRM values (1, 'Both'), (2, 'OnlyP2'), (3, 'None')");
                 stmt.execute("insert into P1 values (10, 'a1', 1)");
                 stmt.execute("insert into P2 values (20, 'b1', 1), (21, 'b2', 2)");
+                stmt.execute("create table C1 (ID int primary key, LAST varchar(20), FIRM_ID int)");
+                stmt.execute("create table C2 (ID int primary key, LAST varchar(20), OWNER_ID int)");
+                stmt.execute("insert into C1 values (30, 'k1', 1)");
+                stmt.execute("insert into C2 values (40, 'm1', 1), (41, 'm2', 3)");
             }
             assertEquals(List.of(
                             List.of("Both", "a1"), List.of("Both", "b1"),
@@ -99,6 +124,14 @@ class UnionTargetLeanJoinTest {
                     rows(connection, "|ul::Firm.all()->filter(f|$f.employees->isNotEmpty())"
                             + "->project(~[firm: f|$f.name, n: f|$f.employees->size()])"),
                     "membership counts per firm across both sets");
+            // NON-UNIFORM routes (member 1 keyed on FIRM_ID, member 2 on OWNER_ID):
+            // no shared raw condition, so the per-member OR stays — and stays right
+            assertEquals(List.of(
+                            List.of("Both", "k1"), List.of("Both", "m1"),
+                            List.of("None", "m2"),
+                            java.util.Arrays.asList("OnlyP2", null)),
+                    rows(connection, "|ul::Firm.all()->project(~[firm: f|$f.name, c: f|$f.contractors.lastName])"),
+                    "different key columns per member: each member matches on its own condition");
         }
     }
 }
