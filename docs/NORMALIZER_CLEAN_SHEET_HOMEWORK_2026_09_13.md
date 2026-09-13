@@ -112,7 +112,11 @@ core_relational/relational/relationalMappingExecution.pure:865-876  getPropertyT
 ```
 
 **Rule (R6).** `$mapping` is the mapping being executed, not the mapping that declared the property
-mapping: a navigation's target set is resolved in the QUERIED mapping's closure. Our generated
+mapping — receipt for the chain: `getPropertyTargetSetImplementation(…, mapping)` is called at
+`relationalMappingExecution.pure:838` from `generatePropertySql(…, mapping, runtime, …)`, itself
+called at `:755` from `processProperty` with the execution's `$mapping` (the mapping the runtime
+executes against), and the router's own uses at `router_operations.pure:48` / `routing.pure:390`
+pass the routing mapping. A navigation's target set is resolved in the QUERIED mapping's closure. Our generated
 functions already honour this for plain navigations (`getAll(Target)`, §2b); the include-direction
 re-synthesis block exists only because union targets do not (R7).
 
@@ -133,6 +137,13 @@ re-synthesis block exists only because union targets do not (R7).
   condition ORs the per-entry conditions" — the union's row layout leaking into the navigating
   class's function. The re-synthesis block (`routedTargetGainsOperation`, 2 corpus hits) exists
   only because of this.
+- `router_operations.pure:57-70` `potentiallyResolveOperation(s, mapping)`: when the resolved
+  target is an Operation set (union/inheritance), the ENGINE expands it into member sets at
+  navigation time (`reprocessOperationForAssociationMapping`), under the routing mapping — the
+  engine's own version of B3's resolver-side expansion.
+- `MappingNormalizer.routedTargetGainsOperation`: the re-synthesis detector fires only for a
+  ROUTED join (`targetSetId != null`) whose target class has a union/inheritance set under the
+  including mapping and none under the declaring one — exactly the union leak, nothing else.
 - docs/GATES.md "Non-uniform union witness + step 1b parked — 2026-09-13": uniform members
   coalesce to ONE key (landed, HASH_JOIN ≈ 1.5 ms vs the OR's BLOCKWISE_NL_JOIN ≈ 9.1 ms); the
   non-uniform case (members keyed on DIFFERENT columns, `UnionTargetLeanJoinTest`) keeps the
@@ -155,8 +166,9 @@ for rows from FIRM, `FIRM_ID_1` for rows from FIRM_ARCHIVE, NULL in the other me
 class navigating to Firm has to write its join condition as an OR over those numbered columns.
 Writing that OR requires knowing, while generating Person, that Firm is a union in the queried
 mapping, how many members it has and in which order. That knowledge lives in the mapping that
-declares the union, so Person's function depends on it, and Person needs one function per mapping
-it can be queried through. The fix: (1) the union's function carries its key once plus which member
+declares the union, so Person's function depends on it; today a special case regenerates Person
+under the including mapping (2 corpus hits), and the rejected plan would have generated every class
+under every mapping. The fix: (1) the union's function carries its key once plus which member
 the row came from; (2) Person's function says "navigate to `Firm.all()` where person.FIRM_ID equals
 firm.id", the same words whether Firm is one table or a union; (3) at query time the resolver, which
 already looks up what Firm is under the active mapping, joins Person to the union's rows on that
@@ -174,7 +186,7 @@ the OR never appears. Person's function is then identical under every mapping.
 | own class-mapping sets | 2,058 |
 | lifted functions today | 1,703 |
 | mappings with includes (closure > 1) | 134 |
-| visible INCLUDED sets summed over mappings (viewpoint pairs beyond own) | 779 |
+| extra (mapping, included set) pairs summed over mappings — the ceiling the rejected per-mapping-functions plan would have paid | 779 |
 | include-direction re-synthesis hits today | 2 |
 | mappings with a class mapped in > 1 included mapping ("ambiguous" today) | 43 |
 | largest closures | Calendarmap, milestoningmapwithconstraints: 25 visible sets; the graphFetch resultSourcing three: 24 |
@@ -235,7 +247,8 @@ targets leak, and the fix for that is a resolver and lowering change, not more f
 Normalizer: the union function projects its key once plus a member tag and stops emitting
 member-numbered key columns; the navigating class emits one `navigate` to `Target.all()` with a
 predicate (branching on the member only when the routes differ per member); the re-synthesis
-block, `routedTargetGainsOperation` and `MappedClasses`' global set die. Resolver: when
+block and `routedTargetGainsOperation` die, and `MappedClasses`' GLOBAL "is this class mapped"
+answer becomes the per-closure answer from the resolved mapping record (R1). Resolver: when
 `Target.all()` resolves to a union under the active mapping, expand the navigation against the
 union's single key, building the branching predicate from the stamped routing facts (extending
 `propertyCondToColumns`). Lowering: one rewrite rule, join over union distributes into per-arm
