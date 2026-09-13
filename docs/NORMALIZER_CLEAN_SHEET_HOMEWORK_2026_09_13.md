@@ -5,6 +5,21 @@ idea is that the compile step has all the facts so the normalizer is one simple 
 for mappings only." This doc checks that idea against the engine's own source at the pin and the
 corpus, names where our code diverges, and sets a batch plan. Nothing here is built.
 
+## The plan in one paragraph (plain words)
+
+Keep one function per set, never per queried mapping. A class function already reaches other
+classes only through `Class.all()`, which the resolver answers under the mapping being queried, so
+plain navigations already work the engine's way. The ONE leak is union/inheritance targets: the
+generator bakes the union's member layout (member-numbered key columns, an OR condition) into the
+navigating class's function, so that function depends on which mapping declares the union. Close
+the leak by giving the union one key plus a member tag, keeping the navigating function ignorant of
+the union, expanding the navigation in the resolver (where `Class.all()` is already resolved and
+association predicates already become join conditions), and choosing the execution shape in the
+lowering (one hash join when the predicate ignores the member; the join pushed into each member
+arm when it branches per member). Around that: one resolved-mapping record before generation, the
+engine's include rules adopted with receipts, error policy in one place, every quiet miss made
+loud, one implementation per knowledge question.
+
 ## NOT YET VERIFIED — questions, not facts
 
 1. **Rows under the engine's last-root rule (B2).** 43 corpus mappings have a class mapped in more
@@ -32,7 +47,8 @@ every reference to another set (extends, union member, `prop[setId]` route, asso
 direct reference resolved by the engine's rules, extends flattened, identity sets from runtimes
 added, implied sets made explicit, per-set store facts attached, structure validated. 6. Translate
 each resolved set into one Pure function (the large, inherent part: the engine's relational
-mapping semantics); per mapping viewpoint; no policy, no fact-finding inside. 7. Emit functions +
+mapping semantics); ONE per set — a navigation names `Target.all()` and the queried mapping decides
+the target set at query time (R6, R7); no policy, no fact-finding inside. 7. Emit functions +
 binding table + facts stamped on it; the mapping DSL is dead from here. 8. Compile everything
 through the one pipeline. 9. Later phases read the binding table and knowledge only.
 
@@ -96,9 +112,9 @@ core_relational/relational/relationalMappingExecution.pure:865-876  getPropertyT
 ```
 
 **Rule (R6).** `$mapping` is the mapping being executed, not the mapping that declared the property
-mapping: a navigation's target set is resolved in the QUERIED mapping's closure. That is exactly
-"translate per mapping viewpoint" (§1 step 6), and it is why our include-direction re-synthesis
-block exists as a special case.
+mapping: a navigation's target set is resolved in the QUERIED mapping's closure. Our generated
+functions already honour this for plain navigations (`getAll(Target)`, §2b); the include-direction
+re-synthesis block exists only because union targets do not (R7).
 
 ## 2b. Receipts — how a generated function reaches another class today
 
@@ -130,6 +146,25 @@ class's function. The lowering chooses: predicate independent of the member → 
 key; predicate branching on the member → the join distributes into the union's arms (join each
 member with its own condition, then stack), so each arm is an equality join. Measured per the
 witness before it replaces the OR.
+
+## 2c. The union piece in plain words
+
+A union set says "all Firms are the rows of FIRM stacked with the rows of FIRM_ARCHIVE". Today the
+union's function copies each member's key column out under a member-numbered name (`FIRM_ID_0`
+for rows from FIRM, `FIRM_ID_1` for rows from FIRM_ARCHIVE, NULL in the other member's rows), and a
+class navigating to Firm has to write its join condition as an OR over those numbered columns.
+Writing that OR requires knowing, while generating Person, that Firm is a union in the queried
+mapping, how many members it has and in which order. That knowledge lives in the mapping that
+declares the union, so Person's function depends on it, and Person needs one function per mapping
+it can be queried through. The fix: (1) the union's function carries its key once plus which member
+the row came from; (2) Person's function says "navigate to `Firm.all()` where person.FIRM_ID equals
+firm.id", the same words whether Firm is one table or a union; (3) at query time the resolver, which
+already looks up what Firm is under the active mapping, joins Person to the union's rows on that
+one key; when the two members are reached by DIFFERENT columns (the non-uniform case) the join
+predicate branches on the member tag; (4) the lowering picks the execution: one hash join when the
+predicate ignores the member, and when it branches, the join is pushed into each member's arm
+(join Person to FIRM on FIRM_ID, join Person to FIRM_ARCHIVE on OWNER_ID, stack the results), so
+the OR never appears. Person's function is then identical under every mapping.
 
 ## 3. Receipts — the corpus (probe run 2026-09-13, DuckDB lane, one graph)
 
