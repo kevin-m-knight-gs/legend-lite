@@ -464,7 +464,8 @@ public final class MappingNormalizer {
                 assocBindings,
                 enumerationMappingsWithIncludes(md, model),
                 md.testSuitesSource(),
-                SetDispatch.routedTargetSets(md, model), resolvedStores, ledger.facts());
+                SetDispatch.routedTargetSets(md, model), resolvedStores,
+                ledger.facts(pp.surface(), md, model));
     }
 
     // ====================================================================

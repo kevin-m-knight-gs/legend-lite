@@ -1944,3 +1944,33 @@ alone GREEN. No production file changed between the runs.
 the `routedTargetSetOf` fallback into `ModelBuilder`) → facts stamped on the compiled mapping;
 the fallback's rule differs from the compiled `routedTargetSets` (it records every route; the
 compiled fact only named-set navigations), so it is stamped as its own map.
+
+## T4.1 step 4b — the surface facts stamped on the compiled mapping; the index's legacy walk gone — step 4 CLOSED — 2026-09-13
+
+**What landed.** `MappingDefinition.NormalizationFacts` gains the three facts Phase F used to
+re-read off the authored mapping: `unionMembers` (an Operation union's member CLASSES, member
+order, only when every member set resolves), `routedTargetClasses` (owner class → property →
+the one class every route lands on; the reader's early-return-on-conflict kept), `routedSets`
+(property → the SOLE set id its routes name across the include closure: class-PM joins,
+`Otherwise` fallbacks, association PMs — the rule of `ModelBuilder.routedTargetSetOf`, which
+differed from the compiled `routedTargetSets` and is now its own map). `MappingFacts` computes
+them at Phase E from the mapping's SURFACE — the very object the F readers read (not the
+pre-passed mapping, whose flattened `extends` would have answered more). `PureModelContext`'s
+`unionMemberClasses`, `routedTargetClass` and the `routedTargetSetOf` fallback read the stamped
+facts; `ModelBuilder.routedTargetSetOf` (the last include walk outside the normalizer) is deleted.
+
+**Reach-back census.** PureModelContext 6 → 4; ModelBuilder's one remaining count is the
+accessor's own declaration. The normalizer's include walks: two reads in `MappingClosures`.
+
+**Step 4 closed.** The nine include-recursive entry points are readers of one include-order
+fact; Phase F reads mapping facts off the artifact; the reach-back census is at its floor for
+the normalizer (two construction reads) and the context (the analysis archive's accessor, the
+integrity pass's presence probe, and the two surface-contract readers the census already
+classifies).
+
+**Witness.** `OneIndexTest.surfaceFactsAreStamped`: a union over two members, a routed
+class-typed property, the sole-set hint — all three answered off the compiled mapping.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** build 24s, G1 77s, G3 11s,
+G4 120s, G5 61s, G6 152s, G7 39s, G9 28s, G8 157s — G8 RED on the own-corpus pin alone
+(2392 → 2398); G8 re-ran alone (87s) GREEN. No production file changed between the runs.

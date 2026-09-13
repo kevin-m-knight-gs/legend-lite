@@ -84,12 +84,41 @@ public record MappingDefinition(
             java.util.Map<String, String> poisons,
             java.util.Map<String, List<String>> mixedUnions,
             java.util.Map<String, List<KeyThread>> unionKeyThreads,
-            java.util.Map<String, java.util.Set<String>> nullableCensus) {
+            java.util.Map<String, java.util.Set<String>> nullableCensus,
+            java.util.Map<String, List<String>> unionMembers,
+            java.util.Map<String, java.util.Map<String, String>> routedTargetClasses,
+            java.util.Map<String, String> routedSets) {
 
         public static final NormalizationFacts NONE = new NormalizationFacts(
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+
+        /** The synthesis facts alone (T4.1 step 2); the surface facts empty. */
+        public NormalizationFacts(java.util.Map<String, String> poisons,
+                java.util.Map<String, List<String>> mixedUnions,
+                java.util.Map<String, List<KeyThread>> unionKeyThreads,
+                java.util.Map<String, java.util.Set<String>> nullableCensus) {
+            this(poisons, mixedUnions, unionKeyThreads, nullableCensus,
+                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+        }
 
         public NormalizationFacts {
+            // T4.1 step 4b — the SURFACE facts Phase F used to re-read off the
+            // authored mapping: an Operation union's member CLASSES (member
+            // order; only when every member set resolves), the routed target
+            // class of a class-typed property per owner class (only when every
+            // route of the property lands on one class), and the SOLE set id
+            // every route of a property names across the include closure
+            // (class-PM joins, otherwise fallbacks, association PMs)
+            unionMembers = unionMembers == null ? java.util.Map.of() : java.util.Map.copyOf(unionMembers);
+            if (routedTargetClasses == null) {
+                routedTargetClasses = java.util.Map.of();
+            } else {
+                java.util.Map<String, java.util.Map<String, String>> copy = new java.util.LinkedHashMap<>();
+                routedTargetClasses.forEach((k, v) -> copy.put(k, java.util.Map.copyOf(v)));
+                routedTargetClasses = java.util.Collections.unmodifiableMap(copy);
+            }
+            routedSets = routedSets == null ? java.util.Map.of() : java.util.Map.copyOf(routedSets);
             poisons = poisons == null ? java.util.Map.of() : java.util.Map.copyOf(poisons);
             mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
             unionKeyThreads = unionKeyThreads == null

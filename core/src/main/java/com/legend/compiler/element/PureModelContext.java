@@ -260,7 +260,8 @@ public final class PureModelContext implements ModelContext {
         // the NORMALIZED artifact carries the closure-wide table
         return model.findMapping(mappingFqn)
                 .map(m -> m.routedTargetSets().get(head))
-                .or(() -> model.routedTargetSetOf(mappingFqn, head));
+                .or(() -> model.findMapping(mappingFqn)
+                        .map(m -> m.facts().routedSets().get(head)));
     }
 
     @Override
@@ -300,71 +301,24 @@ public final class PureModelContext implements ModelContext {
         return model.findMapping(fqn);
     }
 
+    /** T4.1 step 4b: the SURFACE facts Phase F reads off the compiled
+     * mapping — an Operation union's member classes, a class-typed
+     * property's routed target class — stamped at Phase E from the
+     * authored mapping's surface; nothing here re-reads a legacy record. */
     @Override
     public java.util.@com.legend.Nullable List<String> unionMemberClasses(
             String mappingFqn, String classFqn) {
-        var lm = model.findLegacyMapping(mappingFqn).orElse(null);
-        if (lm == null) {
-            return null;
-        }
-        for (com.legend.model.ClassMapping cm : lm.classMappings()) {
-            if (cm instanceof com.legend.model.ClassMapping.Union u
-                    && u.className().equals(classFqn)) {
-                java.util.List<String> out = new java.util.ArrayList<>();
-                for (String sid : u.memberSetIds()) {
-                    String memberClass = null;
-                    for (com.legend.model.ClassMapping m2 : lm.classMappings()) {
-                        if (sid.equals(m2.setId())) {
-                            memberClass = m2.className();
-                        }
-                    }
-                    if (memberClass == null) {
-                        return null;
-                    }
-                    out.add(memberClass);
-                }
-                return out;
-            }
-        }
-        return null;
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().unionMembers().get(classFqn)).orElse(null);
     }
 
     @Override
     public @com.legend.Nullable String routedTargetClass(String mappingFqn,
             String ownerClass, String prop) {
-        var lm = model.findLegacyMapping(mappingFqn).orElse(null);
-        if (lm == null) {
-            return null;
-        }
-        for (com.legend.model.ClassMapping cm : lm.classMappings()) {
-            if (!(cm instanceof com.legend.model.ClassMapping.Relational rcm)
-                    || !rcm.className().equals(ownerClass)) {
-                continue;
-            }
-            // ONE class only when every route of the property lands on
-            // the same class: prop[car]/prop[bike] routes to two classes
-            // — no single route fact (the first route used to win, and a
-            // chain cast over the union target was wrongly judged total)
-            String routed = null;
-            for (com.legend.model.PropertyMapping pm : rcm.propertyMappings()) {
-                if (pm instanceof com.legend.model.PropertyMapping.Join j
-                        && j.propertyName().equals(prop)
-                        && j.targetSetId() != null) {
-                    for (com.legend.model.ClassMapping m2 : lm.classMappings()) {
-                        if (j.targetSetId().equals(m2.setId())) {
-                            if (routed != null && !routed.equals(m2.className())) {
-                                return null;
-                            }
-                            routed = m2.className();
-                        }
-                    }
-                }
-            }
-            if (routed != null) {
-                return routed;
-            }
-        }
-        return null;
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().routedTargetClasses().getOrDefault(ownerClass, java.util.Map.of())
+                        .get(prop))
+                .orElse(null);
     }
 
     @Override

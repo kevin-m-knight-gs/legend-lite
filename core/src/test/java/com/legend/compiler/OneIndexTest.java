@@ -158,4 +158,36 @@ class OneIndexTest {
         assertTrue(reason != null && reason.contains("w::Firm"), String.valueOf(reason));
         assertEquals(reason, poisoned.mappingPoison("w::M2", "w::Person").orElseThrow());
     }
+
+    @Test
+    @DisplayName("step 4b: union members, routed target classes and routed sets are read off the compiled mapping")
+    void surfaceFactsAreStamped() {
+        ModelContext ctx = Compiler.compileModel("""
+                Class w::Vehicle { plate: String[1]; }
+                Class w::Car extends w::Vehicle { doors: Integer[1]; }
+                Class w::Bike extends w::Vehicle { gears: Integer[1]; }
+                Class w::Owner { name: String[1]; car: w::Car[0..1]; }
+                ###Relational
+                Database w::DB (
+                  Table CAR (ID INTEGER PRIMARY KEY, PLATE VARCHAR(20), DOORS INTEGER)
+                  Table BIKE (ID INTEGER PRIMARY KEY, PLATE VARCHAR(20), GEARS INTEGER)
+                  Table OWNER (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), CAR_ID INTEGER)
+                  Join OwnerCar (OWNER.CAR_ID = CAR.ID)
+                )
+                ###Mapping
+                Mapping w::M (
+                  *w::Vehicle : Operation { meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(car, bike) }
+                  w::Car[car] : Relational { ~mainTable [w::DB] CAR plate: CAR.PLATE, doors: CAR.DOORS }
+                  w::Bike[bike] : Relational { ~mainTable [w::DB] BIKE plate: BIKE.PLATE, gears: BIKE.GEARS }
+                  *w::Owner : Relational { ~mainTable [w::DB] OWNER name: OWNER.NAME, car[car]: [w::DB] @OwnerCar }
+                )
+                """);
+        MappingDefinition md = ctx.findMapping("w::M").orElseThrow();
+        assertEquals(List.of("w::Car", "w::Bike"), md.facts().unionMembers().get("w::Vehicle"));
+        assertEquals(List.of("w::Car", "w::Bike"), ctx.unionMemberClasses("w::M", "w::Vehicle"));
+        assertEquals("w::Car", ctx.routedTargetClass("w::M", "w::Owner", "car"));
+        assertEquals(null, ctx.routedTargetClass("w::M", "w::Owner", "name"));
+        assertEquals("car", md.facts().routedSets().get("car"));
+        assertEquals("car", ctx.routedTargetSetOf("w::M", "car").orElse(null));
+    }
 }

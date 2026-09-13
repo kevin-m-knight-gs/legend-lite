@@ -95,7 +95,14 @@ class LegacyReachbackCensusTest {
             // property mapping's ROUTED target set, read ON the context
             // (the chain-position cast rule's facts; the resolver never
             // touches the parse artifact)
-            "core/src/main/java/com/legend/compiler/element/PureModelContext.java", 6,
+            // 6 -> 4 (T4.1 step 4b, 2026-09-13): unionMemberClasses and
+            // routedTargetClass read the facts STAMPED on the compiled
+            // mapping (MappingDefinition.NormalizationFacts, computed at
+            // Phase E from the mapping's surface); the routedTargetSetOf
+            // fallback into the index's legacy walk is gone the same way
+            "core/src/main/java/com/legend/compiler/element/PureModelContext.java", 4,
+            // the accessor's own declaration (registry plumbing); the walk
+            // it used to serve (routedTargetSetOf) died in step 4b
             "core/src/main/java/com/legend/compiler/ModelBuilder.java", 1));
 
     @Test

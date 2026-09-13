@@ -4,6 +4,7 @@
 package com.legend.normalizer;
 
 import com.legend.model.KeyThread;
+import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
 
 import java.util.LinkedHashMap;
@@ -48,8 +49,13 @@ final class MappingLedger {
         nullableCensus.computeIfAbsent(bucket, k -> new TreeSet<>()).add(witness);
     }
 
-    MappingDefinition.NormalizationFacts facts() {
+    /** The compiled mapping's facts: what this synthesis recorded, plus
+     * the SURFACE facts Phase F reads off the artifact (T4.1 step 4b). */
+    MappingDefinition.NormalizationFacts facts(LegacyMappingDefinition surface,
+            LegacyMappingDefinition md, com.legend.compiler.ModelBuilder model) {
         return new MappingDefinition.NormalizationFacts(
-                poisons, mixedUnions, unionKeyThreads, nullableCensus);
+                poisons, mixedUnions, unionKeyThreads, nullableCensus,
+                MappingFacts.unionMembers(surface), MappingFacts.routedTargetClasses(surface),
+                MappingFacts.routedSets(md, model));
     }
 }
