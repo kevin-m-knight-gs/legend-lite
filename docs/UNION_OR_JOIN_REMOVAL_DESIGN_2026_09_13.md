@@ -81,3 +81,55 @@ Estimate: two to three sessions. Design first; nothing built until the marker sh
 - Chained unions (union → union): first/last-in-chain semantics across two joins.
 - Milestone filters in the join predicate (the bitemporal rows may align as a by-product).
 - Whether our union legs already carry `pk_i_j` for every set (the text says yes: `"root".ID as "pk_0_0", null as "pk_0_1"`).
+
+## 7. The lean alternative (USER question 2026-09-13: "can we not just push the join in before the union?")
+
+Pushing the join into the legs is right for an INNER join with one uniform key, and optimizers
+do it themselves. It is wrong in general for three reasons: an OUTER join pushed into legs
+produces a null row per non-matching leg (a firm with employees only in set 2 gets a spurious
+`(Firm, null)` from the set-1 leg; a firm with no employees appears twice); the rest of the join
+tree, filters and aggregations over the root would have to be replicated per leg; and the per-set
+join conditions may differ (a different column, expression or table per set — the reason the OR
+exists at all).
+
+What the platform SHOULD do under the lean ruling, before any bridge: when every set pair joins
+through the SAME source expression, emit ONE merged key column in the union and ONE equality:
+
+    left join (select …, FirmID from PersonSet1 union all select …, FirmID from PersonSet2) as p
+      on p.FirmID = root.ID
+
+A plain equi-join over one relation: outer semantics preserved, the database pushes it into the
+legs on its own, leaner than both the OR and the bridge. The OR (and the bridge behind the flag)
+remain for the non-uniform case. Primary-key columns stay per set regardless (two sets may carry
+the same id for different objects; identity needs the set).
+
+Order of work, revised: (1) the merged-key default for uniform conditions — our own lean form,
+rows-judged, measured by the corpus (the union rows' unflagged text asserts will DIVERGE by
+text, by ruling acceptable when rows match — but two of the five assert exact SQL, so those two
+become rows-vs-text decisions); (2) the connection flag carrier; (3) the bridge pass for the
+non-uniform case under the flag. (1) is the product win; (3) is the corpus win.
+
+## 8. Text-risk census for step (1) (2026-09-13) — step 1a LANDED (GATES: Lean union join, step 1): coalesce form, 0 rows moved either way
+
+295 union-mapping tests in the corpus; 67 assert SQL text only. All but two run on the
+standard fixture helper (with or without a named database) whose before-package setups seed
+their tables, so the referee brings the golden to rows and rows judge. The two exceptions are
+the failing bitemporal rows whose asserts are SUBSTRING checks over our SQL text
+(`contains('"lake_thru_0"')`, the `unionalias_N` nesting) — spelling contracts with no rows
+leg by construction. Static text risk of the merged-key default: none. Residual: goldens the
+mirror cannot execute fall back to text at run time — only a corpus run shows those.
+
+## 9. Step 1b and the bridge's rows (2026-09-13)
+
+Step 1a (landed) keeps the per-member suffixed keys and coalesces them in the condition.
+Step 1b projects ONE shared key per route group (each member its own column under the
+shared name; no null padding, no coalesce) — the union synthesis and the join-chain
+emission must consult ONE grouping decision (the shared-table-key discipline's pattern),
+and the strict member-paired predicate (graph children) keeps its suffixed columns only
+when it rides.
+
+Consequence for the five bridge rows: after 1a/1b the uniform case has no OR to remove,
+so the engine's bridge only fires on non-uniform routes; the five corpus rows are UNIFORM
+mappings run with the flag and assert the bridge's marker column. Decision owed when the
+bridge leg starts: apply the bridge to uniform cases too under the flag (engine parity), or
+treat the five as text contracts because the lean form is already the better plan.

@@ -1581,3 +1581,38 @@ G3 11s, G4 94s, G5 47s, G6 141s, G7 34s, G9 29s, G8 143s — GREEN.
 
 **Also in this batch:** `docs/UNION_OR_JOIN_REMOVAL_DESIGN_2026_09_13.md` — the spec of
 the engine's union OR-join removal (the five union rows' missing half), design only.
+
+## Lean union join, step 1 — 2026-09-13 (union family; USER: "push the join in before the union?")
+
+**What changed.** A plain class routing INTO a union-mapped target through several
+single-hop routes that share ONE raw condition (the same source expression against a
+same-named column on each member's own table) now joins on ONE equality over a coalesce
+of the members' suffixed keys — `coalesce(p.FirmID_0, p.FirmID_1) = root.ID` — instead
+of the engine's k-way OR (`p.FirmID_0 = root.ID or p.FirmID_1 = root.ID`). At most one
+suffixed key is non-null per union row, so the two are equivalent; the equality is an
+equi-join the database hashes. Projections untouched (each member thread still carries
+its own suffixed key), so the union body and the condition cannot drift: the change is
+one arm in `JoinChainEmission.routedNavigation` (routes grouped by raw condition were
+already there; the shared-PRIMARY-KEY-on-one-table group merged, every other group fell
+to per-route disjuncts). Routes with genuinely different conditions keep the OR.
+
+**Why this and not the engine's bridge.** Pushing an OUTER join into the legs yields a
+null row per non-matching leg; replicating the rest of the tree per leg is not lean; and
+per-set conditions may differ. For the uniform case the honest lean form is one equality
+over one relation (docs/UNION_OR_JOIN_REMOVAL_DESIGN_2026_09_13.md §7); the bridge
+(§1–5) remains the answer for the non-uniform case under the flag.
+
+**Measured.** Full corpus both lanes: DuckDB 110 / H2 446, 0 LOST / 0 GAINED — every
+union join in the corpus changed text and every affected row was judged on rows (the
+text-risk census §8: 63 of 67 text-only union tests carry a seeded fixture; the two
+without a rows leg are substring contracts, already failing). Witness
+`UnionTargetLeanJoinTest` (outer semantics: a firm with no employees appears once with a
+null; members matched in both sets; a member matched in one set only). Pins: JDBC
+census +1 (fixture DDL through JDBC, the query through the platform); own-corpus parity
+2331 → 2337 (the witness model). Chain: build 25s, G1 73s, G3 10s, G4 92s, G5 47s,
+G6 138s, G7 35s, G9 28s, G8 141s — GREEN.
+
+**Next (§7 order):** 1b — the members project ONE shared key column (no null padding,
+no coalesce; one grouping decision shared by the union synthesis and the emission; the
+strict member-paired predicate keeps its suffixed columns only when it rides); then the
+connection flag carrier; then the bridge under the flag for the non-uniform case.

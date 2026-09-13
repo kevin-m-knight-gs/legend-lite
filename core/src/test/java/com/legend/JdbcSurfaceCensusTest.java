@@ -323,6 +323,10 @@ class JdbcSurfaceCensusTest {
             // the query under test reaches the database only through the
             // platform (QueryService)
             "core/src/test/java/com/legend/integration/UnionJoinMappedPropertyTest.java",
+            // lean union join witness (2026-09-13): the fixture's DDL and rows
+            // go in through JDBC; the query reaches the database only through
+            // the platform (QueryService)
+            "core/src/test/java/com/legend/integration/UnionTargetLeanJoinTest.java",
             "core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java",
             "core/src/test/java/com/legend/integration/EnumIntegrationTest.java",
             "core/src/test/java/com/legend/integration/ExecutionResultIntegrationTest.java",

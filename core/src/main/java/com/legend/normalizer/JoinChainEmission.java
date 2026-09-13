@@ -604,6 +604,30 @@ final class JoinChainEmission {
                         List.of(eq, java.util.Objects.requireNonNull(flags))));
                 continue;
             }
+            // LEAN union join (USER ruling 2026-09-13): several single-hop
+            // routes with ONE raw condition (the same source expression
+            // against a same-named target column on each member's own
+            // table) are ONE equality over a coalesce of the members'
+            // suffixed keys — at most one is non-null per union row, so
+            // `coalesce(k_0, k_1) = x` ≡ `k_0 = x or k_1 = x` — an equi-join
+            // the database hashes, never a k-way OR. Projections unchanged
+            // (each member thread still carries its own suffixed key).
+            if (es.size() > 1 && es.stream().noneMatch(RouteEntry::inArm)) {
+                List<Integer> ordinals = new ArrayList<>();
+                for (RouteEntry e : es) {
+                    Map<String, String> out = new LinkedHashMap<>();
+                    UnionSynthesis.suffixTargetReads(e.raw(), t,
+                            e.route().targetOrdinal(), out);
+                    for (var en : out.entrySet()) {
+                        keyCols.put(en.getValue(), new String[]{en.getKey(), e.db(), e.tgt()});
+                    }
+                    ordinals.add(e.route().targetOrdinal());
+                }
+                Map<String, String> ignore = new LinkedHashMap<>();
+                orCond = UnionSynthesis.orDistinct(orCond,
+                        UnionSynthesis.coalesceReads(g.getKey(), t, ordinals, ignore));
+                continue;
+            }
             for (RouteEntry e : es) {
                 Map<String, String> out = new LinkedHashMap<>();
                 // in-arm chained routes read the PROPERTY-SCOPED

@@ -171,7 +171,7 @@ Read at the pinned root, each row run scoped with the SQL dump; the graph-fetch 
 - **test6 — FIXED 2026-09-13 (GATES: Graph-root order rule; DuckDB 111→110, H2 447→446).** Was: CONTENT IDENTICAL, ROOT ORDER ONLY — ours X, A, B (set order), golden B, X, A; every firm's employee list matches element for element. Pure specifies no order for `Firm.all()->graphFetch()`; the golden's order is H2's execution order of the engine's union. REFEREE RULE OWED: the unordered-chain register (rows as a multiset) extended to a graph-fetch ROOT ARRAY when the query carries no sort — 1 row (+H2). Not a product defect.
 - **2 bitemporal rows**: pure TEXT asserts (`sql()->contains('"unionalias_1"."lake_thru_0"')` etc.) pinning the engine's nested-union alias convention and a quoting fix for H2 case sensitivity; our SQL spells the milestoning columns as its own union aliases (`lake_thru_1` …) and executes. No rows asserted. WALL candidates (text contract on an engine alias convention), unless the union-removal leg happens to align the spelling.
 
-Verdict: the union family holds ZERO wrong-result rows. 5 = one optimizer feature (design leg), 1 = referee order rule, 2 = text contracts.
+LEAN UNION JOIN step 1a LANDED 2026-09-13 (coalesce equality for uniform routes; 0 rows moved; GATES record). Verdict: the union family holds ZERO wrong-result rows. 5 = one optimizer feature (design leg), 1 = referee order rule, 2 = text contracts.
 
 ### I. lanes (design first) — 21 rows — ladder: FIX (lane)
 
