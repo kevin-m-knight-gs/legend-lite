@@ -423,11 +423,50 @@ guard, the deleted union-to-union arms.
      (table, condition). → B6.
   8. Record text: the B3.2 GATES record says "Diff: 7 files"; the commit touched 8 (the census
      registration). Corrected in the next docs commit.
-- **B3.3 — implicit sets at resolution.** The implicit Operation sets the pre-pass appends
-  become resolve-time answers; then `ResolvedMapping` is built in ONE construction from a
-  mapping's text and its closure, and `MappingView`, `MappedClasses` and `TransitionalShapesTest`
-  are deleted together. USER 2026-09-13: "let's make sure it does not stay this way" — the pin
-  stays until this slice lands.
+- **B3.3 homework (2026-09-13, measured on the DuckDB lane).** Three pre-pass rewrites make
+  "implicit" content, all per mapping over its own closure already: `extends` flattening (explicit
+  text), same-extent inheritance (`ImplicitInheritance.apply`: 10 sets on the corpus inherit an
+  ancestor's PMs over the same table), implicit `Inheritance` ops for routed targets
+  (`implicitOpsForRoutedTargets`: 7 mappings, e.g. the metamodel's `Store`/`Relation`, the
+  inheritance families' `Vehicle`/`RoadVehicle`, `FunctionScope`). None of them is a GLOBAL
+  phase; they are steps of one mapping's construction that today run before `ResolvedMapping`
+  exists, which is why five sites build a bare `MappingView` (the pin). The one graph-wide fact
+  is `MappedClasses` ("is class X mapped anywhere in the graph"), read at seven sites through
+  `classTypedTargetIfMapped` and three direct reads. PROBE at that chokepoint: the global answer
+  differs from the closure answer (engine R1) at 28 (mapping, class) pairs, always global=true /
+  closure=false — e.g. `unionMappingWithFunction` maps Person with `firm: @PersonSet1Firm` and
+  no set for Firm in its closure; the engine compiles such a PM (a missing target set is a
+  compilation WARNING for association ends, `TestRelationalCompilationFromGrammar:2867`) and the
+  property is simply not navigable under that mapping. Ours today navigates it through whichever
+  mapping happens to map Firm. Design: (1) `MappingView` merges into `ResolvedMapping`, built in
+  ONE construction per mapping — surface → extends → same-extent inheritance → store refs →
+  implicit ops → validation — each step a rewrite of the record under construction
+  (`withMapping`), so every closure question is asked of the record; the includer's re-bind
+  question (`routedTargetGainsOperation`) asks the DEFINING mapping's resolved record from the
+  ledger; (2) `MappedClasses` dies: the ledger answers `isMapped(class)` over the mapping's
+  PRE-PASSED closure (own record + included records, implicit ops included), R1; a class-typed
+  Join PM whose target has no set in the closure is DROPPED from the synthesized function with a
+  ledger line (the engine's "not navigable here"), never a structural join; (3)
+  `TransitionalShapesTest` and `MappedClassesTest` go, a closure-local witness replaces the
+  latter. Expected: the 28 flips change no row (no corpus test navigates such a property under
+  such a mapping — the engine's own tests could not); any LOST row is adjudicated against the
+  engine's rule above.
+  BUILT 2026-09-13: 2 rows LOST on the first run, both `projection::qualifier::testFilterIn
+  QualifierWithFilterInMapping*`: the query runs under `productMappingWithFilter`, which INCLUDES
+  `productSubMappingWithFilter` (Product with `synonyms: @Product_Synonym`, no Synonym set in
+  the sub-mapping's closure — dropped there, correctly) and maps Synonym itself. Engine R6:
+  every navigation resolves in the QUERIED mapping — the includer must re-bind the included
+  Product set with the navigation. Third re-bind criterion in `resynthesizeIncluded`
+  (`unmappedTargetGainsSet`: a class-typed Join PM dropped under the defining mapping's closure
+  whose target the includer's closure maps), spelled with the same two predicates the emitter
+  uses. Then 108 / 444 EXACT. `MappingView`, `MappedClasses`, `TransitionalShapesTest`,
+  `MappedClassesTest` deleted; `MappedInClosureTest` is the witness (per-closure answers, an
+  include brings its sets, order independence kept).
+- **B3.3 — implicit sets at resolution (LANDED 2026-09-13, see the homework above).** The
+  implicit sets are steps of one mapping's construction; `ResolvedMapping` is built in ONE
+  construction from a mapping's text and its closure; `MappingView`, `MappedClasses` and
+  `TransitionalShapesTest` deleted together. USER 2026-09-13: "let's make sure it does not stay
+  this way" — it did not.
 
 **B4 — policy out of the translator.** The translator reports (throws) and produces facts; the
 driver alone applies strict/module; `UnionSynthesis:2408` moves to the driver's ledger; the
@@ -458,5 +497,6 @@ record; ledger row here; CI green on the full sha.
 | B1 — `MappingView` (transitional, pinned) + `ResolvedMapping`; nine walkers deleted; synthesis takes the record | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | none | docs/GATES.md "Clean-sheet B1" |
 | B2 — R1 last-wins in the resolver and for operation sets; R5 duplicate ids and duplicate includes rejected; the ambiguity wall deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (probe: 0 wall hits, 0 duplicate ids, 0 first-vs-last differences) | own-corpus 2405 → 2425 | docs/GATES.md "Clean-sheet B2" |
 | B3.1 — `memberColumn` (a routed navigation's target read per SET, minted by the Typer) + `unionArm` markers + the resolver's per-set widening; the inbound key scan cut to chains; the union-to-union arms, the suffix stripper, the `__pk` routed form, the coalesce form and `routesMerge` deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (from 144 / 143 LOST on the first run — twelve consumers found by rows) | ArchitectureTest register +1; INTERNAL_DESUGAR 16 → 18; ResolveUnionTest asserts the member column | docs/GATES.md "Clean-sheet B3.1" |
+| B3.3 — one construction per mapping (`MappingView` merged into `ResolvedMapping`; the pre-pass steps rewrite the record under construction); the mapped fact closure-local on the ledger (engine R1; 28 global-only answers on the corpus flipped, none navigable in the engine either); a class-typed Join PM whose target has no set in the closure is dropped on record; includer re-binds a set whose dropped join it can serve (R6); `MappedClasses`, `TransitionalShapesTest` deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (2 → 0: the include-direction R6 case) | `MappedInClosureTest` replaces `MappedClassesTest`; the bare-view pin dies with the shape it pinned | docs/GATES.md "Clean-sheet B3.3" |
 | B3.2 — chained routes: push-into-arm KEPT (engine 3-set / unionOfViews2 goldens; the navigator-side form multiplies rows with two mids and walls at three hops — built, measured, reverted); the arm's chain key spelled by the link-key rule over the route's FIRST hop and published as a fact; chain scan over pre-passed records; one key order per union; `RouteEntry.inArm` and the `col__prop_ord` navigator spelling deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (navigator-side attempt: 9 → 7 LOST; push-into-arm respelling: 6 → 1 → 0) | RoutedChainKeyTest pins the spelling | docs/GATES.md "Clean-sheet B3.2" |
 | B3.1b — SUPERSEDES B3.1's spelling (USER review: set ids inside generated Pure): each set publishes its link keys as a mapping fact (`linkKeys`), union threads project them, the navigating class reads one name (identity = set, or the operation's class when its members route alike; shape index when routes differ on the source side); included operations re-bound by the includer when they gain its keys; `memberColumn`, `unionArm`, the registry and both natives deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (43 → 27 → 17 → 3 → 0 on the way) | INTERNAL_DESUGAR 18 → 16; register row removed; ResolveUnionTest asserts the link key | docs/GATES.md "Clean-sheet B3.1b" |

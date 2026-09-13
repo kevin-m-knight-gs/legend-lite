@@ -173,7 +173,7 @@ public final class MappingNormalizer {
                 new java.util.LinkedHashMap<>();
         java.util.Map<String, String> publishPoison = new java.util.LinkedHashMap<>();
         for (ResolvedMapping pp : resolved.values()) {
-            MappingLedger scratch = new MappingLedger(pp.mapped());
+            MappingLedger scratch = new MappingLedger(MappingLedger.mappedInClosure(pp, resolved));
             try {
                 UnionSynthesis.publishLinkKeys(pp, resolved, model, scratch);
             } catch (NotImplementedException | ModelException e) {
@@ -195,8 +195,8 @@ public final class MappingNormalizer {
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
                 // What this mapping's synthesis learns rides its own ledger,
                 // stamped on the compiled mapping — never the shared index.
-                MappingLedger ledger = new MappingLedger(pp.mapped(), published,
-                        UnionSynthesis.prePassedClosure(pp, resolved));
+                MappingLedger ledger = new MappingLedger(
+                        MappingLedger.mappedInClosure(pp, resolved), published, resolved);
                 java.util.Map<String, java.util.Map<String, String>> mine =
                         published.getOrDefault(md.qualifiedName(), java.util.Map.of());
                 mine.forEach((set, keys) -> ledger.linkKeys.computeIfAbsent(set,
@@ -280,7 +280,7 @@ public final class MappingNormalizer {
         Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys = pp.declaredKeys();
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join
         // PMs (Option A, docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b).
-        ResolvedMapping md = pp.withMapping(AssociationSynthesis.injectMultiHopAssociationPMs(pp.raw(), model));
+        ResolvedMapping md = pp.withMapping(AssociationSynthesis.injectMultiHopAssociationPMs(pp, model));
 
         // A class mapped through MULTIPLE set IDs synthesizes its ROOT set
         // only — .all() dispatches to the root; non-root sets await the H5
@@ -322,7 +322,7 @@ public final class MappingNormalizer {
                     }
                     String invalidSet = pp.invalid().get(cm);
                     if (invalidSet != null) {
-                        ledger.poisons.putIfAbsent(cm.className() + "[" + MappingView.idOf(cm) + "]", invalidSet);
+                        ledger.poisons.putIfAbsent(cm.className() + "[" + ResolvedMapping.idOf(cm) + "]", invalidSet);
                         continue;
                     }
                     try {
@@ -349,7 +349,7 @@ public final class MappingNormalizer {
                         if (e instanceof ModelException && !tolerant) {
                             throw e;
                         }
-                        ledger.poisons.putIfAbsent(cm.className() + "[" + MappingView.idOf(cm) + "]",
+                        ledger.poisons.putIfAbsent(cm.className() + "[" + ResolvedMapping.idOf(cm) + "]",
                                 String.valueOf(e.getMessage()));
                     }
                 }
@@ -821,7 +821,8 @@ public final class MappingNormalizer {
                         continue;
                     }
                     boolean regenerate = cm instanceof ClassMapping.Relational rcm0
-                            ? routedTargetGainsOperation(md, m, rcm0, model)
+                            ? routedTargetGainsOperation(md, m, rcm0, model, ledger)
+                                    || unmappedTargetGainsSet(m, rcm0, model, ledger)
                             // B3.1b: an included UNION whose members THIS
                             // mapping's own sets route into must publish
                             // this mapping's link keys — the owner did not
@@ -871,7 +872,7 @@ public final class MappingNormalizer {
         List<String> memberIds = op instanceof ClassMapping.Union u ? u.memberSetIds()
                 : op instanceof ClassMapping.Inheritance ih
                         ? UnionSynthesis.inheritanceMembers(md, ih, model).stream()
-                                .map(MappingView::idOf).toList()
+                                .map(ResolvedMapping::idOf).toList()
                         : List.of();
         if (memberIds.isEmpty()) {
             return false;
@@ -896,6 +897,32 @@ public final class MappingNormalizer {
         return false;
     }
 
+    /** Whether {@code rcm} (defined in {@code defining}) has a class-typed
+     * Join PM whose target class has NO set in the defining mapping's
+     * closure (the PM was dropped there: not navigable under it) but HAS
+     * one in this mapping's closure — engine R6: every navigation resolves
+     * in the queried mapping, so the includer re-binds the set with the
+     * navigation (B3.3; `productMappingWithFilter` includes a Product set
+     * whose `synonyms` join only the includer's Synonym set can serve). */
+    private static boolean unmappedTargetGainsSet(LegacyMappingDefinition defining,
+            ClassMapping.Relational rcm, ModelBuilder model, MappingLedger ledger) {
+        ResolvedMapping own = ledger.resolved.get(defining.qualifiedName());
+        if (own == null) {
+            return false;   // walled defining mapping: nothing to re-bind
+        }
+        MappingLedger theirs = new MappingLedger(MappingLedger.mappedInClosure(own, ledger.resolved));
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            if (pm instanceof PropertyMapping.Join j
+                    && JoinChainEmission.classTypedButUnmapped(rcm.className(),
+                            j.propertyName(), model, theirs)
+                    && JoinChainEmission.classTypedTargetIfMapped(rcm.className(),
+                            j.propertyName(), model, ledger) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Whether {@code rcm} (defined in {@code defining}) has a set-routed
      * class-typed Join PM whose target class is Operation-mapped
      * (union/inheritance) in {@code md}'s closure but NOT in
@@ -903,7 +930,7 @@ public final class MappingNormalizer {
      * that requires re-synthesis under {@code md}. */
     private static boolean routedTargetGainsOperation(ResolvedMapping md,
             LegacyMappingDefinition defining, ClassMapping.Relational rcm,
-            ModelBuilder model) {
+            ModelBuilder model, MappingLedger ledger) {
         ClassDefinition owner = model.knowledge().hierarchyClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (!(pm instanceof PropertyMapping.Join j)
@@ -920,7 +947,10 @@ public final class MappingNormalizer {
             if (!underMd) {
                 continue;
             }
-            MappingView own = MappingView.of(defining, model);
+            ResolvedMapping own = ledger.resolved.get(defining.qualifiedName());
+            if (own == null) {
+                continue;   // the defining mapping was walled: nothing to re-bind
+            }
             boolean underOwn = own.unionOf(tc) != null || own.inheritanceOf(tc) != null;
             if (!underOwn) {
                 return true;
@@ -949,7 +979,7 @@ public final class MappingNormalizer {
         return new FunctionDefinition(
                 setDiscriminated
                         ? SynthFqn.mappingClassSet(md.qualifiedName(),
-                                cm.className(), MappingView.idOf(cm))
+                                cm.className(), ResolvedMapping.idOf(cm))
                         : SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
                 List.of(), List.of(), List.of(),
                 new TypeExpression.NameRef(cm.className()),
@@ -1003,7 +1033,7 @@ public final class MappingNormalizer {
                 ClassMapping.RelationFunction sibling = null;
                 for (ClassMapping cm : md.classMappings()) {
                     if (cm instanceof ClassMapping.RelationFunction rf2
-                            && c.inlineSetId().equals(MappingView.idOf(rf2))) {
+                            && c.inlineSetId().equals(ResolvedMapping.idOf(rf2))) {
                         sibling = rf2;
                         break;
                     }
@@ -1383,7 +1413,7 @@ public final class MappingNormalizer {
         if (!(propType instanceof TypeExpression.NameRef nr)) return pb.expression();
         String innerFqn = nr.name();
         if (model.knowledge().hierarchyClass(innerFqn).isEmpty()) return pb.expression();
-        if (!ledger.mapped.contains(innerFqn)) {
+        if (!ledger.isMapped(innerFqn)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "M2M class-typed property '" + pb.propertyName() + "' on '"
                   + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
@@ -2333,7 +2363,7 @@ public final class MappingNormalizer {
                     false);
             case PropertyMapping.Join j -> {
                 String targetIfMapped = JoinChainEmission.classTypedTargetIfMapped(ownerClassFqn,
-                        j.propertyName(), model, pipeline.ledger().mapped);
+                        j.propertyName(), model, pipeline.ledger());
                 String slot = targetIfMapped != null
                         ? pipeline.navSlotByProp.getOrDefault(
                                 j.propertyName(), j.propertyName())
@@ -2425,7 +2455,7 @@ public final class MappingNormalizer {
                 // An UNMAPPED target class has no instance to bind: wall.
                 if (sub instanceof PropertyMapping.Join j
                         && JoinChainEmission.classTypedTargetIfMapped(innerFqn, j.propertyName(),
-                                model, pipeline.ledger().mapped) == null) {
+                                model, pipeline.ledger()) == null) {
                     throw new NotImplementedException(
                             "Embedded sub-PM '" + j.propertyName() + "' on '"
                           + propName + "' is a class-typed Join to an UNMAPPED"
@@ -2480,7 +2510,7 @@ public final class MappingNormalizer {
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
                 if (cm instanceof ClassMapping.Relational rcm
-                        && Objects.equals(MappingView.idOf(rcm), ie.setId())) {
+                        && Objects.equals(ResolvedMapping.idOf(rcm), ie.setId())) {
                     referenced = rcm;
                     break outer;
                 }
@@ -2597,7 +2627,7 @@ public final class MappingNormalizer {
     // AssociationMapping → predicate function  —  doc §5.6.1
     // ====================================================================
 
-    static boolean hasMainTable(MappingView md, String classFqn,
+    static boolean hasMainTable(ResolvedMapping md, String classFqn,
             ModelBuilder model) {
         for (ClassMapping.Relational rcm
                 : relationalMappingsInClosure(md, model, classFqn)) {
@@ -2611,7 +2641,7 @@ public final class MappingNormalizer {
     /** {@code classFqn}'s Relational class mappings across the INCLUDE
      * CLOSURE, own mapping first (union V3: assoc mappings routinely live
      * in a mapping that only INCLUDES the class-mapping definitions). */
-    static List<ClassMapping.Relational> relationalMappingsInClosure(MappingView md, ModelBuilder model, @com.legend.Nullable String classFqn) {
+    static List<ClassMapping.Relational> relationalMappingsInClosure(ResolvedMapping md, ModelBuilder model, @com.legend.Nullable String classFqn) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         closure.addAll(md.closure());
         List<ClassMapping.Relational> out = new ArrayList<>();
@@ -2628,7 +2658,7 @@ public final class MappingNormalizer {
 
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
     static LegacyMappingDefinition.TableReference mainTableDefOf(
-            MappingView md, @com.legend.Nullable String classFqn, ModelBuilder model) {
+            ResolvedMapping md, @com.legend.Nullable String classFqn, ModelBuilder model) {
         // The ROOT set's table — with multiple set IDs, .all() and every
         // synthesized association predicate anchor on the root; taking the
         // FIRST declared set bound predicates to the wrong table whenever a

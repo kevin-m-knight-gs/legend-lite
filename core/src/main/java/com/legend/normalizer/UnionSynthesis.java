@@ -114,7 +114,7 @@ final class UnionSynthesis {
      * declared inside an embedded block). Owner recorded per property so
      * the route's target class resolves against the EMBEDDED class. */
     static void collectRoutedJoins(List<PropertyMapping> pms,
-            String ownerCls, MappingView md, ModelBuilder model,
+            String ownerCls, ResolvedMapping md, ModelBuilder model,
             Map<String, List<PropertyMapping.Join>> routedByProp,
             Map<String, String> ownerByProp) {
         for (PropertyMapping pm : pms) {
@@ -144,7 +144,7 @@ final class UnionSynthesis {
                     for (ClassMapping cm : md.classMappings()) {
                         if (cm instanceof ClassMapping.Relational r2
                                 && java.util.Objects.equals(
-                                        MappingView.idOf(r2),
+                                        ResolvedMapping.idOf(r2),
                                         ie.setId())) {
                             collectRoutedJoins(r2.propertyMappings(),
                                     r2.className(), md, model,
@@ -196,7 +196,7 @@ final class UnionSynthesis {
                         md.inheritanceOf(targetClass);
                 if (tih != null) {
                     memberIds = inheritanceMembers(md, tih, model).stream()
-                            .map(MappingView::idOf).toList();
+                            .map(ResolvedMapping::idOf).toList();
                 }
             }
             List<UnionRoute> routes = new ArrayList<>();
@@ -297,7 +297,7 @@ final class UnionSynthesis {
         Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
         bySetId.putAll(md.includedSets());
         for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingView.idOf(cm), cm);
+            bySetId.put(ResolvedMapping.idOf(cm), cm);
         }
         List<ClassMapping> memberSets = new ArrayList<>();
         for (String setId : u.memberSetIds()) {
@@ -353,7 +353,7 @@ final class UnionSynthesis {
                 // other thread carries a NULL key). Own entries first;
                 // the pmIdentity dedup below keeps them authoritative.
                 List<PropertyMapping.Join> add = new ArrayList<>();
-                String cur = MappingView.idOf(mr);
+                String cur = ResolvedMapping.idOf(mr);
                 Set<String> seenSets = new HashSet<>();
                 while (cur != null && seenSets.add(cur)) {
                     List<PropertyMapping.Join> lvl = pairEntries.get(cur);
@@ -438,7 +438,7 @@ final class UnionSynthesis {
         List<ClassMapping.Relational> out = new ArrayList<>(members.size());
         for (ClassMapping.Relational mr : members) {
             List<PropertyMapping.Join> add = new ArrayList<>();
-            String cur = MappingView.idOf(mr);
+            String cur = ResolvedMapping.idOf(mr);
             Set<String> seenSets = new HashSet<>();
             while (cur != null && seenSets.add(cur)) {
                 List<PropertyMapping.Join> lvl = pairEntries.get(cur);
@@ -565,7 +565,7 @@ final class UnionSynthesis {
                     Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
                     bySetId.putAll(md.includedSets());
                     for (ClassMapping own : md.classMappings()) {
-                        bySetId.put(MappingView.idOf(own), own);
+                        bySetId.put(ResolvedMapping.idOf(own), own);
                     }
                     for (String setId : u2.memberSetIds()) {
                         if (bySetId.get(setId) instanceof ClassMapping.Relational mr2) {
@@ -866,7 +866,7 @@ final class UnionSynthesis {
                 continue;
             }
             ClassMapping.Relational mr = (ClassMapping.Relational) cmIn;
-            String setId = MappingView.idOf(mr);
+            String setId = ResolvedMapping.idOf(mr);
             if (mr.sourceUrl() != null) {
                 throw new NotImplementedException(
                         "Operation union over a JSON-source member set is not"
@@ -984,7 +984,7 @@ final class UnionSynthesis {
         // per-arm routes still push their mid hops into the owning
         // member's thread (B3.2 moves them to the navigating class).
         for (int o = 0; o < members.size(); o++) {
-            Map<String, String> published = ledger.linkKeys.get(MappingView.idOf(members.get(o)));
+            Map<String, String> published = ledger.linkKeys.get(ResolvedMapping.idOf(members.get(o)));
             if (published != null) {
                 srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>()).putAll(published);
             }
@@ -993,9 +993,8 @@ final class UnionSynthesis {
         // thread carries the mids and publishes the first mid's column as
         // the route's link key) — over the pre-passed records, so a set
         // that extends another registers the routes it inherited
-        collectInboundRouteKeys(md, ledger.closureRecords.isEmpty()
-                        ? new ArrayList<>(md.closure()) : ledger.closureRecords, model,
-                members.stream().map(MappingView::idOf).toList(),
+        collectInboundRouteKeys(md, prePassedClosure(md, ledger.resolved), model,
+                members.stream().map(ResolvedMapping::idOf).toList(),
                 members, new LinkedHashMap<>(), chainsByOrdinal, ledger);
         recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model, ledger);
         Map<String, LinkedHashSet<String>> subTypeProps =
@@ -1774,7 +1773,7 @@ final class UnionSynthesis {
      */
     static String navigatingIdentity(ResolvedMapping md, ClassMapping navSet, String property,
             ModelBuilder model) {
-        String own = MappingView.idOf(navSet);
+        String own = ResolvedMapping.idOf(navSet);
         // the operation (union, or inheritance whose members are the
         // subclasses' sets) the set is a MEMBER of
         String opClass = null;
@@ -1786,7 +1785,7 @@ final class UnionSynthesis {
                     memberIds = cu.memberSetIds();
                 } else if (cm instanceof ClassMapping.Inheritance ih) {
                     List<String> ids = inheritanceMembers(md, ih, model).stream()
-                            .map(MappingView::idOf).toList();
+                            .map(ResolvedMapping::idOf).toList();
                     if (ids.contains(own)) {
                         opClass = ih.className();
                         memberIds = ids;
@@ -2619,7 +2618,7 @@ final class UnionSynthesis {
             String targetClassFqn = java.util.Objects.requireNonNull(
                     targetByProp.get(prop),
                     "scan recorded a Join PM without its target class");
-            if (!ledger.mapped.contains(targetClassFqn)) {
+            if (!ledger.isMapped(targetClassFqn)) {
                 continue;
             }
             // BITEMPORAL UNGATE (Leg 2): the per-dimension stampers
@@ -2905,7 +2904,7 @@ final class UnionSynthesis {
                 }
             }
         }
-        collectInboundRouteKeys(md, records, model, sets.stream().map(MappingView::idOf).toList(),
+        collectInboundRouteKeys(md, records, model, sets.stream().map(ResolvedMapping::idOf).toList(),
                 sets, new LinkedHashMap<>(), null, ledger);
         // a set that EXTENDS another is that set's rows too: a route into
         // the parent reaches the child (the engine resolves routes through
@@ -2916,11 +2915,11 @@ final class UnionSynthesis {
                 continue;
             }
             Map<String, String> mine = ledger.linkKeys.computeIfAbsent(
-                    MappingView.idOf(cm), k -> new LinkedHashMap<>());
+                    ResolvedMapping.idOf(cm), k -> new LinkedHashMap<>());
             Set<String> seen = new HashSet<>();
             ClassMapping parent = md.set(r.extendsSetId());
-            while (parent instanceof ClassMapping.Relational pr && seen.add(MappingView.idOf(pr))) {
-                Map<String, String> theirs = ledger.linkKeys.get(MappingView.idOf(pr));
+            while (parent instanceof ClassMapping.Relational pr && seen.add(ResolvedMapping.idOf(pr))) {
+                Map<String, String> theirs = ledger.linkKeys.get(ResolvedMapping.idOf(pr));
                 if (theirs != null) {
                     theirs.forEach(mine::putIfAbsent);
                 }
@@ -3093,7 +3092,7 @@ final class UnionSynthesis {
             Map<String, String> keys = new LinkedHashMap<>();
             Map<String, String> mine = sink.computeIfAbsent(ord, k -> new LinkedHashMap<>());
             Map<String, String> facts = ledger.linkKeys.computeIfAbsent(
-                    MappingView.idOf(routedMember), k -> new LinkedHashMap<>());
+                    ResolvedMapping.idOf(routedMember), k -> new LinkedHashMap<>());
             for (int k = 0; k < reads.size(); k++) {
                 String name = linkKeyName(navigatingSet, j.propertyName(), shape, k);
                 keys.put(reads.get(k), name);
@@ -3130,12 +3129,12 @@ final class UnionSynthesis {
         collectTargetReads(cond, t, reads);
         Map<String, String> mine = sink.computeIfAbsent(ord, k -> new LinkedHashMap<>());
         Map<String, String> facts = ledger.linkKeys.computeIfAbsent(
-                MappingView.idOf(routedMember), k -> new LinkedHashMap<>());
+                ResolvedMapping.idOf(routedMember), k -> new LinkedHashMap<>());
         for (int k = 0; k < reads.size(); k++) {
             String name = linkKeyName(navigatingSet, j.propertyName(), shape, k);
             String prev = facts.put(name, reads.get(k));
             if (prev != null && !prev.equals(reads.get(k))) {
-                throw new NotImplementedException("member set '" + MappingView.idOf(routedMember)
+                throw new NotImplementedException("member set '" + ResolvedMapping.idOf(routedMember)
                         + "' is routed to by '" + navigatingSet + "." + j.propertyName()
                         + "' through two joins reading different columns (" + prev + ", "
                         + reads.get(k) + "); mapping=" + md.qualifiedName());

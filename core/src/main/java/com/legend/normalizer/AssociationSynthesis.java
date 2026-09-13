@@ -78,9 +78,10 @@ final class AssociationSynthesis {
      * before class-mapping synthesis. Single-hop ends are left to the
      * standalone {@code legacyAssocPredicate} path (§5.6.1).
      */
-    static LegacyMappingDefinition injectMultiHopAssociationPMs(LegacyMappingDefinition md,
+    static LegacyMappingDefinition injectMultiHopAssociationPMs(ResolvedMapping pp,
                                                                  ModelBuilder model) {
-        MappingView view = MappingView.of(md, model);
+        LegacyMappingDefinition md = pp.raw();
+        ResolvedMapping view = pp;
         // INCLUDE-CLOSURE: the association entries, the owning class
         // mappings and the target unions may live in DIFFERENT mapping
         // definitions (multipleChainedJoins V4: top mapping = unions only,
@@ -217,7 +218,7 @@ final class AssociationSynthesis {
             if (m == md) continue;
             for (ClassMapping cm : m.classMappings()) {
                 if (ownClasses.contains(cm.className())
-                        || !hoisted.add(MappingView.idOf(cm))) {
+                        || !hoisted.add(ResolvedMapping.idOf(cm))) {
                     continue;
                 }
                 ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet);
@@ -243,7 +244,7 @@ final class AssociationSynthesis {
         // (ownedVehicles on VehicleOwner, set per1 maps Person — the
         // sourceSetId pins the exact set; set ids are unique in scope)
         for (Map<String, List<PropertyMapping>> sets : bySet.values()) {
-            List<PropertyMapping> forSet = sets.get(MappingView.idOf(rcm));
+            List<PropertyMapping> forSet = sets.get(ResolvedMapping.idOf(rcm));
             if (forSet != null) add.addAll(forSet);
         }
         // EMBEDDED-set sources: an entry keyed <thisSetId>_<embProp> (or
@@ -253,7 +254,7 @@ final class AssociationSynthesis {
         // the ordinary embedded sub-PM machinery.
         List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings());
         boolean nested = false;
-        String sid = MappingView.idOf(rcm);
+        String sid = ResolvedMapping.idOf(rcm);
         String classId = rcm.className().replace("::", "_");
         for (Map<String, List<PropertyMapping>> anySets : bySet.values()) {
             for (var en : anySets.entrySet()) {
@@ -321,7 +322,7 @@ final class AssociationSynthesis {
      * {@code Driver : Relational { AssociationMapping (...) }} inside a
      * file importing the model package). */
     static java.util.Optional<AssociationDefinition> resolveAssociation(
-            ModelBuilder model, MappingView md,
+            ModelBuilder model, ResolvedMapping md,
             AssociationMapping am) {
         String name = am.associationName();
         var direct = model.findAssociation(name);
@@ -565,7 +566,7 @@ final class AssociationSynthesis {
      * set implementation shares its owner's table; Join Firm_Organizations
      * anchors on PERSON_FIRM_DENORM). Null when neither resolves. */
     static LegacyMappingDefinition.@com.legend.Nullable TableReference
-            anchorTableOf(MappingView md, String classFqn,
+            anchorTableOf(ResolvedMapping md, String classFqn,
             ModelBuilder model) {
         if (MappingNormalizer.hasMainTable(md, classFqn, model)) {
             return MappingNormalizer.mainTableDefOf(md, classFqn, model);

@@ -24,7 +24,7 @@ import java.util.TreeSet;
  * E&rarr;F gate; now the artifact carries them and nothing is copied.
  *
  * <p>Rides the {@link Pipeline} so the deep emission sites reach it
- * without a parameter sweep; the graph-wide {@link MappedClasses} fact
+ * without a parameter sweep; the closure-local mapped fact
  * rides along (read-only).
  */
 final class MappingLedger {
@@ -47,25 +47,44 @@ final class MappingLedger {
     final Map<String, Map<String, Map<String, String>>> everyPublication;
     /** bucket &rarr; witnesses of the [1]-over-nullable-column census. */
     final Map<String, Set<String>> nullableCensus = new TreeMap<>();
-    /** The graph-wide mapped-class fact (computed before any synthesis). */
-    final MappedClasses mapped;
+    /** The classes MAPPED for this mapping (engine R1: a set in the queried
+     * mapping's closure — own pre-passed record and the included mappings'
+     * pre-passed records, implicit operation sets included). Never a
+     * graph-wide fact: a class another mapping happens to map is not
+     * navigable here. */
+    private final Set<String> mappedInClosure;
 
-    /** The PRE-PASSED records of this mapping's closure (extends
-     * flattened): the routes a set navigates with, inherited ones
-     * included — what the link-key publication and the union's inbound
-     * chain scan both read. Empty for a scratch ledger. */
-    final List<com.legend.model.LegacyMappingDefinition> closureRecords;
+    /** Every mapping's resolved record (the include re-bind question asks
+     * the DEFINING mapping's; the pre-passed closure reads the included
+     * mappings'). Empty for a scratch ledger. */
+    final Map<String, ResolvedMapping> resolved;
 
-    MappingLedger(MappedClasses mapped) {
-        this(mapped, Map.of(), List.of());
+    MappingLedger(Set<String> mappedInClosure) {
+        this(mappedInClosure, Map.of(), Map.of());
     }
 
-    MappingLedger(MappedClasses mapped,
+    MappingLedger(Set<String> mappedInClosure,
             Map<String, Map<String, Map<String, String>>> everyPublication,
-            List<com.legend.model.LegacyMappingDefinition> closureRecords) {
-        this.mapped = mapped;
+            Map<String, ResolvedMapping> resolved) {
+        this.mappedInClosure = mappedInClosure;
         this.everyPublication = everyPublication;
-        this.closureRecords = closureRecords;
+        this.resolved = resolved;
+    }
+
+    /** Whether {@code classFqn} has a set in this mapping's closure. */
+    boolean isMapped(String classFqn) {
+        return mappedInClosure.contains(classFqn);
+    }
+
+    /** The mapped classes of {@code md}'s pre-passed closure. */
+    static Set<String> mappedInClosure(ResolvedMapping md, Map<String, ResolvedMapping> resolved) {
+        Set<String> out = new java.util.HashSet<>();
+        for (com.legend.model.LegacyMappingDefinition m : UnionSynthesis.prePassedClosure(md, resolved)) {
+            for (com.legend.model.ClassMapping cm : m.classMappings()) {
+                out.add(cm.className());
+            }
+        }
+        return Set.copyOf(out);
     }
 
     void census(String bucket, String witness) {

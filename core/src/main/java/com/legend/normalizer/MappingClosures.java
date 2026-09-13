@@ -194,7 +194,7 @@ final class MappingClosures {
                 Map<String, ClassMapping> local = new LinkedHashMap<>();
                 walkSets(included.includes(), local, seen);
                 for (ClassMapping cm : included.classMappings()) {
-                    local.put(MappingView.idOf(cm), cm);
+                    local.put(ResolvedMapping.idOf(cm), cm);
                 }
                 if (!inc.substitutions().isEmpty()) {
                     local.replaceAll((k, v) -> StoreSubstitutionRewrite.apply(v, inc.substitutions()));
@@ -270,7 +270,7 @@ final class MappingClosures {
             }
             Set<String> own = new HashSet<>();
             for (ClassMapping cm : md.classMappings()) {
-                String id = MappingView.idOf(cm);
+                String id = ResolvedMapping.idOf(cm);
                 String prev = owner.get(id);
                 if (prev != null && !prev.equals(mappingFqn) && first.get(id) != cm) {
                     dups.add(id + " (" + prev + ", " + mappingFqn + ")");

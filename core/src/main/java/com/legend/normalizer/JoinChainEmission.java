@@ -78,6 +78,16 @@ final class JoinChainEmission {
                 // routed property dropped at classification (poisoned
                 // reason on the ledger) — no hops, no slot, no binding
             }
+            case PropertyMapping.Join j when classTypedButUnmapped(ownerClassFqn,
+                    j.propertyName(), model, p.ledger()) -> {
+                // B3.3 (engine R1): the target class has no set in THIS
+                // mapping's closure — not navigable here; dropped, on record
+                p.droppedRoutedProps.add(j.propertyName());
+                p.ledger().poisons.merge(ownerClassFqn,
+                        "property '" + j.propertyName() + "' targets a class with no set in"
+                        + " this mapping's closure; not navigable under "
+                        + md.qualifiedName() + " (dropped)", (a, b) -> a + "; " + b);
+            }
             case PropertyMapping.Join j -> emitJoinChain(p, j.joins(), j.database(),
                     j.propertyName(), ownerClassFqn, mainDb, mainTable,
                     rowBind, model, md, /*classTypedTerminus*/ true,
@@ -103,7 +113,7 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
-                                        j.propertyName(), model, p.ledger().mapped) != null
+                                        j.propertyName(), model, p.ledger()) != null
                                 && !nr.name().equals(
                                         p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
@@ -131,7 +141,7 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
-                                        j.propertyName(), model, p.ledger().mapped) != null
+                                        j.propertyName(), model, p.ledger()) != null
                                 && !nr.name().equals(
                                         p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
@@ -158,7 +168,7 @@ final class JoinChainEmission {
                 for (ClassMapping cm : md.classMappings()) {
                     if (cm instanceof ClassMapping.Relational r2
                             && java.util.Objects.equals(
-                                    MappingView.idOf(r2), ie.setId())) {
+                                    ResolvedMapping.idOf(r2), ie.setId())) {
                         referenced = r2;
                         break;
                     }
@@ -176,7 +186,7 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(inlCls,
-                                        j.propertyName(), model, p.ledger().mapped) != null
+                                        j.propertyName(), model, p.ledger()) != null
                                 && !inlCls.equals(
                                         p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
@@ -225,7 +235,7 @@ final class JoinChainEmission {
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String targetClassFqn = nr.name();
-        if (!p.ledger().mapped.contains(targetClassFqn)) {
+        if (!p.ledger().isMapped(targetClassFqn)) {
             throw new NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' target class '"
                   + targetClassFqn + "' is not mapped; mapping=" + md.qualifiedName());
@@ -298,7 +308,7 @@ final class JoinChainEmission {
         String targetClassFqn = null;
         if (classTypedTerminus && propName != null) {
             targetClassFqn = classTypedTargetIfMapped(ownerClassFqn, propName, model,
-                    p.ledger().mapped);
+                    p.ledger());
             List<UnionSynthesis.UnionRoute> routeEntries = propName == null
                     ? null : p.unionRoutes.get(propName);
             if (targetClassFqn != null && routedSetId != null
@@ -626,7 +636,7 @@ final class JoinChainEmission {
             String ownerCls, ModelBuilder model) {
         if (sub instanceof PropertyMapping.Join j
                 && classTypedTargetIfMapped(ownerCls, j.propertyName(),
-                        model, p.ledger().mapped) != null) {
+                        model, p.ledger()) != null) {
             p.navSlotOwner.putIfAbsent(j.propertyName(), ownerCls);
         }
     }
@@ -699,7 +709,7 @@ final class JoinChainEmission {
 
     static @com.legend.Nullable String classTypedTargetIfMapped(
             @com.legend.Nullable String ownerClassFqn,
-            String propName, ModelBuilder model, MappedClasses mapped) {
+            String propName, ModelBuilder model, MappingLedger ledger) {
         ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) return null;
         TypeExpression propType = model.knowledge().propertyType(owner, propName);
@@ -713,15 +723,32 @@ final class JoinChainEmission {
         // (Table.columns : RelationalOperationElement[*] routed to the
         // Column set): either way the property is a navigation, never a
         // column read; the route names the concrete target downstream
-        return mapped.contains(tgt) || hasMappedSubclass(tgt, model, mapped) ? tgt : null;
+        return ledger.isMapped(tgt) || hasMappedSubclass(tgt, model, ledger) ? tgt : null;
     }
 
     private static boolean hasMappedSubclass(String base, ModelBuilder model,
-            MappedClasses mapped) {
+            MappingLedger ledger) {
         // the graph's classes strictly below base (the catalog's are not
-        // the graph's), any of them mapped
+        // the graph's), any of them mapped in this mapping's closure
         return model.knowledge().subtree(base).stream().anyMatch(c ->
-                model.findClass(c).isPresent() && mapped.contains(c));
+                model.findClass(c).isPresent() && ledger.isMapped(c));
+    }
+
+    /** A class-typed property whose declared class (or any subclass) has no
+     * set in this mapping's closure: the engine compiles such a Join PM and
+     * the property is simply not navigable under the mapping (a missing
+     * target set is a compilation warning there). The PM is dropped from
+     * the synthesized function, with the reason on the ledger; a query that
+     * navigates it is loud at demand. Never a structural join. */
+    static boolean classTypedButUnmapped(@com.legend.Nullable String ownerClassFqn,
+            String propName, ModelBuilder model, MappingLedger ledger) {
+        ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
+        if (owner == null) return false;
+        TypeExpression propType = model.knowledge().propertyType(owner, propName);
+        String tgt = propType instanceof TypeExpression.NameRef nr ? nr.name()
+                : propType instanceof TypeExpression.Generic g ? g.name() : null;
+        return tgt != null && model.knowledge().hierarchyClass(tgt).isPresent()
+                && classTypedTargetIfMapped(ownerClassFqn, propName, model, ledger) == null;
     }
 
     record JoinNavSpec(List<JoinChainElement> chain, @com.legend.Nullable String chainDb) {}
@@ -755,7 +782,7 @@ final class JoinChainEmission {
                         for (var cm : md.classMappings()) {
                             if (cm instanceof ClassMapping.Relational r2
                                     && java.util.Objects.equals(
-                                            MappingView.idOf(r2),
+                                            ResolvedMapping.idOf(r2),
                                             ie.setId())) {
                                 collectJoinNavigationsInPms(
                                         r2.propertyMappings(), out, md);

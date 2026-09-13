@@ -33,8 +33,9 @@ final class MappingValidation {
 
     /** The invalid sets of {@code md} (by identity) with their reasons.
      * Strict: the first invalid set throws. */
-    static Map<ClassMapping, String> run(LegacyMappingDefinition md, ModelBuilder model,
+    static Map<ClassMapping, String> run(ResolvedMapping r, ModelBuilder model,
             boolean tolerant) {
+        LegacyMappingDefinition md = r.raw();
         // MAPPING-level errors the engine's compiler raises (R5): a class
         // mapping id taken by two distinct sets across the include closure,
         // (an include listed twice is rejected where the include graph is
@@ -53,7 +54,7 @@ final class MappingValidation {
             try {
                 switch (cm) {
                     case ClassMapping.Relational rcm -> validatePmNames(rcm, model, md);
-                    case ClassMapping.Pure pcm -> validateM2mRoutes(pcm, model, md);
+                    case ClassMapping.Pure pcm -> validateM2mRoutes(pcm, model, r);
                     default -> { }
                 }
             } catch (ModelException e) {
@@ -85,10 +86,10 @@ final class MappingValidation {
 
     /** Every routed M2M binding names a benign route. */
     private static void validateM2mRoutes(ClassMapping.Pure pcm,
-            ModelBuilder model, LegacyMappingDefinition md) {
+            ModelBuilder model, ResolvedMapping md) {
         ClassDefinition tgt = MissProbe.knownMiss(model.knowledge().hierarchyClass(pcm.className()));
         for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
-            M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, MappingView.of(md, model), model);
+            M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
         }
     }
 }

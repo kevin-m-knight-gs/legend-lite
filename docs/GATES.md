@@ -2339,3 +2339,56 @@ census registration; G2–G9 on the first run).
 **CI.** GREEN on f34f3e03d (28/29 jobs on the first run; the Windows gate 9 job failed on "Central
 unreachable" before any test and passed on rerun). **Audit.** docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_
 2026_09_13.md §6 "B3.2 AUDIT": eight findings, none changing rows, filed to B5 / B6.
+
+## Clean-sheet B3.3 — one construction per mapping; mapped is a closure question — 2026-09-13
+
+**Why.** B1 left `MappingView` as a pinned transitional shape (USER: "let's make sure it does not
+stay this way"): the pre-pass rewrites ran before `ResolvedMapping` existed, so five sites built a
+bare view to ask closure questions, and one fact — "is class X mapped" — was GLOBAL over every
+mapping in the graph (`MappedClasses`) where the engine answers per queried mapping's closure
+(R1). Homework measured both: the three implicit rewrites (extends, same-extent inheritance,
+implicit operation sets — 10 sets and 7 mappings on the corpus) are already per mapping over its
+own closure; the global fact differs from the closure answer at 28 (mapping, class) pairs, always
+global=true / closure=false — a mapping that maps Person with `firm: @PersonSet1Firm` and no Firm
+set in its closure. The engine compiles such a PM (a missing target set is a compilation WARNING,
+`TestRelationalCompilationFromGrammar:2867`) and the property is not navigable under that mapping;
+ours navigated it through whichever mapping happened to map Firm.
+
+**What landed.**
+- `ResolvedMapping` is built in ONE construction from a mapping's text and its closure
+  (`MappingPrePass.prePass`): surface → extends → same-extent inheritance → store refs → implicit
+  ops → validation, each step a `withMapping` rewrite of the record under construction, each
+  closure question asked of that record. `MappingView` merged into it; `MappingView.of` is gone
+  from every site (the injection, both implicit rewrites, the route guard take the record; the
+  include re-bind question asks the DEFINING mapping's resolved record from the ledger).
+- `MappedClasses` deleted. The ledger answers `isMapped(class)` over the mapping's PRE-PASSED
+  closure (own record + included records, implicit sets included; `MappingLedger.mappedInClosure`);
+  the ledger carries every mapping's resolved record (`resolved`), which also replaces B3.2's
+  `closureRecords` and its silent empty-list fallback (audit finding 6).
+- A class-typed Join PM whose target class (or any subclass) has no set in the closure is DROPPED
+  from the synthesized function with the reason on the ledger (`classTypedButUnmapped`), never a
+  structural join; a query that navigates it is loud at demand — the engine's "not navigable here".
+- Engine R6 (every navigation resolves in the QUERIED mapping): the includer re-binds an included
+  set whose dropped join its own closure can serve (`unmappedTargetGainsSet`, the third criterion
+  of `resynthesizeIncluded`, spelled with the same two predicates the emitter uses).
+- `TransitionalShapesTest` (the bare-view pin) and `MappedClassesTest` (the graph-wide fact)
+  deleted; `MappedInClosureTest` is the witness: per-closure answers, an include brings its sets,
+  an unrelated mapping's class is not mapped here, order independence kept.
+
+**Corpus adjudication (rows judged).** 2 LOST on the first run, both
+`projection::qualifier::testFilterInQualifierWithFilterInMapping*`: the query runs under
+`productMappingWithFilter`, which includes `productSubMappingWithFilter` (Product with
+`synonyms: @Product_Synonym` and no Synonym set in the sub-mapping's closure — dropped there,
+correctly) and maps Synonym itself. The R6 re-bind closed both. The other 26 flips changed no row.
+
+**Pins (first chain RED on G8 only).** `OwnCorpusParityTest.MIN_MATCHED` 2425 → 2422: the graph-wide
+mapped-class witness left with its shape (its first model's four elements) and the closure-local
+witness's include mapping joined and matched — net −3, the pin moves with the witness. A test-only
+pin move: gate 8 re-run alone after it, G1–G7 and G9 green on the first run.
+
+**Sizes.** ResolvedMapping 55 → 196 (the view's accessors); MappingView 184 and MappedClasses 66
+deleted; MappingPrePass 258 → 250; MappingLedger +resolved / −closureRecords; JoinChainEmission
++drop rule; MappingNormalizer +re-bind criterion. Diff: 18 files, +388 / −601.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** Green (G8 on the re-run after the
+pin move; G1–G7, G9 on the first run).

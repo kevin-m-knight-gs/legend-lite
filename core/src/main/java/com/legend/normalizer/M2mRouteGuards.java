@@ -63,7 +63,7 @@ final class M2mRouteGuards {
      */
     static void requireBenignRoute(ClassMapping.Pure.PropertyBinding pb,
             ClassMapping.Pure pcm, @com.legend.Nullable ClassDefinition tgt,
-            MappingView md, ModelBuilder model) {
+            ResolvedMapping md, ModelBuilder model) {
         if (pb.sourceSetId() == null && pb.targetSetId() == null) {
             return;
         }

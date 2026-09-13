@@ -35,13 +35,9 @@ final class ImplicitInheritance {
      * sets; different main tables never inherit — distinct extents stay
      * loud). Child attributes are authoritative (no table-attribute
      * merge — unlike explicit extends, the extents are the child's). */
-    static LegacyMappingDefinition apply(
-            LegacyMappingDefinition md, ModelBuilder model) {
-        Map<String, ClassMapping> bySetId = new HashMap<>();
-        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
-        for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingView.idOf(cm), cm);
-        }
+    static LegacyMappingDefinition apply(ResolvedMapping resolved, ModelBuilder model) {
+        LegacyMappingDefinition md = resolved.raw();
+        Map<String, ClassMapping> bySetId = new HashMap<>(resolved.visibleSets());
         // class fqn -> its Relational mappings in scope
         Map<String, List<ClassMapping.Relational>> byClass = new HashMap<>();
         for (ClassMapping cm : bySetId.values()) {
@@ -120,12 +116,9 @@ final class ImplicitInheritance {
      * Conservative: only END / DECLARED classes with at least one routed
      * strict-subclass set qualify. */
     static LegacyMappingDefinition implicitOpsForRoutedTargets(
-            LegacyMappingDefinition md, ModelBuilder model) {
-        Map<String, ClassMapping> bySetId = new HashMap<>();
-        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
-        for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingView.idOf(cm), cm);
-        }
+            ResolvedMapping r, ModelBuilder model) {
+        LegacyMappingDefinition md = r.raw();
+        Map<String, ClassMapping> bySetId = new HashMap<>(r.visibleSets());
         Set<String> mappedClasses = new HashSet<>();
         for (ClassMapping cm : bySetId.values()) {
             mappedClasses.add(cm.className());
@@ -135,7 +128,7 @@ final class ImplicitInheritance {
             if (!(am instanceof com.legend.model.AssociationMapping.Relational rel)) {
                 continue;
             }
-            var ad = AssociationSynthesis.resolveAssociation(model, MappingView.of(md, model), am)
+            var ad = AssociationSynthesis.resolveAssociation(model, r, am)
                     .orElse(null);
             if (ad == null) {
                 continue;
@@ -168,7 +161,7 @@ final class ImplicitInheritance {
                     new java.util.LinkedHashMap<>();
             Map<String, String> ownerByProp = new HashMap<>();
             UnionSynthesis.collectRoutedJoins(rcm.propertyMappings(),
-                    rcm.className(), MappingView.of(md, model), model,
+                    rcm.className(), r, model,
                     routedByProp, ownerByProp);
             for (var e : routedByProp.entrySet()) {
                 String prop = e.getKey();

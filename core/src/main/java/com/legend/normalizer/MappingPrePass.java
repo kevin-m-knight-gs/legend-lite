@@ -28,10 +28,12 @@ import java.util.Set;
  * identity sets (formerly the index's runtime cross-bake), the M2M cycle
  * check, the sets' own declared-key text, {@code extends} flattening,
  * implicit same-extent inheritance, import-scope store-ref qualification
- * and the implicit Operation sets for routed targets. Its products are the
- * per-mapping {@link PrePassed} records and, over all of them, the
- * graph-wide {@link MappedClasses} fact &mdash; so a mapping's synthesis
- * never depends on which mappings normalized before it.
+ * and the implicit Operation sets for routed targets &mdash; ONE construction
+ * per mapping (B3.3): every step rewrites the {@link ResolvedMapping} under
+ * construction and asks its closure questions of that record. Whether a
+ * class is mapped FOR a mapping is the ledger's closure-local answer
+ * ({@link MappingLedger#isMapped}); no graph-wide fact exists, so a
+ * mapping's synthesis never depends on which mappings normalized before it.
  */
 final class MappingPrePass {
 
@@ -44,7 +46,7 @@ final class MappingPrePass {
      * the driver's own per-mapping discipline. */
     static Map<String, ResolvedMapping> run(ParsedModel parsed, ModelBuilder model,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
-        Map<String, PrePassed> pre = new LinkedHashMap<>();
+        Map<String, ResolvedMapping> pre = new LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof LegacyMappingDefinition md)) {
                 continue;
@@ -60,21 +62,10 @@ final class MappingPrePass {
                         String.valueOf(e.getMessage()).split("\n")[0]);
             }
         }
-        // the graph-wide mapped-class fact, over EVERY mapping's pre-passed sets
-        MappedClasses mapped = MappedClasses.of(
-                pre.values().stream().map(PrePassed::md).toList(), parsed.elements());
-        MappingClosures closures = MappingClosures.of(model);
-        Map<String, ResolvedMapping> out = new LinkedHashMap<>();
-        pre.forEach((fqn, pp) -> out.put(fqn, new ResolvedMapping(pp.md(), pp.surface(),
-                pp.declaredKeys(), pp.invalid(), closures.closure(fqn), mapped)));
-        return out;
+        return pre;
     }
 
-    private record PrePassed(LegacyMappingDefinition surface, LegacyMappingDefinition md,
-            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
-            Map<ClassMapping, String> invalid) {}
-
-    private static PrePassed prePass(LegacyMappingDefinition authored, ModelBuilder model,
+    private static ResolvedMapping prePass(LegacyMappingDefinition authored, ModelBuilder model,
             boolean tolerant) {
         LegacyMappingDefinition surface = MappingClosures.of(model).surface(authored);
         detectM2MCycles(surface);
@@ -90,17 +81,21 @@ final class MappingPrePass {
         // property mappings into each child mapping (child overrides on
         // property-name conflict; multi-level resolves recursively). See
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
-        LegacyMappingDefinition md = resolveExtends(surface, model);
-        md = ImplicitInheritance.apply(md, model);
+        // ONE construction (B3.3): every step rewrites the record under
+        // construction and asks its closure questions of that record
+        ResolvedMapping r = new ResolvedMapping(surface, surface, declaredKeys, Map.of(),
+                MappingClosures.of(model).closure(surface.qualifiedName()));
+        r = r.withMapping(resolveExtends(r, model));
+        r = r.withMapping(ImplicitInheritance.apply(r, model));
         // Pre-pass: IMPORT-SCOPE store-ref qualification (see
         // StoreSubstitutionRewrite.qualifyStoreRefs).
-        md = StoreSubstitutionRewrite.qualifyStoreRefs(md, model);
+        r = r.withMapping(StoreSubstitutionRewrite.qualifyStoreRefs(r.raw(), model));
         // Pre-pass: implicit inheritance OPS for unmapped routed targets
         // (association ends, routed class-typed properties) — must precede
         // the multi-hop injection (op visibility).
-        md = ImplicitInheritance.implicitOpsForRoutedTargets(md, model);
+        r = r.withMapping(ImplicitInheritance.implicitOpsForRoutedTargets(r, model));
         // VALIDATION before synthesis (step 5): strict rejects, module poisons
-        return new PrePassed(surface, md, declaredKeys, MappingValidation.run(md, model, tolerant));
+        return r.withInvalid(MappingValidation.run(r, model, tolerant));
     }
 
 
@@ -114,18 +109,15 @@ final class MappingPrePass {
      * identity; multi-level resolves recursively). A Pure (M2M) child
      * must declare its own (the function form requires explicitness).
      */
-    private static LegacyMappingDefinition resolveExtends(LegacyMappingDefinition md,
+    private static LegacyMappingDefinition resolveExtends(ResolvedMapping r,
                                                           ModelBuilder model) {
+        LegacyMappingDefinition md = r.raw();
         boolean any = md.classMappings().stream().anyMatch(cm -> cm.extendsSetId() != null);
         if (!any) return md;
         // set-ids resolve within this mapping AND its includes (transitive,
         // own definitions win) — extends [set] across an include is the
         // union::extend corpus family's normal shape
-        Map<String, ClassMapping> bySetId = new HashMap<>();
-        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
-        for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(MappingView.idOf(cm), cm);
-        }
+        Map<String, ClassMapping> bySetId = new HashMap<>(r.visibleSets());
         List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
         for (ClassMapping cm : md.classMappings()) {
             if (cm.extendsSetId() == null) {

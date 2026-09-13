@@ -1,55 +1,196 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
-
 package com.legend.normalizer;
 
+import com.legend.compiler.ModelBuilder;
+import com.legend.model.AssociationMapping;
 import com.legend.model.ClassMapping;
+import com.legend.model.EnumerationMapping;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
+import com.legend.model.MappingInclude;
+import com.legend.model.PropertyMapping;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * ONE RESOLVED MAPPING (clean-sheet homework B1): what synthesis consumes.
- * A {@link MappingView} (the pre-passed mapping and its closure) plus the
- * facts that exist only once EVERY mapping's pre-pass has run: the
- * graph-wide mapped-class set, the sets' declared keys, the validation
- * results, and the surface the F-side facts are stamped from. The rules
- * are the ones the retired walkers had (T4.1 step 4a); B2 replaces them
- * with the engine's, in the view. Mirrors the raw record's accessors so
- * the synthesis code reads {@code md.classMappings()} as before.
+ * A mapping RESOLVED for synthesis (B1, B3.3): its pre-passed record (extends
+ * flattened, same-extent inheritance applied, store refs qualified, implicit
+ * operation sets appended — every step a rewrite of THIS record under
+ * construction, {@link MappingPrePass}), its authored surface, the sets' own
+ * declared keys, the sets the validation walled, and its include closure.
+ * Every closure question synthesis asks — a set by id, the operation set of
+ * a class, roots, pair entries, a union member's ordinal — is asked of this
+ * record, in one construction from the mapping's text and its closure.
+ * Whether a class is MAPPED for this mapping is the ledger's answer over the
+ * pre-passed closure ({@link MappingLedger#isMapped}), never a graph-wide fact.
  */
-final class ResolvedMapping extends MappingView {
-
+final class ResolvedMapping {
+    final LegacyMappingDefinition md;
+    final MappingClosures.Closure closure;
     private final LegacyMappingDefinition surface;
     private final Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys;
     private final Map<ClassMapping, String> invalid;
-    private final MappedClasses mapped;
 
     ResolvedMapping(LegacyMappingDefinition md, LegacyMappingDefinition surface,
             Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
-            Map<ClassMapping, String> invalid, MappingClosures.Closure closure,
-            MappedClasses mapped) {
-        super(md, closure);
+            Map<ClassMapping, String> invalid, MappingClosures.Closure closure) {
+        this.md = md;
+        this.closure = closure;
         this.surface = surface;
         this.declaredKeys = declaredKeys;
         this.invalid = invalid;
-        this.mapped = mapped;
     }
 
-    /** The same record over a rewritten mapping (the multi-hop injection). */
+    /** The same record over a rewritten mapping (a construction step, the
+     * multi-hop injection). */
     ResolvedMapping withMapping(LegacyMappingDefinition rewritten) {
-        return new ResolvedMapping(rewritten, surface, declaredKeys, invalid, closure, mapped);
+        return new ResolvedMapping(rewritten, surface, declaredKeys, invalid, closure);
+    }
+
+    /** The same record with the sets the validation walled. */
+    ResolvedMapping withInvalid(Map<ClassMapping, String> walled) {
+        return new ResolvedMapping(md, surface, declaredKeys, walled, closure);
     }
 
     LegacyMappingDefinition surface() { return surface; }
     Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys() { return declaredKeys; }
     Map<ClassMapping, String> invalid() { return invalid; }
-    MappedClasses mapped() { return mapped; }
 
-    /** Whether some mapping of the graph maps {@code classFqn} (graph-wide
-     * today; closure-local after B2). */
-    boolean isMapped(String classFqn) {
-        return mapped.contains(classFqn);
+
+
+
+    // ---- the raw record's face ------------------------------------------
+
+    LegacyMappingDefinition raw() { return md; }
+    String qualifiedName() { return md.qualifiedName(); }
+    List<ClassMapping> classMappings() { return md.classMappings(); }
+    List<MappingInclude> includes() { return md.includes(); }
+    List<AssociationMapping> associationMappings() { return md.associationMappings(); }
+    List<EnumerationMapping> enumerationMappings() { return md.enumerationMappings(); }
+    @com.legend.Nullable String testSuitesSource() { return md.testSuitesSource(); }
+
+    // ---- identities -----------------------------------------------------
+
+    /** A set's EFFECTIVE id: the declared one, else the engine's default
+     * (the class FQN with {@code ::} as {@code _}). The one rule. */
+    static String idOf(ClassMapping cm) {
+        return cm.setId() != null ? cm.setId() : cm.className().replace("::", "_");
+    }
+
+    // ---- resolutions (today's rules; B2 adopts the engine's) -------------
+    /** The set with id {@code setId}: this mapping's own first, else one
+     * visible through the includes. Null for a null id or no such set. */
+    @com.legend.Nullable ClassMapping set(@com.legend.Nullable String setId) {
+        if (setId == null) {
+            return null;
+        }
+        for (ClassMapping cm : md.classMappings()) {
+            if (setId.equals(idOf(cm))) {
+                return cm;
+            }
+        }
+        return closure.sets().get(setId);
+    }
+
+    /** This mapping then its includes, depth-first in include order, each once. */
+    List<LegacyMappingDefinition> closure() {
+        List<LegacyMappingDefinition> out = new ArrayList<>(closure.mappings().size() + 1);
+        out.add(md);
+        Set<String> seen = new HashSet<>();
+        seen.add(md.qualifiedName());
+        for (LegacyMappingDefinition m : closure.mappings()) {
+            if (seen.add(m.qualifiedName())) {
+                out.add(m);
+            }
+        }
+        return out;
+    }
+
+    /** Set ids visible through the includes (a later include overrides an
+     * earlier one; substitutions applied); own sets excluded. */
+    Map<String, ClassMapping> includedSets() {
+        return closure.sets();
+    }
+
+    /** Every visible set by id: the includes', then this mapping's own on top. */
+    Map<String, ClassMapping> visibleSets() {
+        Map<String, ClassMapping> out = new LinkedHashMap<>(closure.sets());
+        for (ClassMapping cm : md.classMappings()) {
+            out.put(idOf(cm), cm);
+        }
+        return out;
+    }
+
+    /** The Union operation set for {@code classFqn}: own first, else the
+     * first found through the includes. */
+    ClassMapping.@com.legend.Nullable Union unionOf(@com.legend.Nullable String classFqn) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Union u && u.className().equals(classFqn)) {
+                return u;
+            }
+        }
+        return closure.union(classFqn);
+    }
+
+    /** The Inheritance operation set for {@code classFqn}, the same rule. */
+    ClassMapping.@com.legend.Nullable Inheritance inheritanceOf(String classFqn) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Inheritance ih && ih.className().equals(classFqn)) {
+                return ih;
+            }
+        }
+        return closure.inheritance(classFqn);
+    }
+
+    /** ROOT set per class: the includes' (deeper first), this mapping's own
+     * overriding; the {@code *} set or the class's sole set. */
+    Map<String, ClassMapping> roots() {
+        Map<String, ClassMapping> out = new LinkedHashMap<>(closure.roots());
+        MappingClosures.Closure.ownRoots(md, out);
+        return out;
+    }
+
+    /** Own enumeration mappings plus the includes', transitively. */
+    List<EnumerationMapping> enumerationMappingsWithIncludes() {
+        List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
+        out.addAll(closure.enumerationMappings());
+        return out;
+    }
+
+    /** Per-pair association entries for {@code classFqn}: own first, then
+     * each include's, depth-first. */
+    Map<String, List<PropertyMapping.Join>> pairEntries(String classFqn) {
+        Map<String, List<PropertyMapping.Join>> out = new LinkedHashMap<>();
+        closure.ownPairs(md, classFqn, out);
+        closure.pairEntries(classFqn).forEach((setId, joins) ->
+                out.computeIfAbsent(setId, k -> new ArrayList<>()).addAll(joins));
+        return out;
+    }
+
+    /** A union member's ordinal for {@code setId}: the member itself, or
+     * the member whose {@code extends} chain reaches it; -1 otherwise. */
+    int memberOrdinal(List<String> memberIds, @com.legend.Nullable String setId) {
+        int direct = memberIds.indexOf(setId);
+        if (direct >= 0) {
+            return direct;
+        }
+        for (int i = 0; i < memberIds.size(); i++) {
+            ClassMapping m = set(memberIds.get(i));
+            Set<String> seen = new HashSet<>();
+            while (m instanceof ClassMapping.Relational r
+                    && r.extendsSetId() != null && seen.add(r.extendsSetId())) {
+                if (r.extendsSetId().equals(setId)) {
+                    return i;
+                }
+                m = set(r.extendsSetId());
+            }
+        }
+        return -1;
     }
 }

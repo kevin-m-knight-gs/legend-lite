@@ -83,7 +83,7 @@ final class XStorePureEnds {
             if (cm instanceof ClassMapping.RelationFunction rf
                     && rf.className().equals(classFqn)
                     && (setId == null
-                            || setId.equals(MappingView.idOf(rf)))) {
+                            || setId.equals(ResolvedMapping.idOf(rf)))) {
                 Set<String> locals = new LinkedHashSet<>();
                 for (ClassMapping.RelationFunction.Col c : rf.columns()) {
                     if (c.local()) {
@@ -92,14 +92,14 @@ final class XStorePureEnds {
                 }
                 return new XEnd(
                         MappingNormalizer.relationFunctionPipeline(rf, model),
-                        rf, MappingView.idOf(rf), false, locals);
+                        rf, ResolvedMapping.idOf(rf), false, locals);
             }
         }
         for (ClassMapping cm : cms) {
             if (cm instanceof ClassMapping.Relational rcm
                     && rcm.className().equals(classFqn)
                     && (setId == null
-                            || setId.equals(MappingView.idOf(rcm)))) {
+                            || setId.equals(ResolvedMapping.idOf(rcm)))) {
                 List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
                 Set<String> locals = new LinkedHashSet<>();
                 Map<String, TypeExpression> localTypes = new LinkedHashMap<>();
@@ -138,9 +138,9 @@ final class XStorePureEnds {
                 return new XEnd(
                         ViewRelation.mainSourceRef(md, classFqn, model),
                         new ClassMapping.RelationFunction(classFqn,
-                                MappingView.idOf(rcm), null, rcm.root(),
+                                ResolvedMapping.idOf(rcm), null, rcm.root(),
                                 "<relational>", cols),
-                        MappingView.idOf(rcm), false, locals, lossy,
+                        ResolvedMapping.idOf(rcm), false, locals, lossy,
                         localTypes);
             }
         }
@@ -148,7 +148,7 @@ final class XStorePureEnds {
             if (cm instanceof ClassMapping.Pure pcm
                     && pcm.className().equals(classFqn)
                     && (setId == null
-                            || setId.equals(MappingView.idOf(pcm)))) {
+                            || setId.equals(ResolvedMapping.idOf(pcm)))) {
                 Set<String> locals = new LinkedHashSet<>();
                 for (ClassMapping.Pure.PropertyBinding pb
                         : pcm.propertyBindings()) {
@@ -157,7 +157,7 @@ final class XStorePureEnds {
                     }
                 }
                 return new XEnd(null, null,
-                        MappingView.idOf(pcm), true, locals);
+                        ResolvedMapping.idOf(pcm), true, locals);
             }
         }
         throw new NotImplementedException(

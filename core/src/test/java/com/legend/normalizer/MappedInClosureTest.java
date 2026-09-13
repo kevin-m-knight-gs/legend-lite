@@ -1,6 +1,5 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
-
 package com.legend.normalizer;
 
 import com.legend.compiler.ModelBuilder;
@@ -12,46 +11,32 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * T4.1 step 2, verified item 1: the mapped-class fact is computed ONCE
- * from every mapping's pre-passed class mappings (explicit and implicit),
- * so a mapping's answer never depends on which mappings normalized
- * before it. The corpus probe of 2026-09-13 found the old index write
- * order-dependent across unrelated mappings (FunctionScope, the
- * milestoned Vehicle).
+ * B3.3 witness: whether a class is MAPPED is a question about ONE mapping's
+ * closure (engine R1), never about the graph. A class another mapping maps
+ * is not navigable here; an implicit Operation set of this mapping counts;
+ * and the compiled mappings do not depend on the element order.
  */
-class MappedClassesTest {
+class MappedInClosureTest {
 
-    private static MappedClasses mapped(String src) {
+    private static Map<String, ResolvedMapping> resolve(String src) {
         ParsedModel resolved = NameResolver.resolve(com.legend.testing.Own.model(src));
         ModelBuilder index = ModelBuilder.from(resolved);
-        Map<String, ResolvedMapping> pre = MappingPrePass.run(resolved, index, null);
-        // every resolved mapping carries the same graph-wide fact
-        return pre.values().stream().findFirst().map(ResolvedMapping::mapped).orElseThrow();
+        return MappingPrePass.run(resolved, index, null);
     }
 
-    @Test
-    @DisplayName("explicit class mappings, across mappings; unmapped and unknown classes are not mapped")
-    void explicitClassMappings() {
-        MappedClasses m = mapped("""
-                Class model::Person { name: String[1]; }
-                Class model::Other { x: String[1]; }
-                ###Mapping
-                Mapping pkg::M1 ( *model::Person: Pure { ~src model::Person name: $src.name } )
-                Mapping pkg::M2 ( *model::Person: Pure { ~src model::Person name: $src.name } )
-                """);
-        assertTrue(m.contains("model::Person"));
-        assertFalse(m.contains("model::Other"));
-        assertFalse(m.contains("model::TotallyUnknown"));
+    private static Set<String> mappedFor(Map<String, ResolvedMapping> pre, String mapping) {
+        return MappingLedger.mappedInClosure(pre.get(mapping), pre);
     }
 
     /** Vehicle is UNMAPPED; the association end targets it while the
-     * routed set maps the strict subclass Car — the pre-pass appends an
+     * routed set maps the strict subclass Car — the construction appends an
      * implicit Inheritance set for Vehicle (ImplicitInheritance case a). */
     private static final String IMPLYING = """
             ###Mapping
@@ -67,6 +52,12 @@ class MappedClassesTest {
             ###Mapping
             Mapping w::Unrelated (
               *w::Garage : Relational { ~mainTable [w::DB] GARAGE name: GARAGE.NAME }
+            )
+            """;
+    private static final String INCLUDER = """
+            ###Mapping
+            Mapping w::Includer (
+              include w::Unrelated
             )
             """;
     private static final String CLASSES = """
@@ -85,15 +76,25 @@ class MappedClassesTest {
             """;
 
     @Test
-    @DisplayName("an implicit Operation set counts, and every mapping sees the same fact whatever the element order")
-    void implicitSetsAreMappedOrderIndependently() {
-        MappedClasses first = mapped(CLASSES + IMPLYING + UNRELATED);
-        MappedClasses second = mapped(CLASSES + UNRELATED + IMPLYING);
-        for (MappedClasses m : new MappedClasses[] {first, second}) {
-            assertTrue(m.contains("w::Vehicle"), "the implied Inheritance set for Vehicle");
-            assertTrue(m.contains("w::Car"));
-            assertTrue(m.contains("w::Garage"));
-        }
+    @DisplayName("mapped is per closure: own sets, included sets, this mapping's implicit sets; nothing from elsewhere")
+    void mappedIsClosureLocal() {
+        Map<String, ResolvedMapping> pre = resolve(CLASSES + IMPLYING + UNRELATED + INCLUDER);
+        Set<String> implying = mappedFor(pre, "w::Implying");
+        assertTrue(implying.contains("w::Vehicle"), "the implied Inheritance set for Vehicle");
+        assertTrue(implying.contains("w::Car"));
+        assertTrue(implying.contains("w::Owner"));
+        assertFalse(implying.contains("w::Garage"), "mapped by an unrelated mapping only");
+        Set<String> unrelated = mappedFor(pre, "w::Unrelated");
+        assertEquals(Set.of("w::Garage"), unrelated);
+        Set<String> includer = mappedFor(pre, "w::Includer");
+        assertEquals(Set.of("w::Garage"), includer, "an include brings its sets; nothing else does");
+        assertFalse(includer.contains("w::TotallyUnknown"));
+    }
+
+    private static MappingDefinition mapping(NormalizedModel m, String fqn) {
+        return m.elements().stream()
+                .filter(e -> e instanceof MappingDefinition d && d.qualifiedName().equals(fqn))
+                .map(e -> (MappingDefinition) e).findFirst().orElseThrow();
     }
 
     @Test
@@ -114,11 +115,5 @@ class MappedClassesTest {
         assertTrue(mapping(a, "w::Implying").classBindings().stream()
                 .anyMatch(cb -> cb.classFqn().equals("w::Vehicle")),
                 mapping(a, "w::Implying").classBindings().toString());
-    }
-
-    private static MappingDefinition mapping(NormalizedModel n, String fqn) {
-        return n.elements().stream()
-                .filter(e -> e instanceof MappingDefinition md && md.qualifiedName().equals(fqn))
-                .map(MappingDefinition.class::cast).findFirst().orElseThrow();
     }
 }
