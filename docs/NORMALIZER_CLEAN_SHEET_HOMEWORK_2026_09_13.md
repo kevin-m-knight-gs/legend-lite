@@ -387,6 +387,42 @@ guard, the deleted union-to-union arms.
   `A` as t5 and t7 in y1's thread — pre-existing, dedup is by alias); `routedTargetGainsOperation`
   stays (include-direction reclassification). Judge: `multipleChainedJoins` ×20, `JoinSequence
   InProperty` ×2, `unionOfViews2`; 108 / 444 EXACT.
+- **B3.2 AUDIT (2026-09-13, while CI ran; receipts verified, not designs).** VERIFIED: no
+  ordinal or set-scoped key spelling remains on the navigator side (the only `"__"` left in
+  `JoinChainEmission` is the slot-alias uniqueness mint); `UnionSynthesis` keeps `__prop_ord` only
+  for a union's own lifted-chain SOURCE keys (2760–2762, thread-internal); first chain G2–G9 exit 0,
+  G1 red on the census pin alone, G7 at its floor; the witness reads `a0_b` off the chained arm.
+  FINDINGS, ranked, none fixed here (an audit verifies; fixes are batches):
+  1. **Concatenate aligns by POSITION and renames silently** (`ConcatenateChecker.positional`):
+     that is Pure's spec for user-written `concatenate`, but for the SYNTHESIZED union threads a
+     column-order drift produces renamed columns and, at best, the resolver's "TypedRename above
+     join slot" wall — the B3.2 failure mode. The union driver must assert every thread's column
+     names IN ORDER equal the first thread's and fail as a normalizer bug otherwise. → B5.
+  2. **A second chain into the same member under the same key name is dropped silently**
+     (`registerInboundEntry`'s `dup` check, pre-existing): two chained routes from one navigating
+     set and property into one member with different first hops but one shape now share a name
+     and the second never registers. Loud, or a second shape. → B5.
+  3. **Chain facts yield silently** (`facts.putIfAbsent`) where single-hop facts throw on a
+     conflicting column: a member routed to both directly and through a chain from the same
+     navigating set, property and shape gets ONE name for two different columns; the thread reads
+     the chain, the fact says the own column. Same loud guard as the single-hop path. → B5.
+  4. **The link-key fact is overloaded**: `linkKeys` says set → name → column, and for a chain
+     key the column belongs to the MID, not the set's table. Threads read it correctly (chain read
+     first); the resolver's `linkKeyOnArm` would fail with the wrong words ("does not carry its
+     link key column"). The fact should carry where the column lives: `LinkKey(name, db, table,
+     column)`. → B6 (one typed fact, one reader).
+  5. **The route group is derived twice**: the navigator's group is the property's routes into
+     union members (`unionRoutes`, mixed root/member routes poisoned); the publisher's group is the
+     routes of (navigating set, property) whose targets are in `memberIds` — union members in the
+     driver, EVERY set in the publication. The comment at `UnionSynthesis` ~258 says one predicate;
+     the inputs differ. One group function, both callers. → B6.
+  6. **`closureRecords.isEmpty()` falls back to the raw closure silently** (driver ~996): a scratch
+     ledger never synthesizes, so the fallback covers nothing but a future misuse. Require it. → B5.
+  7. **Duplicate mid join in an arm** (2SetsV4: `A` twice in y1's thread — a member's own outbound
+     lift and an inbound chain each wrap the mid; dedup is by slot alias). Pre-existing; dedup by
+     (table, condition). → B6.
+  8. Record text: the B3.2 GATES record says "Diff: 7 files"; the commit touched 8 (the census
+     registration). Corrected in the next docs commit.
 - **B3.3 — implicit sets at resolution.** The implicit Operation sets the pre-pass appends
   become resolve-time answers; then `ResolvedMapping` is built in ONE construction from a
   mapping's text and its closure, and `MappingView`, `MappedClasses` and `TransitionalShapesTest`

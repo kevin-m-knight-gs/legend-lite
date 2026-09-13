@@ -2332,7 +2332,10 @@ gate green on the first run (G7 Relation PCT at its floor 469 / 1 / 26).
 **Sizes (against B3.1b).** UnionSynthesis 3,217 → 3,288 (the fact publication for chain keys,
 `hopCondition`/`routeKeyCondition`, the one-order projection, `chainKeyNull`); JoinChainEmission
 1,076 → 1,063 (the in-arm branch gone); MappingLedger +12 (`closureRecords`); MappingNormalizer
-+2. Diff: 7 files.
++2. Diff: 8 files (the JDBC-census registration included).
 
 **Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** Green (G1 on the re-run after the
 census registration; G2–G9 on the first run).
+**CI.** GREEN on f34f3e03d (28/29 jobs on the first run; the Windows gate 9 job failed on "Central
+unreachable" before any test and passed on rerun). **Audit.** docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_
+2026_09_13.md §6 "B3.2 AUDIT": eight findings, none changing rows, filed to B5 / B6.
