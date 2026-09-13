@@ -2193,4 +2193,4 @@ member column instead of the `ID_1` suffix. `CodeShapeGuardrailTest`: the first 
 `Pipelines.widenForCondition` (one implementation for its seven callers) and a comment shrank.
 
 **Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** First run RED on G1 (the four
-pins above; every other gate green); second run GREEN: build, G1 72s, G2 24s, G3 11s, G4 114s, G5 60s, G6 144s, G7 35s, G8 147s, G9 27s (GATES_PARALLEL=1). No own-corpus pin moved.
+pins above; every other gate green); second run GREEN: build, G1 72s, G2 24s, G3 11s, G4 114s, G5 60s, G6 144s, G7 35s, G8 147s, G9 27s (GATES_PARALLEL=1). No own-corpus pin moved. **CI.** 435070647: gates and diagnostics green (the Linux gate-1 job first failed on the version-invariant step, "Central unreachable", before any test ran; the rerun passed).
