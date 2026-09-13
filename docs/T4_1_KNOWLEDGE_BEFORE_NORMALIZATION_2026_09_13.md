@@ -372,6 +372,7 @@ pin at zero.
 | 3b — property family retired (`propertyType`/`propertyDef`/`derivedInline`/`propertyMultiplicity`, `hierarchyClass`) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | census property rows → 0 | docs/GATES.md "T4.1 step 3b" |
 | 3c — stereotype family retired (`lineage`, `MilestoningFacts`) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | census stereotype rows → 0 | docs/GATES.md "T4.1 step 3c" |
 | 3d — store family retired (`table`/`column`/`columnKind`; `RelationalKinds` → compiler; `PhysicalTables` deleted); STEP 3 CLOSED (13 of 14 walkers; `inferViewMainTable` owed) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | own-corpus parity 2379 → 2381; census store rows → 0 | docs/GATES.md "T4.1 step 3d" |
+| 4a — `MappingClosures`: one include-order fact per mapping over SURFACES, memoized on the kernel; the nine walkers readers; step 2's identity-set visibility drift closed | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | reach-back MappingNormalizer 4 + UnionSynthesis 3 + AssociationSynthesis 1 → MappingClosures 2; own-corpus 2381 → 2392 | docs/GATES.md "T4.1 step 4a" |
 
 Step-1 findings that amend the text above: E.0 never stripped the association (§13's "still
 carries" is unverifiable; the landed check is adoption-by-identity), and the owner-absent

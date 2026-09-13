@@ -87,17 +87,7 @@ final class UnionSynthesis {
                 return u;
             }
         }
-        for (MappingInclude inc : md.includes()) {
-            LegacyMappingDefinition inner =
-                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
-            if (inner != null) {
-                ClassMapping.Union u = unionForClass(inner, model, classFqn);
-                if (u != null) {
-                    return u;
-                }
-            }
-        }
-        return null;
+        return MappingClosures.of(model).closure(md.qualifiedName()).union(classFqn);
     }
 
     /** One routed navigation entry: the target's union-member ORDINAL
@@ -718,17 +708,7 @@ final class UnionSynthesis {
                 return ih;
             }
         }
-        for (MappingInclude inc : md.includes()) {
-            LegacyMappingDefinition inner =
-                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
-            if (inner != null) {
-                ClassMapping.Inheritance ih = inheritanceForClass(inner, model, classFqn);
-                if (ih != null) {
-                    return ih;
-                }
-            }
-        }
-        return null;
+        return MappingClosures.of(model).closure(md.qualifiedName()).inheritance(classFqn);
     }
 
     /** The engine's leaf-most-root member selection for an inheritance op. */
@@ -811,26 +791,8 @@ final class UnionSynthesis {
     /** ROOT set per class across this mapping + its includes (own wins). */
     static void collectRootClassMappings(LegacyMappingDefinition md,
             ModelBuilder model, Map<String, ClassMapping> out, Set<String> seen) {
-        for (MappingInclude inc : md.includes()) {
-            if (seen.add(inc.mappingPath())) {
-                LegacyMappingDefinition included =
-                        model.findLegacyMapping(inc.mappingPath()).orElse(null);
-                if (included != null) {
-                    collectRootClassMappings(included, model, out, seen);
-                }
-            }
-        }
-        Map<String, Integer> setsPerClass = new LinkedHashMap<>();
-        for (ClassMapping cm : md.classMappings()) {
-            setsPerClass.merge(cm.className(), 1, Integer::sum);
-        }
-        for (ClassMapping cm : md.classMappings()) {
-            // engine rootClassMappingByClass: the * set, or the class's
-            // SOLE set (corpus mappings often omit * on singletons)
-            if (cm.root() || java.util.Objects.requireNonNull(setsPerClass.get(cm.className())) == 1) {
-                out.put(cm.className(), cm);
-            }
-        }
+        out.putAll(MappingClosures.of(model).closure(md.qualifiedName()).roots());
+        MappingClosures.Closure.ownRoots(md, out);
     }
 
 

@@ -60,12 +60,14 @@ class LegacyReachbackCensusTest {
             // CONSTRUCTION (Phase E): the normalizer IS the legacy
             // artifact's consumer — translation, union/association
             // synthesis, include walks over the raw surface
-            // 5 -> 4 (T4.1 step 2, 2026-09-13): the driver's cross-bake
-            // re-fetch died — the JSON identity sets are Phase E's own
-            // pre-pass product, so the index slot IS the parsed mapping
-            "core/src/main/java/com/legend/normalizer/MappingNormalizer.java", 4,
-            "core/src/main/java/com/legend/normalizer/UnionSynthesis.java", 3,
-            "core/src/main/java/com/legend/normalizer/AssociationSynthesis.java", 1,
+            // MappingNormalizer 4 + UnionSynthesis 3 + AssociationSynthesis 1
+            // -> MappingClosures 2 (T4.1 step 4a, 2026-09-13): the nine
+            // include walkers are readers of ONE include-order fact computed
+            // per mapping over the mappings' surfaces and memoized on the
+            // knowledge kernel; its two reaches (the surface lookup, the
+            // package-local include probe) are the whole of Phase E's
+            // consumption of the authored include graph
+            "core/src/main/java/com/legend/normalizer/MappingClosures.java", 2,
             // SURFACE CONTRACT: the Pure metamodel API presents the
             // AUTHORED mapping (includes + own lists; .pure navigation
             // does its own traversal)

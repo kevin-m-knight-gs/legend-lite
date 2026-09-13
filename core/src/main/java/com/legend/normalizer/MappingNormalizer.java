@@ -462,7 +462,7 @@ public final class MappingNormalizer {
                 md.includes(),
                 classBindings,
                 assocBindings,
-                md.enumerationMappingsWithIncludes(model::findLegacyMapping),
+                enumerationMappingsWithIncludes(md, model),
                 md.testSuitesSource(),
                 SetDispatch.routedTargetSets(md, model), resolvedStores, ledger.facts());
     }
@@ -746,40 +746,14 @@ public final class MappingNormalizer {
                 return cm;
             }
         }
-        Map<String, ClassMapping> included = new HashMap<>();
-        collectIncludedSetIds(md, model, included, new HashSet<>());
-        return included.get(setId);
+        return MappingClosures.of(model).closure(md.qualifiedName()).sets().get(setId);
     }
 
     /** Set-ids of {@code md}'s includes, transitively (nearer include wins). */
     static void collectIncludedSetIds(LegacyMappingDefinition md,
             ModelBuilder model, Map<String, ClassMapping> bySetId,
             Set<String> seen) {
-        for (MappingInclude inc : md.includes()) {
-            if (!seen.add(inc.mappingPath())) {
-                continue;
-            }
-            LegacyMappingDefinition included =
-                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
-            if (included == null) {
-                continue;   // unresolvable include is its own loud problem elsewhere
-            }
-            // STORE SUBSTITUTION composes through the include chain
-            // (include AMapping[db1->db2]; the outer include's map applies
-            // to EVERYTHING pulled through it, grandparents included —
-            // corpus testExtendsWithStoreSubstitution.pure): collect into
-            // a LOCAL map, substitute, then merge in include order.
-            Map<String, ClassMapping> local = new LinkedHashMap<>();
-            collectIncludedSetIds(included, model, local, seen);
-            for (ClassMapping cm : included.classMappings()) {
-                local.put(setIdOf(cm), cm);
-            }
-            if (!inc.substitutions().isEmpty()) {
-                local.replaceAll((k, v) ->
-                        StoreSubstitutionRewrite.apply(v, inc.substitutions()));
-            }
-            bySetId.putAll(local);
-        }
+        bySetId.putAll(MappingClosures.of(model).closure(md.qualifiedName()).sets());
     }
 
     // ====================================================================
@@ -1363,6 +1337,15 @@ public final class MappingNormalizer {
     // Relational dispatch:  JsonSource | View-backed | Table-backed
     // ====================================================================
 
+    /** The mapping's enumeration mappings plus its includes', transitively
+     * (the fact rides the compiled artifact). */
+    static List<com.legend.model.EnumerationMapping> enumerationMappingsWithIncludes(
+            LegacyMappingDefinition md, ModelBuilder model) {
+        List<com.legend.model.EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
+        out.addAll(MappingClosures.of(model).closure(md.qualifiedName()).enumerationMappings());
+        return out;
+    }
+
     /** {@code md} plus its includes, transitively. */
     static void collectMappingClosure(LegacyMappingDefinition md,
             ModelBuilder model, List<LegacyMappingDefinition> out,
@@ -1371,9 +1354,11 @@ public final class MappingNormalizer {
             return;
         }
         out.add(md);
-        for (MappingInclude inc : md.includes()) {
-            model.findLegacyMapping(inc.mappingPath())
-                    .ifPresent(m -> collectMappingClosure(m, model, out, seen));
+        for (LegacyMappingDefinition m
+                : MappingClosures.of(model).closure(md.qualifiedName()).mappings()) {
+            if (seen.add(m.qualifiedName())) {
+                out.add(m);
+            }
         }
     }
 
@@ -2676,7 +2661,7 @@ public final class MappingNormalizer {
             LegacyMappingDefinition md, String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
         List<EnumerationMapping> ems =
-                md.enumerationMappingsWithIncludes(model::findLegacyMapping);
+                enumerationMappingsWithIncludes(md, model);
         if (enumMappingId != null) {
             // engine getEnumerationMappingId (HelperMappingBuilder:348-351):
             // an anonymous enum mapping's IMPLICIT id is its enumeration FQN

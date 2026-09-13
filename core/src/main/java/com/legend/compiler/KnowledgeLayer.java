@@ -44,9 +44,24 @@ public final class KnowledgeLayer {
 
     private final ModelBuilder model;
     private final Map<String, Boolean> subtypeMemo = new java.util.HashMap<>();
+    /** Facts a phase DERIVES from the index and memoizes here for the
+     * graph's lifetime (rebuilt with the kernel when a batch is added) —
+     * the {@code ModelContext.derived} idiom, one level down. */
+    private final Map<Class<?>, Object> derived = new java.util.HashMap<>();
 
     KnowledgeLayer(ModelBuilder model) {
         this.model = Objects.requireNonNull(model, "model");
+    }
+
+    /** The memoized derivation {@code key} over this index: computed on
+     * first ask, the same object after. A pure function of the index. */
+    public <T> T derived(Class<T> key, java.util.function.Function<ModelBuilder, T> derive) {
+        Object v = derived.get(key);
+        if (v == null) {
+            v = derive.apply(model);
+            derived.put(key, v);
+        }
+        return key.cast(v);
     }
 
     // ====================================================================

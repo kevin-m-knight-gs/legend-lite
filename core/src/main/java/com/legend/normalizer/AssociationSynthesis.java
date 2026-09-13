@@ -300,38 +300,10 @@ final class AssociationSynthesis {
         if (!seen.add(md.qualifiedName())) {
             return;
         }
-        for (AssociationMapping am : md.associationMappings()) {
-            if (!(am instanceof AssociationMapping.Relational rel)) continue;
-            AssociationDefinition ad =
-                    model.findAssociation(am.associationName()).orElse(null);
-            if (ad == null) continue;
-            for (AssociationPropertyMapping apm : rel.propertyMappings()) {
-                if (!(apm.body() instanceof PropertyMapping.Join join)
-                        || apm.sourceSetId() == null) {
-                    continue;
-                }
-                String owner = associationOwnerClass(ad, apm.propertyName());
-                // the union class may INHERIT the end (B extends A picking
-                // up AE's 'e' — extends/union family): owner-or-superclass
-                if (owner == null || !(owner.equals(classFqn)
-                        || model.knowledge().isSubtype(classFqn, owner))) {
-                    continue;
-                }
-                PropertyMapping.Join stamped = join.targetSetId() == null
-                        ? new PropertyMapping.Join(join.propertyName(),
-                                join.database(), join.joins(), apm.targetSetId())
-                        : join;
-                out.computeIfAbsent(apm.sourceSetId(), k -> new ArrayList<>())
-                        .add(stamped);
-            }
-        }
-        for (MappingInclude inc : md.includes()) {
-            LegacyMappingDefinition inner =
-                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
-            if (inner != null) {
-                collectPairAssociationEntries(inner, model, classFqn, out, seen);
-            }
-        }
+        MappingClosures.Closure closure = MappingClosures.of(model).closure(md.qualifiedName());
+        closure.ownPairs(md, classFqn, out);
+        closure.pairEntries(classFqn).forEach((setId, joins) ->
+                out.computeIfAbsent(setId, k -> new ArrayList<>()).addAll(joins));
     }
 
     /**

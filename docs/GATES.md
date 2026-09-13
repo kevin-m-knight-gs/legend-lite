@@ -1903,3 +1903,44 @@ witness's two databases); G8 re-ran alone GREEN. No production file changed betw
 **Step 3 closed.** Fourteen walkers: thirteen retired onto the kernel, one owed with its reason;
 `ShadowWalkerCensusTest` pins the state, shrink-only. The doc's "step 0" (the bare-superclass-name
 gap) was already closed by name-resolve and is pinned by a witness.
+
+## T4.1 step 4a — the include-order facts: one closure per mapping, the nine walkers readers — 2026-09-13
+
+**What landed.** `MappingClosures` (normalizer): the include-order facts of every mapping,
+computed ONCE per mapping and memoized on the knowledge kernel (`KnowledgeLayer.derived`, the
+`ModelContext.derived` idiom one level down) — a pure function of the index, reachable from
+every site that holds it, so no parameter sweep. Each accessor keeps the rule of the walker it
+replaced, recursion shape included, because the walkers differed from one another and those
+differences are the current semantics: visible sets (a nearer mapping's set overrides a deeper
+one, a LATER include overrides an earlier one, an include's store substitutions apply to its
+whole subtree), operation sets per class (the FIRST include found wins), roots (deeper includes
+first, a nearer mapping overrides; `*` or the sole set), enumeration mappings (a bare include
+path resolves in the mapping's package first), pair association entries (own first, then each
+include, owner-or-subtype through the kernel). The nine entry points — `collectMappingClosure`,
+`collectIncludedSetIds`, `findSetById`, `unionForClass`, `inheritanceForClass`,
+`collectRootClassMappings`, `collectPairAssociationEntries`, `enumerationMappingsWithIncludes`
+(the record's method deleted; a normalizer reader replaces it), `memberOrdinalOf` (a reader of
+`findSetById`) — are readers now; their 58 call sites are unchanged.
+
+**A silent drift of step 2, found and closed.** Step 2 moved the JSON-connection identity sets
+from the index's cross-bake into Phase E's pre-pass; the include walkers kept reading the INDEX
+(the authored mapping), so an includer no longer saw an included mapping's identity sets. The
+corpus carries no such case (0 rows moved then), but the engine's cross-bake mutates the bound
+mapping itself, so includers must see it. The closure walks SURFACES (authored + identity sets,
+derived from the index's runtimes), which restores the pre-step-2 visibility; the pre-pass takes
+its surface from the same place (one computation). `MappingClosuresTest` pins it.
+
+**Reach-back census.** MappingNormalizer 4 + UnionSynthesis 3 + AssociationSynthesis 1 → 
+MappingClosures 2 (the surface lookup and the package-local include probe): Phase E's whole
+consumption of the authored include graph is now two reads in one file.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED).
+
+**Chain.** build 23s, G1 74s, G3 11s, G4 118s, G5 59s, G6 145s, G7 37s, G9 27s, G8 152s — G8 RED
+on the own-corpus pin alone (2381 → 2392, the closure witness's eleven elements); G8 re-ran
+alone GREEN. No production file changed between the runs.
+
+**Next (4b).** The F-side readers of legacy surfaces (`unionMemberClasses`, `routedTargetClass`,
+the `routedTargetSetOf` fallback into `ModelBuilder`) → facts stamped on the compiled mapping;
+the fallback's rule differs from the compiled `routedTargetSets` (it records every route; the
+compiled fact only named-set navigations), so it is stamped as its own map.

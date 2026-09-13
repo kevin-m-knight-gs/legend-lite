@@ -8,13 +8,11 @@ import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
 import com.legend.model.ClassMapping;
-import com.legend.model.JsonModelConnection;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
 import com.legend.model.PropertyMapping;
-import com.legend.model.RuntimeDefinition;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -73,7 +71,7 @@ final class MappingPrePass {
     }
 
     private static PrePassed prePass(LegacyMappingDefinition authored, ModelBuilder model) {
-        LegacyMappingDefinition surface = withJsonIdentitySets(authored, model);
+        LegacyMappingDefinition surface = MappingClosures.of(model).surface(authored);
         detectM2MCycles(surface);
         // the sets' OWN key text, captured BEFORE the extends pre-pass
         // merges the parent's in (metamodel facts, ClassBinding.declared)
@@ -99,48 +97,6 @@ final class MappingPrePass {
         return new PrePassed(surface, md, declaredKeys);
     }
 
-    /**
-     * Each runtime's {@link JsonModelConnection} bindings synthesize an
-     * identity {@link ClassMapping.Relational} ({@code sourceUrl} set) into
-     * every mapping the runtime binds, unless the user already declared a
-     * class mapping for that class (user wins; engine parity:
-     * {@code PureModelBuilder.addRuntime}'s phase-5c cross-bake). The
-     * normalizer detects {@code sourceUrl != null} and emits a
-     * {@code sourceUrl(url)} pipeline source with property bindings derived
-     * from the class's declared properties ({@code RelationalMapping.variantIdentity}).
-     */
-    private static LegacyMappingDefinition withJsonIdentitySets(
-            LegacyMappingDefinition md, ModelBuilder model) {
-        List<ClassMapping> updated = null;
-        for (RuntimeDefinition rd : model.runtimes().toList()) {
-            if (rd.jsonConnections().isEmpty() || !rd.mappings().contains(md.qualifiedName())) {
-                continue;
-            }
-            for (JsonModelConnection jmc : rd.jsonConnections()) {
-                String classFqn = jmc.className();
-                List<ClassMapping> current = updated != null ? updated : md.classMappings();
-                if (current.stream().anyMatch(cm -> classFqn.equals(cm.className()))) {
-                    continue;   // user-authored class mapping wins
-                }
-                if (updated == null) {
-                    updated = new ArrayList<>(md.classMappings());
-                }
-                updated.add(new ClassMapping.Relational(
-                        classFqn,
-                        /* setId */ null,
-                        /* extendsSetId */ null,
-                        /* root */ true,
-                        /* mainTable */ null,
-                        /* filter */ null,
-                        /* distinct */ false,
-                        /* groupBy */ List.of(),
-                        /* primaryKey */ List.of(),
-                        /* propertyMappings */ List.of(),
-                        /* sourceUrl */ jmc.url(), java.util.Map.of(), null));
-            }
-        }
-        return updated == null ? md : md.withClassMappings(updated);
-    }
 
     // ====================================================================
     // Pre-pass: extends flattening
