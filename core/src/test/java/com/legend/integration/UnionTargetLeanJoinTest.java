@@ -98,6 +98,36 @@ class UnionTargetLeanJoinTest {
         return out;
     }
 
+    private static String sqlOf(String query) {
+        var ctx = com.legend.Compiler.compileModel(MODEL);
+        var specs = new com.legend.compiler.spec.SpecCompiler(ctx);
+        var body = specs.typeQueryBody(com.legend.compiler.NameResolver.resolveQuery(
+                com.legend.testing.Own.spec(query + "->from(ul::m, ul::rt)")));
+        var resolved = new com.legend.resolver.StoreResolver(ctx, specs).resolve(body, null);
+        return new com.legend.sql.dialect.DuckDb().render(new com.legend.lowering.Lowerer().lower(resolved));
+    }
+
+    /**
+     * THE SHAPE (clean-sheet B3.1, 2026-09-13): routes into a union target
+     * join on ONE column each arm projects under one minted name — the
+     * column the route names for that arm's set — so the join is a single
+     * equality the database hashes, whether the members share the column
+     * name (employees: FIRM_ID on both) or not (contractors: FIRM_ID on
+     * one, OWNER_ID on the other). No OR, no coalesce, no member ordinal.
+     */
+    @Test
+    @DisplayName("one minted key per arm: a single equality, uniform or not")
+    void oneKeyPerArm() {
+        for (String prop : List.of("employees", "contractors")) {
+            String sql = sqlOf("|ul::Firm.all()->project(~[firm: f|$f.name, x: f|$f." + prop + ".lastName])");
+            assertEquals(1, sql.split(" ON ").length - 1, "one join: " + sql);
+            String on = sql.substring(sql.indexOf(" ON ") + 4).split("\\n")[0];
+            assertEquals(false, on.contains(" OR "), "no OR in: " + on);
+            assertEquals(false, on.toLowerCase().contains("coalesce"), "no coalesce in: " + on);
+            assertEquals(true, on.matches("t0\\.ID = t\\d+\\.mc__\\w+"), "one equality on the minted key: " + on);
+        }
+    }
+
     @Test
     @DisplayName("routes sharing one condition into a union target: one equi-join, outer semantics kept")
     void leanUnionJoinKeepsRows() throws Exception {

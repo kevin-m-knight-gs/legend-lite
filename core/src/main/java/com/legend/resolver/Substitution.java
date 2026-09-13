@@ -2821,12 +2821,13 @@ final class Substitution {
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
         TypedLambda memberPred = new TypedLambda(List.of(ex.targetRowVar()),
                 List.of(eq), predType);
+        TypedSpec exPipe = widenForCorr(ex.targetPipeline(), corr);
         TypedSpec rel = new TypedFilter(
                 new TypedFilter(
-                        ex.targetPipeline(), corr, ex.targetPipeline().info(),
+                        exPipe, corr, exPipe.info(),
                         com.legend.compiler.spec.typed.TypedFilter
                                 .Stamp.CORRELATION),
-                memberPred, ex.targetPipeline().info());
+                memberPred, exPipe.info());
         return new TypedNativeCall(neCallee(), List.of(rel),
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
     }
@@ -3270,10 +3271,18 @@ final class Substitution {
                         List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
+        TypedSpec exPipe = widenForCorr(ex.targetPipeline(), corr);
         return new CorrTarget(new TypedFilter(
-                ex.targetPipeline(), corr, ex.targetPipeline().info(),
+                exPipe, corr, exPipe.info(),
                 com.legend.compiler.spec.typed.TypedFilter.Stamp.CORRELATION),
                 tRenamed);
+    }
+
+    /** The exists target widened for the key columns the correlation
+     * reads off its row (a sibling branch's condition ORed in binds on
+     * member columns — Pipelines.widenForCondition). */
+    private static TypedSpec widenForCorr(TypedSpec pipe, TypedLambda corr) {
+        return Pipelines.widenForCondition(pipe, corr, 0);
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,

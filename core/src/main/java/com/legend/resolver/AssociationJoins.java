@@ -227,11 +227,16 @@ final class AssociationJoins {
                 predNavAliases.put(pp.get(0), al);
             }
         }
+        // the navigate's target-side key reads ride the target's union
+        // arms: a routed key is a MEMBER COLUMN the union body does not
+        // project (B3.1) — widen beneath the materialization
+        TypedSpec tPipeline = Pipelines.containsConcatenate(t.pipeline())
+                ? Pipelines.widenForCondition(t.pipeline(), nav.predicate(), 1) : t.pipeline();
         Pipelines.Materialized tMat = tNavDemand.isEmpty()
                 ? Pipelines.materialize(
-                        t.pipeline(), targetDemand, t.classFqn())
+                        tPipeline, targetDemand, t.classFqn())
                 : Pipelines.materialize(
-                        t.pipeline(), targetDemand, tNavDemand, t.classFqn(),
+                        tPipeline, targetDemand, tNavDemand, t.classFqn(),
                         (al2, tc2) -> Pipelines.materialize(
                                 sources.get(cs.mappingFqn(), tc2, cs.scope()).pipeline(),
                                 java.util.Set.of(), tc2).pipeline());
@@ -458,90 +463,6 @@ final class AssociationJoins {
                 c -> renameCondVar(c, from, to, rowInfo));
     }
 
-    /** UNION-to-union chained hop: rewrite a raw equality condition into
-     * the member-paired OR form — {@code (a_0=b_0 AND c_0=d_0) OR
-     * (a_1=b_1 AND c_1=d_1)} — when BOTH rows expose the {@code _i}
-     * NULL-crossed variants of every read column and the raw column is
-     * absent (engine sqlQueryMerging/V-family goldens; off-member NULLs
-     * make same-member pairing exact). Null when not applicable — the
-     * caller keeps its wall. */
-    /** Rewrite {@code $v.<alias>.<col>} two-hop reads in {@code cond} to
-     * the parent pipe's PROJECTED names — recovered from the member
-     * project colspecs whose bodies read {@code toOne($row.alias.col)}
-     * (the chained-lift emission). Null when nothing rewrote. */
-    static @com.legend.Nullable TypedLambda rewriteChainedLiftReads(TypedLambda cond,
-            TypedSpec parentPipe) {
-        Map<String, String> byAliasCol = new java.util.LinkedHashMap<>();
-        collectLiftColspecNames(parentPipe, byAliasCol);
-        if (byAliasCol.isEmpty()) {
-            return null;
-        }
-        String v = cond.parameters().get(0);
-        boolean[] hit = {false};
-        List<TypedSpec> body = cond.body().stream()
-                .map(b -> rewriteTwoHop(b, v, byAliasCol, hit)).toList();
-        return hit[0] ? new TypedLambda(cond.parameters(), body, cond.info())
-                : null;
-    }
-
-    private static void collectLiftColspecNames(TypedSpec n,
-            Map<String, String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedProject pr) {
-            for (var col : pr.columns()) {
-                TypedSpec b = Pipelines.unwrapToOne(col.fn().body()
-                        .get(col.fn().body().size() - 1));
-                if (b instanceof TypedPropertyAccess pa
-                        && pa.source() instanceof TypedPropertyAccess inner
-                        && inner.source() instanceof
-                                com.legend.compiler.spec.typed.TypedVariable) {
-                    out.put(inner.property() + "\u0000" + pa.property(),
-                            col.name());
-                    // the generic slot rewriter's alias_col flattening —
-                    // depth-1 reads under that spelling rename too
-                    out.put(inner.property() + "_" + pa.property(),
-                            col.name());
-                }
-            }
-        }
-        for (TypedSpec c : n.children()) {
-            collectLiftColspecNames(c, out);
-        }
-    }
-
-    private static TypedSpec rewriteTwoHop(TypedSpec n, String var,
-            Map<String, String> byAliasCol, boolean[] hit) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedPropertyAccess inner
-                && inner.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable tv
-                && tv.name().equals(var)) {
-            String flat = byAliasCol.get(
-                    inner.property() + "\u0000" + pa.property());
-            if (flat != null) {
-                hit[0] = true;
-                return new TypedPropertyAccess(tv, flat, pa.info());
-            }
-        }
-        if (n instanceof TypedPropertyAccess pd
-                && pd.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable tv2
-                && tv2.name().equals(var)
-                && byAliasCol.containsKey(pd.property())) {
-            hit[0] = true;
-            return new TypedPropertyAccess(tv2,
-                    byAliasCol.get(pd.property()), pd.info());
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
-            return n;
-        }
-        if (n instanceof TypedNativeCall c) {
-            List<TypedSpec> args = c.args().stream()
-                    .map(a -> rewriteTwoHop(a, var, byAliasCol, hit)).toList();
-            return c.withChildren(args);
-        }
-        return n;
-    }
-
     /** TARGET-SIDE join-key widening: a distinct-narrowed or UNION target
      * must expose the key columns the association condition binds on
      * (engine partial-union goldens); the union wall names its head. */
@@ -561,137 +482,6 @@ final class AssociationJoins {
         }
     }
 
-    /** The chained-hop union arm: member-paired condition, else the
-     * parent's ROUTED LIFT when it carries the head as a nav slot
-     * (collectPairAssociationEntries put each per-pair route inside its
-     * member thread — V4), else the loud wall. */
-    AssocJoin chainedUnionHop(TemporalFrame temporal, ClassSource parent,
-            AssocJoin aj, String head, String chainKey,
-            StoreResolver.Context context, Set<String> leaves,
-            String parentKey, Map<String, AssocJoin> joinsByChain,
-            List<AssocJoin> assocJoins) {
-        AssocJoin out = chainedUnionHopInner(temporal, parent, aj, head,
-                chainKey, context, leaves);
-        // V4 mid-key reads: the hop condition's two-hop parent reads
-        // ($s.Y1_G.fk1) rewrite to the PARENT union's PROJECTED chained-
-        // lift names (fk1_1 — already in every member thread; the colspec
-        // bodies ARE the mapping).
-        AssocJoin paj = joinsByChain.get(parentKey);
-        if (paj != null) {
-            // RAW pipeline: colspec bodies still carry the two-hop reads
-            // the (alias,col)->projName mapping is recovered from
-            TypedLambda rw = rewriteChainedLiftReads(java.util.Objects.requireNonNull(out.condition()),
-                    paj.target().pipeline());
-            if (rw != null) {
-                out = out.withCondition(rw);
-            }
-            // the hop's SOURCE-side key reads must ride the UNION parent's
-            // projection (a demand-pruned routed union projects its inbound
-            // route keys only): widen the parent's member threads for them
-            // (group F burn 2026-09-02 — a silent miss surfaced as a SQL
-            // binder error on the composed key column)
-            TypedLambda cond = java.util.Objects.requireNonNull(out.condition());
-            Set<String> srcReads = new LinkedHashSet<>();
-            for (TypedSpec b : cond.body()) {
-                Pipelines.collectVarReads(b, cond.parameters().get(0), srcReads);
-            }
-            if (!srcReads.isEmpty() && Pipelines.containsConcatenate(paj.targetPipeline())) {
-                TypedSpec widened = Pipelines.widenConcatenateForKeys(
-                        paj.targetPipeline(), srcReads);
-                if (widened != paj.targetPipeline()) {
-                    AssocJoin npaj = paj.withTargetPipeline(widened);
-                    joinsByChain.put(parentKey, npaj);
-                    int at = assocJoins.indexOf(paj);
-                    if (at >= 0) {
-                        assocJoins.set(at, npaj);
-                    }
-                }
-            }
-        }
-        return out;
-    }
-
-    private AssocJoin chainedUnionHopInner(TemporalFrame temporal,
-            ClassSource parent, AssocJoin aj, String head, String chainKey,
-            StoreResolver.Context context, Set<String> leaves) {
-        TypedLambda paired = memberPairedCondition(java.util.Objects.requireNonNull(aj.condition()),
-                Type.requireRelationSchema(parent.pipeline().info().type()),
-                aj.targetRow());
-        if (paired != null) {
-            return aj.withCondition(paired);
-        }
-        TypedSpec pb = parent.bindings().get(SyntheticHeads.realHead(head));
-        if (pb != null && InnerDemand.navSlotAlias(pb, parent.rowVar(),
-                Pipelines.navSteps(parent.pipeline()).keySet()) != null) {
-            return aggJoinMaterial(temporal, parent, head, context, leaves,
-                    Set.of());
-        }
-        throw new NotImplementedException("chained association hop '"
-                + chainKey + "' navigates INTO a union-mapped class —"
-                + " per-member route dispatch is not built yet");
-    }
-
-    /** The chained-hop union arm: paired condition or the loud wall. */
-    AssocJoin pairChainedUnionHop(AssocJoin aj, ClassSource parent,
-            String chainKey) {
-        TypedLambda paired = memberPairedCondition(java.util.Objects.requireNonNull(aj.condition()),
-                Type.requireRelationSchema(parent.pipeline().info().type()),
-                aj.targetRow());
-        if (paired == null) {
-            throw new NotImplementedException("chained association hop '"
-                    + chainKey + "' navigates INTO a union-mapped class —"
-                    + " per-member route dispatch is not built yet");
-        }
-        return aj.withCondition(paired);
-    }
-
-    @com.legend.Nullable TypedLambda memberPairedCondition(TypedLambda cond,
-            Type.RelationType srcRow, Type.RelationType tgtRow) {
-        List<TypedSpec[]> eqs = new ArrayList<>();
-        if (!collectEqualities(cond.body().get(cond.body().size() - 1), eqs)) {
-            return null;
-        }
-        String sv = cond.parameters().get(0);
-        String tv = cond.parameters().get(1);
-        int n = -1;
-        for (TypedSpec[] eq : eqs) {
-            for (TypedSpec side : eq) {
-                if (!(side instanceof TypedPropertyAccess pa
-                        && pa.source() instanceof
-                                com.legend.compiler.spec.typed.TypedVariable v)) {
-                    return null;
-                }
-                Type.RelationType row = v.name().equals(sv) ? srcRow
-                        : v.name().equals(tv) ? tgtRow : null;
-                if (row == null) {
-                    return null;
-                }
-                int k = suffixCount(row, pa.property());
-                if (k < 2 || (n >= 0 && k != n)) {
-                    return null;
-                }
-                n = k;
-            }
-        }
-        var boolT = new ExprType(Type.Primitive.BOOLEAN,
-                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-        TypedSpec or = null;
-        for (int i = 0; i < n; i++) {
-            TypedSpec grp = null;
-            for (TypedSpec[] eq : eqs) {
-                TypedSpec e = new TypedNativeCall(
-                        ((TypedNativeCall) eq[2]).callee(),
-                        List.of(suffixRead(eq[0], i, srcRow, tgtRow, sv),
-                                suffixRead(eq[1], i, srcRow, tgtRow, sv)),
-                        boolT);
-                grp = grp == null ? e : boolCall("and", e, grp, boolT);
-            }
-            var grpNN = java.util.Objects.requireNonNull(grp, "empty key pair");
-            or = or == null ? grpNN : boolCall("or", grpNN, or, boolT);
-        }
-        return new TypedLambda(cond.parameters(), List.of(or), cond.info());
-    }
-
     private TypedSpec boolCall(String op, TypedSpec a, TypedSpec b,
             ExprType boolT) {
         var fns = ctx.findFunction("meta::pure::functions::boolean::" + op)
@@ -701,55 +491,6 @@ final class AssociationJoins {
                     "resolver bug: expected one 2-arg boolean::" + op);
         }
         return new TypedNativeCall(fns.get(0), List.of(a, b), boolT);
-    }
-
-    private static int suffixCount(Type.RelationType row, String col) {
-        boolean raw = row.columns().stream()
-                .anyMatch(c -> c.name().equals(col));
-        if (raw) {
-            return -1;
-        }
-        int k = 0;
-        while (true) {
-            final int i = k;
-            if (row.columns().stream()
-                    .noneMatch(c -> c.name().equals(col + "_" + i))) {
-                return k;
-            }
-            k++;
-        }
-    }
-
-    private static TypedSpec suffixRead(TypedSpec side, int i,
-            Type.RelationType srcRow, Type.RelationType tgtRow, String sv) {
-        TypedPropertyAccess pa = (TypedPropertyAccess) side;
-        var v = (com.legend.compiler.spec.typed.TypedVariable) pa.source();
-        Type.RelationType row = v.name().equals(sv) ? srcRow : tgtRow;
-        String name = pa.property() + "_" + i;
-        Type.Column c = row.columns().stream()
-                .filter(x -> x.name().equals(name)).findFirst().orElseThrow();
-        return new TypedPropertyAccess(v, name,
-                new ExprType(c.type(), c.multiplicity()));
-    }
-
-    /** Extract {@code equal(a,b)} leaves from an AND-chain; each entry is
-     * [left, right, theEqualNode]. False when any non-and/equal appears. */
-    private static boolean collectEqualities(TypedSpec n,
-            List<TypedSpec[]> out) {
-        if (n instanceof TypedNativeCall c && c.args().size() == 2) {
-            String q = c.callee().qualifiedName();
-            if (q.endsWith("::equal")) {
-                out.add(new TypedSpec[]{
-                        Pipelines.unwrapToOne(c.args().get(0)),
-                        Pipelines.unwrapToOne(c.args().get(1)), c});
-                return true;
-            }
-            if (q.endsWith("::and")) {
-                return collectEqualities(c.args().get(0), out)
-                        && collectEqualities(c.args().get(1), out);
-            }
-        }
-        return false;
     }
 
     /** OUTER-ROW date ($o.product($o.orderDate)): the temporal window

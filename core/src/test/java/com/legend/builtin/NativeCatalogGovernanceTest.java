@@ -86,7 +86,15 @@ class NativeCatalogGovernanceTest {
         // $e.b))->isDistinct()); upstream implements that overload only in
         // generated Java (IsDistinctFetchTreeCoder) — here it is a struct
         // literal distinct-counted as one value; census row added.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 16,
+        // +2 2026-09-13 (clean-sheet B3.1): memberColumn — a routed
+        // navigation's target read spelled per SET (the navigating class
+        // names its own property mapping's sets and Joins' columns; the
+        // resolver widens the target's union arms on demand) — and
+        // unionArm, the marker naming the member sets a union thread holds
+        // and their gates. Both are lite desugar IR with no upstream
+        // counterpart (the engine spells member ORDINALS into the
+        // navigating class instead); census rows added.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 18,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

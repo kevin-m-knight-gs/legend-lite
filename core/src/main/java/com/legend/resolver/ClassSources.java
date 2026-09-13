@@ -517,37 +517,31 @@ public final class ClassSources {
     }
 
 
-    /** {@code <col>_<ord>} target reads (the old union emission's member
-     * suffix) → the bare column on the pair's own arm row. */
-    private static TypedSpec stripMemberSuffix(TypedSpec n, int ord,
+    /** A member-column read ({@link com.legend.compiler.spec.MemberColumns})
+     * on the pair's own arm row: the column the arm's set is named with,
+     * else a typed NULL. Plain reads pass through. */
+    private static TypedSpec memberColumnOnArm(TypedSpec n, String setId,
             Type.RelationType armRow) {
-        if (ord < 0) {
-            return n;
-        }
-        if (n instanceof TypedPropertyAccess pa
-                && pa.property().endsWith("_" + ord)) {
-            String base = pa.property().substring(0,
-                    pa.property().length() - ("_" + ord).length());
-            // audit 24 F1: strip ONLY when the suffixed spelling is NOT a
-            // real column of the arm row — a physical 'X_0' beside 'X'
-            // must never mis-strip (both-present is ambiguous, keep raw)
-            boolean suffixedIsReal = false;
-            Type.Column baseCol = null;
-            for (Type.Column c : armRow.columns()) {
-                if (c.name().equals(pa.property())) {
-                    suffixedIsReal = true;
+        if (n instanceof TypedPropertyAccess pa) {
+            var d = com.legend.compiler.spec.MemberColumns.demand(pa.property());
+            if (d != null) {
+                String col = d.columnBySet().get(setId);
+                Type.Column c = col == null ? null : armRow.columns().stream()
+                        .filter(x -> x.name().equals(col)).findFirst().orElse(null);
+                if (col != null && c == null) {
+                    throw new NotImplementedException("mixed-union child arm '"
+                            + setId + "' does not carry the routed key column '"
+                            + col + "'");
                 }
-                if (c.name().equals(base)) {
-                    baseCol = c;
-                }
-            }
-            if (!suffixedIsReal && baseCol != null) {
-                return new TypedPropertyAccess(pa.source(), base,
-                        new ExprType(baseCol.type(), baseCol.multiplicity()));
+                return c == null
+                        ? new TypedCollection(List.of(), new ExprType(d.kind(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE))
+                        : new TypedPropertyAccess(pa.source(), c.name(),
+                                new ExprType(c.type(), c.multiplicity()));
             }
         }
         return SyntheticHeads.rebuildChildren(n,
-                c -> stripMemberSuffix(c, ord, armRow));
+                c -> memberColumnOnArm(c, setId, armRow));
     }
     /** The KEYED CHILD UNION for a class-typed property over a mixed
      * extent: one arm per parent member (paired by the route's declared
@@ -626,21 +620,16 @@ public final class ClassSources {
                 List<TypedSpec> tk = new ArrayList<>();
                 splitEqualCond(r.navCond(), pk, tk);
                 String p1 = r.navCond().parameters().get(1);
-                // the navigate cond targets the OLD union discipline: its
-                // target-side reads carry the engine `_<ordinal>` member
-                // suffix (suffixTargetReads) — on the pair's OWN arm the
-                // read is the bare physical column (deterministic contract;
-                // strip only when the bare column exists on the arm row)
-                java.util.List<String> mixed = memberIds == null ? null
-                    : ctx.mixedUnionMembers(mappingFqn, childClassFqn);
-                int tOrd = mixed == null ? -1
-                        : mixed.indexOf(r.targetSetId());
-                final int tOrdF = tOrd;
-                tKeys = tk.stream().map(x -> stripMemberSuffix(
+                // the navigate cond's target-side reads are MEMBER COLUMNS
+                // (routed per set): on the pair's OWN arm each is the
+                // column its target set names, a typed NULL when the set
+                // is not named
+                String targetSet = java.util.Objects.requireNonNull(r.targetSetId());
+                tKeys = tk.stream().map(x -> memberColumnOnArm(
                         Pipelines.rewriteRowReads(x, p1,
                                 Map.of(), java.util.Set.of(),
                                 v -> new TypedVariable(arm.rowVar(), ari)),
-                        tOrdF, aRow)).toList();
+                        targetSet, aRow)).toList();
             }
             List<com.legend.compiler.spec.typed.TypedFuncCol> pcols =
                     new ArrayList<>(allCols.size());

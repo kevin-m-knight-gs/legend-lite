@@ -2003,6 +2003,16 @@ public final class StoreResolver {
                 joinTargetRow = ex.row();
                 joinCond = ex.cond();
             }
+            // the ON-form and exploding shapes rebuild the target after
+            // the association join widened it: the condition's routed keys
+            // are MEMBER columns the union arms project on demand (B3.1)
+            {
+                TypedSpec widened = Pipelines.widenForCondition(joinTarget, joinCond, 1);
+                if (widened != joinTarget) {
+                    joinTarget = widened;
+                    joinTargetRow = Type.requireRelationSchema(widened.info().type());
+                }
+            }
             Type.RelationType leftRow =
                     Type.requireRelationSchema(withJoins.info().type());
             List<Type.Column> cols =
@@ -2420,15 +2430,6 @@ public final class StoreResolver {
                         aj = aj.withCondition(new TypedLambda(cond.parameters(),
                                 List.of(body), cond.info()));
                     }
-                }
-                if (hop > 0 && Pipelines.containsConcatenate(aj.targetPipeline())) {
-                    // union target: paired | routed-lift | wall, plus V4
-                    // mid-key parent widen — one arm (AssociationJoins)
-                    aj = assocMaterial.chainedUnionHop(temporal, parent, aj,
-                            path.get(hop), chainKey, context,
-                            leavesByChain.getOrDefault(chainKey, Set.of()),
-                            String.join(".", path.subList(0, hop)),
-                            joinsByChain, assocJoins);
                 }
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the

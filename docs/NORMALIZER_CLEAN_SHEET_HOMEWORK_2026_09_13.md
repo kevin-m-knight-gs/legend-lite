@@ -26,12 +26,10 @@ loud, one implementation per knowledge question.
    than one included mapping. Our resolver walls that as ambiguous at query time; the engine takes
    the last root. Which corpus tests reach the wall today, and what they do under the engine rule,
    is unmeasured until B2 runs.
-2. **The union navigation rewrite (B3).** The resolver-side expansion of a navigation into a
-   union target and the lowering's join-over-union distribution are designed from receipts but
-   unbuilt; the non-uniform case (members joined on different columns) has NO plan measurement
-   yet — the earlier numbers (GATES "Non-uniform union witness + step 1b parked") cover the
-   uniform coalesce and the parked merged-column form only. The size of the resolver change is
-   unmeasured until `AssociationJoins`/`ClassSources` are read with this question in mind.
+2. **The union navigation rewrite (B3).** SETTLED by B3.1 (2026-09-13): the non-uniform plan is
+   measured (§6 B3: OR 8.9 ms nested loop, coalesce 1.5 ms hash, merged column 0.8 ms hash) and
+   the resolver change is built and sized (GATES "Clean-sheet B3.1"). What remains unverified is
+   B3.2's chained-route form (navigator-side prefixes) against the `multipleChainedJoins` rows.
 3. **The 60 null-tolerant sites (B5).** How many are "the miss is the answer" versus a hidden
    wrong-all-along answer is unknown until each is made loud and the corpus adjudicates.
 
@@ -246,37 +244,83 @@ closure are a MODEL error: strict throws, module walls the mapping), duplicate i
 Expected: rows may GAIN (tests that hit the wall today); any LOST row adjudicated with R1/R5 as
 the receipt.
 
-**B3 — union navigation by one logical key (R7), not functions per queried mapping.** (The
+**B3 — union navigation by the route's member column (R7, corrected by homework).** (The
 earlier draft of this step generated every visible set's function under every mapping, ceiling
 +779 functions. Rejected: plain navigations already dispatch through `Class.all()`; only union
-targets leak, and the fix for that is a resolver and lowering change, not more functions.)
-Normalizer: the union function projects its key once plus a member tag and stops emitting
-member-numbered key columns; the navigating class emits one `navigate` to `Target.all()` with a
-predicate (branching on the member only when the routes differ per member); the re-synthesis
-block and `routedTargetGainsOperation` die, and `MappedClasses`' GLOBAL "is this class mapped"
-answer becomes the per-closure answer from the resolved mapping record (R1). Resolver: when
-`Target.all()` resolves to a union under the active mapping, expand the navigation against the
-union's single key, building the branching predicate from the stamped routing facts (extending
-`propertyCondToColumns`). Lowering: one rewrite rule, join over union distributes into per-arm
-joins when the predicate branches on the member. Witness: `UnionTargetLeanJoinTest` (uniform and
-non-uniform), plans measured as in the earlier record. Expected: 0 LOST; the 2 re-synthesis hits
-reproduce by the uniform rule; the OR disappears from the non-uniform plan.
-**B3 homework note (2026-09-13).** The member-numbered keys have three consumers: the union
-body that emits them (`UnionSynthesis`), the navigating class's OR condition and the resolver's
-`stripMemberSuffix` path (`ClassSources`), and `ImportDataFlow`, which surfaces a union's
-per-member primary keys because the engine's `importDataFlow` option does exactly that. The
-third is a FEATURE: the union's key threads stay as a stamped fact for it. What B3 removes is the
-NAVIGATION's dependence on them — the OR in the navigating class, the suffix stripping in the
-resolver, and the member-suffixed key projection made for other classes' benefit. `mergedTargetRoutes`
-already coalesces to one key when every route names the same join (the uniform case, landed
-earlier); B3 generalizes that to the union's single key plus member tag and moves the
-per-member branch to the resolver and the lowering.
+targets leak, and the fix for that is a resolver change, not more functions.)
 
-**B3 done also requires:** `MappingView` (the transitional pre-pass view of B1) and
-`MappedClasses` (the graph-wide mapped set) DELETED together, `ResolvedMapping` built in ONE
-construction from a mapping's text and its closure (nothing depends on another mapping's rewrite
-any more), and `TransitionalShapesTest` retired with them. USER 2026-09-13: "let's make sure it
-does not stay this way".
+*The first draft of this paragraph was wrong in one detail, found by reading the code with the
+question in mind (NOT YET VERIFIED item 2):* "the union projects its key once" assumes a union has
+ONE key. It does not. A route into a union member joins on whatever column that member's table
+has for THIS navigation (`P1.FIRM_ID` for a firm's employees, `P1.ID` for an address's person);
+the union can only know those columns by scanning every other class's routes into it — which is
+exactly today's `collectInboundRouteKeys` (245 union bodies in the corpus scan their whole
+closure), the dependence B3 exists to remove. So the union projects NOTHING for other classes'
+benefit. Instead:
+
+- **The navigating class names the column per set.** Where a route into set `p1` reads the
+  target column `FIRM_ID`, the function says `memberColumn($t, @Integer, 'p1', 'FIRM_ID')` — "the
+  FIRM_ID of rows that came from set p1, null for every other row". The set id is declared in the
+  navigating class's OWN property mapping (`employees[p1]`), the column and its kind come from
+  the Join and the store. Nothing here depends on whether `Person` is one set or a union in the
+  queried mapping, how many members it has, or in which order — so one function serves every
+  mapping (R6), and the member ORDINAL, the only union fact the navigator reads today, is gone.
+  Routes of one property whose conditions differ only in the target column merge into ONE read
+  (`memberColumn($t, @Integer, 'c1', 'FIRM_ID', 'c2', 'OWNER_ID')`) and ONE equality; routes whose
+  source side differs stay an OR (branching predicate; the corpus has none outside the chained
+  family below).
+- **Every union arm says which sets it holds.** The union body wraps each thread as
+  `unionArm(rows, ~[p1: {r | gate}])` — one set per plain thread, several with their filter
+  gates for a merged single-table scan. The union's own outbound navigations, its primary-key
+  threads for `importDataFlow` and its identity keep their member-numbered names: those are the
+  union's own business, spelled by the function that declares the members.
+- **The resolver widens on demand.** When a navigate's predicate is resolved against the target
+  under the active mapping, each `memberColumn` becomes a plain read of a freshly minted column,
+  and the target's arms are widened: an arm holding a named set reads that set's column (gated by
+  the set's filter inside a merged scan; ungated when the demand covers every set of the arm —
+  which reproduces today's `__pk` shared-key form for the metamodel hierarchy); an arm holding
+  none reads a typed NULL. This is `Pipelines.widenUnionMember`'s existing plain-name path
+  (511 widenings in the corpus, all plain — the `<col>_<i>` branch fired 0 times) with the
+  per-set decision added. A lone set target (no union) widens as one arm: its set id must be
+  named or the route is loud.
+- **Nothing in the lowering.** A predicate that ignores the member is one hash join.
+  Measured on the witness shape (1,000 firms × 10,000 people, members keyed on DIFFERENT
+  columns): today's OR 8.9 ms BLOCKWISE_NL_JOIN; `coalesce` over per-set columns 1.5 ms HASH_JOIN;
+  one merged column 0.8 ms HASH_JOIN. The merged column is what the resolver's widening
+  produces, so the earlier parked "step 1b" arrives without its key registry (the normalizer no
+  longer mints any inbound key name). The join-over-union rewrite rule stays a product option
+  for the branching case only.
+
+**Census (DuckDB corpus, temporary printlns, removed, 2026-09-13; 108 fails unchanged):**
+412 routed-navigation groups over 84 mappings — 226 single-route, 145 multi-route with one
+shared condition (today's coalesce), 23 shared-primary-key groups (all in our own
+`MetamodelMapping`, up to 21 members), 44 properties whose routes differ per member (the
+`inheritance`/`association::inheritence` `vehicles`/`roadVehicles` families, `unionMappingWithSelfJoin`,
+`biTemporalUnionMapping`), 18 chained per-arm groups (15 properties: `multipleChainedJoins` V2–V5
+across 2/3/4 sets, `unionMappingWithJoinSequenceInProperty` ×2, `unionOfViews2`); 245 union bodies
+scan inbound routes; 14 mixed-union sources and 6 suffix strips (one test,
+`XStoreUnion::inMemoryAndRelational`); the union-to-union member-paired arms
+(`memberPairedCondition`, `chainedUnionHop`, `pairChainedUnionHop`) fired 0 times — their only
+witness is `ResolveUnionChainTest`, whose rows judge the new form.
+
+**B3 in three measured slices** (each 0 LOST on both lanes, each its own GATES record):
+- **B3.1 — single-hop routes.** `memberColumn` in the IR (registered signature, generic typing
+  through the annotation argument, never reaches the lowering); `routedNavigation` and the
+  union's own lifted routed navigations emit it; the inbound scan stops feeding single-hop keys
+  and the shared-key form; `unionArm` markers; the resolver's demand type and per-set widening;
+  the mixed-union child route reads the column per arm structurally (`stripMemberSuffix` dies);
+  the `<col>_<i>` widening branch and the three dead arms die. `CastReRoot` reads the union's own
+  shared primary-key thread, which the union keeps for members sharing one table.
+- **B3.2 — chained routes.** The navigating class emits each chain's prefix as its own physical
+  joins and the last hop as `memberColumn` (the engine's own flat chain); `chainsSink`, the
+  push-into-arm threads and the property-scoped chain keys die; with no ordinal left in any
+  navigator, the re-synthesis block and `routedTargetGainsOperation` die. Judge: the
+  `multipleChainedJoins` family's rows.
+- **B3.3 — implicit sets at resolution.** The implicit Operation sets the pre-pass appends
+  become resolve-time answers; then `ResolvedMapping` is built in ONE construction from a
+  mapping's text and its closure, and `MappingView`, `MappedClasses` and `TransitionalShapesTest`
+  are deleted together. USER 2026-09-13: "let's make sure it does not stay this way" — the pin
+  stays until this slice lands.
 
 **B4 — policy out of the translator.** The translator reports (throws) and produces facts; the
 driver alone applies strict/module; `UnionSynthesis:2408` moves to the driver's ledger; the
@@ -306,3 +350,4 @@ record; ledger row here; CI green on the full sha.
 |---|---|---|---|---|
 | B1 — `MappingView` (transitional, pinned) + `ResolvedMapping`; nine walkers deleted; synthesis takes the record | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | none | docs/GATES.md "Clean-sheet B1" |
 | B2 — R1 last-wins in the resolver and for operation sets; R5 duplicate ids and duplicate includes rejected; the ambiguity wall deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (probe: 0 wall hits, 0 duplicate ids, 0 first-vs-last differences) | own-corpus 2405 → 2425 | docs/GATES.md "Clean-sheet B2" |
+| B3.1 — `memberColumn` (a routed navigation's target read per SET, minted by the Typer) + `unionArm` markers + the resolver's per-set widening; the inbound key scan cut to chains; the union-to-union arms, the suffix stripper, the `__pk` routed form, the coalesce form and `routesMerge` deleted | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED (from 144 / 143 LOST on the first run — twelve consumers found by rows) | ArchitectureTest register +1; INTERNAL_DESUGAR 16 → 18; ResolveUnionTest asserts the member column | docs/GATES.md "Clean-sheet B3.1" |

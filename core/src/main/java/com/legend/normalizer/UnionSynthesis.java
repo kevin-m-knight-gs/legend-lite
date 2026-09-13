@@ -89,46 +89,6 @@ final class UnionSynthesis {
                         && j.targetSetId() != null ? j.targetSetId() : "");
     }
 
-    /**
-     * The ordinal of the member whose set id OR extends-LINEAGE matches
-     * {@code setId}: a re-rooted union ({@code Person[mySet1] extends
-     * [set1]}) is navigated by routes naming the ANCESTOR sets — the
-     * corpus extends-of-union shape. {@code -1} when no member matches.
-     */
-    /**
-     * Whether the property's routes need NO target-side discrimination:
-     * they cover EVERY member of the target union. The engine then joins
-     * on the MERGED (unsuffixed) target key — both threads project it, so
-     * every member matches (snapshot-union AND partially-milestoning
-     * goldens: prodFk_0 = id OR prodFk_1 = id, target side shared even
-     * with different joins per member). Partial coverage keeps the
-     * member-suffixed NULL-crossed form (un-routed members must not
-     * match — the TDSNull golden).
-     */
-    static boolean mergedTargetRoutes(List<UnionRoute> routes, ClassMapping.@com.legend.Nullable Union targetUnion) {
-        if (targetUnion == null) {
-            return false;
-        }
-        // Merge (single un-suffixed condition) ONLY when every route names
-        // the SAME join — then the one condition IS every entry's condition
-        // (audit 12: coverage alone dropped the second route's join
-        // entirely; J1(FK1=ID)+J2(FK2=ID) matched member 2 by the wrong
-        // key). Distinct joins keep the suffixed OR.
-        Set<Integer> ords = new HashSet<>();
-        Set<String> joins = new HashSet<>();
-        for (UnionRoute r : routes) {
-            if (r.targetOrdinal() < 0 || r.join().joins().size() != 1) {
-                return false;
-            }
-            ords.add(r.targetOrdinal());
-            JoinChainElement hop = r.join().joins().get(0);
-            joins.add((hop.databaseName() != null ? hop.databaseName()
-                    : r.join().database()) + "@" + hop.joinName());
-        }
-        return ords.size() == targetUnion.memberSetIds().size()
-                && joins.size() == 1;
-    }
-
 
     /**
      * Classify every {@code prop[setId]}-routed class-typed Join PM of
@@ -586,37 +546,6 @@ final class UnionSynthesis {
         return shared;
     }
 
-    /** Routed navigation INTO a SAME-TABLE inheritance target: the extent
-     * is one physical relation (every row is every member), so same-join
-     * routes collapse to the ONE plain condition — no member suffixing
-     * (engine merge-by-join-name folds the per-entry emissions; the
-     * inheritanceWithEmbedded golden pins one shared LEFT JOIN). Distinct
-     * joins keep the routed form (loud downstream, never silently wrong). */
-    static boolean sameTableInheritanceMerge(ResolvedMapping md,
-            ModelBuilder model, @com.legend.Nullable String targetClassFqn,
-            List<UnionRoute> routes) {
-        if (targetClassFqn == null) {
-            return false;
-        }
-        ClassMapping.Inheritance ih =
-                md.inheritanceOf(targetClassFqn);
-        if (ih == null) {
-            return false;
-        }
-        Set<String> joins = new HashSet<>();
-        for (UnionRoute r : routes) {
-            if (r.join().joins().size() != 1) {
-                return false;
-            }
-            JoinChainElement hop = r.join().joins().get(0);
-            joins.add((hop.databaseName() != null ? hop.databaseName()
-                    : r.join().database()) + "@" + hop.joinName());
-        }
-        return joins.size() == 1
-                && sharedInheritanceTable(
-                        inheritanceMembers(md, ih, model)) != null;
-    }
-
     /**
      * The ORDERED member Relational sets of an inheritance op — ONE
      * enumeration shared by {@link #synthInheritance} (concatenate thread
@@ -1043,17 +972,17 @@ final class UnionSynthesis {
                         k -> new ArrayList<>()).addAll(en.getValue());
             }
         }
-        // keys demanded by EXTERNAL routed navigations INTO this union
-        // (audit 11: the union body carries every routed key with full
-        // PROVENANCE — the resolver must never re-derive key meaning from
-        // column-name patterns, a real column spelled like a suffix hijacked
-        // the NULL thread)
-        // (db, table, key column) -> a routed member: the SHARED table keys
-        // the threads project once (see TABLE_KEY_SUFFIX)
-        Map<List<String>, Integer> sharedKeys = new LinkedHashMap<>();
-        collectInboundRouteKeys(md, model,
+        // (db, table, key column) -> a member: the SHARED table keys the
+        // threads project once (see TABLE_KEY_SUFFIX) — the union's OWN
+        // decision from its members alone (B3.1)
+        Map<List<String>, Integer> sharedKeys = ownSharedKeys(members, model);
+        // CHAINED per-arm routes INTO this union still push their mid hops
+        // into the owning member's thread (B3.2 moves them to the
+        // navigating class); single-hop routes demand nothing of the body
+        // any more — the resolver widens the arms per set on demand
+        collectInboundChains(md, model,
                 members.stream().map(MappingView::idOf).toList(),
-                members, srcKeysByOrdinal, chainsByOrdinal, sharedKeys);
+                members, chainsByOrdinal);
         recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model, ledger);
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
@@ -1106,16 +1035,31 @@ final class UnionSynthesis {
                 Thread t = threadOf(ordinal, parts.get(ordinal), members, common, owner,
                         className, embSubs, embInner, subTypeProps, srcKeysByOrdinal,
                         chainsByOrdinal, sharedKeys, md, model);
-                projected = new AppliedFunction("project",
-                        List.of(t.pipe(), new ColSpecArray(t.cols())));
+                // the arm marker names the ONE set this thread holds
+                // (Pure.Lite.UNION_ARM — the per-set widening reads it)
+                projected = new AppliedFunction(Pure.Lite.UNION_ARM, List.of(
+                        new AppliedFunction("project",
+                                List.of(t.pipe(), new ColSpecArray(t.cols()))),
+                        new PureCollection(List.of(
+                                new CString(MappingView.idOf(members.get(ordinal))),
+                                new CString("")))));
             } else {
                 // the marker: "this projection IS a union body" (the
                 // resolver's union facts read it where a concatenate no
-                // longer exists — Pure.Lite.UNION_SCAN, lowering identity)
-                projected = new AppliedFunction(Pure.Lite.UNION_SCAN, List.of(
-                        mergedScan(group, parts, members, common, owner, className,
-                                embSubs, embInner, subTypeProps, srcKeysByOrdinal,
-                                chainsByOrdinal, sharedKeys, md, model)));
+                // longer exists — Pure.Lite.UNION_SCAN, lowering identity),
+                // inside the arm marker that names the merged sets and
+                // their gates
+                MergedScan ms = mergedScan(group, parts, members, common, owner, className,
+                        embSubs, embInner, subTypeProps, srcKeysByOrdinal,
+                        chainsByOrdinal, sharedKeys, md, model);
+                List<ValueSpecification> setsAndGates = new ArrayList<>();
+                for (String[] sg : ms.setsAndGates()) {
+                    setsAndGates.add(new CString(sg[0]));
+                    setsAndGates.add(new CString(sg[1]));
+                }
+                projected = new AppliedFunction(Pure.Lite.UNION_ARM, List.of(
+                        new AppliedFunction(Pure.Lite.UNION_SCAN, List.of(ms.projected())),
+                        new PureCollection(setsAndGates)));
             }
             union = union == null ? projected
                     : new AppliedFunction("concatenate", List.of(union, projected));
@@ -1327,7 +1271,26 @@ final class UnionSynthesis {
     /** The single-scan thread of a filtered same-table group: each column
      * is the member-gated if-chain over the members' own values, the source
      * is the shared unfiltered scan restricted to rows any member claims. */
-    private static ValueSpecification mergedScan(List<Integer> group,
+    /** A merged single-table scan: the projection (its last columns the
+     * boolean GATES, one per merged set: the set's own filter over the
+     * scan row) and the (set id, gate column) pairs the arm marker names. */
+    record MergedScan(ValueSpecification projected, List<String[]> setsAndGates) {
+    }
+
+    /** The gate column of a merged set: {@code in__<set>}, minted past any
+     * projected column of that name. */
+    private static String gateColumn(String setId, List<ColSpec> cols) {
+        String name = "in__" + setId;
+        while (true) {
+            String n = name;
+            if (cols.stream().noneMatch(c -> c.name().equals(n))) {
+                return n;
+            }
+            name = "_" + name;
+        }
+    }
+
+    private static MergedScan mergedScan(List<Integer> group,
             List<MappingNormalizer.RelationalParts> parts, List<ClassMapping> members,
             List<String> common, @com.legend.Nullable ClassDefinition owner,
             String className, Map<String, LinkedHashSet<String>> embSubs,
@@ -1379,7 +1342,17 @@ final class UnionSynthesis {
             value = new AppliedFunction(Pure.Lite.TRUST_ONE, List.of(value));
             cols.add(new ColSpec(name, new LambdaFunction(List.of(row), List.of(value)), null));
         }
-        return new AppliedFunction("project", List.of(pipe, new ColSpecArray(cols)));
+        List<String[]> setsAndGates = new ArrayList<>();
+        for (int k = 0; k < group.size(); k++) {
+            String set = MappingView.idOf(members.get(group.get(k)));
+            String gate = gateColumn(set, cols);
+            cols.add(new ColSpec(gate,
+                    new LambdaFunction(List.of(row), List.of(scans.get(k).pred())), null));
+            setsAndGates.add(new String[]{set, gate});
+        }
+        return new MergedScan(
+                new AppliedFunction("project", List.of(pipe, new ColSpecArray(cols))),
+                setsAndGates);
     }
 
     /** A member column's value without its {@code trustOne} alignment wrap
@@ -1778,6 +1751,93 @@ final class UnionSynthesis {
     }
 
     /**
+     * THE MEMBER COLUMN (clean-sheet B3.1): {@code memberColumn($t, @Kind,
+     * set1, col1, set2, col2, ...)} — the column of the target's row read
+     * PER SET (see {@link Pure.Lite#MEMBER_COLUMN}). The navigating class
+     * spells only what its own property mapping and Joins say: which set
+     * each route names and which column of that set's table the Join
+     * reads. It never learns the target's member count or order.
+     */
+    static AppliedFunction memberColumn(Variable t, String kind,
+            List<String[]> setsAndColumns) {
+        List<ValueSpecification> args = new ArrayList<>();
+        args.add(t);
+        args.add(new TypeAnnotation.Named(new TypeExpression.NameRef(kind)));
+        for (String[] sc : setsAndColumns) {
+            args.add(new CString(sc[0]));
+            args.add(new CString(sc[1]));
+        }
+        return new AppliedFunction(Pure.Lite.MEMBER_COLUMN, args);
+    }
+
+    /** The target-side reads ({@code $t.col}) of a translated join
+     * condition, in traversal order. */
+    static void collectTargetReads(ValueSpecification n, Variable t, List<String> out) {
+        rewriteTargetReads(n, t, col -> {
+            out.add(col);
+            return new AppliedProperty(t, col);
+        });
+    }
+
+    /** Every target-side read {@code $t.col} of {@code n} replaced by
+     * {@code read.apply(col)} — the one traversal the member-column
+     * emission and the ordinal suffixing share. */
+    static ValueSpecification rewriteTargetReads(ValueSpecification n, Variable t,
+            java.util.function.Function<String, ValueSpecification> read) {
+        if (n instanceof AppliedProperty ap
+                && ap.receiver() instanceof Variable v
+                && v.name().equals(t.name())) {
+            return read.apply(ap.property());
+        }
+        return switch (n) {
+            case AppliedFunction af -> af.withParameters(
+                    af.parameters().stream().map(x ->
+                            rewriteTargetReads(x, t, read)).toList());
+            case AppliedProperty ap -> new AppliedProperty(
+                    rewriteTargetReads(ap.receiver(), t, read), ap.property());
+            case Variable v -> v;
+            case CString ignored -> n;
+            case CInteger ignored -> n;
+            case CFloat ignored -> n;
+            case CDecimal ignored -> n;
+            case CBoolean ignored -> n;
+            case CDate ignored -> n;
+            case PureCollection pc -> new PureCollection(pc.values().stream()
+                    .map(x -> rewriteTargetReads(x, t, read)).toList());
+            default -> throw new NotImplementedException(
+                    "routed join condition carries a "
+                    + n.getClass().getSimpleName()
+                    + " — its target reads cannot be rewritten yet");
+        };
+    }
+
+    /** The pure kind of a route's target column, from the store (loud when
+     * the table declares no derivable kind). */
+    static String targetColumnKind(String db, String table, String col,
+            ModelBuilder model, String mappingName) {
+        String kind = model.knowledge().columnKind(db, table, col);
+        if (kind == null) {
+            throw new NotImplementedException("routed navigation key column '"
+                    + col + "' has no derivable pure kind on table '" + table
+                    + "'; mapping=" + mappingName);
+        }
+        return kind;
+    }
+
+    /** One route's condition with every target read spelled as the member
+     * column of the route's own target set. */
+    static ValueSpecification memberColumnReads(ValueSpecification cond, Variable t,
+            String targetSetId, String db, String table, ModelBuilder model,
+            String mappingName) {
+        return rewriteTargetReads(cond, t, col -> {
+            List<String[]> pair = new ArrayList<>();
+            pair.add(new String[]{targetSetId, col});
+            return memberColumn(t,
+                    targetColumnKind(db, table, col, model, mappingName), pair);
+        });
+    }
+
+    /**
      * THE TABLE KEY OF A SINGLE-TABLE HIERARCHY IS SHARED: a member's key
      * column that is its main table's sole PRIMARY KEY spells
      * {@code <col>__pk} for EVERY member (never member-suffixed) — the
@@ -2101,41 +2161,6 @@ final class UnionSynthesis {
             String keyDb, String keyTable, Map<String, String> keys) {
     }
 
-    /** Collect the member class-typed Join PMs liftable onto the union. */
-    /** Routed-lift target key typing colspecs: a key whose base column is
-     * absent on the FIRST landing table types as a NULL cast of ITS OWN
-     * landing table's column kind (audit 11: heterogeneous target key
-     * names across routed members). */
-    private static List<ColSpec> routedLiftKeySpecs(
-            Map<String, String[]> tgtKeyCols, String landingDb,
-            String landingTable, ResolvedMapping md,
-            ModelBuilder model) {
-        List<ColSpec> keySpecs = new ArrayList<>();
-        for (var en2 : tgtKeyCols.entrySet()) {
-            Variable kr = new Variable("kr");
-            String base = en2.getValue()[0];
-            ValueSpecification read;
-            if (model.knowledge().columnKind(landingDb, landingTable, base) != null) {
-                read = new AppliedProperty(kr, base);
-            } else {
-                String kind = model.knowledge().columnKind(en2.getValue()[1], en2.getValue()[2], base);
-                if (kind == null) {
-                    throw new NotImplementedException(
-                            "routed lift key column '" + base
-                            + "' has no derivable pure kind on table '"
-                            + en2.getValue()[2] + "'; mapping="
-                            + md.qualifiedName());
-                }
-                read = new AppliedFunction("cast", List.of(
-                        new PureCollection(List.of()),
-                        new TypeAnnotation.Named(
-                                new TypeExpression.NameRef(kind))));
-            }
-            keySpecs.add(new ColSpec(en2.getKey(), new LambdaFunction(
-                    List.of(kr), List.of(read)), null));
-        }
-        return keySpecs;
-    }
 
     /** MERGED target reads resolve against the union's PROJECTED row —
      * valid only when every read column IS a projected name (a mapped
@@ -2374,10 +2399,6 @@ final class UnionSynthesis {
             // reading it: same-source members merge into ONE disjunct
             Map<ValueSpecification, LinkedHashSet<Integer>> sameSource = new LinkedHashMap<>();
             boolean allSingleHop = true;
-            Map<String, String[]> pairedTgtKeyCols = new LinkedHashMap<>();
-            // suffixed -> [base column, its route's db, its route's landing
-            // table] (heterogeneous target key typing needs the provenance)
-            Map<String, String[]> tgtKeyCols = new LinkedHashMap<>();
             String landingDb = null;
             String landingTable = null;
             Map<Integer, Map<String, String>> srcKeys = new LinkedHashMap<>();
@@ -2453,27 +2474,19 @@ final class UnionSynthesis {
                                     midSteps.get(midSteps.size() - 1).db(),
                                     prevTable, srcOut));
                 }
-                Integer tgtOrd = j.targetSetId() != null && targetUnion != null
-                        ? md.memberOrdinal(targetUnion.memberSetIds(), j.targetSetId())
-                        : null;
-                // the PAIRED (member-suffixed target) variant builds
-                // ALWAYS; the emitted predicate is the MERGED (raw-target)
-                // form only when liftTargetMerged — the paired variant
-                // then rides alongside for GRAPH children, whose engine
-                // subsystem pairs strictly (TypedNavigate.pairedPredicate)
+                // the PAIRED (per-set target) variant builds ALWAYS; the
+                // emitted predicate is the MERGED (raw-target) form only
+                // when liftTargetMerged — the paired variant then rides
+                // alongside for GRAPH children, whose engine subsystem
+                // pairs strictly (TypedNavigate.pairedPredicate). The
+                // target side is spelled per SET (memberColumn, B3.1):
+                // the route's own target set id and column — no member
+                // ordinal of the target union is read
                 ValueSpecification pairedEntry = cond;
-                if (tgtOrd != null && tgtOrd >= 0) {
-                    Map<String, String> tgtOut = new LinkedHashMap<>();
-                    pairedEntry = suffixTargetReads(cond, t, tgtOrd, tgtOut);
-                    // merged lifts park their suffixed keys aside — they
-                    // join the typing keySpecs ONLY if the paired lambda
-                    // actually rides (the merged emission itself must stay
-                    // byte-identical to the pre-paired form)
-                    for (var en2 : tgtOut.entrySet()) {
-                        (liftTargetMerged ? pairedTgtKeyCols : tgtKeyCols)
-                                .put(en2.getValue(),
-                                        new String[]{en2.getKey(), hopDb, tgtTable});
-                    }
+                if (j.targetSetId() != null && targetUnion != null
+                        && targetUnion.memberSetIds().contains(j.targetSetId())) {
+                    pairedEntry = memberColumnReads(cond, t, j.targetSetId(),
+                            hopDb, tgtTable, model, md.qualifiedName());
                 }
                 if (!liftTargetMerged) {
                     cond = pairedEntry;
@@ -2493,23 +2506,11 @@ final class UnionSynthesis {
                     && orPaired != orCond
                     ? new LambdaFunction(List.of(s, t), List.of(orPaired))
                     : null;
-            if (pairedLam != null) {
-                tgtKeyCols.putAll(pairedTgtKeyCols);
-                // the MERGED predicate still reads the RAW final-hop
-                // columns — the keySpecs projection must pass them through
-                // alongside the suffixed pairs
-                for (String[] v : pairedTgtKeyCols.values()) {
-                    tgtKeyCols.putIfAbsent(v[0], new String[]{v[0], v[1], v[2]});
-                }
-            }
+            // the typing arg: the landing table's own row (a MERGED
+            // predicate reads its projected value columns; a per-set read
+            // types itself through memberColumn's kind argument)
             ValueSpecification targetRows = ViewRelation.relationExpr(
                     java.util.Objects.requireNonNull(landingDb), java.util.Objects.requireNonNull(landingTable), model, md);
-            if (!tgtKeyCols.isEmpty()) {
-                List<ColSpec> keySpecs = routedLiftKeySpecs(tgtKeyCols,
-                        java.util.Objects.requireNonNull(landingDb), java.util.Objects.requireNonNull(landingTable), md, model);
-                targetRows = new AppliedFunction("project",
-                        List.of(targetRows, new ColSpecArray(keySpecs)));
-            }
             lifts.add(new NavLift(prop, targetClassFqn, targetRows,
                     new LambdaFunction(List.of(s, t), List.of(orCond)),
                     pairedLam, srcKeys, chains));
@@ -2518,25 +2519,49 @@ final class UnionSynthesis {
     }
 
     /**
-     * Scan the mapping closure (own + includes) for routed Join PMs whose
-     * target set is one of this union's members; add each route's
-     * MEMBER-side key columns to {@code sink} as
-     * ordinal &rarr; (base &rarr; {@code base_ordinal}) so the union body
-     * projects them with full provenance.
+     * The union's OWN shared table keys (B3.1: decided from the members
+     * alone, no inbound scan): members over ONE main table whose sole
+     * PRIMARY KEY the threads project once, ungated, as
+     * {@code <col>__pk_<table>} (TABLE_KEY_SUFFIX) — the row identity a
+     * cast re-root joins on (CastReRoot) and the plain indexable key of a
+     * single-table hierarchy. (db, canonical table, key) &rarr; the first
+     * member over it.
      */
-    static void collectInboundRouteKeys(ResolvedMapping md,
-            ModelBuilder model, List<String> memberIds,
-            List<ClassMapping> members,
-            Map<Integer, Map<String, String>> sink) {
-        collectInboundRouteKeys(md, model, memberIds, members, sink, null, null);
+    static Map<List<String>, Integer> ownSharedKeys(List<ClassMapping> members,
+            ModelBuilder model) {
+        Map<List<String>, List<Integer>> byTable = new LinkedHashMap<>();
+        for (int o = 0; o < members.size(); o++) {
+            if (members.get(o) instanceof ClassMapping.Relational mr
+                    && mr.mainTable() != null) {
+                String key = tableKey(mr, model);
+                if (key != null) {
+                    byTable.computeIfAbsent(List.of(mr.mainTable().database(),
+                            MappingNormalizer.canonicalTable(mr.mainTable().table()), key),
+                            k -> new ArrayList<>()).add(o);
+                }
+            }
+        }
+        Map<List<String>, Integer> out = new LinkedHashMap<>();
+        for (var en : byTable.entrySet()) {
+            if (en.getValue().size() > 1) {
+                out.put(en.getKey(), en.getValue().get(0));
+            }
+        }
+        return out;
     }
 
-    static void collectInboundRouteKeys(ResolvedMapping md,
+    /**
+     * Scan the mapping closure (own + includes) for CHAINED per-arm routed
+     * Join PMs whose target set is one of this union's members; each
+     * route's mid hops push into the owning member's thread and its
+     * property-scoped chain keys are projected there. Single-hop routes
+     * register nothing (B3.1: the resolver widens per set on demand);
+     * B3.2 moves the chains to the navigating class and deletes this.
+     */
+    static void collectInboundChains(ResolvedMapping md,
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
-            Map<Integer, Map<String, String>> sink,
-            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
-            @com.legend.Nullable Map<List<String>, Integer> sharedKeys) {
+            Map<Integer, List<LiftChain>> chainsSink) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         closure.addAll(md.closure());
         for (LegacyMappingDefinition m : closure) {
@@ -2569,16 +2594,13 @@ final class UnionSynthesis {
                     boolean uniform = uniformChainedRoutes(
                             List.copyOf(ords.keySet()));
                     for (var en : ords.entrySet()) {
-                        registerInboundEntry(en.getKey(), en.getValue(),
-                                members, uniform, md, model, sink,
-                                chainsSink, sharedKeys);
+                        registerInboundChain(en.getKey(), en.getValue(),
+                                members, uniform, md, model, chainsSink);
                     }
                 }
             }
-            // per-pair ASSOCIATION entries route INTO this union too: the
-            // FINAL hop's target-side columns (on the routed member's main
-            // table) ride suffixed — the lifted navigation's condition
-            // reads them (multipleChainedJoins: t.fk_1)
+            // per-pair ASSOCIATION entries route INTO this union too
+            // (multipleChainedJoins)
             for (AssociationMapping am : m.associationMappings()) {
                 if (!(am instanceof AssociationMapping.Relational rel)) {
                     continue;
@@ -2610,9 +2632,8 @@ final class UnionSynthesis {
                     boolean uniform = uniformChainedRoutes(
                             List.copyOf(ords.keySet()));
                     for (var en : ords.entrySet()) {
-                        registerInboundEntry(en.getKey(), en.getValue(),
-                                members, uniform, md, model, sink,
-                                chainsSink, sharedKeys);
+                        registerInboundChain(en.getKey(), en.getValue(),
+                                members, uniform, md, model, chainsSink);
                     }
                 }
             }
@@ -2620,25 +2641,25 @@ final class UnionSynthesis {
     }
 
     /**
-     * One inbound routed entry's key registration: EVERY route (uniform
-     * shared-prefix AND per-arm) dispatches on its FINAL hop — the navigate
-     * reads the last hop's member-table columns suffixed, and per-arm
-     * routes join their own mid prefix OUTSIDE the union on the SOURCE
-     * side (engine V4 golden: A/G joined outside, member keys plain).
+     * One inbound PER-ARM chained route: its mid hops push into the owning
+     * member's thread, which projects the route's property-scoped chain
+     * keys ({@code col__prop_ord}) for the navigate's first hop to read.
+     * Single-hop and shared-prefix routes register nothing.
      */
-    private static void registerInboundEntry(PropertyMapping.Join j, int ord,
+    private static void registerInboundChain(PropertyMapping.Join j, int ord,
             List<ClassMapping> members, boolean uniform,
             ResolvedMapping md, ModelBuilder model,
-            Map<Integer, Map<String, String>> sink,
-            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink,
-            @com.legend.Nullable Map<List<String>, Integer> sharedKeys) {
+            Map<Integer, List<LiftChain>> chainsSink) {
         if (!(members.get(ord) instanceof ClassMapping.Relational routedMember)) {
             return;     // routes into Relation(~func) members have no
                         // physical key table (loud at navigation if demanded)
         }
+        if (uniform || j.joins().size() <= 1) {
+            return;
+        }
         String memberTable = java.util.Objects.requireNonNull(routedMember.mainTable(),
                 "routed member set without ~mainTable").table();
-        if (!uniform && j.joins().size() > 1 && chainsSink != null) {
+        {
             List<LiftMidStep> steps = inboundArmSteps(j, j.propertyName(),
                     memberTable, md, model);
             LiftMidStep landing = steps.get(steps.size() - 1);
@@ -2667,31 +2688,6 @@ final class UnionSynthesis {
                 have.add(new LiftChain(steps, landing.alias(), landing.db(),
                         landing.table(), keys));
             }
-            return;
-        }
-        JoinChainElement hop = j.joins().get(j.joins().size() - 1);
-        String db = hop.databaseName() != null
-                ? hop.databaseName() : j.database();
-        DatabaseDefinition.JoinDefinition jd =
-                model.findJoin(db, hop.joinName()).orElse(null);
-        if (jd == null) {
-            return;     // loud at the route's own emission
-        }
-        Set<String> cols = new LinkedHashSet<>();
-        MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
-        // self-join hops spell the member side {target}.col
-        MappingNormalizer.collectTargetColumns(jd.operation(), cols);
-        for (String c : cols) {
-            sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
-                    .put(c, c + "_" + ord);
-        }
-        // a route keyed on the member's table PRIMARY KEY also demands the
-        // SHARED key column (see TABLE_KEY_SUFFIX)
-        String key = tableKey(routedMember, model);
-        if (key != null && cols.contains(key) && sharedKeys != null) {
-            sharedKeys.putIfAbsent(List.of(routedMember.mainTable().database(),
-                    MappingNormalizer.canonicalTable(routedMember.mainTable().table()), key),
-                    ord);
         }
     }
 

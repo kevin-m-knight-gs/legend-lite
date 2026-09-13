@@ -966,12 +966,30 @@ private static boolean collectEquiKeys(TypedSpec n, String srcVar,
             TypedSpec b = c.args().get(1);
             String aCol = bareColumnOn(a, tgtVar);
             String bCol = bareColumnOn(b, tgtVar);
-            if (bCol != null && !referencesVar(a, tgtVar)) {
+            // a parent read THROUGH a join slot ($p.mid.col — a shared-
+            // prefix chain's last hop) is not a flat parent key: the
+            // chained shape materializes the slot inside the sub
+            if (bCol != null && !referencesVar(a, tgtVar) && !readsThroughSlot(a, srcVar)) {
                 out.add(bCol);
                 return true;
             }
-            if (aCol != null && !referencesVar(b, tgtVar)) {
+            if (aCol != null && !referencesVar(b, tgtVar) && !readsThroughSlot(b, srcVar)) {
                 out.add(aCol);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean readsThroughSlot(TypedSpec n, String var) {
+        if (n instanceof TypedPropertyAccess outer
+                && outer.source() instanceof TypedPropertyAccess inner
+                && inner.source() instanceof TypedVariable v
+                && v.name().equals(var)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsThroughSlot(c, var)) {
                 return true;
             }
         }

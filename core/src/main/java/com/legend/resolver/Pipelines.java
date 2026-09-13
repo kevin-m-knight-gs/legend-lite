@@ -10,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.MemberColumns;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedDistinct;
@@ -41,7 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
-import java.util.regex.Pattern;
 /**
  * Pipeline surgery: DEMANDED {@code TypedJoinSlot}s convert to prefixed
  * LEFT {@link TypedJoin}s; un-demanded slots are STRIPPED (the join
@@ -841,9 +841,9 @@ public final class Pipelines {
                             stripped, classFqn);
             // the union-scan marker: the merged projection beneath it
             // materializes like any projection; the marker rides on top
-            case TypedNativeCall nc when isUnionScan(nc) -> new TypedNativeCall(
-                    nc.callee(), List.of(walk(nc.args().get(0), demanded, demandedNavs,
-                            targets, prefixes, stripped, classFqn)), nc.info());
+            case TypedNativeCall nc when isUnionScan(nc) || isUnionArm(nc) ->
+                    rebuildMarker(nc, walk(nc.args().get(0), demanded, demandedNavs,
+                            targets, prefixes, stripped, classFqn));
             default -> walkOpaque(n, classFqn);
         };
     }
@@ -1176,7 +1176,8 @@ public final class Pipelines {
         }
         return switch (pipeline) {
             case TypedConcatenate cat -> widenConcatenateForKeys(cat, cols);
-            case TypedNativeCall nc when isUnionScan(nc) -> widenConcatenateForKeys(nc, cols);
+            case TypedNativeCall nc when isUnionScan(nc) || isUnionArm(nc) ->
+                    widenConcatenateForKeys(nc, cols);
             case TypedFilter f -> {
                 TypedSpec inner = widenConcatenateBelow(f.source(), cols);
                 yield inner == f.source() ? pipeline
@@ -1196,8 +1197,72 @@ public final class Pipelines {
                         : new TypedJoinSlot(inner, js.alias(), js.target(),
                                 js.condition(), js.frameName(), js.info());
             }
+            // a MATERIALIZATION's projection above the union: widen beneath
+            // and pass the widened columns through; a projection with no
+            // union beneath is a lone set's own (the lone rule)
+            case TypedProject p -> widenProjectAbove(p, cols);
+            // a resolver-synthesized join above the union (a materialized
+            // target carrying its own association hop): widen the LEFT
+            // side; the joined row is the widened left row followed by the
+            // right side's prefixed columns exactly as before
+            case TypedJoin j -> {
+                Set<String> member = memberDemands(cols);
+                TypedSpec inner = member.isEmpty() ? j.left()
+                        : widenConcatenateBelow(j.left(), member);
+                if (inner == j.left()) {
+                    yield pipeline;
+                }
+                List<Type.Column> oldLeft = Type.requireRelationSchema(j.left().info().type()).columns();
+                List<Type.Column> oldRow = Type.requireRelationSchema(j.info().type()).columns();
+                List<Type.Column> row = new ArrayList<>(
+                        Type.requireRelationSchema(inner.info().type()).columns());
+                row.addAll(oldRow.subList(oldLeft.size(), oldRow.size()));
+                yield new TypedJoin(inner, j.right(), j.kind(), j.condition(), j.prefix(),
+                        j.frameName(), new ExprType(Type.relation(new Type.RelationType(row)),
+                                Multiplicity.Bounded.ONE), j.userCondition());
+            }
             default -> pipeline;
         };
+    }
+
+    /** Widen the union beneath a projection and pass the demanded columns
+     * the projection lacks through it, reading them off its widened
+     * source row. No union beneath: the lone-target rule. */
+    private static TypedSpec widenProjectAbove(TypedProject p, Set<String> cols) {
+        List<String> missing = missingOf(p, cols);
+        if (missing.isEmpty()) {
+            return p;
+        }
+        if (!containsConcatenate(p.source())) {
+            return widenUnionMember(p, 0, List.of(p), missing);
+        }
+        missing = new ArrayList<>(memberDemands(new LinkedHashSet<>(missing)));
+        if (missing.isEmpty()) {
+            return p;
+        }
+        TypedSpec inner = widenConcatenateBelow(p.source(), new LinkedHashSet<>(missing));
+        Type.RelationType innerRow = Type.requireRelationSchema(inner.info().type());
+        List<TypedFuncCol> newCols = new ArrayList<>(p.columns());
+        List<Type.Column> outCols = new ArrayList<>(
+                Type.requireRelationSchema(p.info().type()).columns());
+        String v = "u_p";
+        TypedVariable row = new TypedVariable(v, new ExprType(innerRow, Multiplicity.Bounded.ONE));
+        for (String c : missing) {
+            Type.Column src = columnOf(innerRow, c);
+            if (src == null) {
+                throw new NotImplementedException("a navigation join demands key column '"
+                        + c + "', which the union beneath this projection did not widen");
+            }
+            var fnType = new Type.FunctionType(
+                    List.of(new Type.Param(innerRow, Multiplicity.Bounded.ONE)),
+                    new Type.Param(src.type(), src.multiplicity()));
+            newCols.add(new TypedFuncCol(c, new TypedLambda(List.of(v),
+                    List.of(read(row, src)), new ExprType(fnType, Multiplicity.Bounded.ONE))));
+            outCols.add(new Type.Column(c, src.type(), src.multiplicity()));
+        }
+        return new TypedProject(inner, newCols,
+                new ExprType(Type.relation(new Type.RelationType(outCols)),
+                        Multiplicity.Bounded.ONE));
     }
 
     static TypedSpec widenConcatenateForKeys(TypedSpec pipeline, Set<String> cols) {
@@ -1208,6 +1273,14 @@ public final class Pipelines {
             }
             return new TypedFilter(inner, f.predicate(),
                     new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
+        }
+        // a ONE-arm union (a merged single-table hierarchy under its arm
+        // marker): the projection hides the physical keys exactly as a
+        // concatenate's threads do, so it widens as the one arm
+        if (isUnionArm(pipeline)) {
+            List<String> missing = missingOf(pipeline, cols);
+            return missing.isEmpty() ? pipeline
+                    : widenUnionMember(pipeline, 0, List.of(pipeline), missing);
         }
         // a ONE-thread union: every member of a filtered single-table
         // hierarchy merged into one scan (UnionSynthesis single-scan
@@ -1221,18 +1294,20 @@ public final class Pipelines {
                     : new TypedNativeCall(mark.callee(), List.of(inner), inner.info());
         }
         if (pipeline instanceof TypedProject lone) {
-            Type.RelationType lrow = Type.requireRelationSchema(lone.info().type());
-            List<String> lmissing = new ArrayList<>();
-            for (String c : cols) {
-                if (lrow.columns().stream().noneMatch(x -> x.name().equals(c))) {
-                    lmissing.add(c);
-                }
-            }
-            return lmissing.isEmpty() ? pipeline
-                    : widenUnionMember(lone, 0, List.of(lone), lmissing);
+            return widenProjectAbove(lone, cols);
+        }
+        if (pipeline instanceof TypedNavigate || pipeline instanceof TypedJoinSlot
+                || pipeline instanceof TypedJoin) {
+            // a materialized union carrying its steps: widen beneath them
+            // for MEMBER columns only — plain names demanded of such a
+            // shape are its own steps' aliases and slot reads, never keys
+            // the union body owes (the shapes this widening left alone
+            // before B3.1)
+            Set<String> member = memberDemands(cols);
+            return member.isEmpty() ? pipeline : widenConcatenateBelow(pipeline, member);
         }
         if (!(pipeline instanceof TypedConcatenate cat)) {
-            return pipeline;
+            return wrapRawScan(pipeline, cols);
         }
         Type.RelationType row = Type.requireRelationSchema(cat.info().type());
         Set<String> have = new LinkedHashSet<>();
@@ -1265,6 +1340,80 @@ public final class Pipelines {
         return out;
     }
 
+    /** A target with NO projection (a table scan, filtered or not — the
+     * single-table inheritance body) demanded a MEMBER column: the scan is
+     * one set's own rows, so the column it names is read off the scan
+     * itself under the minted name, through a pass-through projection.
+     * Plain demands leave the scan alone (its columns are physical). */
+    private static TypedSpec wrapRawScan(TypedSpec pipeline, Set<String> cols) {
+        Type.RelationType row = Type.relationSchema(pipeline.info().type());
+        if (row == null) {
+            return pipeline;
+        }
+        List<String> missing = new ArrayList<>();
+        for (String c : missingOf(pipeline, cols)) {
+            if (MemberColumns.demand(c) != null) {
+                missing.add(c);
+            }
+        }
+        if (missing.isEmpty()) {
+            return pipeline;
+        }
+        String v = "u_s";
+        TypedVariable rv = new TypedVariable(v, new ExprType(row, Multiplicity.Bounded.ONE));
+        List<TypedFuncCol> cols2 = new ArrayList<>();
+        for (Type.Column c : row.columns()) {
+            var fnType = new Type.FunctionType(
+                    List.of(new Type.Param(row, Multiplicity.Bounded.ONE)),
+                    new Type.Param(c.type(), c.multiplicity()));
+            cols2.add(new TypedFuncCol(c.name(), new TypedLambda(List.of(v),
+                    List.of(read(rv, c)), new ExprType(fnType, Multiplicity.Bounded.ONE))));
+        }
+        TypedProject pass = new TypedProject(pipeline, cols2,
+                new ExprType(Type.relation(row), Multiplicity.Bounded.ONE));
+        return widenArm(pass, UnionArm.UNMARKED, List.of(pass), missing);
+    }
+
+    /** {@code pipe} widened for the key columns a condition reads off
+     * its {@code targetParam}-th parameter's row: a routed navigation's
+     * keys are MEMBER columns the target's union arms project only on
+     * demand (B3.1), so every consumer that materializes a union target
+     * and then binds a condition on it widens here first. */
+    static TypedSpec widenForCondition(TypedSpec pipe, @com.legend.Nullable TypedLambda cond,
+            int targetParam) {
+        if (cond == null || cond.parameters().size() <= targetParam) {
+            return pipe;
+        }
+        Set<String> reads = new LinkedHashSet<>();
+        for (TypedSpec b : cond.body()) {
+            collectVarReads(b, cond.parameters().get(targetParam), reads);
+        }
+        return reads.isEmpty() ? pipe : widenConcatenateForKeys(pipe, reads);
+    }
+
+    /** The member-column demands among {@code cols} (see {@link MemberColumns}). */
+    private static Set<String> memberDemands(Set<String> cols) {
+        Set<String> out = new LinkedHashSet<>();
+        for (String c : cols) {
+            if (MemberColumns.demand(c) != null) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /** The demanded columns the relation does not carry. */
+    private static List<String> missingOf(TypedSpec pipeline, Set<String> cols) {
+        Type.RelationType row = Type.requireRelationSchema(pipeline.info().type());
+        List<String> missing = new ArrayList<>();
+        for (String c : cols) {
+            if (row.columns().stream().noneMatch(x -> x.name().equals(c))) {
+                missing.add(c);
+            }
+        }
+        return missing;
+    }
+
     private static void flattenConcatenate(TypedSpec n, List<TypedSpec> out) {
         if (n instanceof TypedConcatenate cat) {
             flattenConcatenate(cat.left(), out);
@@ -1275,23 +1424,34 @@ public final class Pipelines {
     }
 
     /**
-     * Append {@code missing} key columns to member {@code ordinal}'s
-     * projection. Two spellings:
+     * Append {@code missing} key columns to a union arm's projection. Two
+     * kinds of demand:
      * <ul>
-     *   <li>a PLAIN column name — every member reads its own physical
-     *       column (the shared-key form; a member lacking it is loud);</li>
-     *   <li>{@code <col>_<i>} — a PARTIAL-route key (engine suffix): member
-     *       {@code i} reads its physical {@code <col>}, every other member
-     *       contributes a typed NULL (un-routed threads must not match).</li>
+     *   <li>a PLAIN column name — every arm reads its own physical column
+     *       (the shared-name form); an arm whose row lacks it contributes
+     *       a typed NULL of a sibling's kind (engine SQLNull padding,
+     *       pureToSQLQuery_union.pure:682-691: un-routed threads must
+     *       never match);</li>
+     *   <li>a MEMBER COLUMN ({@link MemberColumns}: the name a routed
+     *       navigation's {@code memberColumn} minted) — the arm reads the
+     *       column its OWN set is named with, gated by that set's filter
+     *       inside a merged scan, and a typed NULL when none of its sets is
+     *       named. An arm holding only named sets that agree on the column
+     *       reads it plainly (the indexable single key of a fully routed
+     *       hierarchy).</li>
      * </ul>
      */
     private static TypedSpec widenUnionMember(TypedSpec side, int ordinal,
             List<TypedSpec> members, List<String> missing) {
-        if (isUnionScan(side)) {
-            // a merged single-scan member of a mixed union keeps its marker
+        return widenArm(side, unionArmOf(side), members, missing);
+    }
+
+    private static TypedSpec widenArm(TypedSpec side, UnionArm arm,
+            List<TypedSpec> members, List<String> missing) {
+        if (isUnionArm(side) || isUnionScan(side)) {
+            // the markers ride on top of the widened projection
             TypedNativeCall mark = (TypedNativeCall) side;
-            TypedSpec inner = widenUnionMember(mark.args().get(0), ordinal, members, missing);
-            return new TypedNativeCall(mark.callee(), List.of(inner), inner.info());
+            return rebuildMarker(mark, widenArm(mark.args().get(0), arm, members, missing));
         }
         if (!(side instanceof TypedProject p)) {
             throw new NotImplementedException(
@@ -1305,48 +1465,38 @@ public final class Pipelines {
                 new ArrayList<>(p.columns());
         List<Type.Column> outCols = new ArrayList<>(
                 (Type.requireRelationSchema(p.info().type())).columns());
+        String v = "u_k";
+        TypedVariable row = new TypedVariable(v,
+                new ExprType(srcRow, Multiplicity.Bounded.ONE));
         for (String c : missing) {
-            Type.Column src = columnOf(srcRow, c);
-            if (src == null
-                    && Pattern.matches("^.*_\\d+$", c)) {
-                // ROUTED (member-suffixed) keys carry full provenance: the
-                // normalizer projects them INTO the union body (lift source
-                // keys + inbound route scan). A suffixed demand reaching
-                // this widening means that projection was missed — never
-                // re-derive meaning from the name pattern (audit 11: a real
-                // column spelled like a suffix hijacked the NULL thread).
-                // honest both ways (audit 23 #75): the demand may also be
-                // a REAL physical column that happens to end in _<digits>
-                throw new IllegalStateException("column '" + c + "' is"
-                        + " demanded but absent from the union body: either"
-                        + " a routed union key the normalizer's inbound-"
-                        + "route scan failed to project (resolver bug), or"
-                        + " a physical column named like a member suffix"
-                        + " that the mapping never exposes");
-            }
-            String v = "u_k";
+            MemberColumns.Demand demand = MemberColumns.demand(c);
             TypedSpec body;
             Type colDeclType;
-            if (src != null) {
-                ExprType colType = new ExprType(src.type(), src.multiplicity());
-                body = new TypedPropertyAccess(
-                        new TypedVariable(v,
-                                new ExprType(srcRow, Multiplicity.Bounded.ONE)),
-                        src.name(), colType);
+            Type.Column src = columnOf(srcRow, c);
+            if (demand != null) {
+                Widened w = memberColumnRead(demand, arm, srcRow, row, gateName ->
+                        p.columns().stream().filter(fc -> fc.name().equals(gateName))
+                                .map(TypedFuncCol::fn).findFirst().orElse(null));
+                body = w.body();
+                colDeclType = w.type();
+            } else if (src != null) {
+                body = read(row, src);
                 colDeclType = src.type();
             } else {
-                // HETEROGENEOUS member key (engine SQLNull padding,
-                // pureToSQLQuery_union.pure:682-691): a member that does
-                // not carry the demanded key contributes a TYPED NULL —
-                // its rows can never match the navigation join, exactly
-                // the engine's un-routed-thread semantics. The type comes
-                // from a SIBLING that does carry the column.
-                // — read off the sibling's SOURCE row (its projection is
-                // the aligned union schema, which is exactly what lacks
-                // the column; group F burn 2026-09-02)
+                // HETEROGENEOUS member key: a member that does not carry
+                // the demanded key contributes a TYPED NULL — its rows can
+                // never match the navigation join. The type comes from a
+                // SIBLING that does carry the column — read off the
+                // sibling's SOURCE row (its projection is the aligned union
+                // schema, which is exactly what lacks the column; group F
+                // burn 2026-09-02)
                 Type sibling = null;
                 for (TypedSpec m : members) {
-                    TypedSpec msrc = m instanceof TypedProject mp ? mp.source() : m;
+                    TypedSpec msrc = m;
+                    while (isUnionArm(msrc) || isUnionScan(msrc)) {
+                        msrc = ((TypedNativeCall) msrc).args().get(0);
+                    }
+                    msrc = msrc instanceof TypedProject mp ? mp.source() : msrc;
                     if (Type.relationSchema(msrc.info().type()) instanceof Type.RelationType mr) {
                         Type.Column mc = columnOf(mr, c);
                         if (mc != null) {
@@ -1378,6 +1528,94 @@ public final class Pipelines {
         return new TypedProject(p.source(), newCols,
                 new ExprType(Type.relation(new Type.RelationType(outCols)),
                         Multiplicity.Bounded.ONE));
+    }
+
+    private record Widened(TypedSpec body, Type type) {
+    }
+
+    private static TypedSpec read(TypedVariable row, Type.Column src) {
+        return new TypedPropertyAccess(row, src.name(),
+                new ExprType(src.type(), src.multiplicity()));
+    }
+
+    /** A member-column demand on one arm (see {@link #widenUnionMember}). */
+    private static Widened memberColumnRead(MemberColumns.Demand d, UnionArm arm,
+            Type.RelationType srcRow, TypedVariable row,
+            java.util.function.Function<String, @com.legend.Nullable TypedLambda> gateLambda) {
+        Type kind = d.kind();
+        TypedSpec none = new TypedCollection(List.of(),
+                new ExprType(kind, Multiplicity.Bounded.ZERO_ONE));
+        if (arm.sets().isEmpty()) {
+            // an UNMARKED row is one set's own row (a lone target, or an arm
+            // the resolver composed): the columns the demand names that
+            // exist on it must agree — the route's set is redundant there
+            Set<String> present = new LinkedHashSet<>();
+            for (String col : d.columnBySet().values()) {
+                if (columnOf(srcRow, col) != null) {
+                    present.add(col);
+                }
+            }
+            if (present.isEmpty()) {
+                // never a silent NULL: a lone target that carries none of the
+                // route's columns is a route into some other set
+                throw new NotImplementedException("routed navigation key '" + d.name()
+                        + "' names columns " + d.columnBySet().values()
+                        + ", none of which the target row carries");
+            }
+            if (present.size() > 1) {
+                throw new NotImplementedException("routed navigation key '" + d.name()
+                        + "' names columns " + present + " that all exist on an"
+                        + " unmarked target row — which set the row belongs to"
+                        + " is undecidable");
+            }
+            return new Widened(read(row, java.util.Objects.requireNonNull(
+                    columnOf(srcRow, present.iterator().next()))), kind);
+        }
+        List<String> covered = new ArrayList<>();
+        Set<String> cols = new LinkedHashSet<>();
+        for (String set : arm.sets()) {
+            String col = d.columnBySet().get(set);
+            if (col != null) {
+                covered.add(set);
+                cols.add(col);
+            }
+        }
+        if (covered.isEmpty()) {
+            return new Widened(none, kind);
+        }
+        if (covered.size() == arm.sets().size() && cols.size() == 1) {
+            return new Widened(read(row, requireColumn(srcRow, cols.iterator().next(), d)), kind);
+        }
+        // partial coverage, or sets naming different columns: each covered
+        // set reads its column where its gate holds; NULL elsewhere
+        TypedSpec chain = none;
+        for (int i = covered.size() - 1; i >= 0; i--) {
+            String set = covered.get(i);
+            String gateCol = arm.gates().get(set);
+            TypedLambda gate = gateCol == null || gateCol.isEmpty() ? null
+                    : gateLambda.apply(gateCol);
+            if (gate == null) {
+                throw new IllegalStateException("union arm holding sets " + arm.sets()
+                        + " carries no gate column for '" + set + "'");
+            }
+            TypedSpec cond = rewriteRowReads(gate.body().get(gate.body().size() - 1),
+                    gate.parameters().get(0), Map.of(), Set.of(), x -> row);
+            chain = new TypedIf(cond,
+                    read(row, requireColumn(srcRow,
+                            java.util.Objects.requireNonNull(d.columnBySet().get(set)), d)),
+                    Optional.of(chain), new ExprType(kind, Multiplicity.Bounded.ZERO_ONE));
+        }
+        return new Widened(chain, kind);
+    }
+
+    private static Type.Column requireColumn(Type.RelationType srcRow, String col,
+            MemberColumns.Demand d) {
+        Type.Column c = columnOf(srcRow, col);
+        if (c == null) {
+            throw new NotImplementedException("routed navigation key '" + d.name()
+                    + "' reads column '" + col + "', which the arm's row does not carry");
+        }
+        return c;
     }
 
     private static Type.@com.legend.Nullable Column columnOf(Type.RelationType row, String name) {
@@ -1849,11 +2087,57 @@ public final class Pipelines {
                 && nc.args().size() == 1;
     }
 
+    /** The union-arm marker (Pure.Lite.UNION_ARM) around a union thread:
+     * which member SETS the thread holds and, for a merged single-table
+     * scan, each set's gate over the scan row. Identity on the rows. */
+    static boolean isUnionArm(TypedSpec n) {
+        return n instanceof TypedNativeCall nc
+                && com.legend.builtin.Pure.Lite.UNION_ARM.equals(nc.callee().qualifiedName())
+                && nc.args().size() == 2;
+    }
+
+    /** A union thread's sets and, per set, the name of the thread's boolean
+     * gate column ('' = every row of the thread belongs to the set), read
+     * off its arm marker. No sets = no marker: a lone target (one set) or
+     * an arm the resolver composed. */
+    record UnionArm(List<String> sets, Map<String, String> gates) {
+        static final UnionArm UNMARKED = new UnionArm(List.of(), Map.of());
+    }
+
+    static UnionArm unionArmOf(TypedSpec side) {
+        if (!isUnionArm(side)) {
+            return UnionArm.UNMARKED;
+        }
+        TypedNativeCall nc = (TypedNativeCall) side;
+        if (!(nc.args().get(1) instanceof TypedCollection pairs)) {
+            throw new IllegalStateException("unionArm: the sets-and-gates argument is a collection literal");
+        }
+        List<TypedSpec> el = pairs.elements();
+        List<String> sets = new ArrayList<>();
+        Map<String, String> gates = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < el.size(); i += 2) {
+            if (!(el.get(i) instanceof com.legend.compiler.spec.typed.TypedCString set)
+                    || !(el.get(i + 1) instanceof com.legend.compiler.spec.typed.TypedCString gate)) {
+                throw new IllegalStateException("unionArm: set and gate entries are string literals");
+            }
+            sets.add(set.value());
+            gates.put(set.value(), gate.value());
+        }
+        return new UnionArm(List.copyOf(sets), gates);
+    }
+
+    /** A marker (union scan or union arm) rebuilt around a new inner relation. */
+    static TypedSpec rebuildMarker(TypedNativeCall mark, TypedSpec inner) {
+        List<TypedSpec> args = new ArrayList<>(mark.args());
+        args.set(0, inner);
+        return new TypedNativeCall(mark.callee(), args, inner.info());
+    }
+
     /** Whether the pipeline carries a UNION body: a concatenate of member
      * threads, or the single-scan marker of a merged hierarchy. */
     static boolean containsConcatenate(TypedSpec pipeline) {
         if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate
-                || isUnionScan(pipeline)) {
+                || isUnionScan(pipeline) || isUnionArm(pipeline)) {
             return true;
         }
         for (TypedSpec c : pipeline.children()) {

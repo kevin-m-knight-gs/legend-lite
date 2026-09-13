@@ -246,13 +246,15 @@ class ResolveUnionTest {
     }
 
     @Test
-    @DisplayName("partial route: single-member navigation, suffixed key join")
+    @DisplayName("partial route: single-member navigation, the routed set's member column")
     void partialRouteSuffixedKey() throws SQLException {
         String sql = sqlOf("|u::PersonB.all()"
                 + "->filter(p|$p.firmB.legalName == 'RIGHT-FIRM')"
                 + "->project([p|$p.lastName], ['name'])"
                 + "->from(u::MB, u::RT)");
-        assertTrue(sql.contains("ID_1"), "the routed member's suffixed key:\n" + sql);
+        // B3.1: the route names set fb2 and column ID; the union's fb2 arm
+        // projects ID under the minted member-column name, the other arm NULL
+        assertTrue(sql.contains("mc__fb2_ID"), "the routed member's key column:\n" + sql);
         assertEquals(List.of("B-Scott"), exec(sql));
     }
 

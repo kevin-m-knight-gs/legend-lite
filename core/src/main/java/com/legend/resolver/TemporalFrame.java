@@ -1777,6 +1777,11 @@ final class TemporalFrame {
                             applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             cc.info());
+            // the union markers (arm, merged scan) ride on the filtered thread
+            case com.legend.compiler.spec.typed.TypedNativeCall nc
+                    when Pipelines.isUnionScan(nc) || Pipelines.isUnionArm(nc) ->
+                    Pipelines.rebuildMarker(nc, applyJoinTemporalFilters(nc.args().get(0),
+                            cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim));
             default -> {
                 // LOUD on unrecognized shapes carrying joins (audit 10): a
                 // silently skipped milestoned join target fans out versions
@@ -1853,9 +1858,8 @@ final class TemporalFrame {
                             replaceScan(c.right(), wrap), c.info());
             // the union-scan marker: the merged members' one scan beneath
             case com.legend.compiler.spec.typed.TypedNativeCall nc
-                    when Pipelines.isUnionScan(nc) ->
-                    new com.legend.compiler.spec.typed.TypedNativeCall(nc.callee(),
-                            List.of(replaceScan(nc.args().get(0), wrap)), nc.info());
+                    when Pipelines.isUnionScan(nc) || Pipelines.isUnionArm(nc) ->
+                    Pipelines.rebuildMarker(nc, replaceScan(nc.args().get(0), wrap));
             default -> throw new MappingResolutionException(
                     "milestone filter pushdown through "
                             + pipe.getClass().getSimpleName()

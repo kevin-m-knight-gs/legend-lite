@@ -950,6 +950,7 @@ final class NavMaterializer {
                 xPipe = xcc.pipeline();
                 xCond = xcc.orientedCond();
             }
+            xPipe = Pipelines.widenForCondition(xPipe, xCond, 1);
             // the synthetic identity's own suffix keys the join prefix
             // (synonyms#f1 -> alias_f1_) — deterministic, collision-free
             // per identity by construction
@@ -1053,6 +1054,10 @@ final class NavMaterializer {
             if (firstJoin == null) {
                 continue;
             }
+            // the copy reads the same routed keys the first copy's
+            // condition binds on: member columns the union arms project
+            // only on demand (B3.1)
+            sub2 = Pipelines.widenForCondition(sub2, firstJoin.condition(), 1);
             String prefix2 = na + "_p_";
             var leftRow = com.legend.compiler.element.type.Type
                     .requireRelationSchema(pipe.info().type());

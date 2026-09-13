@@ -2100,4 +2100,97 @@ to `w_Person` — R5 rejected the model, correctly, and the witness gained expli
 24s, G1 75s, G3 11s, G4 108s, G5 58s, G6 138s, G7 35s, G9 26s, G8 143s — G8 RED on the witness
 snippets alone (three mapping fragments without their `###Mapping` header; own-corpus parity
 2405 → 2425 for the witness's twenty elements); G8 re-ran alone (85s) GREEN. No production file
-changed between the runs.
+changed between the runs. **CI.** 3a264a325: gates and diagnostics green.
+
+## Clean-sheet B3.1 — union navigation by the route's member column — 2026-09-13
+
+**Homework first (docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md §6 B3, corrected).** The plan's
+"the union projects its key once" was wrong: a union has no single key — every inbound navigation
+joins on its own column of each member's table, and the union could only learn those by scanning
+every other class's routes (today's `collectInboundRouteKeys`, the dependence B3 removes). Census
+over the DuckDB corpus (temporary printlns, removed): 412 routed-navigation groups over 84
+mappings (226 single-route, 145 one-shared-condition, 23 shared-primary-key groups all in our own
+`MetamodelMapping`, 44 properties whose routes differ per member, 18 chained per-arm groups in 15
+properties); 245 union bodies scanned inbound routes; the resolver's plain-name widening ran 511
+times and its `<col>_<i>` branch 0 times; the union-to-union member-paired arms fired 0 times.
+Plans measured on the witness shape with members keyed on DIFFERENT columns (1,000 firms ×
+10,000 people): today's OR 8.9 ms BLOCKWISE_NL_JOIN; coalesce over per-set columns 1.5 ms HASH_JOIN;
+one merged column 0.8 ms HASH_JOIN — the merged column is what the resolver's widening now produces.
+
+**What landed.**
+- `memberColumn($t, @Kind, set, column, ...)` — a core construct (`CoreFn.MEMBER_COLUMN`,
+  registered signature, `MemberColumns` checker): the navigating class spells only what its own
+  property mapping and Joins say — which set each route names, which column of that set's table
+  the Join reads, the column's kind from the store. The Typer turns every call into a plain read
+  of a name minted from the (set, column) pairs; the registry remembers what each minted name
+  demands (an exact lookup, never a pattern; a collision is loud; names past 80 characters
+  fold to the first pair plus count plus hash — H2 refused a 21-member name). Nothing of the
+  call survives into the lowering.
+- `JoinChainEmission.routedNavigation`: single-hop routes grouped by SHAPE (the condition with
+  its target reads erased, plus the kind per read) merge into ONE condition whose target reads
+  are member columns listing every route's (set, column); routes whose source side differs stay
+  separate disjuncts. `sharedTableKey`, the `__pk` routed form, the coalesce form, the key-spec
+  projection over the target rows and `routesMerge` (with `mergedTargetRoutes`,
+  `sameTableInheritanceMerge`) are deleted. In-arm chained routes keep their property-scoped
+  chain keys (B3.2). The union's own lifted routed navigations spell their target side the same
+  way (`memberColumnReads`); `routedLiftKeySpecs` is deleted.
+- `UnionSynthesis`: the inbound scan keeps only per-arm chains (`collectInboundChains`); the
+  union's shared primary-key thread (`<col>__pk_<table>`, the identity a cast re-root joins on)
+  is now the union's OWN decision from its members (`ownSharedKeys`: members over one main table
+  whose sole primary key that is). Every thread carries a `unionArm(rows, [set, gate, ...])`
+  marker: one set per plain thread; a merged single-table scan names its sets and projects one
+  boolean gate column per set (the set's own filter).
+- `Pipelines.widenUnionMember` widens per set: an arm holding a named set reads that set's
+  column, gated by its gate inside a merged scan, ungated when the demand covers every set of
+  the arm on one column (the metamodel hierarchy's indexable key); an arm holding none reads a
+  typed NULL; an unmarked lone target reads the one demanded column its row carries (loud when
+  none or several). The widening now reaches unions beneath materialization projections,
+  resolver joins, navigates and join slots (member demands only there), and wraps a raw table
+  scan (the single-table inheritance body) in a pass-through projection. The `<col>_<i>`
+  pattern branch is deleted.
+- Every consumer that materializes a union target and then binds a navigate condition on it
+  widens for the condition's target reads: the aggregate join material, the graph emission's
+  three child filters and its derived-leaf head relation, the projection copy and the second
+  identity of a slot in `NavMaterializer`, the exists targets with sibling correlations in
+  `Substitution`, and the association-join fold's ON-form and exploding shapes. The old union
+  body carried every inbound key unconditionally, so none of these had to.
+- Deleted: `AssociationJoins.chainedUnionHop`, `chainedUnionHopInner`, `pairChainedUnionHop`,
+  `memberPairedCondition` and their helpers (0 corpus hits; the witness `ResolveUnionChainTest`
+  keeps its trap row excluded through the general path); `ClassSources.stripMemberSuffix` (the
+  mixed-union child arm reads the member column per set structurally, `memberColumnOnArm`); the
+  chained-hop special case in `StoreResolver`.
+- `CorrelatedSubselects.collectEquiKeys` no longer takes a parent read through a join slot as a
+  flat equi key (the chained shape materializes the slot); the merged member column had made
+  such conditions look flat.
+- The union markers ride through `TemporalFrame`'s filter pushdown and join-target filtering and
+  the materialization walk; the lowering erases `unionArm` like `unionScan`.
+
+**Corpus adjudication (rows judged; 144 → 34 → 7 → 0 LOST on DuckDB, 143 → 0 on H2).** The first
+run's 103 losses were one cause: the arm marker's first form carried the scan rows as a live
+child and every walker saw duplicated join slots — replaced by gate columns. The rest were
+consumers materializing a union without the condition's keys (listed above), one milestoned
+walk without a marker case, the flat-equi-key detector, and H2's identifier length.
+
+**Witnesses.** `UnionTargetLeanJoinTest` gains the SQL shape: for both the uniform (FIRM_ID on
+both members) and the non-uniform (FIRM_ID / OWNER_ID) property, one join, one equality on the
+minted key, no OR, no coalesce; its rows unchanged. `ResolveUnionChainTest` rows unchanged.
+
+**Sizes.** UnionSynthesis 2,839 → 2,835; JoinChainEmission 1,143 → 1,095; AssociationJoins
+2,354 → 2,102; Pipelines 1,987 → 2,254 (the per-set widening and the shapes it now reaches);
+ClassSources 1,523 → 1,512; MemberColumns 145 new. Diff: 20 files, +910 / −765.
+
+**Still transitional (pinned by the doc, not by a test yet — B3.2/B3.3):** in-arm chained routes
+and the union's own outbound lifts still spell member ORDINALS; the re-synthesis block and
+`routedTargetGainsOperation` stay until no navigator reads an ordinal (B3.2); `MappingView`,
+`MappedClasses`, `TransitionalShapesTest` go with the implicit sets (B3.3).
+
+**Pins moved (each with its reason in the file).** `ArchitectureTest` static-state register:
+`MemberColumns.BY_NAME` (a content-addressed memo of a pure function, collisions loud);
+`NativeCatalogGovernanceTest` INTERNAL_DESUGAR 16 → 18 (memberColumn, unionArm; census rows in
+docs/LITE_INVENTION_CENSUS.md); `ResolveUnionTest.partialRouteSuffixedKey` asserts the minted
+member column instead of the `ID_1` suffix. `CodeShapeGuardrailTest`: the first chain caught
+`Typer` at 3,501 and `GraphEmission` at 3,520 lines — the condition-widening helper moved to
+`Pipelines.widenForCondition` (one implementation for its seven callers) and a comment shrank.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** First run RED on G1 (the four
+pins above; every other gate green); second run GREEN: build, G1 72s, G2 24s, G3 11s, G4 114s, G5 60s, G6 144s, G7 35s, G8 147s, G9 27s (GATES_PARALLEL=1). No own-corpus pin moved.
