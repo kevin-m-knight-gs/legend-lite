@@ -1,6 +1,7 @@
 package com.legend;
 
 import com.legend.compiler.KnowledgeLayer;
+import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.PureModelContext;
 import com.legend.compiler.element.ModelContext;
@@ -232,8 +233,26 @@ public final class Compiler {
     public static ModelContext buildModel(ParsedModel parsed) {
         // the system metamodel store rides EVERY build (charter §4: one
         // owner, parsed elements, no parallel lane)
-        return PureModelContext.from(normalizeWithSystem(NameResolver.resolveAlongside(parsed,
-                bootFqns(), null), null));
+        Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
+                bootFqns(), null), null);
+        return PureModelContext.from(layer.model(), layer.index());
+    }
+
+    /** A normalized layer with THE index its Phase E read (T4.1 step 2):
+     * the gate adds the layer's products to that same index. */
+    private record Layer(NormalizedModel model, ModelBuilder index) {}
+
+    /**
+     * name-resolved elements &rarr; F1 knowledge (association qualified
+     * properties adopt into their owners) &rarr; THE ONE INDEX &rarr; Phase E
+     * over it. The only {@code ModelBuilder.from} in the compile path: both
+     * layers (boot, graph) enter here.
+     */
+    private static Layer normalizeLayer(ParsedModel resolved,
+            java.util.@com.legend.Nullable Map<String, String> walls) {
+        ParsedModel adopted = KnowledgeLayer.adoptAssociationQualifiedProperties(resolved, walls);
+        ModelBuilder index = ModelBuilder.from(adopted);
+        return new Layer(ModelNormalizer.normalize(adopted, index, walls), index);
     }
 
     /**
@@ -269,10 +288,9 @@ public final class Compiler {
             elements.addAll(pre.elements());
             ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
                     pre.elementOffsets(), pre.elementImports(), pre.elementSources());
-            // F1 knowledge before E (T4.1 step 1): association qualified
-            // properties adopt into their owners before mappings normalize
-            return ModelNormalizer.normalize(KnowledgeLayer.adoptAssociationQualifiedProperties(
-                    NameResolver.resolve(boot), null));
+            // the boot layer's own index is discarded with the closure: its
+            // prepared elements enter every graph's index at that graph's gate
+            return normalizeLayer(NameResolver.resolve(boot), null).model();
         });
     }
 
@@ -330,41 +348,20 @@ public final class Compiler {
      * the normalized model; a graph element redefining a system element
      * is an error (SystemMetamodel.withoutSystemShadows).
      */
-    private static NormalizedModel normalizeWithSystem(ParsedModel resolved,
+    private static Layer normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.Nullable Map<String, String> walls) {
-        // F1 knowledge before E (T4.1 step 1): the same adoption the boot
-        // layer had, over the graph's own elements, walls-aware
-        NormalizedModel user = ModelNormalizer.normalize(
-                KnowledgeLayer.adoptAssociationQualifiedProperties(
-                        com.legend.builtin.SystemMetamodel.withoutSystemShadows(
-                                withoutPreludeShadows(resolved)), walls), walls);
+        Layer user = normalizeLayer(
+                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                        withoutPreludeShadows(resolved)), walls);
         NormalizedModel sys = bootLayer();
         List<com.legend.model.PackageableElement> elements =
-                new java.util.ArrayList<>(user.elements().size() + sys.elements().size());
-        elements.addAll(user.elements());
+                new java.util.ArrayList<>(user.model().elements().size() + sys.elements().size());
+        elements.addAll(user.model().elements());
         elements.addAll(sys.elements());
-        return new NormalizedModel(elements, user.imports(),
-                union(user.mappingPoisons(), sys.mappingPoisons()),
-                union(user.legacySurfaces(), sys.legacySurfaces()),
-                union(user.mixedUnions(), sys.mixedUnions()),
-                unionSets(user.requiredNullableRows(), sys.requiredNullableRows()),
-                union(user.unionKeyThreads(), sys.unionKeyThreads()));
-    }
-
-    /** The [1]-over-nullable census is keyed by BUCKET ("direct", …), so
-     * the two layers' witness sets MERGE per key — a key-replacing union
-     * silently dropped the corpus's 500 direct witnesses behind the system
-     * layer's 13 (batch 11 regression, caught by the census print). */
-    private static java.util.Map<String, java.util.Set<String>> unionSets(
-            java.util.Map<String, java.util.Set<String>> a,
-            java.util.Map<String, java.util.Set<String>> b) {
-        if (b.isEmpty()) {
-            return a;
-        }
-        java.util.Map<String, java.util.Set<String>> out = new java.util.LinkedHashMap<>();
-        a.forEach((k, v) -> out.put(k, new java.util.TreeSet<>(v)));
-        b.forEach((k, v) -> out.computeIfAbsent(k, x -> new java.util.TreeSet<>()).addAll(v));
-        return out;
+        // the compiled mappings carry their own facts (poisons, unions, the
+        // nullable census) — the layer union has nothing else to merge
+        return new Layer(new NormalizedModel(elements, user.model().imports(),
+                union(user.model().legacySurfaces(), sys.legacySurfaces())), user.index());
     }
 
     private static <V> java.util.Map<String, V> union(
@@ -406,9 +403,9 @@ public final class Compiler {
      */
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
-        NormalizedModel normalized = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
+        Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), walls), walls);
-        PureModelContext ctx = PureModelContext.from(normalized, walls);
+        PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls);
         return new BuiltModule(ctx, walls);
     }
 

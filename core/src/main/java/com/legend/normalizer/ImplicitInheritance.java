@@ -199,7 +199,6 @@ final class ImplicitInheritance {
         List<ClassMapping> rewritten = new ArrayList<>(md.classMappings());
         for (String cls : implied) {
             rewritten.add(new ClassMapping.Inheritance(cls, null, null, false));
-            model.registerMappedClass(cls);
         }
         return md.withClassMappings(rewritten);
     }

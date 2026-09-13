@@ -130,7 +130,7 @@ class KnowledgeLayerTest {
     @DisplayName("the normalizer refuses a model the knowledge layer has not adopted")
     void normalizerRequiresAdoption() {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> ModelNormalizer.normalize(
+                () -> com.legend.testing.Phases.normalize(
                         NameResolver.resolve(com.legend.testing.Own.model(PROD_SYNONYM))));
         assertTrue(ex.getMessage().contains("w::ProdSynonym"), ex.getMessage());
         assertTrue(ex.getMessage().contains("synonymByType"), ex.getMessage());

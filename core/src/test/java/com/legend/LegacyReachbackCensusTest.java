@@ -60,7 +60,10 @@ class LegacyReachbackCensusTest {
             // CONSTRUCTION (Phase E): the normalizer IS the legacy
             // artifact's consumer — translation, union/association
             // synthesis, include walks over the raw surface
-            "core/src/main/java/com/legend/normalizer/MappingNormalizer.java", 5,
+            // 5 -> 4 (T4.1 step 2, 2026-09-13): the driver's cross-bake
+            // re-fetch died — the JSON identity sets are Phase E's own
+            // pre-pass product, so the index slot IS the parsed mapping
+            "core/src/main/java/com/legend/normalizer/MappingNormalizer.java", 4,
             "core/src/main/java/com/legend/normalizer/UnionSynthesis.java", 3,
             "core/src/main/java/com/legend/normalizer/AssociationSynthesis.java", 1,
             // SURFACE CONTRACT: the Pure metamodel API presents the

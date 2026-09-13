@@ -1615,11 +1615,9 @@ class MappingNormalizerTest {
                         + "    ) Otherwise ([firm_set1]: [db::DB] @Person_Firm) "
                         + "  } "
                         + ")");
-        // per-class fault isolation: recorded as a POISON, raised at use
-        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(
-                parsed.elements(), parsed.imports()));
-        MappingNormalizer.normalize(parsed, mb);
-        String reason = mb.mappingPoisons.get("my::M::model::Person");
+        // per-class fault isolation: recorded as a POISON on the compiled
+        // mapping's facts, raised at use
+        String reason = poisonsOf(normalizeViaPipeline(parsed)).get("my::M::model::Person");
         assertTrue(reason != null && reason.contains("model::Firm"),
                 () -> "Expected a poisoned binding naming the unmapped target class; got: " + reason);
     }
@@ -2451,10 +2449,19 @@ class MappingNormalizerTest {
      * the recorded reasons.
      */
     private static String poisonReasons(ParsedModel parsed) {
-        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(
-                parsed.elements(), parsed.imports()));
-        MappingNormalizer.normalize(parsed, mb);
-        return String.join(" ;; ", mb.mappingPoisons.values());
+        return String.join(" ;; ", poisonsOf(normalizeViaPipeline(parsed)).values());
+    }
+
+    /** Every compiled mapping's stamped poisons, keyed {@code mapping::key}
+     * (T4.1 step 2: the facts ride the artifact, not the index). */
+    static java.util.Map<String, String> poisonsOf(NormalizedModel normalized) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (var el : normalized.elements()) {
+            if (el instanceof MappingDefinition md) {
+                md.facts().poisons().forEach((k, v) -> out.put(md.qualifiedName() + "::" + k, v));
+            }
+        }
+        return out;
     }
 
     private static NormalizedModel normalizeViaPipeline(ParsedModel parsed) {
@@ -4912,11 +4919,9 @@ class MappingNormalizerTest {
                         + "  } "
                         + "  *model::U[u1]: Pure { ~src model::S c: $src.x } "
                         + ")");
-        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(
-                parsed.elements(), parsed.imports()));
-        MappingNormalizer.normalize(parsed, mb);
-        assertTrue(mb.mappingPoisons.isEmpty(),
-                () -> "Sole-set route must be benign; poisons: " + mb.mappingPoisons);
+        java.util.Map<String, String> poisons = poisonsOf(normalizeViaPipeline(parsed));
+        assertTrue(poisons.isEmpty(),
+                () -> "Sole-set route must be benign; poisons: " + poisons);
     }
 
     @Test

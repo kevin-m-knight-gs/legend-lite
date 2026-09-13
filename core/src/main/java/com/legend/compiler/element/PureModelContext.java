@@ -79,39 +79,31 @@ public final class PureModelContext implements ModelContext {
     }
 
     /**
-     * Build from a Phase-E {@link com.legend.model.NormalizedModel}. The
-     * parameter type is the phase gate ({@code docs/CLEAN_SHEET_INVERSION.md}
-     * &sect;4): Phase F demands a normalized model at the signature level, so
-     * an un-normalized {@code ParsedModel} cannot reach element compilation.
+     * Build from a Phase-E {@link com.legend.model.NormalizedModel} over THE
+     * graph's one index. The parameter type is the phase gate
+     * ({@code docs/CLEAN_SHEET_INVERSION.md} &sect;4): Phase F demands a
+     * normalized model at the signature level, so an un-normalized
+     * {@code ParsedModel} cannot reach element compilation.
      */
-    public static PureModelContext from(com.legend.model.NormalizedModel normalized) {
-        return from(normalized, null);
+    public static PureModelContext from(com.legend.model.NormalizedModel normalized,
+            ModelBuilder index) {
+        return from(normalized, index, null);
     }
 
     /** {@link #from} with a tolerant integrity wall sink (module compile). */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
-        // THE Phase-E -> Phase-F gate: element compilation demands a
-        // normalized model AT THE SIGNATURE LEVEL. (ModelBuilder itself is
-        // phase-agnostic indexing and must not depend on the normalizer —
-        // that was the compiler<->normalizer package cycle.)
-        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(
-                normalized.elements(), normalized.imports()));
-        // Phase-E poisons must survive into the queryable context — the
-        // 0-binder error's "failed to normalize" reasons read them here
-        mb.mappingPoisons.putAll(normalized.mappingPoisons());
-        mb.mixedUnions.putAll(normalized.mixedUnions());
-        mb.unionKeyThreads.putAll(normalized.unionKeyThreads());
-        // the [1]-over-nullable census rides the same route (the
-        // Phase-E builder the census wrote to is discarded above)
-        normalized.requiredNullableRows().forEach((b, ws) ->
-                mb.requiredNullableRows().computeIfAbsent(b,
-                        k -> new java.util.TreeSet<>()).addAll(ws));
+            ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        // THE Phase-E -> Phase-F gate (T4.1 step 2): the index Phase E read
+        // gains Phase E's products — the compiled mappings (their facts
+        // stamped on them), the lifted functions — and the boot layer's
+        // prepared elements; the pass-through structural elements are
+        // already there and are skipped. Nothing is re-indexed.
+        index.add(normalized.elements());
         // the pre-Door-1 mapping surfaces ride as an ANALYSIS archive
         // (static lineage #44) — F+ compilation never reads them
         normalized.legacySurfaces().values()
-                .forEach(mb::retainLegacySurface);
-        return new PureModelContext(mb, wallSink);
+                .forEach(index::retainLegacySurface);
+        return new PureModelContext(index, wallSink);
     }
 
     @Override
@@ -378,19 +370,24 @@ public final class PureModelContext implements ModelContext {
     @Override
     public java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
-        return model.mixedUnions.get(mappingFqn + "::" + classFqn);
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().mixedUnions().get(classFqn)).orElse(null);
     }
 
     @Override
     public java.util.@com.legend.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
             String mappingFqn, String classFqn) {
-        return model.unionKeyThreads.get(mappingFqn + "::" + classFqn);
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().unionKeyThreads().get(classFqn)).orElse(null);
     }
 
+    /** The compiled mapping's stamped facts (T4.1 step 2): the poison
+     * ledger, mixed unions and key threads are read HERE, off the artifact
+     * Phase E produced — never from a side channel on the index. */
     @Override
     public java.util.Optional<String> mappingPoison(String mappingFqn, String classFqn) {
-        return java.util.Optional.ofNullable(
-                model.mappingPoisons.get(mappingFqn + "::" + classFqn));
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().poisons().get(classFqn));
     }
 
     public java.util.Optional<com.legend.model.RuntimeDefinition> findRuntime(
@@ -527,11 +524,22 @@ public final class PureModelContext implements ModelContext {
                 .flatMap(db -> milestoningWithIncludes(db, name, new java.util.HashSet<>()));
     }
 
+    /** The graph's [1]-over-nullable census: the union of every compiled
+     * mapping's stamped rows, bucket by bucket (memoized: the mappings are
+     * immutable once the gate has passed). */
     @Override
     public java.util.Map<String, java.util.Set<String>>
             requiredNullableCensus() {
-        return model.requiredNullableRows();
+        return derived(NullableCensus.class, c -> {
+            java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();
+            model.mappings().forEach(md -> md.facts().nullableCensus().forEach((b, ws) ->
+                    out.computeIfAbsent(b, k -> new java.util.TreeSet<>()).addAll(ws)));
+            out.replaceAll((b, ws) -> java.util.Collections.unmodifiableSet(ws));
+            return new NullableCensus(java.util.Collections.unmodifiableMap(out));
+        }).rows();
     }
+
+    private record NullableCensus(java.util.Map<String, java.util.Set<String>> rows) {}
 
     private Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             milestoningWithIncludes(com.legend.model.DatabaseDefinition db,

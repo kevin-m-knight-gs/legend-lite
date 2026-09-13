@@ -30,10 +30,12 @@ final class AggregateViewLift {
             ClassMapping.Relational aggMain, ModelBuilder model,
             List<FunctionDefinition> lifted,
             List<MappingDefinition.ClassBinding> classBindings,
-            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys) {
+            Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
+            MappingLedger ledger) {
         for (ClassMapping.AggregateView view : java.util.Objects
                 .requireNonNull(aggMain.aggregation()).views()) {
-            FunctionDefinition viewFn = MappingNormalizer.synthesizeClassMapping(md, view.set(), model, true);
+            FunctionDefinition viewFn = MappingNormalizer.synthesizeClassMapping(
+                    md, view.set(), model, true, ledger);
             lifted.add(viewFn);
             classBindings.add(new MappingDefinition.ClassBinding.Relational(
                     view.set().className(), view.set().setId(),

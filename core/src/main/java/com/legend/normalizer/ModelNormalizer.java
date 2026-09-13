@@ -95,17 +95,21 @@ public final class ModelNormalizer {
      * every body site into the element list. Structural elements pass through
      * untouched. Re-normalization is impossible at the type level: the result
      * is a {@link NormalizedModel}, which this method does not accept.
+     *
+     * <p>{@code model} is THE graph's one index (T4.1 step 2), built by the
+     * driver from this same {@code parsed} BEFORE this phase; every sub-slice
+     * resolves classes/associations/joins/filters against it and none
+     * self-builds. This phase READS the index and writes nothing into it:
+     * what it learns rides its products (the compiled mappings' facts, the
+     * lifted functions), which the driver ADDS to the same index at the
+     * E&rarr;F gate. A non-null {@code wallSink} (module compile) collects
+     * per-mapping normalization walls &mdash; failing mappings are walled
+     * and excluded in one pass instead of throwing on the first.
      */
-    public static NormalizedModel normalize(ParsedModel parsed) {
-        return normalize(parsed, null);
-    }
-
-    /** TOLERANT variant (module compile): plumbs the wall sink to the
-     * mapping normalizer — failing mappings are walled and excluded in
-     * one pass instead of throwing on the first. */
-    public static NormalizedModel normalize(ParsedModel parsed,
+    public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
+        Objects.requireNonNull(model, "model");
         // Association QUALIFIED properties were adopted into their owning
         // classes by the knowledge layer (F1, KnowledgeLayer) BEFORE this
         // phase — the single class-derived funnel (E.2, findProperty,
@@ -113,23 +117,9 @@ public final class ModelNormalizer {
         // arrives un-adopted is a pipeline-order bug: loud, never a
         // silently missing property.
         requireQualifiedPropertiesAdopted(parsed, wallSink);
-        // Build the resolution index ONCE, shared across every sub-slice.
-        // Each lifter (E.2-E.4) and the legacy-mapping desugarer (E.1)
-        // resolves classes/associations/joins/filters against the same view;
-        // none self-builds. The index reflects the model as parsed — every
-        // sub-slice is append-only (it lifts functions, never mutates a
-        // resolution target: stored properties, supertypes, joins are all
-        // untouched). Phase F (element-compile) rebuilds its own index from the
-        // normalized output to pick up the lifted functions.
-        ModelBuilder model = ModelBuilder.from(parsed);
         // E.1 rewrites MappingDefinitions (extends flattening, multi-hop
         // association injection) and lifts the mapping functions.
         NormalizedModel normalized = MappingNormalizer.normalize(parsed, model, wallSink);
-        // per-class poisons recorded during mapping synthesis ride the
-        // normalized model into Phase F (StoreResolver's 0-binder reasons)
-        normalized = new NormalizedModel(normalized.elements(), normalized.imports(),
-                model.mappingPoisons, normalized.legacySurfaces(),
-                model.mixedUnions, model.requiredNullableRows(), model.unionKeyThreads);
         List<FunctionDefinition> lifted = new ArrayList<>();
         liftDerivedProperties(parsed, lifted);  // E.2
         liftConstraints(parsed, lifted);        // E.3
@@ -139,9 +129,7 @@ public final class ModelNormalizer {
                 new ArrayList<>(normalized.elements().size() + lifted.size());
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
-        return new NormalizedModel(elements, normalized.imports(),
-                model.mappingPoisons, normalized.legacySurfaces(),
-                model.mixedUnions, model.requiredNullableRows(), model.unionKeyThreads);
+        return new NormalizedModel(elements, normalized.imports(), normalized.legacySurfaces());
     }
 
     /**

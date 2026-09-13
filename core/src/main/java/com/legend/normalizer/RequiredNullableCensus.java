@@ -58,13 +58,15 @@ final class RequiredNullableCensus {
     }
 
     static void noteDirect(PropertyMapping.Column col,
-            @com.legend.Nullable String ownerClassFqn, ModelBuilder model) {
+            @com.legend.Nullable String ownerClassFqn, ModelBuilder model,
+            MappingLedger ledger) {
         pair(col.propertyName(), ownerClassFqn, col.database(),
-                col.table(), col.column(), "direct", model);
+                col.table(), col.column(), "direct", model, ledger);
     }
 
     static void noteJoinTerminal(PropertyMapping.JoinTerminalColumn jtc,
-            @com.legend.Nullable String ownerClassFqn, ModelBuilder model) {
+            @com.legend.Nullable String ownerClassFqn, ModelBuilder model,
+            MappingLedger ledger) {
         if (!(jtc.terminalColumn()
                 instanceof RelationalOperation.ColumnRef cr)) {
             return;
@@ -72,13 +74,13 @@ final class RequiredNullableCensus {
         pair(jtc.propertyName(), ownerClassFqn,
                 cr.databaseName() != null ? cr.databaseName()
                         : jtc.database(),
-                cr.table(), cr.column(), "join-terminal", model);
+                cr.table(), cr.column(), "join-terminal", model, ledger);
     }
 
     private static void pair(String propName,
             @com.legend.Nullable String ownerClassFqn,
             @com.legend.Nullable String db, String table, String column,
-            String bucket, ModelBuilder model) {
+            String bucket, ModelBuilder model, MappingLedger ledger) {
         if (ownerClassFqn == null) {
             return;
         }
@@ -95,7 +97,7 @@ final class RequiredNullableCensus {
                 : MappingNormalizer.findPropertyDefDeep(owner, propName,
                         model, new HashSet<>());
         if (prop == null) {
-            note(model, "unresolved-property",
+            ledger.census("unresolved-property",
                     ownerClassFqn + "." + propName);
             return;
         }
@@ -107,14 +109,14 @@ final class RequiredNullableCensus {
                 : MappingNormalizer.findPhysicalColumn(db, table, column,
                         model);
         if (cd == null) {
-            note(model, "unresolved-column", (db == null ? "<no-db>" : db)
+            ledger.census("unresolved-column", (db == null ? "<no-db>" : db)
                     + "." + table + "." + column);
             return;
         }
         if (cd.primaryKey() || cd.notNull()) {
             return;
         }
-        note(model, bucket, ownerClassFqn + "." + propName + multText(c)
+        ledger.census(bucket, ownerClassFqn + "." + propName + multText(c)
                 + " over " + table + "." + column);
     }
 
@@ -126,11 +128,5 @@ final class RequiredNullableCensus {
             return "[" + c.lowerBound() + "]";
         }
         return "[" + c.lowerBound() + ".." + c.upperBound() + "]";
-    }
-
-    private static void note(ModelBuilder model, String bucket,
-            String witness) {
-        model.requiredNullableRows().computeIfAbsent(bucket,
-                k -> new java.util.TreeSet<>()).add(witness);
     }
 }

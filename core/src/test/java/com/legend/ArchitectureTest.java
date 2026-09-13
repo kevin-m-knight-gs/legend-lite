@@ -1025,6 +1025,41 @@ final class ArchitectureTest {
      *       fetches and judges, minting nothing.</li>
      * </ul>
      */
+    /**
+     * T4.1 step 2 — the normalizer READS the one model index and writes
+     * nothing into it: Phase E's facts (poisons, mixed unions, key
+     * threads, the nullable census, the mapped-class set) ride its
+     * products. The index's only mutators are the driver's gate calls
+     * ({@code add}, {@code retainLegacySurface}); the five write channels
+     * ({@code mappingPoisons}, {@code mixedUnions}, {@code unionKeyThreads},
+     * {@code requiredNullableRows()}, {@code registerMappedClass}) no
+     * longer exist, and this rule keeps the index free of public state so
+     * they cannot come back as fields either.
+     */
+    @Test
+    void normalizerNeverWritesIntoTheModelIndex() {
+        noClasses()
+            .that().resideInAPackage("com.legend.normalizer..")
+            .should().callCodeUnitWhere(
+                    com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasOwner
+                                    .Predicates.With.<com.tngtech.archunit.core
+                                            .domain.JavaClass>owner(
+                                    com.tngtech.archunit.core.domain.JavaClass
+                                            .Predicates.simpleName("ModelBuilder")))
+                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasName
+                                    .Predicates.nameMatching(
+                                            "add|retainLegacySurface|registerMappedClass"))))
+            .as("T4.1 invariant 5: the normalizer performs no write into the model index")
+            .check(CORE_PROD_CLASSES);
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
+            .that().areDeclaredIn(com.legend.compiler.ModelBuilder.class)
+            .should().bePublic()
+            .as("T4.1 invariant 5: the model index exposes no field a phase could write")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void typedNodesAreMintedOnlyByCompilerLayers() {
         noClasses()

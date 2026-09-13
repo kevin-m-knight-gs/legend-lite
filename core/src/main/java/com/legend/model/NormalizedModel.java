@@ -1,8 +1,5 @@
 package com.legend.model;
 
-import com.legend.model.FunctionDefinition;
-import com.legend.model.PackageableElement;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -22,61 +19,30 @@ import java.util.Map;
  * lifted functions through the same {@code case FunctionDefinition} arm as
  * user functions; there is no separate flatten step.
  *
+ * <p>What Phase E LEARNED about a mapping (poisons, mixed unions, union key
+ * threads, the nullable census) rides the compiled {@link MappingDefinition}
+ * itself ({@link MappingDefinition#facts()}, T4.1 step 2) &mdash; this record
+ * carries no side channels for it.
+ *
  * <p>The type is the phase gate: {@code normalize} accepts a
  * {@link com.legend.model.ParsedModel} and returns a {@code NormalizedModel},
  * so a model cannot be re-normalized (the duplicate-synth footgun dies at the
  * signature) and Phase F entry points can demand normalization at the type
  * level.
  *
- * @param elements structural elements + all functions (user-written and lifted)
- * @param imports  import scope carried through from the parsed model
+ * @param elements       structural elements + all functions (user-written and lifted)
+ * @param imports        import scope carried through from the parsed model
+ * @param legacySurfaces READ-ONLY archive of the pre-Door-1 mapping DSL (the
+ *                       authored mapping plus its JSON identity sets) for
+ *                       ANALYSIS consumers (static lineage #44) &mdash; the
+ *                       compilation pipeline never reads it
  */
 public record NormalizedModel(List<PackageableElement> elements, ImportScope imports,
-        java.util.Map<String, String> mappingPoisons,
-        java.util.Map<String, LegacyMappingDefinition> legacySurfaces,
-        java.util.Map<String, java.util.List<String>> mixedUnions,
-        java.util.Map<String, java.util.Set<String>> requiredNullableRows,
-        java.util.Map<String, java.util.List<KeyThread>> unionKeyThreads) {
+        java.util.Map<String, LegacyMappingDefinition> legacySurfaces) {
 
-    /** Without poisons (tests, poison-free paths). */
+    /** Without legacy surfaces (tests, mapping-free paths). */
     public NormalizedModel(List<PackageableElement> elements, ImportScope imports) {
-        this(elements, imports, java.util.Map.of(), java.util.Map.of(),
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
-    }
-
-    /** Without legacy surfaces (poison-only callers). */
-    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
-            java.util.Map<String, String> mappingPoisons) {
-        this(elements, imports, mappingPoisons, java.util.Map.of(),
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
-    }
-
-    /** Without mixed unions (pre-route-b callers). */
-    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
-            java.util.Map<String, String> mappingPoisons,
-            java.util.Map<String, LegacyMappingDefinition> legacySurfaces) {
-        this(elements, imports, mappingPoisons, legacySurfaces,
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
-    }
-
-    /** Without the [1]-over-nullable census (poison-idiom callers that
-     * assemble it separately). */
-    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
-            java.util.Map<String, String> mappingPoisons,
-            java.util.Map<String, LegacyMappingDefinition> legacySurfaces,
-            java.util.Map<String, java.util.List<String>> mixedUnions) {
-        this(elements, imports, mappingPoisons, legacySurfaces,
-                mixedUnions, java.util.Map.of(), java.util.Map.of());
-    }
-
-    /** Without union key threads (callers that carry no union facts). */
-    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
-            java.util.Map<String, String> mappingPoisons,
-            java.util.Map<String, LegacyMappingDefinition> legacySurfaces,
-            java.util.Map<String, java.util.List<String>> mixedUnions,
-            java.util.Map<String, java.util.Set<String>> requiredNullableRows) {
-        this(elements, imports, mappingPoisons, legacySurfaces,
-                mixedUnions, requiredNullableRows, java.util.Map.of());
+        this(elements, imports, java.util.Map.of());
     }
 
     public NormalizedModel {
@@ -84,36 +50,8 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
         if (imports == null) {
             imports = ImportScope.empty();
         }
-        // "mapping::class -> reason" for class mappings whose synthesis hit
-        // a roadmap/user-model wall (binding withheld; loud at query time)
-        mappingPoisons = mappingPoisons == null
-                ? java.util.Map.of() : java.util.Map.copyOf(mappingPoisons);
-        // READ-ONLY archive of the pre-Door-1 mapping DSL for ANALYSIS
-        // consumers (static lineage #44) — the compilation pipeline never
-        // reads it (CLEAN_SHEET_INVERSION §1.5 still holds for F+)
         legacySurfaces = legacySurfaces == null
                 ? java.util.Map.of() : java.util.Map.copyOf(legacySurfaces);
-        // "mapping::class -> member set ids" of MIXED-KIND Operation
-        // unions (Pure members — resolver-side arm synthesis, route b)
-        mixedUnions = mixedUnions == null
-                ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
-        // "mapping::class -> primary-key threads" of Operation unions (the
-        // engine's importDataFlow columns; same route as mixedUnions)
-        unionKeyThreads = unionKeyThreads == null
-                ? java.util.Map.of() : java.util.Map.copyOf(unionKeyThreads);
-        // the [1]-over-nullable-column census of THIS compile (bucket
-        // -> witnesses; RequiredNullableCensus) — a Phase-E product
-        // that rides the record across the phase gate exactly like
-        // mappingPoisons (the normalizer's builder is discarded there)
-        if (requiredNullableRows == null) {
-            requiredNullableRows = java.util.Map.of();
-        } else {
-            java.util.Map<String, java.util.Set<String>> copy =
-                    new java.util.LinkedHashMap<>();
-            requiredNullableRows.forEach(
-                    (k, v) -> copy.put(k, java.util.Set.copyOf(v)));
-            requiredNullableRows = Collections.unmodifiableMap(copy);
-        }
     }
 
     /**

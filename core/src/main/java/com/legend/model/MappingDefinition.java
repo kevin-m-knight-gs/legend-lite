@@ -39,7 +39,8 @@ public record MappingDefinition(
         List<EnumerationMapping> enumerationMappings,
         @com.legend.Nullable String testSuitesSource,
         java.util.Map<String, String> routedTargetSets,
-        java.util.Map<String, String> resolvedStores)
+        java.util.Map<String, String> resolvedStores,
+        NormalizationFacts facts)
         implements PackageableElement {
 
     /** The common form: no per-property set-dispatch table, no store substitutions. */
@@ -50,7 +51,8 @@ public record MappingDefinition(
             List<EnumerationMapping> enumerationMappings,
             @com.legend.Nullable String testSuitesSource) {
         this(qualifiedName, includes, classBindings, associationBindings,
-                enumerationMappings, testSuitesSource, java.util.Map.of(), java.util.Map.of());
+                enumerationMappings, testSuitesSource, java.util.Map.of(), java.util.Map.of(),
+                NormalizationFacts.NONE);
     }
 
     /** With the set-dispatch table, no store substitutions. */
@@ -62,10 +64,49 @@ public record MappingDefinition(
             @com.legend.Nullable String testSuitesSource,
             java.util.Map<String, String> routedTargetSets) {
         this(qualifiedName, includes, classBindings, associationBindings,
-                enumerationMappings, testSuitesSource, routedTargetSets, java.util.Map.of());
+                enumerationMappings, testSuitesSource, routedTargetSets, java.util.Map.of(),
+                NormalizationFacts.NONE);
+    }
+
+    /**
+     * What Phase E LEARNED while compiling this mapping, stamped on the
+     * artifact (T4.1 step 2 — never written into a shared index): the
+     * per-class poison ledger (a class, {@code class[setId]} set, or
+     * association whose synthesis hit a roadmap/user-model wall &mdash;
+     * the binding is withheld and the reason raises at use), the
+     * mixed-kind Operation unions (class &rarr; member set ids; the
+     * resolver synthesizes their arms), the Operation unions' primary-key
+     * threads (class &rarr; the engine's importDataFlow columns), and the
+     * [1]-property-over-nullable-column census rows this mapping
+     * contributes (bucket &rarr; witnesses).
+     */
+    public record NormalizationFacts(
+            java.util.Map<String, String> poisons,
+            java.util.Map<String, List<String>> mixedUnions,
+            java.util.Map<String, List<KeyThread>> unionKeyThreads,
+            java.util.Map<String, java.util.Set<String>> nullableCensus) {
+
+        public static final NormalizationFacts NONE = new NormalizationFacts(
+                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+
+        public NormalizationFacts {
+            poisons = poisons == null ? java.util.Map.of() : java.util.Map.copyOf(poisons);
+            mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
+            unionKeyThreads = unionKeyThreads == null
+                    ? java.util.Map.of() : java.util.Map.copyOf(unionKeyThreads);
+            if (nullableCensus == null) {
+                nullableCensus = java.util.Map.of();
+            } else {
+                java.util.Map<String, java.util.Set<String>> copy = new java.util.LinkedHashMap<>();
+                nullableCensus.forEach((k, v) -> copy.put(k,
+                        java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(v))));
+                nullableCensus = java.util.Collections.unmodifiableMap(copy);
+            }
+        }
     }
 
     public MappingDefinition {
+        Objects.requireNonNull(facts, "facts");
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         includes = includes == null ? List.of() : List.copyOf(includes);
         classBindings = classBindings == null ? List.of() : List.copyOf(classBindings);

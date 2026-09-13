@@ -180,7 +180,7 @@ class ModelBuilderTest {
     }
 
     // ====================================================================
-    // findMapping + isMappedClass
+    // findMapping
     // ====================================================================
 
     @Test
@@ -194,50 +194,6 @@ class ModelBuilderTest {
         LegacyMappingDefinition md = mb.findLegacyMapping("pkg::M").orElseThrow();
         assertEquals("pkg::M", md.qualifiedName());
         assertEquals(1, md.classMappings().size());
-    }
-
-    @Test
-    void isMappedClassTrueForAnyClassWithClassMapping() {
-        ParsedModel parsed = com.legend.testing.Own.model(
-                "Class model::Person { name: String[1]; } "
-              + "\n###Mapping\nMapping pkg::M ( "
-              + "  *model::Person: Pure { ~src model::Person name: $src.name } "
-              + ")");
-        ModelBuilder mb = ModelBuilder.from(parsed);
-        assertTrue(mb.isMappedClass("model::Person"));
-    }
-
-    @Test
-    void isMappedClassFalseForUnmappedClass() {
-        ParsedModel parsed = com.legend.testing.Own.model(
-                "Class model::Person { name: String[1]; } "
-              + "Class model::Other  { x:    String[1]; } "
-              + "\n###Mapping\nMapping pkg::M ( "
-              + "  *model::Person: Pure { ~src model::Person name: $src.name } "
-              + ")");
-        ModelBuilder mb = ModelBuilder.from(parsed);
-        assertFalse(mb.isMappedClass("model::Other"));
-        assertFalse(mb.isMappedClass("model::TotallyUnknown"));
-    }
-
-    @Test
-    void isMappedClassTrueAcrossMultipleMappings() {
-        // Same class mapped in two different MappingDefinitions: allowed
-        // (each is its own setId namespace) and the mapped-class set
-        // collapses the duplicates.
-        ParsedModel parsed = com.legend.testing.Own.model(
-                "Class model::Person { name: String[1]; } "
-              + "\n###Mapping\nMapping pkg::M1 ( "
-              + "  *model::Person: Pure { ~src model::Person name: $src.name } "
-              + ") "
-              + "Mapping pkg::M2 ( "
-              + "  *model::Person: Pure { ~src model::Person name: $src.name } "
-              + ")");
-        ModelBuilder mb = ModelBuilder.from(parsed);
-        assertTrue(mb.isMappedClass("model::Person"));
-        // Both mappings are independently retrievable.
-        assertNotNull(mb.findLegacyMapping("pkg::M1").orElseThrow());
-        assertNotNull(mb.findLegacyMapping("pkg::M2").orElseThrow());
     }
 
     @Test

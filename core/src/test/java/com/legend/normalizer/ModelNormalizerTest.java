@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelNormalizerTest {
 
     private static NormalizedModel normalize(String source) {
-        return ModelNormalizer.normalize(NameResolver.resolve(com.legend.testing.Own.model(source)));
+        return com.legend.testing.Phases.normalize(NameResolver.resolve(com.legend.testing.Own.model(source)));
     }
 
     /**
@@ -195,7 +195,7 @@ class ModelNormalizerTest {
 
         // Phase F: the typed derived property's body FQN is the USER function,
         // not the (non-existent) lifted $prop$ FQN.
-        var ctx = com.legend.compiler.element.PureModelContext.from(m);
+        var ctx = com.legend.testing.Phases.context(m);
         var person = ctx.findClass("model::Person").orElseThrow();
         var fullName = person.properties().stream()
                 .filter(p -> p instanceof com.legend.compiler.element.Property.Derived d
@@ -214,7 +214,7 @@ class ModelNormalizerTest {
               + "  greeting() { $this.name }: String[1]; }");
         assertEquals(List.of("model::Person$prop$greeting"),
                 m.liftedByOwner().get("model::Person"));
-        var ctx = com.legend.compiler.element.PureModelContext.from(m);
+        var ctx = com.legend.testing.Phases.context(m);
         var greeting = ctx.findClass("model::Person").orElseThrow().properties().stream()
                 .filter(p -> p instanceof com.legend.compiler.element.Property.Derived d
                         && d.name().equals("greeting"))

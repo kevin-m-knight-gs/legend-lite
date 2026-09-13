@@ -1720,3 +1720,83 @@ No production file changed between the two runs.
 **Next.** Step 2 (one index before E). Verified item 1 (mapped-class ordering) is still open:
 settle it with the `:202`/`:817` println probe over the corpus before designing step 2's
 `registerMappedClass` replacement.
+
+## T4.1 step 2 — ONE index, built before E; the five channels stamped — 2026-09-13
+
+**Verified item 1, settled by probe (output in this record).** A temporary probe (a thread-local
+"current mapping" in the normalizer's driver; `registerMappedClass` recording the registering
+mapping; `isMappedClass` printing every read of an implicitly registered class) over the DuckDB
+corpus run, twice:
+
+```
+IMPLICIT-REG FunctionScope in=projection::exists::mappingForMultipleSubTypes
+IMPLICIT-REG milestoned::Vehicle in=inheritance::milestoned::MilestonedInheritanceMapping
+IMPLICIT-REG relation::Relation / store::Store in=meta::lite::metamodel::MetamodelMapping
+IMPLICIT-READ FunctionScope registeredIn=projection::exists::mappingForMultipleSubTypes
+    readIn=toPostgresModel::tests::TestMapping (4), milestoningMapWithEmbeddedDuplicateProperty_ExtendedPrimitives (2)
+IMPLICIT-READ milestoned::Vehicle registeredIn=MilestonedInheritanceMapping readIn=<same> (4)
+IMPLICIT-READ Relation / Store registeredIn=MetamodelMapping readIn=MetamodelMapping (5, 4)
+IMPLICIT-LATE milestoned::Vehicle readFalseIn=[milestoningMapWithEmbeddedDuplicateProperty_ExtendedPrimitives,
+    toPostgresModel::tests::TestMapping] registeredIn=MilestonedInheritanceMapping
+```
+
+So YES: a later mapping's synthesis reads a mapped-ness an earlier, UNRELATED mapping's implicit
+op registered (FunctionScope), and one class (`milestoned::Vehicle`) answered FALSE to two
+mappings that ran before its implying mapping — the old write was order-dependent across
+unrelated mappings. The landed form is the honest one the doc named: mapped-ness computed ONCE,
+before any synthesis, from every mapping's pre-passed class mappings (explicit, JSON identity,
+implicit). The only reads whose answer changes are the two LATE scans (`hasMappedSubclass`
+over every class, asking whether Vehicle is mapped); the corpus below is the measurement.
+
+**What landed.**
+- `ModelBuilder.from` = `new` + `add(elements)`; `add` is the ONE ingest path (phases 1–3b),
+  skips elements already in their slot by identity, keeps REGISTRATION order for every
+  iteration accessor (the symbol table's id order no longer leaks into `classes()` etc.), and
+  invalidates the two lazy indexes. The five channels are GONE from the index
+  (`mappingPoisons`, `mixedUnions`, `unionKeyThreads`, `requiredNullableRows()`,
+  `registerMappedClass`/`isMappedClass`/`mappedClassIds`); the JSON-connection cross-bake left
+  `ingestRuntime` for Phase E's pre-pass. The index exposes no public field.
+- `Compiler.normalizeLayer` is the only `ModelBuilder.from(` in the compile path (grep receipt:
+  `Compiler.java` 1, `ModelNormalizer.java` 0, `PureModelContext.java` 0); both layers (boot,
+  graph) enter it; `PureModelContext.from(normalized, index[, walls])` ADDS the products.
+- `MappingPrePass` (new, normalizer): every legacy mapping's pre-pass runs to completion before
+  any synthesis — JSON identity sets, M2M cycles, declared keys, extends flattening, implicit
+  inheritance, store-ref qualification, implicit ops — walled per mapping exactly like the
+  driver; `resolveExtends`/`flattenExtends`/`detectM2MCycles`/`walkM2MChain` moved here
+  verbatim (MappingNormalizer 3508 → 3321 lines). `MappedClasses` (new) is the graph-wide fact
+  over the pre-passed mappings plus clean-sheet bindings.
+- `MappingLedger` (new): Phase E's per-mapping ledger (poisons, mixed unions, key threads,
+  census) riding the `Pipeline` (a view pipeline carries none, loudly), stamped as
+  `MappingDefinition.NormalizationFacts` on the compiled mapping. `NormalizedModel` lost its
+  four side channels; the layer union merges only the legacy-surface archive; the context
+  answers `mappingPoison`/`mixedUnionMembers`/`unionKeyThreads` off `findMapping(...).facts()`
+  and `requiredNullableCensus()` as the memoized union over compiled mappings.
+- Poison keys lost their `mapping::` prefix (the mapping is the artifact); readers unchanged.
+
+**Invariants as tests.** `OneIndexTest`: F1's answers identical before and after E (every
+knowledge accessor by identity and order, `directSubclasses`, association ends), E adds
+nothing to the index, the gate adds exactly the products (identity skip, order kept, second add
+a no-op), facts reach the context off the artifact. `MappedClassesTest`: explicit, implicit
+(the association-end shape of ImplicitInheritance case a), same fact and same compiled
+mappings in either element order. `ArchitectureTest.normalizerNeverWritesIntoTheModelIndex`:
+no normalizer call to `ModelBuilder.add|retainLegacySurface|registerMappedClass`; no public
+field on the index. Test helper `Phases` gives unit tests the product's two-phase shape.
+
+**Pins with reasons.** Reach-back census MappingNormalizer 5 → 4 (the driver's cross-bake
+re-fetch died: the index slot IS the parsed mapping). `ModelBuilderTest`'s three `isMappedClass`
+tests retired with the API (their coverage moved to `MappedClassesTest`).
+
+**Rows.** DuckDB 108 / H2 444, EXACT on both lanes (0 LOST, 0 GAINED); every strength count
+unchanged. The two LATE reads that flipped to TRUE moved no row.
+
+**Chain.** build 25s, G1 71s, G3 10s, G4 106s, G5 58s, G6 138s, G7 34s, G9 26s, G8 139s — G8
+RED on the witness snippets alone (two mapping fragments harvested without a `###Mapping`
+header; the own-corpus parity pin 2358 → 2376 for the witnesses' eighteen elements); after
+the section fix and re-pin G8 re-ran alone (86s) GREEN. No production file changed between
+the two runs.
+
+**Owed to step 3.** The mapped-class fact is GLOBAL (any mapping, anywhere) where the engine
+asks per include closure — step 4's visible-set fact is where that sharpens; the `Pipeline`
+rides the ledger because the ten reader sites and eleven writer sites sit under ~170
+`ModelBuilder model` signatures (a parameter sweep would have pushed MappingNormalizer past
+its guardrail); the owner-absent adoption case (step 1's finding) is still silent.

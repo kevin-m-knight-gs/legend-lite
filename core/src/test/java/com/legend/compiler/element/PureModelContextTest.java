@@ -33,7 +33,7 @@ class PureModelContextTest {
               + "  home: model::Address[0..1];\n"
               + "}\n"
               + "Enum model::Color { RED, GREEN }\n");
-        return PureModelContext.from(asNormalized(parsed));
+        return com.legend.testing.Phases.context(asNormalized(parsed));
     }
 
     /**
@@ -152,7 +152,7 @@ class PureModelContextTest {
         ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::Bad { x: not::a::RealType[1]; }");
         com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
-                () -> PureModelContext.from(asNormalized(parsed)));
+                () -> com.legend.testing.Phases.context(asNormalized(parsed)));
         assertTrue(String.valueOf(ex.getMessage()).contains("Unknown type"));
         assertTrue(ex.getMessage().contains("not::a::RealType"));
     }

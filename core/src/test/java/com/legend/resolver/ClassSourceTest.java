@@ -58,7 +58,7 @@ class ClassSourceTest {
             PureModelContext ctx = (PureModelContext) com.legend.Compiler.buildModel(
                     com.legend.testing.Own.model(fx.getValue()));
             // the fixture's OWN normalization, only to list its mappings
-            NormalizedModel normalized = ModelNormalizer.normalize(
+            NormalizedModel normalized = com.legend.testing.Phases.normalize(
                     NameResolver.resolve(com.legend.testing.Own.model(fx.getValue())));
             ClassSources sources = new ClassSources(ctx, new SpecCompiler(ctx));
             for (MappingDefinition md : mappingsOf(normalized)) {

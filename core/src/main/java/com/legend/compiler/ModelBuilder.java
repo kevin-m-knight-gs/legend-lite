@@ -18,7 +18,6 @@ import com.legend.model.DatabaseDefinition.ViewDefinition;
 import com.legend.model.EnumDefinition;
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
-import com.legend.model.JsonModelConnection;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
 import com.legend.model.NativeFunctionDefinition;
@@ -49,10 +48,13 @@ import java.util.stream.Stream;
  * {@link ParsedModel} and rebuilding lookups locally.
  *
  * <h2>Lifecycle</h2>
- * One-shot, immutable after construction. Build with
- * {@link #from(ParsedModel)}; after the call returns the instance is
- * read-only and safe to share across threads (all internal state is
- * populated before {@code from} returns; no lazy caches).
+ * ONE index per graph (T4.1 step 2). Built with {@link #from(ParsedModel)}
+ * from the name-resolved, knowledge-adopted elements BEFORE Phase E;
+ * Phase E reads it and writes nothing into it (its products ride the
+ * compiled mapping); at the E&rarr;F gate {@link #add(List)} indexes
+ * those products and the boot layer's prepared elements. After the gate
+ * the instance is read-only and safe to share across threads (the two
+ * lazy indexes rebuild on first read after a batch).
  *
  * <h2>Storage layout</h2>
  * Matches engine: every {@link PackageableElement} kind gets its own
@@ -71,14 +73,12 @@ import java.util.stream.Stream;
  *   <li><strong>No type checking.</strong> Bodies and references are
  *       not validated; that is the type checker's job.</li>
  *   <li><strong>No semantic computation</strong> beyond a tiny set of
- *       indexes the normalizer requires today (filters/joins per
- *       database, mapped-class set). New indexes are added as new
- *       consumers arrive, not speculated.</li>
- *   <li><strong>No mutation after build.</strong> Unlike engine's
- *       {@code PureModelBuilder} (which supports batch ingestion
- *       across multiple sources), this layer is one-shot. Batch
- *       ingestion may be added later when a real driver materializes;
- *       deferred until then.</li>
+ *       indexes the normalizer requires today (filters/joins/views per
+ *       database). Mapping facts (which classes are mapped, poisons,
+ *       unions) are Phase E's own products, never held here.</li>
+ *   <li><strong>No mutation by a phase.</strong> Only the driver adds
+ *       batches ({@link #add}); a phase that needs to record something
+ *       records it on its own artifact.</li>
  * </ul>
  *
  * <h2>Validation performed at build time</h2>
@@ -102,20 +102,14 @@ public final class ModelBuilder {
 
     private final SymbolTable symbols = new SymbolTable();
 
-    /** The [1]-over-nullable-column census rows of THIS compile
-     * (bucket &rarr; witnesses) — written at the DeclaredCoercions
-     * pairing seam during mapping normalization, read through
-     * {@code ModelContext.requiredNullableCensus()}. Per-compile BY
-     * DESIGN: a static sink would bleed unrelated models' rows into
-     * each other in long-lived processes (LSP, server). */
-    private final java.util.Map<String, java.util.Set<String>>
-            requiredNullableRows = new java.util.TreeMap<>();
-
-    /** Live census sink ({@code RequiredNullableCensus} writes during
-     * normalization; contexts read after). */
-    public java.util.Map<String, java.util.Set<String>> requiredNullableRows() {
-        return requiredNullableRows;
-    }
+    /** Element ids in REGISTRATION order across every {@link #add} batch
+     * &mdash; the iteration order the accessors publish ("ingest order"),
+     * independent of when a name was first interned as a reference. */
+    private final java.util.LinkedHashSet<Integer> elementOrder = new java.util.LinkedHashSet<>();
+    /** Ids taken in the shared packageable-element namespace (classes,
+     * enums, associations, profiles, measures, databases) across batches
+     * &mdash; a second registration is a duplicate (D6b). */
+    private final java.util.Set<Integer> registeredElements = new java.util.HashSet<>();
 
     // One slot per id; null where the kind doesn't apply to that id.
     private final ArrayList<ClassDefinition>       classes       = new ArrayList<>();
@@ -162,12 +156,6 @@ public final class ModelBuilder {
      * and/or {@link NativeFunctionDefinition}) for that FQN.
      */
     private final ArrayList<List<Function>>        functions     = new ArrayList<>();
-
-    /**
-     * Set of class FQNs that have at least one {@link ClassMapping}
-     * anywhere in the model. Backs {@link #isMappedClass(String)}.
-     */
-    private final Set<Integer> mappedClassIds = new HashSet<>();
 
     /**
      * Per-database secondary lookup: {@code dbFqn} (interned id) &rarr;
@@ -258,93 +246,137 @@ public final class ModelBuilder {
         Objects.requireNonNull(model, "model");
         ModelBuilder mb = new ModelBuilder(model.imports(),
                 model.elementImports());
+        mb.add(model.elements());
+        return mb;
+    }
+
+    /**
+     * Index a BATCH of elements (T4.1 step 2: ONE index per graph — built
+     * from the parsed elements before Phase E, then Phase E's products and
+     * the boot layer's prepared elements are ADDED at the E&rarr;F gate;
+     * nothing is re-indexed). An element already indexed under its FQN
+     * (the same object) is skipped, so a normalized element list &mdash;
+     * pass-through structural elements plus new compiled mappings and
+     * lifted functions &mdash; adds exactly the new ones. Every batch runs
+     * the same phases; the lazy indexes rebuild on the next read.
+     */
+    public void add(List<PackageableElement> elements) {
+        List<PackageableElement> fresh = new ArrayList<>(elements.size());
+        for (PackageableElement el : elements) {
+            if (!indexed(el)) {
+                fresh.add(el);
+            }
+        }
+        if (fresh.isEmpty()) {
+            return;
+        }
+        directSubclasses = null;
+        associationEndsByOwner = null;
 
         // Phase 1: intern every FQN so cross-references (e.g. a
-        // RuntimeDefinition naming a Class) can resolve in any order.
-        for (PackageableElement el : model.elements()) {
-            mb.intern(el.qualifiedName());
+        // RuntimeDefinition naming a Class) can resolve in any order;
+        // registration order is the accessors' iteration order.
+        for (PackageableElement el : fresh) {
+            elementOrder.add(intern(el.qualifiedName()));
         }
 
         // Phase 2: data-model elements. Order within this phase is
         // arbitrary; each element only depends on the symbol table.
-        // (Phase-F callers enter via from(NormalizedModel) below.)
         // One shared element namespace across the kinds below: a second
         // registration of ANY kind under an already-taken FQN is a
         // duplicate (recorded, thrown by ModelIntegrity — D6b).
-        java.util.Set<Integer> registered = new java.util.HashSet<>();
-        for (PackageableElement el : model.elements()) {
+        for (PackageableElement el : fresh) {
             switch (el) {
-                case ClassDefinition cd -> putAtId(mb.classes,
-                        mb.internElement(registered, cd.qualifiedName()), cd);
+                case ClassDefinition cd -> putAtId(classes,
+                        internElement(cd.qualifiedName()), cd);
                 case com.legend.model.PrimitiveExtensionDefinition pe ->
-                        mb.primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
-                case AssociationDefinition ad -> putAtId(mb.associations,
-                        mb.internElement(registered, ad.qualifiedName()), ad);
-                case EnumDefinition ed -> putAtId(mb.enums,
-                        mb.internElement(registered, ed.qualifiedName()), ed);
-                case ProfileDefinition pd -> putAtId(mb.profiles,
-                        mb.internElement(registered, pd.qualifiedName()), pd);
-                case com.legend.model.MeasureDefinition me -> putAtId(mb.measures,
-                        mb.internElement(registered, me.qualifiedName()), me);
-                case DatabaseDefinition db -> mb.ingestDatabase(registered, db);
+                        primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
+                case AssociationDefinition ad -> putAtId(associations,
+                        internElement(ad.qualifiedName()), ad);
+                case EnumDefinition ed -> putAtId(enums,
+                        internElement(ed.qualifiedName()), ed);
+                case ProfileDefinition pd -> putAtId(profiles,
+                        internElement(pd.qualifiedName()), pd);
+                case com.legend.model.MeasureDefinition me -> putAtId(measures,
+                        internElement(me.qualifiedName()), me);
+                case DatabaseDefinition db -> ingestDatabase(db);
                 default -> { /* phase 3 */ }
             }
         }
 
         // Phase 3a: top-level definitions that may reference phase-2
-        // elements. Mappings must be registered before runtimes so the
-        // JSON cross-bake (phase 3b) can mutate the bound mapping.
-        for (PackageableElement el : model.elements()) {
+        // elements. Lifted behavior functions (Phase E output) need no
+        // special pass: they are ordinary FunctionDefinition elements,
+        // ingested by the function arm exactly like user-written functions
+        // (docs/CLEAN_SHEET_INVERSION.md §2.2); their reserved '$' sigil
+        // cannot collide with a user-writable name in findFunction.
+        for (PackageableElement el : fresh) {
             switch (el) {
-                case LegacyMappingDefinition md -> mb.ingestLegacyMapping(md);
-                case MappingDefinition md -> mb.ingestCanonicalMapping(md);
-                // pre-E clean-sheet surface (a PARSED-model build only —
-                // never appears in a NormalizedModel): feed the
-                // mapped-class set so isMappedClass() holds during
-                // resolution/Phase E, same as the compiled arm above
-                case com.legend.model.CleanSheetMappingDefinition cs -> {
-                    for (var cb : cs.classBindings()) {
-                        mb.mappedClassIds.add(mb.intern(cb.classFqn()));
-                    }
-                }
-                case ServiceDefinition sd -> putAtId(mb.services, mb.intern(sd.qualifiedName()), sd);
-                case ConnectionDefinition cd -> putAtId(mb.connections, mb.intern(cd.qualifiedName()), cd);
+                case LegacyMappingDefinition md -> ingestLegacyMapping(md);
+                case MappingDefinition md -> putAtId(mappings, intern(md.qualifiedName()), md);
+                case ServiceDefinition sd -> putAtId(services, intern(sd.qualifiedName()), sd);
+                case ConnectionDefinition cd -> putAtId(connections, intern(cd.qualifiedName()), cd);
                 case com.legend.model.ModelConnectionDefinition mc ->
-                        mb.modelConnections.put(mc.qualifiedName(), mc);
+                        modelConnections.put(mc.qualifiedName(), mc);
                 case com.legend.model.ModelChainConnectionDefinition mcc ->
-                        mb.modelChainConnections.put(mcc.qualifiedName(), mcc);
-                case FunctionDefinition fd -> mb.appendFunction(fd);
-                case NativeFunctionDefinition nfd -> mb.appendFunction(nfd);
+                        modelChainConnections.put(mcc.qualifiedName(), mcc);
+                case FunctionDefinition fd -> appendFunction(fd);
+                case NativeFunctionDefinition nfd -> appendFunction(nfd);
                 default -> { /* phase 2 or phase 3b */ }
             }
         }
 
-        // Lifted behavior functions (Phase E output) need no special pass:
-        // they are ordinary FunctionDefinition elements in the normalized
-        // element list, ingested by the phase-3a arm above exactly like
-        // user-written functions (docs/CLEAN_SHEET_INVERSION.md §2.2).
-        // Lifted FQNs use the reserved '$' sigil, so they cannot collide
-        // with a user-writable name in findFunction.
-
-        // Phase 3b: runtimes. Each runtime's JsonModelConnection
-        // bindings synthesize an identity ClassMapping.Relational (with
-        // sourceUrl set) and inject it into every MappingDefinition the
-        // runtime binds, unless the user already declared a class
-        // mapping for that class (user wins; engine parity).
-        for (PackageableElement el : model.elements()) {
-            if (el instanceof RuntimeDefinition rd) mb.ingestRuntime(rd);
+        // Phase 3b: runtimes (their inline connections register here).
+        // A runtime's JsonModelConnection identity sets are Phase E's
+        // pre-pass product (MappingPrePass), not an index-time rewrite of
+        // the bound mapping.
+        for (PackageableElement el : fresh) {
+            if (el instanceof RuntimeDefinition rd) ingestRuntime(rd);
         }
+    }
 
-        return mb;
+    /** Whether {@code el} (this very object) already sits in its slot. */
+    private boolean indexed(PackageableElement el) {
+        int id = symbols.resolveId(el.qualifiedName());
+        if (id == SymbolTable.UNRESOLVED) {
+            return false;
+        }
+        return switch (el) {
+            case ClassDefinition cd -> idGet(classes, id) == cd;
+            case AssociationDefinition ad -> idGet(associations, id) == ad;
+            case EnumDefinition ed -> idGet(enums, id) == ed;
+            case ProfileDefinition pd -> idGet(profiles, id) == pd;
+            case com.legend.model.MeasureDefinition me -> idGet(measures, id) == me;
+            case DatabaseDefinition db -> idGet(databases, id) == db;
+            case LegacyMappingDefinition md -> idGet(legacyMappings, id) == md;
+            case MappingDefinition md -> idGet(mappings, id) == md;
+            case ServiceDefinition sd -> idGet(services, id) == sd;
+            case ConnectionDefinition cd -> idGet(connections, id) == cd;
+            case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
+            case Function fn -> {
+                List<Function> overloads = idGet(functions, id);
+                yield overloads != null && overloads.stream().anyMatch(f -> f == fn);
+            }
+            case com.legend.model.PrimitiveExtensionDefinition pe ->
+                    primitiveExtensions.containsKey(pe.qualifiedName());
+            case com.legend.model.ModelConnectionDefinition mc ->
+                    modelConnections.get(mc.qualifiedName()) == mc;
+            case com.legend.model.ModelChainConnectionDefinition mcc ->
+                    modelChainConnections.get(mcc.qualifiedName()) == mcc;
+            // the pre-E clean-sheet surface is Phase E's input only; the
+            // index holds nothing for it
+            case com.legend.model.CleanSheetMappingDefinition cs -> true;
+            default -> false;
+        };
     }
 
     /** Intern + record a duplicate when {@code fqn}'s slot is already
      * taken in this build's shared element namespace (engine parity:
      * "Duplicated element"). Registration still proceeds last-wins; the
      * throw is ModelIntegrity's (poison-not-drop). */
-    private int internElement(java.util.Set<Integer> registered, String fqn) {
+    private int internElement(String fqn) {
         int id = intern(fqn);
-        if (!registered.add(id)) {
+        if (!registeredElements.add(id)) {
             duplicateElements.putIfAbsent(fqn,
                     "Duplicated element '" + fqn + "'");
         }
@@ -356,9 +388,8 @@ public final class ModelBuilder {
         return java.util.Collections.unmodifiableMap(duplicateElements);
     }
 
-    private void ingestDatabase(java.util.Set<Integer> registered,
-            DatabaseDefinition db) {
-        int id = internElement(registered, db.qualifiedName());
+    private void ingestDatabase(DatabaseDefinition db) {
+        int id = internElement(db.qualifiedName());
         putAtId(databases, id, db);
         // Precompute filter, join, and view secondary indexes.
         if (!db.filters().isEmpty() || !db.multiGrainFilters().isEmpty()) {
@@ -396,25 +427,6 @@ public final class ModelBuilder {
             if (!byName.isEmpty()) viewsByDb.put(id, byName);
         }
     }
-
-    /**
-     * Class mappings whose NORMALIZATION failed (a roadmap feature inside one
-     * class of an otherwise-loadable mapping): mapping::class → reason. The
-     * model LOADS; querying that class raises the recorded reason — per-class
-     * fault isolation, loud at use.
-     */
-    public final java.util.Map<String, String> mappingPoisons = new java.util.LinkedHashMap<>();
-    /** "mapping::class" &rarr; member set ids of a MIXED-KIND Operation
-     * union (a Pure member defers synthesis to the resolver — route b,
-     * docs/XSTORE_LEG.md); mirrors {@link #mappingPoisons}' plumbing. */
-    public final java.util.Map<String, java.util.List<String>> mixedUnions =
-            new java.util.LinkedHashMap<>();
-    /** "mapping::class" &rarr; the primary-key THREADS of an Operation
-     * union's row, member order ({@link com.legend.model.KeyThread}): the
-     * engine's importDataFlow columns, recorded by the synthesis that
-     * projects them; same plumbing as {@link #mixedUnions}. */
-    public final java.util.Map<String, java.util.List<com.legend.model.KeyThread>>
-            unionKeyThreads = new java.util.LinkedHashMap<>();
 
     /** Precise primitives: extension FQN → declared base type name (chains allowed). */
     final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();
@@ -464,7 +476,6 @@ public final class ModelBuilder {
         java.util.Map<String, java.util.List<ClassMapping>> byClass = new java.util.LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             byClass.computeIfAbsent(cm.className(), k -> new java.util.ArrayList<>()).add(cm);
-            mappedClassIds.add(intern(cm.className()));
         }
         for (var e : byClass.entrySet()) {
             if (e.getValue().size() == 1) {
@@ -522,47 +533,7 @@ public final class ModelBuilder {
         }
     }
 
-    /**
-     * Index a canonical {@link MappingDefinition} (binding table) for
-     * {@link #findMapping}. Phase F has no other mapping consumer yet (dispatch
-     * is Phase G/H), so this just registers it by FQN; the lifted realizing
-     * functions it references arrive as ordinary top-level
-     * {@link FunctionDefinition} elements and are ingested by the phase-3a
-     * function arm.
-     */
-    private void ingestCanonicalMapping(MappingDefinition md) {
-        putAtId(mappings, intern(md.qualifiedName()), md);
-        // Feed the mapped-class set so isMappedClass() is correct for
-        // clean-sheet mappings too (a model may mix legacy + clean-sheet, and
-        // the normalizer's Layer-3 join validation asks isMappedClass for any
-        // class mapped anywhere — regardless of which surface declared it).
-        for (MappingDefinition.ClassBinding cb : md.classBindings()) {
-            mappedClassIds.add(intern(cb.classFqn()));
-        }
-    }
-
-    /**
-     * Cross-bakes a {@link RuntimeDefinition}'s
-     * {@link JsonModelConnection}s into every {@link MappingDefinition}
-     * the runtime binds.
-     *
-     * <p>For each {@code JsonModelConnection(class, url)}:
-     * <ul>
-     *   <li>For each {@code mappingName} in {@code runtimeDef.mappings()}:
-     *       locate the {@link MappingDefinition}. If the user already
-     *       wrote a {@link ClassMapping} for the JSON-bound class, skip
-     *       (user-authored wins — engine parity).</li>
-     *   <li>Otherwise synthesize a {@link ClassMapping.Relational} with
-     *       {@code mainTable=null}, {@code sourceUrl=url},
-     *       {@code propertyMappings=List.of()}. The normalizer detects
-     *       {@code sourceUrl != null} and emits a {@code sourceUrl(url)}
-     *       pipeline source with property bindings derived from the
-     *       class's declared properties (engine parity:
-     *       {@code RelationalMapping.variantIdentity}).</li>
-     *   <li>Rebuild the {@code MappingDefinition} with the synthesized
-     *       class mapping appended and update {@link #mappedClassIds}.</li>
-     * </ul>
-     */
+    /** A runtime and its anonymous inline connections. */
     private void ingestRuntime(RuntimeDefinition rd) {
         putAtId(runtimes, intern(rd.qualifiedName()), rd);
         // Anonymous embedded connections (names carry the reserved '$'
@@ -581,37 +552,6 @@ public final class ModelBuilder {
                 default -> throw new IllegalStateException(
                         "unexpected inline connection kind: "
                                 + inline.getClass().getSimpleName());
-            }
-        }
-        if (rd.jsonConnections().isEmpty()) return;
-
-        for (JsonModelConnection jmc : rd.jsonConnections()) {
-            String classFqn = jmc.className();
-            for (String mappingName : rd.mappings()) {
-                int mappingId = intern(mappingName);
-                LegacyMappingDefinition md = idGet(legacyMappings, mappingId);
-                if (md == null) continue;       // mapping declared in this batch?
-                // User-authored class mapping wins.
-                boolean alreadyMapped = md.classMappings().stream()
-                        .anyMatch(cm -> classFqn.equals(cm.className()));
-                if (alreadyMapped) continue;
-                ClassMapping.Relational synthetic = new ClassMapping.Relational(
-                        classFqn,
-                        /* setId */ null,
-                        /* extendsSetId */ null,
-                        /* root */ true,
-                        /* mainTable */ null,
-                        /* filter */ null,
-                        /* distinct */ false,
-                        /* groupBy */ List.of(),
-                        /* primaryKey */ List.of(),
-                        /* propertyMappings */ List.of(),
-                        /* sourceUrl */ jmc.url(), java.util.Map.of(), null);
-                List<ClassMapping> updated = new ArrayList<>(md.classMappings());
-                updated.add(synthetic);
-                LegacyMappingDefinition rebuilt = md.withClassMappings(updated);
-                putAtId(legacyMappings, mappingId, rebuilt);
-                mappedClassIds.add(intern(classFqn));
             }
         }
     }
@@ -949,7 +889,9 @@ public final class ModelBuilder {
      * records) — analysis consumers only (static lineage #44); the F+
      * compilation pipeline never reads it. */
     public void retainLegacySurface(LegacyMappingDefinition md) {
-        putAtId(legacyMappings, intern(md.qualifiedName()), md);
+        int id = intern(md.qualifiedName());
+        elementOrder.add(id);
+        putAtId(legacyMappings, id, md);
     }
 
     /** O(1). Returns {@link ServiceDefinition} for {@code fqn}, if any. */
@@ -1113,74 +1055,57 @@ public final class ModelBuilder {
     }
 
     // ====================================================================
-    // Set membership
+    // Iteration accessors — REGISTRATION order (element-list order per
+    // batch, batches in add order), never the symbol table's id order
     // ====================================================================
 
-    /**
-     * {@code true} iff some {@link MappingDefinition} contains a
-     * {@link ClassMapping} for {@code classFqn}. Used by the normalizer's
-     * Layer 3 emission to validate that class-typed {@code Join} PM
-     * targets are mapped somewhere in the model.
-     */
-    public boolean isMappedClass(String classFqn) {
-        int id = symbols.resolveId(classFqn);
-        return id != SymbolTable.UNRESOLVED && mappedClassIds.contains(id);
+    private <T> Stream<T> inOrder(ArrayList<T> slots) {
+        return elementOrder.stream().map(id -> idGet(slots, id)).filter(Objects::nonNull);
     }
-
-    /** Register a class as mapped AFTER ingestion — the normalizer's
-     * implicit-op pre-pass appends synthesized Operation sets (unmapped
-     * association-end parents) that ingestion never saw. */
-    public void registerMappedClass(String classFqn) {
-        mappedClassIds.add(intern(classFqn));
-    }
-
-    // ====================================================================
-    // Iteration accessors
-    // ====================================================================
 
     /** All {@link ClassDefinition}s in ingest order. Sparse slots filtered out. */
     public Stream<ClassDefinition> classes() {
-        return classes.stream().filter(Objects::nonNull);
+        return inOrder(classes);
     }
 
     /** All {@link AssociationDefinition}s in ingest order. */
     public Stream<AssociationDefinition> associations() {
-        return associations.stream().filter(Objects::nonNull);
+        return inOrder(associations);
     }
 
     /** All function overloads (user + Phase-E lifted) in ingest order. */
     public Stream<Function> functions() {
-        return functions.stream().filter(Objects::nonNull).flatMap(List::stream);
+        return inOrder(functions).flatMap(List::stream);
     }
 
     /** All {@link DatabaseDefinition}s in ingest order. */
     public Stream<DatabaseDefinition> databases() {
-        return databases.stream().filter(Objects::nonNull);
+        return inOrder(databases);
     }
 
     /** All canonical {@link MappingDefinition}s in ingest order (Phase F). */
     public Stream<MappingDefinition> mappings() {
-        return mappings.stream().filter(Objects::nonNull);
+        return inOrder(mappings);
     }
 
     /** All legacy {@link LegacyMappingDefinition}s in ingest order (resolution time). */
     public Stream<LegacyMappingDefinition> legacyMappings() {
-        return legacyMappings.stream().filter(Objects::nonNull);
+        return inOrder(legacyMappings);
     }
 
     /** All {@link EnumDefinition}s in ingest order. */
     public Stream<EnumDefinition> enums() {
-        return enums.stream().filter(Objects::nonNull);
+        return inOrder(enums);
     }
 
     /** All Measure elements in ingest order. */
     public Stream<com.legend.model.MeasureDefinition> measures() {
-        return measures.stream().filter(Objects::nonNull);
+        return inOrder(measures);
     }
 
     /** All {@link RuntimeDefinition}s in ingest order. */
     public Stream<RuntimeDefinition> runtimes() {
-        return runtimes.stream().filter(Objects::nonNull);
+        return inOrder(runtimes);
     }
 
     /** The ELEMENT's own import scope, else the model-wide one — store

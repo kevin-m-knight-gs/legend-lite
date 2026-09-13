@@ -60,13 +60,37 @@ final class Pipeline {
      * unsupported route shape — reason on the poison ledger). Their PMs
      * emit nothing and bind no field; demand fails loudly. */
     final Set<String> droppedRoutedProps = new HashSet<>();
-    Pipeline(ValueSpecification expr) {
-        this(expr, null);
+    /** The per-MAPPING ledger this synthesis records into (poisons,
+     * mixed unions, key threads, the nullable census) and the graph-wide
+     * mapped-class fact it reads — Phase E's own state, stamped on the
+     * compiled mapping, never written into the model index. Null on a
+     * VIEW pipeline: a view emits physical hops only and records
+     * nothing; {@link #ledger()} is loud if that ever changes. */
+    private final @com.legend.Nullable MappingLedger ledgerOrNull;
+
+    Pipeline(ValueSpecification expr, @com.legend.Nullable String backingView,
+            MappingLedger ledger) {
+        this(expr, backingView, ledger, false);
     }
 
-    Pipeline(ValueSpecification expr, @com.legend.Nullable String backingView) {
+    private Pipeline(ValueSpecification expr, @com.legend.Nullable String backingView,
+            @com.legend.Nullable MappingLedger ledger, boolean view) {
         this.expr = expr;
         this.backingView = backingView;
+        this.ledgerOrNull = view ? null : java.util.Objects.requireNonNull(ledger, "ledger");
+    }
+
+    /** A VIEW's relation pipeline: physical hops only, no ledger. */
+    static Pipeline forView(ValueSpecification expr) {
+        return new Pipeline(expr, null, null, true);
+    }
+
+    MappingLedger ledger() {
+        if (ledgerOrNull == null) {
+            throw new IllegalStateException(
+                    "a view pipeline carries no mapping ledger (it emits physical hops only)");
+        }
+        return ledgerOrNull;
     }
 
     /** The translator-facing view of this pipeline (seam b). */

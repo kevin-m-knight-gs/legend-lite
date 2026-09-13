@@ -347,8 +347,7 @@ final class UnionSynthesis {
             // collector — the same predicate, never allowed to drift.
             if (poison != null) {
                 p.droppedRoutedProps.add(prop);
-                model.mappingPoisons.merge(
-                        md.qualifiedName() + "::" + rcm.className(),
+                p.ledger().poisons.merge(rcm.className(),
                         "property '" + prop + "' routes to " + poison
                                 + "; the property is dropped from this synthesis",
                         (a, b) -> a + "; " + b);
@@ -371,7 +370,8 @@ final class UnionSynthesis {
      */
     static ValueSpecification synthUnion(LegacyMappingDefinition md,
                                                 ClassMapping.Union u,
-                                                ModelBuilder model) {
+                                                ModelBuilder model,
+                                                MappingLedger ledger) {
         if (u.memberSetIds().isEmpty()) {
             throw new NotImplementedException(
                     "Operation union with no member sets; class="
@@ -396,9 +396,7 @@ final class UnionSynthesis {
                 // synthesis and withhold the eager class function (the
                 // throw lands on the poison ledger; the resolver route
                 // recognizes the registry before the ledger surfaces).
-                model.mixedUnions.put(
-                        md.qualifiedName() + "::" + u.className(),
-                        List.copyOf(u.memberSetIds()));
+                ledger.mixedUnions.put(u.className(), List.copyOf(u.memberSetIds()));
                 throw new NotImplementedException(
                         "Operation union member set '" + setId + "' of class '"
                       + u.className() + "' is a Pure (M2M) set — the mixed-kind"
@@ -472,7 +470,7 @@ final class UnionSynthesis {
                         mr.aggregation()));
             }
         }
-        return synthMemberUnion(md, u.className(), memberSets, model);
+        return synthMemberUnion(md, u.className(), memberSets, model, ledger);
     }
 
     /**
@@ -484,7 +482,7 @@ final class UnionSynthesis {
      * engine's router semantics.
      */
     static ValueSpecification synthInheritance(LegacyMappingDefinition md,
-            ClassMapping.Inheritance ih, ModelBuilder model) {
+            ClassMapping.Inheritance ih, ModelBuilder model, MappingLedger ledger) {
         // ENGINE ALGORITHM (router_operations.pure getMappedLeafTypes) —
         // the ordered member enumeration is SHARED with route
         // classification (inheritanceMembers): ordinal alignment by
@@ -498,10 +496,10 @@ final class UnionSynthesis {
                     + md.qualifiedName());
         }
         if (members.size() == 1) {
-            return MappingNormalizer.synthRelational(md, members.get(0), model);
+            return MappingNormalizer.synthRelational(md, members.get(0), model, ledger);
         }
         ValueSpecification sameTable =
-                synthSameTableInheritance(md, ih, members, model);
+                synthSameTableInheritance(md, ih, members, model, ledger);
         if (sameTable != null) {
             return sameTable;
         }
@@ -510,7 +508,7 @@ final class UnionSynthesis {
         // the Car member — engine dispatches inheritance navigation per
         // member pair; testGetAllFilterWithAssociation)
         members = withPairEntries(md, ih.className(), members, model);
-        return synthMemberUnion(md, ih.className(), members, model);
+        return synthMemberUnion(md, ih.className(), members, model, ledger);
     }
 
     /** Inheritance members enriched with their per-pair AssociationMapping
@@ -574,7 +572,8 @@ final class UnionSynthesis {
      * outside this shape keeps the member union. */
     private static @com.legend.Nullable ValueSpecification synthSameTableInheritance(
             LegacyMappingDefinition md, ClassMapping.Inheritance ih,
-            List<ClassMapping.Relational> members, ModelBuilder model) {
+            List<ClassMapping.Relational> members, ModelBuilder model,
+            MappingLedger ledger) {
         ClassDefinition base = MappingNormalizer.classDef(model, ih.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ih.className()));
         if (base == null) {
             return null;
@@ -610,7 +609,7 @@ final class UnionSynthesis {
                         null, ih.root(), shared, null, false,
                         List.of(), List.of(), hoisted, null,
                         java.util.Map.of(), null),
-                model);
+                model, ledger);
     }
 
     /** The single shared root table of an inheritance member list — the
@@ -1092,7 +1091,7 @@ final class UnionSynthesis {
     /** The shared-property UNION ALL over resolved member sets. */
     static ValueSpecification synthMemberUnion(LegacyMappingDefinition md,
             String className, List<? extends ClassMapping> memberSets,
-            ModelBuilder model) {
+            ModelBuilder model, MappingLedger ledger) {
         List<MappingNormalizer.RelationalParts> parts = new ArrayList<>(memberSets.size());
         List<ClassMapping> members = new ArrayList<>(memberSets.size());
         for (ClassMapping cmIn : memberSets) {
@@ -1149,11 +1148,11 @@ final class UnionSynthesis {
                         mr.mainTable().database(), model, md);
                 members.add(mr);
                 parts.add(MappingNormalizer.synthTableBackedParts(md, mr, model,
-                        null, viewSource));
+                        ledger, null, viewSource));
                 continue;
             }
             members.add(mr);
-            parts.add(MappingNormalizer.synthTableBackedParts(md, mr, model, null));
+            parts.add(MappingNormalizer.synthTableBackedParts(md, mr, model, ledger, null));
         }
         // the UNION of the members' scalar property sets, first-appearance
         // order — a member that does not map a property contributes a typed
@@ -1205,7 +1204,7 @@ final class UnionSynthesis {
         // ORs the per-entry conditions (target side suffixed too when the
         // entry routes to a union member of the TARGET class). Downstream,
         // the union class then looks like any nav-slot class.
-        List<NavLift> lifts = collectNavLifts(md, className, members, model);
+        List<NavLift> lifts = collectNavLifts(md, className, members, model, ledger);
         // ordinal -> (base column -> suffixed name): the source keys each
         // member thread projects (its own reads; typed NULL elsewhere)
         Map<Integer, Map<String, String>> srcKeysByOrdinal = new LinkedHashMap<>();
@@ -1231,7 +1230,7 @@ final class UnionSynthesis {
         collectInboundRouteKeys(md, model,
                 members.stream().map(MappingNormalizer::setIdOf).toList(),
                 members, srcKeysByOrdinal, chainsByOrdinal, sharedKeys);
-        recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model);
+        recordKeyThreads(md, className, members, srcKeysByOrdinal, sharedKeys, model, ledger);
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
         ValueSpecification union = null;
@@ -2474,7 +2473,7 @@ final class UnionSynthesis {
 
     static List<NavLift> collectNavLifts(LegacyMappingDefinition md,
             String className, List<ClassMapping> members,
-            ModelBuilder model) {
+            ModelBuilder model, MappingLedger ledger) {
         // property -> per-member entries, member order
         Map<String, List<int[]>> found = new LinkedHashMap<>();
         Map<String, List<PropertyMapping.Join>> joins = new LinkedHashMap<>();
@@ -2493,7 +2492,7 @@ final class UnionSynthesis {
             String targetClassFqn = java.util.Objects.requireNonNull(
                     targetByProp.get(prop),
                     "scan recorded a Join PM without its target class");
-            if (!model.isMappedClass(targetClassFqn)) {
+            if (!ledger.mapped.contains(targetClassFqn)) {
                 continue;
             }
             // BITEMPORAL UNGATE (Leg 2): the per-dimension stampers
@@ -2545,8 +2544,7 @@ final class UnionSynthesis {
                 }
             }
             if (skipReason != null) {
-                model.mappingPoisons.merge(
-                        md.qualifiedName() + "::" + className,
+                ledger.poisons.merge(className,
                         "union navigation '" + prop + "' uses " + skipReason
                                 + "; the property is not lifted",
                         (a, b) -> a + "; " + b);
@@ -2913,7 +2911,8 @@ final class UnionSynthesis {
      */
     private static void recordKeyThreads(LegacyMappingDefinition md, String className,
             List<ClassMapping> members, Map<Integer, Map<String, String>> srcKeysByOrdinal,
-            Map<List<String>, Integer> sharedKeys, ModelBuilder model) {
+            Map<List<String>, Integer> sharedKeys, ModelBuilder model,
+            MappingLedger ledger) {
         List<com.legend.model.KeyThread> threads = new ArrayList<>();
         for (int o = 0; o < members.size(); o++) {
             if (!(members.get(o) instanceof ClassMapping.Relational mr)
@@ -2934,7 +2933,7 @@ final class UnionSynthesis {
                         ViewRelation.columnPureKind(db, table, col, model)));
             }
         }
-        model.unionKeyThreads.put(md.qualifiedName() + "::" + className, List.copyOf(threads));
+        ledger.unionKeyThreads.put(className, List.copyOf(threads));
     }
 
     /** A member set's primary key on its MAIN table: the declared

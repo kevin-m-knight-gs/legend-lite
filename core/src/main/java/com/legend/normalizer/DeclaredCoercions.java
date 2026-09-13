@@ -95,8 +95,8 @@ final class DeclaredCoercions {
      * assertion (no SQL); matching kinds pass through untouched. */
     static ValueSpecification declaredAssertion(ValueSpecification read,
             PropertyMapping.JoinTerminalColumn jtc, String ownerClassFqn,
-            ModelBuilder model) {
-        RequiredNullableCensus.noteJoinTerminal(jtc, ownerClassFqn, model);
+            ModelBuilder model, MappingLedger ledger) {
+        RequiredNullableCensus.noteJoinTerminal(jtc, ownerClassFqn, model, ledger);
         String declared = declaredPlatformKind(jtc.propertyName(),
                 ownerClassFqn, model);
         if (declared == null
@@ -131,8 +131,8 @@ final class DeclaredCoercions {
      */
     static ValueSpecification coerceColumnToDeclared(ValueSpecification read,
             PropertyMapping.Column col,
-            String ownerClassFqn, ModelBuilder model) {
-        RequiredNullableCensus.noteDirect(col, ownerClassFqn, model);
+            String ownerClassFqn, ModelBuilder model, MappingLedger ledger) {
+        RequiredNullableCensus.noteDirect(col, ownerClassFqn, model, ledger);
         String declared = declaredPlatformKind(col.propertyName(), ownerClassFqn, model);
         if (declared == null) {
             return read;

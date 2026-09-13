@@ -104,7 +104,7 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
-                                        j.propertyName(), model) != null
+                                        j.propertyName(), model, p.ledger().mapped) != null
                                 && !nr.name().equals(
                                         p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
@@ -132,7 +132,7 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
-                                        j.propertyName(), model) != null
+                                        j.propertyName(), model, p.ledger().mapped) != null
                                 && !nr.name().equals(
                                         p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
@@ -178,7 +178,7 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(inlCls,
-                                        j.propertyName(), model) != null
+                                        j.propertyName(), model, p.ledger().mapped) != null
                                 && !inlCls.equals(
                                         p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
@@ -227,7 +227,7 @@ final class JoinChainEmission {
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String targetClassFqn = nr.name();
-        if (!model.isMappedClass(targetClassFqn)) {
+        if (!p.ledger().mapped.contains(targetClassFqn)) {
             throw new NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' target class '"
                   + targetClassFqn + "' is not mapped; mapping=" + md.qualifiedName());
@@ -299,7 +299,8 @@ final class JoinChainEmission {
                                      @com.legend.Nullable String routedSetId) {
         String targetClassFqn = null;
         if (classTypedTerminus && propName != null) {
-            targetClassFqn = classTypedTargetIfMapped(ownerClassFqn, propName, model);
+            targetClassFqn = classTypedTargetIfMapped(ownerClassFqn, propName, model,
+                    p.ledger().mapped);
             List<UnionSynthesis.UnionRoute> routeEntries = propName == null
                     ? null : p.unionRoutes.get(propName);
             if (targetClassFqn != null && routedSetId != null
@@ -702,7 +703,7 @@ final class JoinChainEmission {
             String ownerCls, ModelBuilder model) {
         if (sub instanceof PropertyMapping.Join j
                 && classTypedTargetIfMapped(ownerCls, j.propertyName(),
-                        model) != null) {
+                        model, p.ledger().mapped) != null) {
             p.navSlotOwner.putIfAbsent(j.propertyName(), ownerCls);
         }
     }
@@ -800,7 +801,7 @@ final class JoinChainEmission {
 
     static @com.legend.Nullable String classTypedTargetIfMapped(
             @com.legend.Nullable String ownerClassFqn,
-                                                  String propName, ModelBuilder model) {
+            String propName, ModelBuilder model, MappedClasses mapped) {
         ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
         if (owner == null) return null;
         TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, propName, model);
@@ -814,11 +815,12 @@ final class JoinChainEmission {
         // (Table.columns : RelationalOperationElement[*] routed to the
         // Column set): either way the property is a navigation, never a
         // column read; the route names the concrete target downstream
-        return model.isMappedClass(tgt) || hasMappedSubclass(tgt, model) ? tgt : null;
+        return mapped.contains(tgt) || hasMappedSubclass(tgt, model, mapped) ? tgt : null;
     }
 
-    private static boolean hasMappedSubclass(String base, ModelBuilder model) {
-        return model.classes().anyMatch(c -> model.isMappedClass(c.qualifiedName())
+    private static boolean hasMappedSubclass(String base, ModelBuilder model,
+            MappedClasses mapped) {
+        return model.classes().anyMatch(c -> mapped.contains(c.qualifiedName())
                 && UnionSynthesis.isSubclassOf(c.qualifiedName(), base, model));
     }
 
@@ -1004,7 +1006,7 @@ final class JoinChainEmission {
      */
     static ValueSpecification innerFilteredSource(
             ClassMapping.Relational rcm, FilterMapping.JoinMediated jm,
-            ModelBuilder model, LegacyMappingDefinition md) {
+            ModelBuilder model, LegacyMappingDefinition md, MappingLedger ledger) {
         var jmMain = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "join-mediated filter on a set without ~mainTable");
         String mainDb = jmMain.database();
@@ -1017,7 +1019,7 @@ final class JoinChainEmission {
         // must gate that threading by the failing assemblies' shapes.
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
-                null);
+                null, ledger);
         JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
                 /* propName */ null, rcm.className(), mainDb, mainTable,
                 r, model, md, /* classTypedTerminus */ false);

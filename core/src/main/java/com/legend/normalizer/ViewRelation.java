@@ -108,7 +108,7 @@ final class ViewRelation {
         // slots on a real Pipeline — the same pass-2 machinery PM bodies
         // use; the JoinNavigation arm of RelOpTranslator then resolves
         // them through the pipeline view (V1c).
-        Pipeline vp = new Pipeline(source, null);
+        Pipeline vp = Pipeline.forView(source);
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc0
                 : view.columnMappings()) {
             List<JoinChainEmission.JoinNavSpec> navs0 = new ArrayList<>();

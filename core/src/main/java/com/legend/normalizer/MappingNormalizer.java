@@ -157,23 +157,34 @@ public final class MappingNormalizer {
                 StoreSubstitutionRewrite.resolveAllStores(parsed.elements().stream()
                         .filter(LegacyMappingDefinition.class::isInstance)
                         .map(LegacyMappingDefinition.class::cast).toList(), model);
+        // EVERY mapping's pre-pass runs to completion first (JSON identity
+        // sets, cycles, declared keys, extends, implicit inheritance, store
+        // refs, implicit ops), then the graph-wide mapped-class fact is
+        // fixed — a mapping's synthesis never depends on which mappings
+        // normalized before it (T4.1 step 2, verified item 1).
+        java.util.Map<String, MappingPrePass.PrePassed> prePassed =
+                MappingPrePass.run(parsed, model, wallSink);
+        MappedClasses mapped = MappedClasses.of(
+                prePassed.values().stream().map(MappingPrePass.PrePassed::md).toList(),
+                parsed.elements());
         for (PackageableElement el : parsed.elements()) {
-            // The legacy mapping we read from `parsed` may have been
-            // cross-baked (e.g., by JsonModelConnection bindings) in
-            // ModelBuilder.from. Re-fetch the latest legacy surface from the
-            // resolution index to pick up any synthetic class mappings.
             if (el instanceof LegacyMappingDefinition md) {
-                LegacyMappingDefinition latest =
-                        model.findLegacyMapping(md.qualifiedName()).orElse(md);
-                legacySurfaces.put(md.qualifiedName(), latest);
+                MappingPrePass.PrePassed pp = prePassed.get(md.qualifiedName());
+                if (pp == null) {
+                    continue;   // walled by the pre-pass (tolerant build)
+                }
+                legacySurfaces.put(md.qualifiedName(), pp.surface());
                 // Rewrite legacy surface -> canonical binding table; the legacy
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
+                // What this mapping's synthesis learns rides its own ledger,
+                // stamped on the compiled mapping — never the shared index.
+                MappingLedger ledger = new MappingLedger(mapped);
                 try {
                     out.add(withElement(md.qualifiedName(),
-                            () -> normalizeMapping(latest, model, lifted,
+                            () -> normalizeMapping(pp, model, lifted,
                                     wallSink != null,
                                     resolvedStores.getOrDefault(md.qualifiedName(),
-                                            java.util.Map.of()))));
+                                            java.util.Map.of()), ledger)));
                 } catch (ModelException e) {
                     if (wallSink == null || e.element() == null) {
                         throw e;
@@ -205,8 +216,7 @@ public final class MappingNormalizer {
         // (docs/CLEAN_SHEET_INVERSION.md §1) — appended after the
         // structural elements, never stored on the mapping record.
         out.addAll(lifted);
-        return new NormalizedModel(out, parsed.imports(),
-                java.util.Map.of(), legacySurfaces);
+        return new NormalizedModel(out, parsed.imports(), legacySurfaces);
     }
 
     /**
@@ -215,7 +225,7 @@ public final class MappingNormalizer {
      * normalization, so the driver can decorate with the element's
      * {@code [line:col]} (positions wave).
      */
-    private static <T> T withElement(String elementFqn, Supplier<T> work) {
+    static <T> T withElement(String elementFqn, Supplier<T> work) {
         try {
             return work.get();
         } catch (ModelException e) {
@@ -235,38 +245,16 @@ public final class MappingNormalizer {
         }
     }
 
-    private static MappingDefinition normalizeMapping(LegacyMappingDefinition md,
+    private static MappingDefinition normalizeMapping(MappingPrePass.PrePassed pp,
                                                      ModelBuilder model,
                                                      List<FunctionDefinition> lifted,
-                                                     boolean tolerant, java.util.Map<String, String> resolvedStores) {
-        detectM2MCycles(md, model);
-
-        // Pre-pass: flatten `extends [parentSetId]` by merging inherited
-        // property mappings into each child mapping (child overrides on
-        // property-name conflict; multi-level resolves recursively). See
-        // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
-        // the sets' OWN key text, captured BEFORE the extends pre-pass
-        // merges the parent's in (metamodel facts, ClassBinding.declared)
-        Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys = new HashMap<>();
-        for (ClassMapping cm0 : md.classMappings()) {
-            if (cm0 instanceof ClassMapping.Relational r0) {
-                declaredKeys.put(SetKeyFacts.setKey(r0), SetKeyFacts.declaredKeysOf(r0));
-            }
-        }
-        md = resolveExtends(md, model);
-        md = ImplicitInheritance.apply(md, model);
-
-        // Pre-pass: IMPORT-SCOPE store-ref qualification (see
-        // StoreSubstitutionRewrite.qualifyStoreRefs).
-        md = StoreSubstitutionRewrite.qualifyStoreRefs(md, model);
-
-        // Pre-pass: implicit inheritance OPS for unmapped routed targets
-        // (association ends, routed class-typed properties) — must precede
-        // the injection below (op visibility).
-        md = ImplicitInheritance.implicitOpsForRoutedTargets(md, model);
+                                                     boolean tolerant, java.util.Map<String, String> resolvedStores,
+                                                     MappingLedger ledger) {
+        // the pre-pass (MappingPrePass) already ran for every mapping
+        Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys = pp.declaredKeys();
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join
         // PMs (Option A, docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b).
-        md = AssociationSynthesis.injectMultiHopAssociationPMs(md, model);
+        LegacyMappingDefinition md = AssociationSynthesis.injectMultiHopAssociationPMs(pp.md(), model);
 
         // A class mapped through MULTIPLE set IDs synthesizes its ROOT set
         // only — .all() dispatches to the root; non-root sets await the H5
@@ -300,8 +288,7 @@ public final class MappingNormalizer {
                         // multi-set class without a UNION root: .all() is
                         // undefined (poisoned); the SET itself still
                         // realizes (H5) via the set-discriminated binding.
-                        model.mappingPoisons.putIfAbsent(
-                                md.qualifiedName() + "::" + cm.className(),
+                        ledger.poisons.putIfAbsent(cm.className(),
                                 "class is mapped through multiple set IDs;"
                                         + " .all() over multi-set mappings"
                                         + " (implicit union) is a roadmap"
@@ -309,7 +296,7 @@ public final class MappingNormalizer {
                     }
                     try {
                         FunctionDefinition setFn =
-                                synthesizeClassMapping(md, cm, model, true);
+                                synthesizeClassMapping(md, cm, model, true, ledger);
                         lifted.add(setFn);
                         classBindings.add(cm instanceof ClassMapping.Relational rSrc
                                 ? new MappingDefinition.ClassBinding.Relational(
@@ -328,9 +315,7 @@ public final class MappingNormalizer {
                                         declaredPrimaryKeyColumns(cm)));
                     } catch (NotImplementedException | ModelException e) {
                         // per-SET fault isolation, same trade as per-class
-                        model.mappingPoisons.putIfAbsent(
-                                md.qualifiedName() + "::" + cm.className()
-                                        + "[" + setIdOf(cm) + "]",
+                        ledger.poisons.putIfAbsent(cm.className() + "[" + setIdOf(cm) + "]",
                                 String.valueOf(e.getMessage()));
                     }
                 }
@@ -338,7 +323,7 @@ public final class MappingNormalizer {
             }
             FunctionDefinition fn;
             try {
-                fn = synthesizeClassMapping(md, cm, model);
+                fn = synthesizeClassMapping(md, cm, model, false, ledger);
             } catch (NotImplementedException
                     | ModelException e) {
                 // PER-CLASS fault isolation: one class mapping using a
@@ -351,14 +336,13 @@ public final class MappingNormalizer {
                 // partially-broken model stays loadable/queryable. The full
                 // message rides on the poison and surfaces via
                 // StoreResolver's 0-binder error.
-                model.mappingPoisons.put(md.qualifiedName() + "::" + cm.className(),
-                        String.valueOf(e.getMessage()));
+                ledger.poisons.put(cm.className(), String.valueOf(e.getMessage()));
                 continue;
             }
             lifted.add(fn);
             if (cm instanceof ClassMapping.Relational aggMain
                     && aggMain.aggregation() != null) {
-                AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys);
+                AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys, ledger);
             }
             classBindings.add(cm instanceof ClassMapping.Relational rSrc
                     ? new MappingDefinition.ClassBinding.Relational(
@@ -419,11 +403,9 @@ public final class MappingNormalizer {
                     }
                     FunctionDefinition fn;
                     try {
-                        fn = synthesizeClassMapping(md, rcm, model);
+                        fn = synthesizeClassMapping(md, rcm, model, false, ledger);
                     } catch (NotImplementedException | ModelException e) {
-                        model.mappingPoisons.put(
-                                md.qualifiedName() + "::" + rcm.className(),
-                                String.valueOf(e.getMessage()));
+                        ledger.poisons.put(rcm.className(), String.valueOf(e.getMessage()));
                         continue;
                     }
                     lifted.add(fn);
@@ -456,8 +438,8 @@ public final class MappingNormalizer {
                 if (!tolerant) {
                     throw e;
                 }
-                model.mappingPoisons.putIfAbsent(md.qualifiedName() + "::"
-                        + AssociationSynthesis.resolveAssociation(model, md, am)
+                ledger.poisons.putIfAbsent(
+                        AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())
                                 .orElse(am.associationName()),
                         String.valueOf(e.getMessage()));
@@ -482,7 +464,7 @@ public final class MappingNormalizer {
                 assocBindings,
                 md.enumerationMappingsWithIncludes(model::findLegacyMapping),
                 md.testSuitesSource(),
-                SetDispatch.routedTargetSets(md, model), resolvedStores);
+                SetDispatch.routedTargetSets(md, model), resolvedStores, ledger.facts());
     }
 
     // ====================================================================
@@ -769,53 +751,6 @@ public final class MappingNormalizer {
         return included.get(setId);
     }
 
-    /**
-     * Resolve {@code extends [parentSetId]} on Relational class mappings by
-     * merging the parent's property mappings into the child
-     * ({@code docs/MAPPING_LEGACY_TO_FUNCTION.md} §5.2.3):
-     * <ol>
-     *   <li>Resolve the parent binding by {@code setId} within this mapping.</li>
-     *   <li>Concatenate parent + child property mappings, child winning on
-     *       property-name conflict.</li>
-     *   <li>Multi-level {@code extends} resolves recursively before merging.</li>
-     *   <li>The {@code extends} annotation is preserved on the binding for
-     *       query-time set-ID dispatch.</li>
-     * </ol>
-     * The parent's {@code ~mainTable} is <em>not</em> auto-copied; the child
-     * must declare its own (the function form requires explicitness).
-     */
-    private static LegacyMappingDefinition resolveExtends(LegacyMappingDefinition md,
-                                                          ModelBuilder model) {
-        boolean any = md.classMappings().stream().anyMatch(cm -> cm.extendsSetId() != null);
-        if (!any) return md;
-        // set-ids resolve within this mapping AND its includes (transitive,
-        // own definitions win) — extends [set] across an include is the
-        // union::extend corpus family's normal shape
-        Map<String, ClassMapping> bySetId = new HashMap<>();
-        collectIncludedSetIds(md, model, bySetId, new HashSet<>());
-        for (ClassMapping cm : md.classMappings()) {
-            bySetId.put(setIdOf(cm), cm);
-        }
-        List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm.extendsSetId() == null) {
-                rewritten.add(cm);
-            } else if (cm instanceof ClassMapping.Relational rcm) {
-                rewritten.add(flattenExtends(rcm, bySetId, new LinkedHashSet<>(), md));
-            } else {
-                // Pure (M2M) extends is not covered by §5.2.3; reject loudly
-                // rather than silently ignore the inheritance (AGENTS.md: no
-                // fallbacks).
-                throw new NotImplementedException(
-                        "Class mapping for '" + cm.className() + "' uses extends ["
-                      + cm.extendsSetId() + "] on a non-Relational (Pure) mapping; "
-                      + "only Relational extends is supported. Mapping="
-                      + md.qualifiedName());
-            }
-        }
-        return md.withClassMappings(rewritten);
-    }
-
     /** Set-ids of {@code md}'s includes, transitively (nearer include wins). */
     static void collectIncludedSetIds(LegacyMappingDefinition md,
             ModelBuilder model, Map<String, ClassMapping> bySetId,
@@ -847,76 +782,6 @@ public final class MappingNormalizer {
         }
     }
 
-    /**
-     * Recursively flatten one Relational child's {@code extends} chain into a
-     * single binding carrying the merged property mappings (child overrides
-     * parent on property-name conflict).
-     */
-    private static ClassMapping.Relational flattenExtends(ClassMapping.Relational child,
-                                                         Map<String, ClassMapping> bySetId,
-                                                         Set<String> chain,
-                                                         LegacyMappingDefinition md) {
-        String parentSetId = child.extendsSetId();
-        if (!chain.add(parentSetId)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "Circular 'extends' chain in mapping '" + md.qualifiedName()
-                  + "': " + String.join(" -> ", chain) + " -> " + parentSetId);
-        }
-        ClassMapping parent = bySetId.get(parentSetId);
-        if (parent == null) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "Class mapping for '" + child.className() + "' extends ["
-                  + parentSetId + "] but no class mapping with set id '" + parentSetId
-                  + "' exists in mapping=" + md.qualifiedName());
-        }
-        if (!(parent instanceof ClassMapping.Relational parentRcm)) {
-            throw new NotImplementedException(
-                    "Class mapping for '" + child.className() + "' extends ["
-                  + parentSetId + "] which is not a Relational mapping; only "
-                  + "Relational extends is supported. Mapping=" + md.qualifiedName());
-        }
-        ClassMapping.Relational flatParent = parentRcm.extendsSetId() != null
-                ? flattenExtends(parentRcm, bySetId, chain, md)
-                : parentRcm;
-        // Parent PMs first (declaration order), child overrides by property
-        // IDENTITY = (name, targetSetId): a routed property's per-set
-        // duplicates (employees[set1], employees[set2]) are DISTINCT
-        // mappings — merging by name alone silently dropped all but the
-        // last route (audit 11: the extends-of-union-Firm corpus family
-        // then navigated one member only).
-        LinkedHashMap<String, PropertyMapping> merged = new LinkedHashMap<>();
-        for (PropertyMapping pm : flatParent.propertyMappings()) {
-            merged.put(UnionSynthesis.pmIdentity(pm), pm);
-        }
-        for (PropertyMapping pm : child.propertyMappings()) {
-            merged.put(UnionSynthesis.pmIdentity(pm), pm);
-        }
-        // prop[setId] routes do NOT inherit: the parent's set ids name the
-        // PARENT mapping's sets — a child that re-unions its own members
-        // (Person[mySet1] extends [set1]) can't resolve them, and the
-        // name-keyed merge already collapsed multi-route PMs to one, whose
-        // parent route would mis-read as a PARTIAL union route (wrong rows).
-        // The child's own routes are authoritative; inherited multi-route
-        // properties keep the merged single PM (equivalent-join shape).
-        // Table-level attributes INHERIT-IF-ABSENT, child REPLACES (never
-        // ANDs) — real legend-pure resolveFilter/resolveGroupBy/
-        // resolveDistinct (platform_store_relational functions.pure:143-167)
-        // and the pk priority ladder (:190-214). Hardcoding the child's
-        // silently DROPPED a parent ~filter for filter-less children —
-        // wrong ROWS, not an error (audit 17 bucket analysis).
-        return new ClassMapping.Relational(
-                child.className(), child.setId(), child.extendsSetId(), child.root(),
-                child.mainTable() != null ? child.mainTable() : flatParent.mainTable(),
-                child.filter() != null ? child.filter() : flatParent.filter(),
-                child.distinct() || flatParent.distinct(),
-                !child.groupBy().isEmpty() ? child.groupBy()
-                        : flatParent.groupBy(),
-                !child.primaryKey().isEmpty()
-                        ? child.primaryKey() : flatParent.primaryKey(),
-                new ArrayList<>(merged.values()), child.sourceUrl(),
-                child.propertyTargetSets(), child.aggregation());
-    }
-
     // ====================================================================
     // Pre-pass: inject multi-hop association ends as class-typed Join PMs
     // ====================================================================
@@ -927,46 +792,6 @@ public final class MappingNormalizer {
 
     // Lifted-function FQNs are owned by SynthFqn (the single naming authority,
     // docs/CLEAN_SHEET_INVERSION.md §3): SynthFqn.mappingClass / mappingAssoc.
-
-    // ====================================================================
-    // M2M cycle detection  —  rejects A.~src=B, B.~src=A (or longer) cycles
-    // ====================================================================
-
-    private static void detectM2MCycles(LegacyMappingDefinition md, ModelBuilder model) {
-        // Index PureClassMappings by target class FQN for fast walk.
-        Map<String, ClassMapping.Pure> pureByTarget = new HashMap<>();
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Pure pcm) {
-                pureByTarget.put(pcm.className(), pcm);
-            }
-        }
-        for (ClassMapping.Pure root : pureByTarget.values()) {
-            Set<String> visiting = new LinkedHashSet<>();
-            walkM2MChain(root, pureByTarget, visiting, md);
-        }
-    }
-
-    private static void walkM2MChain(ClassMapping.Pure pcm,
-                                    Map<String, ClassMapping.Pure> pureByTarget,
-                                    Set<String> visiting, LegacyMappingDefinition md) {
-        if (!visiting.add(pcm.className())) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "Circular M2M ~src chain detected in mapping '"
-                  + md.qualifiedName() + "': " + String.join(" -> ", visiting)
-                  + " -> " + pcm.className());
-        }
-        ClassMapping.Pure next = pureByTarget.get(pcm.sourceClass());
-        // SELF-SOURCED Pure mapping (~src X on X): the engine's identity/
-        // pass-through idiom (XStore linkage, objectReference shared
-        // mappings) — the source is the RAW upstream instance, never a
-        // recursive route through the same set; a self-edge is a LEAF,
-        // not a cycle (the corpus compiles these; only multi-set loops
-        // are genuine ~src cycles)
-        if (next != null && next != pcm) {
-            walkM2MChain(next, pureByTarget, visiting, md);
-        }
-        visiting.remove(pcm.className());
-    }
 
     // ====================================================================
     // Class mapping synthesis (top-level dispatch)
@@ -1057,26 +882,21 @@ public final class MappingNormalizer {
         return false;
     }
 
-    private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
-                                                            ClassMapping cm,
-                                                            ModelBuilder model) {
-        return synthesizeClassMapping(md, cm, model, false);
-    }
-
     static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model,
-                                                            boolean setDiscriminated) {
+                                                            boolean setDiscriminated,
+                                                            MappingLedger ledger) {
         // prop[setId] routing is classified PER-PM (Join.targetSetId) inside
         // synthTableBackedParts — the name-keyed propertyTargetSets map
         // cannot distinguish same-named duplicates (audit 11: textual PM
         // order silently decided the outcome), so no map-driven pre-rewrite
         // happens here.
         ValueSpecification body = switch (cm) {
-            case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
-            case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
-            case ClassMapping.Union u        -> UnionSynthesis.synthUnion(md, u, model);
-            case ClassMapping.Inheritance ih -> UnionSynthesis.synthInheritance(md, ih, model);
+            case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, ledger, new HashSet<>());
+            case ClassMapping.Relational rcm -> synthRelational(md, rcm, model, ledger);
+            case ClassMapping.Union u        -> UnionSynthesis.synthUnion(md, u, model, ledger);
+            case ClassMapping.Inheritance ih -> UnionSynthesis.synthInheritance(md, ih, model, ledger);
             case ClassMapping.RelationFunction rf -> synthRelationFunction(md, rf, model);
         };
         return new FunctionDefinition(
@@ -1427,6 +1247,7 @@ public final class MappingNormalizer {
     private static ValueSpecification synthM2M(LegacyMappingDefinition md,
                                               ClassMapping.Pure pcm,
                                               ModelBuilder model,
+                                              MappingLedger ledger,
                                               Set<String> cycleStack) {
         cycleStack.add(pcm.className());
         try {
@@ -1495,7 +1316,7 @@ public final class MappingNormalizer {
                         b -> findPropertyTypeDeep(tgt, b, model) != null);
                 M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
                 fields.put(keyName,
-                        new KeyExpression(m2mPropertyValue(pb, tgt, md, model, cycleStack), false, false));
+                        new KeyExpression(m2mPropertyValue(pb, tgt, md, model, ledger, cycleStack), false, false));
             }
             return new AppliedFunction("map", List.of(source,
                     new LambdaFunction(List.of(srcBind),
@@ -1507,7 +1328,8 @@ public final class MappingNormalizer {
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, @com.legend.Nullable ClassDefinition tgt,
-            LegacyMappingDefinition md, ModelBuilder model, Set<String> cycleStack) {
+            LegacyMappingDefinition md, ModelBuilder model, MappingLedger ledger,
+            Set<String> cycleStack) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = findPropertyTypeDeep(tgt, pb.propertyName(), model);
         if (propType == null && pb.propertyName().endsWith("AllVersions")) {
@@ -1517,7 +1339,7 @@ public final class MappingNormalizer {
         if (!(propType instanceof TypeExpression.NameRef nr)) return pb.expression();
         String innerFqn = nr.name();
         if (classDef(model, innerFqn).isEmpty()) return pb.expression();
-        if (!model.isMappedClass(innerFqn)) {
+        if (!ledger.mapped.contains(innerFqn)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "M2M class-typed property '" + pb.propertyName() + "' on '"
                   + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
@@ -1722,7 +1544,8 @@ public final class MappingNormalizer {
 
     static ValueSpecification synthRelational(LegacyMappingDefinition md,
                                                      ClassMapping.Relational rcm,
-                                                     ModelBuilder model) {
+                                                     ModelBuilder model,
+                                                     MappingLedger ledger) {
         // JSON-source: synthesized by ModelBuilder cross-baking from a
         // RuntimeDefinition's JsonModelConnection. mainTable is null;
         // sourceUrl carries the inline VARIANT subquery source.
@@ -1749,9 +1572,9 @@ public final class MappingNormalizer {
         DatabaseDefinition.ViewDefinition view = model.findView(
                 vMain.database(), vMain.table()).orElse(null);
         if (view != null) {
-            return synthViewBackedMapping(md, rcm, view, model);
+            return synthViewBackedMapping(md, rcm, view, model, ledger);
         }
-        return synthTableBackedMapping(md, rcm, model);
+        return synthTableBackedMapping(md, rcm, model, ledger, null, null);
     }
 
     /**
@@ -2019,7 +1842,8 @@ public final class MappingNormalizer {
     private static ValueSpecification synthViewBackedMapping(LegacyMappingDefinition md,
                                                             ClassMapping.Relational rcm,
                                                             DatabaseDefinition.ViewDefinition view,
-                                                            ModelBuilder model) {
+                                                            ModelBuilder model,
+                                                            MappingLedger ledger) {
         String mainDb = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "view-backed set without ~mainTable").database();
         // Leg 4 (feature map §5): a view reached as a relation is an
@@ -2037,7 +1861,7 @@ public final class MappingNormalizer {
                     rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
                     rcm.propertyTargetSets(), rcm.aggregation());
-            return synthTableBackedMapping(md, overView, model,
+            return synthTableBackedMapping(md, overView, model, ledger,
                     /*backingView*/ null, viewSource);
         }
         // Engine parity: the view resolves to a single physical root table,
@@ -2074,10 +1898,10 @@ public final class MappingNormalizer {
         DatabaseDefinition.ViewDefinition innerView =
                 model.findView(mainDb, physicalTable).orElse(null);
         if (innerView != null) {
-            return synthViewBackedMapping(md, effective, innerView, model);
+            return synthViewBackedMapping(md, effective, innerView, model, ledger);
         }
-        ValueSpecification body = synthTableBackedMapping(md, effective, model,
-                rcm.mainTable().table());
+        ValueSpecification body = synthTableBackedMapping(md, effective, model, ledger,
+                rcm.mainTable().table(), null);
         // When BOTH a view filter and a mapping filter exist, the pipeline
         // above applied only the view filter (effective.filter). Apply the
         // mapping filter too &mdash; pre-map, after the view filter &mdash;
@@ -2199,23 +2023,11 @@ public final class MappingNormalizer {
 
     private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
                                                               ClassMapping.Relational rcm,
-                                                              ModelBuilder model) {
-        return synthTableBackedMapping(md, rcm, model, null);
-    }
-
-    private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
-                                                              ClassMapping.Relational rcm,
                                                               ModelBuilder model,
-                                                              @com.legend.Nullable String backingView) {
-        return synthTableBackedMapping(md, rcm, model, backingView, null);
-    }
-
-    private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
-                                                              ClassMapping.Relational rcm,
-                                                              ModelBuilder model,
+                                                              MappingLedger ledger,
                                                               @com.legend.Nullable String backingView,
                                                               @com.legend.Nullable ValueSpecification sourceOverride) {
-        RelationalParts parts = synthTableBackedParts(md, rcm, model, backingView,
+        RelationalParts parts = synthTableBackedParts(md, rcm, model, ledger, backingView,
                 sourceOverride);
         return new AppliedFunction("map", List.of(parts.pipeline(),
                 new LambdaFunction(List.of(parts.rowBind()),
@@ -2224,9 +2036,9 @@ public final class MappingNormalizer {
 
     static RelationalParts synthTableBackedParts(LegacyMappingDefinition md,
                                                              ClassMapping.Relational rcm,
-                                                             ModelBuilder model,
+                                                             ModelBuilder model, MappingLedger ledger,
                                                               @com.legend.Nullable String backingView) {
-        return synthTableBackedParts(md, rcm, model, backingView, null);
+        return synthTableBackedParts(md, rcm, model, ledger, backingView, null);
     }
 
     /**
@@ -2238,7 +2050,7 @@ public final class MappingNormalizer {
      */
     static RelationalParts synthTableBackedParts(LegacyMappingDefinition md,
                                                              ClassMapping.Relational rcm,
-                                                             ModelBuilder model,
+                                                             ModelBuilder model, MappingLedger ledger,
                                                               @com.legend.Nullable String backingView,
                                                               @com.legend.Nullable ValueSpecification sourceOverride) {
         validatePmNames(rcm, model, md);
@@ -2254,13 +2066,13 @@ public final class MappingNormalizer {
         if (sourceOverride == null
                 && rcm.filter() instanceof FilterMapping.JoinMediated jmi
                 && jmi.joinType() != null) {
-            ValueSpecification innerSrc = JoinChainEmission.innerFilteredSource(rcm, jmi, model, md);
+            ValueSpecification innerSrc = JoinChainEmission.innerFilteredSource(rcm, jmi, model, md, ledger);
             ClassMapping.Relational noFilter = new ClassMapping.Relational(
                     rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                     rcm.mainTable(), null, rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
                     rcm.propertyTargetSets(), rcm.aggregation());
-            return synthTableBackedParts(md, noFilter, model, backingView, innerSrc);
+            return synthTableBackedParts(md, noFilter, model, ledger, backingView, innerSrc);
         }
 
         var mMain = java.util.Objects.requireNonNull(rcm.mainTable(),
@@ -2275,7 +2087,7 @@ public final class MappingNormalizer {
         Pipeline p = new Pipeline(sourceOverride != null ? sourceOverride
                 : new AppliedFunction("tableReference",
                         List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
-                backingView);
+                backingView, ledger);
         UnionSynthesis.classifyUnionRoutes(md, rcm, model, p);
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
@@ -2595,7 +2407,7 @@ public final class MappingNormalizer {
             case PropertyMapping.Column col -> new CtorField(col.propertyName(),
                     DeclaredCoercions.coerceColumnToDeclared(
                             RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
-                            col, ownerClassFqn, model),
+                            col, ownerClassFqn, model, pipeline.ledger()),
                     false);
             case PropertyMapping.EnumeratedColumn ec -> new CtorField(ec.propertyName(),
                     translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline,
@@ -2609,7 +2421,7 @@ public final class MappingNormalizer {
                     false);
             case PropertyMapping.Join j -> {
                 String targetIfMapped = JoinChainEmission.classTypedTargetIfMapped(ownerClassFqn,
-                        j.propertyName(), model);
+                        j.propertyName(), model, pipeline.ledger().mapped);
                 String slot = targetIfMapped != null
                         ? pipeline.navSlotByProp.getOrDefault(
                                 j.propertyName(), j.propertyName())
@@ -2636,7 +2448,7 @@ public final class MappingNormalizer {
                                 // the engine's rows are the raw doubles);
                                 // wrapped only on a genuine kind mismatch
                                 : DeclaredCoercions.declaredAssertion(read, jtc,
-                                        ownerClassFqn, model),
+                                        ownerClassFqn, model, pipeline.ledger()),
                         false);
             }
             case PropertyMapping.LocalProperty lp -> {
@@ -2700,7 +2512,8 @@ public final class MappingNormalizer {
                 // translatePmToField's Join arm resolves it via innerFqn.
                 // An UNMAPPED target class has no instance to bind: wall.
                 if (sub instanceof PropertyMapping.Join j
-                        && JoinChainEmission.classTypedTargetIfMapped(innerFqn, j.propertyName(), model) == null) {
+                        && JoinChainEmission.classTypedTargetIfMapped(innerFqn, j.propertyName(),
+                                model, pipeline.ledger().mapped) == null) {
                     throw new NotImplementedException(
                             "Embedded sub-PM '" + j.propertyName() + "' on '"
                           + propName + "' is a class-typed Join to an UNMAPPED"
