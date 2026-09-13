@@ -1565,6 +1565,20 @@ public final class Pipelines {
                     (TypedLambda) rewriteRowReads(tf.predicate(), rowVar,
                             prefixes, stripped, varRewrite),
                     tf.info());
+            // a REDUCER over a navigation in a derived leaf (NavReducer): the
+            // keyless group-by over the corr-filtered relation — its source
+            // carries the parent reads, its lambdas shadow the row var
+            case TypedGroupBy tg -> new TypedGroupBy(
+                    rewriteRowReads(tg.source(), rowVar, prefixes, stripped, varRewrite),
+                    tg.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),
+                            k.fn().map(f -> (TypedLambda) rewriteRowReads(f, rowVar,
+                                    prefixes, stripped, varRewrite)))).toList(),
+                    tg.aggs().stream().map(a -> new com.legend.compiler.spec.typed.TypedAggCol(
+                            a.name(),
+                            (TypedLambda) rewriteRowReads(a.map(), rowVar, prefixes, stripped, varRewrite),
+                            (TypedLambda) rewriteRowReads(a.reduce(), rowVar, prefixes, stripped, varRewrite),
+                            a.order())).toList(),
+                    tg.info());
             // EMBEDDED ctor (same-row instance): every property value is
             // an ordinary row read — rewrite each (#71 ctor transplants)
             case com.legend.compiler.spec.typed.TypedNewInstance ni -> {

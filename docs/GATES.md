@@ -1450,3 +1450,49 @@ build 24s, G1 68s, G3 10s, G4 94s, G5 51s, G6 139s, G7 34s, G9 27s, G8 138s.
 **Why this batch moved no roster row and was still landed:** it is the
 prerequisite the revert named — re-landing nested constraints now keeps
 `testCheckedWithCircularConstraints` accepted with its witness unchanged.
+
+## Reducers over navigations in derived leaves — 2026-09-12 (corpus-zero cluster A, prerequisite)
+
+**The gap.** The graph emission's inliner for DERIVED leaves — checked
+constraints and qualified properties — had no aggregate arm: a reducer over a
+to-many navigation ({@code $this.employees.name->isDistinct()},
+{@code ->map(e | …)->size()}, the by-tree {@code isDistinct}) walled as
+"body node … referencing $this is not inlinable yet", at the root as well as
+nested. It surfaced when the parked nested-constraint batch evaluated Firm's
+constraints for the first time.
+
+**The decision (USER, this session):** this is the case a correlated scalar
+subquery is FOR — one aggregate value per object, the engine's own description
+of qualifier expressions with navigations. The store-row LEFT-JOIN tenet
+governs READS (a to-one navigation must not become a subquery per column) and
+the projection path's grouped join serves many aggregates over one head; a
+single constraint value is neither. DuckDB unnests the correlated aggregate
+itself; decorrelating by hand would buy no plan.
+
+**What landed.** `resolver/NavReducer`: the reducer's argument as head +
+element mapper (a `map` over the navigation, or a leaf read `head.leaf`); the
+corr-filtered target relation (`navHeadRelation`, the emptiness/leaf arms'
+shared spine); the mapped value inlined through the target's bindings on the
+target's row; a keyless `TypedGroupBy` over it with the reducer — one row, one
+column, stamped [1], which the lowering's relation-in-scalar-position rule
+renders as the scalar subquery. `GraphEmission.inlineThis` gains the arm (the
+file stays under its guard at 3474); `Pipelines.rewriteRowReads` learns the
+group-by node (its source carries the parent reads, its lambdas shadow the row
+var). Witness (`GraphFetchCheckedIntegrationTest`): a Firm-rooted checked
+fetch with three constraints — distinct first names by path, distinct full
+names by tree, a mapped size — over firms with duplicates, near-duplicates and
+no employees; the empty firm reports nothing (`[]->isDistinct()` is true, the
+empty-group rule).
+
+**Measured:** full corpus, both lanes, no roster or pin moved (nothing in the
+corpus reaches the shape until the nested-constraint branch returns). Own-
+corpus parity 2318 → 2324 (the witness model). Chain: per gate build 24s, G1
+64s, G3 10s, G4 91s, G5 45s, G6 130s, G7 33s, G9 28s, G8 135s.
+
+**Two hacks written and removed on the way, for the record:** an
+evaluability filter (the engine's canEvaluateForTree from my reading of its
+property-tree derivation, which the one real golden contradicts) that made the
+failing row vanish; and a per-row scalar subquery for TO-ONE CHILD ENVELOPES
+in place of the lateral join, to buy a loud guard. Neither is on main or the
+branch. The rule kept: joins for reads and child relations, a scalar subquery
+for a single aggregate value, and the decision written before the code.

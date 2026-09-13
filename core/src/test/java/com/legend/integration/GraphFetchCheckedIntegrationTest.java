@@ -44,6 +44,13 @@ class GraphFetchCheckedIntegrationTest {
                     + " S_STRING VARCHAR(100), S_INT INTEGER)");
             s.execute("INSERT INTO T_EDGE VALUES (1, 'plain', 5),"
                     + " (2, '', -3), (5, NULL, NULL)");
+            // REDUCERS over a navigation inside a constraint: firms and their employees
+            s.execute("CREATE TABLE T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))");
+            s.execute("CREATE TABLE T_PERSON (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100),"
+                    + " LAST_NAME VARCHAR(100), FIRM_ID INTEGER)");
+            s.execute("INSERT INTO T_FIRM VALUES (1, 'Dupes'), (2, 'Clean'), (3, 'Empty')");
+            s.execute("INSERT INTO T_PERSON VALUES (1, 'Ann', 'Smith', 1), (2, 'Ann', 'Smith', 1),"
+                    + " (3, 'Bob', 'Jones', 1), (4, 'Ann', 'Smith', 2), (5, 'Ann', 'Stone', 2)");
         }
     }
 
@@ -140,5 +147,75 @@ class GraphFetchCheckedIntegrationTest {
         assertEquals(1, json.split("Unable to evaluate", -1).length - 1,
                 "only the NULL row's comparison constraint carries"
                         + " unable-to-evaluate: " + json);
+    }
+
+    private static final String FIRM_MODEL = """
+            ###Pure
+            Class test::Person { firstName: String[1]; lastName: String[1]; }
+            Class test::Firm
+            [
+              distinctFirstNames: $this.employees.firstName->isDistinct(),
+              distinctByName: $this.employees->isDistinct(#{test::Person {firstName, lastName}}#),
+              enoughStaff: $this.employees->map(e | $e.firstName)->size() != 1
+            ]
+            { legalName: String[1]; employees: test::Person[*]; }
+            ###Relational
+            Database store::FDB
+            (
+                Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+                Table T_PERSON (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100), LAST_NAME VARCHAR(100), FIRM_ID INTEGER)
+                Join FirmPerson (T_FIRM.ID = T_PERSON.FIRM_ID)
+            )
+            ###Mapping
+            Mapping test::FM
+            (
+                test::Person: Relational
+                {
+                    ~mainTable [store::FDB] T_PERSON
+                    firstName: [store::FDB] T_PERSON.FIRST_NAME,
+                    lastName: [store::FDB] T_PERSON.LAST_NAME
+                }
+                test::Firm: Relational
+                {
+                    ~mainTable [store::FDB] T_FIRM
+                    legalName: [store::FDB] T_FIRM.LEGAL_NAME,
+                    employees: [store::FDB] @FirmPerson
+                }
+            )
+            ###Connection
+            RelationalDatabaseConnection store::FConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime test::FRT { mappings: [ test::FM ]; connections: [ store::FDB: [ environment: store::FConn ] ]; }
+            """;
+
+    /** A REDUCER over a to-many navigation inside a checked constraint —
+     * by leaf path, by tree (pure's isDistinct(collection, tree)), and a
+     * mapped reducer — evaluates as one correlated scalar aggregate per
+     * object (NavReducer): the constraint's own value, on the database. */
+    @Test
+    void reducersOverNavigationsInConstraints() throws SQLException {
+        ExecutionResult r = qs.execute(FIRM_MODEL, """
+                test::Firm.all()
+                    ->graphFetchChecked(#{test::Firm {legalName}}#)
+                    ->serialize(#{test::Firm {legalName}}#)
+                """, "test::FRT", conn);
+        String json = r.asGraph().json();
+        // Dupes: two 'Ann Smith' → both distinct constraints defect; three
+        // employees → enoughStaff holds
+        assertTrue(json.contains("\"id\":\"distinctFirstNames\"") && json.contains(
+                "\"id\":\"distinctByName\""), "Dupes defects on both distinct forms: " + json);
+        int dupesAt = json.indexOf("\"legalName\":\"Dupes\"");
+        int cleanAt = json.indexOf("\"legalName\":\"Clean\"");
+        int emptyAt = json.indexOf("\"legalName\":\"Empty\"");
+        assertTrue(dupesAt > 0 && cleanAt > 0 && emptyAt > 0, "three firms: " + json);
+        // Clean: 'Ann Smith' and 'Ann Stone' — first names repeat (defect),
+        // full names distinct (no defect); two employees → enoughStaff holds
+        String clean = json.substring(Math.max(0, cleanAt - 400), cleanAt);
+        assertTrue(clean.contains("distinctFirstNames") && !clean.contains("distinctByName")
+                        && !clean.contains("enoughStaff"),
+                "Clean: first names repeat, full names distinct: " + clean);
+        // Empty: no employees — []->isDistinct() is true, size 0 != 1 holds
+        String empty = json.substring(Math.max(0, emptyAt - 200), emptyAt);
+        assertTrue(empty.contains("\"defects\":[]"), "Empty firm: no defects: " + empty);
     }
 }

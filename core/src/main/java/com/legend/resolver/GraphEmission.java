@@ -2926,6 +2926,20 @@ final class GraphEmission {
                         List.of(hr.rel()), n.info());
             }
         }
+        // a REDUCER over a to-many navigation ($this.employees.name
+        // ->isDistinct(), ->map(e | …)->sum()): one scalar per object — a
+        // keyless group-by over the corr-filtered target relation, the
+        // mapped value inlined through the target's bindings (NavReducer)
+        if (env != null && n instanceof TypedNativeCall rc
+                && CorrelatedSubselects.isAggregate(rc)
+                && NavReducer.shapeOf(rc, thisVar) instanceof NavReducer.Shape sh
+                && navHeadRelation(env, sh.head(), thisVar) instanceof HeadRel hr) {
+            TypedSpec value = inlineThis(sh.body(), sh.var(), Map.of(),
+                    hr.target().bindings(), hr.target().classFqn(), prop,
+                    new SubqueryEnv(hr.target(), env.context(), hr.target().rowVar(),
+                            hr.targetRow()));
+            return NavReducer.subquery(rc, hr.rel(), hr.target().rowVar(), hr.targetRow(), value);
+        }
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = new ArrayList<>(c.args().size());
             for (TypedSpec a : c.args()) {
