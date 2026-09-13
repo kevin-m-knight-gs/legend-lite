@@ -370,6 +370,7 @@ pin at zero.
 | 2 — ONE index before E; five channels stamped (`MappingPrePass`, `MappedClasses`, `MappingLedger`, `MappingDefinition.NormalizationFacts`) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | own-corpus parity 2358 → 2376 (witness models); reach-back census MappingNormalizer 5 → 4 (the cross-bake re-fetch died) | docs/GATES.md "T4.1 step 2" |
 | 3a — the knowledge kernel (`ModelBuilder.knowledge()`); subtype family retired | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | own-corpus parity 2376 → 2379; `ShadowWalkerCensusTest` created (subtype rows 0/0/2/1/1) | docs/GATES.md "T4.1 step 3a" |
 | 3b — property family retired (`propertyType`/`propertyDef`/`derivedInline`/`propertyMultiplicity`, `hierarchyClass`) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | census property rows → 0 | docs/GATES.md "T4.1 step 3b" |
+| 3c — stereotype family retired (`lineage`, `MilestoningFacts`) | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | census stereotype rows → 0 | docs/GATES.md "T4.1 step 3c" |
 
 Step-1 findings that amend the text above: E.0 never stripped the association (§13's "still
 carries" is unverifiable; the landed check is adoption-by-identity), and the owner-absent

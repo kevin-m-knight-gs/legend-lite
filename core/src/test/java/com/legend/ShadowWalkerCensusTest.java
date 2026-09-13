@@ -51,9 +51,10 @@ class ShadowWalkerCensusTest {
             Map.entry("classDef", 0),
             Map.entry("findDerivedInline", 0),
             Map.entry("findPropertyDeclared", 0),
-            // STEREOTYPE FAMILY
-            Map.entry("isBitemporalClass", 2),
-            Map.entry("isTemporalClass", 3),
+            // STEREOTYPE FAMILY — RETIRED (T4.1 step 3c, 2026-09-13): a fold over
+            // the kernel's lineage (MilestoningFacts)
+            Map.entry("isBitemporalClass", 0),
+            Map.entry("isTemporalClass", 0),
             // STORE FAMILY
             Map.entry("columnPureKind", 9),
             Map.entry("pureKindOf", 3),

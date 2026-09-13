@@ -1861,3 +1861,13 @@ superclass miss joins the loud rule. Rows: 0 moved.
 
 **Chain.** build 23s, G1 75s, G3 11s, G4 111s, G5 57s, G6 137s, G7 36s, G9 26s, G8 141s — GREEN
 first run.
+
+## T4.1 step 3c — the stereotype family retired — 2026-09-13
+
+**What landed.** `KnowledgeLayer.lineage(cls)`: the class and its ancestors as definitions,
+nearest first, LOUD for every class on the way (the shadows' rule). `MilestoningFacts.isTemporal`
+folds over it; `MappingNormalizer.isTemporalClass`/`isBitemporalClass` (four methods) are gone —
+the bitemporal twin had no caller at all and is simply deleted. Census stereotype rows 2/3 → 0.
+
+**Rows.** DuckDB 108 / H2 444, EXACT. **Chain.** build 26s, G1 79s, G3 10s, G4 119s, G5 57s,
+G6 146s, G7 38s, G9 26s, G8 153s — GREEN first run.

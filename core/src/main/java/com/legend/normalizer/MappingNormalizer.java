@@ -1436,57 +1436,10 @@ public final class MappingNormalizer {
     }
 
     /** Whether the class (or a superclass) is BITEMPORAL. */
-    static boolean isBitemporalClass(String classFqn, ModelBuilder model) {
-        return isBitemporalClass(classFqn, model, new HashSet<>());
-    }
 
-    static boolean isBitemporalClass(String classFqn, ModelBuilder model,
-            Set<String> visited) {
-        if (!visited.add(classFqn)) {
-            return false;
-        }
-        ClassDefinition cd = model.knowledge().hierarchyClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
-        for (var st : cd.stereotypes()) {
-            if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
-                    st.profileName(), st.stereotypeName())
-                    == com.legend.compiler.element.MilestoningStrategy.BITEMPORAL) {
-                return true;
-            }
-        }
-        for (TypeExpression sup : cd.superClasses()) {
-            String superFqn = TypeExpression.rawClassName(sup);
-            if (superFqn != null && isBitemporalClass(superFqn, model, visited)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /** Whether the class (or a superclass) carries a temporal stereotype. */
-    static boolean isTemporalClass(String classFqn, ModelBuilder model) {
-        return isTemporalClass(classFqn, model, new HashSet<>());
-    }
 
-    private static boolean isTemporalClass(String classFqn, ModelBuilder model,
-            Set<String> visited) {
-        if (!visited.add(classFqn)) {
-            return false;   // superclass cycle guard
-        }
-        ClassDefinition cd = model.knowledge().hierarchyClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#4 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
-        for (var st : cd.stereotypes()) {
-            if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
-                    st.profileName(), st.stereotypeName()) != null) {
-                return true;
-            }
-        }
-        for (TypeExpression sup : cd.superClasses()) {
-            String superFqn = TypeExpression.rawClassName(sup);
-            if (superFqn != null && isTemporalClass(superFqn, model, visited)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * A typed NULL for a member thread that does not carry {@code col}:

@@ -196,6 +196,27 @@ public final class KnowledgeLayer {
         return subtree;
     }
 
+    /** {@code cls} and every ancestor as DEFINITIONS, nearest first — the
+     * stereotype and strategy questions fold over it. LOUD for every
+     * class on the way, the starting one included: a stereotype asked of
+     * an unknown class is a real model gap. */
+    public List<ClassDefinition> lineage(String cls) {
+        List<ClassDefinition> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        work.add(cls);
+        while (!work.isEmpty()) {
+            String cur = work.poll();
+            if (!seen.add(cur)) {
+                continue;
+            }
+            ClassDefinition cd = superClass(cur);
+            out.add(cd);
+            work.addAll(superClassFqns(cd));
+        }
+        return out;
+    }
+
     // ====================================================================
     // Properties over the hierarchy
     // ====================================================================

@@ -167,6 +167,10 @@ class KnowledgeLayerTest {
         assertEquals(List.of("w::Manager", "w::Employee", "w::base::Person"),
                 List.copyOf(k.ancestorsAndSelf("w::Manager")));
         assertEquals(java.util.Set.of("w::Employee", "w::Manager"), k.subtree("w::base::Person"));
+        // lineage: definitions nearest first; LOUD for an unknown class
+        assertEquals(List.of("w::Manager", "w::Employee", "w::base::Person"),
+                k.lineage("w::Manager").stream().map(ClassDefinition::qualifiedName).toList());
+        assertThrows(IllegalStateException.class, () -> k.lineage("w::Nobody"));
         assertEquals(List.of("w::Employee"), k.directSubtypes("w::base::Person"));
     }
 

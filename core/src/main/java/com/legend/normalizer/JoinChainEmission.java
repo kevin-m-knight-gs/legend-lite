@@ -988,7 +988,7 @@ final class JoinChainEmission {
                 .relationalMappingsInClosure(md, model, targetClassFqn);
         if (sets.size() != 1 || !sets.get(0).groupBy().isEmpty()
                 || sets.get(0).distinct()
-                || MappingNormalizer.isTemporalClass(targetClassFqn, model)) {
+                || MilestoningFacts.isTemporal(targetClassFqn, model)) {
             return null;
         }
         return MappingNormalizer.resolveViewRefsInJoin(
