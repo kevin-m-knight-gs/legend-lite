@@ -1,6 +1,7 @@
 package com.legend.normalizer;
 
 import com.legend.builtin.Pure;
+import com.legend.compiler.KnowledgeLayer;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
@@ -105,13 +106,13 @@ public final class ModelNormalizer {
     public static NormalizedModel normalize(ParsedModel parsed,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
-        // E.0 — association QUALIFIED properties adopt into the class that
-        // owns them (the end OPPOSITE the one the property returns — real
-        // pure: an association qualified property is an alternate accessor
-        // of one end, callable on the other end's class). After adoption the
-        // single class-derived funnel (E.2, findProperty, $prop$ lifting)
-        // covers them with no second path.
-        parsed = adoptAssociationDerivedProperties(parsed);
+        // Association QUALIFIED properties were adopted into their owning
+        // classes by the knowledge layer (F1, KnowledgeLayer) BEFORE this
+        // phase — the single class-derived funnel (E.2, findProperty,
+        // $prop$ lifting) covers them with no second path. A model that
+        // arrives un-adopted is a pipeline-order bug: loud, never a
+        // silently missing property.
+        requireQualifiedPropertiesAdopted(parsed, wallSink);
         // Build the resolution index ONCE, shared across every sub-slice.
         // Each lifter (E.2-E.4) and the legacy-mapping desugarer (E.1)
         // resolves classes/associations/joins/filters against the same view;
@@ -143,77 +144,43 @@ public final class ModelNormalizer {
                 model.mixedUnions, model.requiredNullableRows(), model.unionKeyThreads);
     }
 
-    private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {
-        Map<String, List<DerivedPropertyDefinition>> adoptions =
-                new LinkedHashMap<>();
+    /**
+     * The knowledge layer ran: every association qualified property whose
+     * owning class is in this model is held by that class (by identity —
+     * the adoption appends the very definition). An association a
+     * tolerant build walled (no unique owning end) is exempt; in a strict
+     * build such an association cannot reach here, so its presence is the
+     * same pipeline-order bug.
+     */
+    private static void requireQualifiedPropertiesAdopted(ParsedModel parsed,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        Map<String, ClassDefinition> classes = null;
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof AssociationDefinition ad)
-                    || ad.derivedProperties().isEmpty()) {
+                    || ad.derivedProperties().isEmpty()
+                    || (wallSink != null && wallSink.containsKey(ad.qualifiedName()))) {
                 continue;
             }
-            String t1 = rawName(ad.property1().targetClass());
-            String t2 = rawName(ad.property2().targetClass());
-            for (DerivedPropertyDefinition dp : ad.derivedProperties()) {
-                String ret = rawName(dp.type());
-                // EXACT FQN comparison — this pass runs post-NameResolver, so
-                // end targets and return types are FQNs. Real pure resolves
-                // the owner as the OTHER end; a self-association (both ends
-                // the same class) owns its qualified properties itself
-                // (AssociationProcessor: leftRawType == returnType ? right : left).
-                String owner;
-                if (t1.equals(t2)) {
-                    if (!ret.equals(t1)) {
-                        throw new ModelException(
-                                LegendCompileException.Phase.NORMALIZE,
-                                "association '" + ad.qualifiedName()
-                                + "' qualified property '" + dp.name() + "' returns '" + ret
-                                + "', which is neither end of the self-association");
+            if (classes == null) {
+                classes = new LinkedHashMap<>();
+                for (PackageableElement e : parsed.elements()) {
+                    if (e instanceof ClassDefinition cd) {
+                        classes.put(cd.qualifiedName(), cd);
                     }
-                    owner = t1;
-                } else if (ret.equals(t1)) {
-                    owner = t2;
-                } else if (ret.equals(t2)) {
-                    owner = t1;
-                } else {
-                    throw new ModelException(
-                            LegendCompileException.Phase.NORMALIZE,
-                            "association '" + ad.qualifiedName()
-                            + "' qualified property '" + dp.name() + "' returns '" + ret
-                            + "', which does not identify a unique owning end");
                 }
-                adoptions.computeIfAbsent(owner, k -> new ArrayList<>()).add(dp);
+            }
+            for (DerivedPropertyDefinition dp : ad.derivedProperties()) {
+                String owner = KnowledgeLayer.qualifiedPropertyOwner(ad, dp).orElse(null);
+                ClassDefinition cd = owner == null ? null : classes.get(owner);
+                if (owner == null || (cd != null
+                        && cd.derivedProperties().stream().noneMatch(d -> d == dp))) {
+                    throw new IllegalStateException("normalize before the knowledge layer:"
+                            + " association '" + ad.qualifiedName() + "' qualified property '"
+                            + dp.name() + "' is not adopted by its owner"
+                            + " (KnowledgeLayer.adoptAssociationQualifiedProperties)");
+                }
             }
         }
-        if (adoptions.isEmpty()) {
-            return parsed;
-        }
-        List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
-        for (PackageableElement el : parsed.elements()) {
-            if (el instanceof ClassDefinition cd
-                    && adoptions.containsKey(cd.qualifiedName())) {
-                List<DerivedPropertyDefinition> merged =
-                        new ArrayList<>(cd.derivedProperties());
-                merged.addAll(adoptions.get(cd.qualifiedName()));
-                out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
-                        cd.superClasses(), cd.properties(), merged, cd.constraints(),
-                        cd.stereotypes(), cd.taggedValues(), cd.isNative()));
-            } else {
-                out.add(el);
-            }
-        }
-        // full-arg pass-through: source/offsets/per-element imports,
-        // per-element sources and unclaimed sections all survive
-        return new ParsedModel(out, parsed.imports(), parsed.source(),
-                parsed.elementOffsets(), parsed.elementImports(),
-                parsed.elementSources(), parsed.unclaimedSections());
-    }
-
-    private static String rawName(TypeExpression t) {
-        return switch (t) {
-            case TypeExpression.NameRef n -> n.name();
-            case TypeExpression.Generic g -> g.name();
-            default -> t.toString();
-        };
     }
 
     /**

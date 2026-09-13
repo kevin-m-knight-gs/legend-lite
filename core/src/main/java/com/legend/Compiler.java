@@ -1,5 +1,6 @@
 package com.legend;
 
+import com.legend.compiler.KnowledgeLayer;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.PureModelContext;
 import com.legend.compiler.element.ModelContext;
@@ -268,7 +269,10 @@ public final class Compiler {
             elements.addAll(pre.elements());
             ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
                     pre.elementOffsets(), pre.elementImports(), pre.elementSources());
-            return ModelNormalizer.normalize(NameResolver.resolve(boot));
+            // F1 knowledge before E (T4.1 step 1): association qualified
+            // properties adopt into their owners before mappings normalize
+            return ModelNormalizer.normalize(KnowledgeLayer.adoptAssociationQualifiedProperties(
+                    NameResolver.resolve(boot), null));
         });
     }
 
@@ -328,9 +332,12 @@ public final class Compiler {
      */
     private static NormalizedModel normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.Nullable Map<String, String> walls) {
+        // F1 knowledge before E (T4.1 step 1): the same adoption the boot
+        // layer had, over the graph's own elements, walls-aware
         NormalizedModel user = ModelNormalizer.normalize(
-                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
-                        withoutPreludeShadows(resolved)), walls);
+                KnowledgeLayer.adoptAssociationQualifiedProperties(
+                        com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                                withoutPreludeShadows(resolved)), walls), walls);
         NormalizedModel sys = bootLayer();
         List<com.legend.model.PackageableElement> elements =
                 new java.util.ArrayList<>(user.elements().size() + sys.elements().size());

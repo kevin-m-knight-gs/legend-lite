@@ -361,3 +361,13 @@ and the options — then wait. Never choose a fix because it makes the failing t
 **Steps 5–6.** Validation before E with §6's line held (strict rejects, module defers — a
 witness for each); the walkers deleted; the package-info doc corrected; the shadow-walker
 pin at zero.
+
+## 14. Ledger
+
+| step | landed | rows (DuckDB / H2) | pins moved | record |
+|---|---|---|---|---|
+| 1 — E.0 adoption → `compiler/KnowledgeLayer` | 2026-09-13 | 108 / 444, 0 LOST, 0 GAINED | own-corpus parity 2349 → 2358 (witness models) | docs/GATES.md "T4.1 step 1" |
+
+Step-1 findings that amend the text above: E.0 never stripped the association (§13's "still
+carries" is unverifiable; the landed check is adoption-by-identity), and the owner-absent
+case is silent today (see the GATES record). Verified item 1 remains open for step 2.

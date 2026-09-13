@@ -1675,3 +1675,48 @@ G5 45s, G6 136s, G7 36s, G9 27s, G8 142s — GREEN.
 **Owed.** The RAW relation `MappingInclude.storeSubstitutions` in the system database (only
 the resolved facts are seeded); the walks/reach-backs census
 (docs/WALKS_AND_REACHBACKS_CENSUS_2026_09_13.md) and T4.1.
+
+## T4.1 step 1 — E.0 adoption moves out of the normalizer — 2026-09-13
+
+**What moved.** `KnowledgeLayer.adoptAssociationQualifiedProperties` (package `compiler`, F1)
+carries the association qualified-property adoption verbatim; `ModelNormalizer` lost its one
+`new ClassDefinition` and the two model errors. Both normalize callers route through it
+between name-resolve and normalize (`Compiler.bootLayer`, `Compiler.normalizeWithSystem`);
+the boot layer still compiles once. The two errors are Phase.MODEL and tolerant-aware: a
+strict build throws (the exception now names the association, so `compileModel` decorates it
+with `[line:col]`); a module build walls the association under its FQN with the same message
+and adopts nothing from it. The normalizer asserts (IllegalStateException) when a model
+arrives un-adopted: every qualified property whose owner class is in the model must be held by
+that class by identity; a walled association is exempt.
+
+**What the reading missed.** (1) Adoption never STRIPPED the association — the class gains the
+property and the association keeps its declaration (the faithful-source-image contract, the
+same as a class keeping its derived bodies; `ProtocolEmitter` and `NameResolver` read
+`AssociationDefinition.derivedProperties`). So the §13 phrase "no association still carries
+qualified properties" is not a checkable fact; the check landed as "adopted by identity".
+(2) The owner-absent case: an association whose owning class is not in the same parsed list
+(a graph copy dropped by `withoutPreludeShadows`, say) adopts nothing, silently, today; the
+assertion preserves that silence (it only fires when the owner class IS present and lacks
+the property). Step 2's one-index form should make it loud. (3) Probe 2 stands: no prior
+witness; probe 1 stands at the 4.145.0 pin (ProdSynonym `simpleTestModel.pure:449-456`,
+VehicleOwnerVehicle `inheritanceTestModel.pure:124-132`, the validation showcase, the
+compiled-core `corefunctions/tests/testModel.pure:334-335`).
+
+**Rows.** DuckDB 108 / H2 444, EXACT on both lanes (0 LOST, 0 GAINED) — the measurement is
+real: twelve corpus files read ProdSynonym's qualified properties.
+
+**Witness.** `KnowledgeLayerTest`: distinct ends → the other end owns both multiplicities and
+lifts through the one `$prop$` funnel; the parameterized qualifier keeps its parameter; the
+self-association owns itself; no unique owning end → strict Phase.MODEL throw, module wall
+with the same message, nothing adopted; the normalizer refuses an un-adopted model.
+
+**Pin with reason.** Own-corpus parity 2349 → 2358 (the witness's three models, nine
+elements, joined the own corpus and matched).
+
+**Chain.** build 24s, G1 69s (4388 tests), G3 11s, G4 95s, G5 47s, G6 141s, G7 35s, G9 27s,
+G8 140s — G8 RED on the own-corpus pin alone; after the re-pin G8 re-ran alone (86s) GREEN.
+No production file changed between the two runs.
+
+**Next.** Step 2 (one index before E). Verified item 1 (mapped-class ordering) is still open:
+settle it with the `:202`/`:817` println probe over the corpus before designing step 2's
+`registerMappedClass` replacement.
