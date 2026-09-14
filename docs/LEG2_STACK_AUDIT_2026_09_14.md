@@ -57,3 +57,56 @@ fact that lies or a shape that works by coincidence; **LOW** = tidiness with no 
 5. **B6: `UnionHeads` and the mixed builder onto the stack**, then the widening (F14), the set-pin
    facts (F7), and `getForNav`'s dispatch die; the CastReRoot typed key; F4's retyping by node
    kind; re-measure M1–M4.
+
+## Receipts (Leg 3 step 1, 2026-09-14)
+
+Read to the end of the engine's union join path. Line numbers are the pinned engine
+(`legend-engine-4.145.0`) and pure (`legend-pure-5.99.0`) checkouts.
+
+**R-key — key naming is per COLUMN, not per lift** (`pureToSQLQuery_union.pure:373–420
+findFkListForEachSet`, `:316 modifyColumnNameInOperation`). For each set on a side (source sets,
+target sets), the join's columns on the set's main table are split: a column some
+RelationalPropertyMapping of THAT set maps directly (`TableAliasColumn == column`) is MODELED and
+named by the property (`pair(property.name, column)`; merged across the sets under one name); any
+other column is NON-MODELED and named `<col>_<setIndex>` (one per set; NULL in the other threads).
+With more than one set on a side the join's operation is rewritten through these maps
+(`srcMap` / `targetMap`; a missing entry → `col_<index>`; one set → the bare column). The join is
+the OR over the property mappings' rewritten conditions (`buildUnionJoin`, `canJoinTreeNodes…`).
+Consequence: a pinned target is honoured iff the target key column is NON-MODELED (per-set name);
+a MODELED target key matches every arm by value — the "merged" shape is not a lift-level choice
+but the modeled-column case. `avoidModeledProperties` (`:433`, any null-join pm — an arm with no
+route) forces every column NON-MODELED: with an arm without a route, every pin is honoured.
+This restates F5 and F15: build the key per (target read column): modeled by the target set →
+the property name shared by all arms; else `__route<g>_<k>`. The merged/strict predicate split
+dissolves into one OR whose key names carry the rule. Graph fetch keeps per-pair keys
+(`relationalGraphFetch.pure` builds children per set pair).
+
+**R-target — the target union is the PINNED sets, resolved by the router**
+(`core/pure/mapping/mappingExtension.pure findMappingsFromProperty`; `functions_Mapping.pure:66
+_classMappingByIdRecursive`). The router collects the arms' `targetSetImplementationId`s and looks
+them up with `_classMappingByIdRecursive(ids)`, whose filter is `$cm.id == $id` with `$id` the
+WHOLE list — true only when the list has exactly one distinct id. So: one distinct pinned id →
+that set (root or not, own or included); several distinct ids → EMPTY → the fallback
+`rootClassMappingByClass(target)->potentiallyResolveOperation` = the class's ROOT under the queried
+mapping (`_classMappingByClass … filter(root)->last()`: own mapping last = R1) resolved through
+operations to its members. Property mappings whose target is not among the resolved sets are the
+null-joined arms (the inclusive-union goldens: `pInThru` beside the includer's own `pInThru2`;
+`multipleChainedJoins`: `y0`,`y1` = the Y operation's members; the same-store nested graph fetch).
+This is F2's engine receipt and corrects `StackBuilder.leafSetIds`: the rule is "the root's
+leaves" EXCEPT when every arm pins the same single set — then that set, whatever its root-ness.
+
+**R-chain — chained routes merge by OR only as ordered-subset chains**
+(`pureToSQLQuery_union.pure:870 canJoinTreeNodesBeSimplyMergedUsingOrOperation`): the routes'
+mid-table chains sorted longest first; OR-merge iff every chain is an ordered subset of the
+longest (a shared prefix); otherwise the chains are pushed into the source or target union
+(`pushChainedJoinsIntoSourceUnion` / `…TargetUnion`: each arm roots at its mid). This is the
+receipt for `JoinChainEmission.routeList`'s `uniformChainedRoutes` split (shared prefix → the last
+hop's condition; per-arm → the mids inside the route's rows).
+
+**Witnesses these receipts name** (step 2): W-a a union target joined on a NON-modeled column
+(pins honoured, no cross-match); W-b three arms two pinned to one set (targets = 2 sets, modeled
+key → cross-match); W-c an arm without a route (every column suffixed: pins honoured everywhere);
+W-d union arms pinning two sets of a PLAIN class (several ids → the root only: the non-root pin
+dies); W-e every arm pinning the same NON-root set of a plain class (one id → alive; today's leaf
+rule would kill it — a known defect until step 4); W-f a modeled source key beside a non-modeled
+target key (per-column naming on each side).
