@@ -532,6 +532,50 @@ table versus today's merged scan — rows equal, SQL heavier; keep `sameTableInh
 emitter optimization until measured); store substitution under includes (the includer carries its
 own copies — confirm the copies exist before routes name functions); the mixed-member witness.
 
+### 8.6 Step 2b/2c — PARKED 2026-09-14 (branch `wip/composition-2b`; main stays at 2a)
+
+What was built (all on the branch, none on main): every non-root set bound (union members too);
+routed navigations emit route lists (single hop, shared-prefix last hop, per-arm chains with
+their mids inside the route; pinned single routes as lists of one, `UnionSynthesis.PINNED_SINGLE`);
+the checker reads `$t.slot.col` paths; the routed builder re-roots a route's rows onto the
+member's pipeline and reads key paths; graph fetch takes the routed union; twenty MORE
+navigate-step sites moved onto the one lookup (§8.1's table missed every site that resolves a
+step's target through a plain `sources.get(mapping, class)` — 61 such calls exist; the twenty
+that pair with a step are in AssociationJoins ×4, CorrelatedSubselects ×2, DottedExists,
+GraphEmission ×5, NavExistsMaterial, NavMaterializer, NavProvenance, StoreResolver ×2,
+TemporalFrame).
+
+What the rows said. First the plain STACK (2c: the union function = its members' functions
+concatenated, the query side building the union from the members' sources with the members'
+navigations lifted above it): 337 LOST. The stack requires the query side to rebuild everything
+the normalizer's union body precomputes about its members — their navigations, the
+inverse-association ones (single-hop pairs never become Join PMs), per-ordinal identity threads,
+operation members (flattened to leaves), aggregation-aware and `~func` members, the same-table
+merge. That is the union machinery relocated, not removed — reverted; the stack is B6 work and
+needs a union-source builder that composes lifts from members' steps (a first cut existed on
+the branch's history and was dropped with it). Then 2b alone with the union body kept: 228 LOST,
+dominated (108) by "a navigation join over this union demands key column X, which NO union
+member carries": the union body's OWN lifted navigations still speak the published link keys
+(`a1_b`) while their targets, resolved through the one lookup, now answer with routed unions
+keyed `__route<i>_<k>` when the member functions' steps carry routes. The two spellings meet in
+one predicate and cannot both hold.
+
+The finding that decides the next design: **the union's lifts must become route lists too**, and
+until every navigation is a route list the two key vocabularies coexist. So 2c' (replacing 2c):
+the normalizer emits each union's lifted navigation as a several-route `legacyNavigate` whose
+routes are its MEMBERS' routes (each member's own PMs name their target functions), with the
+source side per member as the threads project it today; the inbound key publication and the
+navigator-side key names then have no reader and go (2d). Single-hop association pairs whose
+source set is a union member must inject as Join PMs (today only multi-hop and union-target
+groups do) so the lift can compose them. Order: 2c' on the branch, judged by the same families;
+then 2d; the stack stays B6.
+
+Also found on the way: `routeFunction` (the engine's router platform function) lost 4 rows —
+not yet explained; the aggregation-aware union members project no scalar columns (`[[], []]`);
+`RootSubTypeWithSubtypeLevelPropertyUnionMapping` routes read a column the pinned subclass
+set's rows do not carry (the pinned-single-to-subclass special case in `emitJoinChain` and the
+new route list disagree).
+
 **Related.** `docs/MAPPING_CLEAN_SHEET.md` (§2, §3, §4.2, Layer 5, E6);
 `docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md` §6 (B3.1b design, B3.2 receipts, the
 B3 arc audit's deferrals 1, 4, 5 — all closed by this design).
