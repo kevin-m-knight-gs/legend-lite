@@ -148,6 +148,15 @@ class RoutedNavigateTest {
     }
 
     @Test
+    @DisplayName("the exists path resolves the same routed target (no class-level fallback)")
+    void existsThroughRoutes() throws SQLException {
+        String sql = sqlOf("u::Firm.all()->filter(f | $f.employees->exists(e | $e.name == 'D'))"
+                + "->project([f|$f.id], ['firm'])->from(u::M, u::RT)");
+        assertEquals(List.of("1"), exec(sql + " ORDER BY 1"), sql);
+        assertTrue(sql.contains("__route0_0"), sql);
+    }
+
+    @Test
     @DisplayName("two routes of different shapes: their own keys, an OR of two")
     void differentShapesKeepTheirOwnKeys() throws SQLException {
         String sql = sqlOf("u::Firm.all()->project([f|$f.id, f|$f.employees.name], ['firm', 'person'])"

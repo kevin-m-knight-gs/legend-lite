@@ -2454,3 +2454,37 @@ publication and scan, identity and shape rules, chains and lifts, the include re
 the drop rule and the resolver's key widening are deleted. Judges: the census's 275 routed
 navigations across 87 mappings (206 into unions, 77 chained); a witness for the mixed (`Pure` /
 `~func`) member case the corpus lacks.
+
+## Legacy routes as composition, step 2a — the resolver asks the step — 2026-09-14
+
+**Why.** The first attempt at step 2 patched nine resolver call sites with an optional
+parameter, each site doing its own routing — caught by the USER as hacking, reverted. The
+inventory that was missing is §8 of docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md: eleven
+places fetch a navigate's target by CLASS at a HEAD STRING through two stamped set-pin facts,
+eleven places rebuild a navigate node with the old constructor (dropping routes), three union
+builders and two widening families serve the union's published keys. This step makes the
+structural change and nothing else.
+
+**What landed — nothing emitted yet; neutral by construction.**
+- ONE lookup: `ClassSources.navTarget(source, class, step, head)` — a step that carries routes
+  answers with its routed union (step 1's builder, memoized per step); a step without resolves
+  the class through the set-id dispatch exactly as before. `stepOf(source, alias)` finds a step
+  in its source pipeline. No caller routes on its own; no head string reaches the resolver's
+  routing except through this method.
+- `NavMaterializer.navTargetMaterialized(temporal, target, ...)` RECEIVES the resolved target and
+  resolves nothing; the step-1 `given` parameter and the `routedTarget` helper are gone. The
+  eleven sites (StoreResolver ×4, NavMaterializer ×3, NavExistsMaterial, ChainedExists ×2,
+  AssociationJoins, UnionHeads, NavProvenance) call the one lookup and pass the target — a
+  signature change, not per-site lookups.
+- The six resolver rebuild sites (SlotOrder, NavProvenance, Pipelines, StoreResolver ×3) use
+  `TypedNavigate.withSource` / `withPredicate` / `withSourceAndPredicate`, which keep a step's
+  routes; the 8-argument constructor builds NEW nodes only (the checker).
+- Graph fetch's set hint (`GraphEmission:1130`) is untouched until 2b emits routes.
+
+**Witness.** `RoutedNavigateTest` gains the exists path (`filter(f | $f.employees->exists(...))`):
+rows `1`, the routed key read — the path that failed under the first attempt.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Pins.** one size limit met by a
+local variable. **Chain.** Green, first run, every gate.
+
+**Next.** 2b: the normalizer emits route lists and binds every set (§8.4).

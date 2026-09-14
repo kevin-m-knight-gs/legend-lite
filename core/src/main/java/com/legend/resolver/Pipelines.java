@@ -1184,10 +1184,7 @@ public final class Pipelines {
             }
             case TypedNavigate nav -> {
                 TypedSpec inner = widenConcatenateBelow(nav.source(), cols);
-                yield inner == nav.source() ? pipeline
-                        : new TypedNavigate(inner, nav.alias(), nav.target(),
-                                nav.predicate(), nav.pairedPredicate(), nav.frameName(),
-                                nav.form(), nav.info());
+                yield inner == nav.source() ? pipeline : nav.withSource(inner, nav.info());
             }
             case TypedJoinSlot js -> {
                 TypedSpec inner = widenConcatenateBelow(js.source(), cols);

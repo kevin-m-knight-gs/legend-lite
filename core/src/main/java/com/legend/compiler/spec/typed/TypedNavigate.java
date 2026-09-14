@@ -133,6 +133,22 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
         return new TypedNavigate(kids.get(0), alias, tgt, pred, pairedPred,
                 frameName, form, info, rs);
     }
+    /** The same step over another source (its routes, alias, target,
+     * predicates and frame kept) — the ONE way a walker rebuilds a step. */
+    public TypedNavigate withSource(TypedSpec src, ExprType newInfo) {
+        return new TypedNavigate(src, alias, target, predicate, pairedPredicate, frameName, form, newInfo, routes);
+    }
+
+    /** The same step with another predicate. */
+    public TypedNavigate withPredicate(TypedLambda pred) {
+        return new TypedNavigate(source, alias, target, pred, pairedPredicate, frameName, form, info, routes);
+    }
+
+    /** The same step over another source and with another predicate. */
+    public TypedNavigate withSourceAndPredicate(TypedSpec src, TypedLambda pred, ExprType newInfo) {
+        return new TypedNavigate(src, alias, target, pred, pairedPredicate, frameName, form, newInfo, routes);
+    }
+
     @Override
     public TypedSpec withInfo(ExprType info) {
         return new TypedNavigate(source, alias, target, predicate, pairedPredicate, frameName, form, info, routes);

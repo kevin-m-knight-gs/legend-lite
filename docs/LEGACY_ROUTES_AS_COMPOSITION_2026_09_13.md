@@ -517,6 +517,14 @@ a node that has routes).
 - **2e (B6).** `UnionHeads` onto the routed builder; `CastReRoot`'s typed key; the `UNION_SCAN`
   decision.
 
+**2a LANDED 2026-09-14.** `ClassSources.navTarget(source, class, step, head)` is the one lookup;
+`stepOf(source, alias)` finds a step by alias; `navTargetMaterialized(temporal, target, ...)`
+receives the resolved target and resolves nothing (the step-1 `given` parameter and the
+`routedTarget` helper are gone); the eleven sites of §8.1's table call it; the six resolver
+rebuild sites use `withSource` / `withPredicate` / `withSourceAndPredicate` (routes kept). Graph
+fetch's set hint (`GraphEmission:1130`) is untouched until 2b emits routes. Corpus neutral;
+`RoutedNavigateTest` covers the exists path.
+
 ### 8.5 Known unknowns, measured at the step that reaches them
 
 Per-arm chains' nested reads (19 in the census); same-table inheritance targets (N arms over one

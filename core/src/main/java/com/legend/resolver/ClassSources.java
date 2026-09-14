@@ -370,14 +370,29 @@ public final class ClassSources {
     private final java.util.IdentityHashMap<List<com.legend.compiler.spec.typed.TypedNavigate.Route>,
             Map<String, ClassSource>> routedSources = new java.util.IdentityHashMap<>();
 
-    /** The navigate step's target: its routed union when it carries
-     * routes, else the class through the set-id dispatch. */
-    ClassSource navTarget(String mappingFqn, String classFqn,
-            com.legend.compiler.spec.typed.TypedNavigate step, String head,
-            @com.legend.Nullable String scope) {
-        return step.routes().isEmpty()
-                ? getForNav(mappingFqn, classFqn, head, scope)
-                : routedUnionSource(mappingFqn, classFqn, step.routes(), scope);
+    /**
+     * THE TARGET OF A NAVIGATE STEP — the one lookup (legacy routes as
+     * composition, design §8.2): a step that carries routes answers with
+     * its routed union (built from the navigator's own routes, memoized per
+     * step); a step without routes resolves its class through the set-id
+     * dispatch, exactly as before. {@code source} is the class source
+     * whose pipeline holds the step (its mapping and scope are the
+     * resolution context); {@code head} keys the set-id dispatch for the
+     * route-less case. No caller routes on its own.
+     */
+    ClassSource navTarget(ClassSource source, String classFqn,
+            com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate step, String head) {
+        if (step != null && !step.routes().isEmpty()) {
+            return routedUnionSource(source.mappingFqn(), classFqn, step.routes(), source.scope());
+        }
+        return getForNav(source.mappingFqn(), classFqn, head, source.scope());
+    }
+
+    /** The navigate step {@code alias} names in {@code source}'s pipeline,
+     * or null (a synthetic head the pipeline does not spell). */
+    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate stepOf(
+            ClassSource source, String alias) {
+        return Pipelines.navSteps(source.pipeline()).get(alias);
     }
 
     private ClassSource buildRoutedUnionSource(String mappingFqn, String classFqn,

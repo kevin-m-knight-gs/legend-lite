@@ -97,7 +97,7 @@ final class NavExistsMaterial {
                 || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
             return;
         }
-        ClassSource t = sources.getForNav(cs.mappingFqn(), tg.classFqn(), registerKey, cs.scope());
+        ClassSource t = sources.navTarget(cs, tg.classFqn(), nav, registerKey);
         Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
         Set<String> tDemand0 = new LinkedHashSet<>();
         Set<String> innerLeaves = new LinkedHashSet<>();

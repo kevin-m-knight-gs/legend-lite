@@ -66,9 +66,9 @@ final class NavProvenance {
         // as the coalesce over its member threads
         body = FlattenOps.coalesceThreadedReads(body, lp, composedRow,
                 coalesce.get());
-        TypedNavigate st2 = new TypedNavigate(src.pipeline(), st.alias(), st.target(),
+        TypedNavigate st2 = st.withSourceAndPredicate(src.pipeline(),
                 new TypedLambda(pred.parameters(), List.of(body), pred.info()),
-                st.pairedPredicate(), st.frameName(), st.form(), src.pipeline().info());
+                src.pipeline().info());
         // the hop's binding re-reads the spliced slot off the composed row
         // var (a nested scope's slot route finds the step through it —
         // group F burn 2026-09-02)
@@ -100,7 +100,8 @@ final class NavProvenance {
                     .filter(e -> e.getValue().equals(a2)).map(Map.Entry::getKey)
                     .findFirst().orElse(a2);
             NavMaterializer.NavMat nm = navMaterializer.navTargetMaterialized(
-                    temporal, src.mappingFqn(), tc2, src.scope(), through,
+                    temporal, sources.navTarget(src, tc2, ClassSources.stepOf(src, a2), head2),
+                    src.mappingFqn(), tc2, src.scope(), through,
                     head2, TemporalContext.NONE);
             nestedMats.put(a2, nm);
             return nm.pipeline();

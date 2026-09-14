@@ -64,8 +64,7 @@ final class ChainedExists {
                 || !sources.binds(cs.mappingFqn(), midG.classFqn())) {
             return null;
         }
-        ClassSource mid = sources.getForNav(cs.mappingFqn(), midG.classFqn(),
-                midHead, cs.scope());
+        ClassSource mid = sources.navTarget(cs, midG.classFqn(), midNav, midHead);
         // LEAF hop: a navigate-slot binding on the MID target.
         TypedNavigate leafNav = navStep(mid, leafHead);
         if (leafNav == null
@@ -73,8 +72,7 @@ final class ChainedExists {
                 || !sources.binds(cs.mappingFqn(), leafG.classFqn())) {
             return null;
         }
-        ClassSource t = sources.getForNav(cs.mappingFqn(), leafG.classFqn(),
-                leafHead, cs.scope());
+        ClassSource t = sources.navTarget(mid, leafG.classFqn(), leafNav, leafHead);
         TypedLambda midCond = midNav.predicate();
         TypedLambda leafCond = leafNav.predicate();
         // OUTSIDE the rung: milestoned hops (no temporal stamping built

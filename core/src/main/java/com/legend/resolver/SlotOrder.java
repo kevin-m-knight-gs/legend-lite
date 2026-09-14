@@ -122,8 +122,7 @@ final class SlotOrder {
             ExprType info = new ExprType(Type.relation(new Type.RelationType(row)),
                     s.info().multiplicity());
             out = s instanceof TypedNavigate nv
-                    ? new TypedNavigate(out, nv.alias(), nv.target(), nv.predicate(),
-                            nv.pairedPredicate(), nv.frameName(), nv.form(), info)
+                    ? nv.withSource(out, info)
                     : new TypedJoinSlot(out, ((TypedJoinSlot) s).alias(),
                             ((TypedJoinSlot) s).target(), ((TypedJoinSlot) s).condition(),
                             ((TypedJoinSlot) s).frameName(), info);

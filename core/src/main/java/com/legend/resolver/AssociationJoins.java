@@ -941,7 +941,9 @@ final class AssociationJoins {
                             List<List<String>> deeper = subTailsByAlias.get(aln);
                             if (deeper != null && navMaterializer != null) {
                                 NavMaterializer.NavMat nm = navMaterializer
-                                        .navTargetMaterialized(temporal, cs.mappingFqn(), tcn, cs.scope(), deeper,
+                                        .navTargetMaterialized(temporal,
+                                                sources.navTarget(target, tcn, ClassSources.stepOf(target, aln), aln),
+                                                cs.mappingFqn(), tcn, cs.scope(), deeper,
                                                 chainKey0 + "." + aln,
                                                 TemporalContext.NONE);
                                 tailMats.put(aln, nm);

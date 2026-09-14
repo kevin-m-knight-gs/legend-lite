@@ -283,9 +283,9 @@ final class UnionHeads {
                     + " '" + h0 + "' of '" + cs.classFqn()
                     + "' (a non-class navigate target) is not supported yet");
         }
-        ClassSource target = sources.get(cs.mappingFqn(), tg.classFqn(), cs.scope());
+        ClassSource target = sources.navTarget(cs, tg.classFqn(), nav, h0);
         NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(
-                temporal, cs.mappingFqn(), tg.classFqn(), cs.scope(),
+                temporal, target, cs.mappingFqn(), tg.classFqn(), cs.scope(),
                 new ArrayList<>(navTails), h0, TemporalContext.NONE);
         TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, h0,
                 temporal.applyJoinTemporalFilters(mat.pipeline(), target,

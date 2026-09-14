@@ -52,10 +52,10 @@ final class NavMaterializer {
                   Set<String> stripped,
                   Map<String, Substitution.SubNav> subNavs) {}
 
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
             String targetClassFqn, @com.legend.Nullable String scope,
             List<List<String>> tails) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope, tails,
+        return navTargetMaterialized(temporal, target, mappingFqn, targetClassFqn, scope, tails,
                 null, TemporalContext.NONE);
     }
 
@@ -63,23 +63,23 @@ final class NavMaterializer {
      * off; {@code inheritedDates}: the PARENT hop's effective context —
      * propagation flows hop-to-hop through temporal classes (engine
      * getMilestoningContextForQualifiedProperty), not only from the root. */
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
             String targetClassFqn, @com.legend.Nullable String scope,
             List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope,
+        return navTargetMaterialized(temporal, target, mappingFqn, targetClassFqn, scope,
                 tails, chainPrefix, inherited, List.of());
     }
 
     /** {@code parkedPreds}: filter-lifted preds that will apply to THIS
      * target — their DIRECT slot-alias reads (β-inlined qualifier bodies)
      * join the demand; property-path reads ride {@code tails}. */
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
             String targetClassFqn, @com.legend.Nullable String scope,
             List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope,
+        return navTargetMaterialized(temporal, target, mappingFqn, targetClassFqn, scope,
                 tails, chainPrefix, inherited, parkedPreds, Set.of());
     }
 
@@ -90,25 +90,15 @@ final class NavMaterializer {
      * member arms — ROW semantics, unionalias_3 vs unionalias_2). */
     /** {@code scope}: the SOURCE's scope (ClassSource.scope) — the target
      * resolves under it. */
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    /** {@code target}: the step's target source, resolved by the caller
+     * through THE one lookup ({@code ClassSources.navTarget}: the step's
+     * routed union when it carries routes, else the class through the
+     * set-id dispatch). This method materializes; it never resolves. */
+    NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
             String targetClassFqn, @com.legend.Nullable String scope,
             List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
-        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope, tails,
-                chainPrefix, inherited, parkedPreds, splitChains, null);
-    }
-
-    /** {@code given}: the target source already built for this step — a
-     * SEVERAL-ROUTE navigate's routed union (ClassSources.routedUnionSource,
-     * composed from the navigator's own routes); null resolves the class
-     * through the set-id dispatch as every other step does. */
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, @com.legend.Nullable String scope,
-            List<List<String>> tails,
-            @com.legend.Nullable String chainPrefix, TemporalContext inherited,
-            List<TypedLambda> parkedPreds, Set<String> splitChains,
-            @com.legend.Nullable ClassSource given) {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
         // (possibly rootless) multi-set target resolves through the
         // set-discriminated binding (ClassSources.getForNav).
@@ -118,7 +108,7 @@ final class NavMaterializer {
         // the one extraction; set-id dispatch and the element-scope check
         // (batch 106) both read it
         String headId = prefix.substring(prefix.lastIndexOf('.') + 1);
-        ClassSource t = given != null ? given : sources.getForNav(mappingFqn, targetClassFqn, headId, scope);
+        ClassSource t = target;
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
         // (engine: one context object per cursor, explicit dates override
@@ -479,8 +469,8 @@ final class NavMaterializer {
                 }
                 tails.addAll(spp);
             }
-            ClassSource target = sources.get(mappingFqn, targetCls, t.scope());
-            NavMat mat = navTargetMaterialized(temporal, mappingFqn, targetCls,
+            ClassSource target = sources.navTarget(t, targetCls, nav, head);
+            NavMat mat = navTargetMaterialized(temporal, target, mappingFqn, targetCls,
                     t.scope(), tails, subChain, hopCtx);
             TypedSpec tPipe = temporal.temporalTargetPipe(t, target, subChain,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
@@ -677,19 +667,15 @@ final class NavMaterializer {
             TemporalContext hopCtx) {
 
             String midProp = midByAlias.get(alias);
-            com.legend.compiler.spec.typed.TypedNavigate step =
-                    Pipelines.navSteps(t.pipeline()).get(alias);
-            ClassSource routed = step != null && !step.routes().isEmpty()
-                    ? sources.routedUnionSource(mappingFqn, cls, step.routes(), t.scope())
-                    : null;
-            NavMat subMat = navTargetMaterialized(temporal, mappingFqn, cls, t.scope(),
+            ClassSource subTarget = sources.navTarget(t, cls, ClassSources.stepOf(t, alias),
+                    midProp == null ? alias : midProp);
+            NavMat subMat = navTargetMaterialized(temporal, subTarget, mappingFqn, cls, t.scope(),
                     subTails.getOrDefault(alias, List.of()),
                     chainPrefix == null ? null
                             : chainPrefix + "." + midProp,
                     hopCtx,
                     midProp == null ? List.of()
-                            : synthetics.allPreds(midProp),
-                    Set.of(), routed);
+                            : synthetics.allPreds(midProp));
             subMats.put(alias, subMat);
             subClsByAlias.put(alias, cls);
             TypedSpec sub = subMat.pipeline();
@@ -941,7 +927,8 @@ final class NavMaterializer {
             }
             String subChain = chainPrefix == null ? prop
                     : chainPrefix + "." + prop;
-            NavMat xMat = navTargetMaterialized(temporal, mappingFqn,
+            NavMat xMat = navTargetMaterialized(temporal,
+                    sources.navTarget(t, xg.classFqn(), step, prop), mappingFqn,
                     xg.classFqn(), t.scope(),
                     extraSubTails.getOrDefault(prop, List.of()),
                     subChain, hopCtx, synthetics.allPreds(prop));
