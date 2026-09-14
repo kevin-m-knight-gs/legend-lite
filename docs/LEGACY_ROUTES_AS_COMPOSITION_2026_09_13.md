@@ -598,7 +598,7 @@ of that law or has no reader (§8.6's list).
 arm"; the engine joins ONCE above the union, and we measured why (§6 B3 of the homework doc, one
 union family, DuckDB): the merged single-key join **0.8 ms** (hash), a coalesced key **1.5 ms**
 (hash), an OR of per-arm equalities **8.9 ms** (nested loop). So the lowering of a navigation
-whose SOURCE is a stack is a compiler pass with three shapes, chosen by looking at the arms'
+whose SOURCE is a stack is a compiler pass with four shapes, chosen by looking at the arms'
 conditions and nothing else:
 
 1. **Uniform** — every arm's condition has the same shape (target reads erased, source reads
@@ -612,9 +612,22 @@ conditions and nothing else:
    else an OR of the equalities — the engine's `unionalias_N ... on (a or b)` shape; still one
    join, still row-equal (`ResolveUnionChainTest`'s trap row: a key an arm lacks is NULL there
    and never matches).
-3. **General** — a condition that is not an equality (an inequality, a composite predicate the
+3. **Chained, non-uniform — the engine's other trick, push-into-arm** (USER 2026-09-14; the
+   B3.2 receipts: `testUnionWithChainedJoinsAcross3SetsV4`, `unionOfViews2`). When the arms are
+   reached through chains of different lengths, the engine does NOT put the middle tables on the
+   navigator's side and does not OR over whole chains: it roots each arm at the chain's middle
+   table, joins the rest of the chain INSIDE the arm, and projects the column the navigator's
+   FIRST hop reads as that arm's key (`from A as "root" left outer join Y1 … left outer join G`,
+   key `fk0_1`; the next arm `from B left outer join C left outer join Y2`, key `fk0_2`). The
+   union join is then shape 2: one join above the stack on per-arm keys. Two middle tables can
+   never multiply against each other because each lives in its own arm. In our form this is a
+   route whose rows are the member's table joined with its mids and whose condition is the first
+   hop (`route(A$p1(), #>{db.T1}# -> join(~addr: #>{db.ADDRESS}#, …), {f, x | $f.ID ==
+   $x.addr.FIRM_ID})`) — the route list already lowers it this way, and the same rule applies to
+   a stack's own navigations when the arms' steps are chains.
+4. **General** — a condition that is not an equality (an inequality, a composite predicate the
    arms spell differently): the law literally — the join inside each arm, results stacked.
-   Row-equal by construction; the slow shape, accepted only when 1 and 2 do not apply.
+   Row-equal by construction; the slow shape, accepted only when 1–3 do not apply.
 
 The chooser reads the typed conditions the arms already carry (the same shape rule
 `NavigateChecker.legacyRoutes` uses today for route lists); it never reads the mapping. The
