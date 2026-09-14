@@ -996,7 +996,7 @@ final class TemporalFrame {
                         instanceof com.legend.compiler.spec.typed.TypedGetAll g)) {
             return null;
         }
-        TypedSpec lb = sources.get(cs.mappingFqn(), g.classFqn(), cs.scope())
+        TypedSpec lb = sources.navTarget(cs, g.classFqn(), navSteps.get(alias), alias)
                 .bindings().get(leaf.property());
         lb = lb == null ? null : unwrapToOne(lb);
         return lb instanceof TypedPropertyAccess pb
@@ -1084,7 +1084,7 @@ final class TemporalFrame {
             }
             TypedTableReference rt = rootTable(aj != null
                     ? aj.targetPipeline()
-                    : sources.get(cs.mappingFqn(), hopClass, cs.scope()).pipeline());
+                    : sources.navTarget(cs, hopClass, ClassSources.stepOf(cs, real), real).pipeline());
             var ms = rt == null ? null
                     : ctx.findTableMilestoning(rt.store(), rt.table())
                             .orElse(null);
@@ -1699,7 +1699,7 @@ final class TemporalFrame {
                     // :279 result1 carries all four windows on the ON,
                     // :291 result4 the mixed literal+outer pair).
                     ClassSource navTarget =
-                            sources.get(cs.mappingFqn(), navClass, cs.scope());
+                            sources.navTarget(cs, navClass, ClassSources.stepOf(cs, bare), bare);
                     if (navTarget != null && temporalStrategy(navClass)
                             == MilestoningStrategy.BITEMPORAL) {
                         TypedSpec biRight = temporalTargetPipe(cs, navTarget,
@@ -1745,7 +1745,8 @@ final class TemporalFrame {
                 j.userCondition() /* rebuild */);
                     }
                     filtered = temporalTargetPipe(cs,
-                            sources.get(cs.mappingFqn(), navClass, cs.scope()), chainHead, right);
+                            sources.navTarget(cs, navClass, ClassSources.stepOf(cs, bare), bare),
+                            chainHead, right);
                 } else {
                     // PHYSICAL joinslot target: every milestoned table alias
                     // in the query filters by the ambient context (per its

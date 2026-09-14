@@ -653,7 +653,8 @@ final class NavMaterializer {
                     return cond;
                 }
                 return assocs.andCorrelatedIntoCondition(cond, pred, t,
-                        sources.get(mappingFqn, cls, t.scope()),
+                        sources.navTarget(t, cls, ClassSources.stepOf(t, alias),
+                                midProp == null ? alias : midProp),
                         sm.slotPrefixes());
             }
 };
@@ -688,7 +689,7 @@ final class NavMaterializer {
                 final NavMat sm2 = subMat;
                 sub = synthetics.applyToPipe(synthProp, sub,
                         (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
-                                pp, sources.get(mappingFqn, cls, t.scope()),
+                                pp, subTarget,
                                 sm2.slotPrefixes(), sm2.subNavs(),
                                 pred, mappingFqn));
             }
@@ -698,8 +699,7 @@ final class NavMaterializer {
                 String subChain = chainPrefix + "." + midByAlias.get(alias);
                 TemporalFrame.TemporalSpec subSpec = temporal.spec(subChain);
                 if (subSpec != null) {
-                    sub = temporal.temporalTargetPipe(t, sources.get(mappingFqn, cls, t.scope()),
-                            subChain, sub);
+                    sub = temporal.temporalTargetPipe(t, subTarget, subChain, sub);
                 } else {
                     // DIMENSION-PROJECTED inheritance through a
                     // TEMPORAL parent (contextAt clears through
@@ -778,9 +778,9 @@ final class NavMaterializer {
                 // the recursion's own gate returns a raw pipeline but
                 // cannot stop THIS level's join. Leave the sub-step
                 // undemanded: the leaf read stays LOUD downstream.
-                String subCls = ((TypedGetAll)
-                        java.util.Objects.requireNonNull(tNavSteps.get(subAlias)).target()).classFqn();
-                ClassSource subT = sources.get(mappingFqn, subCls, t.scope());
+                var subStep = java.util.Objects.requireNonNull(tNavSteps.get(subAlias));
+                String subCls = ((TypedGetAll) subStep.target()).classFqn();
+                ClassSource subT = sources.navTarget(t, subCls, subStep, subAlias);
                 // TEMPORAL sub-target: liftable when its CHAIN-KEYED
                 // spec (explicit hop date) or propagated context can
                 // filter it (temporalTargetPipe in the resolver lambda
@@ -927,13 +927,12 @@ final class NavMaterializer {
             }
             String subChain = chainPrefix == null ? prop
                     : chainPrefix + "." + prop;
-            NavMat xMat = navTargetMaterialized(temporal,
-                    sources.navTarget(t, xg.classFqn(), step, prop), mappingFqn,
+            ClassSource xCs = sources.navTarget(t, xg.classFqn(), step, prop);
+            NavMat xMat = navTargetMaterialized(temporal, xCs, mappingFqn,
                     xg.classFqn(), t.scope(),
                     extraSubTails.getOrDefault(prop, List.of()),
                     subChain, hopCtx, synthetics.allPreds(prop));
             final NavMat xm2 = xMat;
-            ClassSource xCs = sources.get(mappingFqn, xg.classFqn(), t.scope());
             TypedSpec xPipe = synthetics.applyToPipe(prop, xMat.pipeline(),
                     (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
                             pp, xCs, xm2.slotPrefixes(), xm2.subNavs(),

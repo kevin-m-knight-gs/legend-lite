@@ -392,7 +392,9 @@ public final class ClassSources {
      * or null (a synthetic head the pipeline does not spell). */
     static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate stepOf(
             ClassSource source, String alias) {
-        return Pipelines.navSteps(source.pipeline()).get(alias);
+        // the OUTERMOST step of that alias: a union's lifted navigate above
+        // its members' own same-named steps inside the threads
+        return Pipelines.outerNavSteps(source.pipeline()).get(alias);
     }
 
     private ClassSource buildRoutedUnionSource(String mappingFqn, String classFqn,

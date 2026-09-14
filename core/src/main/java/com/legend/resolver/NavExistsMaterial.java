@@ -146,19 +146,19 @@ final class NavExistsMaterial {
                 : Pipelines.materialize(
                         t.pipeline(), tDemand0, tNavDemand, t.classFqn(),
                         (al2, tc2) -> Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), tc2, cs.scope())
+                                sources.navTarget(t, tc2, ClassSources.stepOf(t, al2), al2)
                                         .pipeline(),
                                 java.util.Set.of(), tc2).pipeline());
         Map<String, Substitution.SubNav> tSubNavs = new LinkedHashMap<>();
         for (var pne : predNavAliases.entrySet()) {
             String pfx = tMat0.slotPrefixes().get(pne.getValue());
-            var stepT = java.util.Objects.requireNonNull(
-                    Pipelines.navSteps(t.pipeline())
-                            .get(pne.getValue())).target();
+            var stepN = java.util.Objects.requireNonNull(
+                    Pipelines.navSteps(t.pipeline()).get(pne.getValue()));
+            var stepT = stepN.target();
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
-            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn(), cs.scope());
+            ClassSource sub = sources.navTarget(t, stg.classFqn(), stepN, pne.getValue());
             tSubNavs.put(pne.getKey(), new Substitution.SubNav(
                     pfx, sub.rowVar(), sub.bindings()));
         }

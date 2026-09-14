@@ -130,11 +130,12 @@ final class NavProvenance {
             if (ip == null) {
                 continue;   // step not materialized: the read stays loud
             }
-            var navT = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue())).target();
+            var navN = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue()));
+            var navT = navN.target();
             if (!(navT instanceof com.legend.compiler.spec.typed.TypedGetAll ng)) {
                 continue;
             }
-            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn(), src.scope());
+            ClassSource sub = sources.navTarget(src, ng.classFqn(), navN, he.getValue());
             NavMaterializer.NavMat nmat = nestedMats.get(he.getValue());
             if (nmat == null) {
                 provOut.put(he.getKey(), new Substitution.AssocSub(
@@ -170,7 +171,8 @@ final class NavProvenance {
         if (navClass == null) {
             return;
         }
-        ClassSource navSrc = sources.get(owner.mappingFqn(), navClass, owner.scope());
+        ClassSource navSrc = sources.navTarget(owner, navClass, navStepOf(owner, head),
+                SyntheticHeads.realHead(head));
         provOut.putIfAbsent(head, new Substitution.AssocSub(
                 outerPrefix + sub.prefix(), sub.rowVar(), sub.bindings(),
                 navClass, Pipelines.slotAliases(navSrc.pipeline()),
@@ -208,15 +210,21 @@ final class NavProvenance {
      * property / association-end type. */
     @com.legend.Nullable String navStepTargetClass(ClassSource owner,
             String head) {
-        TypedSpec b = owner.bindings().get(SyntheticHeads.realHead(head));
-        var steps = Pipelines.navSteps(owner.pipeline());
-        String alias = b == null ? null
-                : InnerDemand.navSlotAlias(b, owner.rowVar(), steps.keySet());
-        TypedNavigate step = alias == null ? null : steps.get(alias);
+        TypedNavigate step = navStepOf(owner, head);
         if (step != null && step.target() instanceof TypedGetAll tg) {
             return tg.classFqn();
         }
         return assocMaterial.hopTargetClass(owner.classFqn(), head);
+    }
+
+    /** The navigate step a head of {@code owner} reads, or null (an
+     * association end, an embedded head). */
+    @com.legend.Nullable TypedNavigate navStepOf(ClassSource owner, String head) {
+        TypedSpec b = owner.bindings().get(SyntheticHeads.realHead(head));
+        var steps = Pipelines.navSteps(owner.pipeline());
+        String alias = b == null ? null
+                : InnerDemand.navSlotAlias(b, owner.rowVar(), steps.keySet());
+        return alias == null ? null : steps.get(alias);
     }
 
 }

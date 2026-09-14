@@ -685,9 +685,9 @@ final class GraphEmission {
                     || temporal.temporalStrategy(ng.classFqn()) != null) {
                 return n;
             }
-            ClassSource t = sources.get(
-                    dispatch.apply(context, ng.classFqn()), ng.classFqn(),
-                    context.constructedScope());
+            ClassSource t = !st.routes().isEmpty()
+                    ? sources.routedUnionSource(cs.mappingFqn(), ng.classFqn(), st.routes(), context.constructedScope())
+                    : sources.get(dispatch.apply(context, ng.classFqn()), ng.classFqn(), context.constructedScope());
             TypedSpec tPipe = Pipelines.widenForCondition(Pipelines.materialize(t.pipeline(), Set.of(), t.classFqn()).pipeline(), st.predicate(), 1);
             Type.RelationType tRow = Type.requireRelationSchema(tPipe.info().type());
             String pVar = st.predicate().parameters().get(0);
@@ -767,7 +767,7 @@ final class GraphEmission {
                     && mNavP.target() instanceof com.legend.compiler.spec
                             .typed.TypedGetAll mtg
                     && sources.binds(cs.mappingFqn(), mtg.classFqn())) {
-                ClassSource tcs = sources.get(cs.mappingFqn(), mtg.classFqn(), cs.scope());
+                ClassSource tcs = sources.navTarget(cs, mtg.classFqn(), mNavP, mma.property());
                 TemporalFrame tf2 = temporal.withSpecs(java.util.Map.of(
                         mma.property(), new TemporalFrame.TemporalSpec(
                                 temporal.normalizeContextDates(mma.dates()),
@@ -1129,10 +1129,11 @@ final class GraphEmission {
                 && Integer.valueOf(1).equals(bm.upper()));
         String setHint = ctx.routedTargetSetOf(cs.mappingFqn(),
                 node.property()).orElse(null);
-        ClassSource child = childClass.equals(rawTarget)
-                ? sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                        setHint, (target, excl) -> dispatch.apply(context, target), key,
-                        cs.scope())
+        ClassSource child = !nav.routes().isEmpty() && childClass.equals(rawTarget)
+                ? sources.navTarget(cs, rawTarget, nav, node.property())   // a routed step's child IS its routed union
+                : childClass.equals(rawTarget)
+                ? sources.get(dispatch.apply(context, rawTarget), rawTarget, setHint,
+                        (target, excl) -> dispatch.apply(context, target), key, cs.scope())
                 : sources.get(cs.mappingFqn(), childClass, setHint,
                         (target, excl) -> dispatch.apply(context, target), key,
                         cs.scope());
@@ -1763,10 +1764,9 @@ final class GraphEmission {
                 + (context.runtimeFqn() == null ? ""
                         : context.runtimeFqn());
         String rawTarget = navGa.classFqn();
-        ClassSource target = sources.get(
-                dispatch.apply(context, rawTarget), rawTarget,
-                (t, excl) -> dispatch.apply(context, t), key,
-                context.constructedScope());
+        ClassSource target = !nav.routes().isEmpty()
+                ? sources.routedUnionSource(src.mappingFqn(), rawTarget, nav.routes(), context.constructedScope())
+                : sources.get(dispatch.apply(context, rawTarget), rawTarget, (t, excl) -> dispatch.apply(context, t), key, context.constructedScope());
         Pipelines.Materialized cMat = Pipelines.materialize(
                 target.pipeline(), Set.of(), rawTarget);
         TypedSpec targetPipeline = temporal.temporalTargetPipe(src, target,
@@ -2568,9 +2568,10 @@ final class GraphEmission {
                     + (context.runtimeFqn() == null ? ""
                             : context.runtimeFqn());
             String rawTarget = ((TypedGetAll) nav.target()).classFqn();
-            target = sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                    (t, excl) -> dispatch.apply(context, t), key,
-                    context.constructedScope());
+            target = !nav.routes().isEmpty()
+                    ? sources.routedUnionSource(cs.mappingFqn(), rawTarget, nav.routes(), context.constructedScope())
+                    : sources.get(dispatch.apply(context, rawTarget), rawTarget,
+                            (t, excl) -> dispatch.apply(context, t), key, context.constructedScope());
             Pipelines.Materialized cMat = Pipelines.materialize(
                     target.pipeline(), Set.of(), rawTarget);
             cond = nav.pairedPredicate().orElse(nav.predicate());

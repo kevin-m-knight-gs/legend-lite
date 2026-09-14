@@ -2514,3 +2514,29 @@ gates (Relation PCT at its floor 469/1). **Measures (§11.0).** M1 3,287 · M2 4
 
 **Next.** Leg 2: the Operation binding, the union function as a concatenate of member calls, the
 stack builder, the lifts, the route-list emitter, the same-table merge, the deletions.
+
+## Legacy routes as composition, leg 1b — the site sweep — 2026-09-14
+
+**Why.** A navigate step that carries routes has as its target the routed union built from those
+routes, not the class. Step 2a made the one lookup (`ClassSources.navTarget`) and re-pointed the
+eleven sites its inventory named; §10 of the design doc counted 30 lines at 24 sites that still
+fetch a step's target by class name. Building the stack on top of a half-swept resolver made every
+lost row ambiguous (builder or site?), so the sweep lands alone first, neutral on main.
+
+**What landed.** Every plain-class fetch of a navigate step's target goes through the one lookup,
+including the materializer's target-resolver callbacks (`AssociationJoins` ×2, `CorrelatedSubselects`,
+`NavExistsMaterial`, `StoreResolver` ×2), the sub-hop and extra-identity sites in `NavMaterializer`,
+the provenance sites (`NavProvenance`, with `navStepOf` beside `navStepTargetClass`), the temporal
+sites (`TemporalFrame` ×4), the graph-fetch sites (`GraphEmission` ×5, a routed step's child through
+its routed union), the exists sites (`DottedExists`, `NavExistsMaterial`), and the flatten pre-hop
+(`StoreResolver`). `ClassSources.stepOf` answers with the OUTERMOST step of an alias (a union's
+lifted navigate above its members' same-named steps). Nothing emits routes on main, so every site
+falls through to the class lookup it used before.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** Gates 2–9 green on the first
+run; gate 1 red twice on the size guardrails alone (a 251-line method, a 3,511-line file — the
+added lines), compacted, green on the third run. **Measures (§11.0).** M1 3,287 · M2 4 · M3 30 ·
+M4 26 — unchanged (resolver side only).
+
+**Next.** Leg 2 resumes on top: the Operation binding, the union function as a concatenate, the
+stack builder, the lifts, the route-list emitter, then the deletions.
