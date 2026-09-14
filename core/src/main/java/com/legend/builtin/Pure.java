@@ -391,6 +391,13 @@ public final class Pure {
         public static final String CAST_AS_DECLARED = PKG + "castAsDeclared";
         public static final String TYPE_AS_DECLARED = PKG + "typeAsDeclared";
         public static final String LEGACY_NAVIGATE = PKG + "legacyNavigate";
+        /** ONE ROUTE of a several-route legacyNavigate (legacy routes as
+         * composition, docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md §5):
+         * {@code route(<target set's function>, <target rows>, {s,t|cond})}
+         * — the target set named by its OWN function (composition, never a
+         * set id), the rows the condition reads, the join as the author
+         * wrote it. Only ever an element of legacyNavigate's route list. */
+        public static final String ROUTE = PKG + "route";
         public static final String LEGACY_ASSOC_PREDICATE = PKG + "legacyAssocPredicate";
         public static final String LEGACY_LOCAL_PROPERTY = PKG + "legacyLocalProperty";
         public static final String OTHERWISE = PKG + "otherwise";
@@ -522,7 +529,7 @@ public final class Pure {
      *  of truth). Pinned shrink-only. */
     public static final java.util.Set<String> INTERNAL_DESUGAR =
             java.util.stream.Stream.of(Lite.CAST_AS_DECLARED,
-                    Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE,
+                    Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE, Lite.ROUTE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
@@ -1321,6 +1328,14 @@ public final class Pure {
     // engine's relational path merges diagonal union routes while its
     // graph executor pairs strictly; TypedNavigate.pairedPredicate).
     public static final NativeFunctionDefinition LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyNavigate<S,C,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], target:meta::pure::metamodel::relation::FuncColSpec<{->C[*]},Z>[1], tgtRows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1], pairedCond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
+    // SEVERAL-ROUTE legacyNavigate (legacy routes as composition): the slot's
+    // declared class rides the colspec thunk; each route carries its target
+    // set's function, its rows and its condition. The checker types every
+    // route on its own row type and mints the union row the condition
+    // reads (NavigateChecker.legacyRoutes); a route call outside the list is
+    // loud. Both are internal plumbing, never user-reachable.
+    public static final NativeFunctionDefinition LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__ANY_MANY = signature("native function meta::legend::lite::legacyNavigate<S,C,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], target:meta::pure::metamodel::relation::FuncColSpec<{->C[*]},Z>[1], routes:meta::pure::metamodel::type::Any[1..*]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
+    public static final NativeFunctionDefinition ROUTE__C_MANY__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::route<S,C,T>(target:C[*], rows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Any[1];");
     // legacyAssocPredicate: row-extraction adapter for AssociationMapping
     // predicate function bodies. The outer function signature is
     // (A[1], B[1]) -> Boolean[1] (matching a clean AssociationMapping

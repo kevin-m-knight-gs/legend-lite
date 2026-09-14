@@ -90,7 +90,11 @@ class NativeCatalogGovernanceTest {
         // the same day deleted both: a routed navigation reads the LINK KEY
         // its target member publishes as a plain column (USER review: no
         // mapping-DSL set ids inside generated Pure). 18 -> 16.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 16,
+        // +1 2026-09-13 (legacy routes as composition, step 1): `route` — one
+        // route of a several-route legacyNavigate (the target set's own
+        // function, its rows, the join as written); the union stops
+        // publishing keys once the emitter switches (step 2). 16 -> 17.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 17,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

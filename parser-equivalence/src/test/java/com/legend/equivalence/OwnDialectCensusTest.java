@@ -69,7 +69,13 @@ class OwnDialectCensusTest {
                     "SQLiteIntegrationTest.java",
                     // D4 variance pins (2026-08-21): the contravariance
                     // spec REQUIRES Function<{...}> parameter signatures
-                    "VarianceD4Test.java");
+                    "VarianceD4Test.java",
+                    // legacy routes as composition, step 1 (2026-09-13,
+                    // REVIEWED): the hand-written function-form mapping
+                    // whose Firm navigates a two-set Person through one
+                    // several-route legacyNavigate — mapping-as-function
+                    // grammar by design (docs/LEGACY_ROUTES_AS_COMPOSITION)
+                    "RoutedNavigateTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -97,6 +103,9 @@ class OwnDialectCensusTest {
                     // the row is extension grammar by definition
                     java.util.Map.entry("ProbeWireShapes.java", 1),
                     java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
+                    // 0 -> 1 (2026-09-13, REVIEWED, composition step 1):
+                    // the routed-navigate witness's one model
+                    java.util.Map.entry("RoutedNavigateTest.java", 1),
                     // 2 -> 3 (2026-08-28, REVIEWED): the lambda-classifier
                     // witness (charter §4V) — the Function<{...}>-typed
                     // variable REJECTED by a FunctionDefinition<Any> formal

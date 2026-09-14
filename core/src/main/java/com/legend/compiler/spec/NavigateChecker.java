@@ -6,7 +6,10 @@ import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNavigate;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.ColSpec;
@@ -42,6 +45,9 @@ final class NavigateChecker {
      */
     static TypedSpec legacy(Typer t, AppliedFunction af, Env env) {
         int arity = af.parameters().size();
+        if (arity == 3) {
+            return legacyRoutes(t, af, env);
+        }
         TypedFunction sig = t.model().findFunction(af.function()).stream()
                 .filter(c -> c.parameters().size() == arity)
                 .findFirst()
@@ -93,6 +99,234 @@ final class NavigateChecker {
         // navigate names its derived table — the TypedJoinSlot precedent)
         return new TypedNavigate(source, Optional.of(cs.name()), thunk.body().get(0),
                 pred, paired, cs.alias(), TypedNavigate.Form.PRE_MAP, out);
+    }
+
+    /**
+     * The SEVERAL-ROUTE legacy navigate (legacy routes as composition,
+     * docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md §5):
+     * {@code legacyNavigate(rel, ~slot: getAll(C), [route(target, rows,
+     * {s,t|cond}), ...])}. Every route is typed on its OWN row type; its
+     * condition's target-side reads become the union-row keys the routed
+     * union projects (ClassSources.routedUnionSource): routes whose
+     * conditions have the same SHAPE (target reads erased, source reads
+     * kept) share key names, so their disjuncts collapse to one equality
+     * the database hashes; different shapes keep their own keys and OR.
+     * The node's predicate is that OR over (source row, union row).
+     */
+    static TypedSpec legacyRoutes(Typer t, AppliedFunction af, Env env) {
+        TypedFunction sig = t.model().findFunction(af.function()).stream()
+                .filter(c -> c.parameters().size() == 3)
+                .findFirst()
+                .orElseThrow(() -> new TypeInferenceException(
+                        "no 3-argument legacyNavigate overload is registered"));
+        TypedFunction routeSig = t.model().findFunction(
+                        com.legend.builtin.Pure.Lite.ROUTE).stream()
+                .filter(c -> c.parameters().size() == 3)
+                .findFirst()
+                .orElseThrow(() -> new TypeInferenceException(
+                        "no route(target, rows, cond) signature is registered"));
+        if (!(af.parameters().get(1) instanceof ColSpec cs)
+                || cs.function1() == null || !cs.function1().parameters().isEmpty()
+                || !(af.parameters().get(2) instanceof com.legend.protocol.spec.PureCollection list)
+                || list.values().isEmpty()) {
+            throw new TypeInferenceException("legacyNavigate expects"
+                    + " (rel, ~alias: Target.all(), [route(target, rows, {s,t|cond}), ...])");
+        }
+        Bindings b = new Bindings();
+        TypedSpec source = t.synth(af.parameters().get(0), env);
+        t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), b);
+        t.kernel().unifyMult(sig.parameters().get(0).multiplicity(),
+                source.info().multiplicity(), source.info().type(), b);
+        Type.RelationType srcRow = Type.requireRelationSchema(source.info().type());
+        Type.GenericType colspecParam = (Type.GenericType) sig.parameters().get(1).type();
+        TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
+                colspecParam.arguments().get(0), b, env);
+        Type target = thunk.functionType().result().type();
+        if (!(target instanceof Type.ClassType)) {
+            throw new TypeInferenceException("legacyNavigate slot must be a class"
+                    + " extent (Class.all()), got " + target.typeName());
+        }
+        // each route on its own row type
+        record Typed(TypedSpec target, TypedSpec rows, TypedLambda cond,
+                List<String> reads, Type.RelationType row, String shape) {}
+        List<Typed> typed = new java.util.ArrayList<>();
+        for (var v : list.values()) {
+            if (!(v instanceof AppliedFunction r)
+                    || !com.legend.builtin.Pure.Lite.ROUTE.equals(r.function())
+                    || r.parameters().size() != 3
+                    || !(r.parameters().get(2) instanceof LambdaFunction condLam)
+                    || condLam.parameters().size() != 2) {
+                throw new TypeInferenceException("legacyNavigate route list: every"
+                        + " element is route(target, rows, {s,t|cond})");
+            }
+            Bindings rb = new Bindings();
+            t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), rb);
+            TypedSpec rTarget = t.synth(r.parameters().get(0), env);
+            if (!(Type.asClassType(rTarget.info().type()) instanceof Type.ClassType)) {
+                throw new TypeInferenceException("route target must be a class extent"
+                        + " (a set's function or Class.all()), got "
+                        + rTarget.info().type().typeName());
+            }
+            TypedSpec rRows = t.synth(r.parameters().get(1), env);
+            t.kernel().unify(routeSig.parameters().get(1).type(), rRows.info().type(), rb);
+            TypedLambda cond = (TypedLambda) t.typeLambda(condLam,
+                    routeSig.parameters().get(2).type(), rb, env);
+            Type.RelationType row = Type.requireRelationSchema(rRows.info().type());
+            List<String> reads = new java.util.ArrayList<>();
+            collectReads(cond.body().get(cond.body().size() - 1),
+                    cond.parameters().get(1), reads);
+            String shape = String.valueOf(eraseReads(cond.body().get(cond.body().size() - 1),
+                    cond.parameters().get(1), cond.parameters().get(0)));
+            typed.add(new Typed(rTarget, rRows, cond, reads, row, shape));
+        }
+        // key names by shape (routes of one shape share their keys)
+        List<String> shapes = new java.util.ArrayList<>();
+        List<Type.Column> keyCols = new java.util.ArrayList<>();
+        List<TypedNavigate.Route> routes = new java.util.ArrayList<>();
+        for (Typed r : typed) {
+            int g = shapes.indexOf(r.shape());
+            if (g < 0) {
+                shapes.add(r.shape());
+                g = shapes.size() - 1;
+                for (int k = 0; k < r.reads().size(); k++) {
+                    keyCols.add(new Type.Column(keyName(g, k),
+                            columnType(r.row(), r.reads().get(k)),
+                            Multiplicity.Bounded.ZERO_ONE));
+                }
+            }
+            List<String> names = new java.util.ArrayList<>();
+            for (int k = 0; k < r.reads().size(); k++) {
+                names.add(keyName(g, k));
+            }
+            routes.add(new TypedNavigate.Route(r.target(), r.rows(), r.cond(), r.reads(), names));
+        }
+        Type.RelationType urow = new Type.RelationType(keyCols);
+        String sParam = typed.get(0).cond().parameters().get(0);
+        var one = Multiplicity.Bounded.ONE;
+        var uInfo = new ExprType(urow, one);
+        var boolOne = new ExprType(Type.Primitive.BOOLEAN, one);
+        TypedFunction orFn = t.model().findFunction("meta::pure::functions::boolean::or")
+                .stream().filter(f -> f.parameters().size() == 2).findFirst()
+                .orElseThrow(() -> new TypeInferenceException("no 2-argument boolean::or"));
+        TypedSpec or = null;
+        java.util.Set<String> done = new java.util.HashSet<>();
+        for (int i = 0; i < typed.size(); i++) {
+            Typed r = typed.get(i);
+            if (!done.add(r.shape())) {
+                continue;   // one disjunct per shape
+            }
+            TypedSpec body = r.cond().body().get(r.cond().body().size() - 1);
+            TypedSpec re = repointReads(body, r.cond().parameters().get(1), "u", uInfo,
+                    r.reads(), routes.get(i).keyNames(), urow);
+            re = renameVar(re, r.cond().parameters().get(0), sParam, new ExprType(srcRow, one));
+            or = or == null ? re : new TypedNativeCall(orFn, List.of(or, re), boolOne, null);
+        }
+        TypedLambda pred = new TypedLambda(List.of(sParam, "u"),
+                List.of(java.util.Objects.requireNonNull(or)),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(srcRow, one), new Type.Param(urow, one)),
+                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+        b.bindType(schemaVar(sig), new Type.RelationType(List.of(
+                new Type.Column(cs.name(), target, one))));
+        ExprType out = t.kernel().resolveOutput(sig.returnType(), sig.returnMultiplicity(), b);
+        return new TypedNavigate(source, Optional.of(cs.name()), thunk.body().get(0),
+                pred, Optional.empty(), cs.alias(), TypedNavigate.Form.PRE_MAP, out, routes);
+    }
+
+    /** A {@code route(...)} outside a legacyNavigate route list. */
+    static TypeInferenceException routeAlone() {
+        return new TypeInferenceException(
+                "route(...) is an element of legacyNavigate's route list, never a value");
+    }
+
+    private static String keyName(int shape, int k) {
+        return "__route" + shape + "_" + k;
+    }
+
+    private static Type columnType(Type.RelationType row, String col) {
+        return row.columns().stream().filter(c -> c.name().equals(col)).findFirst()
+                .map(Type.Column::type)
+                .orElseThrow(() -> new TypeInferenceException("route condition reads '"
+                        + col + "', not a column of the route's rows"));
+    }
+
+    /** The {@code $var.col} reads of {@code n}, in order of appearance. */
+    private static void collectReads(TypedSpec n, String var, List<String> out) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v && v.name().equals(var)) {
+            if (!out.contains(pa.property())) {
+                out.add(pa.property());
+            }
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectReads(c, var, out);
+        }
+    }
+
+    /** The condition's SHAPE: target reads erased to a placeholder, the
+     * source variable normalized — two routes with equal shapes read the
+     * same source columns the same way and may share their keys. */
+    private static TypedSpec eraseReads(TypedSpec n, String tVar, String sVar) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v) {
+            if (v.name().equals(tVar)) {
+                // the placeholder carries the READ's type only: the route's
+                // own row type must not tell two same-shaped routes apart
+                return new TypedPropertyAccess(new TypedVariable("?", pa.info()), "?", pa.info());
+            }
+            if (v.name().equals(sVar)) {
+                return new TypedPropertyAccess(new TypedVariable("s", v.info()), pa.property(), pa.info());
+            }
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> erased = kids.stream().map(c -> eraseReads(c, tVar, sVar)).toList();
+        if (n instanceof TypedNativeCall nc) {
+            // a source position is not part of a shape
+            return new TypedNativeCall(nc.callee(), erased, nc.info(), null);
+        }
+        return n.withChildren(erased);
+    }
+
+    /** {@code $t.col} → {@code $u.<key>} by the route's read positions. */
+    private static TypedSpec repointReads(TypedSpec n, String tVar, String uVar, ExprType uInfo,
+            List<String> reads, List<String> keys, Type.RelationType urow) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v && v.name().equals(tVar)) {
+            int k = reads.indexOf(pa.property());
+            if (k < 0) {
+                throw new IllegalStateException("checker bug: route read '" + pa.property()
+                        + "' was not collected");
+            }
+            String key = keys.get(k);
+            Type kt = urow.columns().stream().filter(c -> c.name().equals(key)).findFirst()
+                    .orElseThrow().type();
+            return new TypedPropertyAccess(new TypedVariable(uVar, uInfo), key,
+                    new ExprType(kt, Multiplicity.Bounded.ZERO_ONE));
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        return n.withChildren(kids.stream()
+                .map(c -> repointReads(c, tVar, uVar, uInfo, reads, keys, urow)).toList());
+    }
+
+    private static TypedSpec renameVar(TypedSpec n, String from, String to, ExprType info) {
+        if (from.equals(to)) {
+            return n;
+        }
+        if (n instanceof TypedVariable v && v.name().equals(from)) {
+            return new TypedVariable(to, info);
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        return n.withChildren(kids.stream().map(c -> renameVar(c, from, to, info)).toList());
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {

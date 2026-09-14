@@ -425,6 +425,9 @@ class JdbcSurfaceCensusTest {
             // clean-sheet B3.2: a chained route's rows are the verdict (the
             // arm carries its mid; the navigator reads one link key)
             "core/src/test/java/com/legend/resolver/RoutedChainKeyTest.java",
+            // legacy routes as composition, step 1: the several-route navigate's
+            // rows are the verdict
+            "core/src/test/java/com/legend/resolver/RoutedNavigateTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionJtcProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionMultiHopProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionOuterDateProbeTest.java",

@@ -95,6 +95,20 @@ final class NavMaterializer {
             List<List<String>> tails,
             @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
+        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, scope, tails,
+                chainPrefix, inherited, parkedPreds, splitChains, null);
+    }
+
+    /** {@code given}: the target source already built for this step — a
+     * SEVERAL-ROUTE navigate's routed union (ClassSources.routedUnionSource,
+     * composed from the navigator's own routes); null resolves the class
+     * through the set-id dispatch as every other step does. */
+    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+            String targetClassFqn, @com.legend.Nullable String scope,
+            List<List<String>> tails,
+            @com.legend.Nullable String chainPrefix, TemporalContext inherited,
+            List<TypedLambda> parkedPreds, Set<String> splitChains,
+            @com.legend.Nullable ClassSource given) {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
         // (possibly rootless) multi-set target resolves through the
         // set-discriminated binding (ClassSources.getForNav).
@@ -104,7 +118,7 @@ final class NavMaterializer {
         // the one extraction; set-id dispatch and the element-scope check
         // (batch 106) both read it
         String headId = prefix.substring(prefix.lastIndexOf('.') + 1);
-        ClassSource t = sources.getForNav(mappingFqn, targetClassFqn, headId, scope);
+        ClassSource t = given != null ? given : sources.getForNav(mappingFqn, targetClassFqn, headId, scope);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
         // (engine: one context object per cursor, explicit dates override
@@ -663,13 +677,19 @@ final class NavMaterializer {
             TemporalContext hopCtx) {
 
             String midProp = midByAlias.get(alias);
+            com.legend.compiler.spec.typed.TypedNavigate step =
+                    Pipelines.navSteps(t.pipeline()).get(alias);
+            ClassSource routed = step != null && !step.routes().isEmpty()
+                    ? sources.routedUnionSource(mappingFqn, cls, step.routes(), t.scope())
+                    : null;
             NavMat subMat = navTargetMaterialized(temporal, mappingFqn, cls, t.scope(),
                     subTails.getOrDefault(alias, List.of()),
                     chainPrefix == null ? null
                             : chainPrefix + "." + midProp,
                     hopCtx,
                     midProp == null ? List.of()
-                            : synthetics.allPreds(midProp));
+                            : synthetics.allPreds(midProp),
+                    Set.of(), routed);
             subMats.put(alias, subMat);
             subClsByAlias.put(alias, cls);
             TypedSpec sub = subMat.pipeline();

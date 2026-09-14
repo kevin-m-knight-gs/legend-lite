@@ -290,6 +290,14 @@ class TypedSpecChildrenTest {
         if (type == com.legend.compiler.spec.typed.ExecutionContext.class) {
             return com.legend.compiler.spec.typed.ExecutionContext.NONE;
         }
+        if (type == com.legend.compiler.spec.typed.TypedNavigate.Route.class) {
+            // legacy routes as composition: a route's target, rows and
+            // condition are expression children (children() carries them)
+            return new com.legend.compiler.spec.typed.TypedNavigate.Route(leaf(), leaf(),
+                    (com.legend.compiler.spec.typed.TypedLambda) dummy(
+                            com.legend.compiler.spec.typed.TypedLambda.class, null),
+                    List.of("COL"), List.of("__route0_0"));
+        }
         if (type == com.legend.protocol.SourceInfo.class) {
             // the span component (TypedNativeCall.pos — Phase 4)
             return new com.legend.protocol.SourceInfo("test.pure", 1, 1, 1, 2);

@@ -1544,6 +1544,15 @@ public final class StoreResolver {
     }
 
 
+    /** A several-route navigate's target is its ROUTED UNION (legacy
+     * routes as composition), built from the step's own routes; null lets
+     * the materialization resolve the class as every other step does. */
+    private @com.legend.Nullable ClassSource routedTarget(ClassSource cs,
+            com.legend.compiler.spec.typed.TypedNavigate nav, String targetClass) {
+        return nav.routes().isEmpty() ? null
+                : sources.routedUnionSource(cs.mappingFqn(), targetClass, nav.routes(), cs.scope());
+    }
+
     private NavPlan registerNavigations(ClassSource cs,
             Set<List<String>> paths, Set<String> splitChains) {
         // Slot demand (heads whose bindings read join slots).
@@ -1728,7 +1737,7 @@ public final class StoreResolver {
                     navTails.getOrDefault(alias, List.of()),
                     navHeadByAlias.getOrDefault(alias, alias),
                     TemporalContext.NONE,
-                    synthetics.allPreds(bareKey0), splitChains));
+                    synthetics.allPreds(bareKey0), splitChains, routedTarget(cs, nav, targetClass)));
             // a LIFTED head's predicate applies INSIDE the join target
             // (engine: the chain filter parks on the navigation's join-tree
             // node); the composite right side carries its own filters, so
@@ -1741,7 +1750,7 @@ public final class StoreResolver {
                     liftedHead.lastIndexOf('.') + 1);
             if (synthetics.hasPred(predKey)
                     && synthetics.correlatedPred(predKey) == null) {
-                ClassSource target = sources.getForNav(cs.mappingFqn(), targetClass, navHeadByAlias.getOrDefault(alias, alias), cs.scope());
+                ClassSource target = sources.navTarget(cs.mappingFqn(), targetClass, nav, navHeadByAlias.getOrDefault(alias, alias), cs.scope());
                 var mat = java.util.Objects.requireNonNull(
                         navMats.get(alias));
                 navMats.put(alias, new NavMaterializer.NavMat(
@@ -1762,7 +1771,7 @@ public final class StoreResolver {
                     navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
-            ClassSource target = sources.getForNav(cs.mappingFqn(), targetClass, navHeadByAlias.getOrDefault(alias, alias), cs.scope());
+            ClassSource target = sources.navTarget(cs.mappingFqn(), targetClass, nav, navHeadByAlias.getOrDefault(alias, alias), cs.scope());
             // SUB-navigation material: for each 3-hop tail, the mid
             // property's minted sub-alias, its materialized prefix, and the
             // SUB-TARGET's binding table (leaves resolve through it —

@@ -338,6 +338,185 @@ public final class ClassSources {
                 rowVar, bindings, rowType);
     }
 
+    /**
+     * THE ROUTED UNION SOURCE (legacy routes as composition, docs/LEGACY_
+     * ROUTES_AS_COMPOSITION_2026_09_13.md §5): the target of a several-route
+     * navigate, built from the routes the NAVIGATOR wrote — one arm per
+     * route over that route's target set (its own function, resolved under
+     * this mapping), each arm projecting the class's scalar properties by
+     * the set's bindings plus the union-row keys: its own route's target
+     * reads under the route's key names, a typed NULL for every other key.
+     * The union never learned who navigates to it; the navigator composed
+     * it. Same shape as {@link #mixedUnionSource}, keys from the routes.
+     */
+    ClassSource routedUnionSource(String mappingFqn, String classFqn,
+            List<com.legend.compiler.spec.typed.TypedNavigate.Route> routes,
+            @com.legend.Nullable String scope) {
+        // one source per (navigate step's routes, mapping, scope): every
+        // lookup for the step — materialization, substitution, predicates —
+        // reads the same bindings
+        String memoKey = mappingFqn + '\u0000' + classFqn + (scope == null ? "" : "\u0000scope=" + scope);
+        Map<String, ClassSource> perRoutes = routedSources.computeIfAbsent(routes,
+                k -> new LinkedHashMap<>());
+        ClassSource memo = perRoutes.get(memoKey);
+        if (memo != null) {
+            return memo;
+        }
+        ClassSource built = buildRoutedUnionSource(mappingFqn, classFqn, routes, scope);
+        perRoutes.put(memoKey, built);
+        return built;
+    }
+
+    private final java.util.IdentityHashMap<List<com.legend.compiler.spec.typed.TypedNavigate.Route>,
+            Map<String, ClassSource>> routedSources = new java.util.IdentityHashMap<>();
+
+    /** The navigate step's target: its routed union when it carries
+     * routes, else the class through the set-id dispatch. */
+    ClassSource navTarget(String mappingFqn, String classFqn,
+            com.legend.compiler.spec.typed.TypedNavigate step, String head,
+            @com.legend.Nullable String scope) {
+        return step.routes().isEmpty()
+                ? getForNav(mappingFqn, classFqn, head, scope)
+                : routedUnionSource(mappingFqn, classFqn, step.routes(), scope);
+    }
+
+    private ClassSource buildRoutedUnionSource(String mappingFqn, String classFqn,
+            List<com.legend.compiler.spec.typed.TypedNavigate.Route> routes,
+            @com.legend.Nullable String scope) {
+        var cls = ctx.findClass(classFqn).orElseThrow(() ->
+                new IllegalStateException("resolver bug: routed navigate class '"
+                        + classFqn + "' unknown to the model"));
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var optional = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
+        var many = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY;
+        List<Type.Column> cols = new ArrayList<>();
+        for (var p : cls.properties()) {
+            if (!(Type.asClassType(p.type()) instanceof Type.ClassType)) {
+                cols.add(new Type.Column(p.name(), p.type(), p.multiplicity()));
+            }
+        }
+        // the union-row keys, in route order, once per name
+        List<Type.Column> keyCols = new ArrayList<>();
+        java.util.Set<String> seenKeys = new LinkedHashSet<>();
+        List<ClassSource> members = new ArrayList<>();
+        for (var r : routes) {
+            ClassSource m = routeTarget(mappingFqn, classFqn, r.target(), scope);
+            members.add(m);
+        }
+        for (int i = 0; i < routes.size(); i++) {
+            var r = routes.get(i);
+            Type.RelationType mRow = Type.requireRelationSchema(
+                    Pipelines.materialize(members.get(i).pipeline(), java.util.Set.of(), classFqn)
+                            .pipeline().info().type());
+            for (int k = 0; k < r.keyNames().size(); k++) {
+                String read = r.targetReads().get(k);
+                if (seenKeys.add(r.keyNames().get(k))) {
+                    Type.Column c = mRow.columns().stream()
+                            .filter(x -> x.name().equals(read))
+                            .findFirst().orElseThrow(() -> new MappingResolutionException(
+                                    "route condition reads '" + read
+                                    + "', which the target set's rows do not carry"
+                                    + " (class '" + classFqn + "', mapping '" + mappingFqn + "')",
+                                    classFqn));
+                    keyCols.add(new Type.Column(r.keyNames().get(k), c.type(), optional));
+                }
+            }
+        }
+        List<Type.Column> allCols = new ArrayList<>(cols);
+        allCols.addAll(keyCols);
+        Type.RelationType rowType = new Type.RelationType(allCols);
+        TypedSpec union = null;
+        for (int i = 0; i < routes.size(); i++) {
+            ClassSource m = members.get(i);
+            var r = routes.get(i);
+            TypedSpec pipe = Pipelines.materialize(m.pipeline(), java.util.Set.of(), classFqn)
+                    .pipeline();
+            Type.RelationType mRow = Type.requireRelationSchema(pipe.info().type());
+            var mInfo = new ExprType(mRow, one);
+            List<com.legend.compiler.spec.typed.TypedFuncCol> pcols = new ArrayList<>();
+            for (Type.Column c : cols) {
+                TypedSpec bnd = m.bindings().get(c.name());
+                TypedSpec v = bnd != null ? bnd
+                        : new TypedCollection(List.of(), new ExprType(c.type(), optional));
+                pcols.add(mixedCol(c.name(), v, mRow, m.rowVar()));
+            }
+            for (Type.Column kc : keyCols) {
+                int k = r.keyNames().indexOf(kc.name());
+                TypedSpec v = k >= 0
+                        ? new TypedPropertyAccess(new TypedVariable(m.rowVar(), mInfo),
+                                r.targetReads().get(k), new ExprType(kc.type(), optional))
+                        : new TypedCollection(List.of(), new ExprType(kc.type(), optional));
+                pcols.add(mixedCol(kc.name(), v, mRow, m.rowVar()));
+            }
+            TypedSpec arm = new com.legend.compiler.spec.typed.TypedProject(
+                    pipe, pcols, new ExprType(Type.relation(rowType), many));
+            union = union == null ? arm
+                    : new com.legend.compiler.spec.typed.TypedConcatenate(
+                            union, arm, new ExprType(Type.relation(rowType), many));
+        }
+        ExprType rowInfo = new ExprType(rowType, one);
+        String rowVar = "u_row";
+        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
+        for (Type.Column c : cols) {
+            bindings.put(c.name(), new TypedPropertyAccess(
+                    new TypedVariable(rowVar, rowInfo), c.name(),
+                    new ExprType(c.type(), c.multiplicity())));
+        }
+        return new ClassSource(mappingFqn, classFqn, ClassSource.UNION_SET_ID,
+                java.util.Objects.requireNonNull(union, "routed navigate with no routes"),
+                rowVar, bindings, rowType);
+    }
+
+    /** A route's target: the set's own FUNCTION (a user call — the binding
+     * whose realizing function it is, under this mapping's closure), or a
+     * class extent (class-level dispatch). */
+    private ClassSource routeTarget(String mappingFqn, String classFqn, TypedSpec target,
+            @com.legend.Nullable String scope) {
+        if (target instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
+                    new MappingResolutionException("unknown mapping '" + mappingFqn + "'",
+                            mappingFqn));
+            MappingDefinition.ClassBinding cb = findBindingByFunction(mapping,
+                    uc.callee().qualifiedName(), new LinkedHashSet<>());
+            if (cb == null) {
+                throw new MappingResolutionException("route target '"
+                        + uc.callee().qualifiedName() + "' is not a set's function in"
+                        + " mapping '" + mappingFqn + "' or its includes", classFqn);
+            }
+            return get(mappingFqn, cb.classFqn(), cb.setId(), null, "", scope);
+        }
+        if (target instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
+            return get(mappingFqn, ga.classFqn(), scope);
+        }
+        throw new NotImplementedException("route target must be a set's function or a"
+                + " class extent, got " + target.getClass().getSimpleName());
+    }
+
+    /** The binding realized by {@code functionFqn}: this mapping's own, else
+     * an include's, depth-first. */
+    private MappingDefinition.@com.legend.Nullable ClassBinding findBindingByFunction(
+            MappingDefinition mapping, String functionFqn, java.util.Set<String> seen) {
+        if (!seen.add(mapping.qualifiedName())) {
+            return null;
+        }
+        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
+            if (functionFqn.equals(cb.functionFqn())) {
+                return cb;
+            }
+        }
+        for (MappingInclude inc : mapping.includes()) {
+            MappingDefinition included = ctx.findMapping(inc.mappingPath()).orElse(null);
+            if (included == null) {
+                continue;
+            }
+            MappingDefinition.ClassBinding found = findBindingByFunction(included, functionFqn, seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     /** ARM ORDER = the engine's cross-store BATCH order: the relational
      * store's members first (declaration order within), the in-memory
      * (Pure) members after — both XStoreUnion fixture declaration orders

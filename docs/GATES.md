@@ -2395,3 +2395,62 @@ pin move; G1–G7, G9 on the first run).
 **CI.** GREEN on 421063da7, every job on the first run. **Audit.** docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_
 2026_09_13.md §6 "B3 ARC AUDIT": deleted as promised, kept by receipts, six deferrals — the re-synthesis
 block (three R6 special cases) is the one to fix before B4 (B3.4).
+
+## Legacy routes as composition, step 1 — the primitive — 2026-09-13
+
+**Why.** The B3 arc audit's biggest deferral: the include re-synthesis block did not die, it
+grew (three special cases of "every navigation resolves in the queried mapping", each found by a
+row, plus a fourth the probe found). The root cause, settled with the USER 2026-09-13: a union
+LEARNS who navigates to it — it scans the mapping for routes into its members and publishes a key
+named after each navigator — so an included union must be regenerated for every mapping that adds
+a navigator. Same disease B3.1b cured on the navigator's side, in the other direction. The design
+(docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md, the full worked example): the navigator composes
+the target set's own function per route through `legacyNavigate`, the join written as the author
+wrote it; the union is a plain stack; an include is a call. Two decisions taken by the USER: the
+several routes ride a ROUTE LIST; a union's composing function binds as `Operation { f }`.
+
+**What landed — the primitive alone; nothing emitted yet.**
+- `Pure.Lite.ROUTE` — `route(<target set's function>, <target rows>, {s,t|cond})` — and the
+  three-argument `legacyNavigate(rel, ~slot: getAll(C), [route(...), ...])` overload. Internal
+  plumbing like every lite native; a `route` outside the list is loud (`Typer` → `routeAlone`).
+- `NavigateChecker.legacyRoutes`: every route typed on its OWN row type (the route's rows bind
+  `T`, the source binds `S`); the condition's target-side reads become union-row keys
+  `__route<shape>_<k>` — routes whose conditions have the same SHAPE (target reads erased,
+  source reads kept, source positions ignored) share their keys, so their disjuncts collapse to
+  ONE equality the database hashes; different shapes keep their own keys and OR. The node's
+  predicate is that OR over (source row, union row); `TypedNavigate.routes` carries the routes.
+- `ClassSources.routedUnionSource`: the routed union built FROM THE ROUTES — one arm per route
+  over the set its FUNCTION names (`findBindingByFunction`, own bindings then includes: the
+  ordinary function reference a hand author writes, resolved under the queried mapping), each arm
+  projecting the class's scalar properties by the set's bindings plus the keys (own route's reads,
+  typed NULL for the others). Memoized per step so materialization, substitution and predicates
+  read ONE source (`navTarget`). The root navigation (`StoreResolver.routedTarget`) and the
+  sub-hop resolver (`NavMaterializer.subPipeFor`) hand it to the unchanged navigate walk through
+  a `given` target on `navTargetMaterialized`.
+- The union publishes nothing here: the navigator composed everything from its own text and the
+  target sets' functions.
+
+**Witness.** `RoutedNavigateTest`, a hand-written function-form mapping: two Person sets as
+named functions, Firm's `employees` as one `legacyNavigate` with two `route(...)`s. Same-shape
+routes: rows `1|A 1|D 2|B 2|C`, one keyed union join, one equality, no OR. Different shapes
+(`&& $r.KIND == 'x'` on the second): their own keys, an OR of two, `D` excluded.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED) — the node is neutral until the emitter
+switches (step 2). **Pins (first chain RED on G1 and G8).** INTERNAL_DESUGAR 16 → 17 (`route`, reason in the test);
+claims ledger regenerated; the witness registered in the JDBC census; three size limits met by
+one-line tightenings and a `routedTarget` helper. G1: `TypedSpecChildrenTest` needs a dummy rule
+for the new `TypedNavigate.Route` component — added, and the routes' target, rows and condition
+are now `children()` (callee collection and walks see them; `withChildren` rebuilds them). G8:
+the witness is a function-form mapping by design — declared as an extension-test host
+(`OwnDialectCensusTest`, pin 1) and the leniency ledger's `LITE-DESIGN-mapping-as-function`
+20 → 21 (`OwnCorpusConformanceTest`), both reviewed. Test-only pin moves plus one traversal
+change in main code: G1 and G8 re-run, both corpus lanes re-run; G2–G7, G9 green on the first run. **Sizes.** NavigateChecker +~150; ClassSources +~150;
+TypedNavigate +Route; NavMaterializer/StoreResolver a handful of lines. **Chain.** Green (G1 4408/0 and G8 on the re-run after the pin moves; G2–G7, G9 on the first
+run; both corpus lanes EXACT on the re-run).
+
+**Next (step 2).** The emitter switches: routed navigations emit route lists; union functions
+become plain stacks of member functions, each member carrying its own navigations; then the key
+publication and scan, identity and shape rules, chains and lifts, the include re-synthesis block,
+the drop rule and the resolver's key widening are deleted. Judges: the census's 275 routed
+navigations across 87 mappings (206 into unions, 77 chained); a witness for the mixed (`Pure` /
+`~func`) member case the corpus lacks.

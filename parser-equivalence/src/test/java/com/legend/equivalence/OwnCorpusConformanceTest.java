@@ -244,7 +244,9 @@ class OwnCorpusConformanceTest {
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
-                Map.entry("LITE-DESIGN-mapping-as-function", 20),
+                // 20 -> 21 (2026-09-13, REVIEWED, composition step 1): the
+                // routed-navigate witness is a function-form mapping by design
+                Map.entry("LITE-DESIGN-mapping-as-function", 21),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
                 Map.entry("PURE-DIALECT-diagram", 1),
                 Map.entry("PURE-DIALECT-signatures", 16),

@@ -46,7 +46,35 @@ import java.util.Optional;
  */
 public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
                             TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
-                            @com.legend.Nullable String frameName, Form form, ExprType info) implements TypedSpec {
+                            @com.legend.Nullable String frameName, Form form, ExprType info,
+                            List<Route> routes) implements TypedSpec {
+
+    /** ONE ROUTE of a several-route legacy navigate (legacy routes as
+     * composition): the target set as its own function ({@code target}: a
+     * user call, or a class extent), the rows the author's condition reads,
+     * the condition as written over (source row, target row), the target
+     * columns that condition reads (in order) and the union-row key names
+     * they project under — minted by the checker, shared by routes of one
+     * shape. The node's {@link #predicate} is the OR of the routes'
+     * conditions re-pointed at the union row; the resolver builds that
+     * union from the routes ({@code ClassSources.routedUnionSource}). */
+    public record Route(TypedSpec target, TypedSpec rows, TypedLambda cond,
+                        List<String> targetReads, List<String> keyNames) {
+        public Route {
+            targetReads = List.copyOf(targetReads);
+            keyNames = List.copyOf(keyNames);
+        }
+    }
+
+    public TypedNavigate {
+        routes = List.copyOf(routes);
+    }
+
+    public TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
+                         TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
+                         @com.legend.Nullable String frameName, Form form, ExprType info) {
+        this(source, alias, target, predicate, pairedPredicate, frameName, form, info, List.of());
+    }
 
     /** frameName: the target's derived-table identity (a VIEW-backed
      * navigate's view name; the ColSpec alias-metadata channel, exactly
@@ -71,32 +99,42 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
 
     @Override
     public List<TypedSpec> children() {
-        List<TypedSpec> base = form == Form.INLINE
+        List<TypedSpec> out = new java.util.ArrayList<>(form == Form.INLINE
                 ? List.of(source, predicate)
-                : List.of(source, target, predicate);
-        if (pairedPredicate.isEmpty()) {
-            return base;
+                : List.of(source, target, predicate));
+        pairedPredicate.ifPresent(out::add);
+        // every route's target (a set's function call), rows and condition
+        // are expression children: callee collection and walks see them
+        for (Route r : routes) {
+            out.add(r.target());
+            out.add(r.rows());
+            out.add(r.cond());
         }
-        List<TypedSpec> out = new java.util.ArrayList<>(base);
-        out.add(pairedPredicate.get());
         return out;
     }
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         int base = form == Form.INLINE ? 2 : 3;
-        TypedSpec.expectChildren(kids,
-                base + (pairedPredicate.isPresent() ? 1 : 0), "TypedNavigate");
+        int paired = pairedPredicate.isPresent() ? 1 : 0;
+        TypedSpec.expectChildren(kids, base + paired + 3 * routes.size(), "TypedNavigate");
         TypedSpec tgt = form == Form.INLINE ? target : kids.get(1);
         TypedLambda pred = (TypedLambda) kids.get(form == Form.INLINE ? 1 : 2);
-        java.util.Optional<TypedLambda> paired = pairedPredicate.isPresent()
+        java.util.Optional<TypedLambda> pairedPred = pairedPredicate.isPresent()
                 ? java.util.Optional.of((TypedLambda) kids.get(base))
                 : java.util.Optional.empty();
-        return new TypedNavigate(kids.get(0), alias, tgt, pred, paired,
-                frameName, form, info);
+        List<Route> rs = new java.util.ArrayList<>(routes.size());
+        for (int i = 0; i < routes.size(); i++) {
+            int at = base + paired + 3 * i;
+            Route r = routes.get(i);
+            rs.add(new Route(kids.get(at), kids.get(at + 1), (TypedLambda) kids.get(at + 2),
+                    r.targetReads(), r.keyNames()));
+        }
+        return new TypedNavigate(kids.get(0), alias, tgt, pred, pairedPred,
+                frameName, form, info, rs);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedNavigate(source, alias, target, predicate, pairedPredicate, frameName, form, info);
+        return new TypedNavigate(source, alias, target, predicate, pairedPredicate, frameName, form, info, routes);
     }
 }

@@ -393,7 +393,22 @@ The reasoning as it was put:
    engine's `Operation { f }`. The legacy DSL's `Operation` kind is real (35 uses in the
    engine's `testUnion.pure`); the clean-sheet doc owes one line either way.
 
-**Then** one decided batch: the several-route `legacyNavigate` overload and its typing, the
+**Step 1 LANDED 2026-09-13** (the primitive alone, nothing emitted): `Pure.Lite.ROUTE` and the
+3-argument `legacyNavigate` overload; `NavigateChecker.legacyRoutes` types each route on its own
+rows, mints union-row keys `__route<shape>_<k>` (routes of one shape — target reads erased, source
+reads kept, positions ignored — share keys, so their disjuncts collapse to one equality; different
+shapes keep their own and OR), and builds the node's predicate over (source row, union row);
+`TypedNavigate.routes` carries the routes; `ClassSources.routedUnionSource` builds the routed
+union (one arm per route over the set its FUNCTION names, resolved under the queried mapping via
+`findBindingByFunction`; the class's scalar properties by the set's bindings, the keys own-read or
+typed NULL), memoized per step so materialization, substitution and predicates read one source;
+the root navigation and the sub-hop resolver hand it to the unchanged navigate walk. Witness
+`RoutedNavigateTest`: a hand-written function-form mapping (two Person sets as named functions,
+Firm's `employees` as one `legacyNavigate` with two `route(...)`s); same-shape routes → rows
+`1|A 1|D 2|B 2|C`, one keyed union join, one equality, no OR; different shapes → their own keys,
+an OR of two. Corpus 108 / 444 EXACT (neutral). INTERNAL_DESUGAR 16 → 17.
+
+**Then** step 2, one decided batch: the several-route `legacyNavigate` overload and its typing, the
 per-route set pin, the emitter change (one step per property, routes as written), the union
 driver reduced to a stack, the deletions above; 0 LOST on both lanes; chain; record.
 
