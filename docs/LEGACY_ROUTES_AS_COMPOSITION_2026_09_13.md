@@ -412,6 +412,118 @@ an OR of two. Corpus 108 / 444 EXACT (neutral). INTERNAL_DESUGAR 16 → 17.
 per-route set pin, the emitter change (one step per property, routes as written), the union
 driver reduced to a stack, the deletions above; 0 LOST on both lanes; chain; record.
 
+## 8. The resolver side, end to end (inventory 2026-09-13, after step 1)
+
+Step 1 was designed against one resolver path and the emitter switch immediately hit eight
+more. This section is the plan that was missing, written from an inventory (grep, not memory).
+Nothing below is built; the working tree is at step 1.
+
+### 8.1 What the resolver does with a navigate step today
+
+A navigate step is `TypedNavigate(source, alias, target = getAll(C), predicate over (source row,
+target rows))`. The resolver never asks the STEP for its target; it asks for the CLASS at a HEAD
+STRING, and the head string is looked up in two stamped facts:
+
+- `ClassSources.getForNav(mapping, class, head, scope)` → `ctx.routedTargetSetOf(mapping, head)`
+  (the facts `routedTargetSets` from `SetDispatch` and `routedSets` from `MappingFacts`: property →
+  the sole set id its routes name) → `get(mapping, class, setId)` → the set's binding, else the
+  class's root binding (a union's function). Graph fetch does the same through a set hint
+  (`GraphEmission:1130`).
+- The union's FUNCTION is what a union target resolves to, and its body publishes the keys the
+  navigator's predicate reads. So the resolver WIDENS union bodies for the keys a predicate
+  demands: `widenConcatenateForKeys` (15 uses in 6 files), `widenForCondition` (13 uses in 6
+  files), `widenUnionMember`; and it walks the `UNION_SCAN` marker (10 uses) that names a merged
+  same-table scan as a union body.
+- Three union builders exist on the query side: the normalizer's union function (threads with
+  keys), `UnionHeads` (concatenated navigation chains: branches aligned by key, OR-joined), and
+  `ClassSources.mixedUnionSource` (a union with a `Pure` member: arms built in the resolver from
+  the `mixedUnionMembers` and `linkKeys` facts, `linkKeyOnArm`).
+
+The eleven target-fetch sites (each holds the step, or its source and the alias):
+
+| file | line | site | has the step? |
+|---|---|---|---|
+| StoreResolver | 1736 | root navigation (`navMats`) | yes (`nav`) |
+| StoreResolver | 1772 | root substitution material | yes |
+| StoreResolver | 2275 | extra identity join | yes (`navSteps.get(alias)`) |
+| StoreResolver | 2521 | correlated nav heads | yes |
+| NavMaterializer | 121 | inside `navTargetMaterialized` (`getForNav`) | no — the callers do |
+| NavMaterializer | 483 | element reroutes | yes (`tNavSteps.get(alias)`) |
+| NavMaterializer | 685 | sub-hop (`subPipeFor`) | source + alias |
+| NavMaterializer | 944 | extra sub identities | yes (`step`) |
+| NavExistsMaterial | 100 | exists material | source + head |
+| ChainedExists | 67, 76 | chained exists (mid, leaf) | yes (`midNav`, `leafNav`) |
+| AssociationJoins | 944 | deeper tails under an association | source + alias |
+| UnionHeads | 287 | concatenated navigation branch | yes (`nav`) |
+| NavProvenance | 102 | provenance through a head | source + alias |
+
+Eleven `new TypedNavigate(...)` rebuild sites (5 in `NavigateChecker`, `SlotOrder:125`,
+`NavProvenance:69`, `Pipelines:1188`, `StoreResolver:548/676/681`) use the 8-argument form and
+DROP `routes` — a latent step-1 hazard the moment routes are emitted.
+
+Facts the resolver reads about unions and routes, and their consumers:
+`routedTargetSetOf` (ClassSources, GraphEmission) · `unionMemberClasses` (AssociationJoins,
+ElementReferences — membership for casts) · `routedTargetClass` (ElementReferences — cast by
+route) · `linkKeys` and `mixedUnionMembers` (ClassSources — the mixed-union arms) ·
+`unionKeyThreads` (ImportDataFlow — the union's own primary-key threads for the execute option) ·
+`mappingPoison` (loud messages).
+
+### 8.2 The target of a step is the step's own answer
+
+ONE lookup: `ClassSources.navTarget(ClassSource source, TypedNavigate step)` — mapping and scope
+from the source; a step with routes → `routedUnionSource(routes)` (step 1's builder, memoized per
+step); a step without → the class through the existing dispatch. `navTargetMaterialized` takes the
+resolved TARGET SOURCE from its caller instead of (class, head); the `given` parameter of step 1 is
+that, made the only path. Every site in the table passes the step it holds, or looks it up in its
+source pipeline by alias (`Pipelines.navSteps`). No site does its own routing; no head string
+reaches `ClassSources`. The eleven rebuild sites use `withChildren` or the 9-argument form, so a
+rebuilt step keeps its routes (a `TypedSpecChildrenTest`-style pin: no 8-argument construction of
+a node that has routes).
+
+### 8.3 What dies on the query side, and what stays
+
+| machinery | after composition | why |
+|---|---|---|
+| set-pin facts `routedTargetSets`, `routedSets`, `routedTargetSetOf` | DIE | a routed step names its sets' functions; a single pinned route is a route list of one |
+| union-key widening: `widenConcatenateForKeys`, `widenUnionMember`, `widenForCondition` and their consumers | DIE | the routed source projects its own keys; the union function has none |
+| `UNION_SCAN` marker, `isUnionScan` walks | STAY while the merged same-table scan stays (an optimization of the union function, not navigator knowledge); revisit in B6 | |
+| `mixedUnionSource`, `mixedMemberRoutes`, `linkKeyOnArm`, facts `mixedUnions`, `linkKeys` | DIE | a mixed union is a stack of member functions like any other; the navigator composes them (no corpus judge — a witness) |
+| `UnionHeads` | STAYS in step 2; unify with `routedUnionSource` in B6 | same alignment, different trigger (a concatenate of chains, not routes) |
+| `unionKeyThreads` + ImportDataFlow | STAY | the union's OWN identity threads, not navigator knowledge |
+| `unionMemberClasses`, `routedTargetClass` (casts) | STAY | facts about the mapping text (membership), not about who navigates |
+| `CastReRoot` `__pk` string read | B6 | typed key fact |
+
+### 8.4 Order of steps (each: compile, witness, both lanes 0 LOST, chain, record)
+
+- **2a — the resolver first, nothing emitted.** `navTarget(source, step)`; the eleven sites
+  re-pointed as a SIGNATURE change; `navTargetMaterialized(targetSource, ...)`; `given` gone;
+  the rebuild sites carry routes; `RoutedNavigateTest` gains cases that go through the exists,
+  chained-exists and association paths. Corpus neutral by construction.
+- **2b — the normalizer emits.** Every set gets a function and a binding (union members too:
+  drop the member exclusion in the driver, `SynthFqn.mappingClassSet`); routed navigations emit
+  route lists (single hop and shared-prefix last hop at the navigator's landing; a per-arm chain's
+  mids joined INSIDE the route — the checker learns nested reads `$t.mid.col` and the routed source
+  re-roots the route's rows onto the member's pipeline); pinned single routes become route lists
+  of one, so the set-pin facts stop being consulted. Judges: the census's 275 routed navigations.
+- **2c — the union is a stack.** The union function becomes the members' functions concatenated;
+  threads, published keys, lifts, inbound chains gone; each member's function carries its own
+  navigations. Judges: every union family; the metamodel mapping.
+- **2d — deletions.** Normalizer: `publishLinkKeys`, `collectInboundRouteKeys`,
+  `navigatingIdentity`/`routeSignature`/`routeShapes`/`linkKeyName`, `inboundArmSteps`/`LiftChain`/
+  `chainsSink`, the include re-synthesis block and its three criteria, `classTypedButUnmapped`, the
+  facts `linkKeys`/`mixedUnions`/`routedSets`/`routedTargetSets`. Resolver: §8.3's DIE rows. Tests
+  re-pointed to the routed spelling (`UnionTargetLeanJoinTest`, `ResolveUnionTest`,
+  `RoutedChainKeyTest`, `ResolveUnionChainTest`).
+- **2e (B6).** `UnionHeads` onto the routed builder; `CastReRoot`'s typed key; the `UNION_SCAN`
+  decision.
+
+### 8.5 Known unknowns, measured at the step that reaches them
+
+Per-arm chains' nested reads (19 in the census); same-table inheritance targets (N arms over one
+table versus today's merged scan — rows equal, SQL heavier; keep `sameTableInheritanceMerge` as an
+emitter optimization until measured); store substitution under includes (the includer carries its
+own copies — confirm the copies exist before routes name functions); the mixed-member witness.
+
 **Related.** `docs/MAPPING_CLEAN_SHEET.md` (§2, §3, §4.2, Layer 5, E6);
 `docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md` §6 (B3.1b design, B3.2 receipts, the
 B3 arc audit's deferrals 1, 4, 5 — all closed by this design).
