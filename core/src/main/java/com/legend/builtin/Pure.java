@@ -424,13 +424,6 @@ public final class Pure {
          * toOne is CHECKED (raises on size != 1, pure's semantics);
          * this spelling is how the lowering tells them apart. */
         public static final String TRUST_ONE = PKG + "trustOne";
-        /** THE UNION-SCAN MARKER (2026-09-02): a union whose members are
-         * filtered sets over ONE table synthesizes as ONE scan (no
-         * concatenate) — this identity wrap is the structural fact "this
-         * relation is a union body" the resolver reads (member-key
-         * widening, nested-slot demands) instead of the concatenate shape
-         * that no longer exists. Lowering is erasure. */
-        public static final String UNION_SCAN = PKG + "unionScan";
         /** ASOR store-object-reference readers (batch 72b): the pk value
          *  at position i of a reference (typed by the resolver as the pk
          *  column's type), and the engine's decode-to-pkMap JSON over a
@@ -532,7 +525,7 @@ public final class Pure {
                     Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE, Lite.ROUTE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE)
@@ -892,9 +885,6 @@ public final class Pure {
      * checked semantics belong to USER toOne alone. */
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
 
-    /** The union-scan marker (see {@link Lite#UNION_SCAN}): identity on
-     * the relation, a structural fact for the resolver. */
-    public static final NativeFunctionDefinition UNION_SCAN__RELATION_1 = signature("native function meta::legend::lite::unionScan<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AND__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::and(first:meta::pure::metamodel::type::Boolean[1], second:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");

@@ -38,13 +38,9 @@ final class RelationPredicates {
                 && nc.args().size() == 1;
     }
 
-    /** A relation-position IDENTITY: the to-one look-through above, or
-     * the union-scan marker ({@code Pure.Lite.UNION_SCAN} — a structural
-     * fact for the resolver, nothing for the database). */
+    /** A relation-position IDENTITY: the to-one look-through above. */
     static boolean isRelationIdentity(TypedNativeCall nc) {
-        return isRelationToOne(nc)
-                || (com.legend.builtin.NativeFn.LiteDesugar.of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteDesugar.UNION_SCAN
-                        && nc.args().size() == 1);
+        return isRelationToOne(nc);
     }
 
     /** Does {@code s} read any column whose alias is not bound in an

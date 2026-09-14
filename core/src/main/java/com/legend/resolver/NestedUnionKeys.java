@@ -27,11 +27,13 @@ final class NestedUnionKeys {
     private NestedUnionKeys() {
     }
 
-    static TypedSpec pipeline(ClassSources sources, String mappingFqn, String nestedClass,
-            @com.legend.Nullable String scope,
+    /** {@code owner}: the source whose step {@code slotAlias} this nested
+     * target belongs to (the one lookup answers the step's target). */
+    static TypedSpec pipeline(ClassSources sources, ClassSource owner, String nestedClass,
             String slotAlias, Map<String, String> headNavAlias,
             Set<List<String>> downstreamPaths) {
-        ClassSource cs = sources.get(mappingFqn, nestedClass, scope);
+        ClassSource cs = sources.navTarget(owner, nestedClass,
+                ClassSources.stepOf(owner, slotAlias), slotAlias);
         TypedSpec pipe = cs.pipeline();
         if (!Pipelines.containsConcatenate(pipe)) {
             return pipe;

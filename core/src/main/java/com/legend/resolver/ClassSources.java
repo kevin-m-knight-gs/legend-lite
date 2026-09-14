@@ -158,9 +158,19 @@ public final class ClassSources {
         return changed ? n.withChildren(out) : n;
     }
 
+    /** The stack builder (legacy routes as composition): an Operation
+     * binding's source from its arms. */
+    private final StackBuilder stacks;
+
     public ClassSources(ModelContext ctx, SpecCompiler specs) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
+        this.stacks = new StackBuilder(ctx, this);
+    }
+
+    /** The leaf arms of a stack source (null for a non-stack source). */
+    @com.legend.Nullable List<ClassSource> stackLeaves(ClassSource cs) {
+        return stacks.leavesOf(cs);
     }
 
     /** The compiled body of a SYNTHESIZED function (unique FQN — derived
@@ -226,7 +236,10 @@ public final class ClassSources {
             ClassSource built = build(mappingFqn, classFqn, setId,
                     upstreamMapping, contextKey);
             if (scope != null) {
+                ClassSource unscoped = built;
                 built = scoped(built, scope);
+                // a stack's leaf registry follows its scoped copy
+                stacks.alias(unscoped, built);
             }
             memo.put(key, built);
             return built;
@@ -363,6 +376,13 @@ public final class ClassSources {
             return memo;
         }
         ClassSource built = buildRoutedUnionSource(mappingFqn, classFqn, routes, scope);
+        if (scope != null) {
+            // the union carries the scope it was resolved under: everything
+            // navigating FROM it resolves there too
+            ClassSource unscoped = built;
+            built = built.withScope(scope);
+            stacks.alias(unscoped, built);
+        }
         perRoutes.put(memoKey, built);
         return built;
     }
@@ -382,7 +402,9 @@ public final class ClassSources {
      */
     ClassSource navTarget(ClassSource source, String classFqn,
             com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate step, String head) {
-        if (step != null && !step.routes().isEmpty()) {
+        // a MERGED step (paired strict predicate present) joins the class
+        // extent by value on the SQL path; its routes serve graph fetch
+        if (step != null && !step.routes().isEmpty() && step.pairedPredicate().isEmpty()) {
             return routedUnionSource(source.mappingFqn(), classFqn, step.routes(), source.scope());
         }
         return getForNav(source.mappingFqn(), classFqn, head, source.scope());
@@ -392,96 +414,72 @@ public final class ClassSources {
      * or null (a synthetic head the pipeline does not spell). */
     static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate stepOf(
             ClassSource source, String alias) {
-        // the OUTERMOST step of that alias: a union's lifted navigate above
-        // its members' own same-named steps inside the threads
+        // the OUTERMOST step of that alias: a stack's lifted navigate above
+        // its arms' own same-named steps inside the concatenate
         return Pipelines.outerNavSteps(source.pipeline()).get(alias);
     }
 
     private ClassSource buildRoutedUnionSource(String mappingFqn, String classFqn,
             List<com.legend.compiler.spec.typed.TypedNavigate.Route> routes,
             @com.legend.Nullable String scope) {
-        var cls = ctx.findClass(classFqn).orElseThrow(() ->
-                new IllegalStateException("resolver bug: routed navigate class '"
-                        + classFqn + "' unknown to the model"));
-        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-        var optional = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
-        var many = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY;
-        List<Type.Column> cols = new ArrayList<>();
-        for (var p : cls.properties()) {
-            if (!(Type.asClassType(p.type()) instanceof Type.ClassType)) {
-                cols.add(new Type.Column(p.name(), p.type(), p.multiplicity()));
-            }
-        }
-        // the union-row keys, in route order, once per name
-        List<Type.Column> keyCols = new ArrayList<>();
-        java.util.Set<String> seenKeys = new LinkedHashSet<>();
-        List<ClassSource> members = new ArrayList<>();
+        // one ARM per (route, leaf of the route's target): a route naming a
+        // set's function is one leaf; a route naming a class extent that is
+        // a STACK spreads over its leaves — each leaf projects the route's
+        // target reads off its OWN row, a typed NULL where the leaf's row
+        // lacks the column (the engine's un-routed thread never matches).
+        // The leaf's pipeline rides RAW (its own slots materialize on
+        // demand, as in every source); a route's mids re-root onto it. The
+        // stack builder makes the union — the same one that makes an
+        // operation's — so the arms' own navigations ride above it.
+        MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
+                new MappingResolutionException("unknown mapping '" + mappingFqn + "'", mappingFqn));
+        List<StackBuilder.Arm> arms = new ArrayList<>();
         for (var r : routes) {
             ClassSource m = routeTarget(mappingFqn, classFqn, r.target(), scope);
-            members.add(m);
-        }
-        for (int i = 0; i < routes.size(); i++) {
-            var r = routes.get(i);
-            Type.RelationType mRow = Type.requireRelationSchema(
-                    Pipelines.materialize(members.get(i).pipeline(), java.util.Set.of(), classFqn)
-                            .pipeline().info().type());
-            for (int k = 0; k < r.keyNames().size(); k++) {
-                String read = r.targetReads().get(k);
-                if (seenKeys.add(r.keyNames().get(k))) {
-                    Type.Column c = mRow.columns().stream()
-                            .filter(x -> x.name().equals(read))
-                            .findFirst().orElseThrow(() -> new MappingResolutionException(
-                                    "route condition reads '" + read
-                                    + "', which the target set's rows do not carry"
-                                    + " (class '" + classFqn + "', mapping '" + mappingFqn + "')",
-                                    classFqn));
-                    keyCols.add(new Type.Column(r.keyNames().get(k), c.type(), optional));
-                }
+            List<ClassSource> leaves = stacks.leavesOf(m);
+            for (ClassSource leaf0 : leaves != null ? leaves : List.of(m)) {
+                // a stack's registered leaves are its arms as built; the arm
+                // of THIS union is that leaf resolved under the caller's
+                // scope (a constructed scope reads inline rows, not the store)
+                ClassSource leaf = leaves == null ? leaf0
+                        : get(mappingFqn, leaf0.classFqn(), leaf0.setId(), null, "", scope);
+                arms.add(new StackBuilder.Arm(leaf,
+                        rebaseRows(r.rows(), StackBuilder.withoutNavSteps(leaf.pipeline())), r));
             }
         }
-        List<Type.Column> allCols = new ArrayList<>(cols);
-        allCols.addAll(keyCols);
-        Type.RelationType rowType = new Type.RelationType(allCols);
-        TypedSpec union = null;
-        for (int i = 0; i < routes.size(); i++) {
-            ClassSource m = members.get(i);
-            var r = routes.get(i);
-            TypedSpec pipe = Pipelines.materialize(m.pipeline(), java.util.Set.of(), classFqn)
-                    .pipeline();
-            Type.RelationType mRow = Type.requireRelationSchema(pipe.info().type());
-            var mInfo = new ExprType(mRow, one);
-            List<com.legend.compiler.spec.typed.TypedFuncCol> pcols = new ArrayList<>();
-            for (Type.Column c : cols) {
-                TypedSpec bnd = m.bindings().get(c.name());
-                TypedSpec v = bnd != null ? bnd
-                        : new TypedCollection(List.of(), new ExprType(c.type(), optional));
-                pcols.add(mixedCol(c.name(), v, mRow, m.rowVar()));
-            }
-            for (Type.Column kc : keyCols) {
-                int k = r.keyNames().indexOf(kc.name());
-                TypedSpec v = k >= 0
-                        ? new TypedPropertyAccess(new TypedVariable(m.rowVar(), mInfo),
-                                r.targetReads().get(k), new ExprType(kc.type(), optional))
-                        : new TypedCollection(List.of(), new ExprType(kc.type(), optional));
-                pcols.add(mixedCol(kc.name(), v, mRow, m.rowVar()));
-            }
-            TypedSpec arm = new com.legend.compiler.spec.typed.TypedProject(
-                    pipe, pcols, new ExprType(Type.relation(rowType), many));
-            union = union == null ? arm
-                    : new com.legend.compiler.spec.typed.TypedConcatenate(
-                            union, arm, new ExprType(Type.relation(rowType), many));
+        return stacks.stackOf(mappingFqn, classFqn, mapping, arms);
+    }
+
+    /** The route's rows re-rooted: its base table reference (the set's main
+     * table, as the navigator spelled it) replaced by the leaf's own
+     * pipeline, so the mids the route joined ride the leaf's arm. Rows that
+     * are a class extent (a lifted plain step) are the leaf itself. */
+    private static TypedSpec rebaseRows(TypedSpec rows, TypedSpec base) {
+        // the route's base relation — a table reference, the class extent
+        // of a lifted plain step, or the inline rows a constructed scope
+        // put in the table's place — IS the leaf's pipeline
+        List<TypedSpec> kids = rows.children();
+        if (kids.isEmpty() || rows instanceof TypedGetAll || sameColumns(rows, base)) {
+            return base;
         }
-        ExprType rowInfo = new ExprType(rowType, one);
-        String rowVar = "u_row";
-        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
-        for (Type.Column c : cols) {
-            bindings.put(c.name(), new TypedPropertyAccess(
-                    new TypedVariable(rowVar, rowInfo), c.name(),
-                    new ExprType(c.type(), c.multiplicity())));
+        return StackBuilder.rechild0(rows, rebaseRows(kids.get(0), base));
+    }
+
+    /** Whether two relations carry the same column names in order: a
+     * VIEW's projection spelled by the navigator IS the leaf's own row (the
+     * leaf flattened the view), so the leaf's pipeline replaces it whole. */
+    private static boolean sameColumns(TypedSpec a, TypedSpec b) {
+        Type.RelationType ra = StackBuilder.rowOf(a.info().type());
+        Type.RelationType rb = StackBuilder.rowOf(b.info().type());
+        if (ra == null || rb == null || ra.columns().size() != rb.columns().size()) {
+            return false;
         }
-        return new ClassSource(mappingFqn, classFqn, ClassSource.UNION_SET_ID,
-                java.util.Objects.requireNonNull(union, "routed navigate with no routes"),
-                rowVar, bindings, rowType);
+        for (int i = 0; i < ra.columns().size(); i++) {
+            if (!ra.columns().get(i).name().equals(rb.columns().get(i).name())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** A route's target: the set's own FUNCTION (a user call — the binding
@@ -511,7 +509,7 @@ public final class ClassSources {
 
     /** The binding realized by {@code functionFqn}: this mapping's own, else
      * an include's, depth-first. */
-    private MappingDefinition.@com.legend.Nullable ClassBinding findBindingByFunction(
+    MappingDefinition.@com.legend.Nullable ClassBinding findBindingByFunction(
             MappingDefinition mapping, String functionFqn, java.util.Set<String> seen) {
         if (!seen.add(mapping.qualifiedName())) {
             return null;
@@ -623,17 +621,24 @@ public final class ClassSources {
             if (tgtSet == null) {
                 continue;   // unrouted navigate: not a per-member route
             }
+            // a ROUTED navigate's raw join condition is its route's (the
+            // predicate reads the routed union's keys)
+            if (nav.routes().size() > 1) {
+                throw new NotImplementedException("mixed-union member route '" + e.getKey()
+                        + "' has " + nav.routes().size() + " routes; one per member is built");
+            }
+            com.legend.compiler.spec.typed.TypedLambda rawCond = nav.routes().isEmpty()
+                    ? nav.predicate() : nav.routes().get(0).cond();
             List<TypedSpec> pk = new ArrayList<>();
             List<TypedSpec> tk = new ArrayList<>();
-            splitEqualCond(nav.predicate(), pk, tk);
-            String p0 = nav.predicate().parameters().get(0);
+            splitEqualCond(rawCond, pk, tk);
+            String p0 = rawCond.parameters().get(0);
             List<TypedSpec> rebased = pk.stream().map(x ->
                     Pipelines.rewriteRowReads(x, p0, Map.of(),
                             java.util.Set.of(),
                             v -> new TypedVariable(member.rowVar(), mri)))
                     .toList();
-            out.add(new MixedRoute(e.getKey(), tgtSet, rebased,
-                    nav.predicate()));
+            out.add(new MixedRoute(e.getKey(), tgtSet, rebased, rawCond));
         }
         for (var b : member.bindings().entrySet()) {
             TypedSpec inner = b.getValue();
@@ -713,30 +718,6 @@ public final class ClassSources {
     }
 
 
-    /** A LINK KEY read on the pair's own arm row (B3.1b): the child union
-     * member publishes the key under the navigation's name; on the arm the
-     * read is the member's own physical column (the stamped fact
-     * {@code linkKeys}), a typed NULL when the set publishes no such key.
-     * Plain reads pass through. */
-    private TypedSpec linkKeyOnArm(TypedSpec n, String mappingFqn, String setId,
-            Type.RelationType armRow) {
-        if (n instanceof TypedPropertyAccess pa) {
-            String col = ctx.linkKeys(mappingFqn, setId).get(pa.property());
-            if (col != null) {
-                Type.Column c = armRow.columns().stream()
-                        .filter(x -> x.name().equals(col)).findFirst().orElse(null);
-                if (c == null) {
-                    throw new NotImplementedException("mixed-union child arm '"
-                            + setId + "' does not carry its link key column '"
-                            + col + "' (" + pa.property() + ")");
-                }
-                return new TypedPropertyAccess(pa.source(), c.name(),
-                        new ExprType(c.type(), c.multiplicity()));
-            }
-        }
-        return SyntheticHeads.rebuildChildren(n,
-                c -> linkKeyOnArm(c, mappingFqn, setId, armRow));
-    }
     /** The KEYED CHILD UNION for a class-typed property over a mixed
      * extent: one arm per parent member (paired by the route's declared
      * target set), each projecting the child class's scalar properties
@@ -814,16 +795,10 @@ public final class ClassSources {
                 List<TypedSpec> tk = new ArrayList<>();
                 splitEqualCond(r.navCond(), pk, tk);
                 String p1 = r.navCond().parameters().get(1);
-                // the navigate cond's target-side reads are MEMBER COLUMNS
-                // (routed per set): on the pair's OWN arm each is the
-                // column its target set names, a typed NULL when the set
-                // is not named
-                String targetSet = java.util.Objects.requireNonNull(r.targetSetId());
-                tKeys = tk.stream().map(x -> linkKeyOnArm(
-                        Pipelines.rewriteRowReads(x, p1,
+                // the navigate cond's target-side reads on the pair's OWN arm
+                tKeys = tk.stream().map(x -> Pipelines.rewriteRowReads(x, p1,
                                 Map.of(), java.util.Set.of(),
-                                v -> new TypedVariable(arm.rowVar(), ari)),
-                        mappingFqn, targetSet, aRow)).toList();
+                                v -> new TypedVariable(arm.rowVar(), ari))).toList();
             }
             List<com.legend.compiler.spec.typed.TypedFuncCol> pcols =
                     new ArrayList<>(allCols.size());
@@ -893,6 +868,38 @@ public final class ClassSources {
         return java.util.Set.of();
     }
 
+    /** The row's PSEUDO-BINDINGS. SUBTYPE DISPATCH: a union/inheritance
+     * synthesis carries class-qualified thread-local subtype columns
+     * (ClassMapping.subTypeColumn contract) in its row — each is a binding
+     * keyed by its own column name so subType(@Sub).prop reads dispatch
+     * through the ordinary binding table (nav positions included: assocLeaf
+     * resolves the synthetic leaf like any other). PRIMARY KEY
+     * (ClassMapping.primaryKeyBinding): the declared ~primaryKey columns the
+     * row carries, keyed by the D3 contract name — the element-reference
+     * rule filters a metaclass extent on them (StoreResolver.elementRow);
+     * never a property. */
+    private static void pseudoBindings(Map<String, TypedSpec> bindings, Type.RelationType rowType,
+            String rowVar, List<String> primaryKeyColumns) {
+        for (Type.Column c : rowType.columns()) {
+            if (com.legend.model.ClassMapping.isSubTypeColumn(c.name())) {
+                bindings.put(c.name(), new TypedPropertyAccess(
+                        new TypedVariable(rowVar, ExprType.one(rowType)),
+                        c.name(), new ExprType(c.type(), c.multiplicity())));
+            }
+        }
+        for (String pkCol : primaryKeyColumns) {
+            for (Type.Column c : rowType.columns()) {
+                if (c.name().equals(pkCol)) {
+                    bindings.putIfAbsent(
+                            com.legend.model.ClassMapping.primaryKeyBinding(pkCol),
+                            new TypedPropertyAccess(
+                                    new TypedVariable(rowVar, ExprType.one(rowType)),
+                                    c.name(), new ExprType(c.type(), c.multiplicity())));
+                }
+            }
+        }
+    }
+
     private ClassSource build(String mappingFqn, String classFqn,
             @com.legend.Nullable String setId,
             @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
@@ -946,6 +953,13 @@ public final class ClassSources {
         // contract violation — the H1 census guarantees these bodies compile,
         // and the normalizer emits exactly this shape.
         TypedSpec last = cf.body().get(cf.body().size() - 1);
+        // an OPERATION: the body is its arms' functions concatenated — the
+        // stack builder composes the source from the arms (design §11)
+        List<com.legend.compiler.spec.typed.TypedUserCall> calls = StackBuilder.stackCalls(last);
+        if (calls != null) {
+            return stacks.build(mappingFqn, classFqn, mapping, binding, calls, upstreamMapping,
+                    contextKey);
+        }
         if (!(last instanceof TypedMap map)) {
             throw new IllegalStateException("resolver bug: mapping body terminal for '"
                     + classFqn + "' in '" + mappingFqn + "' is "
@@ -993,36 +1007,7 @@ public final class ClassSources {
             bindings.put(e.getKey(), e.getValue());
         }
 
-        // SUBTYPE-DISPATCH pseudo-bindings: a union/inheritance synthesis
-        // carries class-qualified thread-local subtype columns
-        // (ClassMapping.subTypeColumn contract) in its row — expose each as
-        // a binding keyed by its own column name so subType(@Sub).prop
-        // reads dispatch through the ordinary binding table (nav positions
-        // included: assocLeaf resolves the synthetic leaf like any other)
-        for (Type.Column c : rowType.columns()) {
-            if (com.legend.model.ClassMapping.isSubTypeColumn(c.name())) {
-                bindings.put(c.name(), new TypedPropertyAccess(
-                        new TypedVariable(mapper.parameters().get(0),
-                                ExprType.one(rowType)),
-                        c.name(), new ExprType(c.type(), c.multiplicity())));
-            }
-        }
-        // PRIMARY-KEY pseudo-bindings (ClassMapping.primaryKeyBinding): the
-        // declared ~primaryKey columns the row carries, keyed by the D3
-        // contract name — the element-reference rule filters a metaclass
-        // extent on them (StoreResolver.elementRow); never a property.
-        for (String pkCol : binding.primaryKeyColumns()) {
-            for (Type.Column c : rowType.columns()) {
-                if (c.name().equals(pkCol)) {
-                    bindings.putIfAbsent(
-                            com.legend.model.ClassMapping.primaryKeyBinding(pkCol),
-                            new TypedPropertyAccess(
-                                    new TypedVariable(mapper.parameters().get(0),
-                                            ExprType.one(rowType)),
-                                    c.name(), new ExprType(c.type(), c.multiplicity())));
-                }
-            }
-        }
+        pseudoBindings(bindings, rowType, mapper.parameters().get(0), binding.primaryKeyColumns());
 
         ForeignKeyIdentity.register(bindings, ctor, mapper.parameters().get(0),
                 pipeline, rowType, mapping, ctx);
@@ -1492,7 +1477,7 @@ public final class ClassSources {
                 && ra.table().equals(rb.table());
     }
 
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
+    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
             rootTableOf(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
             return tr;
@@ -1518,7 +1503,7 @@ public final class ClassSources {
      * bindings (engine .all() = root only); a rootless multi-set class
      * yields no class-level binding (the normalizer's implicit-union
      * poison explains the 0-binder error). */
-    private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
+    MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        @com.legend.Nullable String setId,
                                                        LinkedHashSet<String> visited) {

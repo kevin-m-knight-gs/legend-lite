@@ -2540,3 +2540,70 @@ M4 26 — unchanged (resolver side only).
 
 **Next.** Leg 2 resumes on top: the Operation binding, the union function as a concatenate, the
 stack builder, the lifts, the route-list emitter, then the deletions.
+
+## Legacy routes as composition, leg 2 — the stack — 2026-09-14
+
+**Why.** A union is `Operation { m1() -> concatenate(m2()) }`: a stack of its member functions.
+The law: any operation on a stack is the operation per arm, stacked. The union body that
+precomputed every navigator's keys (link keys published per navigator, the include re-synthesis
+block, push-into-arm chains, set-pin facts, widening) is the disease the design cures — nothing on
+the union side may depend on who navigates to it.
+
+**What landed.**
+- `ClassBinding.Operation` (a binding kind tag, no operator); `UnionSynthesis.stackBody` emits the
+  union and inheritance functions as a concatenate of the members' calls; `recordKeyThreads` keeps
+  the key-thread fact (per-member pk `<col>_<ordinal>`, shared table key once).
+- `resolver/StackBuilder` — THE ONE union builder, for an operation's arms and for a routed
+  navigate's arms (`ClassSources.routedUnionSource` → `stackOf`): the row = scalar properties per
+  arm, embedded leaves with a rebuilt constructor, subtype dispatch columns and the membership
+  witness, every arm's own primary key, the route keys by NAME, the LIFTS (the arms' navigate steps
+  grouped by target identity and erased condition shape, composed ABOVE the concatenate as one step
+  each): one plain root/sole target → a plain step (OR over the groups); a stack target with one
+  single-hop route per arm reading the same property → MERGED (the class extent joined by value on
+  the SQL path; the routes and the strict paired form kept for graph fetch, which resolves children
+  per set pair); otherwise the routed union with per-group keys and the strict OR. A re-rooted or
+  stripped pipeline is retyped (`rechild0`); a dropped lift is loud.
+- `JoinChainEmission.routeList`: every class-typed Join PM emits a route list (`route(<set's
+  function>, rows, {s,t|join as written})`); the B3.3 drop rule is gone; route rows and mids that
+  are views spell the view.
+- R6 at query time: `ClassBinding.Relational.propertyPins` (the `prop[setId]` facts, stamped by
+  `MappingNormalizer.propertyPinsOf`); an arm's pinned navigation lives only when its set is a leaf
+  of the target class under the QUERIED mapping (`StackBuilder.leafSetIds`; the inclusive-union
+  goldens).
+- `AssociationSynthesis`: every pair group into or out of a union/inheritance-mapped class injects
+  onto its source set (single-hop included — the U3 predicate-path exception is gone); an ancestor
+  set's entries are inherited along the extends lineage; a hoisted member of a class the requesting
+  mapping maps as an Operation is never root.
+- Set filters written against a view a set flattened inline the view's columns
+  (`ViewRelation.inlineViewRefs`); key threads key on the inferred main table (`importDataFlow`);
+  mixed unions read a routed step's raw condition (the mixed builder itself is Leg 3).
+- Deletions (about −2,900 lines against +660 changed and the 1,570-line builder: net about −670): the union
+  body (`synthMemberUnion` and its 40 helpers), link-key publication (`publishLinkKeys`, the
+  ledger's `linkKeys` / `everyPublication`, `ModelContext.linkKeys`, the mixed arm's renamer), the
+  include re-synthesis block and its three criteria, the old keyed route emitter
+  (`JoinChainEmission.routedNavigation`), the `unionScan` marker (native, claim, and every reader).
+  The widening (`Pipelines.widenConcatenateForKeys`) STAYS: made loud it lost 97 rows (model-join,
+  lineage, cross-store unions), all built by `UnionHeads` and the mixed builder — it dies with them
+  in Leg 3.
+- Not built: the same-table merge (A10) — no row demanded it once the merged lift targeted the whole
+  stack; the engine's same-table duplicates are the rows.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. Named rows that turned on
+the stack during the build: multipleChainedJoins ×17, milestoning unions ×14, extends-with-union
+×2, cross-store nested unions ×2, union-of-views ×2, importDataFlow pks, executionPlan ×8 (the
+metamodel plan union's shared key under a constructed scope), pureToSqlQuery isToOne ×3.
+
+**Chain.** Gates 1–9 green on the second run; the first run was red on gate 1's three shape
+guardrails and gate 3's claims ledger — the deletions' residue (ten unreferenced helpers, one
+255-line method split at its pseudo-binding seam, four callee literals moved onto `Callees`, the
+marker's claim row regenerated). **Measures (§11.0).** M1 1,198 (was 3,287; target under 700 — the rest is
+classification, the same-table inheritance collapse, the key-thread fact and the chain-walk
+helpers `inboundArmSteps` / `uniformChainedRoutes` / `memberJoins` the route list still reads) ·
+M2 3 (was 4: the normalizer's body is gone; `UnionHeads` and the mixed builder fold in B6) ·
+M3 1 (was 30: the set-pin facts `MappingFacts.routedSets`, read by the mixed builder and the
+graph-fetch set hint — with B6) · M4 5 (was 26: two receipted `continue`s — a root route is the
+un-routed navigation, a `~func` member has no key table — and three first-wins `putIfAbsent`s:
+the owner class per property, the embedded inner class per path, the key thread name per member).
+
+**Next.** Leg 3 (B6): witnesses W1–W5, `UnionHeads` and the mixed builder onto the stack, the
+CastReRoot typed key; the set-pin facts (`MappingFacts.routedSets`) die with the mixed builder.

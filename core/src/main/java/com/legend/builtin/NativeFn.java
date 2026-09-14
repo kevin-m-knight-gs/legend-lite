@@ -650,8 +650,6 @@ public final class NativeFn {
     public enum LiteDesugar implements Member {
         OTHERWISE("meta::legend::lite::otherwise",
                 Pure.OTHERWISE__T_1__T_0_1),
-        UNION_SCAN("meta::legend::lite::unionScan",
-                Pure.UNION_SCAN__RELATION_1),
         LEGACY_ASSOC_PREDICATE("meta::legend::lite::legacyAssocPredicate",
                 Pure.LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1, Pure.LEGACY_ASSOC_PREDICATE__A_1__B_1__STRING_1__STRING_1__FUNCTION_1),
         LEGACY_LOCAL_PROPERTY("meta::legend::lite::legacyLocalProperty",

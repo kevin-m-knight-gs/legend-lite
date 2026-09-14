@@ -316,6 +316,27 @@ final class ViewRelation {
         };
     }
 
+    /** Every {@code <view>.<col>} reference in {@code op} (a filter or
+     * join condition written against a VIEW of {@code db}) substituted by
+     * the view column's underlying expression, recursively (a view on a
+     * view): the flattened set reads the base tables, so its filter must
+     * too. Non-view references pass through. */
+    static RelationalOperation inlineViewRefs(RelationalOperation op, String db,
+            ModelBuilder model) {
+        if (op instanceof RelationalOperation.ColumnRef cr) {
+            DatabaseDefinition.ViewDefinition view = model.findView(db, cr.table()).orElse(null);
+            if (view != null) {
+                for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+                    if (vc.name().equals(cr.column())) {
+                        return inlineViewRefs(vc.expression(), db, model);
+                    }
+                }
+            }
+            return op;
+        }
+        return op.mapChildren(x -> inlineViewRefs(x, db, model));
+    }
+
     /** Substitute {@code <viewName>.<col>} refs inside an expression body
      * to the view column's underlying expression (structural walk). */
     private static RelationalOperation rewriteOpThroughView(RelationalOperation op,

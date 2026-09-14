@@ -36,15 +36,6 @@ final class MappingLedger {
     final Map<String, List<String>> mixedUnions = new LinkedHashMap<>();
     /** class &rarr; the primary-key threads of an Operation union's row. */
     final Map<String, List<KeyThread>> unionKeyThreads = new LinkedHashMap<>();
-    /** set id &rarr; (link key name &rarr; the set's physical column): the
-     * keys a member set publishes for the navigations routed into it
-     * (B3.1b) — the resolver's mixed-union arms read them per set. */
-    final Map<String, Map<String, String>> linkKeys = new LinkedHashMap<>();
-    /** mapping FQN &rarr; the link keys THAT mapping publishes on its own
-     * (every mapping's publication, computed once): the includer compares
-     * an included operation's members against it to know whether the
-     * included body already carries the keys this mapping needs. */
-    final Map<String, Map<String, Map<String, String>>> everyPublication;
     /** bucket &rarr; witnesses of the [1]-over-nullable-column census. */
     final Map<String, Set<String>> nullableCensus = new TreeMap<>();
     /** The classes MAPPED for this mapping (engine R1: a set in the queried
@@ -54,21 +45,8 @@ final class MappingLedger {
      * navigable here. */
     private final Set<String> mappedInClosure;
 
-    /** Every mapping's resolved record (the include re-bind question asks
-     * the DEFINING mapping's; the pre-passed closure reads the included
-     * mappings'). Empty for a scratch ledger. */
-    final Map<String, ResolvedMapping> resolved;
-
     MappingLedger(Set<String> mappedInClosure) {
-        this(mappedInClosure, Map.of(), Map.of());
-    }
-
-    MappingLedger(Set<String> mappedInClosure,
-            Map<String, Map<String, Map<String, String>>> everyPublication,
-            Map<String, ResolvedMapping> resolved) {
         this.mappedInClosure = mappedInClosure;
-        this.everyPublication = everyPublication;
-        this.resolved = resolved;
     }
 
     /** Whether {@code classFqn} has a set in this mapping's closure. */
@@ -98,6 +76,6 @@ final class MappingLedger {
         return new MappingDefinition.NormalizationFacts(
                 poisons, mixedUnions, unionKeyThreads, nullableCensus,
                 MappingFacts.unionMembers(surface), MappingFacts.routedTargetClasses(surface),
-                MappingFacts.routedSets(md, model), linkKeys);
+                MappingFacts.routedSets(md, model));
     }
 }

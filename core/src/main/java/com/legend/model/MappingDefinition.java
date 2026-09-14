@@ -87,12 +87,11 @@ public record MappingDefinition(
             java.util.Map<String, java.util.Set<String>> nullableCensus,
             java.util.Map<String, List<String>> unionMembers,
             java.util.Map<String, java.util.Map<String, String>> routedTargetClasses,
-            java.util.Map<String, String> routedSets,
-            java.util.Map<String, java.util.Map<String, String>> linkKeys) {
+            java.util.Map<String, String> routedSets) {
 
         public static final NormalizationFacts NONE = new NormalizationFacts(
                 java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+                java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
 
         /** The synthesis facts alone (T4.1 step 2); the surface facts empty. */
         public NormalizationFacts(java.util.Map<String, String> poisons,
@@ -100,7 +99,7 @@ public record MappingDefinition(
                 java.util.Map<String, List<KeyThread>> unionKeyThreads,
                 java.util.Map<String, java.util.Set<String>> nullableCensus) {
             this(poisons, mixedUnions, unionKeyThreads, nullableCensus,
-                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
         }
 
         public NormalizationFacts {
@@ -120,14 +119,6 @@ public record MappingDefinition(
                 routedTargetClasses = java.util.Collections.unmodifiableMap(copy);
             }
             routedSets = routedSets == null ? java.util.Map.of() : java.util.Map.copyOf(routedSets);
-            // B3.1b: set id -> (link key name -> physical column)
-            if (linkKeys == null) {
-                linkKeys = java.util.Map.of();
-            } else {
-                java.util.Map<String, java.util.Map<String, String>> copy = new java.util.LinkedHashMap<>();
-                linkKeys.forEach((k, v) -> copy.put(k, java.util.Map.copyOf(v)));
-                linkKeys = java.util.Collections.unmodifiableMap(copy);
-            }
             poisons = poisons == null ? java.util.Map.of() : java.util.Map.copyOf(poisons);
             mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
             unionKeyThreads = unionKeyThreads == null
@@ -176,7 +167,8 @@ public record MappingDefinition(
      * {@code primaryKeyColumns} (the AssocJoin disease) — every site
      * spells every component.
      */
-    public sealed interface ClassBinding permits ClassBinding.Relational, ClassBinding.Pure {
+    public sealed interface ClassBinding permits ClassBinding.Relational, ClassBinding.Pure,
+            ClassBinding.Operation {
         String classFqn();
         @com.legend.Nullable String setId();
         @com.legend.Nullable String extendsSetId();
@@ -200,7 +192,8 @@ public record MappingDefinition(
                 List<String> primaryKeyColumns,
                 DeclaredKeys declared,
                 RelationalSource source,
-                List<AggregateViewFacts> aggregateViews) implements ClassBinding {
+                List<AggregateViewFacts> aggregateViews,
+                java.util.Map<String, String> propertyPins) implements ClassBinding {
             public Relational {
                 Objects.requireNonNull(classFqn, "classFqn");
                 Objects.requireNonNull(functionFqn, "functionFqn");
@@ -210,8 +203,15 @@ public record MappingDefinition(
                         : List.copyOf(primaryKeyColumns);
                 aggregateViews = aggregateViews == null ? List.of()
                         : List.copyOf(aggregateViews);
+                propertyPins = propertyPins == null ? java.util.Map.of()
+                        : java.util.Map.copyOf(propertyPins);
             }
         }
+        /* propertyPins: the set PINS the set's own property mappings
+         * declare (property -> target set id, {@code prop[setId]}): a
+         * FACT read at query time — a pinned navigation lives only when
+         * its set is a leaf of the target class under the QUERIED mapping
+         * (engine R6; the un-routed thread of a union never matches). */
         /** An AggregationAware main set's view FACTS (the engine's
          * AggregateSpecification, stamped on the compiled binding — the
          * router matches a query's project paths against them): the
@@ -257,6 +257,27 @@ public record MappingDefinition(
                         : List.copyOf(mappedColumns);
                 ownProperties = ownProperties == null ? List.of()
                         : List.copyOf(ownProperties);
+            }
+        }
+
+        /** An OPERATION binding (legacy routes as composition, design §9):
+         * the class's function is a COMPOSITION of other sets' functions —
+         * a union or inheritance operation's members stacked
+         * ({@code m1() -> concatenate(m2())}). The kind tag says only that;
+         * the arms are what the function's body calls. No physical source
+         * of its own; the arms carry theirs. */
+        record Operation(
+                String classFqn,
+                @com.legend.Nullable String setId,
+                @com.legend.Nullable String extendsSetId,
+                boolean root,
+                String functionFqn,
+                List<String> primaryKeyColumns) implements ClassBinding {
+            public Operation {
+                Objects.requireNonNull(classFqn, "classFqn");
+                Objects.requireNonNull(functionFqn, "functionFqn");
+                primaryKeyColumns = primaryKeyColumns == null ? List.of()
+                        : List.copyOf(primaryKeyColumns);
             }
         }
 

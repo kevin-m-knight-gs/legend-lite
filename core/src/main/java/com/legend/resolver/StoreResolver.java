@@ -880,13 +880,15 @@ public final class StoreResolver {
                 java.util.Set.of(alias),
                 src.classFqn(),
                 (a, tc) -> {
+                    // the slot's target; its OWN steps are the nested ones
+                    ClassSource ownerT = sources.navTarget(src, tc, ClassSources.stepOf(src, a), a);
                     Pipelines.Materialized im = Pipelines.materialize(
-                            sources.navTarget(src, tc, ClassSources.stepOf(src, a), a).pipeline(),
+                            ownerT.pipeline(),
                             tc.equals(targetClass) ? fSlotDemand : java.util.Set.of(),
                             tc.equals(targetClass) ? fNavDemand : java.util.Set.of(),
                             tc,
                             (a2, tc2) -> navProvenance.nestedTarget(navMaterializer, temporal,
-                                    src, a2, tc2, headNavAlias, downstreamPaths, nestedMats));
+                                    src, ownerT, a2, tc2, headNavAlias, downstreamPaths, nestedMats));
                     if (tc.equals(targetClass)) {
                         innerM[0] = im;
                     }

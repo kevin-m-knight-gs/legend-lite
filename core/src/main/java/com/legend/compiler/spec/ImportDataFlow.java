@@ -56,6 +56,9 @@ public final class ImportDataFlow {
         }
         List<Type.Column> out = new ArrayList<>(threads.size());
         for (KeyThread t : threads) {
+            if (t.shared()) {
+                continue;   // the shared table key is row identity, not a member thread
+            }
             if (t.pureKind() == null) {
                 throw new NotImplementedException("importDataFlow: the store declares"
                         + " no kind for union key thread '" + t.name() + "'; mapping="

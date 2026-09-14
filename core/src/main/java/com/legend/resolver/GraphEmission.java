@@ -1130,7 +1130,7 @@ final class GraphEmission {
         String setHint = ctx.routedTargetSetOf(cs.mappingFqn(),
                 node.property()).orElse(null);
         ClassSource child = !nav.routes().isEmpty() && childClass.equals(rawTarget)
-                ? sources.navTarget(cs, rawTarget, nav, node.property())   // a routed step's child IS its routed union
+                ? sources.routedUnionSource(cs.mappingFqn(), rawTarget, nav.routes(), cs.scope())   // a routed step's child IS its routed union
                 : childClass.equals(rawTarget)
                 ? sources.get(dispatch.apply(context, rawTarget), rawTarget, setHint,
                         (target, excl) -> dispatch.apply(context, target), key, cs.scope())

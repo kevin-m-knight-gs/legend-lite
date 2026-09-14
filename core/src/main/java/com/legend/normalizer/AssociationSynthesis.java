@@ -110,13 +110,14 @@ final class AssociationSynthesis {
             AssociationDefinition ad = model.findAssociation(rel.associationName()).orElse(null);
             if (ad == null) continue;
             // per (source set, property): a pair group whose TARGET class
-            // is union-mapped and which carries ANY chained entry is a
-            // ROUTED-UNION group — ALL its entries (single-hop included)
-            // inject as target-stamped Join PMs so classifyUnionRoutes
-            // sees the full route set and dispatches per arm (V4
-            // push-into-arm). Pure single-hop groups stay on the
-            // predicate path (U3).
-            Map<String, Boolean> routedUnionGroups = new LinkedHashMap<>();
+            // is union- or inheritance-mapped (or cannot anchor a
+            // predicate) is a ROUTED group — ALL its entries, single-hop
+            // included, inject as target-stamped Join PMs on their source
+            // set: the member's own function carries the navigation and
+            // the stack composes the arms' routes (legacy routes as
+            // composition §11 A2). Only a plain pair between two
+            // anchorable classes takes the predicate path.
+            Set<String> routedUnionGroups = new HashSet<>();
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                 if (!(apm.body() instanceof PropertyMapping.Join join)
                         || apm.sourceSetId() == null) {
@@ -147,43 +148,36 @@ final class AssociationSynthesis {
                 boolean bindingPossible = owner0 != null
                         && anchorTableOf(view, owner0, model) != null
                         && anchorTableOf(view, target, model) != null;
-                if (!unionTgt && !inheritanceTgt && bindingPossible) {
+                // the OWNER side too: every arm of a union-mapped owner
+                // carries its own navigation (the law: an operation on a
+                // stack is the operation per arm, stacked)
+                boolean opOwner = owner0 != null
+                        && (view.unionOf(owner0) != null
+                                || view.inheritanceOf(owner0) != null);
+                if (!unionTgt && !inheritanceTgt && !opOwner && bindingPossible) {
                     continue;   // plain pair: the predicate path
                 }
                 // an end whose class cannot ANCHOR a predicate (an Operation-
                 // mapped root with no set of its own — SetImplementation,
                 // an abstract base) would leave the association silently
                 // unbound: its entries inject as routed PMs on their sets
-                routedUnionGroups.merge(apm.sourceSetId() + "\u0000"
-                        + apm.propertyName(),
-                        inheritanceTgt || join.joins().size() > 1
-                                || !bindingPossible,
-                        Boolean::logicalOr);
+                routedUnionGroups.add(apm.sourceSetId() + "\u0000"
+                        + apm.propertyName());
             }
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                 if (!(apm.body() instanceof PropertyMapping.Join join)) continue;
                 boolean routedUnion = apm.sourceSetId() != null
-                        && Boolean.TRUE.equals(routedUnionGroups.get(
-                                apm.sourceSetId() + "\u0000" + apm.propertyName()));
+                        && routedUnionGroups.contains(
+                                apm.sourceSetId() + "\u0000" + apm.propertyName());
                 if (join.joins().size() < 2 && !routedUnion) {
                     continue;   // single-hop -> predicate path
                 }
                 String owner = associationOwnerClass(ad, apm.propertyName());
                 if (owner == null) continue;
-                if (apm.sourceSetId() != null
-                        && view.unionOf(owner) != null
-                        && view.set(apm.sourceSetId()) instanceof ClassMapping src0
-                        && src0.className().equals(owner)) {
-                    // per-pair entries on a UNION-mapped owner land on their
-                    // member set at union synthesis instead
-                    // (collectPairAssociationEntries, include-closure aware).
-                    // A SUBCLASS member set (VehicleOwner union(airline,
-                    // per1) where per1 maps Person) injects HERE too — it
-                    // is independently queryable and the union-body copy
-                    // never reaches its own ClassSource; the union arm's
-                    // pmIdentity dedup absorbs the duplicate.
-                    continue;
-                }
+                // a per-pair entry on a UNION-mapped owner lands on its
+                // SOURCE SET's own record too (legacy routes as composition,
+                // §11 A2): the member's function carries the navigation and
+                // the stack composes it from the arms
                 String tgtSet = join.targetSetId() != null
                         ? join.targetSetId() : apm.targetSetId();
                 PropertyMapping.Join stamped = routedUnion && tgtSet != null
@@ -204,37 +198,74 @@ final class AssociationSynthesis {
         if (byClass.isEmpty() && bySet.isEmpty()) return md;
         List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
         Set<String> ownClasses = new HashSet<>();
+        Set<String> ownMapped = new HashSet<>();
+        Set<String> ownSetIds = new HashSet<>();
         for (ClassMapping cm : md.classMappings()) {
-            ownClasses.add(cm.className());
-            ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet);
+            if (cm instanceof ClassMapping.Relational) {
+                ownClasses.add(cm.className());
+            }
+            ownMapped.add(cm.className());
+            ownSetIds.add(ResolvedMapping.idOf(cm));
+            ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet,
+                    lineageOf(cm, view));
             rewritten.add(injectedCm != null ? injectedCm : cm);
         }
         // HOIST: an owner set that lives only in an INCLUDED definition is
         // copied up with its injections (skipped when this definition
-        // already maps the class — notably union-rooted classes, whose
-        // routes land at union synthesis instead)
+        // already maps the class through a set of its own; a class this
+        // definition maps only as an OPERATION over included members hoists
+        // the members, so each arm's own function carries the navigation)
         Set<String> hoisted = new HashSet<>();
         for (LegacyMappingDefinition m : closure) {
             if (m == md) continue;
             for (ClassMapping cm : m.classMappings()) {
                 if (ownClasses.contains(cm.className())
+                        || ownSetIds.contains(ResolvedMapping.idOf(cm))
                         || !hoisted.add(ResolvedMapping.idOf(cm))) {
                     continue;
                 }
-                ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet);
+                ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet,
+                        lineageOf(cm, view));
                 if (injectedCm != null) {
-                    rewritten.add(injectedCm);
+                    // a hoisted member of a class THIS definition maps as an
+                    // Operation is a member here: the Operation is the root
+                    rewritten.add(injectedCm.root() && ownMapped.contains(cm.className())
+                            ? withRoot(injectedCm, false) : injectedCm);
                 }
             }
         }
         return md.withClassMappings(rewritten);
     }
 
+    /** A set's EXTENDS lineage: its own id, then each ancestor's (a set
+     * inherits the pair entries its ancestors own — engine
+     * allSuperSetImplementationIds). */
+    private static List<String> lineageOf(ClassMapping cm, ResolvedMapping view) {
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        String cur = ResolvedMapping.idOf(cm);
+        while (cur != null && seen.add(cur)) {
+            out.add(cur);
+            ClassMapping up = view.set(cur);
+            cur = up instanceof ClassMapping.Relational ur ? ur.extendsSetId() : null;
+        }
+        return out;
+    }
+
+    private static ClassMapping.Relational withRoot(ClassMapping.Relational rcm,
+            boolean root) {
+        return new ClassMapping.Relational(
+                rcm.className(), rcm.setId(), rcm.extendsSetId(), root,
+                rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
+                rcm.primaryKey(), rcm.propertyMappings(), rcm.sourceUrl(),
+                rcm.propertyTargetSets(), rcm.aggregation());
+    }
+
     /** The class mapping with this class's/set's pending injections
      * appended; null when none apply. */
     private static ClassMapping.@com.legend.Nullable Relational withInjectedPMs(ClassMapping cm,
             Map<String, List<PropertyMapping>> byClass,
-            Map<String, Map<String, List<PropertyMapping>>> bySet) {
+            Map<String, Map<String, List<PropertyMapping>>> bySet, List<String> lineage) {
         if (!(cm instanceof ClassMapping.Relational rcm)) return null;
         List<PropertyMapping> add = new ArrayList<>();
         List<PropertyMapping> forClass = byClass.get(rcm.className());
@@ -242,10 +273,30 @@ final class AssociationSynthesis {
         // per-SET injections match by SET ID under any owner key: the
         // association end's owner may be a SUPERCLASS of the set's class
         // (ownedVehicles on VehicleOwner, set per1 maps Person — the
-        // sourceSetId pins the exact set; set ids are unique in scope)
-        for (Map<String, List<PropertyMapping>> sets : bySet.values()) {
-            List<PropertyMapping> forSet = sets.get(ResolvedMapping.idOf(rcm));
-            if (forSet != null) add.addAll(forSet);
+        // sourceSetId pins the exact set; set ids are unique in scope).
+        // An ANCESTOR set's entries are inherited (extends lineage), a
+        // property the set already maps (or a nearer ancestor's entry)
+        // shadowing them.
+        Set<String> have = new HashSet<>();
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            have.add(pm.propertyName());
+        }
+        for (String id : lineage) {
+            boolean own = id.equals(ResolvedMapping.idOf(rcm));
+            for (Map<String, List<PropertyMapping>> sets : bySet.values()) {
+                List<PropertyMapping> forSet = sets.get(id);
+                if (forSet == null) continue;
+                for (PropertyMapping pm : forSet) {
+                    if (own || have.add(pm.propertyName())) {
+                        add.add(pm);
+                    }
+                }
+            }
+            if (own) {
+                for (PropertyMapping pm : add) {
+                    have.add(pm.propertyName());
+                }
+            }
         }
         // EMBEDDED-set sources: an entry keyed <thisSetId>_<embProp> (or
         // the default <classFqnUnderscored>_<embProp>) belongs INSIDE this

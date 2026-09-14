@@ -90,8 +90,12 @@ final class NavProvenance {
      * demanded slots (the association route's depth leg, for slots); its
      * NavMat is recorded so the hop's provenance carries the SubNav tree.
      * No such path: the plain materialization with the union keys. */
+    /** {@code owner} is the slot's TARGET whose own step {@code a2} nests
+     * here (never the flatten source: a same-named step there is another
+     * class's). */
     TypedSpec nestedTarget(NavMaterializer navMaterializer, TemporalFrame temporal,
-            ClassSource src, String a2, String tc2, Map<String, String> headNavAlias,
+            ClassSource src, ClassSource owner, String a2, String tc2,
+            Map<String, String> headNavAlias,
             java.util.Set<List<String>> downstreamPaths,
             Map<String, NavMaterializer.NavMat> nestedMats) {
         List<List<String>> through = FlattenOps.tailsThrough(a2, headNavAlias, downstreamPaths);
@@ -100,15 +104,14 @@ final class NavProvenance {
                     .filter(e -> e.getValue().equals(a2)).map(Map.Entry::getKey)
                     .findFirst().orElse(a2);
             NavMaterializer.NavMat nm = navMaterializer.navTargetMaterialized(
-                    temporal, sources.navTarget(src, tc2, ClassSources.stepOf(src, a2), head2),
+                    temporal, sources.navTarget(owner, tc2, ClassSources.stepOf(owner, a2), head2),
                     src.mappingFqn(), tc2, src.scope(), through,
                     head2, TemporalContext.NONE);
             nestedMats.put(a2, nm);
             return nm.pipeline();
         }
         return Pipelines.materialize(
-                NestedUnionKeys.pipeline(sources, src.mappingFqn(), tc2, src.scope(),
-                        a2, headNavAlias, downstreamPaths),
+                NestedUnionKeys.pipeline(sources, owner, tc2, a2, headNavAlias, downstreamPaths),
                 java.util.Set.of(), tc2).pipeline();
     }
 

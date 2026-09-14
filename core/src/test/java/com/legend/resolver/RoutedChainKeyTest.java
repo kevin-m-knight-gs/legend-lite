@@ -124,14 +124,14 @@ class RoutedChainKeyTest {
         String sql = sqlOf("u::A.all()->project([a|$a.pk, a|$a.b.pk], ['a_pk', 'b_pk'])"
                 + "->from(u::M, u::RT)");
         assertEquals(List.of("1|11", "2|22"), exec(sql + " ORDER BY 1"), sql);
-        // the key is spelled by the navigating set and the property
-        assertTrue(sql.contains("a0_b"), sql);
+        // the key is the route shape's, projected by the routed union's arm
+        assertTrue(sql.contains("__route0_0"), sql);
         // never an ordinal-named chain key, never a disjunction
         assertFalse(sql.matches("(?s).*__b_\\d.*"), sql);
         assertFalse(sql.contains(" OR "), sql);
         // one equality on the key; the mid rides the chained arm (the
         // thread after UNION ALL), not the navigator
-        assertTrue(sql.matches("(?s).*ON t\\d+\\.fk = t\\d+\\.a0_b.*"), sql);
+        assertTrue(sql.matches("(?s).*ON t\\d+\\.fk = t\\d+\\.__route0_0.*"), sql);
         assertTrue(sql.indexOf("mT") > sql.indexOf("UNION ALL"), sql);
     }
 }

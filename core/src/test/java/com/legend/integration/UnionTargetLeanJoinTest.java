@@ -108,12 +108,13 @@ class UnionTargetLeanJoinTest {
     }
 
     /**
-     * THE SHAPE (clean-sheet B3.1b, 2026-09-13): every member of the union
-     * publishes its OWN link column under the name the navigation reads
-     * (Firm's employees: FIRM_ID on both members; contractors: FIRM_ID on
-     * one, OWNER_ID on the other), so the join is a single equality on one
-     * name the database hashes. No OR, no coalesce, no member ordinal, no
-     * set id anywhere in the navigating class.
+     * THE SHAPE (legacy routes as composition, 2026-09-14): the routed
+     * union's arms each project their OWN join column under the route
+     * shape's key name (Firm's employees: FIRM_ID on both members;
+     * contractors: FIRM_ID on one, OWNER_ID on the other — one shape, one
+     * key), so the join is a single equality on one name the database
+     * hashes. No OR, no coalesce, no member ordinal, no set id anywhere in
+     * the navigating class; the union publishes nothing.
      */
     @Test
     @DisplayName("one minted key per arm: a single equality, uniform or not")
@@ -124,7 +125,7 @@ class UnionTargetLeanJoinTest {
             String on = sql.substring(sql.indexOf(" ON ") + 4).split("\\n")[0];
             assertEquals(false, on.contains(" OR "), "no OR in: " + on);
             assertEquals(false, on.toLowerCase().contains("coalesce"), "no coalesce in: " + on);
-            assertEquals(true, on.matches("t0\\.ID = t\\d+\\.ul_Firm_" + prop), "one equality on the link key the members publish: " + on);
+            assertEquals(true, on.matches("t0\\.ID = t\\d+\\.__route0_0"), "one equality on the route key the arms project: " + on);
         }
     }
 

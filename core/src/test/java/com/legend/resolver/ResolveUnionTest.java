@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -218,8 +219,8 @@ class ResolveUnionTest {
         List<String> rows = exec(sql);
         assertEquals(List.of("FirmA-X|A1-Ann", "FirmA-X|A2-Bob"), rows,
                 "the never-routed member a3 must not match");
-        assertTrue(sql.contains("NULL AS"),
-                "un-routed threads carry typed-NULL keys:\n" + sql);
+        assertFalse(sql.contains("PA3"),
+                "a never-routed member is not an arm of the routed union:\n" + sql);
     }
 
     @Test
@@ -252,10 +253,9 @@ class ResolveUnionTest {
                 + "->filter(p|$p.firmB.legalName == 'RIGHT-FIRM')"
                 + "->project([p|$p.lastName], ['name'])"
                 + "->from(u::MB, u::RT)");
-        // B3.1b: the fb2 member publishes its ID under the link key the
-        // firmB navigation reads (named by the navigating set + property);
-        // the other member's thread projects NULL under the same name
-        assertTrue(sql.contains("_firmB"), "the routed member's link key:\n" + sql);
+        // the routed member's arm projects its ID under the route key;
+        // the un-routed member is not an arm at all
+        assertTrue(sql.contains("__route0_0"), "the route key:\n" + sql);
         assertEquals(List.of("B-Scott"), exec(sql));
     }
 

@@ -162,13 +162,6 @@ public interface ModelContext {
         return null;
     }
 
-    /** The LINK KEYS a member set publishes under {@code mappingFqn}: the
-     * key name a routed navigation reads &rarr; the set's own physical
-     * column (B3.1b); empty when the set publishes none. */
-    default java.util.Map<String, String> linkKeys(String mappingFqn, String setId) {
-        return java.util.Map.of();
-    }
-
     /**
      * The connection for {@code fqn}, if present &mdash; carries the declared
      * {@code DatabaseType} that selects the SQL dialect a runtime's queries

@@ -45,7 +45,7 @@ final class AggregateViewLift {
                     declaredKeys.getOrDefault(SetKeyFacts.setKey(view.set()),
                             MappingDefinition.ClassBinding.DeclaredKeys.NONE),
                     MappingNormalizer.relationalSourceOf(view.set()),
-                    List.of()));
+                    List.of(), MappingNormalizer.propertyPinsOf(view.set())));
         }
     }
 

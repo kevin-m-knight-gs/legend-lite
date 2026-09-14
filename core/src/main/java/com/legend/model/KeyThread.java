@@ -14,9 +14,30 @@ import java.util.Objects;
  * column's Pure primitive kind ({@code Integer}, {@code String}, …) read
  * off the store at synthesis, null when the store does not declare it
  * (a consumer that needs the kind is loud).
+ *
+ * <p>{@code column} and {@code ordinal} say which member's physical column
+ * the thread reads (legacy routes as composition: the stack builder projects
+ * the thread from the arm's own row). A SHARED table key — members over one
+ * table whose sole primary key every such member projects once, ungated,
+ * as {@code <col>__pk_<table>} — carries {@code ordinal = -1} and names its
+ * {@code store} and {@code table}; it is the row identity a cast re-root
+ * joins on, never an importDataFlow column.
  */
-public record KeyThread(String name, @com.legend.Nullable String pureKind) {
+public record KeyThread(String name, @com.legend.Nullable String pureKind,
+        String column, int ordinal,
+        @com.legend.Nullable String store, @com.legend.Nullable String table) {
     public KeyThread {
         Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(column, "column");
+    }
+
+    /** A per-member thread. */
+    public KeyThread(String name, @com.legend.Nullable String pureKind, String column, int ordinal) {
+        this(name, pureKind, column, ordinal, null, null);
+    }
+
+    /** Whether this is the shared table key (not a per-member thread). */
+    public boolean shared() {
+        return ordinal < 0;
     }
 }
