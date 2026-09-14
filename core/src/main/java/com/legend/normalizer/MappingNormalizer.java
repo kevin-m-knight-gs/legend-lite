@@ -309,7 +309,11 @@ public final class MappingNormalizer {
         for (ClassMapping cm : md.classMappings()) {
             if (java.util.Objects.requireNonNull(mappingsPerClass.get(cm.className())) > 1 && !cm.root()) {
                 boolean unionMember = unionRooted.contains(cm.className());
-                if (!unionMember || mixedUnionRooted.contains(cm.className())) {
+                // EVERY non-root set realizes as its own function and binds
+                // by set id (legacy routes as composition, §11 leg 1): a
+                // union member too — a route names the member's function,
+                // and the union is those functions stacked
+                {
                     if (!unionMember) {
                         // multi-set class without a UNION root: .all() is
                         // undefined (poisoned); the SET itself still

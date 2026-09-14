@@ -2488,3 +2488,29 @@ rows `1`, the routed key read — the path that failed under the first attempt.
 local variable. **Chain.** Green, first run, every gate.
 
 **Next.** 2b: the normalizer emits route lists and binds every set (§8.4).
+
+## Legacy routes as composition, leg 1 — every set is a function — 2026-09-14
+
+**Why.** §11 of docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md (the design page, written after
+the §10 inventory): a union is a stack of its members' functions, so every member must BE a
+function with a binding of its own. Today the driver withheld the binding of a union member
+unless the union was mixed.
+
+**What landed — neutral by rows.**
+- `MappingNormalizer`: the member exclusion is gone; every non-root set of a multi-set class
+  realizes as its own function and binds by set id, union members included.
+- `MappingFacts.routedSets` (the set-pin FALLBACK fact behind `routedTargetSetOf`): a route into
+  a set of a union-mapped class records no pin — the same rule the primary fact
+  (`SetDispatch.routedTargetSets`) already applied, by the target set's CLASS. Found by rows in
+  two steps: with members bound, the old fallback pinned `employees[set2]` onto `Person[set2]`
+  alone (`union::partial::*` ×4 LOST); skipping only the union's MEMBERS then pinned a route
+  into a NON-member set of the class (`y[x3, y3]` beside a union of y0–y2:
+  `multipleChainedJoins::testUnionWithChainedJoinsAcross3Sets*` ×4 LOST). The engine treats a
+  route into a non-member set of a union-mapped class as dead; the pin now follows the class.
+
+**Rows.** DuckDB 108 / H2 444, EXACT (0 LOST, 0 GAINED). **Chain.** Green, first run, all nine
+gates (Relation PCT at its floor 469/1). **Measures (§11.0).** M1 3,287 · M2 4 · M3 30 · M4 26
+— unchanged by design (leg 1 adds bindings, removes nothing).
+
+**Next.** Leg 2: the Operation binding, the union function as a concatenate of member calls, the
+stack builder, the lifts, the route-list emitter, the same-table merge, the deletions.

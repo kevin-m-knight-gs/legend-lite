@@ -122,6 +122,47 @@ final class MappingFacts {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         closure.add(md);
         closure.addAll(MappingClosures.of(model).closure(md.qualifiedName()).mappings());
+        // a route into a set of a UNION-MAPPED class is the union
+        // machinery's (the same rule as SetDispatch.routedTargetSets, by the
+        // target set's CLASS: a route into a non-member set of that class is
+        // dead in the engine, never a pin). With every member set bound by
+        // id (legacy routes as composition, leg 1) a pin would land the
+        // navigation on one set alone, off the union. A MIXED union (a Pure
+        // member) keeps its pins: its arms are paired by this hint (route b).
+        Set<String> unionClasses = new LinkedHashSet<>();
+        Map<String, String> classOfSet = new LinkedHashMap<>();
+        for (LegacyMappingDefinition m : closure) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm.setId() != null) {
+                    classOfSet.putIfAbsent(cm.setId(), cm.className());
+                }
+            }
+        }
+        for (LegacyMappingDefinition m : closure) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm instanceof ClassMapping.Union u) {
+                    boolean mixed = false;
+                    for (String sid : u.memberSetIds()) {
+                        for (LegacyMappingDefinition m2 : closure) {
+                            for (ClassMapping c2 : m2.classMappings()) {
+                                if (sid.equals(c2.setId()) && c2 instanceof ClassMapping.Pure) {
+                                    mixed = true;
+                                }
+                            }
+                        }
+                    }
+                    if (!mixed) {
+                        unionClasses.add(u.className());
+                    }
+                }
+            }
+        }
+        Set<String> unionMemberIds = new LinkedHashSet<>();
+        for (var e : classOfSet.entrySet()) {
+            if (unionClasses.contains(e.getValue())) {
+                unionMemberIds.add(e.getKey());
+            }
+        }
         Map<String, Set<String>> byHead = new LinkedHashMap<>();
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
@@ -129,7 +170,8 @@ final class MappingFacts {
                     continue;
                 }
                 for (PropertyMapping pm : r.propertyMappings()) {
-                    if (pm instanceof PropertyMapping.Join j && j.targetSetId() != null) {
+                    if (pm instanceof PropertyMapping.Join j && j.targetSetId() != null
+                            && !unionMemberIds.contains(j.targetSetId())) {
                         byHead.computeIfAbsent(j.propertyName(), k -> new LinkedHashSet<>())
                                 .add(j.targetSetId());
                     }
@@ -147,7 +189,7 @@ final class MappingFacts {
                     String tgt = apm.body() instanceof PropertyMapping.Join j
                             && j.targetSetId() != null
                             ? j.targetSetId() : apm.targetSetId();
-                    if (tgt != null) {
+                    if (tgt != null && !unionMemberIds.contains(tgt)) {
                         byHead.computeIfAbsent(apm.propertyName(), k -> new LinkedHashSet<>()).add(tgt);
                     }
                 }
