@@ -1,0 +1,376 @@
+# Legacy routes as composition — the worked example (2026-09-13)
+
+**Status.** Design, agreed in conversation 2026-09-13 after the B3 arc audit. Not built.
+Replaces the plan's B3.5 idea and the "generate under the includer and compare" attempt
+(never committed). The next slice builds this; the measurements it needs are in §7.
+
+**The one-sentence problem.** A union learns who navigates to it (it scans the mapping for
+routes into its members and publishes a key named after each navigator), so an included
+mapping's union has to be regenerated for every mapping that adds a navigator. That is the
+same disease B3.1b cured on the navigator's side (Firm naming Person's sets), in the other
+direction, and it is the whole reason the include re-synthesis block exists.
+
+**The one-sentence fix.** The navigator composes the target set's own relation function
+per route, through `legacyNavigate`, with the join written as the author wrote it; the
+union is a plain stack; an include is a call. Nobody publishes, nobody scans, nothing is
+regenerated.
+
+Every piece of syntax below is taken from `docs/MAPPING_CLEAN_SHEET.md`, the engine's
+grammar tests (`~func`), or the native signatures in `Pure.java`. Two items were open and are
+answered in §6.
+
+---
+
+## 1. The legacy DSL, as an author writes it today
+
+### Store
+
+```
+###Relational
+Database acme::db
+(
+  Table T1 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
+  Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FID INTEGER, DID INTEGER)
+  Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+  Table DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+  Table ADDRESS (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER, PERSON_ID INTEGER)
+
+  Join Firm_Person1 (FIRM.ID = T1.FIRM_ID)
+  Join Firm_Person2 (FIRM.ID = T2.FID)
+  Join Dept_Person1 (DEPT.ID = T1.DEPT_ID)
+  Join Dept_Person2 (DEPT.ID = T2.DID)
+  Join Firm_Address (FIRM.ID = ADDRESS.FIRM_ID)
+  Join Address_Person1 (ADDRESS.PERSON_ID = T1.ID)
+)
+```
+
+### Classes
+
+```
+###Pure
+Class acme::Person { name: String[1]; }
+Class acme::Firm { id: Integer[1]; name: String[1]; employees: acme::Person[*]; }
+Class acme::Department { id: Integer[1]; name: String[1]; staff: acme::Person[*]; }
+```
+
+### Mapping A — Person twice, unioned; Firm reaches Person through one join per set
+
+```
+###Mapping
+Mapping acme::A
+(
+  *acme::Person: Operation
+  {
+    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(p1, p2)
+  }
+  acme::Person[p1]: Relational
+  {
+    ~mainTable [acme::db]T1
+    name: [acme::db]T1.NAME
+  }
+  acme::Person[p2]: Relational
+  {
+    ~mainTable [acme::db]T2
+    name: [acme::db]T2.NAME
+  }
+  acme::Firm: Relational
+  {
+    ~mainTable [acme::db]FIRM
+    id: [acme::db]FIRM.ID,
+    name: [acme::db]FIRM.NAME,
+    employees[p1]: [acme::db]@Firm_Person1,
+    employees[p2]: [acme::db]@Firm_Person2
+  }
+)
+```
+
+### Mapping B — includes A, adds Department, whose `staff` reaches into A's Person sets
+
+```
+Mapping acme::B
+(
+  include acme::A
+
+  acme::Department: Relational
+  {
+    ~mainTable [acme::db]DEPT
+    id: [acme::db]DEPT.ID,
+    name: [acme::db]DEPT.NAME,
+    staff[p1]: [acme::db]@Dept_Person1,
+    staff[p2]: [acme::db]@Dept_Person2
+  }
+)
+```
+
+Where the links live: on Firm and on Department, and each names a column of Person's
+tables. Everything else follows from that.
+
+---
+
+## 2. Mapping A, hand-typed in the function form
+
+**Step 1 — one relation function per set** (the `~func` idea: the set's rows as a Relation,
+before anything becomes an object; return types spelled as the clean-sheet doc spells them).
+
+```
+function acme::funcs::p1Rows(): Relation<(ID:Integer, NAME:String, FIRM_ID:Integer, DEPT_ID:Integer)>[1] = {|
+  #>{acme::db.T1}#
+}
+
+function acme::funcs::p2Rows(): Relation<(ID:Integer, NAME:String, FID:Integer, DID:Integer)>[1] = {|
+  #>{acme::db.T2}#
+}
+```
+
+A set's filter goes here: `#>{acme::db.T1}# -> filter(r | $r.STATUS == 'ACTIVE')`.
+
+**Step 2 — one projection per set.** Rows become Person instances. The author puts the link
+key on the target as a mapping-local property (`+`, doc §4.2, Layer 5): in the clean form
+the target owns its link.
+
+```
+function acme::funcs::p1Mapping(): acme::Person[*] = {|
+  acme::funcs::p1Rows()
+    -> map(r | ^acme::Person(name = $r.NAME->toOne(), +firmFk = $r.FIRM_ID))
+}
+
+function acme::funcs::p2Mapping(): acme::Person[*] = {|
+  acme::funcs::p2Rows()
+    -> map(r | ^acme::Person(name = $r.NAME->toOne(), +firmFk = $r.FID))
+}
+```
+
+**Step 3 — Person is the two stacked** (doc E6; Pure's
+`concatenate<T>(set1:T[*], set2:T[*]):T[*]`).
+
+```
+function acme::funcs::personMapping(): acme::Person[*] = {|
+  acme::funcs::p1Mapping() -> concatenate(acme::funcs::p2Mapping())
+}
+```
+
+**Step 4 — Firm navigates in model terms** (post-map `navigate`, doc §3.3). The predicate
+sees the Firm instance and the Person candidate; no table of Person's appears.
+
+```
+function acme::funcs::firmMapping(): acme::Firm[*] = {|
+  #>{acme::db.FIRM}#
+    -> map(r | ^acme::Firm(id = $r.ID->toOne(), name = $r.NAME->toOne()))
+    -> navigate(~employees: acme::Person.all(), {f, p | $p.firmFk == $f.id})
+}
+```
+
+`acme::Person.all()` resolves through whatever mapping the query runs with.
+
+**Step 5 — the binding table.**
+
+```
+Mapping acme::A
+(
+  *acme::Person:     Relational { acme::funcs::personMapping },
+   acme::Person[p1]: Relational { acme::funcs::p1Mapping },
+   acme::Person[p2]: Relational { acme::funcs::p2Mapping },
+  *acme::Firm:       Relational { acme::funcs::firmMapping }
+)
+```
+
+Against §1: the union's key was born on the target side, by the author, once. Firm scans
+nothing.
+
+---
+
+## 3. Mapping B, hand-typed, and what it shows
+
+B includes A and adds Department. Department is B's own class, so its pipeline starts from
+DEPT; what B borrows from A is Person, and that is the call. In the clean form B cannot reach
+into T1 or T2 and cannot add a local to A's Person functions, so the author has exactly two
+honest choices:
+
+- A's Person already exposes a department key (public, or local) and B uses it:
+
+```
+function acme::funcs::departmentMapping(): acme::Department[*] = {|
+  #>{acme::db.DEPT}#
+    -> map(r | ^acme::Department(id = $r.ID->toOne(), name = $r.NAME->toOne()))
+    -> navigate(~staff: acme::Person.all(), {d, p | $p.deptFk == $d.id})
+}
+
+Mapping acme::B
+(
+  include acme::A,
+  *acme::Department: Relational { acme::funcs::departmentMapping }
+)
+```
+
+- or A does not expose it, and B maps Person itself with the key it needs.
+
+There is no third way. The clean form forbids what §1's Mapping B did (reaching into another
+mapping's tables). One sentence the clean-sheet doc still owes: whether a `+local` declared
+in A is visible to a function bound in B after `include` (today it only says other mappings
+cannot reach a class's locals through `Class.all()`).
+
+Where a B function does start from an A function: when B redefines a class A maps (legacy
+`extends`). Then B's Firm is A's Firm function widened, not a fresh scan of FIRM. That
+replaces today's extends flattening and is its own slice.
+
+---
+
+## 4. A route through a middle table, hand-typed
+
+The doc's preferred shape (Layer 5, multi-hop): model the middle and split into two
+single-hop links; traversal is then ordinary and no function holds a middle row for
+somebody else.
+
+```
+Class acme::Address { id: Integer[1]; firm: acme::Firm[1]; person: acme::Person[1]; }
+
+function acme::funcs::addressMapping(): acme::Address[*] = {|
+  #>{acme::db.ADDRESS}#
+    -> map(r | ^acme::Address(id = $r.ID->toOne(), +firmFk = $r.FIRM_ID, +personFk = $r.PERSON_ID))
+    -> navigate(~firm:   acme::Firm.all(),   {a, f | $a.firmFk == $f.id})
+    -> navigate(~person: acme::Person.all(), {a, p | $a.personFk == $p.id})
+}
+```
+
+---
+
+## 5. What the normalizer generates from §1 so it reads like §2
+
+The legacy author put the link on the navigator. The translation cannot invent `+firmFk` on
+Person's sets without scanning Firm, and that scan is the coupling that breaks includes. So
+the generated form keeps the link where the author put it and uses the one sanctioned legacy
+escape, `legacyNavigate`, whose four-argument signature is (Pure.java):
+
+```
+legacyNavigate<S,C,T,Z>(
+  rel:     Relation<S>[1],
+  target:  FuncColSpec<{->C[*]}, Z>[1],            -- ~alias: <class extent thunk>
+  tgtRows: Relation<T>[1],                          -- the target's rows the condition reads
+  cond:    Function<{S[1], T[1] -> Boolean[1]}>[1]  -- source row, target row
+): Relation<S+Z>[1]
+```
+
+It widens the source rows with a slot of target instances, materialized through the target's
+mapping, using a condition over the source row and the target's rows. Emitted only by the
+normalizer.
+
+**Per set — the same function a set gets today**, one per set, the resolver splitting it at
+its `map` terminal into the relation part and the projection (that split already exists:
+`ClassSources` loads a binding "split at the `map(row|^Class(...))` terminal"):
+
+```
+function acme::A$p1(): acme::Person[*] = {|
+  #>{acme::db.T1}# -> map(r | ^acme::Person(name = $r.NAME->toOne()))
+}
+function acme::A$p2(): acme::Person[*] = {|
+  #>{acme::db.T2}# -> map(r | ^acme::Person(name = $r.NAME->toOne()))
+}
+function acme::A$Person(): acme::Person[*] = {|
+  acme::A$p1() -> concatenate(acme::A$p2())
+}
+```
+
+The union is a stack and nothing else: no key columns, no scan.
+
+**Per property — ONE navigate step carrying every route the author wrote.** Each route names
+its target set, its target rows and its join expression exactly as written, over both rows.
+Matches from any route fill the slot; a source row with no match through any route is kept
+once. Today's four-argument form is the one-route case of this.
+
+```
+function acme::A$Firm(): acme::Firm[*] = {|
+  #>{acme::db.FIRM}#
+    -> legacyNavigate(~employees: getAll(acme::Person),
+         [ route p1:  #>{acme::db.T1}#,  {f, r | $f.ID == $r.FIRM_ID},
+           route p2:  #>{acme::db.T2}#,  {f, r | $f.ID == $r.FID} ])
+    -> map(r | ^acme::Firm(id = $r.ID->toOne(), name = $r.NAME->toOne(), employees = $r.employees))
+}
+```
+
+The spelling of the several-route overload (how the route list is passed) is the one
+decision the build makes; the content is fixed: per route, the pinned set, its rows, its
+condition. A composite or non-equality join goes into the route's lambda unchanged.
+
+**Mapping B, generated.** Department composes the same sets with its own joins. A's functions
+are not touched, copied, regenerated or compared.
+
+```
+function acme::B$Department(): acme::Department[*] = {|
+  #>{acme::db.DEPT}#
+    -> legacyNavigate(~staff: getAll(acme::Person),
+         [ route p1:  #>{acme::db.T1}#,  {d, r | $d.ID == $r.DEPT_ID},
+           route p2:  #>{acme::db.T2}#,  {d, r | $d.ID == $r.DID} ])
+    -> map(r | ^acme::Department(id = $r.ID->toOne(), name = $r.NAME->toOne(), staff = $r.staff))
+}
+
+Mapping acme::B
+(
+  include acme::A,
+  *acme::Department: Relational { acme::B$Department }
+)
+```
+
+No Person entry, no Firm entry in B: under B, `acme::Person.all()` and `acme::Firm.all()`
+resolve through the include to A's functions.
+
+**The chain, generated.** The middle table joins into that route's rows, on the navigator's
+side of the call; the last join's expression is the condition. The middle rows sit inside one
+route, so a second route with its own middle table cannot multiply against them — the rows
+the engine produces by rooting the arm at the middle table (B3.2's receipts), reached by
+composition.
+
+```
+    -> legacyNavigate(~employees: getAll(acme::Person),
+         [ route p1:  #>{acme::db.T1}# -> join(~addr: #>{acme::db.ADDRESS}#, {r, a | $r.ID == $a.PERSON_ID}),
+                      {f, x | $f.ID == $x.addr.FIRM_ID} ])
+```
+
+**A class this mapping does not map.** A's Product with `synonyms: @Product_Synonym`
+becomes a route whose target set is Synonym's in the queried mapping. Under A there is none
+and the query fails plainly at demand; under B, which maps Synonym, it resolves. No drop rule.
+
+---
+
+## 6. The two questions that were open, answered from the code
+
+**How a route names "set p1 as it exists in the queried mapping".** Not in Pure. The
+generated call says `getAll(acme::Person)`; the set pin is a fact stamped on the compiled
+mapping (`MappingDefinition.routedTargetSets`), and `ClassSources.getForNav` uses it to pick
+the set-discriminated binding under the mapping being queried, so an include with a store
+substitution resolves to the includer's copy of `p1`. Today the pin is per navigation head
+("the head's sole routed set"); with several routes per property it becomes per route. A
+keying change in a fact, not a new mechanism, and never a set id inside generated Pure.
+
+**The `[*]` slot.** `NavigateChecker.legacy` types the pipeline `legacyNavigate` slot as ONE
+instance per output row (`Form.PRE_MAP`): it multiplies rows, one per match. Hence one step
+per property carrying all its routes (§5), never one step per route: two steps on the same
+rows would cross-multiply route 1's matches with route 2's, and stacking two widened
+relations would duplicate every source row that matches nothing.
+
+---
+
+## 7. What this deletes, and what to measure before building
+
+**Deletes.** The union's link-key publication and the scan of navigators behind it
+(`publishLinkKeys`, `collectInboundRouteKeys`); the key naming rules (`navigatingIdentity`,
+`routeSignature`, `routeShapes`, `linkKeyName`); the include re-synthesis block and every
+criterion it ever had; the push-into-arm chain machinery (`inboundArmSteps`, `LiftChain`,
+`chainsSink`) and the union's lifted-navigation threads; the B3.3 drop rule
+(`classTypedButUnmapped`); the union widening on the query side that served published keys
+(`widenUnionMember`, `widenForCondition` consumers). The union driver keeps: the stack, the
+shared-table merge of same-table members, the own primary-key threads.
+
+**Measure first** (rows are the verdict; SQL text will differ from the engine's):
+1. The union families (`multipleChainedJoins` ×20, `unionMappingWithJoinSequenceInProperty`,
+   `unionOfViews*`, `UnionTargetLeanJoinTest`, `ResolveUnionChainTest`'s trap row): rows and
+   timing of the several-route navigate lowered as the keyed union join we emit today (one
+   valid lowering) versus per-route joins stacked.
+2. The chained family: rows and timing with the middle table inside the route's rows.
+
+**Then** one decided batch: the several-route `legacyNavigate` overload and its typing, the
+per-route set pin, the emitter change (one step per property, routes as written), the union
+driver reduced to a stack, the deletions above; 0 LOST on both lanes; chain; record.
+
+**Related.** `docs/MAPPING_CLEAN_SHEET.md` (§2, §3, §4.2, Layer 5, E6);
+`docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md` §6 (B3.1b design, B3.2 receipts, the
+B3 arc audit's deferrals 1, 4, 5 — all closed by this design).
