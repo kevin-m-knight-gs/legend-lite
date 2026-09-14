@@ -576,6 +576,53 @@ not yet explained; the aggregation-aware union members project no scalar columns
 set's rows do not carry (the pinned-single-to-subclass special case in `emitJoinChain` and the
 new route list disagree).
 
+## 9. The architecture, restated against the goals (2026-09-14)
+
+**The goals, in order** (USER 2026-09-14): rows equal to the engine, always; the generated
+code reads like something a person would write; the same pipeline as every other function;
+facts stamped where known, nothing guessed; bespoke mapping code shrinking every batch; loud on
+the unknown; measured performance, no cliffs by accident.
+
+**The model.** A union of mappings of one class IS a stack of the members' functions —
+`Operation { concatenate(p1, p2) }` — because that is what Pure's union means: a list of objects
+from both, each object still belonging to the mapping it came from. **The law:** any operation on
+a stack is the operation on each arm, stacked — navigation, filtering, identity, graph fetch, a
+union inside a union. `Operation` stays the KIND TAG on the binding ("this class's function is a
+composition"); there is no union operator users call, and no pre-built union object with helper
+columns on the query side. What the query side lacks today, and what the next slice builds, is
+the law applied: a demand for a navigation on a stack flows into each arm, each arm answers with
+its own step, the answers stack. Everything the union body precomputes today becomes an instance
+of that law or has no reader (§8.6's list).
+
+**The lowering optimization we MUST NOT lose** (USER 2026-09-14). The law says "one join per
+arm"; the engine joins ONCE above the union, and we measured why (§6 B3 of the homework doc, one
+union family, DuckDB): the merged single-key join **0.8 ms** (hash), a coalesced key **1.5 ms**
+(hash), an OR of per-arm equalities **8.9 ms** (nested loop). So the lowering of a navigation
+whose SOURCE is a stack is a compiler pass with three shapes, chosen by looking at the arms'
+conditions and nothing else:
+
+1. **Uniform** — every arm's condition has the same shape (target reads erased, source reads
+   kept: `$s.fk == $t.?` on both arms): ONE join above the stack on ONE key column, each arm
+   projecting its own read under that one name (NULL where an arm has none); a single equality,
+   hash-joinable. This is today's routed form (`UnionTargetLeanJoinTest`: one join, no OR, no
+   coalesce).
+2. **Non-uniform equalities** — the arms' conditions differ but each is an equality (or a
+   conjunction of equalities) against the same source expression: ONE join above the stack with
+   per-arm key columns (NULL elsewhere) and `coalesce` over them where the left side is shared,
+   else an OR of the equalities — the engine's `unionalias_N ... on (a or b)` shape; still one
+   join, still row-equal (`ResolveUnionChainTest`'s trap row: a key an arm lacks is NULL there
+   and never matches).
+3. **General** — a condition that is not an equality (an inequality, a composite predicate the
+   arms spell differently): the law literally — the join inside each arm, results stacked.
+   Row-equal by construction; the slow shape, accepted only when 1 and 2 do not apply.
+
+The chooser reads the typed conditions the arms already carry (the same shape rule
+`NavigateChecker.legacyRoutes` uses today for route lists); it never reads the mapping. The
+routed navigate INTO a union is the same pass seen from the other side (the routes' conditions
+are the arms' conditions), which is why the route list already lowers as shape 1 or 2.
+Measurement rides every batch that touches this pass: the three families above on both lanes,
+rows first, then the DuckDB timings of the union families against the numbers here.
+
 **Related.** `docs/MAPPING_CLEAN_SHEET.md` (§2, §3, §4.2, Layer 5, E6);
 `docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md` §6 (B3.1b design, B3.2 receipts, the
 B3 arc audit's deferrals 1, 4, 5 — all closed by this design).
