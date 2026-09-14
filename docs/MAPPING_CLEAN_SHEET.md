@@ -1161,7 +1161,7 @@ collapse to "use Relation API" — they're not mapping-specific.
 | E3 | XStore | Subsumed by cross-store `navigate` |
 | E4 | AggregationAware | Multiple bindings + dispatch logic; details deferred (§9) |
 | E5 | Relation (`~func`) | Source is a function call — falls out of "use any Relation expression" |
-| E6 | Union set | Multiple functions for same class + composing function returning `Class[*]` |
+| E6 | Union set | Multiple functions for same class + composing function returning `Class[*]`, bound under the engine's own kind: `*acme::Person: Operation { acme::funcs::personMapping }` (decided 2026-09-13; `Relational` keeps its one meaning) |
 | E7 | Merge/Intersection | Same as E6 |
 
 ### Known bugs

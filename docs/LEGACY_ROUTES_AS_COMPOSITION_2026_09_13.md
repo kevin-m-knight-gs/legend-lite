@@ -167,7 +167,7 @@ function acme::funcs::firmMapping(): acme::Firm[*] = {|
 ```
 Mapping acme::A
 (
-  *acme::Person:     Relational { acme::funcs::personMapping },
+  *acme::Person:     Operation  { acme::funcs::personMapping },
    acme::Person[p1]: Relational { acme::funcs::p1Mapping },
    acme::Person[p2]: Relational { acme::funcs::p2Mapping },
   *acme::Firm:       Relational { acme::funcs::firmMapping }
@@ -272,24 +272,23 @@ function acme::A$Person(): acme::Person[*] = {|
 
 The union is a stack and nothing else: no key columns, no scan.
 
-**Per property — ONE navigate step carrying every route the author wrote.** Each route names
-its target set, its target rows and its join expression exactly as written, over both rows.
-Matches from any route fill the slot; a source row with no match through any route is kept
-once. Today's four-argument form is the one-route case of this.
+**Per property — ONE navigate step carrying every route the author wrote** (decided: a route
+list). Each route names its target rows and its join expression exactly as written, over
+both rows; its target SET rides the stamped per-route pin, never the Pure. Matches from any
+route fill the slot; a source row with no match through any route is kept once. Today's
+four-argument form is the one-route case of this.
 
 ```
 function acme::A$Firm(): acme::Firm[*] = {|
   #>{acme::db.FIRM}#
     -> legacyNavigate(~employees: getAll(acme::Person),
-         [ route p1:  #>{acme::db.T1}#,  {f, r | $f.ID == $r.FIRM_ID},
-           route p2:  #>{acme::db.T2}#,  {f, r | $f.ID == $r.FID} ])
+         [ route(#>{acme::db.T1}#, {f, r | $f.ID == $r.FIRM_ID}),
+           route(#>{acme::db.T2}#, {f, r | $f.ID == $r.FID}) ])
     -> map(r | ^acme::Firm(id = $r.ID->toOne(), name = $r.NAME->toOne(), employees = $r.employees))
 }
 ```
 
-The spelling of the several-route overload (how the route list is passed) is the one
-decision the build makes; the content is fixed: per route, the pinned set, its rows, its
-condition. A composite or non-equality join goes into the route's lambda unchanged.
+A composite or non-equality join goes into the route's lambda unchanged.
 
 **Mapping B, generated.** Department composes the same sets with its own joins. A's functions
 are not touched, copied, regenerated or compared.
@@ -298,8 +297,8 @@ are not touched, copied, regenerated or compared.
 function acme::B$Department(): acme::Department[*] = {|
   #>{acme::db.DEPT}#
     -> legacyNavigate(~staff: getAll(acme::Person),
-         [ route p1:  #>{acme::db.T1}#,  {d, r | $d.ID == $r.DEPT_ID},
-           route p2:  #>{acme::db.T2}#,  {d, r | $d.ID == $r.DID} ])
+         [ route(#>{acme::db.T1}#, {d, r | $d.ID == $r.DEPT_ID}),
+           route(#>{acme::db.T2}#, {d, r | $d.ID == $r.DID}) ])
     -> map(r | ^acme::Department(id = $r.ID->toOne(), name = $r.NAME->toOne(), staff = $r.staff))
 }
 
@@ -321,8 +320,8 @@ composition.
 
 ```
     -> legacyNavigate(~employees: getAll(acme::Person),
-         [ route p1:  #>{acme::db.T1}# -> join(~addr: #>{acme::db.ADDRESS}#, {r, a | $r.ID == $a.PERSON_ID}),
-                      {f, x | $f.ID == $x.addr.FIRM_ID} ])
+         [ route(#>{acme::db.T1}# -> join(~addr: #>{acme::db.ADDRESS}#, {r, a | $r.ID == $a.PERSON_ID}),
+                 {f, x | $f.ID == $x.addr.FIRM_ID}) ])
 ```
 
 **A class this mapping does not map.** A's Product with `synonyms: @Product_Synonym`
@@ -378,7 +377,10 @@ The seam it plugs into is `NavMaterializer.navTargetMaterialized` → `ClassSour
 there (`UNION_SCAN`, key threads) are what the new lowering builds from the routes instead of
 reading from the union. The corpus after the build is the row measurement: 0 LOST both lanes.
 
-**Two decisions the build makes, with a recommendation.**
+**Two decisions — DECIDED (USER 2026-09-13: "agree with both").** (1) the several-route
+navigate is a ROUTE LIST, each entry its rows and its condition, typed entry by entry;
+(2) a union's composing function binds under the engine's own kind, `Operation { f }`.
+The reasoning as it was put:
 1. *The several-route overload's spelling.* Each route has its own row type, so one `T` cannot
    type a list of `(rows, cond)` pairs. Options: (a) a route list `[route(rows1, cond1),
    route(rows2, cond2)]` typed per element by a Typer arm; (b) the four-argument form repeated
