@@ -1,5 +1,51 @@
 # Legacy routes as composition — the worked example (2026-09-13)
 
+## START HERE (fresh session, 2026-09-14)
+
+**State of main.** `aa68dc289` + docs: step 1 (the several-route `legacyNavigate` primitive:
+`route(...)`, the checker, `TypedNavigate.routes`, `ClassSources.routedUnionSource`) and step 2a
+(ONE target lookup `ClassSources.navTarget(source, class, step, head)`; the eleven head-string
+sites re-pointed; rebuilds keep routes). Corpus DuckDB 108 / H2 444 EXACT, chain and CI green.
+Nothing emits routes on main yet; the union body is unchanged.
+
+**Parked.** Branch `wip/composition-2b` (pushed): every non-root set bound, route lists emitted,
+chains inside routes, nested reads, twenty more navigate-step sites on the one lookup. 228 LOST —
+the union body's own lifted navigations still speak the published keys. Read §8.6 before
+touching it. The stack's first-cut query-side builder (lifts from the members' steps) is
+`docs/notes/composition-union-source-first-cut.java.txt`.
+
+**The goals, in order** (§9): rows equal to the engine; output a person would write; the same
+pipeline as every other function; facts not guesses; bespoke code shrinking every batch; loud on
+the unknown; measured performance.
+
+**The architecture (decided, §9):** a union is a STACK of its members' functions; the LAW: any
+operation on a stack is the operation per arm, stacked; `Operation` is only the binding's kind
+tag; the lowering of a navigation over a stack is a five-shape pass (uniform / non-uniform
+equalities / push-into-arm for chains / the Snowflake bridge union / general) that must not be
+lost, and every arm's own primary key must survive (the bridge joins on it).
+
+**The next slice, in order — no code before the first two are written and read:**
+1. INVENTORY (by grep, never memory): everything the union body precomputes today
+   (`UnionSynthesis`: threads, published keys, lifts incl. inverse-association ends, per-ordinal
+   key threads, chains, same-table merge, aggregation-aware / `~func` / `Pure` members) and every
+   query-side reader of it (the 61 `sources.get` sites, `widenConcatenateForKeys`,
+   `UNION_SCAN`, `UnionHeads`, `mixedUnionSource`, `ImportDataFlow`), each classified: an
+   instance of the law, an input to a lowering shape, or no reader. With its corpus judges.
+2. DESIGN PAGE: how a demand for a navigation on a stack flows into the arms on the query side
+   (the capability), how each inventory item becomes it, the witness for what the corpus lacks
+   (mixed members).
+3. ONE BUILD, judged per item by rows; then the deletions (§7, §8.3) as their readers vanish.
+
+**Rules that were paid for this week.** An optional parameter threaded through call sites is
+the hack pattern — change the signature or the lookup, never patch sites. An inventory that
+misses the plain class lookups is not an inventory. Two blind probes → stop, write the handoff,
+park on a branch. Rows first; the SQL text is the engine's, never ours to chase. Every batch
+deletes more than it adds or it is not done. The `routeFunction` loss, the `[[], []]`
+aggregation-aware arms and the pinned-single-to-subclass route (§8.6) are open questions to
+answer in the inventory, not to patch.
+
+---
+
 **Status.** Design, agreed in conversation 2026-09-13 after the B3 arc audit. Not built.
 Replaces the plan's B3.5 idea and the "generate under the includer and compare" attempt
 (never committed; reverted from the working tree after the census below). The next slice builds this; the measurements it needs are in §7.
