@@ -697,6 +697,263 @@ are the arms' conditions), which is why the route list already lowers as shape 1
 Measurement rides every batch that touches this pass: the three families above on both lanes,
 rows first, then the DuckDB timings of the union families against the numbers here.
 
+## 10. Inventory — what the union body precomputes and who reads it (2026-09-14, main `d24e005da`)
+
+Taken by grep over main at step 2a, never from memory. Every line reference is main. The
+parked branch's last corpus logs (job tmp `corpus-duckdb.log` 06:48 = the 226-LOST run,
+`corpus-h2.log` = 446 LOST) were read for the three open questions and for which families
+each item breaks; nothing on the branch was touched.
+
+**The three labels.** LAW = an instance of "the operation on a stack is the operation per arm,
+stacked": the item is something each arm already knows about itself, and the stack only has to
+carry it through. SHAPE n = an input to the lowering pass of §9 (shape 1–5): the item is how a
+navigation over a stack is made fast, not what it means. NO READER = nothing reads it once
+navigations are route lists; it dies in 2d. FACT = a fact about the mapping text (membership,
+kinds), not about the union body; it stays as a stamped fact.
+
+**Counts, so the design page has denominators.** `UnionSynthesis` 3,287 lines. 61 plain-class
+lookups (`sources.get`) in 13 resolver files. 16 widening call sites over 3 entry points.
+10 reader sites of the merged-scan marker. 3 query-side union builders (the normalizer's body,
+`UnionHeads`, `mixedUnionSource`) plus step 1's `routedUnionSource`. Register: 89 `union::` rows
+DuckDB / 88 H2, 8 `specialUnion`, 37 `extend::`, 21 `modelJoin::advanced`, 28 metamodel
+`executionPlan::tests`, 114 `aggregationAware`, 3 `milestoning::union`.
+
+### 10.1 What the union body precomputes (`UnionSynthesis`, main)
+
+| # | item | where (main) | label | judged by |
+|---|---|---|---|---|
+| A1 | **The arm list and its order.** Members by set id across includes; a `Pure` member makes the union "mixed" (A12); a `~func` member is allowed (A13); a member must map the class or a subclass. Inheritance ops enumerate the engine's leaf-most mapped subclasses (`getMappedLeafTypes`), one enumeration shared with route classification so ordinals align. | `synthUnion` 284–386; `synthInheritance` 396–424; `inheritanceMembers` / `collectInheritanceMembers` 555–667 | LAW (the stack's arms, in the engine's ordinal order; the order is read by A11's names, A12's arm order and graph fetch) | every `union::` family; `specialUnion` ×8; inheritance families (`mapping::inheritance`, `extend::`, `subType`: 20 rows lost on the branch); the metamodel (`executionPlan::tests` ×28) |
+| A2 | **Association pair entries land on their member.** `[srcSet, tgtSet]` association entries become routed Join PMs on the owning MEMBER inside the union body, through the extends chain, deduped by `pmIdentity`. The member's own standalone function never gets them: `AssociationSynthesis` 173–186 skips injection when the owner is a union member ("land on their member set at union synthesis instead"). | `synthUnion` 339–384; `withPairEntries` 429–470; `AssociationSynthesis.injectMultiHopAssociationPMs` 81–199 | LAW — each arm's own navigations include the pairs whose source set it is. Input to 2b's "every set gets a function": the per-set function must carry them or the stack cannot compose them. | `extend::testExtendsForPropertyMappingWithUnion` (result2 joins only the routed thread), `association::inheritence::testBuilderRoutingOfAggFunctionParameters`, `testGetAllFilterWithAssociation`, `union::optimized::testSimpleQueryFromAssociationMapping*` ×2, multipleChainedJoins V4 (included pair entries) |
+| A3 | **Shared scalar columns.** The union of the members' scalar properties in first-appearance order; a member lacking one projects a typed NULL; numeric/date coercion to the declared kind, `String` cast, `trustOne` alignment to `[1]`. | 910–926; `threadOf` 1161–1191 | LAW — the per-arm projection of the class's scalar properties. Step 1's routed builder (`ClassSources` 452–457) and the first cut (note lines 105–110) already do exactly this from the arm's bindings. | `union::partial::*` ×6 (`testUnionPartial` goldens: TDSNull reads), `testProjectMappingWithSameColumnsNames`, every union family |
+| A4 | **Embedded properties distributed per sub-field.** Each member's `^Inner(...)` ctor leaves become `emb__<path>__<sub>` thread columns (typed NULL where a member lacks the sub); the union root recomposes the ctor; class-typed subs recompose as union-level reads served by A6; members disagreeing on a path's ctor class recompose as the DECLARED class; unprojectable leaves poison the top property. | 927–952; `collectEmbeddedDistribution` 1497–1586; `addEmbeddedThreadCols` 1591–1625; `rebuildEmbCtor` 1693–1719 | LAW — an arm's ctor bindings are the arm's; a stack builder reads them per arm (the routed builder does not do this yet: it reads only scalar bindings). | `testProjectEmbeddedMappingUnionWithSameColumnsNames(Deep)` ×2 (+`extend::` twins), `union::partial::testPartialUnionAtNestedPropertyWithManyPropertyMappings` ×3, `inheritanceWithEmbedded` (Car/Bicycle map only `mechanic(...)`), `vehicleOwner` Inline[person]/Inline[airline] |
+| A5 | **Subtype dispatch columns and the membership witness.** Every member whose class is a strict subclass projects its scalar props under `stc_<Sub>___<prop>` (own thread reads, others NULL), plus a `$member` witness (TRUE / NULL) when some member does not conform; embedded subtype leaves flatten to `stc_<Sub>___<prop>__<leaf>`. The resolver exposes them as pseudo-bindings by column name. | `subTypeDispatchProps` 681–751; `addSubTypeDispatchCols` 757–808; `addStcEmbeddedLeaf` 813–842; readers `ClassSources` 1000–1007, `CastNav` 49, `ElementReferences` 128–190, `CastReRoot` | LAW — an arm knows its class; a cast over a stack is a per-arm filter and a per-arm read. Today it is a NAMED-COLUMN protocol (`ClassMapping.subTypeColumn`, `memberWitness`) that the query side reads by string; it survives 2b/2c as is and becomes a typed per-arm fact in B6. | `inheritance::*`, `subType::testSubTypeMappingValidWhenMappedExplicitly`, `specialUnion` ×8, the metamodel's `->cast(@Member)` roots (`RelationalOperationElement`, `SetImplementation`), `testInheritanceMultipleLevel` (batch 108) |
+| A6 | **Lifted navigations.** Every class-typed Join PM of every member (embedded descent included; subtype-only PMs under their `stc_` key) becomes ONE `legacyNavigate` ABOVE the concatenate: per entry the join's last hop translated over (member table, landing table); source reads member-suffixed `<col>_<i>` and projected by that member's thread (NULL elsewhere); the OR of the entries. Three sub-rules: (a) MERGED form (`liftTargetMerged`: one route per source member covering every target member, all reading the same target columns) keeps raw target reads and coalesces same-source members into one disjunct (`mergeSameSource`, `coalesceReads`); (b) the PAIRED form always builds and rides as `pairedCondition` for graph children (the engine's graph executor pairs strictly; its relational path cross-matches); (c) `singleSetTargetCollapse`: a NON-union target reached by every member through the SAME join into distinct private sets routes to the LAST member's binding only (inclusive golden `null as prodFk_1`). The target side reads the published link keys of A8. A property whose entries are unresolvable is not lifted (poison, loud at demand). | `collectNavLifts` 2600–2845; `scanJoinPms` 2493–2598; `liftTargetMerged` 2310–2365; `singleSetTargetCollapse` 2377–2401; emission 1065–1077; `recomposeUnionRoot` 1367–1393; readers of the paired form `GraphEmission` 1183, 1776, 2576 | LAW — each arm's own navigate step (the emitter already emits it per set today: the lift re-derives it from the PMs). Sub-rules (a) and (b) are SHAPE 2 (one join above the stack on per-arm keys, coalesced where the left side is shared); (c) is an engine ROUTING rule the chooser must keep as a rule about which arms answer, not a union-body fact. | every routed union family; `partiallyMilestoning` trio (the cross-match golden, rows 2×2); `milestoning::union` hybrid ×3 (inclusive: rows [2]); `union::sqlQueryMerging` ×7 (`fk_0=fk_0 OR fk_1=fk_1`); `testUnion` (`FirmID_0 = ID_0 OR …`); `VarReferenceWithUnion`; graph `rootLevel SameStore` (product=null); branch: 49 `mapping::union` rows lost, `a1_b` ×6 and `x0_y` ×3 (`ResolveUnionChainTest` trap row) |
+| A7 | **Inverse-association ends whose source set is a union member.** Single-hop association pair groups stay on the standalone predicate path (`legacyAssocPredicate`) and are NOT Join PMs on the member, so A6's scan never sees them; only multi-hop, routed-union-target, inheritance-target and non-anchorable groups inject as Join PMs. A member that is also a union member is skipped even then (A2). | `AssociationSynthesis` 112–186 (the rule); `synthesizeAssociationMapping` (the predicate function) | LAW — an arm's navigation, spelled today as an association binding's predicate instead of a step on the arm. Input to 2c': the stack cannot compose what is not on the arm; either the single-hop pair becomes a per-arm step, or the association binding's predicate is composed per arm (§8.6's finding). | `optimized::testSimpleQueryFromAssociationMappingOptimized(Half)`, `association::*`, `testUnionWithExistsFilter`; branch: `graphFetch` ×2 "property 'address' of class Person is not mapped" |
+| A8 | **Published link keys (B3.1b).** Every relational set in every mapping's closure publishes, before any synthesis, the columns the routes INTO it read, under names spelled by the navigating set and property (`linkKeyName(navigatingIdentity, prop, shape, pos)`); `navigatingIdentity` is the set id, or the operation's class when all its members route alike (`routeSignature`); `routeShapes` / `shapeIndex` decide when two routes share one name. The threads project the names (own column / typed NULL, one order); the navigator spells the same names (`JoinChainEmission` 544–612); the includer compares publications to decide re-binding (A16); the mixed-union arms read the fact (`linkKeyOnArm`). Extends chains inherit the parent's keys. | `publishLinkKeys` 2896–2929; `collectInboundRouteKeys` 2942–3023; `registerInboundGroup` / `registerInboundEntry` 3028–3144; names 1774–2063; thread projection 1195–1251; driver `MappingNormalizer` 167–207; fact `linkKeys` (`MappingLedger` 42, `MappingDefinition` 91, `PureModelContext` 332); readers `ClassSources` 719–737, `MappingNormalizer` 869–898 | NO READER once (i) every navigation INTO a union is a route list (2b) AND (ii) the union's own lifts (A6) are route lists (2c'). The branch measured what happens with (i) alone: 139 rows asked a union body for `__route0_0` while the body spoke `a1_b` / `set1_firm` / `x0_y` / `firm_set1_employees` — the two vocabularies meet in one predicate and cannot both hold. | `UnionTargetLeanJoinTest` (one key per arm, one equality), `ResolveUnionTest` (asserts the link key), `RoutedChainKeyTest`, `ResolveUnionChainTest`; every union family |
+| A9 | **Chains.** OUTBOUND: a member's chained Join PM puts its mids INSIDE its own thread (`liftMidSteps`, `JOIN_SLOT` wraps 1272–1293) and projects the last mid's columns as source keys spelled `col__prop_ord` (thread-internal; B3 audit deferral 4). INBOUND (push-into-arm, B3.2): a per-arm chained route into a member pushes the mids into THAT member's thread (`inboundArmSteps`) and publishes the FIRST mid's column under the link-key name; `uniformChainedRoutes` (shared with the emitter) decides shared-prefix (navigator emits the prefix, last hop is the route) versus per-arm; a second chain into one member under one name is dropped silently (`dup`, audit finding 2). | `liftMidSteps` 2403–2444; `LiftChain` 2457; `addChainedLiftCols` 1439–1465; `chainKeyNull` 1469; `inboundArmSteps` 2262–2303; `registerInboundEntry` 3076–3116; `uniformChainedRoutes` 2218–2242; `routeKeyCondition` / `hopCondition` 1966–2020 | Outbound: LAW (the arm's own chained step) lowered by SHAPE 3 when arms' chains differ. Inbound: NO READER — the mids belong to the ROUTE (`route(#>{T1}# -> join(~mid …), first-hop cond)`, §5), not to the arm; the branch's three `route condition reads through 'nl__employees__inb__…', which is not a joined sub-row of the route's rows` rows are exactly the inbound alias living in the wrong place. | `union::multipleChainedJoins::*` ×17 DuckDB (15 `testUnionWithChainedJoinsAcross…` + 2 view chains), `unionMappingWithJoinSequenceInProperty` ×2 (+`extend::`), `testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece`, `ResolveUnionChainTest`, `RoutedChainKeyTest` |
+| A10 | **The same-table merge.** (a) Filtered members over ONE physical table with agreeing navigation slots become ONE thread: the unfiltered scan restricted to rows some member claims, every column a CASE over the members' values gated by their filters, wrapped in the `unionScan` marker (B3). (b) Filter-free members over one table with no groupBy/distinct/sourceUrl collapse to ONE relational set with the identically-mapped base props hoisted (`synthSameTableInheritance`). (c) On the navigator side, a same-table inheritance target reached through one join drops its routes and reads the physical column plainly (`sameTableInheritanceMerge`). | scan groups 1003–1064; `mergedScan` 1301–1354; `ScanSource` / `FilteredScan` 1091–1147; marker 1057; `synthSameTableInheritance` 484–547; `sharedInheritanceTable` 528–547; `sameTableInheritanceMerge` 2026–2047; `JoinChainEmission` 437–442 | SHAPE — a lowering optimization of a stack whose arms share a root scan (the engine's single-table-hierarchy idiom; the H2 planner hang on the metamodel's 21-kind datatype hierarchy is the receipt). It must become a pass over such a stack, with the arms' route keys projected INSIDE the merged scan per arm (gated like every column): the branch's 114 `__route0_0` rows are merged scans (the metamodel's nodes and activities: `stc_…`, `res_activities`, `id__pk_metamodel_activities`) that did not project the route's key. | the metamodel: `executionPlan::tests` ×28, `typeInference` (20 rows lost on the branch), `aggregationAware` ×114 (17 lost on the branch through the ACTIVITIES union — see 10.4), `alloy::connections` (8 lost), `tds` (6), `modelJoins` (6); inheritance families; `UnionTargetLeanJoinTest` covers only the two-table case |
+| A11 | **Per-arm primary keys and the shared table key.** Every member's primary key (declared `~primaryKey` on the main table, else the table's PRIMARY KEY) is projected as `<col>_<ordinal>` (NULL in other threads) and recorded as the fact `unionKeyThreads` (`KeyThread(name, kind)`). Members sharing one main table with one PK column project it ONCE, ungated, as `<col>__pk_<table>`. | `recordKeyThreads` 3160–3185; `memberPrimaryKey` 3190–3214; `ownSharedKeys` 2856–2877; `sharedKeyName` 3218; thread 1252–1271; fact `MappingLedger` 38 → `PureModelContext` 339 | SHAPE 4 input (the bridge union joins on each side's primary key: every arm's own key must survive the stack) and the IDENTITY readers below. Not navigator knowledge; not union machinery. | readers: `ImportDataFlow` (10.2 B6), `CastReRoot` 89 (`startsWith(col + "__pk")` — audit deferral 6), primary-key pseudo-bindings `ClassSources` 1008–1023, `ElementReferences` 95/112, `RelationalRootForm` 220, `DriverPkAppend` 32; judged by the metamodel families (cast re-root under a flatten: `FunctionParametersValidationNode.functionParameters`) and by §9's four bridge-union receipts (`testChainedUnions`, `testProjectThroughAsso*`, `testUnionWithSinglePropertyMapping`) |
+| A12 | **Mixed unions (a `Pure` member).** The normalizer withholds the function and records `mixedUnions`; the resolver builds the arms itself: relational members first, Pure members after (engine batch order), scalar props by each arm's bindings (a missing binding is loud, no NULL arms), per-member child routes from the arms' own steps (`mixedMemberRoutes`: the routed set hint + the step's equal-pairs) as `k__<prop>__<ord>_<k>` key columns (audit deferral 5), and a keyed CHILD union per class-typed property (`mixedChildMaterial`) whose arms read the link-key fact (`linkKeyOnArm`). The set-pin fact is kept for mixed unions on purpose (`SetDispatch` 77–86). | `synthUnion` 305–318; `MappingNormalizer` 300–357 (per-set bindings only for mixed members); `ClassSources.mixedUnionSource` 247–339, `mixedArmOrder` 539–555, `mixedMemberRoutes` 612–650, `mixedChildMaterial` 745–865, `linkKeyOnArm` 719–737; `ClassSources.build` 907–919 | LAW — this IS "demand flows into the arms", built once for the mixed case only: arms from the members' own sources, a navigation over the stack composed from the arms' own steps. It is the prototype of the one query-side builder, not a special case to keep beside it. | NO corpus judge: `XStore` rows in either register = 0; the three `XStore::inMemoryAndRelational` tests sit on both fail rosters. Witness W1 (10.5). |
+| A13 | **`~func` (Relation) members.** The member's parts are the inlined relation body and its column reads; no main table, so no navigation lift, no inbound key (a route into it "has no physical key table"), no primary-key thread. | `synthMemberUnion` 851–867; `registerInboundEntry` 3066–3069; `recordKeyThreads` 3166–3169; `collectNavLifts` 2609–2611 | LAW — an arm whose function is the user's relation function; a route into it reads its columns on its own rows, which is what a route already does (`route(rows, cond)` needs no key table). | union OF `~func` members IS in the corpus: `modelJoin::advanced` ×21 (`modelJoinUnionSetup.pure`: `personFT`/`personCT` are `Relation` sets under a union; `testUnionWithExistsFilter`, `testMixedMapping*`); a route INTO a `~func` member is not (§7 census: every routed member is `Relational`) → witness W2 |
+| A14 | **"Aggregation-aware members".** Not an item. No engine fixture puts an `AggregationAware` set inside an Operation union (grep of every relational test `.pure`: none). See 10.4 for what the branch's 17 `aggregationAware` rows were. | — | — | — |
+| A15 | **The navigator side of the same machinery.** Route classification per property (`classifyUnionRoutes`: union/inheritance member ordinals; root/sole routes = the un-routed navigation; a SINGLE route to a non-root set = the set-pin dispatch; poisons "MIXED root-set and union-member routes" and "MULTI-route dispatch outside union members is a roadmap feature"; the property is DROPPED from the synthesis on poison); the pinned-single-to-subclass rewrite (10.4); the routed emission (`routedNavigation`: one `legacyNavigate`, the OR over routes reading A8's names, per-arm chains reading the first hop); the B3.3 drop rule (`classTypedButUnmapped`, `droppedRoutedProps`). | `classifyUnionRoutes` 174–274; `JoinChainEmission` 292–325, 429–451, 486–613, 737–752; `MappingNormalizer` 2238 | Replaced by the route-list emitter (2b). Its poisons become routes: a route to a non-member, non-root set is a route to that set's function; mixed root+member routes are just routes; "not mapped in this closure" is a route that fails at demand under the queried mapping (§5, no drop rule). | `union::testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree`, `ResolveUnionTest.partialRouteSuffixedKey` / `coverageNeverMatchesUnroutedMember`, `MappedInClosureTest`, `projection::qualifier::testFilterInQualifierWithFilterInMapping*` ×2 |
+| A16 | **The include re-synthesis block.** An included class is re-bound under the querying mapping when (1) a routed target gains an operation here, (2) an included union's members gain THIS mapping's link keys, (3) a class-typed Join PM dropped under the defining closure has a target set here. Only sole definers; the local binding shadows the included one. | `MappingNormalizer.resynthesizeIncluded` 787–863; criteria 869–960; `MappingLedger.everyPublication` 47 | NO READER — the disease this design cures: a route names a function resolved under the QUERIED mapping (`findBindingByFunction`, own bindings then includes), so nothing needs regenerating. Criterion (3) is R6 and stays true by construction: under the queried mapping the route resolves or fails at demand. | `MappedInClosureTest`, `projection::qualifier::testFilterInQualifierWithFilterInMapping*` ×2, the `inheritanceMain` / `inheritanceMappingDB` split (`roadVehicles[map1]/[map2]`), `extend::` ×37, multipleChainedJoins V4 (included `y2`/`y3`) |
+| A17 | **Stamped facts.** `routedTargetSets` (property → sole non-root set of a multi-set NON-union target; mixed unions kept) and `routedSets` (the same over the surface, association ends and `Otherwise` fallbacks included) behind `routedTargetSetOf`; `unionMembers` → `unionMemberClasses`; `routedTargetClasses` → `routedTargetClass`; `mixedUnions`; `unionKeyThreads`; `linkKeys`; `poisons` → `mappingPoison`. | `SetDispatch` 34–87; `MappingFacts` 34–163; `MappingLedger.facts` 96–102; `PureModelContext` 258–349 | set pins: NO READER (a pinned single route is a route list of one; readers `ClassSources` 91 (the route-less path of `navTarget`), 619, `GraphEmission` 1130). `unionMemberClasses` / `routedTargetClass`: FACT, stay (casts: `AssociationJoins` 684, `ElementReferences` 141/164). `mixedUnions`: dies with A12. `unionKeyThreads`: stays (A11). `linkKeys`: dies with A8. `mappingPoison`: stays, shrinks with A15. | `ElementReferences` casts: inheritance families, the metamodel; `GraphEmission` set hint: graph fetch families (`graphFetch::tests::subType::*` on H2) |
+
+Two driver facts that belong to this list: union MEMBERS get no binding of their own unless
+the union is mixed (`MappingNormalizer` 309–357, the member exclusion 2b drops), and a union's
+composing function binds today as `ClassBinding.Pure` (non-Relational fallthrough at 397, 857) —
+there is no `Operation` kind tag on the binding (`ClassBinding` permits `Relational`, `Pure`
+only: `MappingDefinition` 179).
+
+### 10.2 The query-side readers
+
+**B1 — the 61 plain-class lookups (`sources.get`), by what they fetch.**
+
+| group | sites | label |
+|---|---|---|
+| (a) a navigate step's TARGET, fetched by class: `AssociationJoins` 178 (step by alias), 241 (nav-demand callback), 867/868 (association predicate's pinned set), 953 (tail step); `CorrelatedSubselects` 525, 1522; `DottedExists` 167; `GraphEmission` 688, 770, 1133/1136 (graph child with the set hint), 1766, 2571; `NavExistsMaterial` 149; `NavMaterializer` 656/691/701 (sub-hop), 783; `NavProvenance` 137, 173; `StoreResolver` 665, 799, 884, 1186 (flatten pre-hop target), 1853; `TemporalFrame` 999, 1087, 1702, 1748 | 30 lines | LAW — each is a demand for a navigation over a source; through the one lookup (`navTarget(source, class, step, head)`) it receives the routed union, i.e. the input to the shape pass. The branch moved twenty sites; the ones it did not are named after this table. |
+| (b) a SUBTYPE or CAST source (an arm read through its own class): `CastNav` 49; `CastReRoot` 58; `GraphEmission` 1957/1958 (cast's target set), 3130; `NavExistsMaterial` 161; `NavMaterializer` 320, 936, 1089; `AssociationJoins` 138 (a chain's stop class), 250, 1036; `CorrelatedSubselects` 534, 2013; `DottedExists` 146; `NavProvenance` 48/49 | 17 | LAW / IDENTITY — readers of A5 and A11; they stay, reading an arm's own source |
+| (c) a ROOT (the query's class, an aggregation-aware root, a graph root, a constructed scope): `StoreResolver` 591, 2756, 3432; `GraphEmission` 1144, 1244, 1281, 1298, 1456, 2108; `ObjectReferenceDecode` 131 | 10 | FACT — mapping dispatch, not union knowledge; the root of a union class is the stack |
+| (d) a union's MEMBERS: `AssociationJoins` 697 (`memberAssocKeyReads`: each member's own step's source reads, widened through the union projection) | 1 | LAW — the law applied by hand: the query side already reads the arms' own steps here |
+| (e) nested union target widened for downstream hops: `NestedUnionKeys` 34 | 1 | LAW — a stack's arms project what a later hop reads |
+| (f) model-to-model binding-shape probes: `CorrelatedSubselects` 2196, 2242 | 2 | unrelated to unions |
+
+Sum 61 (30 + 17 + 10 + 1 + 1 + 2). `ClassSources`' own `get(...)` delegations (184, 197, 272,
+501, 759, 801) are the builders, not readers, and are not in the 61. Read-only diff of the parked
+branch for `StoreResolver`: it moved 665 and 799 onto the one lookup and left 884, 1186 and 1853
+(the materialize callbacks and the flatten pre-hop target) on the plain lookup; the same diff
+for the other eight files of group (a) is a one-command check the design page should record
+before it counts sites.
+
+**B2 — the widening family.** `Pipelines.widenConcatenateForKeys` 1199–1256 (flatten the
+concatenate, re-add each missing key to EVERY member reading its own column, a typed NULL of a
+sibling's kind where a member lacks it, LOUD when no member carries it — the branch's verdict
+text, 139 rows), `widenConcatenateBelow` 1172, `widenForCondition` 1262, `widenUnionMember`
+1303–1369, `widenPipeForJoinKeys` 1872; consumers `NavMaterializer` 258, 960, 1067;
+`NavExistsMaterial` 174; `ChainedExists` 125, 142; `GraphEmission` 691, 822, 1349, 2577;
+`Substitution` 3285; `DottedExists` 178; `Pipelines` 644; `AssociationJoins` 234, 469–477, 1019;
+`StoreResolver` 2003; `NestedUnionKeys` 55. Label: NO READER once the arms project their route
+keys (step 1's builder already does: `ClassSources` 458–465). The one rule inside it worth
+keeping is the per-arm NULL of a sibling's kind, which is the stack's projection rule (A3) and
+lives in the builder, never as a post-hoc widening. Judges: `union::partial`, every union family,
+`testUnionWithExistsFilter` (ChainedExists), the exists families.
+
+**B3 — the merged-scan marker `unionScan`.** `Pure.java` 433/897, `NativeFn` 653,
+`RelationPredicates` 44–47 (identity for the lowering), `Pipelines` 843 (walk), 1178/1213/
+1305/1333/1346 (widen through it), 1839 `isUnionScan`, 1854 `containsConcatenate` ("is this a
+union body"), `TemporalFrame` 1782/1861 (temporal filters through it). Label: SHAPE — the
+structural mark of A10; stays while A10 stays. The question it answers for readers ("is this
+source a stack") already has a typed home (`ClassSource.UNION_SET_ID`, `ClassSource` 55: every
+query-side builder sets it — `ClassSources` 335/480/862, `UnionHeads` 126 — and nothing reads it
+yet); B6 moves the question there.
+
+**B4 — `UnionHeads`** (411 lines): the `#uN` heads of a query-side `concatenate` of navigation
+chains; one member per branch (hop 0 through `navTarget` at 286, a second hop inside the
+member), the members aligned by key NAME (a key a member lacks projects NULL; same-named keys
+share), the head's condition the OR of the branches' — the same alignment as step 1's routed
+builder, a different trigger. Label: LAW applied to a query-side stack; stays in 2b; one builder
+with `routedUnionSource` in B6. Judge: `projection::function::concatenate::testConcatenateInQualifierWithComplexReturnType`
+(the `unionalias_0.ID = root.FIRMID or … ADDRESSID` golden, cross matches included).
+
+**B5 — `mixedUnionSource` and the child union:** A12.
+
+**B6 — `ImportDataFlow`.** `compiler/spec/ImportDataFlow.java` 51 reads `unionKeyThreads`;
+`Typer` 2072–2092 widens the execute's result type; `ExecuteChainAssembly` 502–505 and
+`ImportDataFlowAppend` append the threads where the frame executes. Label: reader of A11 (stays).
+NO corpus judge: its one test, `pureToSqlQuery::testImportDataFlow`, sits on the fail roster
+behind the `routeFunction` wall; no unit test names it (grep: only the JDBC and architecture
+censuses). Witness W3.
+
+**B7 — the set-pin facts and the graph set hint:** A17; `GraphEmission` 1130–1138 is the one
+graph-fetch site still routing by head string (2a left it "until 2b emits routes").
+
+**B8 — the paired predicate for graph children:** `GraphEmission` 1183, 1776, 2576 read
+`TypedNavigate.pairedPredicate` (A6 sub-rule b). Label: SHAPE 2's strict-pairing variant, chosen
+by the consumer (graph) not the mapping; the chooser must keep it as a per-consumer choice.
+
+### 10.3 What has no reader today (found on the way)
+
+- `UnionRoute` / `classifyUnionRoutes` poison "MULTI-route dispatch outside union members is a
+  roadmap feature" (241): with route lists it is a plain route list.
+- `LiftMidStep` inbound aliases `nl__<prop>__inb__<join>` (2295): readable only inside the
+  thread that made them; the branch proved nothing else may read them.
+- `sameTableInheritanceMerge` (2026): a navigator-side special case of A10 that disappears when
+  the merge is a pass over the target stack (the route then reads the physical column because
+  the merged arm projects it).
+
+### 10.4 The three open questions of §8.6, answered from the logs (not patched)
+
+1. **"`routeFunction` lost 4 rows."** Not a loss. In both lanes' last logs the four rows are
+   `pureToSqlQuery::addDriverTablePkForProject`, `routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression`
+   and `…2`, `routing::testRoutingOfSimpleQualifiedProperty`: all four are FAIL rows already on
+   the committed fail rosters (`unknown function 'routeFunction'`), none is a LOST row (zero LOST
+   lines mention routing in either lane). 34 engine functions call `routeFunction`; the only
+   test-named ones in the DuckDB lane are those four plus `testImportDataFlow`, all rostered.
+   The note was a misread of the failure-family bucket. Nothing to design for.
+2. **"The aggregation-aware union members project no scalar columns (`[[], []]`)."** The text
+   `[[], []]` appears in neither lane's last log. The 17 `aggregationAware` rows lost on the
+   branch (`testRewrite::objectGroupBy::*`) all fail with `demands key column '__route0_0',
+   which NO union member carries (members' rows: [[stc_…RelationalActivity___sql, …,
+   stc_…AggregationAwareActivity___rewrittenQuery, …$member, res_activities,
+   id__pk_metamodel_activities]])`: the union is the METAMODEL's activities union
+   (`RelationalActivity` / `AggregationAwareActivity` over `metamodel_activities`, one merged
+   same-table thread) that the aggregation-aware tests read to print their routing activity
+   (`AggAwareActivities`). It is item A10, reached through a route list: the merged scan did not
+   project the route's key. No corpus mapping has an `AggregationAware` set as a union member.
+3. **The pinned-single-to-subclass route.** `JoinChainEmission` 292–325: when a property has
+   exactly ONE route entry, the declared target class has no main table of its own, and the
+   routed set's class is a strict subclass, the navigation lands on THAT class and the route is
+   removed from `unionRoutes` (keys unsuffixed). The named fixture,
+   `graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMapping` (`Street[street]
+   extends [a]` carrying `coordinate[CoordinateSet1]` / `coordinate[CoordinateSet2]` into a
+   `Coordinate` union), is `test.AlloyOnly`: it is in neither register; its `…Checked` twin fails
+   on H2 for an unrelated dialect reason (`nested checked defects reached a dialect without list
+   lambdas`) and is on the H2 roster; the DuckDB log never mentions it. So the corpus does NOT
+   judge this rewrite through that fixture. Where the rewrite fires with a judge is the
+   metamodel: a hierarchy root without a relational set (`RelationalOperationElement`,
+   `SetImplementation`) reached by one pinned route to a subclass set — judged by
+   `executionPlan::tests` ×28. Under route lists this rewrite is the general rule (a route names
+   its set's function, and a subclass set's function is what it is); the disagreement the branch
+   saw must be re-measured on those 28 and on witness W4, not on the AlloyOnly fixture.
+
+### 10.5 Witnesses the corpus cannot supply (named, not written)
+
+- **W1 — mixed union (A12):** a hand-written mapping with one `Relational` and one `Pure`
+  member of one class and a class-typed property routed per member; rows through the child.
+- **W2 — a route INTO a `~func` member (A13):** a union of one table set and one `Relation` set
+  with a navigator routing into both; the route reads a column of the function's rows.
+- **W3 — `importDataFlow` over a union (A11/B6):** a class query over a two-member union with
+  `RelationalExecutionContext(importDataFlow=true)` asserting the `<pk>_0` / `<pk>_1` columns.
+- **W4 — the single pinned route to a subclass set (10.4 item 3):** the `RootSubTypeWith
+  SubtypeLevelPropertyUnionMapping` shape on DuckDB, rows asserted (the fixture's own six rows).
+- **W5 — route keys inside a merged same-table scan (A10):** `UnionTargetLeanJoinTest` covers
+  two tables; a two-filter one-table union with a routed navigator is missing.
+
+### 10.6 The judge table for one build, by item
+
+DuckDB register families: `union::` 89 (of which `multipleChainedJoins` 17, `sqlQueryMerging`
+8, `partial` 6, `specialUnion` 8, `optimized` 4, `extend` 11), `extend::` 37, `modelJoin::advanced`
+21, `executionPlan::tests` 28, `aggregationAware` 114, `milestoning::union` 3, `projection::
+function::concatenate` 1. H2: `union::` 88, `modelJoin::advanced` 21. Unit: `RoutedNavigateTest`,
+`UnionTargetLeanJoinTest`, `ResolveUnionTest` ×6, `ResolveUnionChainTest`, `RoutedChainKeyTest`,
+`MappedInClosureTest` ×2, `UnionJoinMappedPropertyTest`, `InheritanceIntegrationTest` ×5, the
+probe tests `ResolveUnion{V4,SelfJoin,MultiHop,OuterDate,Jtc}ProbeTest`, `ResolveGraphUnionProbeTest`.
+The branch's 226 DuckDB losses by family, as the map of what the build touches: `mapping::*`
+120 (union 49, inheritance/extend/subType 20, the rest merged-scan metamodel reads), `typeInference`
+20, `milestoning` 19, `aggregationAware` 17, `executionPlan::tests` 15, `alloy::connections` 8,
+`tds` 6, `modelJoins` 6, `testDataGeneration` 5, `functions` 3, `projection` 2, `graphFetch` 4,
+`query` 1.
+
+## 11. Design page — a demand on a stack flows into the arms (2026-09-14; USER: "write it down and do it end to end")
+
+### 11.0 The four measures (reported with every batch, beside the rows)
+
+The program these batches serve: the compile step holds every fact, so the normalizer is one
+plain mapping-to-function transform; one function per set; navigation expanded on the query
+side under the queried mapping; the execution shape chosen in the lowering; every quiet miss
+loud; one implementation per question. Rows staying at 108 / 444 while the normalizer grows is
+not progress. So every batch reports, next to LOST / GAINED on both lanes:
+
+| measure | main today | target | how counted |
+|---|---|---|---|
+| M1 union-synthesis lines | 3,287 (`UnionSynthesis.java`) | under 700 (route classification, the member enumeration, the same-table set collapse, the concatenate emitter, the key-thread fact, the chain-walk helpers) | `wc -l` |
+| M2 query-side union builders | 4 (the normalizer's body, `routedUnionSource`, `UnionHeads`, `mixedUnionSource`) | 1 (the stack builder; `UnionHeads` and the mixed builder fold into it in B6) | count of places that build a `TypedConcatenate` of class arms |
+| M3 navigator knowledge computed in the normalizer | 30 named functions (grep of §10 A8, A9-inbound, A15, A16, A17) | 0 (a route names a function and a join; the query side composes) | the same grep |
+| M4 quiet arms on the union path | 26 (`return; //`, `continue; //`, `putIfAbsent`, swallowed catch in `UnionSynthesis`) | 0 outside a receipted "the miss is the answer" | the same grep |
+
+### 11.1 The capability, in one paragraph
+
+A class bound as `Operation { f }` has a function whose body is `m1() -> concatenate(m2()) …`,
+each call a set's own function. The resolver's `ClassSources.build` sees a body that ends in a
+`concatenate` of user calls instead of a `map` terminal and builds the class source as a STACK:
+it resolves each call to its set's binding (own bindings, then includes), takes each arm's
+`ClassSource` as it is (a relational set, a `~func` set, a model-to-model set, a nested stack —
+the builder does not care where an arm came from), and applies the law: the stack's row is the
+class's scalar properties by each arm's bindings (a typed NULL where an arm has none), the
+embedded ctors' leaves per arm and recomposed above, the subtype-dispatch columns and witness
+per arm from the arm's class, and every arm's own primary key under `<pk>_<i>`; the stack's
+navigations are its arms' navigate steps composed into ONE step above the concatenate per
+property (the first cut's `liftOf`), whose routes are the arms' routes and whose source reads
+are columns each arm projects from its own row. A demand for a navigation on the stack therefore
+flows into the arms and the answers stack. The lowering of that step is the five-shape pass:
+routes of one shape share a key (shape 1), different shapes keep their keys and OR (shape 2), a
+route whose rows carry its mids is push-into-arm (shape 3), the bridge union is the dialect's
+choice (shape 4), anything else is per-arm (shape 5). Arms that are filtered scans of ONE table
+with agreeing slots merge into one arm before projection (the same-table pass, A10), with the
+route keys read inside the merged arm gated like every other column.
+
+### 11.2 Every §10 item, decided
+
+| item | becomes |
+|---|---|
+| A1 arm list | the calls in the union function, in the normalizer's member order (inheritance ops enumerate leaves as today) |
+| A2 pair entries | injected onto the SOURCE SET's own record before synthesis (the `continue` at `AssociationSynthesis` 173–186 goes), so the member's own function carries them; the union body's copy has no reader |
+| A3 scalar columns | the stack's projection per arm (arm binding or typed NULL) |
+| A4 embedded | per arm: the binding's `TypedNewInstance` leaves become `emb__` columns; the stack binds the recomposed ctor over them (the union body's rule, ported to typed arms) |
+| A5 subtype columns | per arm from the arm's class: `stc_` columns and the `$member` witness, same names (the named-column protocol stays until B6) |
+| A6 lifts | the composed step above the stack. Three rules kept as lift rules, computed from the arms' steps: (a) a condition that reads only the target's projected PROPERTIES reads them directly on the target stack (the engine's merge-by-name cross-match; the paired variant stays for graph children); (b) keys are shared across arms only when the arms' route SETS agree, else per arm (the union-to-union trap row); (c) a non-union target reached by every arm through the same join into distinct private sets routes to the LAST arm's binding |
+| A7 inverse ends | covered by A2: once the pair is on the member's record, the member's function has the step and the lift composes it |
+| A8 published keys | deleted; a route's key is minted by the checker from the condition's target reads |
+| A9 chains | outbound: the arm's own chained step, lifted (shape 3 when arms differ); inbound: the route's rows carry the mids (`route(rows -> join(mids), first-hop cond)`, the branch's `routeList`) |
+| A10 same-table merge | a pass inside the stack builder over arms of the form `filter(scan(T) [with slots], pred)`: one arm, CASE-gated columns, the OR of the filters; the `unionScan` marker is not needed (the merged arm is a plain projection) |
+| A11 per-arm primary keys | projected by the stack from each arm's binding; `unionKeyThreads` stays a normalizer fact over the members' bindings (store facts, not navigator knowledge); the shared `<col>__pk_<table>` stays until B6 (CastReRoot) |
+| A12 mixed | untouched in this build: no judge (W1); folds into the stack builder in B6 |
+| A13 `~func` arms | just arms |
+| A15 navigator side | route lists: every routed property emits one `legacyNavigate` with `[route(setFn(), rows, cond), …]` (the branch's emitter); a pinned single route is a list of one; a root route beside member routes is a route whose target is the class extent; the "roadmap" poison and the drop rule go (a class-typed PM always ends in a navigate; an unmapped target is loud at demand under the queried mapping) |
+| A16 re-synthesis | deleted with its three criteria |
+| A17 facts | `routedTargetSets`, `routedSets`, `linkKeys`, `mixedUnions` (kept only for A12) die; `unionMembers`, `routedTargetClasses`, `unionKeyThreads`, `poisons` stay |
+| B2 widening | made LOUD on a stack during the build; deleted when no corpus row reaches it |
+| B3 marker | deleted with A10's rewrite |
+| B4 `UnionHeads` | untouched (B6) |
+| B6 `importDataFlow` | untouched (fact stays); W3 named |
+
+### 11.3 The legs (each: compile, corpus both lanes, chain, record, push, CI watched)
+
+- **Leg 1 — every set is a function (neutral).** Drop the member exclusion (`MappingNormalizer` 312): union members bind by set id like every non-root set. Inject association pair entries onto the source set's own record (A2). Named rows: none change — 0 LOST, 0 GAINED both lanes; the pair-entry witnesses (`extend::testExtendsForPropertyMappingWithUnion`, `union::optimized::*`) stay green.
+- **Leg 2 — the cutover (one landing).** (i) `ClassBinding.Operation` and the union function as a concatenate of the members' calls; (ii) the stack builder in `ClassSources` with A3–A6, A9, A10, A11; (iii) the route-list emitter with no drop rule; (iv) the deletions of every NO READER item, the widening made loud then removed. Named rows that turn on it: the branch's 226 (10.6's family map) must all be back to green — `mapping::union` 49, `typeInference` 20, `milestoning` 19, `aggregationAware` 17, `executionPlan::tests` 15, `alloy::connections` 8, `tds` 6, `modelJoins` 6, `testDataGeneration` 5, `functions` 3, `graphFetch` 4, `projection` 2, `query` 1 — and the two R6 rows `projection::qualifier::testFilterInQualifierWithFilterInMapping*` stay green without the re-synthesis block. Judges per item as in 10.1. Work order inside the leg: stack of scalar arms first (A1, A3, A11), then A4/A5, then the lifts (A6, A9), then the merge (A10), then the emitter switch, then deletions; the corpus subset `-Drcorpus.only` on the union and metamodel families between items, both lanes before the chain.
+- **Leg 3 — B6.** `UnionHeads` and the mixed builder onto the stack builder (W1 first), `CastReRoot`'s typed key, the `Operation` binding's own witnesses (W2–W5).
+
 **Related.** `docs/MAPPING_CLEAN_SHEET.md` (§2, §3, §4.2, Layer 5, E6);
 `docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md` §6 (B3.1b design, B3.2 receipts, the
 B3 arc audit's deferrals 1, 4, 5 — all closed by this design).
