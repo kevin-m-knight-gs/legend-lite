@@ -598,8 +598,9 @@ of that law or has no reader (§8.6's list).
 arm"; the engine joins ONCE above the union, and we measured why (§6 B3 of the homework doc, one
 union family, DuckDB): the merged single-key join **0.8 ms** (hash), a coalesced key **1.5 ms**
 (hash), an OR of per-arm equalities **8.9 ms** (nested loop). So the lowering of a navigation
-whose SOURCE is a stack is a compiler pass with four shapes, chosen by looking at the arms'
-conditions and nothing else:
+whose SOURCE is a stack is a compiler pass with five shapes, chosen by the arms'
+conditions and the DIALECT (single compiler, dialect strategies: shape 4 is Snowflake's default
+form, shapes 1–3 the others') and nothing else:
 
 1. **Uniform** — every arm's condition has the same shape (target reads erased, source reads
    kept: `$s.fk == $t.?` on both arms): ONE join above the stack on ONE key column, each arm
@@ -625,9 +626,23 @@ conditions and nothing else:
    hop (`route(A$p1(), #>{db.T1}# -> join(~addr: #>{db.ADDRESS}#, …), {f, x | $f.ID ==
    $x.addr.FIRM_ID})`) — the route list already lowers it this way, and the same rule applies to
    a stack's own navigations when the arms' steps are chains.
-4. **General** — a condition that is not an equality (an inequality, a composite predicate the
+4. **The bridge union — the engine's `REMOVE_UNION_OR_JOINS`** (USER 2026-09-14; engine
+   `pureToSQLQuery_union.pure` `addChildByAttemptingToRemoveUnionOrJoin`, on by DEFAULT for
+   Snowflake and by `GenerationFeaturesConfig.enabled` elsewhere). No OR at all: a BRIDGE
+   `UNION ALL` with one leg per (source set, target set) pair, each leg computing the matching
+   PRIMARY-KEY pairs through that pair's own join (`union_gen_source_pk_<i>` /
+   `union_gen_target_pk_<i>`); then `source ⋈ bridge` on the source's pk and `bridge ⋈ target`
+   on the target's pk — two plain (null-safe) equalities. Requires primary keys on both sides
+   (the engine checks compatibility per table / union-all) — so **every arm's own primary key
+   must survive the stack**: per-arm identity is not union machinery, it is what this shape
+   joins on. Receipts: `testChainedUnions`, `testProjectThroughAsso`,
+   `testProjectThroughAssoWithJoinInMapping`, `testUnionWithSinglePropertyMapping` run each query
+   twice (plain and with the feature) and assert identical rows; our lane parses the config
+   (`Protocol.PGenerationFeaturesConfig`) but implements no rewrite — the four pass by rows on
+   DuckDB (the text assertion on `union_gen_source_pk_0` is not ours to judge).
+5. **General** — a condition that is not an equality (an inequality, a composite predicate the
    arms spell differently): the law literally — the join inside each arm, results stacked.
-   Row-equal by construction; the slow shape, accepted only when 1–3 do not apply.
+   Row-equal by construction; the slow shape, accepted only when 1–4 do not apply.
 
 The chooser reads the typed conditions the arms already carry (the same shape rule
 `NavigateChecker.legacyRoutes` uses today for route lists); it never reads the mapping. The
