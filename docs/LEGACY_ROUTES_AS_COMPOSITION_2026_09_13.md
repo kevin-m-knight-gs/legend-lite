@@ -2,7 +2,7 @@
 
 **Status.** Design, agreed in conversation 2026-09-13 after the B3 arc audit. Not built.
 Replaces the plan's B3.5 idea and the "generate under the includer and compare" attempt
-(never committed). The next slice builds this; the measurements it needs are in §7.
+(never committed; reverted from the working tree after the census below). The next slice builds this; the measurements it needs are in §7.
 
 **The one-sentence problem.** A union learns who navigates to it (it scans the mapping for
 routes into its members and publishes a key named after each navigator), so an included
@@ -360,12 +360,36 @@ criterion it ever had; the push-into-arm chain machinery (`inboundArmSteps`, `Li
 (`widenUnionMember`, `widenForCondition` consumers). The union driver keeps: the stack, the
 shared-table merge of same-table members, the own primary-key threads.
 
-**Measure first** (rows are the verdict; SQL text will differ from the engine's):
-1. The union families (`multipleChainedJoins` ×20, `unionMappingWithJoinSequenceInProperty`,
-   `unionOfViews*`, `UnionTargetLeanJoinTest`, `ResolveUnionChainTest`'s trap row): rows and
-   timing of the several-route navigate lowered as the keyed union join we emit today (one
-   valid lowering) versus per-route joins stacked.
-2. The chained family: rows and timing with the middle table inside the route's rows.
+**Homework done 2026-09-13 (census of the DuckDB lane, probe removed).** 275 routed
+navigations across 87 mappings: 129 with one route, 93 with two, 12 with three, 12 with four,
+23 with five, 6 with twenty-one (the metamodel hierarchy); 206 target a union, 69 a single set
+reached by a set-pinned route; 77 have a chained route (58 with a shared prefix, 19 per-arm);
+every routed member is `Relational` — no `Pure` or `~func` member is routed to in the corpus,
+so the mixed cases have no corpus judge and need a witness. Judges of the build: every
+`union::` family (`multipleChainedJoins` ×20, `unionMappingWithJoinSequenceInProperty`,
+`unionOfViews*`, `extend::*`), `inheritance::*`, the metamodel mapping, `UnionTargetLeanJoinTest`,
+`ResolveUnionChainTest`, `RoutedChainKeyTest`, `MappedInClosureTest`.
+
+**No timing to take before building.** The several-route navigate's simplest lowering IS the
+SQL we emit today (the members' pipelines stacked with their route conditions' columns, one
+join with the routes OR-ed or coalesced; a chain's middle table inside its member's branch).
+The seam it plugs into is `NavMaterializer.navTargetMaterialized` → `ClassSources.getForNav`
+(the set-pinned binding under the queried mapping); the union-body facts the resolver reads
+there (`UNION_SCAN`, key threads) are what the new lowering builds from the routes instead of
+reading from the union. The corpus after the build is the row measurement: 0 LOST both lanes.
+
+**Two decisions the build makes, with a recommendation.**
+1. *The several-route overload's spelling.* Each route has its own row type, so one `T` cannot
+   type a list of `(rows, cond)` pairs. Options: (a) a route list `[route(rows1, cond1),
+   route(rows2, cond2)]` typed per element by a Typer arm; (b) the four-argument form repeated
+   with the SAME alias, the repeat meaning "another route into that slot". Recommendation: (a)
+   — explicit, and the list is exactly what the DSL author wrote; (b) hides a rule in alias
+   reuse.
+2. *The kind tag of a union's composing function in the clean-sheet binding table.* §2 step 5
+   writes `Relational { acme::funcs::personMapping }`; the clean-sheet doc's E6 names no tag.
+   Options: `Relational` (its body composes relation-derived functions) or a mirror of the
+   engine's `Operation { f }`. The legacy DSL's `Operation` kind is real (35 uses in the
+   engine's `testUnion.pure`); the clean-sheet doc owes one line either way.
 
 **Then** one decided batch: the several-route `legacyNavigate` overload and its typing, the
 per-route set pin, the emitter change (one step per property, routes as written), the union
