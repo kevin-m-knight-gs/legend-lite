@@ -2940,3 +2940,43 @@ shape; the receipt and the witness are the judge.
 **Next.** The follow-up list is closed: the arc's five items and the three "do it" items are
 landed or recorded (item 2 a no-op by homework). Open elsewhere: the graph-fetch derived-leaf
 inliner's filtered heads; lineage over an inheritance operation (metamodel-as-data).
+
+## Legacy routes as composition, leg 6a — the union's arms as a fact — 2026-09-15
+
+**Why.** The scorecard's one open "re-derivation downstream": the resolver learned an operation's
+arms by compiling the synthesized function and walking its body for a left-deep `concatenate` of
+zero-arg calls (`StackBuilder.stackCalls`), then mapping each call back to a binding by function
+name — twice (the stack's arms, the leaves of a class under a mapping). The synthesis that
+emitted the body knew the arms; nothing recorded them.
+
+**What landed.**
+- FACT: `ClassBinding.Operation.memberSetIds` — the member set ids the body concatenates, in
+  member order, recorded by `UnionSynthesis.stackBody` beside the body (a set's own id, or the
+  class-derived id of a class-level set — the normalizer's one id rule); an inheritance operation
+  with one mapped member records that one id and keeps its member's own synthesis (no stack).
+- `ClassSources.build` dispatches an operation with several arms to the stack builder on the
+  fact, before any function compile; `StackBuilder.build` and the leaf enumeration
+  (`collectLeafSetIds`) resolve the ids through `ClassSources.findBindingBySetId` (own bindings,
+  then the includes — set ids are unique across a closure).
+- DELETED: `stackCalls`, `collectCalls`, the `concatenate` FQN constant; the stack builder no
+  longer compiles any set function.
+
+**Kept, with reasons.** Three structural readings of generated Pure remain in the resolver and
+are not re-derivations of a recorded fact: `rebaseRows` finds a route's base relation to re-root
+its mids onto the leaf (composition of the route's own text); the same-source subtype transplant
+compares two sets' root scans (a "same physical relation" question that, for a view-backed set,
+is deeper than the binding's source fact); `overTable`'s scan fallback serves arms without a
+binding (a union head's branch). The body walk for arms is gone in both places it lived; the
+remaining structural mentions in the two builder files (21) are the three above, the arm-step
+stripping `withoutNavSteps` (a pipeline operation the law asks for, not a fact) and the derived-
+property body compile the graph emission still needs.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. Batch size: 6 files,
++88 / −52.
+
+**Chain.** Gates 1, 2, 4–9 green on the first run; gate 3 red on the claims ledger (the stack
+builder no longer names `concatenate` — regenerated) and rerun green. **Measures (§11.0).**
+M1 1,102 · M2 1 · M3 0 · M4 5.
+
+**Next.** 6b: the audit of the property-mapping translator and the join-chain emitter (receipts,
+witnesses, thinning); 6c: one exact engine-source citation per rule; 6d: the two known gaps.

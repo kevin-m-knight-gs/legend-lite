@@ -328,7 +328,9 @@ public final class MappingNormalizer {
                                         cm.extendsSetId(), /*root*/ false,
                                         setFn.qualifiedName(),
                                         declaredPrimaryKeyColumns(cm),
-                                        cm instanceof ClassMapping.Inheritance)
+                                        cm instanceof ClassMapping.Inheritance,
+                                        ledger.operationMembers.getOrDefault(
+                                                ResolvedMapping.idOf(cm), List.of()))
                                 : new MappingDefinition.ClassBinding.Pure(
                                         cm.className(), cm.setId(),
                                         cm.extendsSetId(), /*root*/ false,
@@ -390,7 +392,9 @@ public final class MappingNormalizer {
                             cm.className(), cm.setId(), cm.extendsSetId(),
                             cm.root(), fn.qualifiedName(),
                             declaredPrimaryKeyColumns(cm),
-                            cm instanceof ClassMapping.Inheritance)
+                            cm instanceof ClassMapping.Inheritance,
+                            ledger.operationMembers.getOrDefault(
+                                    ResolvedMapping.idOf(cm), List.of()))
                     : new MappingDefinition.ClassBinding.Pure(
                             cm.className(), cm.setId(), cm.extendsSetId(),
                             cm.root(), fn.qualifiedName(),

@@ -90,7 +90,6 @@ import java.util.Set;
  */
 final class StackBuilder {
 
-    private static final String CONCATENATE = "meta::pure::functions::collection::concatenate";
     static final String ROW_VAR = "u_row";
 
     private final ModelContext ctx;
@@ -103,25 +102,6 @@ final class StackBuilder {
         this.callees = new Callees(ctx);
         this.ctx = ctx;
         this.sources = sources;
-    }
-
-    /** The member calls of a stack body ({@code concatenate} of zero-arg
-     * user calls, left-deep), or null when the body is not a stack. */
-    static @com.legend.Nullable List<TypedUserCall> stackCalls(TypedSpec last) {
-        List<TypedUserCall> out = new ArrayList<>();
-        return collectCalls(last, out) ? out : null;
-    }
-
-    private static boolean collectCalls(TypedSpec n, List<TypedUserCall> out) {
-        if (n instanceof TypedUserCall uc && uc.args().isEmpty()) {
-            out.add(uc);
-            return true;
-        }
-        if (n instanceof TypedNativeCall nc && CONCATENATE.equals(nc.callee().qualifiedName())
-                && nc.args().size() == 2) {
-            return collectCalls(nc.args().get(0), out) && collectCalls(nc.args().get(1), out);
-        }
-        return false;
     }
 
     /** The leaf arms of a stack source; null for a non-stack source. */
@@ -206,22 +186,21 @@ final class StackBuilder {
     }
 
     ClassSource build(String mappingFqn, String classFqn, MappingDefinition mapping,
-            MappingDefinition.ClassBinding binding, List<TypedUserCall> calls,
+            MappingDefinition.ClassBinding.Operation op,
             @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
-        List<Arm> arms = new ArrayList<>(calls.size());
-        for (TypedUserCall uc : calls) {
-            String fqn = uc.callee().qualifiedName();
-            MappingDefinition.ClassBinding cb = sources.findBindingByFunction(mapping, fqn,
+        List<Arm> arms = new ArrayList<>(op.memberSetIds().size());
+        for (String setId : op.memberSetIds()) {
+            MappingDefinition.ClassBinding cb = sources.findBindingBySetId(mapping, setId,
                     new LinkedHashSet<>());
             if (cb == null) {
-                throw new MappingResolutionException("operation '" + classFqn + "' calls '" + fqn
-                        + "', which is not a set's function in mapping '" + mappingFqn
-                        + "' or its includes", classFqn);
+                throw new MappingResolutionException("operation '" + classFqn + "' names member set '"
+                        + setId + "', which mapping '" + mappingFqn
+                        + "' and its includes do not bind", classFqn);
             }
             if (cb.classFqn().equals(classFqn) && cb.setId() == null) {
                 throw new IllegalStateException("resolver bug: operation '" + classFqn
-                        + "' calls its own class-level binding '" + fqn + "'");
+                        + "' names its own class-level binding '" + setId + "'");
             }
             ClassSource arm = sources.get(mappingFqn, cb.classFqn(), cb.setId(), upstreamMapping,
                     contextKey, null);
@@ -1754,18 +1733,14 @@ final class StackBuilder {
         if (!seen.add(cb.functionFqn())) {
             return;
         }
-        if (!(cb instanceof MappingDefinition.ClassBinding.Operation)) {
-            out.add(cb.setId() != null ? cb.setId() : cb.classFqn().replace("::", "_"));
+        if (!(cb instanceof MappingDefinition.ClassBinding.Operation op)) {
+            out.add(ClassSources.setIdOf(cb));
             return;
         }
-        var cf = sources.compileSynthFn(cb.functionFqn());
-        List<TypedUserCall> calls = stackCalls(cf.body().get(cf.body().size() - 1));
-        if (calls == null) {
-            return;
-        }
-        for (TypedUserCall uc : calls) {
-            MappingDefinition.ClassBinding m = sources.findBindingByFunction(mapping,
-                    uc.callee().qualifiedName(), new LinkedHashSet<>());
+        // the arms are the binding's FACT (member order)
+        for (String setId : op.memberSetIds()) {
+            MappingDefinition.ClassBinding m = sources.findBindingBySetId(mapping, setId,
+                    new LinkedHashSet<>());
             if (m != null) {
                 collectLeafSetIds(mapping, m, out, seen);
             }

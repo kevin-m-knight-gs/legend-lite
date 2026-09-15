@@ -281,12 +281,20 @@ public record MappingDefinition(
                 boolean root,
                 String functionFqn,
                 List<String> primaryKeyColumns,
-                boolean inheritance) implements ClassBinding {
+                boolean inheritance,
+                List<String> memberSetIds) implements ClassBinding {
+            /** {@code memberSetIds}: the ARMS of the stack in member order —
+             * the set ids the function's body concatenates (a set's own id,
+             * or the class-derived id of a class-level set), recorded by
+             * the synthesis that emitted the body so no reader walks the
+             * body. An inheritance operation with ONE mapped member is
+             * that member's own synthesis (no stack): one id. */
             public Operation {
                 Objects.requireNonNull(classFqn, "classFqn");
                 Objects.requireNonNull(functionFqn, "functionFqn");
                 primaryKeyColumns = primaryKeyColumns == null ? List.of()
                         : List.copyOf(primaryKeyColumns);
+                memberSetIds = memberSetIds == null ? List.of() : List.copyOf(memberSetIds);
             }
         }
 

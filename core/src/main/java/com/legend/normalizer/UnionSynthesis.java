@@ -123,12 +123,17 @@ final class UnionSynthesis {
      * {@code m1() -> concatenate(m2()) -> …} in member order, nothing else.
      * The query side builds the union from the arms (ClassSources' stack
      * builder); the normalizer publishes nothing about them. */
-    static ValueSpecification stackBody(ResolvedMapping md, List<? extends ClassMapping> members) {
+    static ValueSpecification stackBody(ResolvedMapping md, ClassMapping operation,
+            List<? extends ClassMapping> members, MappingLedger ledger) {
         ValueSpecification out = null;
+        List<String> ids = new ArrayList<>(members.size());
         for (ClassMapping m : members) {
             ValueSpecification call = new AppliedFunction(memberFunction(md, m), List.of());
             out = out == null ? call : new AppliedFunction("concatenate", List.of(out, call));
+            ids.add(ResolvedMapping.idOf(m));
         }
+        // the arms as a FACT beside the body (the binding's memberSetIds)
+        ledger.operationMembers.put(ResolvedMapping.idOf(operation), List.copyOf(ids));
         return java.util.Objects.requireNonNull(out, "an operation with no members");
     }
 
@@ -435,7 +440,7 @@ final class UnionSynthesis {
             }
         }
         recordKeyThreadsOf(md, u.className(), memberSets, model, ledger);
-        return stackBody(md, memberSets);
+        return stackBody(md, u, memberSets, ledger);
     }
 
     /**
@@ -461,6 +466,10 @@ final class UnionSynthesis {
                     + md.qualifiedName());
         }
         if (members.size() == 1) {
+            // the sole member's own synthesis is the class's function (no
+            // stack); the fact names the one arm
+            ledger.operationMembers.put(ResolvedMapping.idOf(ih),
+                    List.of(ResolvedMapping.idOf(members.get(0))));
             return MappingNormalizer.synthRelational(md, members.get(0), model, ledger);
         }
         // a SINGLE-TABLE hierarchy (every member over one bare table) is
@@ -471,7 +480,7 @@ final class UnionSynthesis {
         // the Car member — engine dispatches inheritance navigation per
         // member pair; testGetAllFilterWithAssociation)
         recordKeyThreadsOf(md, ih.className(), members, model, ledger);
-        return stackBody(md, members);
+        return stackBody(md, ih, members, ledger);
     }
 
     /** The primary-key threads fact of an operation's row ({@code

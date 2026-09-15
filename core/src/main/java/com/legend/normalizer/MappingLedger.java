@@ -40,6 +40,10 @@ final class MappingLedger {
     final List<RuntimeException> strictErrors = new java.util.ArrayList<>();
     /** class &rarr; member set ids of a MIXED-KIND Operation union. */
     final Map<String, List<String>> mixedUnions = new LinkedHashMap<>();
+    /** operation set id &rarr; the member set ids its function's body
+     * concatenates, in member order (the stack's arms as a FACT on the
+     * binding — {@code ClassBinding.Operation.memberSetIds}). */
+    final Map<String, List<String>> operationMembers = new LinkedHashMap<>();
     /** class &rarr; the primary-key threads of an Operation union's row. */
     final Map<String, List<KeyThread>> unionKeyThreads = new LinkedHashMap<>();
     /** bucket &rarr; witnesses of the [1]-over-nullable-column census. */

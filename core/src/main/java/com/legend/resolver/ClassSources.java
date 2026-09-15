@@ -481,6 +481,39 @@ public final class ClassSources {
 
     /** The binding realized by {@code functionFqn}: this mapping's own, else
      * an include's, depth-first. */
+    /** The binding whose set id is {@code setId} — a set's own id, or the
+     * class-derived id of a class-level set (the normalizer's one id rule)
+     * — under the mapping's closure: own bindings first, then the includes.
+     * Set ids are unique across a closure (the engine rejects duplicates),
+     * so the first match is the answer. */
+    MappingDefinition.@com.legend.Nullable ClassBinding findBindingBySetId(
+            MappingDefinition mapping, String setId, java.util.Set<String> seen) {
+        if (!seen.add(mapping.qualifiedName())) {
+            return null;
+        }
+        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
+            if (setId.equals(setIdOf(cb))) {
+                return cb;
+            }
+        }
+        for (MappingInclude inc : mapping.includes()) {
+            MappingDefinition included = ctx.findMapping(inc.mappingPath()).orElse(null);
+            if (included == null) {
+                continue;
+            }
+            MappingDefinition.ClassBinding found = findBindingBySetId(included, setId, seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** A binding's set id: its own, else the class-derived id. */
+    static String setIdOf(MappingDefinition.ClassBinding cb) {
+        return cb.setId() != null ? cb.setId() : cb.classFqn().replace("::", "_");
+    }
+
     MappingDefinition.@com.legend.Nullable ClassBinding findBindingByFunction(
             MappingDefinition mapping, String functionFqn, java.util.Set<String> seen) {
         if (!seen.add(mapping.qualifiedName())) {
@@ -667,6 +700,16 @@ public final class ClassSources {
                             .map(r -> " (" + r + ")").orElse(""), classFqn);
         }
 
+        // an OPERATION with several arms: the binding's FACT names them (the
+        // set ids its body concatenates) — the stack builder composes the
+        // source from the arms (design §11); nothing reads the body. An
+        // inheritance operation with one mapped member is that member's own
+        // synthesis and takes the plain path below.
+        if (binding instanceof MappingDefinition.ClassBinding.Operation op
+                && op.memberSetIds().size() > 1) {
+            return stacks.build(mappingFqn, classFqn, mapping, op, upstreamMapping, contextKey);
+        }
+
         List<TypedFunction> fns = ctx.findFunction(binding.functionFqn());
         if (fns.size() != 1) {
             throw new IllegalStateException("resolver bug: realizing function '"
@@ -680,13 +723,6 @@ public final class ClassSources {
         // contract violation — the H1 census guarantees these bodies compile,
         // and the normalizer emits exactly this shape.
         TypedSpec last = cf.body().get(cf.body().size() - 1);
-        // an OPERATION: the body is its arms' functions concatenated — the
-        // stack builder composes the source from the arms (design §11)
-        List<com.legend.compiler.spec.typed.TypedUserCall> calls = StackBuilder.stackCalls(last);
-        if (calls != null) {
-            return stacks.build(mappingFqn, classFqn, mapping, binding, calls, upstreamMapping,
-                    contextKey);
-        }
         if (!(last instanceof TypedMap map)) {
             throw new IllegalStateException("resolver bug: mapping body terminal for '"
                     + classFqn + "' in '" + mappingFqn + "' is "
