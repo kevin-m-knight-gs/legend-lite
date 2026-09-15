@@ -2879,3 +2879,35 @@ and 37 bare `orElse(null)` empty-answer sites remained beside the censused F7.8 
 fact and the route classification are the bulk left in `UnionSynthesis`); the plain M2M
 whole-source child as the same navigate step (delete `wholeSrcChild`); the graph-fetch
 derived-leaf inliner's filtered heads (leg 4a's finding).
+
+## Legacy routes as composition, leg 5a — every whole-source child is a navigate step — 2026-09-15
+
+**Why.** Leg 4c built the whole-source child (`trader[trader_set]: $src` — the same JSON frame
+row seen through another set) as a navigate step for MIXED-union members only; a plain
+model-to-model mapping kept a second emission of its own (`GraphEmission.wholeSrcChild`: inline,
+no join, a column-subset guard). One shape, two mechanisms — the second goes.
+
+**What landed.**
+- `ClassSources.composeModelToModel` builds the step (`wholeSourceStep`) for EVERY whole-source
+  cast over a frame row, mixed union or not; the binding is the slot read. Graph fetch serves it
+  by the navigate-slot child path like a relational join step; projection by the ordinary slot.
+- DELETED: `GraphEmission.wholeSrcChild` and its dispatch arm, `renameRowVar` (dead with it).
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes; the XStore graph-fetch
+family unchanged on the first run.
+
+**Chain.** Green on the first run. **Measures (§11.0).** M1 1,091 · M2 1 · M3 0 · M4 5. Batch size: 2 files,
++22 / −131 (`GraphEmission` 3,284 lines).
+
+**Homework finding — the key-thread fact stays.** The proposed "derive the union's key columns
+in the builder" is NOT a duplication: the normalizer computes the threads once and three readers
+consume them — the stack builder (A11 projects them off the arms), `CastReRoot` (the shared
+key's name) and the `importDataFlow` CHECKER at compile time (the option's result columns typed
+by the recorded kind). The builder's loud check is fact-vs-row consistency, not a second
+derivation; the checker needs the fact before any query resolves. One place already.
+
+**Next.** Leg 5b: one decision for live routes — the translator's dead-route skip (a single pin
+outside a union's members silently lands on the root; the receipt says that set) and the
+single-pin subclass retarget in `JoinChainEmission` go; the builder's R-target decides. The
+"every route pins the root → the plain navigation" rule stays: a root pin is no pin (engine), and
+the plain step is the lean shape.

@@ -983,17 +983,9 @@ final class GraphEmission {
                             context, parentRowVar, parentRowType);
                 }
             }
-            // WHOLE-SOURCE marker (trader[trader_set]: $src): the bare
-            // composed-row var, source-class-typed — the child is the SAME
-            // row seen through the cast's set; inline, no join (XStore
-            // route A, whole-$src edit).
-            if (inner instanceof TypedVariable wv
-                    && wv.name().equals(cs.rowVar())
-                    && Type.asClassType(wv.info().type()) instanceof Type.ClassType wSrc
-                    && srcCast != null) {
-                return wholeSrcChild(cs, node, srcCast, wSrc.fqn(), context,
-                        parentPipeline);
-            }
+            // (a WHOLE-SOURCE child — `trader[trader_set]: $src` — is a
+            // navigate step on the composed pipeline, ClassSources
+            // .wholeSourceStep: the slot read below serves it)
             // A NAVIGATE-SLOT read ($row.<alias>, the relational
             // association injected into the source pipeline): the slot's
             // TypedNavigate carries the raw target and the join predicate.
@@ -1818,104 +1810,6 @@ final class GraphEmission {
             }
         }
         return keyOf(node);
-    }
-
-    /**
-     * WHOLE-SOURCE child ({@code trader[trader_set]: $src}): the child
-     * instance is the SAME source row seen through ANOTHER set of this
-     * mapping — resolve that set (by the cast's declared set id), guard
-     * that it composes over the parent's row columns, and rebase its
-     * bindings onto the parent row var. Inline, no join — the engine's
-     * same-instance ModelStore composition (XStore leg, route A).
-     */
-    private TypedSerializeGraph.Child wholeSrcChild(ClassSource cs,
-            TypedGraphTree node, TypedNewInstanceCast cast,
-            String srcClassFqn, StoreResolver.Context context,
-            TypedSpec parentPipeline) {
-        ClassSource child = cast.targetSetId() != null
-                ? sources.get(cs.mappingFqn(), cast.classFqn(), cast.targetSetId(), null, "", cs.scope())
-                : sources.get(cs.mappingFqn(), cast.classFqn(), cs.scope());
-        Type.RelationType rowT = Type.requireRelationSchema(parentPipeline.info().type());
-        // audit 24 F4: SOURCE-CLASS identity is the real same-frame check —
-        // two frames can share every column NAME (S_Trade vs S_Trade2) and
-        // a name-subset proxy alone would silently serve the parent's rows
-        // as the other class's data. The structural subset check remains
-        // as the fallback ONLY when the child's source class is unknown.
-        if (child.sourceClass() != null
-                && !child.sourceClass().equals(srcClassFqn)) {
-            throw new NotImplementedException("whole-source graph child '"
-                    + node.property() + "' of '" + cs.classFqn()
-                    + "': set '" + cast.classFqn() + "' composes over source"
-                    + " class '" + child.sourceClass() + "' but the marker's"
-                    + " row is a '" + srcClassFqn + "' frame — different"
-                    + " sources never share a row");
-        }
-        Set<String> parentCols = new LinkedHashSet<>();
-        for (Type.Column pc : rowT.columns()) {
-            parentCols.add(pc.name());
-        }
-        for (Type.Column cc : child.rowType().columns()) {
-            if (!parentCols.contains(cc.name())) {
-                throw new NotImplementedException("whole-source graph child '"
-                        + node.property() + "' of '" + cs.classFqn()
-                        + "': set '" + cast.classFqn() + "' composes over"
-                        + " column '" + cc.name() + "' absent from the"
-                        + " parent row — the sets do not share the source"
-                        + " frame (source class '" + srcClassFqn + "')");
-            }
-        }
-        var rowInfo = new ExprType(rowT,
-                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-        List<TypedFuncCol> leaves = new ArrayList<>();
-        List<TypedSerializeGraph.Child> nested = new ArrayList<>();
-        for (TypedGraphTree c : node.children()) {
-            TypedSpec e = child.bindings().get(c.property());
-            // Non-scalar entries — association ends (XStore included),
-            // class-typed bindings, nested whole-source hops — recurse the
-            // ORDINARY graph-child machinery rooted at the child set: the
-            // row is frame-compatible (guarded above), so the child set IS
-            // this row's class source and every dispatch arm applies.
-            if (e == null && c.children().isEmpty()) {
-                throw new MappingResolutionException("property '"
-                        + c.property() + "' of whole-source child '"
-                        + node.property() + "' on class '" + cast.classFqn()
-                        + "' is not mapped in mapping '" + cs.mappingFqn()
-                        + "'", cast.classFqn());
-            }
-            if (e == null || Type.asClassType(e.info().type()) instanceof Type.ClassType) {
-                nested.add(graphChild(child, c, context, cs.rowVar(), rowT,
-                        parentPipeline));
-                continue;
-            }
-            TypedSpec e2 = renameRowVar(e, child.rowVar(), cs.rowVar(),
-                    rowInfo);
-            var lFn = new Type.FunctionType(
-                    List.of(new Type.Param(rowT,
-                            com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE)),
-                    new Type.Param(e2.info().type(), e2.info().multiplicity()));
-            leaves.add(new TypedFuncCol(keyOf(c),
-                    new TypedLambda(List.of(cs.rowVar()), List.of(e2),
-                            new ExprType(lFn,
-                                    com.legend.compiler.element.type
-                                            .Multiplicity.Bounded.ONE))));
-        }
-        TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
-                cs.rowVar(), leaves, nested, false, false, cast.classFqn(),
-                rowInfo, true);
-        return new TypedSerializeGraph.Child(
-                childKey(node, cast.classFqn()), nodeG);
-    }
-
-    /** {@code from}-var reads re-pointed at {@code to} with the parent's
-     * row info — same-frame rebase for whole-source children. */
-    private TypedSpec renameRowVar(TypedSpec n, String from, String to,
-            ExprType rowInfo) {
-        if (n instanceof TypedVariable v && v.name().equals(from)) {
-            return new TypedVariable(to, rowInfo);
-        }
-        return SyntheticHeads.rebuildChildren(n,
-                c -> renameRowVar(c, from, to, rowInfo));
     }
 
     private TypedSerializeGraph.Child embeddedChild(ClassSource cs,

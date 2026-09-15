@@ -955,29 +955,26 @@ public final class ClassSources {
                 deferred.put(e.getKey(), wall.getMessage());
             }
         }
-        // a MIXED union's Pure member: its WHOLE-SOURCE child (`product[set]:
-        // $src` — the same frame row seen through the child's set) is a
-        // navigate STEP on the member's pipeline, routed to the child set's
-        // function and keyed on the frame ordinal; the union above lifts it
-        // like any arm's step (the one keyed child union). The binding is
-        // the slot read.
-        List<String> mixedMembers = ctx.mixedUnionMembers(mappingFqn, classFqn);
-        if (mixedMembers != null && binding.setId() != null && mixedMembers.contains(binding.setId())) {
-            for (var e : new ArrayList<>(composed.entrySet())) {
-                TypedSpec v = Pipelines.unwrapToOne(e.getValue());
-                if (!(v instanceof TypedNewInstanceCast nic) || nic.targetSetId() == null
-                        || !(nic.source() instanceof TypedVariable sv)
-                        || !sv.name().equals(inner.rowVar())) {
-                    continue;
-                }
-                ClassSource child = get(mappingFqn, nic.classFqn(), nic.targetSetId(),
-                        upstreamMapping, contextKey, null);
-                composedPipeline = wholeSourceStep(mappingFqn, composedPipeline, e.getKey(),
-                        inner, child, nic);
-                composed.put(e.getKey(), new TypedPropertyAccess(
-                        new TypedVariable(inner.rowVar(), ExprType.one(inner.rowType())),
-                        e.getKey(), nic.info()));
+        // a WHOLE-SOURCE child (`product[set]: $src` — the same frame row
+        // seen through the child's set) is a navigate STEP on the pipeline,
+        // routed to the child set's function and keyed on the frame ordinal:
+        // the same shape as a relational set's join step, so graph fetch,
+        // projection and a union above serve it by the one navigate path.
+        // The binding is the slot read.
+        for (var e : new ArrayList<>(composed.entrySet())) {
+            TypedSpec v = Pipelines.unwrapToOne(e.getValue());
+            if (!(v instanceof TypedNewInstanceCast nic) || nic.targetSetId() == null
+                    || !(nic.source() instanceof TypedVariable sv)
+                    || !sv.name().equals(inner.rowVar())) {
+                continue;
             }
+            ClassSource child = get(mappingFqn, nic.classFqn(), nic.targetSetId(),
+                    upstreamMapping, contextKey, null);
+            composedPipeline = wholeSourceStep(mappingFqn, composedPipeline, e.getKey(),
+                    inner, child, nic);
+            composed.put(e.getKey(), new TypedPropertyAccess(
+                    new TypedVariable(inner.rowVar(), ExprType.one(inner.rowType())),
+                    e.getKey(), nic.info()));
         }
         // audit 24 F4: the composition's FRAME IDENTITY — the deep source
         // class (jsonSources key); two sets sharing it share the frame
