@@ -129,7 +129,7 @@ final class M2mRouteGuards {
         // audit 23: EXACT engine-default id only (FQN with '_' for '::');
         // the short-class-name acceptance let two same-named classes in
         // different packages match each other's routes
-        return id.equals(fqn.replace("::", "_"));
+        return com.legend.model.SetId.isDefault(id, fqn);
     }
 
     /** Mapping-LOCAL property field (+prodId: String[1]: expr — engine

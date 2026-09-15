@@ -276,8 +276,7 @@ public final class MetamodelSeeds {
                                 instanceof MappingDefinition.RelationalSource.Table t)) {
                     continue;
                 }
-                String id = cb.setId() != null ? cb.setId()
-                        : cb.classFqn().replace("::", "_");
+                String id = com.legend.model.SetId.of(cb);
                 // the stamp's documented spelling: a schema-qualified
                 // table is 'schema.table', a bare one is in the engine's
                 // 'default' schema
@@ -317,8 +316,7 @@ public final class MetamodelSeeds {
                 if (cb instanceof MappingDefinition.ClassBinding.Relational rel
                         && rel.source()
                                 instanceof MappingDefinition.RelationalSource.Table t) {
-                    String id = cb.setId() != null ? cb.setId()
-                            : cb.classFqn().replace("::", "_");
+                    String id = com.legend.model.SetId.of(cb);
                     out.add(new SetRow(fqn, id, rel, t));
                 }
             }
@@ -734,8 +732,7 @@ public final class MetamodelSeeds {
         }
         for (var cm : lm.classMappings()) {
             if (cm instanceof com.legend.model.ClassMapping.Relational r) {
-                String rid = r.setId() != null ? r.setId()
-                        : r.className().replace("::", "_");
+                String rid = com.legend.model.SetId.of(r);
                 if (rid.equals(id)) {
                     return r;
                 }

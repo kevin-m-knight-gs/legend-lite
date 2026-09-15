@@ -3404,3 +3404,35 @@ floor.
 Own-corpus parity floor unchanged (2470).
 
 **Chain.** Gates 1–2, 4–9 green on the first run, wall 232 s: G2 25s, G1 71s, G3 11s, G4 86s, G5 38s, G6 134s, G7 42s, G9 31s, G8 138s; G3 red on `DynaFnRegistryTest` (the deleted `DynaFnArms` — restored, see above), rerun green (6 s; a first rerun tripped the PX.1 mid-chain tripwire on a FIXLIST edit made while it ran — rerun again untouched, green). Batch size: 27 files, +150 / −480.
+
+## Audit fix A8 (FIXLIST P2-1) — one owner for the set-id spelling — 2026-09-15
+
+**Why.** P2-1 (VERIFIED): the engine's default set id (the class FQN with {@code ::} as
+{@code _}) was spelled at sixteen sites across nine packages — `ResolvedMapping.idOf` called
+itself "The one rule" while `MetamodelSeeds` ×3, `ModelBuilder` ×2, `ClassSources` ×2 (one of
+them 82 lines above the class's own helper), `ObjectReferenceDecode` ×2, `GraphEmission`,
+`ScanRelations`, `M2mRouteGuards`, `AssociationSynthesis`, `MappingFromProtocol`,
+`MappingProtocolParser` and the enumeration-mapping default in `MappingNormalizer` each spelled
+it again — and `SetKeyFacts.setKey` implemented a DIFFERENT rule (no substitution) for the
+declared-keys capture. Disjoint today; a meeting would disagree.
+
+**What landed.**
+- `model.SetId` — `of(declared, fqn)`, `defaultFor(fqn)`, `isDefault(id, fqn)`, `of(ClassMapping)`,
+  `of(ClassBinding)`: the one rule (an empty declaration is an absence, as the protocol spells
+  "none"; a short class name is never the default — the M2M route guard's audit-23 rule).
+- Every site folds onto it: `ResolvedMapping.idOf` and `ClassSources.setIdOf` delegate;
+  `MetamodelSeeds` ×3, `ModelBuilder` ×2, `ObjectReferenceDecode` ×2, `GraphEmission`,
+  `ScanRelations`, `MappingProtocolParser`, `AssociationSynthesis`, `M2mRouteGuards`
+  (`isDefault`), `MappingFromProtocol` (`isDefault`), the enumeration-mapping default id in
+  `MappingNormalizer`, and `ClassSources`' inline copy 82 lines above its own helper.
+  `SetKeyFacts.setKey` now keys the declared-keys capture by the SAME effective id (writer and
+  reader both go through it; the bare-FQN rule is gone).
+- Ratchet: `CodeShapeGuardrailTest.setIdSpellingHasOneOwner` — the substitution
+  `replace("::", "_")` may appear in `SetId.java` and in the two files that spell it for OTHER
+  names (`PlanText`'s enum-map label, `CallShapes`' expression alias); anywhere else is red.
+- Witness `model.SetIdTest`: declared-else-default, empty-is-absent, `isDefault` exact.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 55 s, H2 27 s).
+Own-corpus parity floor unchanged (2470).
+
+**Chain.** Green on the first run, wall 242 s: G2 25s, G1 73s, G3 11s, G4 92s, G5 39s, G6 140s, G7 45s, G9 32s, G8 143s. Batch size: 16 files.

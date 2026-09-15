@@ -271,6 +271,29 @@ class CodeShapeGuardrailTest {
      * error MESSAGE is fine and is not matched. */
     private static final int CLASS_NAME_LOGIC_SITES = 0;
 
+    /** The set-id default spelling ({@code ::} as {@code _}) has ONE owner,
+     * {@code model/SetId.java} (audit 2026-09-15 P2-1: sixteen sites spelled
+     * it, one spelled a different rule). The two files listed spell the
+     * same substitution for OTHER names (a plan's enum-map label, an
+     * expression alias) and are not set ids. */
+    private static final Set<String> SET_ID_SPELLING_OWNERS = Set.of(
+            "SetId.java", "PlanText.java", "CallShapes.java");
+
+    @Test
+    void setIdSpellingHasOneOwner() throws IOException {
+        Pattern spelling = Pattern.compile("replace\\(\"::\",\\s*\"_\"\\)");
+        List<String> strays = new ArrayList<>();
+        for (Path p : mainSources()) {
+            String code = blankNonCode(Files.readString(p));
+            if (spelling.matcher(code).find()
+                    && !SET_ID_SPELLING_OWNERS.contains(p.getFileName().toString())) {
+                strays.add(p.getFileName().toString());
+            }
+        }
+        assertTrue(strays.isEmpty(), () -> "the set-id default spelling is SetId.of /"
+                + " SetId.defaultFor — never spelled in place; strays: " + strays);
+    }
+
     @Test
     void classNamesAreNeverLogic() throws IOException {
         Pattern logic = Pattern.compile(

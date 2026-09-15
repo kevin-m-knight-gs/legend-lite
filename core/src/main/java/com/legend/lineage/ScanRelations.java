@@ -838,8 +838,7 @@ public final class ScanRelations {
                 if (typeMatches(r.className(), classFqn)) {
                     String name = m.qualifiedName().substring(
                             m.qualifiedName().lastIndexOf(':') + 1);
-                    String setId = r.setId() != null ? r.setId()
-                            : r.className().replace("::", "_");
+                    String setId = com.legend.model.SetId.of(r);
                     return new String[]{name, setId, mainDbOf(r),
                             mainTableOf(r)};
                 }

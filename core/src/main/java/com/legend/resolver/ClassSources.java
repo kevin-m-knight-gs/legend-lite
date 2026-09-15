@@ -428,8 +428,7 @@ public final class ClassSources {
         }
         MappingDefinition.ClassBinding cb = findBindingByFunction(mapping,
                 uc.callee().qualifiedName(), new LinkedHashSet<>());
-        return cb == null ? null : cb.setId() != null ? cb.setId()
-                : cb.classFqn().replace("::", "_");
+        return cb == null ? null : setIdOf(cb);
     }
 
     /** The route's rows re-rooted: its base table reference (the set's main
@@ -509,9 +508,9 @@ public final class ClassSources {
         return null;
     }
 
-    /** A binding's set id: its own, else the class-derived id. */
+    /** A binding's set id — {@link com.legend.model.SetId}, the one rule. */
     static String setIdOf(MappingDefinition.ClassBinding cb) {
-        return cb.setId() != null ? cb.setId() : cb.classFqn().replace("::", "_");
+        return com.legend.model.SetId.of(cb);
     }
 
     MappingDefinition.@com.legend.Nullable ClassBinding findBindingByFunction(

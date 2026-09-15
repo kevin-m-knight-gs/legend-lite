@@ -2369,8 +2369,7 @@ public final class MappingNormalizer {
             // an anonymous enum mapping's IMPLICIT id is its enumeration FQN
             // with :: -> _ — references by that spelling resolve
             for (EnumerationMapping cand : ems) {
-                String candId = cand.mappingId() != null ? cand.mappingId()
-                        : cand.enumName().replace("::", "_");
+                String candId = com.legend.model.SetId.of(cand.mappingId(), cand.enumName());
                 if (enumMappingId.equals(candId)) { em = cand; break; }
             }
         } else {

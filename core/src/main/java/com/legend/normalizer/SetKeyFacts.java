@@ -20,10 +20,12 @@ final class SetKeyFacts {
     private SetKeyFacts() {
     }
 
-    /** The set's identity for the declared-keys capture: its id, else
-     * the class (the engine's default id derives from it). */
+    /** The set's identity for the declared-keys capture: its EFFECTIVE id
+     * ({@link com.legend.model.SetId} — audit 2026-09-15 P2-1: this key
+     * used to spell a different rule, the bare class FQN, than every other
+     * set-id site; writer and reader both key through here). */
     static String setKey(ClassMapping.Relational r) {
-        return r.setId() != null ? r.setId() : r.className();
+        return com.legend.model.SetId.of(r);
     }
 
     /** The key text a set declares itself (pre-extends-merge). */

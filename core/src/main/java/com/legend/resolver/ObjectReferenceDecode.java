@@ -152,10 +152,9 @@ final class ObjectReferenceDecode {
             if (pks.isEmpty()) {
                 continue;
             }
-            String setId = cb.setId() != null && !cb.setId().isEmpty()
-                    ? cb.setId() : cb.classFqn().replace("::", "_");
+            String setId = com.legend.model.SetId.of(cb);
             table.putIfAbsent(setId, pks);
-            table.putIfAbsent(cb.classFqn().replace("::", "_"), pks);
+            table.putIfAbsent(com.legend.model.SetId.defaultFor(cb.classFqn()), pks);
         }
         for (var inc : m.includes()) {
             collect(ctx, sources, inc.mappingPath(), table, seen);

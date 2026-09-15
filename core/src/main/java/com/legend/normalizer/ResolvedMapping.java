@@ -80,10 +80,9 @@ final class ResolvedMapping {
 
     // ---- identities -----------------------------------------------------
 
-    /** A set's EFFECTIVE id: the declared one, else the engine's default
-     * (the class FQN with {@code ::} as {@code _}). The one rule. */
+    /** A set's EFFECTIVE id — {@link com.legend.model.SetId}, the one rule. */
     static String idOf(ClassMapping cm) {
-        return cm.setId() != null ? cm.setId() : cm.className().replace("::", "_");
+        return com.legend.model.SetId.of(cm);
     }
 
     // ---- resolutions (today's rules; B2 adopts the engine's) -------------

@@ -276,7 +276,7 @@ final class AssociationSynthesis {
         List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings());
         boolean nested = false;
         String sid = ResolvedMapping.idOf(rcm);
-        String classId = rcm.className().replace("::", "_");
+        String classId = com.legend.model.SetId.defaultFor(rcm.className());
         for (Map<String, List<PropertyMapping>> anySets : bySet.values()) {
             for (var en : anySets.entrySet()) {
                 String key = en.getKey();

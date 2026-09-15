@@ -491,8 +491,7 @@ public final class ModelBuilder {
             // collisions (audit 11a-F3).
             boolean idsDistinct = e.getValue().stream()
                     .allMatch(cm -> cm instanceof ClassMapping.Union && cm.setId() == null
-                            || setIds.add(cm.setId() != null ? cm.setId()
-                                    : cm.className().replace("::", "_")));
+                            || setIds.add(com.legend.model.SetId.of(cm)));
             if (roots != 1 || !idsDistinct) {
                 // ZERO roots with distinct set IDs is the UNION shape: the
                 // root lives in an Operation class mapping (a roadmap
@@ -520,8 +519,7 @@ public final class ModelBuilder {
             if (cm instanceof ClassMapping.Union && cm.setId() == null) {
                 continue;
             }
-            String effective = cm.setId() != null ? cm.setId()
-                    : cm.className().replace("::", "_");
+            String effective = com.legend.model.SetId.of(cm);
             String prev = idOwner.putIfAbsent(effective, cm.className());
             if (prev != null && !prev.equals(cm.className())) {
                 throw new com.legend.error.ModelException(

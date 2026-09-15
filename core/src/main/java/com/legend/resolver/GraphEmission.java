@@ -3165,7 +3165,7 @@ final class GraphEmission {
         // F3.4: the protocol lives ONCE in AsorRef; this keeps only the
         // model-derived inputs (defining mapping, set id)
         String defining = definingMapping(mc, cs.mappingFqn(), cs.classFqn());
-        String setId = cs.classFqn().replace("::", "_");
+        String setId = com.legend.model.SetId.defaultFor(cs.classFqn());
         return AsorRef.prefix(defining, setId, setId);
     }
 

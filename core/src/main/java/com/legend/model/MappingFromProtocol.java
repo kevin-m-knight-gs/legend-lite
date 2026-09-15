@@ -262,8 +262,7 @@ public final class MappingFromProtocol {
             // FQN (`demo::agg::Sale` -> `demo_agg_Sale`). The model records
             // only a written id, so an id that is exactly that derivation is
             // an absence, not a name.
-            String aggId = agg.id().equals(agg.className().replace("::", "_"))
-                    ? null : agg.id();
+            String aggId = SetId.isDefault(agg.id(), agg.className()) ? null : agg.id();
             ClassMapping main = classMapping(agg.mainSetImplementation());
             if (main instanceof ClassMapping.Relational r) {
                 // the flattened main keeps the AGGREGATION-AWARE element's own
