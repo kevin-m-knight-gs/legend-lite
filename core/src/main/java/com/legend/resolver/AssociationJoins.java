@@ -231,7 +231,7 @@ final class AssociationJoins {
         // arms: a routed key is a MEMBER COLUMN the union body does not
         // project (B3.1) — widen beneath the materialization
         TypedSpec tPipeline = Pipelines.containsConcatenate(t.pipeline())
-                ? Pipelines.widenForCondition(t.pipeline(), nav.predicate(), 1) : t.pipeline();
+                ? StackBuilder.demandForCondition(t.pipeline(), nav.predicate(), 1) : t.pipeline();
         Pipelines.Materialized tMat = tNavDemand.isEmpty()
                 ? Pipelines.materialize(
                         tPipeline, targetDemand, t.classFqn())
@@ -475,7 +475,7 @@ final class AssociationJoins {
         }
         TypedSpec tPipe = Pipelines.widenDistinctForKeys(pipeline, tgtReads);
         try {
-            return Pipelines.widenConcatenateForKeys(tPipe, tgtReads);
+            return StackBuilder.demandForKeys(tPipe, tgtReads);
         } catch (NotImplementedException e) {
             throw new NotImplementedException(e.getMessage()
                     + " [association head '" + head + "' on "

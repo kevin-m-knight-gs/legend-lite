@@ -189,7 +189,5 @@ class OneIndexTest {
         assertEquals(List.of("w::Car", "w::Bike"), ctx.unionMemberClasses("w::M", "w::Vehicle"));
         assertEquals("w::Car", ctx.routedTargetClass("w::M", "w::Owner", "car"));
         assertEquals(null, ctx.routedTargetClass("w::M", "w::Owner", "name"));
-        assertEquals("car", md.facts().routedSets().get("car"));
-        assertEquals("car", ctx.routedTargetSetOf("w::M", "car").orElse(null));
     }
 }

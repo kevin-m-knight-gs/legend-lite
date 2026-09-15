@@ -3282,7 +3282,7 @@ final class Substitution {
      * reads off its row (a sibling branch's condition ORed in binds on
      * member columns — Pipelines.widenForCondition). */
     private static TypedSpec widenForCorr(TypedSpec pipe, TypedLambda corr) {
-        return Pipelines.widenForCondition(pipe, corr, 0);
+        return StackBuilder.demandForCondition(pipe, corr, 0);
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,

@@ -428,6 +428,10 @@ class JdbcSurfaceCensusTest {
             // legacy routes as composition, leg 3a: the stack's lift shapes are
             // judged by ROWS against the engine's key rules (R-key, R-target)
             "core/src/test/java/com/legend/resolver/StackShapeWitnessTest.java",
+            // legacy routes as composition, leg 3b: the design's own witnesses
+            // (mixed union, route into a ~func member, subclass pins, one-table
+            // filtered union) are judged by rows
+            "core/src/test/java/com/legend/resolver/StackDesignWitnessTest.java",
             // legacy routes as composition, step 1: the several-route navigate's
             // rows are the verdict
             "core/src/test/java/com/legend/resolver/RoutedNavigateTest.java",

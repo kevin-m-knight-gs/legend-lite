@@ -9,6 +9,8 @@ import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedJoin;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.model.MappingDefinition;
+import com.legend.compiler.spec.typed.TypedNavigate;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedProject;
@@ -87,7 +89,6 @@ final class UnionHeads {
                           List<String> keys) {}
 
     private static final String MEMBER_VAR = "m";
-    private static final String UNION_VAR = "u_row";
 
     AssociationJoins.AssocJoin material(TemporalFrame temporal, ClassSource cs,
             String head, StoreResolver.Context context, Set<String> leaves) {
@@ -101,32 +102,27 @@ final class UnionHeads {
         for (List<String> path : spec.paths()) {
             members.add(member(temporal, cs, path, context, leaves));
         }
-        Type.RelationType urow = unionRow(members, leaves);
-        var many = Multiplicity.Bounded.ZERO_MANY;
-        TypedSpec union = null;
-        for (int j = 0; j < members.size(); j++) {
-            TypedSpec arm = new TypedProject(members.get(j).pipe(),
-                    memberColumns(members, j, leaves, urow),
-                    new ExprType(Type.relation(urow), many));
-            union = union == null ? arm
-                    : new TypedConcatenate(union, arm,
-                            new ExprType(Type.relation(urow), many));
+        // THE STACK builds the union: each branch is an arm whose "set" is
+        // its member relation (the demanded leaves as its bindings), its
+        // hop-0 condition's target reads projected as route keys BY NAME —
+        // two branches keyed on a same-named column share it (the engine's
+        // alignJoinAndPkColumnsForUnion), a key an arm lacks is NULL there
+        MappingDefinition mapping = ctx.findMapping(cs.mappingFqn()).orElseThrow(() ->
+                new MappingResolutionException("unknown mapping '" + cs.mappingFqn() + "'",
+                        cs.mappingFqn()));
+        List<StackBuilder.Arm> arms = new ArrayList<>(members.size());
+        for (Member m : members) {
+            ClassSource branch = new ClassSource(cs.mappingFqn(), spec.classFqn(),
+                    ClassSource.UNION_SET_ID, m.pipe(), MEMBER_VAR, m.leaves(), m.row());
+            arms.add(new StackBuilder.Arm(branch, m.pipe(), new TypedNavigate.Route(
+                    m.pipe(), m.pipe(), m.cond(), m.keys(), m.keys())));
         }
+        ClassSource target = sources.stacks().stackOf(cs.mappingFqn(), spec.classFqn(), mapping,
+                arms, List.of(), false);
+        Type.RelationType urow = target.rowType();
         TypedLambda cond = orOfConditions(members, cs.rowType(), urow);
-        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
-        var uInfo = new ExprType(urow, Multiplicity.Bounded.ONE);
-        for (Type.Column c : urow.columns()) {
-            if (leaves.contains(c.name())) {
-                bindings.put(c.name(), new TypedPropertyAccess(
-                        new TypedVariable(UNION_VAR, uInfo), c.name(),
-                        new ExprType(c.type(), c.multiplicity())));
-            }
-        }
-        ClassSource target = new ClassSource(cs.mappingFqn(), spec.classFqn(),
-                ClassSource.UNION_SET_ID, java.util.Objects.requireNonNull(union), UNION_VAR,
-                bindings, urow);
         return new AssociationJoins.AssocJoin(
-                AssociationJoins.prefixFor(head, cs), target, union, urow,
+                AssociationJoins.prefixFor(head, cs), target, target.pipeline(), urow,
                 cond, Map.of(), Map.of(), null, null, false);
     }
 
@@ -293,78 +289,6 @@ final class UnionHeads {
         return new Hop(target, tPipe,
                 Type.requireRelationSchema(tPipe.info().type()), nav.predicate(),
                 mat.slotPrefixes(), mat.subNavs());
-    }
-
-    /** The aligned column list: leaves first (typed by member 0's
-     * expression, nullable — a LEFT-joined union), then the members'
-     * keys by NAME (first owner types it; a leaf/key name clash is loud —
-     * the engine spells the leaf {@code <table><COL>}, we keep the
-     * property name). */
-    private static Type.RelationType unionRow(List<Member> members,
-            Set<String> leaves) {
-        List<Type.Column> cols = new ArrayList<>();
-        var opt = Multiplicity.Bounded.ZERO_ONE;
-        for (String l : leaves) {
-            TypedSpec e0 = java.util.Objects.requireNonNull(
-                    members.get(0).leaves().get(l));
-            cols.add(new Type.Column(l, e0.info().type(), opt));
-        }
-        Set<String> seen = new LinkedHashSet<>();
-        for (Member m : members) {
-            for (String k : m.keys()) {
-                if (leaves.contains(k)) {
-                    throw new NotImplementedException("concatenated navigation:"
-                            + " join key column '" + k + "' collides with the"
-                            + " demanded leaf of the same name");
-                }
-                if (seen.add(k)) {
-                    cols.add(new Type.Column(k, column(m.row(), k).type(), opt));
-                }
-            }
-        }
-        return new Type.RelationType(cols);
-    }
-
-    private static Type.Column column(Type.RelationType row, String name) {
-        return row.columns().stream().filter(c -> c.name().equals(name))
-                .findFirst().orElseThrow(() -> new IllegalStateException(
-                        "resolver bug: union member key '" + name
-                        + "' missing from its row"));
-    }
-
-    /** Member {@code j} projected onto the union row: its leaf
-     * expressions, its own keys by name, NULL for the keys it lacks. */
-    private static List<TypedFuncCol> memberColumns(List<Member> members,
-            int j, Set<String> leaves, Type.RelationType urow) {
-        Member m = members.get(j);
-        var mInfo = new ExprType(m.row(), Multiplicity.Bounded.ONE);
-        List<TypedFuncCol> cols = new ArrayList<>();
-        for (String l : leaves) {
-            cols.add(col(l, java.util.Objects.requireNonNull(m.leaves().get(l)),
-                    m.row()));
-        }
-        for (Type.Column uc : urow.columns()) {
-            if (leaves.contains(uc.name())) {
-                continue;
-            }
-            TypedSpec v = m.keys().contains(uc.name())
-                    ? new TypedPropertyAccess(new TypedVariable(MEMBER_VAR, mInfo),
-                            uc.name(), new ExprType(uc.type(), uc.multiplicity()))
-                    : new TypedCollection(List.of(),
-                            new ExprType(uc.type(), Multiplicity.Bounded.ZERO_ONE));
-            cols.add(col(uc.name(), v, m.row()));
-        }
-        return cols;
-    }
-
-    private static TypedFuncCol col(String name, TypedSpec value,
-            Type.RelationType mRow) {
-        var one = Multiplicity.Bounded.ONE;
-        var lFn = new Type.FunctionType(
-                List.of(new Type.Param(mRow, one)),
-                new Type.Param(value.info().type(), value.info().multiplicity()));
-        return new TypedFuncCol(name, new TypedLambda(List.of(MEMBER_VAR),
-                List.of(value), new ExprType(lFn, one)));
     }
 
     /** {@code (s, t) | cond_0 or cond_1 ...} over the parent row and the

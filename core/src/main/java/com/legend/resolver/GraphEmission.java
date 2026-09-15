@@ -688,7 +688,7 @@ final class GraphEmission {
             ClassSource t = !st.routes().isEmpty()
                     ? sources.routedUnionSource(cs.mappingFqn(), ng.classFqn(), st.routes(), context.constructedScope())
                     : sources.get(dispatch.apply(context, ng.classFqn()), ng.classFqn(), context.constructedScope());
-            TypedSpec tPipe = Pipelines.widenForCondition(Pipelines.materialize(t.pipeline(), Set.of(), t.classFqn()).pipeline(), st.predicate(), 1);
+            TypedSpec tPipe = StackBuilder.demandForCondition(Pipelines.materialize(t.pipeline(), Set.of(), t.classFqn()).pipeline(), st.predicate(), 1);
             Type.RelationType tRow = Type.requireRelationSchema(tPipe.info().type());
             String pVar = st.predicate().parameters().get(0);
             String tVar = st.predicate().parameters().get(1);
@@ -819,7 +819,7 @@ final class GraphEmission {
             TypedPropertyAccess colRead,
             String parentRowVar, Type.RelationType parentRowType,
             java.util.function.UnaryOperator<TypedSpec> valueWrap) {
-        targetPipeline = Pipelines.widenForCondition(targetPipeline, cond, 1);
+        targetPipeline = StackBuilder.demandForCondition(targetPipeline, cond, 1);
         Type.RelationType targetRow = Type.requireRelationSchema(targetPipeline.info().type());
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
@@ -1127,8 +1127,7 @@ final class GraphEmission {
         boolean toMany = node.sweep() || !(prop.multiplicity()
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
-        String setHint = ctx.routedTargetSetOf(cs.mappingFqn(),
-                node.property()).orElse(null);
+        String setHint = null;   // an un-routed navigation lands on the class's root
         ClassSource child = !nav.routes().isEmpty() && childClass.equals(rawTarget)
                 ? sources.routedUnionSource(cs.mappingFqn(), rawTarget, nav.routes(), context.constructedScope())   // a routed step's child IS its routed union
                 : childClass.equals(rawTarget)
@@ -1347,7 +1346,7 @@ final class GraphEmission {
         // the FREE parent row var (the lowerer's enclosing-scope channel);
         // the target param stays as the child filter's own row.
         TypedLambda cond = condition;
-        targetPipeline = Pipelines.widenForCondition(targetPipeline, cond, 1);
+        targetPipeline = StackBuilder.demandForCondition(targetPipeline, cond, 1);
         targetRow = Type.requireRelationSchema(targetPipeline.info().type());
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
@@ -2575,7 +2574,7 @@ final class GraphEmission {
             Pipelines.Materialized cMat = Pipelines.materialize(
                     target.pipeline(), Set.of(), rawTarget);
             cond = nav.pairedPredicate().orElse(nav.predicate());
-            targetPipeline = Pipelines.widenForCondition(tf.temporalTargetPipe(cs, target, headProp, cMat.pipeline()), cond, 1);
+            targetPipeline = StackBuilder.demandForCondition(tf.temporalTargetPipe(cs, target, headProp, cMat.pipeline()), cond, 1);
             targetRow = Type.requireRelationSchema(targetPipeline.info().type());
         }
         String pVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);

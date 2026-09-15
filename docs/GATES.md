@@ -2664,3 +2664,54 @@ witness class.
 **Next.** Leg 3b (B6): `UnionHeads` and the mixed builder onto the stack; then the widening
 (F14), the set-pin facts (F7, second half) and the mixed arm code die; the CastReRoot typed key;
 retyping by node kind (F4); re-measure M1–M4.
+
+## Legacy routes as composition, leg 3b — B6: one union builder — 2026-09-14
+
+**Why.** After leg 3a the design's measure M2 still counted three query-side union builders
+(the stack, `UnionHeads`, the mixed builder) and the audit's F14 named the after-the-fact widening
+as their debt. The B6 census (audit doc, "B6 census") showed the widening is the resolver's
+demand-driven projection over STACK rows — 525 calls, almost all for columns the association,
+exists, aggregation and graph paths demand after the stack is built — and that the other two
+builders serve 15 and 14 rows. So B6 is: the demand becomes the stack builder's own seam, and
+the two builders become calls to it.
+
+**What landed.**
+- `StackBuilder.stackOf(…, extras, lifts)`: a DEMAND input — extra columns projected per arm
+  from the arm's own value (NULL where an arm lacks one) — and a lifts switch (a mixed union's
+  per-member child dispatch reads the arms' steps inside the arms). The widening family moved in
+  as the stack's demand seam (`demandBelow` / `demandForKeys` / `demandForCondition` /
+  `demandOnArm`); `Pipelines` keeps only the ~distinct key widening.
+- `ClassSources.mixedUnionSource` = `stackOf` over the members' sources with the per-member
+  child-route keys as extras; `mixedChildMaterial`'s keyed child union = `stackOf` over the pairs'
+  target sets with the pair keys as extras (the last class-arm concatenate outside the builder);
+  `UnionHeads.material` = `stackOf` over the branch members (each branch an arm whose bindings
+  are its demanded leaves, its hop-0 condition's target reads the route keys BY NAME — the
+  engine's `alignJoinAndPkColumnsForUnion`); the hand-rolled union assemblies are gone.
+- The stamped set-pin facts die: `MappingFacts.routedSets`, `NormalizationFacts.routedSets`,
+  `ModelContext.routedTargetSetOf`; the mixed member routes read the member binding's pins, the
+  graph-fetch child hint is gone (an un-routed navigation lands on the class's root; a pinned one
+  carries its routes). The audit's F7 closes.
+- A route INTO a `Relation ~func` member (A13): the route's rows are the function's body as the
+  set's own synthesis inlines it, its key a column of those rows.
+- `CastReRoot` joins the cast's re-root on the shared-key thread named by the union's key-thread
+  FACT (`KeyThread.shared()`, column, name), never a name pattern.
+- F4: `StackBuilder.rechild0` retypes a re-rooted step by its KIND (a navigate or join slot adds
+  its slot column; a filter, distinct or sort keeps its child's row; a projection keeps its own);
+  `ClassSources.rebaseRows` recognises a view projection structurally (a project straight over a
+  table reference), no column-name comparison anywhere.
+- Witnesses (`StackDesignWitnessTest`, registered in the JDBC census): W1 a mixed union
+  (Relational + Pure member), W2 a route into a `~func` member, W4 pinned routes from two
+  subclass-level sets into a class/subclass union, W5 route keys over a two-filter one-table
+  union; W3 (`importDataFlow`) is judged by the corpus row `testPksWithImportDataFlow`.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes at every step (after the
+mixed fold, after the union-heads fold and the demand-seam move, after the child fold).
+
+**Chain.** Gates 1–9 green on the first run. **Measures (§11.0).** M1 1,197 (unchanged; target under 700 stays open) ·
+M2 1 (the stack builder; `UnionHeads` 412 → 335 lines as a caller, the two mixed assemblies
+gone) · M3 0 (the set-pin facts deleted) · M4 5 (unchanged, each named in the leg 2 record).
+Batch size: 22 files changed, 522 insertions(+), 734 deletions(-), plus the 230-line design-witness class.
+
+**Next.** M1 toward 700 (the same-table inheritance collapse and the key-thread fact are the bulk
+that remains); the per-member child dispatch of Pure arms becomes a step when a whole-source route
+is one; the widening's callers move their demand to build time as the resolver's phases allow.

@@ -86,12 +86,11 @@ public record MappingDefinition(
             java.util.Map<String, List<KeyThread>> unionKeyThreads,
             java.util.Map<String, java.util.Set<String>> nullableCensus,
             java.util.Map<String, List<String>> unionMembers,
-            java.util.Map<String, java.util.Map<String, String>> routedTargetClasses,
-            java.util.Map<String, String> routedSets) {
+            java.util.Map<String, java.util.Map<String, String>> routedTargetClasses) {
 
         public static final NormalizationFacts NONE = new NormalizationFacts(
                 java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+                java.util.Map.of(), java.util.Map.of());
 
         /** The synthesis facts alone (T4.1 step 2); the surface facts empty. */
         public NormalizationFacts(java.util.Map<String, String> poisons,
@@ -99,7 +98,7 @@ public record MappingDefinition(
                 java.util.Map<String, List<KeyThread>> unionKeyThreads,
                 java.util.Map<String, java.util.Set<String>> nullableCensus) {
             this(poisons, mixedUnions, unionKeyThreads, nullableCensus,
-                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+                    java.util.Map.of(), java.util.Map.of());
         }
 
         public NormalizationFacts {
@@ -118,7 +117,6 @@ public record MappingDefinition(
                 routedTargetClasses.forEach((k, v) -> copy.put(k, java.util.Map.copyOf(v)));
                 routedTargetClasses = java.util.Collections.unmodifiableMap(copy);
             }
-            routedSets = routedSets == null ? java.util.Map.of() : java.util.Map.copyOf(routedSets);
             poisons = poisons == null ? java.util.Map.of() : java.util.Map.copyOf(poisons);
             mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
             unionKeyThreads = unionKeyThreads == null

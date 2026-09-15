@@ -254,15 +254,6 @@ public final class PureModelContext implements ModelContext {
                         TypeClassifier.multiplicity(end.multiplicity())));
     }
 
-    @Override
-    public java.util.Optional<String> routedTargetSetOf(String mappingFqn,
-            String head) {
-        // the NORMALIZED artifact carries the closure-wide table
-        return model.findMapping(mappingFqn)
-                .map(m -> m.routedTargetSets().get(head))
-                .or(() -> model.findMapping(mappingFqn)
-                        .map(m -> m.facts().routedSets().get(head)));
-    }
 
     @Override
     public java.util.Optional<com.legend.model.MeasureDefinition> findMeasure(String fqn) {

@@ -84,9 +84,18 @@ final class CastReRoot {
         String lv = "_cl" + fresh.getAsInt();
         String rv = "_cr" + fresh.getAsInt();
         TypedSpec cond = null;
+        // the composed row's shared-key thread for this column is a FACT of
+        // the union (the key-thread record: name, column, table), never a
+        // name pattern; a plain (non-union) row carries the column itself
+        java.util.List<com.legend.model.KeyThread> threads = ctx.unionKeyThreads(
+                src.mappingFqn(), src.classFqn());
         for (String c : pk) {
+            String sharedName = threads == null ? null : threads.stream()
+                    .filter(kt -> kt.shared() && kt.column().equals(c))
+                    .map(com.legend.model.KeyThread::name).findFirst().orElse(null);
             Type.Column lc = leftRow.columns().stream()
-                    .filter(x -> x.name().startsWith(src.composedPrefix() + c + "__pk"))
+                    .filter(x -> sharedName != null
+                            && x.name().equals(src.composedPrefix() + sharedName))
                     .findFirst()
                     .or(() -> leftRow.columns().stream()
                             .filter(x -> x.name().equals(src.composedPrefix() + c))

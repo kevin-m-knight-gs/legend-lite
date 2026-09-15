@@ -175,7 +175,7 @@ final class DottedExists {
                         Pipelines.collectVarReads(b0,
                                 cond.parameters().get(1), tgtReads);
                     }
-                    p0 = Pipelines.widenConcatenateForKeys(p0, tgtReads);
+                    p0 = StackBuilder.demandForKeys(p0, tgtReads);
                 }
                 tPipe = temporal.temporalTargetPipe(parent, t, dotted,
                         temporal.applyJoinTemporalFilters(p0, t, Map.of()));

@@ -75,7 +75,6 @@ final class MappingLedger {
             LegacyMappingDefinition md, com.legend.compiler.ModelBuilder model) {
         return new MappingDefinition.NormalizationFacts(
                 poisons, mixedUnions, unionKeyThreads, nullableCensus,
-                MappingFacts.unionMembers(surface), MappingFacts.routedTargetClasses(surface),
-                MappingFacts.routedSets(md, model));
+                MappingFacts.unionMembers(surface), MappingFacts.routedTargetClasses(surface));
     }
 }

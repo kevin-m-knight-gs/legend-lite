@@ -54,6 +54,6 @@ final class NestedUnionKeys {
                 }
             }
         }
-        return Pipelines.widenConcatenateBelow(pipe, reads);
+        return StackBuilder.demandBelow(pipe, reads);
     }
 }

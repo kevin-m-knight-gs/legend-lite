@@ -23,6 +23,10 @@ import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedIf;
+import com.legend.compiler.spec.typed.TypedDistinct;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedJoinSlot;
+import com.legend.error.NotImplementedException;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNavigate;
@@ -144,35 +148,43 @@ final class StackBuilder {
         return rechild0(pipe, first);
     }
 
-    /** {@code node} over another first child, RETYPED: the node's own
-     * columns (those its row adds to the old first child's) over the new
-     * child's row. A stale row type hides the mids a lift reads. */
+    /** {@code node} over another first child, RETYPED by the node's KIND:
+     * a step that adds its slot column (a navigate, a join slot) types as
+     * the new child's row plus that column; a row-preserving step (filter,
+     * distinct, sort) as the new child's row; a projection keeps its own
+     * output. No column-name arithmetic. */
     static TypedSpec rechild0(TypedSpec node, TypedSpec new0) {
         List<TypedSpec> kids = node.children();
         List<TypedSpec> out = new ArrayList<>(kids);
         out.set(0, new0);
         TypedSpec re = node.withChildren(out);
-        Type.RelationType oldRow = rowOf(node.info().type());
-        Type.RelationType oldBase = rowOf(kids.get(0).info().type());
         Type.RelationType newBase = rowOf(new0.info().type());
-        if (oldRow == null || oldBase == null || newBase == null) {
+        Type.RelationType oldRow = rowOf(node.info().type());
+        if (newBase == null || oldRow == null) {
             return re;
         }
-        Set<String> baseNames = new LinkedHashSet<>();
-        for (Type.Column c : oldBase.columns()) {
-            baseNames.add(c.name());
-        }
-        List<Type.Column> cols = new ArrayList<>(newBase.columns());
-        Set<String> have = new LinkedHashSet<>();
-        for (Type.Column c : cols) {
-            have.add(c.name());
-        }
-        for (Type.Column c : oldRow.columns()) {
-            if (!baseNames.contains(c.name()) && have.add(c.name())) {
-                cols.add(c);
+        String slot = switch (node) {
+            case TypedNavigate nav -> nav.alias().orElse(null);
+            case TypedJoinSlot js -> js.alias();
+            default -> null;
+        };
+        Type.RelationType row;
+        if (slot != null) {
+            Type.Column sc = columnOf(oldRow, slot);
+            if (sc == null) {
+                throw new IllegalStateException("resolver bug: step '" + slot
+                        + "' does not carry its own slot column");
             }
+            List<Type.Column> cols = new ArrayList<>(newBase.columns());
+            cols.removeIf(c -> c.name().equals(slot));
+            cols.add(sc);
+            row = new Type.RelationType(cols);
+        } else if (node instanceof TypedFilter || node instanceof TypedDistinct
+                || node instanceof com.legend.compiler.spec.typed.TypedSortBy) {
+            row = newBase;
+        } else {
+            return re;   // a projection (or any other node) keeps its own output
         }
-        Type.RelationType row = new Type.RelationType(cols);
         Type t = node.info().type() instanceof Type.RelationType ? row : Type.relation(row);
         return re.withInfo(new ExprType(t, node.info().multiplicity()));
     }
@@ -232,8 +244,23 @@ final class StackBuilder {
     /** THE ONE UNION BUILDER: an operation's arms, or a routed navigate's
      * arms (one per route and leaf, the route's rows on the leaf's
      * pipeline, the route's target reads projected as its keys). */
+    /** A DEMANDED column of the stack row beyond the class's own: its name,
+     * type, and per arm the value the arm projects (absent = a typed NULL)
+     * — the per-member child-route keys of a mixed union, the columns a
+     * later reader demands. */
+    record Extra(String name, Type type, Map<Integer, TypedSpec> perArm) {
+    }
+
     ClassSource stackOf(String mappingFqn, String classFqn, MappingDefinition mapping,
             List<Arm> arms) {
+        return stackOf(mappingFqn, classFqn, mapping, arms, List.of(), true);
+    }
+
+    /** {@code extras}: demanded columns beyond the class's own; {@code lifts}
+     * false = the arms' navigate steps stay INSIDE the arms (a mixed union's
+     * per-member child dispatch reads them there). */
+    ClassSource stackOf(String mappingFqn, String classFqn, MappingDefinition mapping,
+            List<Arm> arms, List<Extra> extras, boolean liftsWanted) {
         var one = Multiplicity.Bounded.ONE;
         var optional = Multiplicity.Bounded.ZERO_ONE;
         var many = Multiplicity.Bounded.ZERO_MANY;
@@ -355,8 +382,25 @@ final class StackBuilder {
                         + "', mapping '" + mappingFqn + "')", classFqn);
             }
         }
+        // the DEMANDED extras, per arm
+        for (Extra x : extras) {
+            Col c = byName.get(x.name());
+            if (c == null) {
+                c = new Col(x.name(), x.type(), optional);
+                byName.put(c.name(), c);
+                cols.add(c);
+            }
+            for (var pe : x.perArm().entrySet()) {
+                if (c.perArm().containsKey(pe.getKey())) {
+                    throw new IllegalStateException("resolver bug: arm " + pe.getKey()
+                            + " projects extra '" + x.name() + "' twice");
+                }
+                c.perArm().put(pe.getKey(), pe.getValue());
+            }
+        }
         // A6 / A9 — the lifts: their source columns join the row
-        List<Lift> lifts = collectLifts(mappingFqn, classFqn, mapping, srcs, armRows, emb);
+        List<Lift> lifts = liftsWanted
+                ? collectLifts(mappingFqn, classFqn, mapping, srcs, armRows, emb) : List.of();
         for (Lift l : lifts) {
             for (Col c : l.srcCols()) {
                 byName.put(c.name(), c);
@@ -1589,4 +1633,213 @@ final class StackBuilder {
         return callees.bool("or");
     }
 
+    // ------------------------------------------------------------------
+    // THE DEMAND SEAM (B6): a column a later reader demands of a union row
+    // — a navigate slot a further hop reads, a physical key a condition
+    // reads — is projected per arm from the arm's own row, NULL where an
+    // arm lacks it. The same demand-driven projection every plain source
+    // gets from Pipelines.materialize, applied to the stack's arms.
+    // ------------------------------------------------------------------
+
+    /**
+     * JOIN-KEY COLLECTION over a UNION pipeline (engine: each member thread
+     * of a union subselect carries the demanded join-key columns — the
+     * {@code FirmID_0}-family columns in the partial-union goldens; this is
+     * the shared-name form): a navigation join over a concatenate reads
+     * source key columns the member projections dropped — re-add each key
+     * to EVERY member projection, reading the member's own physical column.
+     * No concatenate in the pipeline: unchanged. A member whose row lacks
+     * the column is LOUD (the per-member suffixed/NULL-filled form is the
+     * union-to-union rung).
+     */
+    /** {@link #demandForKeys} applied to the concatenate BENEATH
+     * a pipeline's navigate / join-slot / filter steps (a union source
+     * carrying hoisted steps): the steps rebuild over the widened union. */
+    static TypedSpec demandBelow(TypedSpec pipeline, Set<String> cols) {
+        if (cols.isEmpty()) {
+            return pipeline;
+        }
+        return switch (pipeline) {
+            case TypedConcatenate cat -> demandForKeys(cat, cols);
+            case TypedFilter f -> {
+                TypedSpec inner = demandBelow(f.source(), cols);
+                yield inner == f.source() ? pipeline
+                        : new TypedFilter(inner, f.predicate(),
+                                new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
+            }
+            case TypedNavigate nav -> {
+                TypedSpec inner = demandBelow(nav.source(), cols);
+                yield inner == nav.source() ? pipeline : nav.withSource(inner, nav.info());
+            }
+            case TypedJoinSlot js -> {
+                TypedSpec inner = demandBelow(js.source(), cols);
+                yield inner == js.source() ? pipeline
+                        : new TypedJoinSlot(inner, js.alias(), js.target(),
+                                js.condition(), js.frameName(), js.info());
+            }
+            default -> pipeline;
+        };
+    }
+
+    static TypedSpec demandForKeys(TypedSpec pipeline, Set<String> cols) {
+        if (pipeline instanceof TypedFilter f) {
+            TypedSpec inner = demandForKeys(f.source(), cols);
+            if (inner == f.source()) {
+                return pipeline;
+            }
+            return new TypedFilter(inner, f.predicate(),
+                    new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
+        }
+        // a ONE-thread union (a lone projected member)
+        if (pipeline instanceof TypedProject lone) {
+            List<String> lmissing = missingOf(lone, cols);
+            return lmissing.isEmpty() ? pipeline
+                    : demandOnArm(lone, 0, List.of(lone), lmissing);
+        }
+        if (!(pipeline instanceof TypedConcatenate cat)) {
+            return pipeline;
+        }
+        Type.RelationType row = Type.requireRelationSchema(cat.info().type());
+        Set<String> have = new LinkedHashSet<>();
+        for (Type.Column c : row.columns()) {
+            have.add(c.name());
+        }
+        List<String> missing = new ArrayList<>();
+        for (String c : cols) {
+            if (!have.contains(c)) {
+                missing.add(c);
+            }
+        }
+        if (missing.isEmpty()) {
+            return pipeline;
+        }
+        // Flatten the left-deep concatenate: member ordinal i = the i-th
+        // thread = the engine's `<col>_<i>` key-column suffix.
+        List<TypedSpec> members = new ArrayList<>();
+        flattenConcatenate(cat, members);
+        List<TypedSpec> widened = new ArrayList<>(members.size());
+        for (int i = 0; i < members.size(); i++) {
+            widened.add(demandOnArm(members.get(i), i, members, missing));
+        }
+        TypedSpec out = widened.get(0);
+        for (int i = 1; i < widened.size(); i++) {
+            out = new TypedConcatenate(out,
+                    widened.get(i),
+                    new ExprType(out.info().type(), Multiplicity.Bounded.ONE));
+        }
+        return out;
+    }
+
+    /** {@code pipe} widened for the key columns a condition reads off
+     * its {@code targetParam}-th parameter's row — a union target's
+     * threads project the link keys they publish, so this is a no-op
+     * unless a consumer materialized the target without them. */
+    static TypedSpec demandForCondition(TypedSpec pipe, @com.legend.Nullable TypedLambda cond,
+            int targetParam) {
+        if (cond == null || cond.parameters().size() <= targetParam) {
+            return pipe;
+        }
+        Set<String> reads = new LinkedHashSet<>();
+        for (TypedSpec b : cond.body()) {
+            Pipelines.collectVarReads(b, cond.parameters().get(targetParam), reads);
+        }
+        return reads.isEmpty() ? pipe : demandForKeys(pipe, reads);
+    }
+
+    /** The demanded columns the relation does not carry. */
+    private static List<String> missingOf(TypedSpec pipeline, Set<String> cols) {
+        Type.RelationType row = Type.requireRelationSchema(pipeline.info().type());
+        List<String> missing = new ArrayList<>();
+        for (String c : cols) {
+            if (row.columns().stream().noneMatch(x -> x.name().equals(c))) {
+                missing.add(c);
+            }
+        }
+        return missing;
+    }
+
+    private static void flattenConcatenate(TypedSpec n, List<TypedSpec> out) {
+        if (n instanceof TypedConcatenate cat) {
+            flattenConcatenate(cat.left(), out);
+            flattenConcatenate(cat.right(), out);
+        } else {
+            out.add(n);
+        }
+    }
+
+    /**
+     * Append {@code missing} key columns to a union member's projection:
+     * every member reads its own physical column (the shared-name form —
+     * a link key a routed member publishes, a lift's own key thread); a
+     * member whose row lacks the column contributes a typed NULL of a
+     * sibling's kind (engine SQLNull padding, pureToSQLQuery_union.pure:
+     * 682-691: un-routed threads must never match).
+     */
+    private static TypedSpec demandOnArm(TypedSpec side, int ordinal,
+            List<TypedSpec> members, List<String> missing) {
+        if (!(side instanceof TypedProject p)) {
+            throw new NotImplementedException(
+                    "a navigation join over this union demands key columns "
+                    + missing + ", but a union member is a "
+                    + side.getClass().getSimpleName()
+                    + " — only projected members widen");
+        }
+        Type.RelationType srcRow = Type.requireRelationSchema(p.source().info().type());
+        List<TypedFuncCol> newCols = new ArrayList<>(p.columns());
+        List<Type.Column> outCols = new ArrayList<>(
+                (Type.requireRelationSchema(p.info().type())).columns());
+        String v = "u_k";
+        TypedVariable row = new TypedVariable(v,
+                new ExprType(srcRow, Multiplicity.Bounded.ONE));
+        for (String c : missing) {
+            TypedSpec body;
+            Type colDeclType;
+            Type.Column src = columnOf(srcRow, c);
+            if (src != null) {
+                body = read(row, src);
+                colDeclType = src.type();
+            } else {
+                Type sibling = null;
+                for (TypedSpec m : members) {
+                    TypedSpec msrc = m instanceof TypedProject mp ? mp.source() : m;
+                    if (Type.relationSchema(msrc.info().type()) instanceof Type.RelationType mr) {
+                        Type.Column mc = columnOf(mr, c);
+                        if (mc != null) {
+                            sibling = mc.type();
+                            break;
+                        }
+                    }
+                }
+                if (sibling == null) {
+                    List<String> rows = new ArrayList<>();
+                    for (TypedSpec m : members) {
+                        TypedSpec msrc = m;
+                        rows.add(Type.relationSchema(msrc.info().type()) instanceof Type.RelationType mr
+                                ? mr.columns().stream().map(Type.Column::name).toList().toString()
+                                : msrc.getClass().getSimpleName());
+                    }
+                    throw new NotImplementedException(
+                            "a navigation join over this union demands key column '"
+                            + c + "', which NO union member carries (members' rows: " + rows + ")");
+                }
+                body = new TypedCollection(List.of(),
+                        new ExprType(sibling, Multiplicity.Bounded.ZERO_ONE));
+                colDeclType = sibling;
+            }
+            var fnType = new Type.FunctionType(
+                    List.of(new Type.Param(srcRow, Multiplicity.Bounded.ONE)),
+                    new Type.Param(colDeclType, Multiplicity.Bounded.ZERO_ONE));
+            newCols.add(new TypedFuncCol(c, new TypedLambda(List.of(v), List.of(body),
+                    new ExprType(fnType, Multiplicity.Bounded.ONE))));
+            outCols.add(new Type.Column(c, colDeclType, Multiplicity.Bounded.ZERO_ONE));
+        }
+        return new TypedProject(p.source(), newCols,
+                new ExprType(Type.relation(new Type.RelationType(outCols)),
+                        Multiplicity.Bounded.ONE));
+    }
+
+    private static TypedSpec read(TypedVariable row, Type.Column src) {
+        return new TypedPropertyAccess(row, src.name(),
+                new ExprType(src.type(), src.multiplicity()));
+    }
 }

@@ -122,7 +122,7 @@ final class ChainedExists {
             Pipelines.collectVarReads(b, leafCond.parameters().get(1),
                     tgtReads);
         }
-        leafPipe = Pipelines.widenConcatenateForKeys(leafPipe, tgtReads);
+        leafPipe = StackBuilder.demandForKeys(leafPipe, tgtReads);
         Type.RelationType leafRow = Type.relationSchema(leafPipe.info().type());
         if (leafRow == null) {
             return null;
@@ -139,7 +139,7 @@ final class ChainedExists {
         for (TypedSpec b : leafCond.body()) {
             Pipelines.collectVarReads(b, leafCond.parameters().get(0), midKeys);
         }
-        midPipe = Pipelines.widenConcatenateForKeys(midPipe, midKeys);
+        midPipe = StackBuilder.demandForKeys(midPipe, midKeys);
         Type.RelationType midRow = Type.relationSchema(midPipe.info().type());
         if (midRow == null) {
             return null;

@@ -511,17 +511,28 @@ final class JoinChainEmission {
             PropertyMapping.Join j = route.join();
             List<JoinChainElement> chain = j.joins();
             ClassMapping member = md.set(j.targetSetId());
-            if (!(member instanceof ClassMapping.Relational rm)) {
+            // a ROUTE INTO A ~func MEMBER (A13): the route's rows are the
+            // function's rows, its key a column of them (the join names the
+            // relation the function reads); a chain pushed into such an arm
+            // has no table to root at — loud
+            ClassMapping.RelationFunction rfMember = member instanceof ClassMapping.RelationFunction rf
+                    ? rf : null;
+            if (rfMember == null && !(member instanceof ClassMapping.Relational)) {
                 throw new NotImplementedException("route '" + propName + "[" + j.targetSetId()
                         + "]' targets a set that is not Relational; mapping=" + md.qualifiedName());
             }
-            LegacyMappingDefinition.TableReference memberMain = rm.mainTable() != null
-                    ? rm.mainTable() : MappingNormalizer.inferMainTableQuiet(rm);
-            if (memberMain == null) {
+            ClassMapping.Relational rm = member instanceof ClassMapping.Relational r0 ? r0 : null;
+            LegacyMappingDefinition.TableReference memberMain = rm == null ? null
+                    : rm.mainTable() != null ? rm.mainTable() : MappingNormalizer.inferMainTableQuiet(rm);
+            if (rm != null && memberMain == null) {
                 throw new NotImplementedException("route '" + propName + "[" + j.targetSetId()
                         + "]' targets a set with no main table; mapping=" + md.qualifiedName());
             }
             boolean inArm = perArm && chain.size() > 1;
+            if (inArm && rfMember != null) {
+                throw new NotImplementedException("route '" + propName + "[" + j.targetSetId()
+                        + "]' pushes a chain into a ~func member; mapping=" + md.qualifiedName());
+            }
             JoinChainElement hop = inArm ? chain.get(0) : chain.get(chain.size() - 1);
             String db = hop.databaseName() != null ? hop.databaseName() : j.database();
             DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName()).orElseThrow(() ->
@@ -531,9 +542,10 @@ final class JoinChainEmission {
             ValueSpecification rows;
             ValueSpecification cond;
             if (inArm) {
+                LegacyMappingDefinition.TableReference mm = java.util.Objects.requireNonNull(memberMain);
                 List<UnionSynthesis.LiftMidStep> steps = UnionSynthesis.inboundArmSteps(
-                        j, java.util.Objects.requireNonNull(propName), memberMain.table(), md, model);
-                rows = relationRef(memberMain.database(), memberMain.table(), model, md);
+                        j, java.util.Objects.requireNonNull(propName), mm.table(), md, model);
+                rows = relationRef(mm.database(), mm.table(), model, md);
                 for (UnionSynthesis.LiftMidStep st : steps) {
                     rows = new AppliedFunction(Pure.Lite.JOIN_SLOT, List.of(rows,
                             new ColSpec(st.alias(), new LambdaFunction(List.of(),
@@ -555,7 +567,9 @@ final class JoinChainEmission {
                         ? tables.iterator().next()
                         : MappingNormalizer.determineTargetTable(jd.operation(), rPrev,
                                 hop.joinName(), propName, chain.size(), md.qualifiedName());
-                rows = model.findView(db, tgt).isPresent()
+                rows = rfMember != null
+                        ? MappingNormalizer.relationFunctionPipeline(rfMember, model)
+                        : model.findView(db, tgt).isPresent()
                         ? ViewRelation.viewRelationExpr(model.findView(db, tgt).orElseThrow(),
                                 tgt, db, model, md)
                         : new AppliedFunction("tableReference", List.of(
@@ -571,7 +585,8 @@ final class JoinChainEmission {
             // a ROOT route beside others names the root set's own function
             // (its class-level function); the queried mapping resolves it
             ValueSpecification target = new AppliedFunction(
-                    UnionSynthesis.memberFunction(md, rm), List.of());
+                    UnionSynthesis.memberFunction(md, java.util.Objects.requireNonNull(member)),
+                    List.of());
             out.add(new AppliedFunction(Pure.Lite.ROUTE, List.of(target, rows,
                     new LambdaFunction(List.of(s, t), List.of(cond)))));
         }

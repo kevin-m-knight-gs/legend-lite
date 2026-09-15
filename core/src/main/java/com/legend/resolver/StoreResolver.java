@@ -872,7 +872,7 @@ public final class StoreResolver {
                 Pipelines.collectVarReads(pb, step.predicate().parameters().get(0),
                         stepSrcReads);
             }
-            spliced = Pipelines.widenConcatenateBelow(spliced, stepSrcReads);
+            spliced = StackBuilder.demandBelow(spliced, stepSrcReads);
         }
         Pipelines.Materialized m = Pipelines.materialize(
                 spliced,
@@ -2007,7 +2007,7 @@ public final class StoreResolver {
             // the association join widened it: the condition's routed keys
             // are MEMBER columns the union arms project on demand (B3.1)
             {
-                TypedSpec widened = Pipelines.widenForCondition(joinTarget, joinCond, 1);
+                TypedSpec widened = StackBuilder.demandForCondition(joinTarget, joinCond, 1);
                 if (widened != joinTarget) {
                     joinTarget = widened;
                     joinTargetRow = Type.requireRelationSchema(widened.info().type());

@@ -171,7 +171,7 @@ final class NavExistsMaterial {
                 Pipelines.collectVarReads(b,
                         nav.predicate().parameters().get(1), tgtReads);
             }
-            tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
+            tPipe0 = StackBuilder.demandForKeys(tPipe0, tgtReads);
         }
         TypedSpec tTemporal = temporal.temporalTargetPipe(cs, t,
                 registerKey,
