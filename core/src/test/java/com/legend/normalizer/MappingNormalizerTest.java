@@ -2718,6 +2718,10 @@ class MappingNormalizerTest {
     /** The pipeline SPINE of a synthesized body: the function names down
      * parameter 0 from the map terminal to the source (a view-backed set's
      * frame sits inside: {@code project(filter(tableReference))}). */
+    private static List<String> spineNames(FunctionDefinition fn) {
+        return spine(fn).stream().map(AppliedFunction::function).toList();
+    }
+
     private static List<AppliedFunction> spine(FunctionDefinition fn) {
         List<AppliedFunction> out = new java.util.ArrayList<>();
         ValueSpecification cur = sole(fn.body());
@@ -2731,15 +2735,6 @@ class MappingNormalizerTest {
         return out;
     }
 
-    private static int spineIndex(List<AppliedFunction> spine, String function, int from) {
-        for (int i = from; i < spine.size(); i++) {
-            if (spine.get(i).function().equals(function)) {
-                return i;
-            }
-        }
-        throw new AssertionError("no '" + function + "' from " + from + " in "
-                + spine.stream().map(AppliedFunction::function).toList());
-    }
 
     private static FunctionDefinition soleSynth(NormalizedModel m) {
         List<FunctionDefinition> fns = liftedFunctions(m);
@@ -4215,6 +4210,135 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("P5-4: ~groupBy stage 2 — a class-typed Join PM navigates AFTER the aggregation")
+    void groupByStageTwoNavigatesAboveTheAggregation() {
+        // audit 2026-09-15 P5-4: every ~groupBy fixture was a flat single
+        // table with no Join PM, and the near-miss used a JoinTerminalColumn
+        // (which the stage-2 loop skips) — the whole deferred-navigate block
+        // could be deleted and the suite stayed green.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Rep { name: String[1]; } "
+                        + "Class model::Sale { region: String[1]; total: Integer[1]; "
+                        + "                    rep: model::Rep[0..1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table T_SALE (REGION VARCHAR(50), AMOUNT INTEGER, REP_ID INTEGER) "
+                        + "  Table T_REP (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Join S_R (T_SALE.REP_ID = T_REP.ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::Sale: Relational { "
+                        + "    ~groupBy([db::DB] T_SALE.REGION, [db::DB] T_SALE.REP_ID) "
+                        + "    ~mainTable [db::DB] T_SALE "
+                        + "    region: T_SALE.REGION, "
+                        + "    total: sum([db::DB] T_SALE.AMOUNT), "
+                        + "    rep: [db::DB] @S_R "
+                        + "  } "
+                        + "  *model::Rep: Relational { ~mainTable [db::DB] T_REP name: T_REP.NAME } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        assertTrue(poisonsOf(normalized).isEmpty(), () -> "poisons: " + poisonsOf(normalized));
+        FunctionDefinition fn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Sale")).findFirst().orElseThrow();
+        List<String> names = spineNames(fn);
+        int nav = names.indexOf(com.legend.builtin.Pure.Lite.LEGACY_NAVIGATE);
+        int grouped = names.indexOf(Pure.Lite.GROUP_BY_COMPUTED_KEYS);
+        assertTrue(nav >= 0, () -> "the class-typed Join PM must emit a navigate; spine " + names);
+        assertTrue(grouped >= 0, () -> "the ~groupBy step must survive; spine " + names);
+        assertTrue(nav < grouped,
+                () -> "STAGE 2: the navigate lands ABOVE the groupBy (the engine navigates a"
+                        + " grouped set through the join over the GROUPED subselect); spine " + names);
+    }
+
+    @Test
+    @DisplayName("P5-4: an (INNER) mapping ~filter row-explodes through a projected subselect")
+    void innerMappingFilterRowExplodes() {
+        // audit 2026-09-15 P5-4: the only (INNER) filter in the suite was a
+        // grammar round-trip that never reached the normalizer.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Firm { legalName: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER, ACTIVE INTEGER) "
+                        + "  Join F_P (FT.ID = PT.FIRM_ID) "
+                        + "  Filter ActivePerson ( PT.ACTIVE = 1 ) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::Firm: Relational { "
+                        + "    ~filter [db::DB] (INNER) @F_P | [db::DB] ActivePerson "
+                        + "    ~mainTable [db::DB] FT "
+                        + "    legalName: FT.NAME "
+                        + "  } "
+                        + ")");
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
+        List<String> names = spineNames(fn);
+        assertEquals(List.of("map", "project", "filter", com.legend.builtin.Pure.Lite.JOIN_SLOT,
+                        "tableReference"),
+                names,
+                "the (INNER) filter swaps the main table for a subselect that joins the filter"
+                        + " chain, applies the condition and projects every base column — one row"
+                        + " per matching child survives (the engine's row explosion)");
+        AppliedFunction project = spine(fn).get(1);
+        ColSpecArray cols = (ColSpecArray) project.parameters().get(1);
+        assertEquals(List.of("ID", "NAME"), cols.colSpecs().stream().map(ColSpec::name).toList(),
+                "every base column of the main table, under its original name");
+    }
+
+    @Test
+    @DisplayName("P5-4: an (INNER) ~filter whose condition is NULL-TOLERANT is loud")
+    void innerMappingFilterWithNullTolerantConditionIsLoud() {
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Firm { legalName: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER, ACTIVE INTEGER) "
+                        + "  Join F_P (FT.ID = PT.FIRM_ID) "
+                        + "  Filter MaybeActive ( isNull(PT.ACTIVE) ) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::Firm: Relational { "
+                        + "    ~filter [db::DB] (INNER) @F_P | [db::DB] MaybeActive "
+                        + "    ~mainTable [db::DB] FT "
+                        + "    legalName: FT.NAME "
+                        + "  } "
+                        + ")");
+        String reasons = poisonReasons(parsed);
+        assertTrue(reasons.contains("NULL-TOLERANT"),
+                () -> "a null-tolerant (INNER) condition must be loud (LEFT+WHERE would keep"
+                        + " parents the engine's INNER join drops); got: " + reasons);
+    }
+
+    @Test
+    @DisplayName("P5-4: a union's key threads are named <column>_<ordinal>, one per member")
+    void unionKeyThreadsAreNamedByOrdinal() {
+        // audit 2026-09-15 P5-4: unionKeyThreads had ZERO assertions; the
+        // name appeared in test sources only inside a comment.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Person { name: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table P1 (PID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Table P2 (QID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  model::Person[p1]: Relational { ~mainTable [db::DB] P1 name: P1.NAME } "
+                        + "  model::Person[p2]: Relational { ~mainTable [db::DB] P2 name: P2.NAME } "
+                        + "  *model::Person: Operation { meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(p1, p2) } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        var md = canonicalMapping(normalized, "my::M");
+        List<com.legend.model.KeyThread> threads =
+                md.facts().unionKeyThreads().get("model::Person");
+        assertTrue(threads != null && !threads.isEmpty(), "the union stamps its key threads");
+        assertEquals(List.of("PID_0", "QID_1"),
+                threads.stream().map(com.legend.model.KeyThread::name).toList(),
+                "each member's primary key threads as <column>_<member ordinal> (the engine's"
+                        + " _N key-column suffix)");
+        assertEquals(List.of(0, 1),
+                threads.stream().map(com.legend.model.KeyThread::ordinal).toList());
+        assertEquals(List.of("PID", "QID"),
+                threads.stream().map(com.legend.model.KeyThread::column).toList());
+    }
+
+    @Test
     @DisplayName("M4: one property name routed under two owners is loud, never first-owner-wins")
     void routedPropertyUnderTwoOwnersIsLoud() {
         // Firm routes `employees` at the top (owner Firm) AND inside the
@@ -4682,16 +4806,12 @@ class MappingNormalizerTest {
 
         // Spine (the view is the set's FRAME): map -> filter(mapping) ->
         // distinct -> project(view columns) -> filter(view) -> tableReference
-        List<AppliedFunction> spine = spine(fn);
-        assertEquals("map", spine.get(0).function());
-        int mappingFilter = spineIndex(spine, "filter", 1);
-        int distinct = spineIndex(spine, "distinct", mappingFilter + 1);
-        int viewFilter = spineIndex(spine, "filter", distinct + 1);
-        int tableRef = spineIndex(spine, "tableReference", viewFilter + 1);
-        assertEquals(1, mappingFilter, "the mapping ~filter applies over the deduped view rows");
-        assertTrue(distinct < viewFilter,
-                "~distinct dedups the view's rows (the view's contract) above the view ~filter");
-        assertEquals(spine.size() - 1, tableRef, "the frame bottoms at the physical table");
+        // EXACT spine (audit 2026-09-15 P5-5: a forward search accepted any
+        // number of unasserted operations between the pinned points)
+        assertEquals(List.of("map", "filter", "distinct", "project", "filter", "tableReference"),
+                spineNames(fn),
+                "the mapping ~filter applies over the deduped view rows; ~distinct dedups the"
+                        + " view's rows above the view ~filter; the frame bottoms at the table");
     }
 
     @Test
@@ -4727,16 +4847,12 @@ class MappingNormalizerTest {
 
         // Spine (the view is the set's FRAME): map -> groupBy ->
         // filter(mapping) -> project(view columns) -> filter(view) -> tableReference
-        List<AppliedFunction> spine = spine(fn);
-        assertEquals("map", spine.get(0).function());
-        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, spine.get(1).function(),
-                "aggregation stays the outermost source op");
-        int mappingFilter = spineIndex(spine, "filter", 2);
-        assertEquals(2, mappingFilter,
-                "the mapping ~filter applies BEFORE aggregation (WHERE, not HAVING)");
-        int viewFilter = spineIndex(spine, "filter", mappingFilter + 1);
-        int tableRef = spineIndex(spine, "tableReference", viewFilter + 1);
-        assertEquals(spine.size() - 1, tableRef, "the frame bottoms at the physical table");
+        // EXACT spine (audit 2026-09-15 P5-5)
+        assertEquals(List.of("map", Pure.Lite.GROUP_BY_COMPUTED_KEYS, "filter", "project",
+                        "filter", "tableReference"),
+                spineNames(fn),
+                "aggregation stays the outermost source op and the mapping ~filter applies"
+                        + " BEFORE it (WHERE, not HAVING); the frame bottoms at the table");
     }
 
     @Test
@@ -4771,12 +4887,13 @@ class MappingNormalizerTest {
         // Pipeline: filter(filter(tableReference(T_PERSON), <view>), <mapping>) -> map.
         // Spine (the view is the set's FRAME): map -> filter(mapping) ->
         // project(view columns) -> filter(view) -> tableReference(T_PERSON)
+        // EXACT spine (audit 2026-09-15 P5-5)
+        assertEquals(List.of("map", "filter", "project", "filter", "tableReference"),
+                spineNames(fn),
+                "the mapping ~filter layers as the outer filter step over the view's frame");
         List<AppliedFunction> spine = spine(fn);
-        assertEquals("map", spine.get(0).function());
         AppliedFunction outerFilter = spine.get(1);
-        assertEquals("filter", outerFilter.function(),
-                "the mapping ~filter layers as the outer filter step");
-        AppliedFunction innerFilter = spine.get(spineIndex(spine, "filter", 2));
+        AppliedFunction innerFilter = spine.get(3);
         AppliedFunction tableRef = spine.get(spine.size() - 1);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",

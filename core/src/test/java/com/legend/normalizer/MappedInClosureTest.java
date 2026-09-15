@@ -91,6 +91,19 @@ class MappedInClosureTest {
         assertFalse(includer.contains("w::TotallyUnknown"));
     }
 
+
+    /** Every synthesized function, FQN -> body: the thing an order-dependent
+     * synthesis would actually change (audit 2026-09-15 P5-3). */
+    private static java.util.Map<String, Object> liftedBodies(NormalizedModel m) {
+        java.util.Map<String, Object> out = new java.util.TreeMap<>();
+        for (var el : m.elements()) {
+            if (el instanceof com.legend.model.FunctionDefinition fd && fd.isSynthesized()) {
+                out.put(fd.qualifiedName(), fd.body());
+            }
+        }
+        return out;
+    }
+
     private static MappingDefinition mapping(NormalizedModel m, String fqn) {
         return m.elements().stream()
                 .filter(e -> e instanceof MappingDefinition d && d.qualifiedName().equals(fqn))
@@ -104,13 +117,35 @@ class MappedInClosureTest {
                 NameResolver.resolve(com.legend.testing.Own.model(CLASSES + IMPLYING + UNRELATED)));
         NormalizedModel b = com.legend.testing.Phases.normalize(
                 NameResolver.resolve(com.legend.testing.Own.model(CLASSES + UNRELATED + IMPLYING)));
+        // audit 2026-09-15 P5-3: this compared SORTED class FQNs, discarding
+        // binding ORDER, set ids, root flags and function FQNs, and never
+        // compared the synthesized bodies — the very things an order-
+        // dependent synthesis would change. Compare the bindings AS THEY
+        // STAND and the lifted functions themselves.
         for (String fqn : new String[] {"w::Implying", "w::Unrelated"}) {
             MappingDefinition ma = mapping(a, fqn);
             MappingDefinition mb = mapping(b, fqn);
-            assertEquals(ma.classBindings().stream().map(cb -> cb.classFqn()).sorted().toList(),
-                    mb.classBindings().stream().map(cb -> cb.classFqn()).sorted().toList(), fqn);
+            assertEquals(ma.classBindings(), mb.classBindings(),
+                    fqn + ": bindings in order, with their set ids, root flags and function FQNs");
+            assertEquals(ma.associationBindings(), mb.associationBindings(), fqn);
             assertEquals(ma.facts(), mb.facts(), fqn);
         }
+        assertEquals(liftedBodies(a), liftedBodies(b),
+                "every synthesized function body is identical in either element order");
+
+        // and the same for a closure with an INCLUDE — the only mapping that
+        // has one was excluded from this test entirely (audit P5-3)
+        NormalizedModel c = com.legend.testing.Phases.normalize(
+                NameResolver.resolve(com.legend.testing.Own.model(CLASSES + UNRELATED + INCLUDER)));
+        NormalizedModel d = com.legend.testing.Phases.normalize(
+                NameResolver.resolve(com.legend.testing.Own.model(CLASSES + INCLUDER + UNRELATED)));
+        for (String fqn : new String[] {"w::Includer", "w::Unrelated"}) {
+            assertEquals(mapping(c, fqn).classBindings(), mapping(d, fqn).classBindings(),
+                    fqn + ": an included mapping declared AFTER its includer binds the same");
+            assertEquals(mapping(c, fqn).facts(), mapping(d, fqn).facts(), fqn);
+        }
+        assertEquals(liftedBodies(c), liftedBodies(d),
+                "the include closure's synthesized bodies do not depend on element order");
         // the implied set IS a binding of the implying mapping
         assertTrue(mapping(a, "w::Implying").classBindings().stream()
                 .anyMatch(cb -> cb.classFqn().equals("w::Vehicle")),

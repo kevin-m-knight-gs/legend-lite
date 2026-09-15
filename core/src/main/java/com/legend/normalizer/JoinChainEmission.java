@@ -1009,19 +1009,19 @@ final class JoinChainEmission {
                 // were seven equalsIgnoreCase string literals ten lines from
                 // the typed registry that owns dyna names; "ifnull"/"nvl" are
                 // not registry names at all and never matched anything)
-                com.legend.builtin.DynaFn dyna = com.legend.builtin.DynaFn.of(fc.name())
-                        .orElse(null);
-                if (dyna == com.legend.builtin.DynaFn.IS_NULL
-                        || dyna == com.legend.builtin.DynaFn.SQL_NULL) {
+                java.util.Optional<com.legend.builtin.DynaFn> dyna =
+                        com.legend.builtin.DynaFn.of(fc.name());
+                if (dyna.filter(d -> d == com.legend.builtin.DynaFn.IS_NULL
+                        || d == com.legend.builtin.DynaFn.SQL_NULL).isPresent()) {
                     yield true;
                 }
                 // audit 23: NULL-swallowing functions defeat the
                 // classification — LOUD, never a silent null-rejecting
                 // verdict (the (INNER) LEFT+WHERE realization would keep
                 // NULL-extended parents the engine's INNER join drops)
-                if (dyna == com.legend.builtin.DynaFn.COALESCE
-                        || dyna == com.legend.builtin.DynaFn.CASE
-                        || dyna == com.legend.builtin.DynaFn.IF) {
+                if (dyna.filter(d -> d == com.legend.builtin.DynaFn.COALESCE
+                        || d == com.legend.builtin.DynaFn.CASE
+                        || d == com.legend.builtin.DynaFn.IF).isPresent()) {
                     throw new NotImplementedException("(INNER) mapping-"
                             + "filter condition uses '" + fc.name()
                             + "' — null-tolerance cannot be classified;"

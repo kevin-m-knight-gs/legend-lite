@@ -3563,3 +3563,49 @@ P3-1 (cross-store per-end predicates) is NOT here: it is PARKED as ledger row PA
 **Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s), after the toString arm was reverted (it LOST 1 on each). Own-corpus parity floor unchanged (2475).
 
 **Chain.** Green on the first run, wall 235 s: G2 25s, G1 79s, G3 10s, G4 84s, G5 37s, G6 136s, G7 40s, G9 33s, G8 146s. Batch size: 6 files.
+
+## Audit fix A10b (FIXLIST P5-3 / P5-4 / P5-5 / P5-6) — the test and guard items — 2026-09-15
+
+**Why.** Four audit rows about verification itself: tests that would not go red, and an
+invariant with no mechanical form.
+
+**What landed.**
+- **P5-5, the three weakened view tests.** `7da6acaa8` had converted them from exact
+  parent/child nesting to a `spineIndex(...)` FORWARD SEARCH, which accepts any number of
+  unasserted operations between the pinned points. All three now assert the EXACT spine as
+  a list — `[map, filter, distinct, project, filter, tableReference]`,
+  `[map, groupByComputedKeys, filter, project, filter, tableReference]`,
+  `[map, filter, project, filter, tableReference]` — so an inserted or dropped step fails.
+  The old `select` assertion the commit dropped is NOT restored verbatim: under the view
+  frame the narrowing step is the frame's `project`, and the exact spine pins it. The
+  now-unused `spineIndex` helper is deleted.
+- **P5-3, the order-independence test.** It compared SORTED class FQNs — discarding binding
+  order, set ids, root flags and function FQNs — and never compared the synthesized bodies.
+  It now compares the binding lists AS THEY STAND, the association bindings, the stamped
+  facts and every lifted function BODY; and it adds the permutation the audit said was
+  missing: the mapping with an INCLUDE, declared before and after the mapping it includes.
+- **P5-4, three untested load-bearing rules.**
+  - `groupByStageTwoNavigatesAboveTheAggregation` — a `~groupBy` class with a class-typed
+    Join PM (every existing fixture was a flat table, and the near-miss used a
+    JoinTerminalColumn, which the stage-2 loop skips). A/B PROVEN: with the stage-2 block
+    disabled the test fails, naming the spine `[map, groupByComputedKeys, tableReference]`.
+  - `innerMappingFilterRowExplodes` — the `(INNER)` mapping ~filter's projected subselect,
+    pinned as an exact spine plus the projected base columns; and
+    `innerMappingFilterWithNullTolerantConditionIsLoud` for the decline branch (the only
+    `(INNER)` filter in the suite was a grammar round-trip that never reached the normalizer).
+  - `unionKeyThreadsAreNamedByOrdinal` — the stamped threads had ZERO assertions; names,
+    ordinals and columns are pinned (`PID_0`, `QID_1`).
+- **P5-6, a mechanical form for AGENTS.md invariant 4 (NO FALLBACKS).** New
+  `FallbackLedgerTest`: a BARE `orElse(null)` anywhere in the normalizer package is ZERO
+  (the B5 claim, which lived only in a javadoc), and the censused empty-answer funnel is a
+  REGISTER — per-file `MissProbe` site counts, exact, with a floor on the loud
+  never-fired guards. Growth is a new silent default and needs a written row; shrinkage
+  means a site went loud and the row ratchets down in the same commit. The one bare
+  `orElse(null)` the A9 leg had introduced (the dyna lookup) is gone, folded into the
+  Optional. NOT covered, stated in the test: the lenient name-resolution fallbacks Phase E
+  carries are Phase-D debt (FIXLIST P7-3, unscheduled), commented at their sites, and
+  outside this funnel.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 27 s). Own-corpus parity floor 2475 → 2488 (the new witnesses' models).
+
+**Chain.** Green on the first run, wall 241 s: G2 24s, G1 76s, G3 11s, G4 92s, G5 38s, G6 142s, G7 41s, G9 33s, G8 152s. Batch size: 5 files.
