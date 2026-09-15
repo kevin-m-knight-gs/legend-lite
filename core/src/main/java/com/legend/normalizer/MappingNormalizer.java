@@ -2108,16 +2108,30 @@ public final class MappingNormalizer {
      * (property -> target set id): the {@code prop[setId]} Join PMs and
      * the stamped property target sets. A fact on the binding, read at
      * query time (engine R6). */
-    static Map<String, String> propertyPinsOf(ClassMapping.Relational rcm) {
-        Map<String, String> pins = new LinkedHashMap<>();
+    static Map<String, List<String>> propertyPinsOf(ClassMapping.Relational rcm) {
+        Map<String, List<String>> pins = new LinkedHashMap<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
             PropertyMapping body = pm instanceof PropertyMapping.LocalProperty lp ? lp.body() : pm;
             if (body instanceof PropertyMapping.Join j && j.targetSetId() != null) {
-                pins.putIfAbsent(j.propertyName(), j.targetSetId());
+                List<String> l = pins.computeIfAbsent(j.propertyName(), k -> new ArrayList<>());
+                if (!l.contains(j.targetSetId())) {
+                    l.add(j.targetSetId());
+                }
+            }
+            if (body instanceof PropertyMapping.OtherwiseEmbedded oe) {
+                String pin = oe.fallback() instanceof PropertyMapping.Join fj
+                        && fj.targetSetId() != null ? fj.targetSetId() : oe.fallbackSetId();
+                List<String> l = pins.computeIfAbsent(oe.propertyName(), k -> new ArrayList<>());
+                if (!l.contains(pin)) {
+                    l.add(pin);
+                }
             }
         }
         for (var e : rcm.propertyTargetSets().entrySet()) {
-            pins.putIfAbsent(e.getKey(), e.getValue());
+            List<String> l = pins.computeIfAbsent(e.getKey(), k -> new ArrayList<>());
+            if (!l.contains(e.getValue())) {
+                l.add(e.getValue());
+            }
         }
         return pins;
     }

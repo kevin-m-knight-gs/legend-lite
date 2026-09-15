@@ -1692,7 +1692,13 @@ final class SyntheticHeads {
                     && inner.predicate().parameters().size() == 1
                     && inner.predicate().body().size() == 1) {
                 return new TypedFilter(inner.source(),
-                        andMerge(inner.predicate(), f.predicate()), f.info());
+                        andMerge(inner.predicate(), f.predicate()), f.info(),
+                        // the inner CORRELATION (a navigate step's join condition
+                        // inlined) keeps its stamp: its equalities are the
+                        // mapping's, lowered '=' — a typed-NULL key thread must
+                        // never match another arm's NULL
+                        inner.stamp() == com.legend.compiler.spec.typed.TypedFilter.Stamp.CORRELATION
+                                ? inner.stamp() : f.stamp());
             }
             return src == f.source() ? s
                     : new TypedFilter(src, f.predicate(), f.info());

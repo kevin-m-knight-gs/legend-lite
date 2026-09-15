@@ -87,10 +87,9 @@ public final class ClassSources {
      * bind class-level). */
     ClassSource getForNav(String mappingFqn, String classFqn, String head,
             @com.legend.Nullable String scope) {
-        return get(mappingFqn, classFqn,
-                ctx.routedTargetSetOf(mappingFqn,
-                        SyntheticHeads.realHead(head)).orElse(null),
-                null, "", scope);
+        // an un-routed navigation lands on the class (its root under the
+        // queried mapping): every pin is a route the navigator carries
+        return get(mappingFqn, classFqn, scope);
     }
 
     /** tree id -> (store table -> rows): the resolver's constructed
@@ -402,9 +401,7 @@ public final class ClassSources {
      */
     ClassSource navTarget(ClassSource source, String classFqn,
             com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate step, String head) {
-        // a MERGED step (paired strict predicate present) joins the class
-        // extent by value on the SQL path; its routes serve graph fetch
-        if (step != null && !step.routes().isEmpty() && step.pairedPredicate().isEmpty()) {
+        if (step != null && !step.routes().isEmpty()) {
             return routedUnionSource(source.mappingFqn(), classFqn, step.routes(), source.scope());
         }
         return getForNav(source.mappingFqn(), classFqn, head, source.scope());

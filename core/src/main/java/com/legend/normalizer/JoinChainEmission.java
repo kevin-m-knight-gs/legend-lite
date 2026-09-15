@@ -233,9 +233,13 @@ final class JoinChainEmission {
         // Emit the fallback Join chain as a legacyNavigate step under
         // a slot named after the property. The terminal `map` reads
         // $row.<propName> and composes with the partial ^Inner(...).
+        // the fallback's set is a PIN the navigator carries (a route into
+        // that set's function), never a stamped fact consulted at lookup
         emitJoinChain(p, joinFallback.joins(), joinFallback.database(),
                 oe.propertyName(), ownerClassFqn, mainDb, mainTable,
-                rowBind, model, md, /*classTypedTerminus*/ true);
+                rowBind, model, md, /*classTypedTerminus*/ true,
+                joinFallback.targetSetId() != null ? joinFallback.targetSetId()
+                        : oe.fallbackSetId());
     }
 
     /**
@@ -564,12 +568,8 @@ final class JoinChainEmission {
                 cond = RelOpTranslator.translate(jd.operation(), scope, t, null,
                         RelOpTranslator.PipelineView.NONE);
             }
-            if (route.targetOrdinal() == -1) {
-                // classifyUnionRoutes keeps root routes out of a route list
-                // (a root beside members is poisoned there)
-                throw new IllegalStateException("normalizer bug: a root route inside the route"
-                        + " list of '" + propName + "'; mapping=" + md.qualifiedName());
-            }
+            // a ROOT route beside others names the root set's own function
+            // (its class-level function); the queried mapping resolves it
             ValueSpecification target = new AppliedFunction(
                     UnionSynthesis.memberFunction(md, rm), List.of());
             out.add(new AppliedFunction(Pure.Lite.ROUTE, List.of(target, rows,

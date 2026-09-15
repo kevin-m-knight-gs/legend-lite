@@ -746,7 +746,11 @@ final class StackBuilder {
             byName.put(name, c);
             cols.add(c);
         }
-        c.perArm().putIfAbsent(arm, value);
+        if (c.perArm().containsKey(arm)) {
+            throw new IllegalStateException("resolver bug: arm " + arm + " projects '" + name
+                    + "' twice");
+        }
+        c.perArm().put(arm, value);
     }
 
     // ------------------------------------------------------------------
@@ -782,13 +786,6 @@ final class StackBuilder {
             Type.Column c = columnOf(r, t.column());
             if (c != null) {
                 return c.type();
-            }
-        }
-        if (t.pureKind() != null) {
-            Type prim = Type.Primitive.findByFqn("meta::pure::metamodel::type::" + t.pureKind())
-                    .orElse(null);
-            if (prim != null) {
-                return prim;
             }
         }
         throw new MappingResolutionException("union key thread '" + t.name() + "' reads column '"
@@ -830,15 +827,24 @@ final class StackBuilder {
      * set's function call or a class extent), the rows the condition reads
      * (a routed step's route rows; the class extent for a plain step), the
      * condition, its target reads and source reads (paths). */
+    /** {@code sourceKeys}: the SQL-path source key per read (a modeled read
+     * is the stack's property column, else the per-entry column);
+     * {@code pairSourceKeys}: the per-entry column always (graph fetch
+     * pairs each arm with its own route). */
     private record Entry(int arm, TypedSpec target, TypedSpec rows, TypedLambda cond,
-            List<String> targetReads, List<String> sourceReads) {
+            List<String> targetReads, List<String> sourceReads, List<String> sourceKeys,
+            List<String> pairSourceKeys) {
     }
 
     /** One shape GROUP = one route: the entries of one target identity and
      * one condition shape; the source columns it projects and the key names
      * its target reads project under. */
-    private record Group(String shape, TypedSpec target, TypedSpec rows, List<Entry> entries,
-            List<String> srcCols, List<String> keys) {
+    /** One target SET (or extent) of the routed union: its entries, and per
+     * distinct target read the key it is projected under — the SQL-path
+     * name (a modeled column's property, shared by every arm; else the
+     * per-group key) and the per-group key graph fetch pairs on. */
+    private record Group(TypedSpec target, TypedSpec rows, List<Entry> entries,
+            Map<String, String> keyByRead, Map<String, String> pairKeyByRead) {
     }
 
     /** One lifted navigation: its slot alias (a property, or a subtype
@@ -939,12 +945,19 @@ final class StackBuilder {
             List<Type.RelationType> armRows) {
         var one = Multiplicity.Bounded.ONE;
         var optional = Multiplicity.Bounded.ZERO_ONE;
+        // R-key (engine receipt): with an arm that has no route every key is
+        // per set (avoidModeledProperties); otherwise a column an arm's set
+        // maps as a scalar property is MODELED — the stack's own property
+        // column, shared by every arm — and any other column is per entry
+        boolean everyArmRoutes = steps.size() == arms.size();
         // the entries: every arm step's routes, a plain step as one entry
         // over the class extent
         List<Entry> entries = new ArrayList<>();
         for (var se : steps.entrySet()) {
             int arm = se.getKey();
             TypedNavigate st = se.getValue();
+            Map<String, String> modeledSrc = everyArmRoutes
+                    ? modeledOf(arms.get(arm), classFqnOf(arms)) : Map.of();
             if (st.routes().isEmpty()) {
                 TypedLambda pred = st.predicate();
                 TypedSpec body = pred.body().get(pred.body().size() - 1);
@@ -952,40 +965,52 @@ final class StackBuilder {
                 collectReads(body, pred.parameters().get(1), tReads);
                 List<String> sReads = new ArrayList<>();
                 collectReads(body, pred.parameters().get(0), sReads);
-                entries.add(new Entry(arm, st.target(), st.target(), pred, tReads, sReads));
+                entries.add(new Entry(arm, st.target(), st.target(), pred, tReads, sReads,
+                        sourceKeys(liftIx, entries.size(), sReads, modeledSrc),
+                        sourceKeys(liftIx, entries.size(), sReads, Map.of())));
             } else {
                 for (TypedNavigate.Route r : st.routes()) {
                     TypedSpec body = r.cond().body().get(r.cond().body().size() - 1);
                     List<String> sReads = new ArrayList<>();
                     collectReads(body, r.cond().parameters().get(0), sReads);
-                    entries.add(new Entry(arm, r.target(), r.rows(), r.cond(), r.targetReads(), sReads));
+                    entries.add(new Entry(arm, r.target(), r.rows(), r.cond(), r.targetReads(),
+                            sReads, sourceKeys(liftIx, entries.size(), sReads, modeledSrc),
+                            sourceKeys(liftIx, entries.size(), sReads, Map.of())));
                 }
             }
         }
-        // R6 at query time: an arm's PINNED route lives only when its set is
-        // a leaf of the target class under the QUERIED mapping (the root
-        // binding's members, or the root/sole set); elsewhere the arm has no
-        // navigation — the engine's un-routed thread never matches (the
-        // inclusive unions: an included member pinned to the included set
-        // beside the includer's own set of the class)
-        Set<String> leaves = leafSetIds(mapping, targetClass);
-        if (leaves != null && ctx.findProperty(classFqnOf(arms), alias).isPresent()) {
-            entries.removeIf(e -> {
-                ClassSource a = arms.get(e.arm());
-                MappingDefinition.ClassBinding ab = a.setId() == null ? null
-                        : sources.findBinding(mapping, a.classFqn(), a.setId(), new LinkedHashSet<>());
-                String pin = ab instanceof MappingDefinition.ClassBinding.Relational rb
-                        ? rb.propertyPins().get(alias) : null;
-                return pin != null && !leaves.contains(pin);
-            });
+        // R-target (engine receipt, docs/LEG2_STACK_AUDIT_2026_09_14.md): the
+        // arms' pins resolve under the QUERIED mapping — ONE distinct pinned
+        // set resolves to that set, root or not; several resolve to the
+        // target class's ROOT here (an operation's members, or the root/sole
+        // set), and a pin outside them is a dead route (the engine's
+        // un-routed thread never matches: the inclusive unions)
+        MappingDefinition.ClassBinding tb = findBinding(mapping, targetClass);
+        boolean targetIsStack = tb instanceof MappingDefinition.ClassBinding.Operation;
+        if (ctx.findProperty(classFqnOf(arms), alias).isPresent()) {
+            Set<String> distinct = new LinkedHashSet<>();
+            for (Entry e : entries) {
+                distinct.addAll(pinsOf(mapping, arms.get(e.arm()), alias));
+            }
+            if (distinct.size() > 1) {
+                Set<String> leaves = leafSetIds(mapping, targetClass);
+                if (leaves != null) {
+                    entries.removeIf(e -> {
+                        List<String> pins = pinsOf(mapping, arms.get(e.arm()), alias);
+                        return !pins.isEmpty() && pins.stream().noneMatch(leaves::contains);
+                    });
+                }
+            }
+            // a pinned arm's class-extent route (its pin was the root under
+            // the DEFINING mapping) names the pinned set itself here: the
+            // target union is the pinned sets, each once
+            entries = retargetPinned(entries, mapping, targetClass, alias, arms);
         }
         if (entries.isEmpty()) {
             return null;
         }
         // rule (c): a NON-stack target reached by every arm through the same
         // join into distinct private sets routes to the LAST arm's set
-        MappingDefinition.ClassBinding tb = findBinding(mapping, targetClass);
-        boolean targetIsStack = tb instanceof MappingDefinition.ClassBinding.Operation;
         if (!targetIsStack && entries.size() >= 2 && steps.size() == entries.size()) {
             Set<String> ids = new LinkedHashSet<>();
             Set<String> shapes = new LinkedHashSet<>();
@@ -1003,53 +1028,65 @@ final class StackBuilder {
                 entries = List.of(entries.get(entries.size() - 1));
             }
         }
-        // the shape groups: target identity + condition shape
+        // the groups: one per target SET (or extent), each once — the OR
+        // runs over every entry's condition
         Map<String, Group> groups = new LinkedHashMap<>();
         for (Entry e : entries) {
-            String shape = targetIdentity(e.target()) + " " + condShape(e.cond());
-            Group g = groups.get(shape);
+            String id = targetIdentity(e.target());
+            Group g = groups.get(id);
             if (g == null) {
-                int gi = groups.size();
-                List<String> srcCols = new ArrayList<>();
-                for (int k = 0; k < e.sourceReads().size(); k++) {
-                    srcCols.add("__s_" + liftIx + "_" + gi + "_" + k);
-                }
-                List<String> keys = new ArrayList<>();
-                for (int k = 0; k < e.targetReads().size(); k++) {
-                    keys.add("__route" + gi + "_" + k);
-                }
-                g = new Group(shape, e.target(), e.rows(), new ArrayList<>(), srcCols, keys);
-                groups.put(shape, g);
+                g = new Group(e.target(), e.rows(), new ArrayList<>(), new LinkedHashMap<>(),
+                        new LinkedHashMap<>());
+                groups.put(id, g);
             }
             g.entries().add(e);
         }
-        // the source columns: each arm projects its own reads of its group
+        int gi = 0;
+        for (Group g : groups.values()) {
+            Map<String, String> modeled = everyArmRoutes
+                    ? modeledColumns(mapping, targetClass, g.target()) : Map.of();
+            for (Entry e : g.entries()) {
+                for (String read : e.targetReads()) {
+                    if (!g.pairKeyByRead().containsKey(read)) {
+                        String pair = "__route" + gi + "_" + g.pairKeyByRead().size();
+                        g.pairKeyByRead().put(read, pair);
+                        String prop = modeled.get(read);
+                        g.keyByRead().put(read, prop != null ? prop : pair);
+                    }
+                }
+            }
+            gi++;
+        }
+        // the source columns: each entry's non-modeled reads, projected by
+        // its arm alone (a modeled read is the stack's property column)
         List<Col> srcCols = new ArrayList<>();
         Map<String, Col> byName = new LinkedHashMap<>();
-        for (Group g : groups.values()) {
-            for (Entry e : g.entries()) {
-                Type.RelationType aRow = armRows.get(e.arm());
-                for (int k = 0; k < e.sourceReads().size(); k++) {
-                    String path = e.sourceReads().get(k);
-                    Type t = pathType(aRow, path);
-                    if (t == null) {
-                        throw new MappingResolutionException("lift '" + alias + "': arm "
-                                + arms.get(e.arm()).classFqn() + "[" + arms.get(e.arm()).setId()
-                                + "] reads '" + path + "', which its rows do not carry (row "
-                                + aRow.columns().stream().map(Type.Column::name).toList() + ")",
-                                targetClass);
-                    }
-                    String name = g.srcCols().get(k);
-                    Col c = byName.get(name);
-                    if (c == null) {
-                        c = new Col(name, t, optional);
-                        byName.put(name, c);
-                        srcCols.add(c);
-                    }
-                    c.perArm().put(e.arm(), pathRead(
-                            new TypedVariable(arms.get(e.arm()).rowVar(), new ExprType(aRow, one)),
-                            aRow, path, new ExprType(t, optional)));
+        for (Entry e : entries) {
+            Type.RelationType aRow = armRows.get(e.arm());
+            for (int k = 0; k < e.sourceReads().size(); k++) {
+                String path = e.sourceReads().get(k);
+                String name = e.pairSourceKeys().get(k);
+                Type t = pathType(aRow, path);
+                if (t == null) {
+                    throw new MappingResolutionException("lift '" + alias + "': arm "
+                            + arms.get(e.arm()).classFqn() + "[" + arms.get(e.arm()).setId()
+                            + "] reads '" + path + "', which its rows do not carry (row "
+                            + aRow.columns().stream().map(Type.Column::name).toList() + ")",
+                            targetClass);
                 }
+                Col c = byName.get(name);
+                if (c == null) {
+                    c = new Col(name, t, optional);
+                    byName.put(name, c);
+                    srcCols.add(c);
+                }
+                if (c.perArm().containsKey(e.arm())) {
+                    throw new IllegalStateException("resolver bug: arm " + e.arm()
+                            + " projects source key '" + name + "' twice");
+                }
+                c.perArm().put(e.arm(), pathRead(
+                        new TypedVariable(arms.get(e.arm()).rowVar(), new ExprType(aRow, one)),
+                        aRow, path, new ExprType(t, optional)));
             }
         }
         // ONE group into ONE plain set (the class's root or sole set): a
@@ -1070,80 +1107,163 @@ final class StackBuilder {
         }
         // the routed union's row: the groups' keys, typed by the reads
         List<Type.Column> keyCols = new ArrayList<>();
+        Set<String> keyNames = new LinkedHashSet<>();
         List<TypedNavigate.Route> routes = new ArrayList<>();
         for (Group g : groups.values()) {
             Entry e0 = g.entries().get(0);
-            TypedLambda c0 = e0.cond();
-            Type.RelationType tRow = rowOf(c0.functionType().params().get(1).type());
-            for (int k = 0; k < g.keys().size(); k++) {
-                // the entry's condition is typed over (source row, the rows
-                // it reads): a route's own rows, or the plain step's target
-                // table row — the read's type comes from there either way
-                Type kt = tRow == null ? null : pathType(tRow, e0.targetReads().get(k));
-                if (kt == null) {
-                    throw new MappingResolutionException("lift '" + alias + "': the route condition"
-                            + " reads '" + e0.targetReads().get(k)
-                            + "', which the target rows do not carry (condition typed "
-                            + c0.info().type().typeName() + ")", targetClass);
+            List<String> reads = new ArrayList<>();
+            List<String> names = new ArrayList<>();
+            for (Entry e : g.entries()) {
+                Type.RelationType tRow = rowOf(e.cond().functionType().params().get(1).type());
+                for (String read : e.targetReads()) {
+                    Type kt = tRow == null ? null : pathType(tRow, read);
+                    if (kt == null) {
+                        throw new MappingResolutionException("lift '" + alias + "': the route"
+                                + " condition reads '" + read + "', which the target rows do not"
+                                + " carry (condition typed " + e.cond().info().type().typeName()
+                                + ")", targetClass);
+                    }
+                    for (String name : List.of(g.keyByRead().get(read), g.pairKeyByRead().get(read))) {
+                        if (keyNames.add(name)) {
+                            keyCols.add(new Type.Column(name, kt, optional));
+                        }
+                        if (!names.contains(name)) {
+                            names.add(name);
+                            reads.add(read);
+                        }
+                    }
                 }
-                keyCols.add(new Type.Column(g.keys().get(k), kt, optional));
             }
-            routes.add(new TypedNavigate.Route(g.target(), g.rows(), c0, e0.targetReads(), g.keys()));
+            routes.add(new TypedNavigate.Route(g.target(), g.rows(), e0.cond(), reads, names));
         }
         Type.RelationType urow = new Type.RelationType(keyCols);
         List<Group> gs = new ArrayList<>(groups.values());
         java.util.function.Function<Type.RelationType, TypedLambda> strict = srcRow ->
-                strictPredicate(gs, srcRow, urow);
-        // rule (a): MERGED — a stack target covered by one single-hop route
-        // per arm (a class-extent route covers every leaf), every route
-        // reading the same target PROPERTY columns: the engine's SQL path
-        // joins the WHOLE stack by value (the step's target is the class
-        // extent, its predicate the merged form: the arms' keys coalesced
-        // against the target's own columns), while its graph-fetch path
-        // resolves children PER SET PAIR (the routes stay on the step, the
-        // strict form as its PAIRED predicate; GraphEmission reads them)
-        if (targetIsStack && steps.size() == entries.size() && groups.size() > 1
-                && coversLeaves(mapping, java.util.Objects.requireNonNull(tb), targetClass, entries)
-                && sameTargetProperties(targetClass, entries)) {
-            List<String> reads = entries.get(0).targetReads();
-            List<Type.Column> mcols = new ArrayList<>();
-            for (String col : reads) {
-                Property p = ctx.findProperty(targetClass, col).orElseThrow();
-                mcols.add(new Type.Column(col, p.type(), optional));
-            }
-            Type.RelationType mrow = new Type.RelationType(mcols);
-            TypedSpec extent = null;
-            for (Entry e : entries) {
-                if (e.target() instanceof TypedGetAll) {
-                    extent = e.target();
-                }
-            }
-            TypedSpec target = extent != null ? extent : new TypedGetAll(targetClass, List.of(),
-                    false, false, new ExprType(new Type.ClassType(targetClass),
-                            Multiplicity.Bounded.ZERO_MANY));
-            return new Lift(alias, new Type.ClassType(targetClass), target, srcCols, routes,
-                    mrow, srcRow -> mergedPredicate(gs, srcRow, mrow, reads), strict);
-        }
+                strictPredicate(gs, srcRow, urow, false);
+        java.util.function.Function<Type.RelationType, TypedLambda> paired = srcRow ->
+                strictPredicate(gs, srcRow, urow, true);
         Entry first = entries.get(0);
         TypedSpec target = java.util.Objects.requireNonNull(steps.get(first.arm())).target();
         return new Lift(alias, new Type.ClassType(targetClass), target, srcCols, routes, urow,
-                strict, null);
+                strict, paired);
+    }
+
+    /** The source keys of an entry's reads: a modeled read is its property
+     * (the stack's column), any other a per-entry column. */
+    private static List<String> sourceKeys(int liftIx, int entryIx, List<String> reads,
+            Map<String, String> modeled) {
+        List<String> out = new ArrayList<>(reads.size());
+        for (int k = 0; k < reads.size(); k++) {
+            String prop = modeled.get(reads.get(k));
+            out.add(prop != null ? prop : "__s_" + liftIx + "_" + entryIx + "_" + k);
+        }
+        return out;
+    }
+
+    /** The pins {@code arm}'s binding declares for {@code alias}. */
+    private List<String> pinsOf(MappingDefinition mapping, ClassSource arm, String alias) {
+        MappingDefinition.ClassBinding ab = arm.setId() == null ? null
+                : sources.findBinding(mapping, arm.classFqn(), arm.setId(), new LinkedHashSet<>());
+        return ab instanceof MappingDefinition.ClassBinding.Relational rb
+                ? rb.propertyPins().getOrDefault(alias, List.of()) : List.of();
+    }
+
+    /** Every class-extent entry of a PINNED arm retargeted to the pinned
+     * set's function (one pin per extent entry: the emitter turned a root
+     * pin into the extent); an unpinned extent entry stays the extent. */
+    private List<Entry> retargetPinned(List<Entry> entries, MappingDefinition mapping,
+            String targetClass, String alias, List<ClassSource> arms) {
+        List<Entry> out = new ArrayList<>(entries.size());
+        for (Entry e : entries) {
+            List<String> pins = e.target() instanceof TypedGetAll
+                    ? pinsOf(mapping, arms.get(e.arm()), alias) : List.of();
+            if (pins.size() != 1) {
+                out.add(e);
+                continue;
+            }
+            MappingDefinition.ClassBinding pb = sources.findBinding(mapping, targetClass,
+                    pins.get(0), new LinkedHashSet<>());
+            if (pb == null) {
+                // a pin the queried mapping does not bind by that id (a
+                // class-level binding under its default id, a set of another
+                // mapping): the engine's lookup misses and falls back to the
+                // class's root — the extent stays
+                out.add(e);
+                continue;
+            }
+            var fns = ctx.findFunction(pb.functionFqn());
+            if (fns.size() != 1) {
+                throw new IllegalStateException("resolver bug: set function '" + pb.functionFqn()
+                        + "' has " + fns.size() + " registrations");
+            }
+            TypedFunction fn = fns.get(0);
+            TypedSpec call = new TypedUserCall(fn, List.of(),
+                    new ExprType(fn.returnType(), fn.returnMultiplicity()));
+            out.add(new Entry(e.arm(), call, call, e.cond(), e.targetReads(), e.sourceReads(),
+                    e.sourceKeys(), e.pairSourceKeys()));
+        }
+        return out;
+    }
+
+    /** The target set's MODELED columns: physical column -> the scalar
+     * property that reads it directly (a set's function or the class extent
+     * — its root/sole set — resolved under the queried mapping). */
+    private Map<String, String> modeledColumns(MappingDefinition mapping, String targetClass,
+            TypedSpec target) {
+        ClassSource set;
+        if (target instanceof TypedUserCall uc) {
+            MappingDefinition.ClassBinding cb = sources.findBindingByFunction(mapping,
+                    uc.callee().qualifiedName(), new LinkedHashSet<>());
+            if (cb == null || cb instanceof MappingDefinition.ClassBinding.Operation) {
+                return Map.of();
+            }
+            set = sources.get(mapping.qualifiedName(), cb.classFqn(), cb.setId(), null, "", null);
+        } else if (target instanceof TypedGetAll ga) {
+            MappingDefinition.ClassBinding cb = findBinding(mapping, ga.classFqn());
+            if (cb == null || cb instanceof MappingDefinition.ClassBinding.Operation) {
+                return Map.of();
+            }
+            set = sources.get(mapping.qualifiedName(), ga.classFqn(), null);
+        } else {
+            return Map.of();
+        }
+        return modeledOf(set, targetClass);
+    }
+
+    /** {@code set}'s MODELED columns: physical column -> the scalar property
+     * of {@code classFqn} whose binding reads it directly. */
+    private Map<String, String> modeledOf(ClassSource set, String classFqn) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (var b : set.bindings().entrySet()) {
+            // the [1] conformance wrap (trustOne) is not a column read
+            if (Pipelines.unwrapToOne(b.getValue()) instanceof TypedPropertyAccess pa
+                    && pa.source() instanceof TypedVariable v && v.name().equals(set.rowVar())
+                    && ctx.findProperty(classFqn, b.getKey()).isPresent()) {
+                out.putIfAbsent(pa.property(), b.getKey());
+            }
+        }
+        return out;
     }
 
     /** {@code (s, u) | OR over groups of the group's condition with its
      * source reads re-pointed at the stack's columns and its target reads
      * at the union row's keys}. */
     private TypedLambda strictPredicate(List<Group> gs, Type.RelationType srcRow,
-            Type.RelationType urow) {
+            Type.RelationType urow, boolean perPair) {
         var one = Multiplicity.Bounded.ONE;
         var boolOne = new ExprType(Type.Primitive.BOOLEAN, one);
         TypedVariable s = new TypedVariable("s", new ExprType(srcRow, one));
         TypedVariable u = new TypedVariable("u", new ExprType(urow, one));
         TypedSpec or = null;
+        Set<String> seen = new LinkedHashSet<>();
         for (Group g : gs) {
-            Entry e = g.entries().get(0);
-            TypedSpec re = repoint(e, g, s, u, srcRow, urow);
-            or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
+            for (Entry e : g.entries()) {
+                TypedSpec re = repoint(e, g, s, u, srcRow, urow, perPair);
+                if (!seen.add(re.toString())) {
+                    continue;   // two routes spelling one conjunct (a self-join's arms)
+                }
+                or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
+            }
         }
         return lambda(s, u, java.util.Objects.requireNonNull(or), srcRow, urow);
     }
@@ -1181,17 +1301,22 @@ final class StackBuilder {
         TypedVariable s = new TypedVariable("s", new ExprType(srcRow, one));
         TypedVariable u = new TypedVariable("u", new ExprType(tRow, one));
         TypedSpec or = null;
+        Set<String> seen = new LinkedHashSet<>();
         for (Group g : gs) {
-            Entry e = g.entries().get(0);
-            TypedLambda c = e.cond();
-            TypedSpec body = c.body().get(c.body().size() - 1);
-            Map<String, String> sMap = new LinkedHashMap<>();
-            for (int k = 0; k < e.sourceReads().size(); k++) {
-                sMap.put(e.sourceReads().get(k), g.srcCols().get(k));
+            for (Entry e : g.entries()) {
+                TypedLambda c = e.cond();
+                TypedSpec body = c.body().get(c.body().size() - 1);
+                Map<String, String> sMap = new LinkedHashMap<>();
+                for (int k = 0; k < e.sourceReads().size(); k++) {
+                    sMap.put(e.sourceReads().get(k), e.sourceKeys().get(k));
+                }
+                TypedSpec re = renameReads(body, c.parameters().get(0), sMap, s, srcRow);
+                re = renameVar(re, c.parameters().get(1), u);
+                if (!seen.add(re.toString())) {
+                    continue;
+                }
+                or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
             }
-            TypedSpec re = renameReads(body, c.parameters().get(0), sMap, s, srcRow);
-            re = renameVar(re, c.parameters().get(1), u);
-            or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
         }
         return lambda(s, u, java.util.Objects.requireNonNull(or), srcRow, tRow);
     }
@@ -1219,45 +1344,6 @@ final class StackBuilder {
         return classLevel != null && classLevel.functionFqn().equals(functionFqn);
     }
 
-    /** The MERGED form: one equality per source-read position between the
-     * coalesce of the groups' source columns and the target stack's own
-     * column of that name (the engine's cross-match by value). */
-    private TypedLambda mergedPredicate(List<Group> gs, Type.RelationType srcRow,
-            Type.RelationType mrow, List<String> reads) {
-        var one = Multiplicity.Bounded.ONE;
-        var boolOne = new ExprType(Type.Primitive.BOOLEAN, one);
-        TypedVariable s = new TypedVariable("s", new ExprType(srcRow, one));
-        TypedVariable u = new TypedVariable("u", new ExprType(mrow, one));
-        TypedSpec and = null;
-        for (int k = 0; k < reads.size(); k++) {
-            List<TypedSpec> sReads = new ArrayList<>();
-            for (Group g : gs) {
-                Type.Column sc = columnOf(srcRow, g.srcCols().get(k));
-                if (sc == null) {
-                    throw new IllegalStateException("resolver bug: merged lift column missing");
-                }
-                sReads.add(new TypedPropertyAccess(s, sc.name(), new ExprType(sc.type(), sc.multiplicity())));
-            }
-            Type.Column uc = java.util.Objects.requireNonNull(columnOf(mrow, reads.get(k)));
-            TypedSpec uRead = new TypedPropertyAccess(u, uc.name(),
-                    new ExprType(uc.type(), uc.multiplicity()));
-            TypedSpec eq = new TypedNativeCall(equalFn(), List.of(coalesce(sReads), uRead),
-                    boolOne, null);
-            and = and == null ? eq : new TypedNativeCall(andFn(), List.of(and, eq), boolOne, null);
-        }
-        return lambda(s, u, java.util.Objects.requireNonNull(and), srcRow, mrow);
-    }
-
-    private TypedSpec coalesce(List<TypedSpec> reads) {
-        TypedSpec acc = reads.get(reads.size() - 1);
-        for (int i = reads.size() - 2; i >= 0; i--) {
-            TypedSpec r = reads.get(i);
-            acc = new TypedNativeCall(coalesceFn(), List.of(r, acc),
-                    new ExprType(r.info().type(), Multiplicity.Bounded.ZERO_ONE), null);
-        }
-        return acc;
-    }
-
     private static TypedLambda lambda(TypedVariable s, TypedVariable u, TypedSpec body,
             Type.RelationType srcRow, Type.RelationType urow) {
         var one = Multiplicity.Bounded.ONE;
@@ -1270,18 +1356,21 @@ final class StackBuilder {
     /** The entry's condition over (stack row, union row): source reads by
      * path -> the group's source columns, target reads by path -> the keys. */
     private static TypedSpec repoint(Entry e, Group g, TypedVariable s, TypedVariable u,
-            Type.RelationType srcRow, Type.RelationType urow) {
+            Type.RelationType srcRow, Type.RelationType urow, boolean perPair) {
         TypedLambda c = e.cond();
         TypedSpec body = c.body().get(c.body().size() - 1);
         String sv = c.parameters().get(0);
         String tv = c.parameters().get(1);
         Map<String, String> sMap = new LinkedHashMap<>();
         for (int k = 0; k < e.sourceReads().size(); k++) {
-            sMap.put(e.sourceReads().get(k), g.srcCols().get(k));
+            sMap.put(e.sourceReads().get(k),
+                    (perPair ? e.pairSourceKeys() : e.sourceKeys()).get(k));
         }
         Map<String, String> tMap = new LinkedHashMap<>();
         for (int k = 0; k < e.targetReads().size(); k++) {
-            tMap.put(e.targetReads().get(k), g.keys().get(k));
+            String read = e.targetReads().get(k);
+            tMap.put(read, java.util.Objects.requireNonNull(
+                    (perPair ? g.pairKeyByRead() : g.keyByRead()).get(read)));
         }
         TypedSpec re = renameReads(body, sv, sMap, s, srcRow);
         return renameReads(re, tv, tMap, u, urow);
@@ -1496,70 +1585,8 @@ final class StackBuilder {
         return cb == null ? null : cb.setId() == null ? cb.classFqn() : cb.setId();
     }
 
-    /** Whether the entries' targets together cover every member of the
-     * target operation's function — one member call each, or the class
-     * extent (every leaf) — each single-hop (no mids on the route's rows). */
-    private boolean coversLeaves(MappingDefinition mapping, MappingDefinition.ClassBinding tb,
-            String targetClass, List<Entry> entries) {
-        var cf = sources.compileSynthFn(tb.functionFqn());
-        List<TypedUserCall> calls = stackCalls(cf.body().get(cf.body().size() - 1));
-        if (calls == null) {
-            return false;
-        }
-        Set<String> members = new LinkedHashSet<>();
-        for (TypedUserCall uc : calls) {
-            members.add(uc.callee().qualifiedName());
-        }
-        Set<String> targets = new LinkedHashSet<>();
-        for (Entry e : entries) {
-            if (Pipelines.containsSlot(e.rows())) {
-                return false;
-            }
-            if (e.target() instanceof TypedGetAll ga && ga.classFqn().equals(targetClass)) {
-                targets.addAll(members);
-            } else if (e.target() instanceof TypedUserCall uc) {
-                targets.add(uc.callee().qualifiedName());
-            } else {
-                return false;
-            }
-        }
-        return !members.isEmpty() && targets.equals(members);
-    }
-
-    /** Whether every entry reads the same target columns and those are
-     * PROPERTY names of the target class (the engine's merge-by-name). */
-    private boolean sameTargetProperties(String targetClass, List<Entry> entries) {
-        List<String> first = entries.get(0).targetReads();
-        if (first.isEmpty()) {
-            return false;
-        }
-        for (Entry e : entries) {
-            if (!e.targetReads().equals(first)) {
-                return false;
-            }
-        }
-        for (String col : first) {
-            if (col.contains(".") || ctx.findProperty(targetClass, col).isEmpty()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private TypedFunction orFn() {
         return callees.bool("or");
-    }
-
-    private TypedFunction andFn() {
-        return callees.and();
-    }
-
-    private TypedFunction equalFn() {
-        return java.util.Objects.requireNonNull(callees.equal(), "boolean::equal is registered");
-    }
-
-    private TypedFunction coalesceFn() {
-        return callees.coalesce();
     }
 
 }

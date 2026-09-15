@@ -463,6 +463,15 @@ final class AssociationSynthesis {
                 || anchorTableOf(md, classB, model) == null) {
             return null;
         }
+        // an OPERATION-mapped end (union / inheritance) has no one table
+        // to anchor on: its pairs inject onto the member sets (above), and
+        // a class-level predicate anchored on one member's table would join
+        // that member alone — no predicate; a navigation without a step is
+        // loud at demand
+        if (md.unionOf(classA) != null || md.inheritanceOf(classA) != null
+                || md.unionOf(classB) != null || md.inheritanceOf(classB) != null) {
+            return null;
+        }
 
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");

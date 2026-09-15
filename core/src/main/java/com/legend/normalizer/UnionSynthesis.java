@@ -184,6 +184,15 @@ final class UnionSynthesis {
                     }
                 }
                 case PropertyMapping.OtherwiseEmbedded oe -> {
+                    // the fallback join is a pinned route of the property
+                    if (oe.fallback() instanceof PropertyMapping.Join fj) {
+                        String pin = fj.targetSetId() != null ? fj.targetSetId()
+                                : oe.fallbackSetId();
+                        routedByProp.computeIfAbsent(oe.propertyName(),
+                                k -> new ArrayList<>()).add(new PropertyMapping.Join(
+                                        oe.propertyName(), fj.database(), fj.joins(), pin));
+                        ownerByProp.putIfAbsent(oe.propertyName(), ownerCls);
+                    }
                     String inner = embeddedOwner(ownerCls,
                             oe.propertyName(), model);
                     if (inner != null) {
@@ -280,23 +289,13 @@ final class UnionSynthesis {
                     continue;
                 } else if (rootOrSole) {
                     routes.add(new UnionRoute(-1, j));
-                } else if (e.getValue().size() == 1) {
-                    // a SINGLE set-pinned route to a NON-root set: a route
-                    // list of ONE naming that set's function (legacy routes
-                    // as composition) — employees2[p2] over multi-set
-                    // Person; no stamped set-pin hint consulted
-                    routes.add(new UnionRoute(PINNED_SINGLE, j));
                 } else {
-                    poison = "NON-root mapping set '" + j.targetSetId()
-                            + "' — MULTI-route dispatch outside union members"
-                            + " is a roadmap feature";
-                    break;
+                    // a set-pinned route to a NON-root set: a route naming
+                    // that set's function (legacy routes as composition) —
+                    // one (employees2[p2] over multi-set Person) or several
+                    // (the queried mapping resolves the pins: engine R-target)
+                    routes.add(new UnionRoute(PINNED_SINGLE, j));
                 }
-            }
-            if (poison == null && routes.stream()
-                    .anyMatch(r -> r.targetOrdinal() >= 0)
-                    && routes.stream().anyMatch(r -> r.targetOrdinal() < 0)) {
-                poison = "MIXED root-set and union-member routes";
             }
             // CHAINED member routes come in two engine shapes, both
             // accepted here: SHARED-PREFIX (unionOfViews golden — the

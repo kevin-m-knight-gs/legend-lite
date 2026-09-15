@@ -2607,3 +2607,60 @@ the owner class per property, the embedded inner class per path, the key thread 
 
 **Next.** Leg 3 (B6): witnesses W1–W5, `UnionHeads` and the mixed builder onto the stack, the
 CastReRoot typed key; the set-pin facts (`MappingFacts.routedSets`) die with the mixed builder.
+
+## Legacy routes as composition, leg 3a — the engine's key rules on the stack — 2026-09-14
+
+**Why.** The leg 2 audit (docs/LEG2_STACK_AUDIT_2026_09_14.md) found the stack's lifts choosing
+their join shape by a lift-level guess (a "merged" form when every target read was spelled like a
+property) and the pin rule fitted to two goldens. Step 1 read the engine's union join path to its
+end and wrote three receipts (the audit's "Receipts" section): R-key (key naming is per COLUMN: a
+column the set maps as a scalar property is MODELED — one name across the arms, matched by value —
+any other column is per set; an arm without a route makes every column per set), R-target (the
+router resolves the arms' pins to the one pinned set when they name exactly one id, else to the
+class's root resolved through operations; a pin outside dies), R-chain (the ordered-subset rule
+already in `routeList`).
+
+**What landed.**
+- `StackBuilder.liftOf` rebuilt on the receipts: one group per target SET (each set once — the
+  self-join golden), the OR over every entry's condition; per read on both sides the key is the
+  property (modeled by that arm's / that set's binding, read through the `trustOne` wrap) or the
+  per-entry / per-group column; graph fetch pairs on the per-entry and per-group columns (the
+  paired predicate) — the merged branch, `coversLeaves`, `sameTargetProperties` and the coalesce
+  form are gone. Pins: the binding fact is a LIST per property (F3); a pinned arm's class-extent
+  route (a root pin under the defining mapping) names the pinned set under the queried mapping; a
+  pin the queried mapping does not bind falls back to the root (the engine's missed lookup).
+- The two surviving classification poisons (several pinned routes into a non-union class; a root
+  route beside member routes) are route lists (F1); a root route inside a list names the root set's
+  function.
+- The Otherwise-embedded fallback set rides as a pin and a route; `ClassSources.getForNav` no
+  longer dispatches an un-routed navigation through the stamped set-pin facts (F7, first half).
+- A stack parent's correlated aggregation joins back on the OR of its key pairs, never their
+  conjunction (a thread's key is NULL in the other arms — the chained-union aggregation goldens).
+- A graph-fetch head relation's inlined join condition is a CORRELATION-stamped filter: its
+  equalities lower `=`, so a typed-NULL key thread never matches another arm's NULL (the
+  qualified-property union goldens).
+- Small audit fixes: one scope at the routed graph child (F6); no class-level association predicate
+  for an operation-mapped end (F8); the key-thread type is loud when no arm carries the column
+  (F12); one value per (arm, column) (F13); the builder's callees through `Callees`.
+- Witnesses: `StackShapeWitnessTest` — W-a (non-modeled target key honours pins), W-b (modeled key
+  over three arms cross-matches every target arm), W-c (an arm without a route makes every key
+  per set), W-d (two pins into a plain class keep the root only), W-e (one non-root pin honoured),
+  F11 timing (each shape lowers in under 20 ms).
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. Rows that changed hands
+during the build and came back: association::inheritence ×9 (a null guard on a target class with no root binding), otherwiseTestComplexExpressionWithEnumMapping (the fallback pin),
+the snapshot unions ×10 (the extent route spread over every leaf), the self-join ×2 (groups by
+shape), the deep union (the source side's modeled key), the chained aggregations ×10 (the
+conjunctive join-back), the graph-fetch qualified properties ×3 (the unstamped filter).
+
+**Chain.** Gates 2–9 green on the first run; gate 1 red on the JDBC-surface census (the new witness
+class opens DuckDB — registered with its tenet argument) and rerun green. **Measures (§11.0).** M1 1,197 (was 1,198; the two poisons and their text
+gone, the Otherwise route added) · M2 3 (unchanged: `UnionHeads` and the mixed builder are 3b) ·
+M3 1 (the set-pin facts still feed the mixed builder and the graph-fetch set hint; `getForNav`
+no longer reads them) · M4 5 (unchanged; the one remaining classification poison, "unknown
+mapping set", is a real model error). Batch size: +335 / −273 over 10 files plus the 200-line
+witness class.
+
+**Next.** Leg 3b (B6): `UnionHeads` and the mixed builder onto the stack; then the widening
+(F14), the set-pin facts (F7, second half) and the mixed arm code die; the CastReRoot typed key;
+retyping by node kind (F4); re-measure M1–M4.

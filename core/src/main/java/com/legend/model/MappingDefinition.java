@@ -193,7 +193,7 @@ public record MappingDefinition(
                 DeclaredKeys declared,
                 RelationalSource source,
                 List<AggregateViewFacts> aggregateViews,
-                java.util.Map<String, String> propertyPins) implements ClassBinding {
+                java.util.Map<String, List<String>> propertyPins) implements ClassBinding {
             public Relational {
                 Objects.requireNonNull(classFqn, "classFqn");
                 Objects.requireNonNull(functionFqn, "functionFqn");
@@ -203,12 +203,18 @@ public record MappingDefinition(
                         : List.copyOf(primaryKeyColumns);
                 aggregateViews = aggregateViews == null ? List.of()
                         : List.copyOf(aggregateViews);
-                propertyPins = propertyPins == null ? java.util.Map.of()
-                        : java.util.Map.copyOf(propertyPins);
+                if (propertyPins == null) {
+                    propertyPins = java.util.Map.of();
+                } else {
+                    java.util.Map<String, List<String>> copy = new java.util.LinkedHashMap<>();
+                    propertyPins.forEach((k, v) -> copy.put(k, List.copyOf(v)));
+                    propertyPins = java.util.Collections.unmodifiableMap(copy);
+                }
             }
         }
         /* propertyPins: the set PINS the set's own property mappings
-         * declare (property -> target set id, {@code prop[setId]}): a
+         * declare (property -> target set ids, {@code prop[setId]}; a set may
+         * pin one property to several sets): a
          * FACT read at query time — a pinned navigation lives only when
          * its set is a leaf of the target class under the QUERIED mapping
          * (engine R6; the un-routed thread of a union never matches). */

@@ -1130,7 +1130,7 @@ final class GraphEmission {
         String setHint = ctx.routedTargetSetOf(cs.mappingFqn(),
                 node.property()).orElse(null);
         ClassSource child = !nav.routes().isEmpty() && childClass.equals(rawTarget)
-                ? sources.routedUnionSource(cs.mappingFqn(), rawTarget, nav.routes(), cs.scope())   // a routed step's child IS its routed union
+                ? sources.routedUnionSource(cs.mappingFqn(), rawTarget, nav.routes(), context.constructedScope())   // a routed step's child IS its routed union
                 : childClass.equals(rawTarget)
                 ? sources.get(dispatch.apply(context, rawTarget), rawTarget, setHint,
                         (target, excl) -> dispatch.apply(context, target), key, cs.scope())
@@ -2599,8 +2599,8 @@ final class GraphEmission {
                 List.of(andFold(corrBody)),
                 new ExprType(boolFn,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return new HeadRel(target, targetRow,
-                new TypedFilter(targetPipeline, corr, targetPipeline.info()));
+        return new HeadRel(target, targetRow, new TypedFilter(targetPipeline, corr,
+                targetPipeline.info(), TypedFilter.Stamp.CORRELATION));
     }
 
     /**

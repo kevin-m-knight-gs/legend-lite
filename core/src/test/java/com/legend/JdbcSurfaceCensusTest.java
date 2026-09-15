@@ -425,6 +425,9 @@ class JdbcSurfaceCensusTest {
             // clean-sheet B3.2: a chained route's rows are the verdict (the
             // arm carries its mid; the navigator reads one link key)
             "core/src/test/java/com/legend/resolver/RoutedChainKeyTest.java",
+            // legacy routes as composition, leg 3a: the stack's lift shapes are
+            // judged by ROWS against the engine's key rules (R-key, R-target)
+            "core/src/test/java/com/legend/resolver/StackShapeWitnessTest.java",
             // legacy routes as composition, step 1: the several-route navigate's
             // rows are the verdict
             "core/src/test/java/com/legend/resolver/RoutedNavigateTest.java",

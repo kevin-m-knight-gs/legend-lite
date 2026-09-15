@@ -2094,7 +2094,11 @@ public final class StoreResolver {
             // of same-name pairs (engine unionBase model, task #27 U4)
             List<String> keyCols2 = CorrelatedSubselects
                     .expandSplitKeys(java.util.Objects.requireNonNull(keyCols, "keyCols"), keyRow);
-            boolean splitKeys = !keyCols2.equals(keyCols);
+            // a STACK parent's keys are per-member columns (a thread's key
+            // is NULL in the other arms) whatever their spelling: the
+            // join-back is the OR of the pairs, never their conjunction
+            boolean splitKeys = !keyCols2.equals(keyCols)
+                    || Pipelines.containsConcatenate(cs.pipeline());
             keyCols = keyCols2;
             CorrelatedSubselects.ParentCopy pc = cas.pc();
             List<TypedGroupBy.GroupKey>
