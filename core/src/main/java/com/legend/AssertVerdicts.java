@@ -719,12 +719,12 @@ final class AssertVerdicts {
         // answers with (resolveStore returns Store; the rows are Databases):
         // some system-mapped, seeded metaclass conforms to the side's type
         var ctx = specs.ctx();
-        if (ctx.classifierInstances(ct.fqn()) != null) {
+        if (ctx.tracksClassifier(ct.fqn())) {
             return true;
         }
         var sys = ctx.findMapping(com.legend.builtin.SystemMetamodel.MAPPING_FQN).orElse(null);
         return sys != null && sys.classBindings().stream().anyMatch(cb ->
-                ctx.classifierInstances(cb.classFqn()) != null
+                ctx.tracksClassifier(cb.classFqn())
                         && ctx.isSubtype(cb.classFqn(), ct.fqn()));
     }
 

@@ -1005,6 +1005,14 @@ public final class ModelBuilder {
         return elementOrder.stream().map(id -> idGet(slots, id)).filter(Objects::nonNull);
     }
 
+    /** Whether {@code fqn} names a REGISTERED element of this model — the
+     * symbol table's id and the registration order, no scan (the name
+     * resolver's existence question, asked per candidate name). */
+    public boolean hasElement(String fqn) {
+        int id = symbols.resolveId(fqn);
+        return id >= 0 && elementOrder.contains(id);
+    }
+
     /** All {@link ClassDefinition}s in ingest order. Sparse slots filtered out. */
     public Stream<ClassDefinition> classes() {
         return inOrder(classes);

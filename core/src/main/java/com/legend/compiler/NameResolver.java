@@ -297,13 +297,31 @@ public final class NameResolver {
      * bare-name fallback (batch 153): a name no import makes visible is
      * unresolved, as in the engine. */
     private static List<String> platformTypeFqns() {
+        return PLATFORM_TYPE_FQNS;
+    }
+
+    /** The platform's own type universe (native classes and enums, the
+     * prelude's classes and enums): a constant of the platform, built
+     * once — it was rebuilt on every query (leg 6e, the corpus lane's
+     * profile). */
+    private static final List<String> PLATFORM_TYPE_FQNS = computePlatformTypeFqns();
+
+    private static List<String> computePlatformTypeFqns() {
         List<String> all = new ArrayList<>();
         Pure.allNativeClasses().forEach(c -> all.add(c.qualifiedName()));
         Pure.allNativeEnums().forEach(e -> all.add(e.qualifiedName()));
         all.addAll(com.legend.builtin.Prelude.classFqns());
         all.addAll(com.legend.builtin.Prelude.enumFqns());
-        return all;
+        return List.copyOf(all);
     }
+
+    /** The platform type universe as a set — the model context unions it
+     * with its own element names once ({@code resolutionUniverse}). */
+    public static Set<String> platformFqns() {
+        return PLATFORM_FQNS;
+    }
+
+    private static final Set<String> PLATFORM_FQNS = Set.copyOf(PLATFORM_TYPE_FQNS);
 
     /** Declared element FQNs + platform FQNs: the wildcard-disambiguation universe. */
     private static Set<String> knownFqns(List<PackageableElement> elements) {
@@ -454,8 +472,17 @@ public final class NameResolver {
             ImportScope imports, Set<String> modelFqns) {
         Set<String> known = new HashSet<>(platformTypeFqns());
         known.addAll(modelFqns);
-        return Objects.requireNonNull(
-                resolveVs(query, Scope.preludeOf(imports, Set.copyOf(known))));
+        return resolveQueryIn(query, imports, Set.copyOf(known));
+    }
+
+    /** {@link #resolveQuery(ValueSpecification, ImportScope, Set)} with the
+     * candidate universe READY — the model context's memoized union of its
+     * element names and the platform's ({@code ModelContext.resolutionUniverse}),
+     * so a query pays no per-query set build (leg 6e). {@code universe}
+     * must be immutable. */
+    public static ValueSpecification resolveQueryIn(ValueSpecification query,
+            ImportScope imports, Set<String> universe) {
+        return Objects.requireNonNull(resolveVs(query, Scope.preludeOf(imports, universe)));
     }
 
     /** The sectionless-query scope: prelude imports only; the native FQN universe. */

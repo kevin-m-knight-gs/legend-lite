@@ -3067,3 +3067,47 @@ the fallback's own gone; the frame rule needs no root inference). **Measures (§
 11,327 lines (was 11,435). Batch size: 5 files, +277 / −382.
 
 **Next.** 6d: the two known gaps.
+
+## Leg 6e — the corpus lane's speed: the shape of two lookups, not a cache — 2026-09-15
+
+**Why.** USER: the parallel chain ran a minute slower than its 229 s pin (2026-09-11); nine chains
+today ran 282–316 s. A/B on the same machine, back to back — a 2026-09-12 checkout (00d7c882e)
+against the tree: core suite 40.4 s → 42.9 s (flat); DuckDB corpus lane 58 s → 83 s (+43%): our
+code. The wall time of the parallel chain is its sequential stream (build, core suite, spec
+parity, DuckDB corpus, H2 corpus), so the corpus lanes drive it, doubled under contention.
+
+**The cause, measured (Flight Recorder over the lane).** Two lookups on the query path answered a
+constant or a yes/no by walking the whole model:
+- the name resolver's candidate universe — EVERY element name (classes, enums, mappings,
+  functions …) rebuilt into a set on every query, merged with the platform's type names (themselves
+  rebuilt per query) and copied once more (`Compiler.resolveQuery` → `elementFqns()`): 18% of the
+  lane's samples;
+- "does the metamodel store TRACK this classifier?" — asked on every element reference
+  (`ElementReferences.trackedElementClass`), answered by streaming, deduplicating and sorting every
+  class of the model into a list and testing it for null: over half the samples of the second
+  profile.
+Why now: the model grew. Since leg 1 every non-root set is a function (the relational corpus has
+1,531 class mappings, 723 with a set id, 178 of them roots — some 545 sets that had no function
+before) and queries carry more nodes (route lists, per-arm structures), so walks that had always
+been proportional to model size crossed from unnoticed to a third of the lane. The functions are
+the model's honest shape; the walks were the defect.
+
+**What landed (USER: fix the shape first; caching, if ever, separately).**
+- `ModelContext.tracksClassifier(fqn)`: the tracked classifiers are a constant of the registry
+  (five names) — a membership test; the five null-test callers use it; `classifierInstances`
+  builds an extent only where the extent is read (the seeds, lineage).
+- `ModelBuilder.hasElement(fqn)`: an element's existence from the symbol table's id and the
+  registration order, no scan; `PureModelContext.resolutionUniverse()` is a LIVE VIEW whose
+  `contains` asks that (plus the platform's constant type set and the primitive extensions) —
+  nothing materialized per query; `NameResolver.resolveQueryIn` takes it as is; the platform
+  type list is a constant of the platform (`PLATFORM_TYPE_FQNS`).
+- `LiteralUnroll.is`: the callee's own name (the FQN's last segment, exactly) decides the
+  negative case before a signature key is built; the overload check still decides the positive.
+- No memo, no cache: `elementFqns()`, `functionFqns()` and `classifierInstances` compute as before
+  for the callers that read the whole answer.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. **Lane.** DuckDB 48 s,
+twice (was 83 s; the 2026-09-12 checkout 58 s on the same machine); H2 23 s (was 53–55 s).
+Batch size: 9 files, +122 / −13.
+
+**Chain.** Green on the first run, wall 223 s (the parallel chain’s 229 s pin of 2026-09-11 is back): G2 25s, G1 71s, G3 10s, G4 79s (was 117–141s), G5 34s (was 58–66s), G6 131s, G7 38s, G9 28s, G8 137s. Per-gate times ride every record from here.

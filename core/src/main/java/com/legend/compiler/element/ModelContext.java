@@ -47,6 +47,15 @@ public interface ModelContext {
         return java.util.Set.of();
     }
 
+    /** {@link #elementFqns()} united with the platform's type universe —
+     * the candidate set a query's name resolution reads; an implementation
+     * memoizes it (the set is a per-context constant). */
+    default java.util.Set<String> resolutionUniverse() {
+        java.util.Set<String> u = new java.util.HashSet<>(elementFqns());
+        u.addAll(com.legend.compiler.NameResolver.platformFqns());
+        return java.util.Set.copyOf(u);
+    }
+
     /**
      * The raw parsed class declaration (stereotypes, tagged values) —
      * {@link TypedClass} deliberately drops annotations, but the store
@@ -218,6 +227,13 @@ public interface ModelContext {
     default java.util.@com.legend.Nullable List<String> classifierInstances(
             String classifierFqn) {
         return null;
+    }
+
+    /** Whether the registry TRACKS {@code classifierFqn} — the yes/no the
+     * resolver asks per element reference; never build the extent to
+     * answer it. Equal to {@code classifierInstances(fqn) != null}. */
+    default boolean tracksClassifier(String classifierFqn) {
+        return classifierInstances(classifierFqn) != null;
     }
 
     /** Is {@code fqn} a Database store element? (Typed as the store

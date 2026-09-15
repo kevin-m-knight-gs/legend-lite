@@ -175,6 +175,39 @@ public final class PureModelContext implements ModelContext {
         return model.findLegacyMapping(fqn);
     }
 
+    /** The name resolver's candidate universe as a LIVE VIEW: membership
+     * answers from the model's symbol table and the platform's constant
+     * type set, nothing materialized per query (leg 6e — the corpus lane
+     * rebuilt every element name per query). Iteration materializes
+     * {@link #elementFqns()}; the resolver only asks {@code contains}. */
+    @Override
+    public java.util.Set<String> resolutionUniverse() {
+        java.util.Set<String> platform = com.legend.compiler.NameResolver.platformFqns();
+        java.util.Set<String> extensions = model.primitiveExtensionFqns();
+        return new java.util.AbstractSet<>() {
+            @Override
+            public boolean contains(Object o) {
+                return o instanceof String s
+                        && (platform.contains(s) || extensions.contains(s) || model.hasElement(s));
+            }
+
+            @Override
+            public java.util.Iterator<String> iterator() {
+                java.util.Set<String> all = new java.util.HashSet<>(elementFqns());
+                all.addAll(platform);
+                return java.util.Collections.unmodifiableSet(all).iterator();
+            }
+
+            @Override
+            public int size() {
+                java.util.Set<String> all = new java.util.HashSet<>(elementFqns());
+                all.addAll(platform);
+                return all.size();
+            }
+        };
+    }
+
+    @Override
     public java.util.Set<String> elementFqns() {
         java.util.Set<String> out = new java.util.HashSet<>();
         model.classes().forEach(e -> out.add(e.qualifiedName()));
@@ -507,12 +540,30 @@ public final class PureModelContext implements ModelContext {
         return Optional.empty();
     }
 
+    /** The classifiers the metamodel store TRACKS (METAMODEL_STORE_HANDOFF.md
+     * §3): a constant of the registry, so "is this classifier tracked?" is
+     * a membership test — the resolver asks it on every element reference
+     * (leg 6e: the corpus lane's profile — over half its samples were the
+     * extent below being built and thrown away for that yes/no). */
+    private static final java.util.Set<String> TRACKED_CLASSIFIERS = java.util.Set.of(
+            com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS,
+            com.legend.compiler.element.type.PlatformTypes.ENUMERATION,
+            "meta::pure::metamodel::relationship::Association",
+            com.legend.compiler.element.type.PlatformTypes.MAPPING,
+            com.legend.compiler.element.type.PlatformTypes.DATABASE);
+
+    @Override
+    public boolean tracksClassifier(String classifierFqn) {
+        return TRACKED_CLASSIFIERS.contains(classifierFqn);
+    }
+
     @Override
     public java.util.@com.legend.Nullable List<String> classifierInstances(
             String classifierFqn) {
         // the registry table (METAMODEL_STORE_HANDOFF.md §3): tracked
-        // classifiers answer their extent, everything else is null (a
-        // user class — the store lane owns it)
+        // classifiers answer their extent (the seeds read it), everything
+        // else is null (a user class — the store lane owns it); the
+        // tracked set above IS this dispatch's domain — keep them equal
         java.util.stream.Stream<String> fqns;
         if (com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS
                 .equals(classifierFqn)) {

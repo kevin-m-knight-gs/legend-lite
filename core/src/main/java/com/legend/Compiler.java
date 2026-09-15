@@ -748,9 +748,9 @@ public final class Compiler {
         // below consumes the resolver's names (ResolvedNames) and constructs
         // only bare natives and lets, which need no further resolution
         statements = ((com.legend.protocol.spec.LambdaFunction)
-                com.legend.compiler.NameResolver.resolveQuery(
+                com.legend.compiler.NameResolver.resolveQueryIn(
                         new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
-                        imports, ctx.elementFqns())).body();
+                        imports, ctx.resolutionUniverse())).body();
         statements = com.legend.compiler.StatementInline.rewrite(statements, imports, ctx);
         java.util.List<com.legend.protocol.spec.ValueSpecification> desugared =
                 new java.util.ArrayList<>(statements.size());

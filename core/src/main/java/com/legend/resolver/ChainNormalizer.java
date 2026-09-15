@@ -124,7 +124,7 @@ public final class ChainNormalizer {
         // element is a Class row when the Class metaclass is seeded
         if (refCls == null && pr.info().type() instanceof Type.GenericType g
                 && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
-                && ctx.classifierInstances(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS) != null) {
+                && ctx.tracksClassifier(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)) {
             refCls = com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS;
         }
         if (refCls == null || !(ctx.isSubtype(refCls, rowCls)

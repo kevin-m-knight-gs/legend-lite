@@ -70,7 +70,7 @@ final class ElementReferences {
         // row explicitly (ChainNormalizer.identityEquality). The one site
         // where Type.asClassType's raw reading does not apply — receipt.
         return pr.info().type() instanceof Type.ClassType ct
-                && ctx.classifierInstances(ct.fqn()) != null
+                && ctx.tracksClassifier(ct.fqn())
                 && sources.binds(com.legend.builtin.SystemMetamodel.MAPPING_FQN,
                         ct.fqn()) ? ct.fqn() : null;
     }
@@ -192,7 +192,7 @@ final class ElementReferences {
      * the metaclasses reached by navigation — SetImplementation, Table —
      * whose rows the seed derives). */
     boolean intrinsicClass(String classFqn) {
-        if (ctx.classifierInstances(classFqn) != null || sources.binds(
+        if (ctx.tracksClassifier(classFqn) || sources.binds(
                 com.legend.builtin.SystemMetamodel.MAPPING_FQN, classFqn)) {
             return true;
         }

@@ -369,7 +369,14 @@ final class LiteralUnroll {
     }
 
     private static boolean is(TypedNativeCall c, String name) {
-        return Pure.nativeNamed(name, c.callee().signatureKey());
+        // the callee's own NAME (the FQN's last segment, exactly) decides
+        // most calls without building a signature key — the key build was
+        // the corpus lane's second hot spot (leg 6e); the overload check
+        // still decides the positive case
+        String fqn = c.callee().qualifiedName();
+        int at = fqn.lastIndexOf("::");
+        String simple = at < 0 ? fqn : fqn.substring(at + 2);
+        return simple.equals(name) && Pure.nativeNamed(name, c.callee().signatureKey());
     }
 
     /** {@code equal}/{@code eq} over spelled operands — element references,
