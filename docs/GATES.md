@@ -3211,3 +3211,26 @@ G5 34s, G6 136s, G7 38s, G9 28s; G8 137s red on the own-corpus parity floor (mat
 2429 → 2434: the witness's five elements joined the own corpus and matched — re-pinned) and rerun
 green (RERUN s). **Measures (§11.0).** M1 976 · M2 1 · M3 0 · M4 2 (both receipted skips; ZERO
 first-wins — the target "0 outside a receipted miss" is met). Batch size: 2 files, +78 / −164.
+
+## Audit fix A2 (FIXLIST P0-1 / P0-2) — the validation verdict keyed by set id — 2026-09-15
+
+**Why.** docs/mapping-normalizer-audit-2026-09-15/findings/FIXLIST.md P0-1 (PROVEN): the
+pre-pass recorded the validation's invalid sets in an `IdentityHashMap` keyed by the `ClassMapping`
+OBJECT; the multi-hop association injection rebuilds the sets it injects into, so an invalid set
+carrying a two-hop association lost its verdict and was BOUND. P0-2: `invalid.values().iterator()
+.next()` over an identity map made "a strict build rejects the first" depend on identity hash codes.
+
+**What landed.** `MappingValidation.run` returns `Map<String, ModelException>` keyed by
+`ResolvedMapping.idOf(cm)` in declaration order (a `LinkedHashMap`; duplicate ids already throw
+above it); `MappingPrePass` records the reasons by set id; `ResolvedMapping.invalid` is by set id
+with one reader, `invalidReason(cm)`; both driver sites read through it. Witnesses
+(`MappingNormalizerTest`): `invalidSetStaysWalledAcrossMultiHopInjection` (A/B: RED on the old
+code — "recorded reason … got: <empty>" — GREEN now) and
+`strictBuildRejectsTheFirstInvalidSetInDeclarationOrder` (five runs, the first declared set every
+time; a module build records both).
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 25 s).
+
+**Chain.** Gates 1–7 and 9 green on the first run, wall 231 s: G2 26s, G1 69s, G3 11s, G4 87s,
+G5 36s, G6 136s, G7 40s, G9 29s; G8 141s red on the own-corpus parity floor (2434 → 2444: the two
+witnesses' models joined and matched — re-pinned) and rerun green (85 s). Batch size: 6 files.

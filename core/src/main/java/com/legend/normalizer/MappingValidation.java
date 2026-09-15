@@ -11,7 +11,7 @@ import com.legend.model.ClassMapping;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PropertyMapping;
 
-import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,11 +31,16 @@ final class MappingValidation {
 
     private MappingValidation() {}
 
-    /** The invalid sets of {@code md} (by identity) with the engine's
-     * compile-time rejection of each — recorded, never thrown here: the
-     * driver applies strict/module (B4). Mapping-level errors (duplicate
-     * ids) still throw: they are the mapping's, not a set's. */
-    static Map<ClassMapping, ModelException> run(ResolvedMapping r, ModelBuilder model) {
+    /** The invalid sets of {@code md} BY SET ID, in declaration order, with
+     * the engine's compile-time rejection of each — recorded, never thrown
+     * here: the driver applies strict/module (B4). The key is the set's id,
+     * never the object: later construction steps (the multi-hop injection)
+     * rebuild the {@code ClassMapping} records, and an identity key lost the
+     * verdict there (audit 2026-09-15 P0-1, proven by probe); declaration
+     * order makes "a strict build rejects the first" a stable statement
+     * (P0-2). Mapping-level errors (duplicate ids) still throw: they are the
+     * mapping's, not a set's. */
+    static Map<String, ModelException> run(ResolvedMapping r, ModelBuilder model) {
         LegacyMappingDefinition md = r.raw();
         // MAPPING-level errors the engine's compiler raises (R5): a class
         // mapping id taken by two distinct sets across the include closure,
@@ -50,7 +55,7 @@ final class MappingValidation {
                     "Duplicated class mappings found with ID " + dupIds
                     + " in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
         }
-        Map<ClassMapping, ModelException> invalid = new IdentityHashMap<>();
+        Map<String, ModelException> invalid = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             try {
                 switch (cm) {
@@ -59,7 +64,7 @@ final class MappingValidation {
                     default -> { }
                 }
             } catch (ModelException e) {
-                invalid.put(cm, e);
+                invalid.put(ResolvedMapping.idOf(cm), e);
             }
         }
         return invalid;

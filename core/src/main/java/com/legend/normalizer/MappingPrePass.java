@@ -58,14 +58,16 @@ final class MappingPrePass {
                             // VALIDATION before synthesis (step 5): the
                             // translator records every invalid set; THE
                             // DRIVER'S policy (B4) — a strict build rejects
-                            // the first, a module build poisons them
-                            Map<ClassMapping, ModelException> invalid =
+                            // the first IN DECLARATION ORDER, a module build
+                            // poisons them (by set id: the record survives
+                            // the construction steps that rebuild the sets)
+                            Map<String, ModelException> invalid =
                                     MappingValidation.run(r, model);
                             if (wallSink == null && !invalid.isEmpty()) {
                                 throw invalid.values().iterator().next();
                             }
-                            Map<ClassMapping, String> reasons = new java.util.IdentityHashMap<>();
-                            invalid.forEach((cm, e) -> reasons.put(cm, String.valueOf(e.getMessage())));
+                            Map<String, String> reasons = new LinkedHashMap<>();
+                            invalid.forEach((setId, e) -> reasons.put(setId, String.valueOf(e.getMessage())));
                             return r.withInvalid(reasons);
                         }));
             } catch (ModelException e) {

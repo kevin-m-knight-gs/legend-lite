@@ -3893,6 +3893,73 @@ class MappingNormalizerTest {
                 () -> "Expected error to mention 'multiple ClassMappings'; got: " + ex.getMessage());
     }
 
+    /** Audit 2026-09-15 P0-1 (proven by probe): the validation verdict was
+     * keyed by the ClassMapping OBJECT, and the multi-hop association
+     * injection rebuilds the sets it injects into — so an invalid set with
+     * a two-hop association on it lost its verdict and was BOUND anyway. */
+    private static ParsedModel invalidSetWithTwoHopAssociation() {
+        return com.legend.testing.Own.model(
+                "Class model::P { name: String[1]; } "
+                        + "Class model::A { id: Integer[1]; } "
+                        + "Class model::F { legalName: String[1]; } "
+                        + "Association model::PF { persons: model::P[*]; firm: model::F[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), A_ID INTEGER) "
+                        + "  Table AT (ID INTEGER PRIMARY KEY, F_ID INTEGER) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Join P_A (PT.A_ID = AT.ID) "
+                        + "  Join A_F (AT.F_ID = FT.ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  model::P: Relational { ~mainTable [db::DB] PT name: PT.NAME, nope: PT.NAME } "
+                        + "  model::F: Relational { ~mainTable [db::DB] FT legalName: FT.NAME } "
+                        + "  model::PF: Relational { AssociationMapping ( "
+                        + "    firm: [db::DB] @P_A > @A_F, "
+                        + "    persons: [db::DB] @A_F > @P_A "
+                        + "  ) } "
+                        + ")");
+    }
+
+    @Test
+    @DisplayName("P0-1: an invalid set keeps its verdict across the multi-hop injection (module build poisons, never binds)")
+    void invalidSetStaysWalledAcrossMultiHopInjection() {
+        NormalizedModel normalized = normalizeViaPipeline(invalidSetWithTwoHopAssociation());
+        String reasons = String.join(" ;; ", poisonsOf(normalized).values());
+        assertTrue(reasons.contains("'nope'") && reasons.contains("model::P"),
+                () -> "Expected model::P's recorded reason to survive the injection; got: " + reasons);
+        var md = canonicalMapping(normalized, "my::M");
+        assertTrue(md.classBindings().stream().noneMatch(cb -> cb.classFqn().equals("model::P")),
+                "an invalid set is withheld from the binding table");
+        assertTrue(md.classBindings().stream().anyMatch(cb -> cb.classFqn().equals("model::F")),
+                "the valid sibling set still binds");
+    }
+
+    @Test
+    @DisplayName("P0-2: a strict build rejects the FIRST invalid set in declaration order, run after run")
+    void strictBuildRejectsTheFirstInvalidSetInDeclarationOrder() {
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::P { name: String[1]; } "
+                        + "Class model::F { legalName: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  model::P: Relational { ~mainTable [db::DB] PT name: PT.NAME, nopeP: PT.NAME } "
+                        + "  model::F: Relational { ~mainTable [db::DB] FT legalName: FT.NAME, nopeF: FT.NAME } "
+                        + ")");
+        for (int run = 0; run < 5; run++) {
+            com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.ModelException.class, () -> normalizeStrict(parsed));
+            assertTrue(ex.getMessage().contains("'nopeP'"),
+                    () -> "Expected the first declared invalid set (model::P) every run; got: " + ex.getMessage());
+        }
+        // and a module build records BOTH, by set
+        String reasons = String.join(" ;; ", poisonsOf(normalizeViaPipeline(parsed)).values());
+        assertTrue(reasons.contains("'nopeP'") && reasons.contains("'nopeF'"),
+                () -> "Expected both recorded reasons; got: " + reasons);
+    }
+
     @Test
     @DisplayName("M4: one property name routed under two owners is loud, never first-owner-wins")
     void routedPropertyUnderTwoOwnersIsLoud() {

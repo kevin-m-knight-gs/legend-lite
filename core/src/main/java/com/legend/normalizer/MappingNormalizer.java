@@ -307,7 +307,7 @@ public final class MappingNormalizer {
                                         + " (implicit union) is a roadmap"
                                         + " feature");
                     }
-                    String invalidSet = pp.invalid().get(cm);
+                    String invalidSet = pp.invalidReason(cm);
                     if (invalidSet != null) {
                         ledger.poisons.putIfAbsent(cm.className() + "[" + ResolvedMapping.idOf(cm) + "]", invalidSet);
                         continue;
@@ -351,7 +351,7 @@ public final class MappingNormalizer {
                 }
                 continue;
             }
-            String invalid = pp.invalid().get(cm);
+            String invalid = pp.invalidReason(cm);
             if (invalid != null) {
                 ledger.poisons.put(cm.className(), invalid);
                 continue;

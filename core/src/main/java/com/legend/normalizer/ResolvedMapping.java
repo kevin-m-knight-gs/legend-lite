@@ -35,11 +35,13 @@ final class ResolvedMapping {
     final MappingClosures.Closure closure;
     private final LegacyMappingDefinition surface;
     private final Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys;
-    private final Map<ClassMapping, String> invalid;
+    /** The sets the validation walled, BY SET ID (never by object: the
+     * construction steps rebuild the records) with the recorded reason. */
+    private final Map<String, String> invalid;
 
     ResolvedMapping(LegacyMappingDefinition md, LegacyMappingDefinition surface,
             Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
-            Map<ClassMapping, String> invalid, MappingClosures.Closure closure) {
+            Map<String, String> invalid, MappingClosures.Closure closure) {
         this.md = md;
         this.closure = closure;
         this.surface = surface;
@@ -53,14 +55,16 @@ final class ResolvedMapping {
         return new ResolvedMapping(rewritten, surface, declaredKeys, invalid, closure);
     }
 
-    /** The same record with the sets the validation walled. */
-    ResolvedMapping withInvalid(Map<ClassMapping, String> walled) {
+    /** The same record with the sets the validation walled (by set id). */
+    ResolvedMapping withInvalid(Map<String, String> walled) {
         return new ResolvedMapping(md, surface, declaredKeys, walled, closure);
     }
 
     LegacyMappingDefinition surface() { return surface; }
     Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys() { return declaredKeys; }
-    Map<ClassMapping, String> invalid() { return invalid; }
+
+    /** The validation's recorded reason for {@code cm}'s set, else null. */
+    @com.legend.Nullable String invalidReason(ClassMapping cm) { return invalid.get(idOf(cm)); }
 
 
 
