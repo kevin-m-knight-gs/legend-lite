@@ -21,10 +21,12 @@ import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNavigate;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedNewInstanceCast;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
@@ -250,15 +252,11 @@ public final class ClassSources {
     /**
      * MIXED-KIND UNION extent (route b, docs/XSTORE_LEG.md): each member
      * set resolves to its OWN ClassSource (Relational members compose as
-     * ever; Pure members ride the M2M/JSON-frame composition) and the
-     * STACK builder makes the union — the same one that makes an
-     * operation's and a routed navigate's: the class's scalar properties
-     * per arm, every arm's own key, plus the per-member CHILD-ROUTE KEY
-     * columns as demanded extras (each member's class-typed routes
-     * contribute member-suffixed keys, NULL in other arms; the child-union
-     * side mirrors the names via mixedKeyCol). The arms' own navigate
-     * steps stay inside the arms: class-typed navigation off the mixed
-     * extent is per-member dispatch (mixedChildMaterial).
+     * ever; Pure members ride the M2M/JSON-frame composition, their
+     * whole-source children as navigate steps — wholeSourceStep) and the
+     * STACK builder makes the union exactly as it makes an operation's:
+     * the class's scalar properties per arm, every arm's own key, the
+     * arms' class-typed steps lifted above the stack as routes.
      */
     private ClassSource mixedUnionSource(String mappingFqn, String classFqn,
             List<String> memberSetIds, @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
@@ -268,27 +266,18 @@ public final class ClassSources {
         var optional = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
         List<String> ordered = mixedArmOrder(mappingFqn, classFqn, memberSetIds);
         List<StackBuilder.Arm> arms = new ArrayList<>();
-        List<StackBuilder.Extra> extras = new ArrayList<>();
-        for (int i = 0; i < ordered.size(); i++) {
-            ClassSource m = get(mappingFqn, classFqn, ordered.get(i), upstreamMapping, contextKey, null);
-            TypedSpec pipe = Pipelines.materialize(m.pipeline(), java.util.Set.of(), classFqn)
-                    .pipeline();
-            arms.add(new StackBuilder.Arm(m, pipe, null));
-            for (MixedRoute r : mixedMemberRoutes(m, mappingFqn)) {
-                for (int k = 0; k < r.memberKeys().size(); k++) {
-                    TypedSpec v = r.memberKeys().get(k);
-                    Map<Integer, TypedSpec> perArm = new LinkedHashMap<>();
-                    perArm.put(i, v);
-                    extras.add(new StackBuilder.Extra(mixedKeyCol(r.prop(), i, k),
-                            v.info().type(), perArm));
-                }
-            }
+        for (String setId : ordered) {
+            ClassSource m = get(mappingFqn, classFqn, setId, upstreamMapping, contextKey, null);
+            arms.add(new StackBuilder.Arm(m, StackBuilder.withoutNavSteps(m.pipeline()), null));
         }
         if (arms.isEmpty()) {
             throw new IllegalStateException("resolver bug: mixed union of '" + classFqn
                     + "' with no members");
         }
-        return stacks.stackOf(mappingFqn, classFqn, mapping, arms, extras, false);
+        // the arms' class-typed steps (a Relational member's pinned join, a
+        // Pure member's whole-source child) lift above the stack as routes —
+        // the same keyed child union every operation's stack builds
+        return stacks.stackOf(mappingFqn, classFqn, mapping, arms);
     }
 
     /**
@@ -562,234 +551,21 @@ public final class ClassSources {
         };
     }
 
-    /** Deterministic key-column name for parent-member ordinal {@code ord}'s
-     * child route on {@code prop} — shared by the extent arms and the
-     * child-union arms. */
-    private static String mixedKeyCol(String prop, int ord, int k) {
-        return "k__" + prop + "__" + ord + "_" + k;
-    }
-
-    /** A mixed-union MEMBER's class-typed child route: the property, the
-     * declared TARGET set, this member's join-key expressions (over the
-     * member row var), and — for navigate routes — the raw condition (the
-     * child side extracts its own operands from it). */
-    record MixedRoute(String prop,
-            @com.legend.Nullable String targetSetId,
-            List<TypedSpec> memberKeys,
-            com.legend.compiler.spec.typed.@com.legend.Nullable TypedLambda navCond) {}
-
-    private List<MixedRoute> mixedMemberRoutes(ClassSource member,
-            String mappingFqn) {
+    /** The frame ordinal read off {@code row} through {@code var} — the
+     * whole-source child's key on both sides (parent and child are the
+     * same JSON frame's records). */
+    private static TypedSpec frameOrdinalRead(Type.RelationType row, String var) {
         var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-        List<MixedRoute> out = new ArrayList<>();
-        ExprType mri = new ExprType(member.rowType(), one);
-        for (var e : Pipelines.outerNavSteps(member.pipeline()).entrySet()) {
-            var nav = e.getValue();
-            // the member's PIN for the property is the binding's own fact
-            MappingDefinition mdef = ctx.findMapping(mappingFqn).orElseThrow();
-            MappingDefinition.ClassBinding mb = member.setId() == null ? null
-                    : findBinding(mdef, member.classFqn(), member.setId(), new LinkedHashSet<>());
-            List<String> pins = mb instanceof MappingDefinition.ClassBinding.Relational rb
-                    ? rb.propertyPins().getOrDefault(e.getKey(), List.of()) : List.of();
-            if (pins.isEmpty()) {
-                continue;   // unrouted navigate: not a per-member route
-            }
-            if (pins.size() > 1) {
-                throw new NotImplementedException("mixed-union member '" + member.setId()
-                        + "' pins '" + e.getKey() + "' to " + pins.size()
-                        + " sets; one per member is built");
-            }
-            String tgtSet = pins.get(0);
-            // a ROUTED navigate's raw join condition is its route's (the
-            // predicate reads the routed union's keys)
-            if (nav.routes().size() > 1) {
-                throw new NotImplementedException("mixed-union member route '" + e.getKey()
-                        + "' has " + nav.routes().size() + " routes; one per member is built");
-            }
-            com.legend.compiler.spec.typed.TypedLambda rawCond = nav.routes().isEmpty()
-                    ? nav.predicate() : nav.routes().get(0).cond();
-            List<TypedSpec> pk = new ArrayList<>();
-            List<TypedSpec> tk = new ArrayList<>();
-            splitEqualCond(rawCond, pk, tk);
-            String p0 = rawCond.parameters().get(0);
-            List<TypedSpec> rebased = pk.stream().map(x ->
-                    Pipelines.rewriteRowReads(x, p0, Map.of(),
-                            java.util.Set.of(),
-                            v -> new TypedVariable(member.rowVar(), mri)))
-                    .toList();
-            out.add(new MixedRoute(e.getKey(), tgtSet, rebased, rawCond));
-        }
-        for (var b : member.bindings().entrySet()) {
-            TypedSpec inner = b.getValue();
-            if (inner instanceof TypedNativeCall w && w.args().size() == 1) {
-                inner = w.args().get(0);
-            }
-            if (inner instanceof TypedNewInstanceCast nic
-                    && nic.targetSetId() != null
-                    && nic.source() instanceof TypedVariable v
-                    && v.name().equals(member.rowVar())) {
-                out.add(new MixedRoute(b.getKey(), nic.targetSetId(),
-                        List.of(frameOrdinalRead(member)), null));
-            }
-        }
-        return out;
-    }
-
-    private static TypedSpec frameOrdinalRead(ClassSource member) {
-        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-        for (Type.Column c : member.rowType().columns()) {
+        for (Type.Column c : row.columns()) {
             if (c.name().equals(JsonSourceFrame.FRAME_ORDINAL)) {
-                return new TypedPropertyAccess(new TypedVariable(
-                        member.rowVar(),
-                        new ExprType(member.rowType(), one)),
+                return new TypedPropertyAccess(new TypedVariable(var, new ExprType(row, one)),
                         c.name(), new ExprType(c.type(), c.multiplicity()));
             }
         }
-        throw new NotImplementedException("mixed-union member set of '"
-                + member.classFqn() + "' has a whole-source child route but"
-                + " its row carries no frame ordinal — only JSON-frame-backed"
-                + " Pure members support per-member children yet");
-    }
-
-    /** The join condition split into aligned (parent, target) operand
-     * lists — AND-of-equalities only, loud otherwise. */
-    private static void splitEqualCond(
-            com.legend.compiler.spec.typed.TypedLambda cond,
-            List<TypedSpec> parentSide, List<TypedSpec> targetSide) {
-        collectEqualPairs(cond.body().get(cond.body().size() - 1),
-                cond.parameters().get(0), cond.parameters().get(1),
-                parentSide, targetSide);
-    }
-
-    private static void collectEqualPairs(TypedSpec n, String p0, String p1,
-            List<TypedSpec> ps, List<TypedSpec> ts) {
-        if (n instanceof TypedNativeCall c) {
-            String q = c.callee().qualifiedName();
-            if (q.equals("meta::pure::functions::boolean::and")) {
-                for (TypedSpec a : c.args()) {
-                    collectEqualPairs(a, p0, p1, ps, ts);
-                }
-                return;
-            }
-            if (q.equals("meta::pure::functions::boolean::equal")
-                    && c.args().size() == 2) {
-                TypedSpec a = c.args().get(0);
-                TypedSpec b = c.args().get(1);
-                boolean a0 = readsVar(a, p0);
-                boolean a1 = readsVar(a, p1);
-                boolean b0 = readsVar(b, p0);
-                boolean b1 = readsVar(b, p1);
-                if (a0 && !a1 && b1 && !b0) {
-                    ps.add(a);
-                    ts.add(b);
-                    return;
-                }
-                if (b0 && !b1 && a1 && !a0) {
-                    ps.add(b);
-                    ts.add(a);
-                    return;
-                }
-            }
-        }
-        throw new NotImplementedException("mixed-union child route join"
-                + " condition is not an AND-of-two-sided-equalities shape: "
-                + n.getClass().getSimpleName());
-    }
-
-
-    /** The KEYED CHILD UNION for a class-typed property over a mixed
-     * extent: one arm per parent member (paired by the route's declared
-     * target set), each projecting the child class's scalar properties
-     * plus the pair's key columns (target-side operands; NULL elsewhere).
-     * {@code keysPerPair} aligns with the parent's arm order. */
-    record MixedChild(ClassSource target, List<List<String>> keysPerPair) {}
-
-    @com.legend.Nullable MixedChild mixedChildMaterial(String mappingFqn, String classFqn,
-            String prop, String childClassFqn) {
-        List<String> memberIds = ctx.mixedUnionMembers(mappingFqn, classFqn);
-        if (memberIds == null) {
-            return null;
-        }
-        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-        var optional = com.legend.compiler.element.type.Multiplicity.Bounded
-                .ZERO_ONE;
-        var many = com.legend.compiler.element.type.Multiplicity.Bounded
-                .ZERO_MANY;
-        List<String> ordered = mixedArmOrder(mappingFqn, classFqn, memberIds);
-        List<MixedRoute> routes = new ArrayList<>();
-        for (String memberId : ordered) {
-            ClassSource mem = get(mappingFqn, classFqn, memberId, null, "", null);
-            routes.add(mixedMemberRoutes(mem, mappingFqn).stream()
-                    .filter(r -> r.prop().equals(prop)).findFirst()
-                    .orElseThrow(() -> new NotImplementedException(
-                            "mixed-union member set '" + memberId + "' of '"
-                            + classFqn + "' has no child route for '" + prop
-                            + "' — NULL-child arms are not built yet")));
-        }
-        var ccls = ctx.findClass(childClassFqn).orElseThrow();
-        List<Type.Column> cCols = new ArrayList<>();
-        for (var p : ccls.properties()) {
-            if (!(Type.asClassType(p.type()) instanceof Type.ClassType)) {
-                cCols.add(new Type.Column(p.name(), p.type(),
-                        p.multiplicity()));
-            }
-        }
-        List<List<String>> keysPerPair = new ArrayList<>();
-        for (int i = 0; i < routes.size(); i++) {
-            MixedRoute r = routes.get(i);
-            List<String> names = new ArrayList<>();
-            for (int k = 0; k < r.memberKeys().size(); k++) {
-                names.add(mixedKeyCol(prop, i, k));
-            }
-            keysPerPair.add(names);
-        }
-        // THE STACK builds the keyed child union: one arm per pair (the
-        // pair's declared target set, its own source), the child class's
-        // scalar properties by each arm's bindings, the pair's key columns
-        // as demanded extras (target-side operands; NULL elsewhere)
-        MappingDefinition mdef = ctx.findMapping(mappingFqn).orElseThrow(() ->
-                new MappingResolutionException("unknown mapping '" + mappingFqn + "'", mappingFqn));
-        java.util.Set<String> distinctTargets = new LinkedHashSet<>();
-        List<StackBuilder.Arm> arms = new ArrayList<>();
-        List<StackBuilder.Extra> extras = new ArrayList<>();
-        for (int i = 0; i < routes.size(); i++) {
-            MixedRoute r = routes.get(i);
-            if (!distinctTargets.add(r.targetSetId())) {
-                throw new NotImplementedException("mixed-union child '" + prop
-                        + "': two parent members route to the same target set"
-                        + " '" + r.targetSetId() + "' — duplicate child arms"
-                        + " would double rows");
-            }
-            ClassSource arm = get(mappingFqn, childClassFqn, r.targetSetId(),
-                    null, "", null);
-            TypedSpec pipe = Pipelines.materialize(arm.pipeline(),
-                    java.util.Set.of(), childClassFqn).pipeline();
-            Type.RelationType aRow = Type.requireRelationSchema(pipe.info().type());
-            ExprType ari = new ExprType(aRow, one);
-            List<TypedSpec> tKeys;
-            if (r.navCond() == null) {
-                tKeys = List.of(frameOrdinalRead(arm));
-            } else {
-                List<TypedSpec> pk = new ArrayList<>();
-                List<TypedSpec> tk = new ArrayList<>();
-                splitEqualCond(r.navCond(), pk, tk);
-                String p1 = r.navCond().parameters().get(1);
-                // the navigate cond's target-side reads on the pair's OWN arm
-                tKeys = tk.stream().map(x -> Pipelines.rewriteRowReads(x, p1,
-                                Map.of(), java.util.Set.of(),
-                                v -> new TypedVariable(arm.rowVar(), ari))).toList();
-            }
-            arms.add(new StackBuilder.Arm(arm, pipe, null));
-            List<String> names = keysPerPair.get(i);
-            for (int k = 0; k < names.size(); k++) {
-                Map<Integer, TypedSpec> perArm = new LinkedHashMap<>();
-                perArm.put(i, tKeys.get(k));
-                extras.add(new StackBuilder.Extra(names.get(k),
-                        r.memberKeys().get(k).info().type(), perArm));
-            }
-        }
-        return new MixedChild(stacks.stackOf(mappingFqn, childClassFqn, mdef, arms, extras, false),
-                keysPerPair);
+        throw new NotImplementedException("a whole-source child route needs the frame"
+                + " ordinal, which this row does not carry (columns "
+                + row.columns().stream().map(Type.Column::name).toList()
+                + ") — only JSON-frame-backed Pure members carry per-member children yet");
     }
 
     /**
@@ -1179,12 +955,94 @@ public final class ClassSources {
                 deferred.put(e.getKey(), wall.getMessage());
             }
         }
+        // a MIXED union's Pure member: its WHOLE-SOURCE child (`product[set]:
+        // $src` — the same frame row seen through the child's set) is a
+        // navigate STEP on the member's pipeline, routed to the child set's
+        // function and keyed on the frame ordinal; the union above lifts it
+        // like any arm's step (the one keyed child union). The binding is
+        // the slot read.
+        List<String> mixedMembers = ctx.mixedUnionMembers(mappingFqn, classFqn);
+        if (mixedMembers != null && binding.setId() != null && mixedMembers.contains(binding.setId())) {
+            for (var e : new ArrayList<>(composed.entrySet())) {
+                TypedSpec v = Pipelines.unwrapToOne(e.getValue());
+                if (!(v instanceof TypedNewInstanceCast nic) || nic.targetSetId() == null
+                        || !(nic.source() instanceof TypedVariable sv)
+                        || !sv.name().equals(inner.rowVar())) {
+                    continue;
+                }
+                ClassSource child = get(mappingFqn, nic.classFqn(), nic.targetSetId(),
+                        upstreamMapping, contextKey, null);
+                composedPipeline = wholeSourceStep(mappingFqn, composedPipeline, e.getKey(),
+                        inner, child, nic);
+                composed.put(e.getKey(), new TypedPropertyAccess(
+                        new TypedVariable(inner.rowVar(), ExprType.one(inner.rowType())),
+                        e.getKey(), nic.info()));
+            }
+        }
         // audit 24 F4: the composition's FRAME IDENTITY — the deep source
         // class (jsonSources key); two sets sharing it share the frame
         return new ClassSource(mappingFqn, classFqn, binding.setId(),
                 composedPipeline, inner.rowVar(), composed, inner.rowType(),
                 inner.sourceClass() != null ? inner.sourceClass()
                         : inner.classFqn(), deferred);
+    }
+
+    /** The whole-source child as a routed navigate step: one route naming
+     * the child set's function, its rows the child's own frame, its
+     * condition the frame ordinal equality; the step's predicate reads the
+     * routed union's key (the checker's spelling of a route list). */
+    private TypedNavigate wholeSourceStep(String mappingFqn, TypedSpec pipeline, String prop,
+            ClassSource parent, ClassSource child, TypedNewInstanceCast cast) {
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var optional = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
+        var many = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY;
+        ExprType bool = new ExprType(Type.Primitive.BOOLEAN, one);
+        TypedFunction eq = java.util.Objects.requireNonNull(new Callees(ctx).equal(),
+                "boolean::equal");
+        String p = "p_ws";
+        String c = "c_ws";
+        String key = "__route0_0";
+        TypedSpec pk = frameOrdinalRead(parent.rowType(), p);
+        TypedSpec ck = frameOrdinalRead(child.rowType(), c);
+        // the route's condition over (parent row, child row)
+        var routeFn = new Type.FunctionType(
+                List.of(new Type.Param(parent.rowType(), one), new Type.Param(child.rowType(), one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedLambda cond = new TypedLambda(List.of(p, c),
+                List.of(new TypedNativeCall(eq, List.of(pk, ck), bool)), new ExprType(routeFn, one));
+        // the step's predicate over (parent row, the routed union's key row)
+        Type.RelationType urow = new Type.RelationType(List.of(
+                new Type.Column(key, ck.info().type(), optional)));
+        var stepFn = new Type.FunctionType(
+                List.of(new Type.Param(parent.rowType(), one), new Type.Param(urow, one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedSpec uk = new TypedPropertyAccess(new TypedVariable("u_ws", ExprType.one(urow)), key,
+                new ExprType(ck.info().type(), optional));
+        TypedLambda predicate = new TypedLambda(List.of(p, "u_ws"),
+                List.of(new TypedNativeCall(eq, List.of(pk, uk), bool)), new ExprType(stepFn, one));
+        MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow();
+        MappingDefinition.ClassBinding cb = findBinding(mapping, cast.classFqn(),
+                cast.targetSetId(), new LinkedHashSet<>());
+        if (cb == null) {
+            throw new MappingResolutionException("whole-source child '" + prop + "' names set '"
+                    + cast.targetSetId() + "' of '" + cast.classFqn() + "', which mapping '"
+                    + mappingFqn + "' does not bind", cast.classFqn());
+        }
+        List<TypedFunction> fns = ctx.findFunction(cb.functionFqn());
+        if (fns.size() != 1) {
+            throw new IllegalStateException("resolver bug: set function '" + cb.functionFqn()
+                    + "' has " + fns.size() + " registrations");
+        }
+        TypedFunction fn = fns.get(0);
+        TypedSpec setCall = new TypedUserCall(fn, List.of(),
+                new ExprType(fn.returnType(), fn.returnMultiplicity()));
+        TypedGetAll extent = new TypedGetAll(cast.classFqn(), List.of(), false, false,
+                new ExprType(new Type.ClassType(cast.classFqn()), many));
+        var route = new TypedNavigate.Route(setCall, child.pipeline(), cond,
+                List.of(JsonSourceFrame.FRAME_ORDINAL), List.of(key));
+        return new TypedNavigate(pipeline, java.util.Optional.of(prop), extent, predicate,
+                java.util.Optional.empty(), null, TypedNavigate.Form.PRE_MAP, pipeline.info(),
+                List.of(route));
     }
 
     /**

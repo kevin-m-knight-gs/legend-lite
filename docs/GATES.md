@@ -2805,3 +2805,43 @@ M2 1 · M3 0 · M4 5.
 
 **Next.** Leg 4c: a Pure member's whole-source route as a navigate step (the mixed child dispatch
 dies); 4d: B4/B5.
+
+## Legacy routes as composition, leg 4c — a Pure member's whole-source child as a navigate step — 2026-09-15
+
+**Why.** The mixed union (a Relational member beside a Pure member, the cross-store goldens) still
+carried three bespoke pieces beside the stack: the members' child routes as demanded extra
+columns (`MixedRoute`/`mixedMemberRoutes`), a hand-assembled keyed child union per property
+(`mixedChildMaterial`), and a graph-fetch child emission of its own (`GraphEmission.mixedUnionChild`,
+OR over pairs of AND over key equalities). The Relational member's child was already a navigate
+step; the Pure member's whole-source child (`product[set]: $src` — the same JSON frame row seen
+through the child's set) was a class-typed cast binding the stack could not lift. Census (an
+instrumented DuckDB lane): two corpus mappings (`crossMappingUnion`, `crossMappingUnion2`), one
+mixed child (`Trade.product`), four rows (`XStoreUnion::inMemoryAndRelational::test{Simple,Nested}
+Union{,OnMultipleSets}CrossStore`).
+
+**What landed.**
+- `ClassSources.wholeSourceStep`: a mixed-union Pure member's whole-source cast becomes a navigate
+  STEP on the member's pipeline — one route naming the child set's function, its rows the child's
+  own frame, its condition the frame-ordinal equality; the step's predicate reads the routed
+  union's key exactly as the checker spells a route list; the binding is the slot read.
+- `mixedUnionSource` = `stackOf` over the members with lifts: the arms' class-typed steps (the
+  Relational member's pinned join, the Pure member's whole-source child) lift above the stack as
+  routes — the keyed child union is the one the stack builds for every operation, and graph fetch
+  serves it through the routed step's union like any stack's child.
+- DELETED: `MixedRoute`, `mixedMemberRoutes`, `MixedChild`, `mixedChildMaterial`, `mixedKeyCol`,
+  `splitEqualCond`, `collectEqualPairs`; `GraphEmission.mixedUnionChild`, `mixedKeyColumn`,
+  `mixedChildClassOf`, `mixedChildToMany` and the per-member dispatch at the graph child.
+- Scope: the step is built for members of a MIXED union (the fact `mixedUnionMembers`); a plain
+  model-to-model mapping's whole-source child keeps the inline same-instance emission
+  (`wholeSrcChild`) — its conversion to a step is the follow-up named below.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes; the four census rows
+green on the first run of the step-based path.
+
+**Chain.** Gates 1, 2, 4–9 green on the first run; gate 3 red on the claims ledger (the deleted
+graph child no longer names `and`/`equal`/`or` — regenerated) and rerun green. **Measures (§11.0).** M1 1,091 · M2 1 · M3 0 · M4 5. Batch size: 2 files,
++106 / −368 (`ClassSources` 1,500 lines, `GraphEmission` 3,379).
+
+**Next.** Leg 4d: B4 (policy out of the normalizer: the driver applies strict/tolerant, the
+normalizer reports facts) and B5 (every guard loud or documented). Follow-up: the plain M2M
+whole-source child as the same step (delete `wholeSrcChild`).
