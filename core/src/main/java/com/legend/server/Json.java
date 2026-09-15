@@ -295,10 +295,14 @@ public final class Json {
             for (Object item : c) items.add(of(item));
             return new Arr(items);
         }
-        if (v.getClass().isArray()) {
-            int len = java.lang.reflect.Array.getLength(v);
-            List<Node> items = new ArrayList<>(len);
-            for (int i = 0; i < len; i++) items.add(of(java.lang.reflect.Array.get(v, i)));
+        if (v instanceof Object[] arr) {
+            List<Node> items = new ArrayList<>(arr.length);
+            for (Object item : arr) items.add(of(item));
+            return new Arr(items);
+        }
+        if (v instanceof int[] || v instanceof long[] || v instanceof double[] || v instanceof boolean[]) {
+            List<Node> items = new ArrayList<>();
+            for (Object item : boxed(v)) items.add(of(item));
             return new Arr(items);
         }
         throw new IllegalArgumentException("Cannot coerce to JSON node: " + v.getClass().getName());
@@ -362,14 +366,35 @@ public final class Json {
             w.endArray();
             return;
         }
-        if (v.getClass().isArray()) {
+        if (v instanceof Object[] arr) {
             w.beginArray();
-            int len = java.lang.reflect.Array.getLength(v);
-            for (int i = 0; i < len; i++) writeValue(w, java.lang.reflect.Array.get(v, i));
+            for (Object item : arr) writeValue(w, item);
+            w.endArray();
+            return;
+        }
+        if (v instanceof int[] || v instanceof long[] || v instanceof double[] || v instanceof boolean[]) {
+            w.beginArray();
+            for (Object item : boxed(v)) writeValue(w, item);
             w.endArray();
             return;
         }
         throw new IllegalArgumentException("Cannot serialize to JSON: " + v.getClass().getName());
+    }
+
+    /** The primitive array kinds this serializer accepts, boxed — named
+     * one by one; no reflective array access (the architecture bans
+     * java.lang.reflect in the product). */
+    private static List<Object> boxed(Object primitiveArray) {
+        List<Object> out = new ArrayList<>();
+        switch (primitiveArray) {
+            case int[] a -> { for (int x : a) out.add(x); }
+            case long[] a -> { for (long x : a) out.add(x); }
+            case double[] a -> { for (double x : a) out.add(x); }
+            case boolean[] a -> { for (boolean x : a) out.add(x); }
+            default -> throw new IllegalArgumentException(
+                    "Cannot serialize to JSON: " + primitiveArray.getClass().getName());
+        }
+        return out;
     }
 
     private static void writeNode(Writer w, Node n) {

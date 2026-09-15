@@ -3141,3 +3141,35 @@ Batch size: 3 files, +83 / −4.
 **Next.** The arc's four items are landed (6a arms as a fact; 6b/6c audit, citations, view frame;
 6d this; 6e the lane's speed). Lineage over an inheritance operation stays with the
 metamodel-as-data program (its corpus row is green).
+
+## Leg 6f — no reflection in the product, no pardons — 2026-09-15
+
+**Why.** USER: "do we do Java reflection in our code? we have to ArchRule fully ban that and fix
+anywhere we do reflection." Census of the product code: two real reflective sites, both
+pardoned by name since 2026-08-18 under F1.11 with a site-count pin (2 + 4) — `ScanColumns`
+walked any record's components by `getRecordComponents()`/`invoke` to find SQL sub-nodes (on the
+lineage verdict path), and `server/Json` serialized arbitrary arrays through
+`java.lang.reflect.Array`; one class-name-as-logic site — `FunctionBodyRows` decided "is a
+literal" by `getClass().getSimpleName().startsWith("TypedC")`. Not reflection and kept: 159
+`getSimpleName()` uses in error messages; one typed `Class<T>` token for `isInstance`/`cast`;
+the `ServiceLoader` plugin seam; `GenericTypeReflection` (Pure's `genericType()`, not Java).
+
+**What landed.**
+- `ScanColumns` walks the SQL tree by its typed `children()` contract (exhaustive over the
+  variants; query-carrying nodes keep their explicit arms) — the reflective record walk and its
+  helper are gone.
+- `FunctionBodyRows` names the literal node kinds (the eight `TypedC*` literals, plus the column
+  specs and the CSV census node the old prefix rule also classified) — no class-name prefix.
+- `server/Json` names the array kinds it serializes (`Object[]` and the four primitive arrays);
+  anything else is loud, as before.
+- `ArchitectureTest.reflectionIsBannedInProduction`: the two name pardons and the site-count
+  test are deleted; the rule now also closes the reflective doors on `Class` itself (`forName`,
+  `getRecordComponents`, `getDeclared*`, `getMethod*`, `getField*`, `getConstructor*`,
+  `newInstance`) for every production class.
+- `CodeShapeGuardrailTest.classNamesAreNeverLogic`: `getSimpleName()` used in a decision
+  (`equals`/`startsWith`/`contains`/`switch`, or `getClass() ==`) pinned at ZERO; messages stay.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 48 s, H2 22 s).
+Batch size: 5 files, +116 / −101.
+
+**Chain.** Green on the first run, wall 228 s: G2 25s, G1 74s, G3 11s, G4 82s, G5 36s, G6 133s, G7 38s, G9 31s, G8 136s.

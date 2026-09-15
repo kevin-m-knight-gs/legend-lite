@@ -100,8 +100,22 @@ final class FunctionBodyRows {
             case com.legend.compiler.spec.typed.TypedNewInstance ignored -> "InstanceValue";
             case com.legend.compiler.spec.typed.TypedTypeRef ignored -> "InstanceValue";
             case com.legend.compiler.spec.typed.TypedPackageableRef ignored -> "InstanceValue";
-            default -> n.getClass().getSimpleName().startsWith("TypedC")
-                    && n.children().isEmpty() ? "InstanceValue" : "FunctionExpression";
+            // the literal node kinds, named (never a class-name prefix)
+            case com.legend.compiler.spec.typed.TypedCString ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCInteger ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCFloat ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCDecimal ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCBoolean ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCDate ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCLatestDate ignored -> "InstanceValue";
+            // a column spec (`~name`, `~[a, b]`) and the CSV census node are
+            // instance values in the engine's body model too (the former
+            // class-name-prefix rule classified them so; kept explicit)
+            case com.legend.compiler.spec.typed.TypedColSpec ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedColSpecArray ignored -> "InstanceValue";
+            case com.legend.compiler.spec.typed.TypedCsvCensus ignored -> "InstanceValue";
+            default -> "FunctionExpression";
         };
     }
 }

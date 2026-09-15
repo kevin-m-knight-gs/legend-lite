@@ -265,6 +265,35 @@ class CodeShapeGuardrailTest {
     // stays there: dead private code is deleted, never backlogged.
     private static final int DEAD_PRIVATE_METHODS = 0;
 
+    /** Class NAMES used as LOGIC ({@code getSimpleName().startsWith("TypedC")}
+     * standing in for "is a literal"): a decision names its node kind (a
+     * {@code switch} over the sealed variants), never a name prefix. The
+     * one site (FunctionBodyRows) went typed on 2026-09-15 with the
+     * reflection ban; the pin is ZERO. {@code getSimpleName()} inside an
+     * error MESSAGE is fine and is not matched. */
+    private static final int CLASS_NAME_LOGIC_SITES = 0;
+
+    @Test
+    void classNamesAreNeverLogic() throws IOException {
+        Pattern logic = Pattern.compile(
+                "getSimpleName\\(\\)\\s*\\.\\s*(equals|equalsIgnoreCase|startsWith|endsWith"
+                + "|contains|matches|hashCode|compareTo)\\s*\\("
+                + "|switch\\s*\\(\\s*[\\w.]*\\s*\\.?\\s*getClass\\(\\)\\s*\\.\\s*getSimpleName\\(\\)"
+                + "|getClass\\(\\)\\s*==|getClass\\(\\)\\s*\\.\\s*equals\\(");
+        List<String> sites = new ArrayList<>();
+        for (Path p : mainSources()) {
+            String code = blankNonCode(Files.readString(p));
+            Matcher m = logic.matcher(code);
+            while (m.find()) {
+                sites.add(p.getFileName() + ": " + m.group());
+            }
+        }
+        assertTrue(sites.size() <= CLASS_NAME_LOGIC_SITES,
+                () -> "class names used as logic grew to " + sites.size()
+                        + " (pinned at " + CLASS_NAME_LOGIC_SITES + "): " + sites
+                        + " — switch on the node kind instead");
+    }
+
     @Test
     void deadPrivateMethodsOnlyShrink() throws IOException {
         List<String> dead = new ArrayList<>();

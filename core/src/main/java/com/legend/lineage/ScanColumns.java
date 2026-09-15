@@ -35,7 +35,8 @@ import java.util.Set;
  * the alias environment (union branches all resolve; correlated
  * subqueries see the outer scope). Silent drops are wrong lineage, so
  * the expression walk is TOTAL: unhandled composite nodes recurse over
- * their record components reflectively.
+ * their typed children ({@code SqlExpr.children()}, exhaustive over the
+ * variants) — never over record components by reflection.
  */
 public final class ScanColumns {
 
@@ -315,37 +316,14 @@ public final class ScanColumns {
         }
     }
 
-    private static void useChildren(Object node, Map<String, Resolver> env,
+    /** Every other expression: its TYPED children ({@code SqlExpr.children()},
+     * the one traversal contract every SQL walker shares — exhaustive over
+     * the variants, so a new node kind declares its children there or fails
+     * to compile). Query-carrying nodes are the explicit arms above. */
+    private static void useChildren(SqlExpr node, Map<String, Resolver> env,
             String ctx, Set<Entry> out) {
-        for (Object child : recordChildren(node)) {
-            if (child instanceof SqlExpr ce) {
-                use(ce, env, ctx, out);
-            } else if (child instanceof SqlQuery cq) {
-                scanQuery(cq, env, out, false);
-            } else if (child instanceof Record) {
-                useChildren(child, env, ctx, out);
-            }
+        for (SqlExpr child : node.children()) {
+            use(child, env, ctx, out);
         }
-    }
-
-    private static List<Object> recordChildren(Object node) {
-        List<Object> out = new ArrayList<>();
-        if (!(node instanceof Record)) {
-            return out;
-        }
-        for (var rc : node.getClass().getRecordComponents()) {
-            Object v;
-            try {
-                v = rc.getAccessor().invoke(node);
-            } catch (ReflectiveOperationException ex) {
-                throw new IllegalStateException(ex);
-            }
-            if (v instanceof List<?> l) {
-                out.addAll(l);
-            } else if (v instanceof Record) {
-                out.add(v);
-            }
-        }
-        return out;
     }
 }

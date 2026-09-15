@@ -578,16 +578,18 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>F1.11 — reflection is BANNED in production.</strong>
-     * Reflection is the one mechanism that bypasses every dependency
-     * rule in this file (a {@code Class.forName("java.sql...")} carries
-     * no bytecode dependency ArchUnit can see). The bytecode rule found
-     * what the source census missed — pre-existing sites (ScanColumns'
-     * reflective record-tree walker, server/Json's generic Array
-     * serialization; DbMetaData's java.sql.Types iteration died with
-     * E4.b), frozen here shrink-only with removal backlogged
-     * (FOUNDATIONS_PLAN §9). NO NEW reflection: a third class fails.
-     * JDBC drivers load via ServiceLoader, never {@code Class.forName}.
+     * <strong>F1.11 — reflection is BANNED in production (USER
+     * 2026-09-15: no pardons).</strong> Reflection is the one mechanism
+     * that bypasses every dependency rule in this file (a
+     * {@code Class.forName("java.sql...")} carries no bytecode dependency
+     * ArchUnit can see), and the one way the product could discover or
+     * invoke its own types by name. The two pardoned residues are gone
+     * (ScanColumns walks the SQL tree's typed {@code children()};
+     * server/Json names the array kinds it serializes); the rule now also
+     * closes the reflective doors on {@code Class} itself. A walker uses
+     * the typed children contract, a decision names its node kind (the
+     * code-shape guardrail keeps {@code getSimpleName()} out of logic),
+     * a plugin joins through the documented {@code ServiceLoader} seam.
      * Tests keep reflection (the guardrails themselves need it).
      */
     /**
@@ -654,60 +656,27 @@ final class ArchitectureTest {
     void reflectionIsBannedInProduction() {
         noClasses()
             .that().resideInAPackage("com.legend..")
-            // the frozen pre-existing TWO (nested classes ride along) —
-            // DbMetaData's java.sql.Types field iteration DIED with the
-            // E4.b information_schema rewrite; the pin shrank
-            .and().haveNameNotMatching(
-                    "com\\.legend\\.lineage\\.ScanColumns(\\$.*)?")
-            .and().haveNameNotMatching(
-                    "com\\.legend\\.server\\.Json(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
-            .as("F1.11: no NEW reflection in production — it bypasses"
-                    + " every dependency rule; the frozen two shrink"
-                    + " only")
+            // and the reflective doors on Class itself (no java.lang.reflect
+            // import needed to open them)
+            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaMethodCall>(
+                    "a reflective Class method (forName, getRecordComponents, getDeclared*,"
+                    + " getMethod*, getField*, getConstructor*, newInstance)") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    var target = call.getTarget();
+                    return target.getOwner().isEquivalentTo(Class.class)
+                            && target.getName().matches(
+                                    "forName|getRecordComponents|getDeclared\\w*|getMethods?"
+                                    + "|getFields?|getConstructors?|newInstance");
+                }
+            })
+            .as("F1.11: NO reflection in production — the product never discovers or"
+                    + " invokes its own types by name: walk typed children, switch on"
+                    + " node kinds, register plugins through the SPI seam")
             .check(CORE_PROD_CLASSES);
-    }
-
-    /**
-     * F1.11b (Tier-2 audit 2026-08-18): the two PARDONED classes are
-     * SITE-counted, not pardoned wholesale — the original audit's
-     * probe 11 grew reflection inside {@code server/Json} GREEN
-     * because the name-regex pardon had no interior measure. Exact
-     * pins; shrink deletes the row with the residue.
-     */
-    @Test
-    void thePardonedReflectionClassesAreSiteCounted() throws Exception {
-        var pins = java.util.Map.of(
-                "src/main/java/com/legend/lineage/ScanColumns.java", 2,
-                "src/main/java/com/legend/server/Json.java", 4);
-        var spelling = java.util.regex.Pattern.compile(
-                "java\\.lang\\.reflect|getMethod\\(|getDeclaredMethod"
-                + "|Class\\.forName|\\.invoke\\(|getRecordComponents"
-                + "|MethodHandles");
-        StringBuilder drift = new StringBuilder();
-        for (var e : pins.entrySet()) {
-            String src = java.nio.file.Files.readString(
-                    java.nio.file.Path.of(e.getKey()))
-                    .replaceAll("(?s)/\\*.*?\\*/", "")
-                    .replaceAll("//.*", "");
-            var m = spelling.matcher(src);
-            int n = 0;
-            while (m.find()) {
-                n++;
-            }
-            if (n != e.getValue()) {
-                drift.append("\n  ").append(e.getKey()).append(": ")
-                        .append(n).append(" reflective sites, pinned ")
-                        .append(e.getValue())
-                        .append(n > e.getValue()
-                                ? " — the pardon covers the EXISTING"
-                                        + " residue only, never growth"
-                                : " — residue died: shrink the pin");
-            }
-        }
-        org.junit.jupiter.api.Assertions.assertTrue(drift.length() == 0,
-                "pardoned-reflection site drift (F1.11b):" + drift);
     }
 
     /**
