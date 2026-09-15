@@ -30,6 +30,12 @@ final class Pipeline {
      * when the property name collides with a physical main-table column
      * — the milestoningmap 'exchange' case). */
     final Map<String, String> navSlotByProp = new LinkedHashMap<>();
+    /** The Inline embedded set ids being spliced right now, outermost first
+     * — the one cycle an embedded materialization can have (set a splices
+     * set b splices set a); a set already on the stack is loud
+     * (audit 2026-09-15 P0-3: the old class-keyed guard got a fresh set
+     * from every caller and recursed to a StackOverflowError). */
+    final Set<String> inlineStack = new java.util.LinkedHashSet<>();
 
     /** Nav-slot OWNER class (property name -> owning class FQN): the
      * collision guards fire only across DIFFERENT owners — same-owner

@@ -176,6 +176,18 @@ final class UnionSynthesis {
             String ownerCls, ResolvedMapping md, ModelBuilder model,
             Map<String, List<PropertyMapping.Join>> routedByProp,
             Map<String, String> ownerByProp) {
+        collectRoutedJoins(pms, ownerCls, md, model, routedByProp, ownerByProp,
+                new LinkedHashSet<>());
+    }
+
+    /** {@code splicing}: the Inline embedded set ids being descended right
+     * now — the one way this walk can recurse (set a splices set b splices
+     * set a); re-entry is a model error, never a StackOverflowError
+     * (audit 2026-09-15 P0-3). */
+    private static void collectRoutedJoins(List<PropertyMapping> pms,
+            String ownerCls, ResolvedMapping md, ModelBuilder model,
+            Map<String, List<PropertyMapping.Join>> routedByProp,
+            Map<String, String> ownerByProp, Set<String> splicing) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.Join j when j.targetSetId() != null -> {
@@ -188,7 +200,7 @@ final class UnionSynthesis {
                             emb.propertyName(), model);
                     if (inner != null) {
                         collectRoutedJoins(emb.propertyMappings(), inner,
-                                md, model, routedByProp, ownerByProp);
+                                md, model, routedByProp, ownerByProp, splicing);
                     }
                 }
                 case PropertyMapping.OtherwiseEmbedded oe -> {
@@ -205,25 +217,36 @@ final class UnionSynthesis {
                             oe.propertyName(), model);
                     if (inner != null) {
                         collectRoutedJoins(oe.embedded(), inner, md, model,
-                                routedByProp, ownerByProp);
+                                routedByProp, ownerByProp, splicing);
                     }
                 }
                 case PropertyMapping.InlineEmbedded ie -> {
-                    for (ClassMapping cm : md.classMappings()) {
-                        if (cm instanceof ClassMapping.Relational r2
-                                && java.util.Objects.equals(
-                                        ResolvedMapping.idOf(r2),
-                                        ie.setId())) {
-                            collectRoutedJoins(r2.propertyMappings(),
-                                    r2.className(), md, model,
-                                    routedByProp, ownerByProp);
-                            break;
+                    if (!splicing.add(ie.setId())) {
+                        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                                "Cycle materializing Inline embedded set '" + ie.setId()
+                              + "' via '" + ie.propertyName() + "' on '" + ownerCls
+                              + "': the splice chain " + splicing + " returns to it; mapping="
+                              + md.qualifiedName());
+                    }
+                    try {
+                        for (ClassMapping cm : md.classMappings()) {
+                            if (cm instanceof ClassMapping.Relational r2
+                                    && java.util.Objects.equals(
+                                            ResolvedMapping.idOf(r2),
+                                            ie.setId())) {
+                                collectRoutedJoins(r2.propertyMappings(),
+                                        r2.className(), md, model,
+                                        routedByProp, ownerByProp, splicing);
+                                break;
+                            }
                         }
+                    } finally {
+                        splicing.remove(ie.setId());
                     }
                 }
                 case PropertyMapping.LocalProperty lp ->
                         collectRoutedJoins(List.of(lp.body()), ownerCls,
-                                md, model, routedByProp, ownerByProp);
+                                md, model, routedByProp, ownerByProp, splicing);
                 default -> {
                 }
             }

@@ -792,7 +792,7 @@ public final class MappingNormalizer {
         // order silently decided the outcome), so no map-driven pre-rewrite
         // happens here.
         ValueSpecification body = switch (cm) {
-            case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, ledger, new HashSet<>());
+            case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, ledger);
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model, ledger);
             case ClassMapping.Union u        -> UnionSynthesis.synthUnion(md, u, model, ledger);
             case ClassMapping.Inheritance ih -> UnionSynthesis.synthInheritance(md, ih, model, ledger);
@@ -1145,87 +1145,80 @@ public final class MappingNormalizer {
     private static ValueSpecification synthM2M(ResolvedMapping md,
                                               ClassMapping.Pure pcm,
                                               ModelBuilder model,
-                                              MappingLedger ledger,
-                                              Set<String> cycleStack) {
-        cycleStack.add(pcm.className());
-        try {
-            // Source: SourceClass.all() — emitted as getAll(SourceClass).
-            String srcFqn = pcm.sourceClass();
-            if (srcFqn == null) {
-                // A Pure mapping with no ~src is legal to WRITE and legal to
-                // compile (engine leaves _srcClass null), but the M2M
-                // pipeline is "every instance of the source, mapped" — with
-                // no source there is no extent to iterate, so there is
-                // nothing this could execute. Refuse where the meaning runs
-                // out, not where the syntax does.
-                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                        "Pure class mapping for '" + pcm.className()
-                        + "' in mapping '" + md.qualifiedName()
-                        + "' declares no ~src, so it has no source extent to"
-                        + " map from — such a mapping can be compiled and"
-                        + " analysed but cannot produce rows");
-            }
-            ValueSpecification source = new AppliedFunction("getAll",
-                    List.of(new PackageableElementPtr(srcFqn)));
-            if (pcm.filter() != null) {
-                source = new AppliedFunction("filter", List.of(source,
-                        new LambdaFunction(List.of(new Variable("src")),
-                                           List.of(pcm.filter()))));
-            }
-            // Terminal: map(src | ^Class(...)).
-            Variable srcBind = new Variable("src");
-            Map<String, KeyExpression> fields = new LinkedHashMap<>();
-            ClassDefinition tgt = MissProbe.knownMiss(model.knowledge().hierarchyClass(pcm.className()));
-            for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
-                // Audit 21a: the parsed mappingLine heads are honored or
-                // poisoned by DESIGN — never dropped. A local (+prop) is
-                // checked FIRST so a name collision with a real/inherited/
-                // association property can never silently retarget it (the
-                // engine keeps local mapping properties distinct).
-                if (pb.local()) {
-                    // mapping-LOCAL property (the XStore assoc-key idiom):
-                    // composes as an extra isLocal binding column;
-                    // collision with a declared property stays the audit
-                    // 21a poison (M2mRouteGuards.localField)
-                    fields.put(pb.propertyName(), M2mRouteGuards.localField(
-                            pb, tgt, md, model,
-                            model.knowledge().propertyType(tgt, pb.propertyName()) != null));
-                    continue;
-                }
-                if (pb.explode()) {
-                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                            "M2M explosion '" + pb.propertyName() + "*' is a"
-                          + " roadmap feature (index-aligned zip fan-out — one"
-                          + " target instance per source element); mapping="
-                          + md.qualifiedName());
-                }
-                if (pb.enumMappingId() != null) {
-                    // parsed and RECORDED (the mft/testExplosion corpus
-                    // families) — dropping the transformer would read raw
-                    // source values as enum names, silently wrong
-                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                            "M2M enum transformer 'EnumerationMapping "
-                          + pb.enumMappingId() + "' on '" + pb.propertyName()
-                          + "' is a roadmap feature (source-value decode on"
-                          + " the M2M read); mapping=" + md.qualifiedName());
-                }
-                String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
-                        b -> model.knowledge().propertyType(tgt, b) != null);
-                fields.put(keyName,
-                        new KeyExpression(m2mPropertyValue(pb, tgt, md, model, ledger, cycleStack), false, false));
-            }
-            return new AppliedFunction("map", List.of(source,
-                    new LambdaFunction(List.of(srcBind),
-                                       List.of(buildNewInstance(pcm.className(), fields)))));
-        } finally {
-            cycleStack.remove(pcm.className());
+                                              MappingLedger ledger) {
+        // Source: SourceClass.all() — emitted as getAll(SourceClass).
+        String srcFqn = pcm.sourceClass();
+        if (srcFqn == null) {
+            // A Pure mapping with no ~src is legal to WRITE and legal to
+            // compile (engine leaves _srcClass null), but the M2M
+            // pipeline is "every instance of the source, mapped" — with
+            // no source there is no extent to iterate, so there is
+            // nothing this could execute. Refuse where the meaning runs
+            // out, not where the syntax does.
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "Pure class mapping for '" + pcm.className()
+                    + "' in mapping '" + md.qualifiedName()
+                    + "' declares no ~src, so it has no source extent to"
+                    + " map from — such a mapping can be compiled and"
+                    + " analysed but cannot produce rows");
         }
+        ValueSpecification source = new AppliedFunction("getAll",
+                List.of(new PackageableElementPtr(srcFqn)));
+        if (pcm.filter() != null) {
+            source = new AppliedFunction("filter", List.of(source,
+                    new LambdaFunction(List.of(new Variable("src")),
+                                       List.of(pcm.filter()))));
+        }
+        // Terminal: map(src | ^Class(...)).
+        Variable srcBind = new Variable("src");
+        Map<String, KeyExpression> fields = new LinkedHashMap<>();
+        ClassDefinition tgt = MissProbe.knownMiss(model.knowledge().hierarchyClass(pcm.className()));
+        for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
+            // Audit 21a: the parsed mappingLine heads are honored or
+            // poisoned by DESIGN — never dropped. A local (+prop) is
+            // checked FIRST so a name collision with a real/inherited/
+            // association property can never silently retarget it (the
+            // engine keeps local mapping properties distinct).
+            if (pb.local()) {
+                // mapping-LOCAL property (the XStore assoc-key idiom):
+                // composes as an extra isLocal binding column;
+                // collision with a declared property stays the audit
+                // 21a poison (M2mRouteGuards.localField)
+                fields.put(pb.propertyName(), M2mRouteGuards.localField(
+                        pb, tgt, md, model,
+                        model.knowledge().propertyType(tgt, pb.propertyName()) != null));
+                continue;
+            }
+            if (pb.explode()) {
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "M2M explosion '" + pb.propertyName() + "*' is a"
+                      + " roadmap feature (index-aligned zip fan-out — one"
+                      + " target instance per source element); mapping="
+                      + md.qualifiedName());
+            }
+            if (pb.enumMappingId() != null) {
+                // parsed and RECORDED (the mft/testExplosion corpus
+                // families) — dropping the transformer would read raw
+                // source values as enum names, silently wrong
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "M2M enum transformer 'EnumerationMapping "
+                      + pb.enumMappingId() + "' on '" + pb.propertyName()
+                      + "' is a roadmap feature (source-value decode on"
+                      + " the M2M read); mapping=" + md.qualifiedName());
+            }
+            String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
+                    b -> model.knowledge().propertyType(tgt, b) != null);
+            fields.put(keyName,
+                    new KeyExpression(m2mPropertyValue(pb, tgt, md, model, ledger), false, false));
+        }
+        return new AppliedFunction("map", List.of(source,
+                new LambdaFunction(List.of(srcBind),
+                                   List.of(buildNewInstance(pcm.className(), fields)))));
     }
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, @com.legend.Nullable ClassDefinition tgt,
-            ResolvedMapping md, ModelBuilder model, MappingLedger ledger,
-            Set<String> cycleStack) {
+            ResolvedMapping md, ModelBuilder model, MappingLedger ledger) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = model.knowledge().propertyType(tgt, pb.propertyName());
         if (propType == null && pb.propertyName().endsWith("AllVersions")) {
@@ -1242,19 +1235,15 @@ public final class MappingNormalizer {
                   + "'; map '" + innerFqn + "' or use Embedded. Mapping="
                   + md.qualifiedName());
         }
-        if (!cycleStack.add(innerFqn)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "Cycle materializing M2M class-typed property; class "
-                  + innerFqn + " recurses. Stack=" + cycleStack);
-        }
-        try {
-            // audit 21a heads honored: the line's [targetSetId] route rides
-            // the cast — the whole-$src graph child dispatches by it
-            return new NewInstanceCast(innerFqn, List.of(), pb.expression(),
-                    pb.targetSetId());
-        } finally {
-            cycleStack.remove(innerFqn);
-        }
+        // audit 21a heads honored: the line's [targetSetId] route rides
+        // the cast — the whole-$src graph child dispatches by it. No
+        // recursion happens here (the cast DEFERS the child to the graph),
+        // so there is nothing to guard: the old class-keyed "cycle" check
+        // could only trip on the OWNING class and rejected the legal
+        // self-reference `Person.manager: Person` (audit 2026-09-15 P0-3);
+        // the ~src-chain cycle is the pre-pass's detectM2MCycles.
+        return new NewInstanceCast(innerFqn, List.of(), pb.expression(),
+                pb.targetSetId());
     }
 
     // ====================================================================
@@ -2153,7 +2142,7 @@ public final class MappingNormalizer {
             case PropertyMapping.Embedded emb -> new CtorField(emb.propertyName(),
                     materializeEmbedded(emb.propertyName(), emb.propertyMappings(),
                             rowBind, tableScope, defaultTable, pipeline,
-                            ownerClassFqn, md, model, new HashSet<>(), null),
+                            ownerClassFqn, md, model, null),
                     false);
             case PropertyMapping.InlineEmbedded ie -> new CtorField(ie.propertyName(),
                     materializeInlineEmbedded(ie, rowBind, tableScope, defaultTable,
@@ -2172,13 +2161,17 @@ public final class MappingNormalizer {
 
     /** {@code innerOverride} non-null pins the inner class — an Inline
      * splice materializes the REFERENCED set's class (a subclass of the
-     * declared prop type; its own props aren't on the declared class). */
+     * declared prop type; its own props aren't on the declared class).
+     * An authored Embedded block cannot recurse (its text is finite); the
+     * only cycle is through Inline set references, guarded by set id in
+     * {@link #materializeInlineEmbedded} on the pipeline (the old
+     * class-keyed stack was handed a fresh set by every caller and could
+     * never fire — audit 2026-09-15 P0-3). */
     private static ValueSpecification materializeEmbedded(
             String propName, List<PropertyMapping> subPms, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
             Pipeline pipeline, String ownerClassFqn, ResolvedMapping md,
-            ModelBuilder model, Set<String> cycleStack,
-            @com.legend.Nullable String innerOverride) {
+            ModelBuilder model, @com.legend.Nullable String innerOverride) {
         ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
@@ -2193,36 +2186,27 @@ public final class MappingNormalizer {
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
-        if (!cycleStack.add(innerFqn)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "Cycle materializing Embedded; class " + innerFqn
-                  + " recurses via '" + propName + "' on '" + ownerClassFqn + "'");
-        }
-        try {
-            Map<String, KeyExpression> fields = new LinkedHashMap<>();
-            for (PropertyMapping sub : subPms) {
-                // Join sub-PMs read the slot Pass 1 hoisted into the TOP
-                // pipeline (the embedded instance shares the owner's row) —
-                // translatePmToField's Join arm resolves it via innerFqn.
-                // An UNMAPPED target class has no instance to bind: wall.
-                if (sub instanceof PropertyMapping.Join j
-                        && JoinChainEmission.classTypedTargetIfMapped(innerFqn, j.propertyName(),
-                                model, pipeline.ledger()) == null) {
-                    throw new NotImplementedException(
-                            "Embedded sub-PM '" + j.propertyName() + "' on '"
-                          + propName + "' is a class-typed Join to an UNMAPPED"
-                          + " target class — no instance to bind. Mapping="
-                          + md.qualifiedName());
-                }
-                CtorField cf = translatePmToField(sub, rowBind, tableScope,
-                        defaultTable, pipeline, innerFqn, md, model, false);
-                fields.put(cf.name(),
-                        new KeyExpression(cf.value(), false, cf.isLocal()));
+        Map<String, KeyExpression> fields = new LinkedHashMap<>();
+        for (PropertyMapping sub : subPms) {
+            // Join sub-PMs read the slot Pass 1 hoisted into the TOP
+            // pipeline (the embedded instance shares the owner's row) —
+            // translatePmToField's Join arm resolves it via innerFqn.
+            // An UNMAPPED target class has no instance to bind: wall.
+            if (sub instanceof PropertyMapping.Join j
+                    && JoinChainEmission.classTypedTargetIfMapped(innerFqn, j.propertyName(),
+                            model, pipeline.ledger()) == null) {
+                throw new NotImplementedException(
+                        "Embedded sub-PM '" + j.propertyName() + "' on '"
+                      + propName + "' is a class-typed Join to an UNMAPPED"
+                      + " target class — no instance to bind. Mapping="
+                      + md.qualifiedName());
             }
-            return buildNewInstanceToOne(innerFqn, fields, model);
-        } finally {
-            cycleStack.remove(innerFqn);
+            CtorField cf = translatePmToField(sub, rowBind, tableScope,
+                    defaultTable, pipeline, innerFqn, md, model, false);
+            fields.put(cf.name(),
+                    new KeyExpression(cf.value(), false, cf.isLocal()));
         }
+        return buildNewInstanceToOne(innerFqn, fields, model);
     }
 
     // ====================================================================
@@ -2240,7 +2224,7 @@ public final class MappingNormalizer {
             ModelBuilder model) {
         ValueSpecification partial = materializeEmbedded(oe.propertyName(),
                 oe.embedded(), rowBind, tableScope, defaultTable, pipeline,
-                ownerClassFqn, md, model, new HashSet<>(), null);
+                ownerClassFqn, md, model, null);
         ValueSpecification fallback = new AppliedProperty(rowBind, oe.propertyName());
         return new AppliedFunction(Pure.Lite.OTHERWISE, List.of(partial, fallback));
     }
@@ -2274,10 +2258,23 @@ public final class MappingNormalizer {
                   + "' references unknown setId '" + ie.setId()
                   + "' in mapping=" + md.qualifiedName());
         }
-        return materializeEmbedded(ie.propertyName(),
-                referenced.propertyMappings(), rowBind, tableScope, defaultTable,
-                pipeline, ownerClassFqn, md, model, new HashSet<>(),
-                referenced.className());
+        // THE cycle guard: an Inline reference is the only way an embedded
+        // materialization can recurse (set a splices set b splices set a).
+        // Keyed by SET ID on the pipeline — the one object every level
+        // shares — so a legal re-use of one CLASS at two paths never trips.
+        if (!pipeline.inlineStack.add(ie.setId())) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "Cycle materializing Inline embedded set '" + ie.setId() + "' via '"
+                  + ie.propertyName() + "' on '" + ownerClassFqn + "': the splice chain "
+                  + pipeline.inlineStack + " returns to it; mapping=" + md.qualifiedName());
+        }
+        try {
+            return materializeEmbedded(ie.propertyName(),
+                    referenced.propertyMappings(), rowBind, tableScope, defaultTable,
+                    pipeline, ownerClassFqn, md, model, referenced.className());
+        } finally {
+            pipeline.inlineStack.remove(ie.setId());
+        }
     }
 
     // ====================================================================

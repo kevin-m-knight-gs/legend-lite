@@ -1559,6 +1559,49 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("P0-3: a self-referential M2M class-typed property is legal — no false cycle")
+    void selfReferentialM2mPropertyCompiles() {
+        // audit 2026-09-15 P0-3: the old guard added the OWNING class to its
+        // stack and the value never recursed, so `Person.manager: Person`
+        // was rejected as a cycle and failed a STRICT build.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Person { name: String[1]; manager: model::Person[0..1]; } "
+                        + "Class model::Src { name: String[1]; manager: model::Src[0..1]; } "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::Person: Pure { ~src model::Src name: $src.name, manager: $src.manager } "
+                        + ")");
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> normalizeStrict(parsed));
+        assertTrue(poisonsOf(normalizeViaPipeline(parsed)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("P0-3: a cyclic Inline embedded splice is loud, never a StackOverflowError")
+    void cyclicInlineEmbeddedIsLoud() {
+        // set a splices set b which splices set a: the old class-keyed
+        // guard was handed a fresh set by every caller and never fired.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::A { name: String[1]; b: model::B[1]; } "
+                        + "Class model::B { name: String[1]; a: model::A[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( Table T (A_NAME VARCHAR(50), B_NAME VARCHAR(50)) ) "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  model::A[a]: Relational { ~mainTable [db::DB] T name: T.A_NAME, b() Inline[b] } "
+                        + "  model::B[b]: Relational { ~mainTable [db::DB] T name: T.B_NAME, a() Inline[a] } "
+                        + ")");
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> normalizeStrict(parsed));
+        assertTrue(ex.getMessage().contains("Cycle materializing Inline embedded set"),
+                () -> "Expected the inline cycle to be named; got: " + ex.getMessage());
+        // a MODULE build walls the mapping in the pre-pass (the route
+        // collector meets the cycle first) with the reason recorded
+        java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+        MappingNormalizer.normalize(parsed, ModelBuilder.from(
+                new com.legend.model.ParsedModel(parsed.elements(), parsed.imports())), walls);
+        String walled = String.join(" ;; ", walls.values());
+        assertTrue(walled.contains("Cycle materializing Inline embedded set"),
+                () -> "Expected the module build to wall the mapping with the cycle; got: " + walled);
+    }
+
+    @Test
     @DisplayName("enumeratedColumn_inlinesEnumerationMappingAsIfChain")
     void enumeratedColumn_inlinesEnumerationMappingAsIfChain() {
         // Position 2 redesign: EnumeratedColumn is inline-expanded to a

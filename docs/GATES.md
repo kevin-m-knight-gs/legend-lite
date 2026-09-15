@@ -3290,3 +3290,33 @@ navigate emitted.
 after two LOST runs (52/45 with the class-typed wall, 22/20 with the hop filter), both reverted.
 
 **Chain.** Green on the first run, wall 226 s: G2 24s, G1 72s, G3 11s, G4 82s, G5 36s, G6 130s, G7 40s, G9 32s, G8 141s. Own-corpus parity floor 2451 → 2459. Batch size: 5 files.
+
+## Audit fix A5 (FIXLIST P0-3) — the two cycle guards — 2026-09-15
+
+**Why.** P0-3 (VERIFIED): the M2M guard in `m2mPropertyValue` could only trip on the OWNING
+class (the value never recurses — it emits a `NewInstanceCast` and returns), so a legal
+self-reference (`Person.manager: Person`, `manager: $src.manager`) was rejected as "Cycle
+materializing M2M class-typed property" and FAILED A STRICT BUILD, while a genuine cycle
+(`A.b: B, B.a: A`) never reached it — the pre-pass's `detectM2MCycles` is the real detector. The
+embedded guard in `materializeEmbedded` could never fire: all three callers passed a fresh set and
+the recursion runs through `translatePmToField`, so a cyclic `Inline[a] → Inline[b] → Inline[a]`
+model recursed to a `StackOverflowError`.
+
+**What landed.**
+- The M2M guard and its `cycleStack` parameter are gone from `synthM2M` / `m2mPropertyValue`
+  (nothing recurses there; the ~src-chain cycle is the pre-pass's `detectM2MCycles`).
+- The class-keyed stack parameter of `materializeEmbedded` is gone (an authored block is finite
+  text; the only cycle is an Inline set reference). THE guard is keyed by SET ID and lives where
+  the recursion is: `Pipeline.inlineStack` in `materializeInlineEmbedded`, and — found by the
+  witness, which overflowed THERE first — the route collector `UnionSynthesis.collectRoutedJoins`
+  (the pre-pass's `ImplicitInheritance` and `classifyUnionRoutes` both descend Inline splices),
+  now a private worker carrying the splicing set with a loud `ModelException` on re-entry.
+- Witnesses (`MappingNormalizerTest`): `selfReferentialM2mPropertyCompiles` (strict build, no
+  poison) and `cyclicInlineEmbeddedIsLoud` (strict throws "Cycle materializing Inline embedded
+  set"; a module build walls the mapping in the pre-pass with the reason — the old code threw
+  `StackOverflowError`).
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 52 s, H2 27 s).
+Own-corpus parity floor 2459 → 2466 (the witnesses' models).
+
+**Chain.** Green on the first run, wall 233 s: G2 25s, G1 73s, G3 11s, G4 87s, G5 37s, G6 136s, G7 41s, G9 31s, G8 143s. Batch size: 5 files.
