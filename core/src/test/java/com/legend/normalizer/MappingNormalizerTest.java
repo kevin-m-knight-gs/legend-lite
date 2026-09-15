@@ -2499,6 +2499,32 @@ class MappingNormalizerTest {
         return out;
     }
 
+    /** The pipeline SPINE of a synthesized body: the function names down
+     * parameter 0 from the map terminal to the source (a view-backed set's
+     * frame sits inside: {@code project(filter(tableReference))}). */
+    private static List<AppliedFunction> spine(FunctionDefinition fn) {
+        List<AppliedFunction> out = new java.util.ArrayList<>();
+        ValueSpecification cur = sole(fn.body());
+        while (cur instanceof AppliedFunction af) {
+            out.add(af);
+            if (af.parameters().isEmpty()) {
+                break;
+            }
+            cur = af.parameters().get(0);
+        }
+        return out;
+    }
+
+    private static int spineIndex(List<AppliedFunction> spine, String function, int from) {
+        for (int i = from; i < spine.size(); i++) {
+            if (spine.get(i).function().equals(function)) {
+                return i;
+            }
+        }
+        throw new AssertionError("no '" + function + "' from " + from + " in "
+                + spine.stream().map(AppliedFunction::function).toList());
+    }
+
     private static FunctionDefinition soleSynth(NormalizedModel m) {
         List<FunctionDefinition> fns = liftedFunctions(m);
         assertEquals(1, fns.size(), "expected exactly one synth fn");
@@ -4291,23 +4317,18 @@ class MappingNormalizerTest {
                         + ")");
         FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
-        // Pipeline: map(filter(distinct(filter(tableReference, view)), mapping)).
-        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
-        assertEquals("map", mapCall.function());
-        AppliedFunction mappingFilter = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals("filter", mappingFilter.function(),
-                "the mapping ~filter applies over the deduped view rows");
-        AppliedFunction distinct = (AppliedFunction) mappingFilter.parameters().get(0);
-        assertEquals("distinct", distinct.function(),
-                "~distinct must survive the filter layering (the view's contract)");
-        AppliedFunction select = (AppliedFunction) distinct.parameters().get(0);
-        assertEquals("select", select.function(),
-                "~distinct dedups the MAPPED columns: select narrows first");
-        AppliedFunction viewFilter = (AppliedFunction) select.parameters().get(0);
-        assertEquals("filter", viewFilter.function(),
-                "the view ~filter applies before the dedup");
-        assertEquals("tableReference",
-                ((AppliedFunction) viewFilter.parameters().get(0)).function());
+        // Spine (the view is the set's FRAME): map -> filter(mapping) ->
+        // distinct -> project(view columns) -> filter(view) -> tableReference
+        List<AppliedFunction> spine = spine(fn);
+        assertEquals("map", spine.get(0).function());
+        int mappingFilter = spineIndex(spine, "filter", 1);
+        int distinct = spineIndex(spine, "distinct", mappingFilter + 1);
+        int viewFilter = spineIndex(spine, "filter", distinct + 1);
+        int tableRef = spineIndex(spine, "tableReference", viewFilter + 1);
+        assertEquals(1, mappingFilter, "the mapping ~filter applies over the deduped view rows");
+        assertTrue(distinct < viewFilter,
+                "~distinct dedups the view's rows (the view's contract) above the view ~filter");
+        assertEquals(spine.size() - 1, tableRef, "the frame bottoms at the physical table");
     }
 
     @Test
@@ -4341,20 +4362,18 @@ class MappingNormalizerTest {
                         + ")");
         FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
-        // Pipeline: map(groupBy(filter(filter(tableReference, view), mapping))).
-        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
-        assertEquals("map", mapCall.function());
-        AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, groupBy.function(),
+        // Spine (the view is the set's FRAME): map -> groupBy ->
+        // filter(mapping) -> project(view columns) -> filter(view) -> tableReference
+        List<AppliedFunction> spine = spine(fn);
+        assertEquals("map", spine.get(0).function());
+        assertEquals(Pure.Lite.GROUP_BY_COMPUTED_KEYS, spine.get(1).function(),
                 "aggregation stays the outermost source op");
-        AppliedFunction mappingFilter = (AppliedFunction) groupBy.parameters().get(0);
-        assertEquals("filter", mappingFilter.function(),
+        int mappingFilter = spineIndex(spine, "filter", 2);
+        assertEquals(2, mappingFilter,
                 "the mapping ~filter applies BEFORE aggregation (WHERE, not HAVING)");
-        AppliedFunction viewFilter = (AppliedFunction) mappingFilter.parameters().get(0);
-        assertEquals("filter", viewFilter.function(),
-                "the view ~filter applies first");
-        assertEquals("tableReference",
-                ((AppliedFunction) viewFilter.parameters().get(0)).function());
+        int viewFilter = spineIndex(spine, "filter", mappingFilter + 1);
+        int tableRef = spineIndex(spine, "tableReference", viewFilter + 1);
+        assertEquals(spine.size() - 1, tableRef, "the frame bottoms at the physical table");
     }
 
     @Test
@@ -4387,15 +4406,15 @@ class MappingNormalizerTest {
         FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: filter(filter(tableReference(T_PERSON), <view>), <mapping>) -> map.
-        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
-        assertEquals("map", mapCall.function());
-        AppliedFunction outerFilter = (AppliedFunction) mapCall.parameters().get(0);
+        // Spine (the view is the set's FRAME): map -> filter(mapping) ->
+        // project(view columns) -> filter(view) -> tableReference(T_PERSON)
+        List<AppliedFunction> spine = spine(fn);
+        assertEquals("map", spine.get(0).function());
+        AppliedFunction outerFilter = spine.get(1);
         assertEquals("filter", outerFilter.function(),
                 "the mapping ~filter layers as the outer filter step");
-        AppliedFunction innerFilter = (AppliedFunction) outerFilter.parameters().get(0);
-        assertEquals("filter", innerFilter.function(),
-                "the view ~filter remains as the inner filter step");
-        AppliedFunction tableRef = (AppliedFunction) innerFilter.parameters().get(0);
+        AppliedFunction innerFilter = spine.get(spineIndex(spine, "filter", 2));
+        AppliedFunction tableRef = spine.get(spine.size() - 1);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
                 ((com.legend.protocol.spec.CString) tableRef.parameters().get(1)).value());
@@ -4406,8 +4425,10 @@ class MappingNormalizerTest {
         Set<String> innerCols = new TreeSet<>();
         collectPropertyNames(outerFilter.parameters().get(1), outerCols);
         collectPropertyNames(innerFilter.parameters().get(1), innerCols);
-        assertTrue(outerCols.contains("AGE"),
-                () -> "outer (mapping) filter should read AGE; read " + outerCols);
+        // under the frame the mapping filter's T_PERSON.AGE resolves to the
+        // view column that carries it (page) — the engine's alias rule
+        assertTrue(outerCols.contains("page"),
+                () -> "outer (mapping) filter should read AGE through the view's page; read " + outerCols);
         assertTrue(innerCols.contains("ACTIVE"),
                 () -> "inner (view) filter should read ACTIVE; read " + innerCols);
     }

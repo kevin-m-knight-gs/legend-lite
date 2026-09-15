@@ -1654,11 +1654,12 @@ public final class MappingNormalizer {
     // ====================================================================
 
     /**
-     * A view-backed set. The FRAME path (a view is a subselect —
-     * {@code pureToSQLQuery.pure:5187 ViewSelectSQLQuery}) serves every
-     * {@code frameable} shape. The rest takes the FALLBACK below, which
-     * has NO engine counterpart (the engine never flattens a view;
-     * docs/TRANSLATOR_AUDIT_2026_09_15.md F1): expand the view as a macro —
+     * A view-backed set: the view is the set's FRAME (a subselect —
+     * {@code pureToSQLQuery.pure:5187 ViewSelectSQLQuery}), the set's own
+     * references to the view's root table resolve through the frame
+     * ({@link ViewRelation#frameRewrite}), its ~filter / ~distinct /
+     * ~groupBy apply over the frame's rows. (Historical shape of the
+     * deleted flattening fallback, for the record:)
      * <ol>
      *   <li>Infer the view's single underlying physical table from its
      *       non-join column expressions ({@link #inferViewMainTable}).
@@ -1682,161 +1683,20 @@ public final class MappingNormalizer {
                                                             MappingLedger ledger) {
         String mainDb = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "view-backed set without ~mainTable").database();
-        // Leg 4 (feature map §5): a view reached as a relation is an
-        // IDENTITY-CARRYING FRAME — a row-defining subselect as pipeline
-        // SOURCE (~filter/~groupBy/~distinct inside), PMs read view
-        // columns VERBATIM (engine: ViewSelectSQLQuery extends TABLE; a
-        // view NEVER flattens). Column substitution below is only the
-        // MIGRATION fallback for shapes the frame walls on (frameable).
-        if (!view.groupByColumns().isEmpty()
-                || ViewRelation.frameable(view, rcm, model)) {
-            ValueSpecification viewSource = ViewRelation.viewRelationExpr(
-                    view, rcm.mainTable().table(), mainDb, model, md);
-            ClassMapping.Relational overView = new ClassMapping.Relational(
-                    rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
-                    rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
-                    rcm.primaryKey(), rcm.propertyMappings(), null,
-                    rcm.propertyTargetSets(), rcm.aggregation());
-            return synthTableBackedMapping(md, overView, model, ledger,
-                    /*backingView*/ null, viewSource);
-        }
-        // Engine parity: the view resolves to a single physical root table,
-        // which (not the view name) is the source relation.
-        String physicalTable = ViewRelation.inferViewMainTable(view, rcm.mainTable().table(), md, model, mainDb);
-        // Resolve view column expressions: name -> RelationalOperation.
-        Map<String, RelationalOperation> viewCols = new LinkedHashMap<>();
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            viewCols.put(vc.name(), vc.expression());
-        }
-        // Rewrite each user PM that references a view column to the physical
-        // expression behind it. PMs unrelated to the view pass through.
-        List<PropertyMapping> rewrittenPms = new ArrayList<>(rcm.propertyMappings().size());
-        for (PropertyMapping pm : rcm.propertyMappings()) {
-            rewrittenPms.add(ViewRelation.rewritePmThroughView(pm, viewCols,
-                    mainDb, physicalTable, rcm.mainTable().table()));
-        }
-        // Merge view-level directives with the mapping-level ones. View
-        // filter sequences BEFORE the mapping filter; view ~distinct ORs
-        // with the mapping ~distinct; view ~groupBy concatenates with the
-        // mapping ~groupBy (engine semantics).
-        FilterMapping mergedFilter = view.filter() != null ? view.filter() : rcm.filter();
-        boolean mergedDistinct = rcm.distinct() || view.distinct();
-        List<RelationalOperation> mergedGroupBy = new ArrayList<>(view.groupByColumns());
-        mergedGroupBy.addAll(rcm.groupBy());
-        ClassMapping.Relational effective = new ClassMapping.Relational(
-                rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
-                new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
-                mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
-                rewrittenPms, null, rcm.propertyTargetSets(), rcm.aggregation());
-        // VIEW-ON-VIEW on the fallback route: the inferred root may itself
-        // be a view (OrgViewOnView -> OrgView -> Org) — flatten another
-        // layer; the rewritten PMs now speak the inner view's columns
-        DatabaseDefinition.ViewDefinition innerView =
-                model.findView(mainDb, physicalTable).orElseGet(MissProbe::miss);
-        if (innerView != null) {
-            return synthViewBackedMapping(md, effective, innerView, model, ledger);
-        }
-        ValueSpecification body = synthTableBackedMapping(md, effective, model, ledger,
-                rcm.mainTable().table(), null);
-        // When BOTH a view filter and a mapping filter exist, the pipeline
-        // above applied only the view filter (effective.filter). Apply the
-        // mapping filter too &mdash; pre-map, after the view filter &mdash;
-        // matching the engine's view-then-mapping filter sequencing.
-        if (view.filter() != null && rcm.filter() != null && view.filter() != rcm.filter()) {
-            body = layerMappingFilterPreMap(body, rcm, physicalTable, model, md);
-        }
-        return body;
-    }
-
-    /**
-     * Apply the mapping-level {@code ~filter} as a <em>pre-map</em> filter
-     * step, layered after the view filter the inner pipeline already applied.
-     * The inner pipeline's terminal is {@code map(source, lambda)}; the filter
-     * is injected on {@code source} so it filters table rows (engine parity),
-     * not materialized class instances.
-     */
-    private static ValueSpecification layerMappingFilterPreMap(ValueSpecification body,
-                                                              ClassMapping.Relational rcm,
-                                                              String physicalTable,
-                                                              ModelBuilder model,
-                                                              ResolvedMapping md) {
-        FilterMapping fm = rcm.filter();
-        if (!(fm instanceof FilterMapping.Direct direct)) {
-            // A JoinMediated mapping filter over a view that already carries
-            // its own filter would need the mapping-filter join chain hoisted
-            // at this outer level; not wired. Refuse loudly rather than
-            // silently drop the mapping filter (AGENTS.md: no fallbacks).
-            throw new NotImplementedException(
-                    "View-backed class '" + rcm.className() + "' has both a view "
-                  + "filter and a JoinMediated mapping ~filter; layering a "
-                  + "JoinMediated filter over a filtered view is not supported. "
-                  + "Mapping=" + md.qualifiedName());
-        }
-        if (!(body instanceof AppliedFunction map) || !"map".equals(map.function())
-                || map.parameters().size() != 2) {
-            throw new IllegalStateException(
-                    "Expected a map(source, lambda) terminal for view-backed class '"
-                  + rcm.className() + "'; mapping=" + md.qualifiedName());
-        }
-        String dbFqn = switch (direct.filter()) {
-            case FilterPointer.Cross c -> c.db();
-            case FilterPointer.Local l -> java.util.Objects.requireNonNull(rcm.mainTable(),
-                    "local filter on a set without ~mainTable").database();
-        };
-        DatabaseDefinition.FilterDefinition fd = model.findFilter(dbFqn, direct.filter().name())
-                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                        "~filter '" + direct.filter().name() + "' not found in db '"
-                      + dbFqn + "'; class=" + rcm.className() + ", mapping="
-                      + md.qualifiedName()));
-        ValueSpecification source = map.parameters().get(0);
-        ValueSpecification mapLambda = map.parameters().get(1);
-        Variable rowBind = new Variable("row");
-        Map<String, ValueSpecification> scope = Map.of(physicalTable, rowBind);
-        ValueSpecification cond = RelOpTranslator.translate(
-                ViewRelation.inlineViewRefs(fd.condition(), dbFqn, model), scope, null, rowBind,
-                RelOpTranslator.PipelineView.NONE);
-        ValueSpecification filtered = filterBelowAggregation(source,
-                new LambdaFunction(List.of(rowBind), List.of(cond)));
-        return new AppliedFunction("map", List.of(filtered, mapLambda));
-    }
-
-    /**
-     * Insert the mapping filter BENEATH the class pipeline's groupBy /
-     * distinct nodes: the engine evaluates the view filter AND the mapping
-     * filter both in WHERE position, before aggregation. Filtering the
-     * grouped relation silently turned {@code WHERE amount > 10} into
-     * {@code HAVING sum(amount) > 10} whenever a grouped output column
-     * kept the filtered physical name (audit 18 finding 6). Only reached
-     * from the flattening path, where every groupBy/distinct in the source
-     * chain is class-pipeline-level (grouped views return earlier with the
-     * view as an opaque source subselect).
-     */
-    private static ValueSpecification filterBelowAggregation(
-            ValueSpecification src, LambdaFunction pred) {
-        // distinct commutes with a row-level predicate — descend through it
-        // only to reach a groupBy beneath (the pinned canonical form keeps
-        // the mapping filter ABOVE a bare distinct)
-        boolean descend = src instanceof AppliedFunction af
-                && (GroupBySynthesis.isGroupByStep(af)
-                        || ("distinct".equals(af.function())
-                                && chainHasGroupBy(af.parameters().get(0))));
-        if (descend) {
-            AppliedFunction af = (AppliedFunction) src;
-            List<ValueSpecification> ps = new ArrayList<>(af.parameters());
-            ps.set(0, filterBelowAggregation(ps.get(0), pred));
-            return af.withParameters(ps);
-        }
-        return new AppliedFunction("filter", List.of(src, pred));
-    }
-
-    private static boolean chainHasGroupBy(ValueSpecification v) {
-        while (v instanceof AppliedFunction af && !af.parameters().isEmpty()) {
-            if (GroupBySynthesis.isGroupByStep(af)) {
-                return true;
-            }
-            v = af.parameters().get(0);
-        }
-        return false;
+        // a view reached as a relation is an IDENTITY-CARRYING FRAME — a
+        // row-defining subselect as the pipeline SOURCE (its ~filter /
+        // ~groupBy / ~distinct inside); PMs read view columns VERBATIM
+        // (engine: ViewSelectSQLQuery extends TABLE; a view never flattens)
+        // the view is the set's FRAME (its subselect); every reference the set
+        // makes to the view's root table resolves to the declared column that
+        // carries it (ViewRelation.frameRewrite — loud when none does); joins
+        // depart from the view by name. No other emission exists (the
+        // flattening fallback of docs/TRANSLATOR_AUDIT_2026_09_15.md F1 was
+        // ours alone and is gone).
+        String viewName = rcm.mainTable().table();
+        ValueSpecification viewSource = ViewRelation.viewRelationExpr(view, viewName, mainDb, model, md);
+        ClassMapping.Relational overView = ViewRelation.throughFrame(rcm, view, viewName, md);
+        return synthTableBackedMapping(md, overView, model, ledger, /*backingView*/ null, viewSource);
     }
 
     /**
@@ -1901,8 +1761,10 @@ public final class MappingNormalizer {
         // survives (testInnerJoinClassMappingFilterWithChainedJoins expects
         // Firm X x4). The exists-shaped filter route below keeps one row
         // per parent, so it cannot serve this form.
-        if (sourceOverride == null
-                && rcm.filter() instanceof FilterMapping.JoinMediated jmi
+        // (the recursion below passes the filtered source with the filter
+        // removed, so a frame source with an INNER filter takes this path
+        // once — the frame is rebuilt view-aware inside innerFilteredSource)
+        if (rcm.filter() instanceof FilterMapping.JoinMediated jmi
                 && jmi.joinType() != null) {
             ValueSpecification innerSrc = JoinChainEmission.innerFilteredSource(rcm, jmi, model, md, ledger);
             ClassMapping.Relational noFilter = new ClassMapping.Relational(
@@ -2426,10 +2288,12 @@ public final class MappingNormalizer {
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
         seedAliasScope(scope, p, rowBind, mainTable);
-        // a filter written against a VIEW the set flattened: its refs read
-        // the view's underlying expressions (the base tables in scope)
-        RelationalOperation fcond = scope.containsKey(mainTable) && model.findView(dbFqn, mainTable).isEmpty()
-                ? ViewRelation.inlineViewRefs(fd.condition(), dbFqn, model) : fd.condition();
+        // a set over a VIEW: the filter's references to the view's root table
+        // resolve through the frame; a set over a TABLE whose filter names a
+        // view's columns reads the view's expressions (the base table in scope)
+        RelationalOperation fcond = model.findView(mainDb, mainTable).isPresent()
+                ? ViewRelation.frameRewriteIfView(fd.condition(), mainDb, mainTable, md, model)
+                : ViewRelation.inlineViewRefs(fd.condition(), dbFqn, model);
         ValueSpecification cond = RelOpTranslator.translate(fcond, scope, null, rowBind, p.view());
         return new AppliedFunction("filter", List.of(source,
                 new LambdaFunction(List.of(rowBind), List.of(cond))));
@@ -2463,8 +2327,9 @@ public final class MappingNormalizer {
         seedAliasScope(scope, p, rowBind, mainTable);
         String terminalTable = p.aliasToTargetTable.get(terminalAlias);
         if (terminalTable != null) scope.putIfAbsent(terminalTable, terminalRow);
-        ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope, terminalRow,
-                rowBind, p.view());
+        ValueSpecification cond = RelOpTranslator.translate(
+                ViewRelation.frameRewriteIfView(fd.condition(), mainDb, mainTable, md, model),
+                scope, terminalRow, rowBind, p.view());
         // The absorption theory (LEFT slot + WHERE ≡ INNER) was REFUTED by
         // the corpus referee: an (INNER) filter through a TO-MANY chain
         // ROW-EXPLODES the parent (testInnerJoinClassMappingFilterWith-

@@ -53,7 +53,14 @@ Rule for 6c: a citation is a file and a line at the pin, or it is not a citation
 
 ## 3. Findings
 
-- **F1 (T8): the view-flattening fallback is ours.** The engine keeps a view a subselect always.
+- **F1 (T8): the view-flattening fallback is ours — DELETED in leg 6b.** One rule replaced it
+  (`ViewRelation.frameRewrite`, the engine's `findTableForColumnInAlias`): under a view-backed
+  set a reference to the view's root-table column resolves to the declared column carrying it;
+  applied once to property mappings, `~groupBy`, `~primaryKey`, the `~filter` conditions and the
+  INNER-filter source; join conditions naming a view spell its declared columns. A rule written
+  for the flattening (`plainClassViewCond`: substitute a join's view refs to physical when the
+  target class is over that view) now substitutes only for a class over the PHYSICAL table — a
+  view-backed class's row is its frame. The engine keeps a view a subselect always.
   Census (instrumented DuckDB lane, 2026-09-15): five mappings, seven sets take it —
   `classMappingFilterWithInnerJoin::mapping::testViewToTableMapping` and `testViewToViewMapping`
   (Person over `myPersonView`; view-on-view), `…::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested`

@@ -70,7 +70,7 @@ class ShadowWalkerCensusTest {
             // still walks RelationalOperation records with the normalizer's
             // own collectors and names the mapping in its errors; retire
             // with step 4/6's compiled-store facts
-            Map.entry("inferViewMainTable", 6)));
+            Map.entry("inferViewMainTable", 5)));
 
     @Test
     void shadowWalkerCallSitesArePinned() throws IOException {

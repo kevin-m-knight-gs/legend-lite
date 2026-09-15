@@ -273,49 +273,6 @@ final class ViewRelation {
         return src;
     }
 
-    /**
-     * Rewrite a PM whose column reference points at a view column
-     * into a PM that references the underlying physical expression
-     * (the MIGRATION fallback of {@code synthViewBackedMapping}).
-     * Unrelated PMs pass through unchanged.
-     */
-    static PropertyMapping rewritePmThroughView(PropertyMapping pm,
-                                                Map<String, RelationalOperation> viewCols,
-                                                String dbFqn, String mainTable,
-                                                String viewName) {
-        return switch (pm) {
-            case PropertyMapping.EnumeratedExpression ee -> ee;
-            case PropertyMapping.Column col when viewCols.containsKey(col.column()) ->
-                    rewriteColumnPmAsViewExpr(col, viewCols.get(col.column()), dbFqn, mainTable);
-            case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
-                    lp.propertyName(), lp.type(), lp.multiplicity(),
-                    rewritePmThroughView(lp.body(), viewCols, dbFqn, mainTable, viewName));
-            case PropertyMapping.Embedded emb -> {
-                List<PropertyMapping> rewrittenSubs = new ArrayList<>();
-                for (PropertyMapping sub : emb.propertyMappings()) {
-                    rewrittenSubs.add(rewritePmThroughView(sub, viewCols, dbFqn, mainTable, viewName));
-                }
-                yield new PropertyMapping.Embedded(emb.propertyName(), rewrittenSubs);
-            }
-            // an EXPRESSION body reads view columns by <view>.<col> —
-            // substitute each to the underlying expression (positionType:
-            // toString(ProductTableViewNested.id) on the fallback route;
-            // Column-granular rewriting missed nested refs)
-            case PropertyMapping.Expression expr -> new PropertyMapping.Expression(
-                    expr.propertyName(),
-                    rewriteOpThroughView(expr.expression(), viewCols, viewName));
-            // Non-view Column, Join, JoinTerminalColumn, EnumeratedColumn,
-            // InlineEmbedded, OtherwiseEmbedded: pass through
-            // unchanged (view rewriting is at column granularity).
-            case PropertyMapping.Column col -> col;
-            case PropertyMapping.Join j -> j;
-            case PropertyMapping.JoinTerminalColumn jtc -> jtc;
-            case PropertyMapping.EnumeratedColumn ec -> ec;
-            case PropertyMapping.InlineEmbedded ie -> ie;
-            case PropertyMapping.OtherwiseEmbedded oe -> oe;
-        };
-    }
-
     /** Every {@code <view>.<col>} reference in {@code op} (a filter or
      * join condition written against a VIEW of {@code db}) substituted by
      * the view column's underlying expression, recursively (a view on a
@@ -337,132 +294,149 @@ final class ViewRelation {
         return op.mapChildren(x -> inlineViewRefs(x, db, model));
     }
 
-    /** Substitute {@code <viewName>.<col>} refs inside an expression body
-     * to the view column's underlying expression (structural walk). */
-    private static RelationalOperation rewriteOpThroughView(RelationalOperation op,
-            Map<String, RelationalOperation> viewCols, String viewName) {
-        if (op instanceof RelationalOperation.ColumnRef cr
-                && cr.table().equals(viewName)
-                && viewCols.containsKey(cr.column())) {
-            return viewCols.get(cr.column());
-        }
-        return op.mapChildren(x -> rewriteOpThroughView(x, viewCols, viewName));
-    }
-
     /**
-     * Rewrite a {@code prop: V.col} PM as the underlying view-column
-     * expression. The expression can be a simple ColumnRef, a
-     * JoinNavigation, or a complex DynaFunction; each maps to a
-     * different PM kind.
+     * THE FRAME RULE (engine {@code findTableForColumnInAlias}, the view's
+     * alias): under a view-backed set the row is the view's declared
+     * columns, and a reference to a column of the view's ROOT table
+     * resolves to the declared column that carries exactly that column —
+     * loud when none does (the engine's "column not in the view"). Every
+     * relational operation the set evaluates (property expressions, the
+     * ~filter conditions, ~groupBy keys, ~primaryKey) passes through here;
+     * a join condition departs from the view by name and needs nothing.
      */
-    private static PropertyMapping rewriteColumnPmAsViewExpr(PropertyMapping.Column col,
-                                                             RelationalOperation expr,
-                                                             String dbFqn,
-                                                             String mainTable) {
-        if (expr instanceof RelationalOperation.ColumnRef cr) {
-            return new PropertyMapping.Column(col.propertyName(),
-                    cr.databaseName() != null ? cr.databaseName() : dbFqn,
-                    cr.table(), cr.column());
+    static RelationalOperation frameRewrite(RelationalOperation op,
+            DatabaseDefinition.ViewDefinition view, String viewName, ResolvedMapping md) {
+        if (!(op instanceof RelationalOperation.ColumnRef cr)) {
+            return op.mapChildren(x -> frameRewrite(x, view, viewName, md));
         }
-        if (expr instanceof RelationalOperation.JoinNavigation jn) {
-            if (jn.terminal() instanceof RelationalOperation.ColumnRef tcr) {
-                return new PropertyMapping.JoinTerminalColumn(col.propertyName(),
-                        jn.databaseName() != null ? jn.databaseName() : dbFqn,
-                        jn.chain(), tcr);
+        String table = MappingNormalizer.canonicalTable(cr.table());
+        // a reference to the VIEW itself spells the column as the view
+        // declares it (unquoted identifiers are case-insensitive; the frame
+        // row carries the declared spelling)
+        if (table.equalsIgnoreCase(viewName)) {
+            for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+                if (vc.name().equalsIgnoreCase(cr.column())) {
+                    return vc.name().equals(cr.column()) ? cr
+                            : new RelationalOperation.ColumnRef(cr.databaseName(), cr.table(), vc.name());
+                }
             }
-            // JoinNav with non-column terminal becomes an Expression
-            // PM whose body is the JoinNav (will be hoisted).
-            return new PropertyMapping.Expression(col.propertyName(), jn);
+            return cr;
         }
-        // Complex expression: lift into an Expression PM.
-        return new PropertyMapping.Expression(col.propertyName(), expr);
+        // a reference to a column the view CARRIES (a declared column whose
+        // expression is exactly that table's column) resolves to the declared
+        // column — the view's own column mappings are the fact, no root
+        // inference; a reference to a table the view reads but a column it
+        // does not carry is loud
+        boolean readsTable = false;
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+            if (vc.expression() instanceof RelationalOperation.ColumnRef vcr
+                    && MappingNormalizer.canonicalTable(vcr.table()).equalsIgnoreCase(table)) {
+                readsTable = true;
+                if (vcr.column().equalsIgnoreCase(cr.column())) {
+                    return new RelationalOperation.ColumnRef(cr.databaseName(), viewName, vc.name());
+                }
+            }
+        }
+        if (readsTable) {
+            throw new NotImplementedException("column '" + cr.table() + "." + cr.column()
+                    + "' is read under view '" + viewName + "', which declares no column"
+                    + " carrying it; mapping=" + md.qualifiedName());
+        }
+        return cr;
     }
 
-    /** Whether a PLAIN view-backed class mapping can take the FRAME path
-     * today: every property mapping reads a DECLARED view column (plain
-     * Column / LocalProperty / enumerated-over-column) and the view's
-     * ~filter is direct. Join/JTC/embedded PMs still speak the physical
-     * root's row — they stay on the substitution fallback until the frame
-     * path resolves them through the view row (Leg 4 remainder). */
-    static boolean frameable(DatabaseDefinition.ViewDefinition view,
-            ClassMapping.Relational rcm, ModelBuilder model) {
-        if (view.filter() != null
-                && !(view.filter() instanceof FilterMapping.Direct)) {
-            return false;
+    /** {@link #frameRewrite} when {@code (db, table)} names a view — the
+     * set's main relation is its frame; the operation unchanged otherwise. */
+    static RelationalOperation frameRewriteIfView(RelationalOperation op, String db,
+            String table, ResolvedMapping md, ModelBuilder model) {
+        DatabaseDefinition.ViewDefinition view = model.findView(db, table).orElseGet(MissProbe::miss);
+        RelationalOperation out = view == null ? op : frameRewrite(op, view, table, md);
+        return declaredSpelling(out, db, model);
+    }
+
+    /** Every reference to a VIEW's column — the departing frame's or a
+     * target view's — spelled as the view declares it (unquoted identifiers
+     * are case-insensitive; a view's row carries the declared spelling). */
+    static RelationalOperation declaredSpelling(RelationalOperation op, String db,
+            ModelBuilder model) {
+        if (op instanceof RelationalOperation.ColumnRef cr) {
+            String vdb = cr.databaseName() != null && !cr.databaseName().isEmpty()
+                    ? cr.databaseName() : db;
+            DatabaseDefinition.ViewDefinition v = model.findView(vdb,
+                    MappingNormalizer.canonicalTable(cr.table())).orElseGet(MissProbe::miss);
+            if (v == null) {
+                return cr;
+            }
+            for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : v.columnMappings()) {
+                if (vc.name().equalsIgnoreCase(cr.column())) {
+                    return vc.name().equals(cr.column()) ? cr
+                            : new RelationalOperation.ColumnRef(cr.databaseName(), cr.table(), vc.name());
+                }
+            }
+            return cr;
         }
-        // A MAPPING-level ~filter/~groupBy speaks the PHYSICAL table's
-        // row (Filter declared on T_PERSON) — under a frame the row is
-        // the view's declared columns, so translation throws and the
-        // tolerant module build silently DROPS the mapping. Fallback
-        // until identity resolution reads physical refs through the
-        // frame (engine findTableForColumnInAlias).
-        if (rcm.filter() != null || !rcm.groupBy().isEmpty()) {
-            return false;
-        }
-        java.util.Set<String> declared = new java.util.HashSet<>();
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
-                : view.columnMappings()) {
-            declared.add(vc.name());
-        }
-        String viewName = java.util.Objects.requireNonNull(rcm.mainTable(),
-                "view-backed set without ~mainTable").table();
+        return op.mapChildren(x -> declaredSpelling(x, db, model));
+    }
+
+    /** The set rewritten through its view's frame: property mappings,
+     * ~groupBy keys and ~primaryKey name the view's declared columns. */
+    static ClassMapping.Relational throughFrame(ClassMapping.Relational rcm,
+            DatabaseDefinition.ViewDefinition view, String viewName, ResolvedMapping md) {
+        List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings().size());
         for (PropertyMapping pm : rcm.propertyMappings()) {
-            if (!pmReadsViewColumns(pm, declared, viewName, model)) {
-                return false;
-            }
+            pms.add(pmThroughFrame(pm, view, viewName, md));
         }
-        return true;
+        List<RelationalOperation> groupBy = new ArrayList<>(rcm.groupBy().size());
+        for (RelationalOperation k : rcm.groupBy()) {
+            groupBy.add(frameRewrite(k, view, viewName, md));
+        }
+        List<RelationalOperation> pk = new ArrayList<>(rcm.primaryKey().size());
+        for (RelationalOperation k : rcm.primaryKey()) {
+            pk.add(frameRewrite(k, view, viewName, md));
+        }
+        return new ClassMapping.Relational(rcm.className(), rcm.setId(), rcm.extendsSetId(),
+                rcm.root(), rcm.mainTable(), rcm.filter(), rcm.distinct(), groupBy, pk, pms,
+                null, rcm.propertyTargetSets(), rcm.aggregation());
     }
 
-    private static boolean pmReadsViewColumns(PropertyMapping pm,
-            java.util.Set<String> declared, String viewName, ModelBuilder model) {
+    private static PropertyMapping pmThroughFrame(PropertyMapping pm,
+            DatabaseDefinition.ViewDefinition view, String viewName, ResolvedMapping md) {
         return switch (pm) {
-            case PropertyMapping.Column col -> declared.contains(col.column());
-            case PropertyMapping.EnumeratedColumn ec ->
-                    declared.contains(ec.column());
-            case PropertyMapping.LocalProperty lp ->
-                    pmReadsViewColumns(lp.body(), declared, viewName, model);
-            // an EMBEDDED block whose leaves all read declared view columns
-            // frames too (scope(View)( firm(legalName: firm_name) ) — the
-            // engine keeps the view a subselect and the leaves read its row)
-            case PropertyMapping.Embedded em -> em.propertyMappings().stream()
-                    .allMatch(p -> pmReadsViewColumns(p, declared, viewName, model));
-            // a join PM whose FIRST hop departs FROM the view (condition
-            // spells <view>.<col>) resolves against the frame row — the
-            // frame IS the join's left side (OrderPnl's order:
-            // @OrderPnlView_Order). Joins rooted at some physical table
-            // stay on the migration fallback.
-            case PropertyMapping.Join jp -> !jp.joins().isEmpty()
-                    && joinTouches(jp.joins().get(0),
-                            jp.database(), viewName, model);
-            // same rule for the scalar-terminal spelling
-            // (category: @Org_DeptCat > @Dept_Branch | Branch.name)
-            case PropertyMapping.JoinTerminalColumn jtc -> !jtc.joins().isEmpty()
-                    && joinTouches(jtc.joins().get(0),
-                            jtc.database(), viewName, model);
-            default -> false;
+            case PropertyMapping.Column col -> {
+                RelationalOperation.ColumnRef r = (RelationalOperation.ColumnRef) frameRewrite(
+                        new RelationalOperation.ColumnRef(col.database(), col.table(), col.column()),
+                        view, viewName, md);
+                yield new PropertyMapping.Column(col.propertyName(), col.database(), r.table(), r.column());
+            }
+            case PropertyMapping.EnumeratedColumn ec -> {
+                RelationalOperation.ColumnRef r = (RelationalOperation.ColumnRef) frameRewrite(
+                        new RelationalOperation.ColumnRef(ec.database(), ec.table(), ec.column()),
+                        view, viewName, md);
+                yield new PropertyMapping.EnumeratedColumn(ec.propertyName(), ec.enumMappingId(),
+                        ec.database(), r.table(), r.column());
+            }
+            case PropertyMapping.Expression ex -> new PropertyMapping.Expression(ex.propertyName(),
+                    frameRewrite(ex.expression(), view, viewName, md));
+            case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
+                    lp.propertyName(), lp.type(), lp.multiplicity(),
+                    pmThroughFrame(lp.body(), view, viewName, md));
+            case PropertyMapping.Embedded em -> {
+                List<PropertyMapping> subs = new ArrayList<>(em.propertyMappings().size());
+                for (PropertyMapping s : em.propertyMappings()) {
+                    subs.add(pmThroughFrame(s, view, viewName, md));
+                }
+                List<RelationalOperation> epk = new ArrayList<>(em.primaryKey().size());
+                for (RelationalOperation k : em.primaryKey()) {
+                    epk.add(frameRewrite(k, view, viewName, md));
+                }
+                yield new PropertyMapping.Embedded(em.propertyName(), subs, epk);
+            }
+            // joins depart from the view by name (their conditions are
+            // translated against the frame row at emission); the other
+            // kinds carry no column of the root
+            default -> pm;
         };
     }
-
-    /** Whether the named join's condition references {@code tableOrView}. */
-    private static boolean joinTouches(com.legend.model.JoinChainElement el,
-            String pmDb, String tableOrView, ModelBuilder model) {
-        String db = el.databaseName() != null ? el.databaseName() : pmDb;
-        var found = model.findDatabase(db).orElseThrow(() -> MissProbe.neverFired("ViewRelation#4"));
-        if (found == null) {
-            return false;
-        }
-        var jd = found.joins().stream()
-                .filter(j -> j.name().equals(el.joinName())).findFirst()
-                .orElseThrow(() -> MissProbe.neverFired("ViewRelation#5"));
-        if (jd == null) {
-            return false;
-        }
-        java.util.Set<String> tables = new java.util.LinkedHashSet<>();
-        RelOpTranslator.collectTablesIn(jd.operation(), tables);
-        return tables.contains(tableOrView);
-    }
-
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
                                             String viewName, ResolvedMapping md) {

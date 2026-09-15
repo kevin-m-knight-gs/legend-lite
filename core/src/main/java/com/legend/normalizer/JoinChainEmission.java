@@ -376,6 +376,12 @@ final class JoinChainEmission {
             RelationalOperation joinCond = p.backingView == null ? jd.operation()
                     : MappingNormalizer.resolveViewRefsInJoin(jd.operation(), hopDb, prevTable,
                             model, md, p.backingView, p.backingView);
+            // a join condition names its two relations by table: a view's
+            // columns in their declared spelling (a reference to the view's
+            // root table here means the JOINED table, never the frame)
+            if (prevTable != null) {
+                joinCond = ViewRelation.declaredSpelling(joinCond, hopDb, model);
+            }
             Set<String> condTables = new LinkedHashSet<>();
             RelOpTranslator.collectTablesIn(joinCond, condTables);
             condTables.remove(prevTable);
@@ -550,8 +556,9 @@ final class JoinChainEmission {
                 Map<String, ValueSpecification> scope = new LinkedHashMap<>();
                 scope.put(mainTable, s);
                 scope.put(landing.table(), new AppliedProperty(t, landing.alias()));
-                cond = RelOpTranslator.translate(jd.operation(), scope, t, null,
-                        RelOpTranslator.PipelineView.NONE);
+                cond = RelOpTranslator.translate(
+                        ViewRelation.declaredSpelling(jd.operation(), db, model),
+                        scope, t, null, RelOpTranslator.PipelineView.NONE);
             } else {
                 String rPrev = java.util.Objects.requireNonNull(prevTable);
                 Set<String> tables = new LinkedHashSet<>();
@@ -573,8 +580,9 @@ final class JoinChainEmission {
                 if (!tgt.equals(rPrev)) {
                     scope.put(tgt, t);
                 }
-                cond = RelOpTranslator.translate(jd.operation(), scope, t, null,
-                        RelOpTranslator.PipelineView.NONE);
+                cond = RelOpTranslator.translate(
+                        ViewRelation.declaredSpelling(jd.operation(), db, model),
+                        scope, t, null, RelOpTranslator.PipelineView.NONE);
             }
             // a ROOT route beside others names the root set's own function
             // (its class-level function); the queried mapping resolves it
@@ -886,12 +894,15 @@ final class JoinChainEmission {
         } catch (ModelException unmappedTarget) {
             return null;
         }
-        // the declared ~mainTable may spell the VIEW itself or its
-        // physical table (inference vs explicit) — both mean this class.
+        // the condition speaks the TARGET CLASS's row: a class over the
+        // view's PHYSICAL table reads physical columns (substitute); a class
+        // over the VIEW itself is its frame — its row is the view's declared
+        // columns, so the condition keeps the view's refs (leg 6b; the old
+        // flattening let a view-backed class speak physical columns too).
         // A ~groupBy/~distinct class mapping's pipeline speaks GROUPED
         // outputs, not physical — its row is a real relation; keep the
         // expansion there (testReprocessGroupByAlias's grouped Person).
-        if (!vPhys.equals(tgtMain) && !viewTarget.equals(tgtMain)) {
+        if (!vPhys.equals(tgtMain)) {
             return null;
         }
         // SINGLE-SET, group-free, NON-TEMPORAL targets only: union routes
@@ -931,9 +942,9 @@ final class JoinChainEmission {
         // unionOfViews + a milestoned-view single under FULL-corpus
         // assembly (cross-family duplicate resolution) — the next rung
         // must gate that threading by the failing assemblies' shapes.
-        Pipeline p = new Pipeline(new AppliedFunction("tableReference",
-                List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
-                null, ledger);
+        // the main relation: a table, or a VIEW's frame (the engine's
+        // ViewSelectSQLQuery — the filter chain departs from the view's row)
+        Pipeline p = new Pipeline(relationRef(mainDb, mainTable, model, md), null, ledger);
         p.ownerSet = rcm;
         JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
                 /* propName */ null, rcm.className(), mainDb, mainTable,
@@ -975,23 +986,35 @@ final class JoinChainEmission {
         }
         scope.putIfAbsent(mainTable, r);
         MappingNormalizer.seedAliasScope(scope, p, r, mainTable);
-        ValueSpecification cond = RelOpTranslator.translate(fd.condition(),
+        ValueSpecification cond = RelOpTranslator.translate(
+                ViewRelation.frameRewriteIfView(fd.condition(), mainDb, mainTable, md, model),
                 scope, terminalRow, r, p.view());
         ValueSpecification src = new AppliedFunction("filter", List.of(p.expr,
                 new LambdaFunction(List.of(r), List.of(cond))));
-        DatabaseDefinition.TableDefinition td = model.knowledge().table(mainDb, mainTable).orElseThrow(() -> MissProbe.neverFired("JoinChainEmission#2"));
-        if (td == null) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "main table '" + mainTable + "' not found in db '" + mainDb
-                  + "' for the (INNER) mapping ~filter of class '"
-                  + rcm.className() + "', mapping=" + md.qualifiedName());
+        // every base column under its original name: a table's columns, or
+        // a view's declared columns (the frame's row)
+        List<String> baseNames = new ArrayList<>();
+        DatabaseDefinition.ViewDefinition mainView = model.findView(mainDb, mainTable)
+                .orElseGet(MissProbe::miss);
+        if (mainView != null) {
+            for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : mainView.columnMappings()) {
+                baseNames.add(vc.name());
+            }
+        } else {
+            DatabaseDefinition.TableDefinition td = model.knowledge().table(mainDb, mainTable)
+                    .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "main table '" + mainTable + "' not found in db '" + mainDb
+                          + "' for the (INNER) mapping ~filter of class '"
+                          + rcm.className() + "', mapping=" + md.qualifiedName()));
+            for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
+                baseNames.add(cd.name());
+            }
         }
         Variable vd = new Variable("vd");
-        List<ColSpec> baseCols = new ArrayList<>(td.columns().size());
-        for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
-            baseCols.add(new ColSpec(cd.name(),
-                    new LambdaFunction(List.of(vd),
-                            List.of(new AppliedProperty(vd, cd.name()))), null));
+        List<ColSpec> baseCols = new ArrayList<>(baseNames.size());
+        for (String name : baseNames) {
+            baseCols.add(new ColSpec(name,
+                    new LambdaFunction(List.of(vd), List.of(new AppliedProperty(vd, name))), null));
         }
         return new AppliedFunction("project", List.of(src,
                 new ColSpecArray(baseCols)));

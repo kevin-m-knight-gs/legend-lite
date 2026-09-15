@@ -3015,3 +3015,55 @@ not resolve (was 7).
 
 **Next.** 6b's thinning: the view-flattening fallback (audit F1 — five corpus mappings) absorbed
 by the frame path, then deleted; 6d: the two known gaps.
+
+## Legacy routes as composition, leg 6b — the view is the frame; the flattening fallback deleted — 2026-09-15
+
+**Why.** docs/TRANSLATOR_AUDIT_2026_09_15.md F1: a view-backed set took the engine's shape (the
+view as a subselect, `pureToSQLQuery.pure:5187`) only when a gate (`frameable`) allowed it; five
+corpus mappings fell to a flattening emission of ours — the view's column expressions rewritten
+onto its physical root table, the view's and the set's filters re-layered, view-on-view flattened
+one layer at a time. The engine never flattens a view; every one of the five fell through only
+because the set carried a mapping-level `~filter`.
+
+**What landed.**
+- ONE rule under a frame (the engine's `findTableForColumnInAlias`, `ViewRelation.frameRewrite`):
+  a reference to a table column the view CARRIES (a declared column whose expression is exactly
+  that column — the view's own column mappings, no root inference) resolves to the declared
+  column; a reference to a table the view reads but a column it does not carry is loud. It is
+  applied once, uniformly, to everything
+  the set evaluates: property mappings, `~groupBy` keys, `~primaryKey`
+  (`ViewRelation.throughFrame`), the direct and join-mediated `~filter` conditions and the
+  INNER-filter source (`frameRewriteIfView`). Joins depart from the view by name and need nothing.
+- `synthViewBackedMapping` is the frame path only; `innerFilteredSource` builds over a view's
+  frame (view-aware source, the view's declared columns projected).
+- DELETED: the flattening fallback (`synthViewBackedMapping`'s second half,
+  `layerMappingFilterPreMap`, `filterBelowAggregation`, `chainHasGroupBy`), its gate
+  (`frameable`, `pmReadsViewColumns`, `joinTouches`) and its rewriter (`rewritePmThroughView`,
+  `rewriteColumnPmAsViewExpr`, `rewriteOpThroughView`).
+- Join conditions naming a view spell its declared columns (`declaredSpelling`; unquoted
+  identifiers are case-insensitive, the frame row carries the declared spelling) and take NO
+  root rewrite: a join condition names its two relations by table, so a reference to a view's
+  root table there means the JOINED table (a view joined to its own root, the milestoning
+  `tradePnlIntermediateView_TradePnlTable` and the grouped `personViewWithGroupBy` rows — three
+  rows lost to the first cut and back); a join's view
+  references substitute to physical (`plainClassViewCond`) only when the target class is over the
+  PHYSICAL table — a view-backed class's row is its frame (this rule, written for the flattening,
+  cost two rows of the inner-join-filter family until corrected: the engine's own golden for them
+  nests the view as a subselect, `testClassMappingFilterWithInnerJoin.pure:172`).
+- Three normalizer tests re-pinned from the flattened spine to the frame's (the same two filters
+  in the same order, a projection between; the mapping filter's `T_PERSON.AGE` reads the view's
+  `page`); `MappingNormalizerTest.spine` helper.
+- Leanness (USER 2026-09-15: lean, human-readable SQL as long as it is correct): the frame is the
+  engine's shape for these rows (its golden nests the view); where a view frame could be inlined
+  into the outer select, that is a lowering pass over every view, not a translator path.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. Rows that changed hands
+during the build and came back: the inner-join-filter pair (`plainClassViewCond`), the grouped-view
+pair and the milestoned view-on-view single (the join-condition root rewrite).
+
+**Chain.** Green on the first run after the census ratchet — G2 24s, G1 71s, G3 11s, G4 122s, G5 62s, G6 142s, G7 36s, G9 28s, G8 142s (the shadow-walker census ratcheted DOWN: `inferViewMainTable` call sites 6 → 5,
+the fallback's own gone; the frame rule needs no root inference). **Measures (§11.0).** M1 1,102
+· M2 1 · M3 0 · M4 5. Normalizer package:
+11,327 lines (was 11,435). Batch size: 5 files, +277 / −382.
+
+**Next.** 6d: the two known gaps.
