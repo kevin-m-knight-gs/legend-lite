@@ -9,11 +9,9 @@ import com.legend.error.NotImplementedException;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.ClassMapping;
-import com.legend.model.LegacyMappingDefinition;
 import com.legend.protocol.TypeExpression;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.ValueSpecification;
@@ -71,10 +69,6 @@ final class ModelJoinNesting {
             String endCls = var.equals(aVar) ? classA : classB;
             AssociationDefinition nad = model.findAssociationOf(endCls, prop)
                     .orElseThrow(() -> MissProbe.neverFired("ModelJoinNesting#1"));
-            if (nad == null) {
-                continue;   // not an association hop — the rewrite's
-                            // ordinary loud error names it
-            }
             String nestedCls = nad.property1().propertyName().equals(prop)
                     ? nad.property1().targetClassFqn()
                     : nad.property2().targetClassFqn();

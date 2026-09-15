@@ -199,14 +199,6 @@ public final class ModelNormalizer {
     }
 
     /**
-     * Build {@code <owner>$prop$<name>(this:Owner[1], <params>):T[m]} carrying
-     * the derived property's body. The leading {@code this} receiver binds
-     * {@code $this} in the body; the class's type parameters are propagated so
-     * a generic owner's {@code T} stays in scope. The FQN uses the reserved
-     * {@code $} sigil and MUST match {@code PureModelContext}'s
-     * {@code <owner>$prop$<name>} reference.
-     */
-    /**
      * The {@code this} receiver type: the bare class FQN, or
      * {@code Owner<T, ...>} when the owner is generic (so the body's
      * {@code $this} carries the class's type parameters).

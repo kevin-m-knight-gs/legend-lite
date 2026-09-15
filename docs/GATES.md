@@ -3351,3 +3351,56 @@ and masked the real cause.
 Own-corpus parity floor 2466 → 2470 (the witness's model).
 
 **Chain.** Green on the first run, wall 239 s: G2 26s, G1 70s, G3 11s, G4 89s, G5 37s, G6 142s, G7 42s, G9 29s, G8 141s. Batch size: 11 files.
+
+## Audit fix A7 (FIXLIST P6, P5-1, P5-2, P5-7) — hygiene: dead code, imports, javadocs, census rows, pins — 2026-09-15
+
+**Why.** P6 (VERIFIED zero consumers): `SetDispatch` + `routedTargetSets` (99 lines walking every
+include closure on every compile, read by nothing), `RequiredNullableCensus` + `nullableCensus`
+(130 lines feeding an accessor with zero callers and a javadoc naming a deleted channel and a
+harness that does not exist), `DynaFnArms` (public "so the registry's test can hold the
+declarations" — no such test), `NormalizedModel.liftedByOwner` (no production reader), dead
+constructors, five callerless package-private statics the dead-private guard cannot see, two dead
+`Pipeline` members (`backingView` null at every construction; `ownerSet` write-only), `if (x ==
+null)` after `orElseThrow` ×6, 101 unused imports across four files, orphaned javadoc blocks.
+P5-1: commit `6048acec2` deleted two `ShadowWalkerCensusTest` rows with six live call sites.
+P5-2: `CodeShapeGuardrailTest` pinned `MappingNormalizer.java` at 3510 lines while the file is
+~2,900 — 600 lines of slack on a "SHRINK only" pin. P5-7: the census test asserts no coverage
+floor.
+
+**What landed.**
+- DELETED: `SetDispatch` and `MappingDefinition.routedTargetSets` (component, 7-arg constructor,
+  stamping call); `RequiredNullableCensus`, `NormalizationFacts.nullableCensus` (component, 4-arg
+  constructor), `MappingLedger.nullableCensus`/`census`, `ModelContext.requiredNullableCensus`
+  and its `PureModelContext` derivation, the two `DeclaredCoercions` hooks; `DynaFnArms`;
+  `NormalizedModel.liftedByOwner` (its only readers were `ModelNormalizerTest`'s observations —
+  NOT `DynaFnArms`: the audit's "no such test exists" looked in `core` only — the test is
+  `spec/…/DynaFnRegistryTest` (`resolutionsHold`, `armsAreDerivedFromTheTranslatorSource`);
+  gate 3 caught the deletion and the class is kept, the FIXLIST row corrected);
+  the index now lives there as a test helper); the five callerless package-private statics
+  (`GroupBySynthesis.isGroupByStep`, `JoinChainEmission.classTypedButUnmapped`,
+  `MappingNormalizer.nullOfDeclaredType` / `nullOfPhysicalKind`, `ViewRelation.relationExpr`);
+  `Pipeline.backingView` (null at every construction — its parameter chain through
+  `synthTableBackedMapping`/`synthTableBackedParts` and its two join-condition branches) and
+  `Pipeline.ownerSet` (write-only); the unreachable `(INNER)` filter wall in `applyFilter`
+  (`synthTableBackedParts` intercepts first; the comment said the emission "was not built" — it
+  was); six `if (x == null)` branches after `orElseThrow` (`MappingClosures` ×4,
+  `AssociationSynthesis`, `ImplicitInheritance`, `ModelJoinNesting`); 120 unused imports across
+  17 normalizer files (+3 in `NormalizedModel`); 20 orphaned javadoc blocks — 10 moved onto the
+  member they describe (`routeList`, `uniqueSlotName`, `mintNavSlotAlias`,
+  `associationOwnerClass`, `strCast`, `qualifyStoreRefs`, `declaredPrimaryKeyColumns`,
+  `liftClassInline`, `classifyUnionRoutes`, `ambiguousTableRef`), 10 deleted (docs of members
+  the arc deleted). Zero orphans remain (`orphan_javadoc.py` census).
+- GUARDS: `ShadowWalkerCensusTest` restores the two rows `6048acec2` deleted — `pureKindOf` 2,
+  `declaredPlatformKind` 3, shrink-only — and asserts a coverage floor of 20 normalizer files
+  (`GuardCoverage.assertFloor`); `CodeShapeGuardrailTest.FILE_ALLOWLIST` is EMPTY —
+  `MappingNormalizer.java` (2,860 lines after this leg) is bound by the general 3,500 ceiling like
+  every other file, not by a 3,510 exception.
+- NOT done here: extending `deadPrivateMethodsOnlyShrink` to package-private statics — the
+  scanner is per-file, and a package-private static's callers are in OTHER files; the one-off
+  cross-file census that found the five is `deadcensus.py` (job tmp), a proper guard needs a
+  package-wide use count and is filed for A10.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s).
+Own-corpus parity floor unchanged (2470).
+
+**Chain.** Gates 1–2, 4–9 green on the first run, wall 232 s: G2 25s, G1 71s, G3 11s, G4 86s, G5 38s, G6 134s, G7 42s, G9 31s, G8 138s; G3 red on `DynaFnRegistryTest` (the deleted `DynaFnArms` — restored, see above), rerun green (6 s; a first rerun tripped the PX.1 mid-chain tripwire on a FIXLIST edit made while it ran — rerun again untouched, green). Batch size: 27 files, +150 / −480.

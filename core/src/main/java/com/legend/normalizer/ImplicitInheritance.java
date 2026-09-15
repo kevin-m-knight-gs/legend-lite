@@ -130,9 +130,6 @@ final class ImplicitInheritance {
             }
             var ad = AssociationSynthesis.resolveAssociation(model, r, am)
                     .orElseThrow(() -> MissProbe.neverFired("ImplicitInheritance#1"));
-            if (ad == null) {
-                continue;
-            }
             for (com.legend.model.AssociationPropertyMapping apm
                     : rel.propertyMappings()) {
                 String tgtSet = apm.body() instanceof PropertyMapping.Join j

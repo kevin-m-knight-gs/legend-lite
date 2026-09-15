@@ -39,12 +39,10 @@ class CodeShapeGuardrailTest {
     private static final Map<String, Integer> METHOD_ALLOWLIST = Map.of();
 
     /** Known oversized FILES, pending their planned splits. */
-    private static final Map<String, Integer> FILE_ALLOWLIST = Map.of(
-            // sat exactly AT the 3500 ceiling before the upstream explicit-src
-            // relation-mapping forms landed (2026-08-05); the row-expression binding
-            // added ~4 lines. Next real touch should extract the relation-col binding
-            // family into its own normalizer helper instead of growing this again.
-            "MappingNormalizer.java", 3510);
+    // EMPTY since audit fix A7 (2026-09-15, P5-2): MappingNormalizer.java's
+    // 3510 exception carried 600 lines of slack over a ~2,860-line file —
+    // the general FILE_LIMIT binds it now, shrink-only like everything else.
+    private static final Map<String, Integer> FILE_ALLOWLIST = Map.of();
     // SpecParser.java's entry (3525, dialect-quarantine growth) was RETIRED
     // at the 4.138.2 re-pin: the named seam was taken — the island
     // char-scanner family moved to IslandScan.java (3539 -> ~3200 lines).

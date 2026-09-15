@@ -2,7 +2,6 @@
 
 package com.legend.normalizer;
 
-import com.legend.model.ClassMapping;
 import com.legend.model.JoinChainElement;
 import com.legend.protocol.spec.ValueSpecification;
 import java.util.HashSet;
@@ -50,12 +49,6 @@ final class Pipeline {
     // instead of silently resolving to an arbitrary sub-row. Pin the
     // intended sub-row with a join-terminal column (| T.COL) instead.
     final Set<String> ambiguousTables = new HashSet<>();
-    // The VIEW this class's source pipeline materializes (null for plain
-    // table-backed classes). Join conditions referencing THIS view's
-    // columns may substitute the physical expressions even when the view
-    // carries filter/distinct/groupBy — those row semantics already live
-    // in the class pipeline; any OTHER non-plain view stays a wall.
-    final @com.legend.Nullable String backingView;
     /** Routed class-typed navigations: property -> per-PM route entries
      * (target union-member ordinal + join), classified from each PM's
      * OWN {@code Join.targetSetId} (audit 11: the name-keyed map lost
@@ -63,10 +56,6 @@ final class Pipeline {
      * over ALL entries, each target-side member-suffixed
      * ({@code FirmID_1}) so exactly the routed members' threads match. */
     final Map<String, List<UnionSynthesis.UnionRoute>> unionRoutes = new LinkedHashMap<>();
-    /** The id of the set this pipeline realizes — the NAVIGATING set a
-     * routed navigation's link keys are named by (B3.1b); null for a
-     * view pipeline. */
-    @com.legend.Nullable ClassMapping ownerSet;
     /** Routed properties DROPPED from this synthesis (unresolvable or
      * unsupported route shape — reason on the poison ledger). Their PMs
      * emit nothing and bind no field; demand fails loudly. */
@@ -79,21 +68,19 @@ final class Pipeline {
      * nothing; {@link #ledger()} is loud if that ever changes. */
     private final @com.legend.Nullable MappingLedger ledgerOrNull;
 
-    Pipeline(ValueSpecification expr, @com.legend.Nullable String backingView,
-            MappingLedger ledger) {
-        this(expr, backingView, ledger, false);
+    Pipeline(ValueSpecification expr, MappingLedger ledger) {
+        this(expr, ledger, false);
     }
 
-    private Pipeline(ValueSpecification expr, @com.legend.Nullable String backingView,
-            @com.legend.Nullable MappingLedger ledger, boolean view) {
+    private Pipeline(ValueSpecification expr, @com.legend.Nullable MappingLedger ledger,
+            boolean view) {
         this.expr = expr;
-        this.backingView = backingView;
         this.ledgerOrNull = view ? null : java.util.Objects.requireNonNull(ledger, "ledger");
     }
 
     /** A VIEW's relation pipeline: physical hops only, no ledger. */
     static Pipeline forView(ValueSpecification expr) {
-        return new Pipeline(expr, null, null, true);
+        return new Pipeline(expr, null, true);
     }
 
     MappingLedger ledger() {

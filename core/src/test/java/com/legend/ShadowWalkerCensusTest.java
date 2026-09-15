@@ -65,6 +65,13 @@ class ShadowWalkerCensusTest {
             Map.entry("findPhysicalColumn", 0),
             Map.entry("findPhysicalTable", 0),
             Map.entry("tableHasColumn", 0),
+            // KIND FAMILY — the two rows 6048acec2 (T4.1 step 3d) DELETED
+            // instead of ratcheting (audit 2026-09-15 P5-1): the coercion
+            // seam still asks the declared platform kind and the physical
+            // kind of a column through these two walkers; pinned at their
+            // live call-site counts, shrink-only from here
+            Map.entry("pureKindOf", 2),
+            Map.entry("declaredPlatformKind", 3),
             // OWED: a view's root table is a STORE fact (T4.1 §8 step 3: "the
             // view root and column kind stamped on compiled stores") — it
             // still walks RelationalOperation records with the normalizer's
@@ -80,6 +87,9 @@ class ShadowWalkerCensusTest {
         try (Stream<Path> s = Files.walk(NORMALIZER)) {
             files = s.filter(p -> p.toString().endsWith(".java")).toList();
         }
+        // the scope must not rot (audit 2026-09-15 P5-7): the walk found
+        // the normalizer's sources, not an empty or moved directory
+        GuardCoverage.assertFloor("ShadowWalkerCensusTest", files.size(), 20);
         for (Path f : files) {
             for (String line : Files.readAllLines(f)) {
                 for (String walker : REGISTER.keySet()) {

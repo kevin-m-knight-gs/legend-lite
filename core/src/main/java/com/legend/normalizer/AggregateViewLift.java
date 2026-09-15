@@ -6,7 +6,6 @@ package com.legend.normalizer;
 import com.legend.compiler.ModelBuilder;
 import com.legend.model.ClassMapping;
 import com.legend.model.FunctionDefinition;
-import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
 import java.util.ArrayList;
 import java.util.List;

@@ -4,57 +4,30 @@ package com.legend.normalizer;
 
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
-import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
-import com.legend.protocol.Multiplicity;
-import com.legend.model.NormalizedModel;
-import com.legend.model.ParsedModel;
 import com.legend.protocol.TypeExpression;
-import com.legend.model.AssociationDefinition;
-import com.legend.model.AssociationMapping;
-import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ClassMapping;
-import com.legend.model.ComparisonOp;
 import com.legend.model.DatabaseDefinition;
-import com.legend.model.EnumerationMapping;
 import com.legend.model.FilterMapping;
 import com.legend.model.FilterPointer;
-import com.legend.model.FunctionDefinition;
 import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.LogicalOp;
-import com.legend.model.MappingDefinition;
-import com.legend.model.PackageableElement;
 import com.legend.model.PropertyMapping;
-import com.legend.protocol.Realization;
-import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
-import com.legend.model.SynthHat;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CBoolean;
-import com.legend.protocol.spec.CFloat;
-import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.ColSpecArray;
-import com.legend.protocol.spec.EnumValue;
-import com.legend.protocol.spec.KeyExpression;
 import com.legend.protocol.spec.LambdaFunction;
-import com.legend.protocol.spec.NewInstance;
-import com.legend.protocol.spec.NewInstanceCast;
 import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.protocol.spec.PureCollection;
-import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -379,13 +352,9 @@ final class JoinChainEmission {
                             "Join '" + hop.joinName() + "' not found in db '"
                           + hopDb + "'; PM='" + propName + "', mapping="
                           + md.qualifiedName()));
-            // PASS 1: the class's BACKING view always substitutes to its
-            // physical expressions (its row semantics live in the class
-            // pipeline). Then a SOLE remaining non-source view candidate is
-            // the join's TARGET — expanded as a relation, never substituted.
-            RelationalOperation joinCond = p.backingView == null ? jd.operation()
-                    : MappingNormalizer.resolveViewRefsInJoin(jd.operation(), hopDb, prevTable,
-                            model, md, p.backingView, p.backingView);
+            // a SOLE non-source view candidate in the condition is the
+            // join's TARGET — expanded as a relation, never substituted
+            RelationalOperation joinCond = jd.operation();
             // a join condition names its two relations by table: a view's
             // columns in their declared spelling (a reference to the view's
             // root table here means the JOINED table, never the frame)
@@ -498,6 +467,17 @@ final class JoinChainEmission {
         return slot;
     }
 
+    /** A named relation of {@code db} as an expression: a VIEW's
+     * projection, else a table reference. */
+    private static ValueSpecification relationRef(String db, String name, ModelBuilder model,
+            ResolvedMapping md) {
+        return model.findView(db, name).isPresent()
+                ? ViewRelation.viewRelationExpr(model.findView(db, name).orElseThrow(), name, db,
+                        model, md)
+                : new AppliedFunction("tableReference", List.of(
+                        new PackageableElementPtr(db), new CString(name)));
+    }
+
     /**
      * The ROUTE LIST of a routed navigation (legacy routes as composition,
      * docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md §5, §11): per route,
@@ -512,17 +492,6 @@ final class JoinChainEmission {
      * The set's function is named by the mapping that DEFINES the set: a
      * plain function reference, resolved under the queried mapping.
      */
-    /** A named relation of {@code db} as an expression: a VIEW's
-     * projection, else a table reference. */
-    private static ValueSpecification relationRef(String db, String name, ModelBuilder model,
-            ResolvedMapping md) {
-        return model.findView(db, name).isPresent()
-                ? ViewRelation.viewRelationExpr(model.findView(db, name).orElseThrow(), name, db,
-                        model, md)
-                : new AppliedFunction("tableReference", List.of(
-                        new PackageableElementPtr(db), new CString(name)));
-    }
-
     private static List<ValueSpecification> routeList(Pipeline p,
             List<UnionSynthesis.UnionRoute> routes, @com.legend.Nullable String propName,
             @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
@@ -619,22 +588,6 @@ final class JoinChainEmission {
         return out;
     }
 
-    /**
-     * Pick the slot identifier for a freshly-emitted physical sub-row hop.
-     * The default is the human-readable {@code "__"}-joined path. If a
-     * <em>different</em> path already produced that exact name (a genuine
-     * collision — e.g. chain {@code [A, B]} vs a single join named
-     * {@code "A__B"}), a deterministic suffix is appended until the name is
-     * free. The structured {@link Pipeline#pathToSlot} key, not this name,
-     * is the dedup identity; readers recover the name via {@link #slotFor}.
-     */
-    /**
-     * The navigate-slot alias for a class-typed join PM: the property name,
-     * MINTED PAST any physical main-table column of the same name (the slot
-     * pseudo-column and the physical column share one relation row — the
-     * checker rightly rejects the duplicate). Deterministic and recorded so
-     * the binding read uses the same name.
-     */
     /** Record which class OWNS a class-typed sub-PM's nav slot (keyed by
      * property name — the slot alias space) so the collision guards can
      * distinguish a same-owner routed SIBLING (dedups into one routed
@@ -647,6 +600,13 @@ final class JoinChainEmission {
         }
     }
 
+    /**
+     * The navigate-slot alias for a class-typed join PM: the property name,
+     * MINTED PAST any physical main-table column of the same name (the slot
+     * pseudo-column and the physical column share one relation row — the
+     * checker rightly rejects the duplicate). Deterministic and recorded so
+     * the binding read uses the same name.
+     */
     static String mintNavSlotAlias(Pipeline p, ModelBuilder model,
             String mainDb, String mainTable, String propName) {
         String known = p.navSlotByProp.get(propName);
@@ -677,6 +637,15 @@ final class JoinChainEmission {
     }
 
 
+    /**
+     * Pick the slot identifier for a freshly-emitted physical sub-row hop.
+     * The default is the human-readable {@code "__"}-joined path. If a
+     * <em>different</em> path already produced that exact name (a genuine
+     * collision — e.g. chain {@code [A, B]} vs a single join named
+     * {@code "A__B"}), a deterministic suffix is appended until the name is
+     * free. The structured {@link Pipeline#pathToSlot} key, not this name,
+     * is the dedup identity; readers recover the name via {@link #slotFor}.
+     */
     static String uniqueSlotName(Pipeline p,
             @com.legend.Nullable List<String> path) {
         String base = String.join("__", path);
@@ -753,23 +722,6 @@ final class JoinChainEmission {
         // the graph's), any of them mapped in this mapping's closure
         return model.knowledge().subtree(base).stream().anyMatch(c ->
                 model.findClass(c).isPresent() && ledger.isMapped(c));
-    }
-
-    /** A class-typed property whose declared class (or any subclass) has no
-     * set in this mapping's closure: the engine compiles such a Join PM and
-     * the property is simply not navigable under the mapping (a missing
-     * target set is a compilation warning there). The PM is dropped from
-     * the synthesized function, with the reason on the ledger; a query that
-     * navigates it is loud at demand. Never a structural join. */
-    static boolean classTypedButUnmapped(@com.legend.Nullable String ownerClassFqn,
-            String propName, ModelBuilder model, MappingLedger ledger) {
-        ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
-        if (owner == null) return false;
-        TypeExpression propType = model.knowledge().propertyType(owner, propName);
-        String tgt = propType instanceof TypeExpression.NameRef nr ? nr.name()
-                : propType instanceof TypeExpression.Generic g ? g.name() : null;
-        return tgt != null && model.knowledge().hierarchyClass(tgt).isPresent()
-                && classTypedTargetIfMapped(ownerClassFqn, propName, model, ledger) == null;
     }
 
     record JoinNavSpec(List<JoinChainElement> chain, @com.legend.Nullable String chainDb) {}
@@ -871,7 +823,7 @@ final class JoinChainEmission {
         // the early detection above only fires when the source side is
         // the pipeline's own prevTable)
         joinCond = MappingNormalizer.resolveViewRefsInJoin(joinCond, hopDb,
-                prevTable, model, md, p.backingView, null);
+                prevTable, model, md, null, null);
         String targetTable = MappingNormalizer.determineTargetTable(
                 joinCond, prevTable, joinName,
                 propName == null ? "<nested>" : propName,
@@ -970,8 +922,7 @@ final class JoinChainEmission {
         // must gate that threading by the failing assemblies' shapes.
         // the main relation: a table, or a VIEW's frame (the engine's
         // ViewSelectSQLQuery — the filter chain departs from the view's row)
-        Pipeline p = new Pipeline(relationRef(mainDb, mainTable, model, md), null, ledger);
-        p.ownerSet = rcm;
+        Pipeline p = new Pipeline(relationRef(mainDb, mainTable, model, md), ledger);
         JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
                 /* propName */ null, rcm.className(), mainDb, mainTable,
                 r, model, md, /* classTypedTerminus */ false);
@@ -1104,8 +1055,4 @@ final class JoinChainEmission {
     }
 
 
-    /** Routed navigation collapses to the ONE plain condition when the
-     * routes are full-coverage same-join over a union target, or the
-     * target is a SAME-TABLE inheritance hierarchy (one physical
-     * relation — member suffixes don't exist on its row). */
 }

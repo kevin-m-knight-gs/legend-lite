@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.normalizer;
 
-import com.legend.compiler.ModelBuilder;
 import com.legend.model.AssociationMapping;
 import com.legend.model.ClassMapping;
 import com.legend.model.EnumerationMapping;

@@ -521,19 +521,7 @@ public final class PureModelContext implements ModelContext {
     /** The graph's [1]-over-nullable census: the union of every compiled
      * mapping's stamped rows, bucket by bucket (memoized: the mappings are
      * immutable once the gate has passed). */
-    @Override
-    public java.util.Map<String, java.util.Set<String>>
-            requiredNullableCensus() {
-        return derived(NullableCensus.class, c -> {
-            java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();
-            model.mappings().forEach(md -> md.facts().nullableCensus().forEach((b, ws) ->
-                    out.computeIfAbsent(b, k -> new java.util.TreeSet<>()).addAll(ws)));
-            out.replaceAll((b, ws) -> java.util.Collections.unmodifiableSet(ws));
-            return new NullableCensus(java.util.Collections.unmodifiableMap(out));
-        }).rows();
-    }
 
-    private record NullableCensus(java.util.Map<String, java.util.Set<String>> rows) {}
 
     private Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             milestoningWithIncludes(com.legend.model.DatabaseDefinition db,

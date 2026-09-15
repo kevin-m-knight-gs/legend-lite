@@ -8,56 +8,23 @@ import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
-import com.legend.protocol.Multiplicity;
-import com.legend.model.NormalizedModel;
-import com.legend.model.ParsedModel;
 import com.legend.protocol.TypeExpression;
-import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
-import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ClassMapping;
-import com.legend.model.ComparisonOp;
 import com.legend.model.DatabaseDefinition;
-import com.legend.model.EnumerationMapping;
-import com.legend.model.FilterMapping;
-import com.legend.model.FilterPointer;
-import com.legend.model.FunctionDefinition;
 import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.LogicalOp;
-import com.legend.model.MappingDefinition;
-import com.legend.model.MappingInclude;
-import com.legend.model.PackageableElement;
 import com.legend.model.PropertyMapping;
-import com.legend.protocol.Realization;
-import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
-import com.legend.model.SynthHat;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CBoolean;
-import com.legend.protocol.spec.CDate;
-import com.legend.protocol.spec.CDecimal;
-import com.legend.protocol.spec.CFloat;
-import com.legend.protocol.spec.CInteger;
-import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
-import com.legend.protocol.spec.ColSpecArray;
-import com.legend.protocol.spec.EnumValue;
-import com.legend.protocol.spec.KeyExpression;
 import com.legend.protocol.spec.LambdaFunction;
-import com.legend.protocol.spec.NewInstance;
-import com.legend.protocol.spec.NewInstanceCast;
-import com.legend.protocol.spec.PackageableElementPtr;
-import com.legend.protocol.spec.PureCollection;
-import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -65,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 /**
  * Union/inheritance operation-mapping synthesis: member-set concatenation, route classification, nav lifts and inbound route keys. Split from MappingNormalizer (the Doors split).
  */
@@ -146,24 +112,6 @@ final class UnionSynthesis {
     }
 
 
-    /**
-     * Classify every {@code prop[setId]}-routed class-typed Join PM of
-     * {@code rcm} from its OWN {@code targetSetId} (per-PM fidelity —
-     * audit 11: the name-keyed map's put() lost duplicates and made the
-     * outcome depend on textual PM order). Outcomes per property:
-     * <ul>
-     *   <li>every route hits a member of the target class's union &rarr;
-     *       {@code p.unionRoutes} (ONE navigate, OR over the entries,
-     *       each member-suffixed — engine parity; coverage of ALL members
-     *       is NOT assumed, un-routed members read NULL keys);</li>
-     *   <li>every route hits the target's root/sole set &rarr; the
-     *       un-routed navigation (duplicates dedup at emission);</li>
-     *   <li>anything else (unknown set, non-root non-member set, chained
-     *       join on a routed entry, mixed root+member) &rarr; the property
-     *       DROPS from this synthesis with the reason on the poison
-     *       ledger; demanding it fails loudly.</li>
-     * </ul>
-     */
     /** Routed (set-pinned) Join PMs, DESCENDING into embedded bodies with
      * the owner class threaded (ledger cluster 66 — the flat scan left
      * unionRoutes blind to bridge(employees[set1], employees[set2])
@@ -282,6 +230,24 @@ final class UnionSynthesis {
                 && model.knowledge().hierarchyClass(nr.name()).isPresent() ? nr.name() : null;
     }
 
+    /**
+     * Classify every {@code prop[setId]}-routed class-typed Join PM of
+     * {@code rcm} from its OWN {@code targetSetId} (per-PM fidelity —
+     * audit 11: the name-keyed map's put() lost duplicates and made the
+     * outcome depend on textual PM order). Outcomes per property:
+     * <ul>
+     *   <li>every route hits a member of the target class's union &rarr;
+     *       {@code p.unionRoutes} (ONE navigate, OR over the entries,
+     *       each member-suffixed — engine parity; coverage of ALL members
+     *       is NOT assumed, un-routed members read NULL keys);</li>
+     *   <li>every route hits the target's root/sole set &rarr; the
+     *       un-routed navigation (duplicates dedup at emission);</li>
+     *   <li>anything else (unknown set, non-root non-member set, chained
+     *       join on a routed entry, mixed root+member) &rarr; the property
+     *       DROPS from this synthesis with the reason on the poison
+     *       ledger; demanding it fails loudly.</li>
+     * </ul>
+     */
     static void classifyUnionRoutes(ResolvedMapping md,
             ClassMapping.Relational rcm, ModelBuilder model, Pipeline p) {
         Map<String, List<PropertyMapping.Join>> routedByProp = new LinkedHashMap<>();
@@ -897,10 +863,6 @@ final class UnionSynthesis {
         return out;
     }
 
-    /** The LINK KEYS of every relational set in the mapping's closure
-     * (B3.1b): routed into by class PMs or association pair entries,
-     * each set publishes the columns those routes read under the key
-     * names the navigators spell — stamped on the ledger as a fact. */
     /** The PRE-PASSED records of the closure: a set that extends another
      * navigates with the routes it INHERITED, and names its keys by its
      * own id (the navigator side reads the flattened record too). */

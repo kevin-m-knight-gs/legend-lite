@@ -189,9 +189,6 @@ final class MappingClosures {
                     continue;
                 }
                 LegacyMappingDefinition included = surfaceOf(inc.mappingPath()).orElseThrow(() -> MissProbe.neverFired("MappingClosures#1"));
-                if (included == null) {
-                    continue;   // unresolvable include is its own loud problem elsewhere
-                }
                 Map<String, ClassMapping> local = new LinkedHashMap<>();
                 walkSets(included.includes(), local, seen);
                 for (ClassMapping cm : included.classMappings()) {
@@ -263,9 +260,6 @@ final class MappingClosures {
                 return;
             }
             LegacyMappingDefinition md = surfaceOf(mappingFqn).orElseThrow(() -> MissProbe.neverFired("MappingClosures#2"));
-            if (md == null) {
-                return;
-            }
             for (MappingInclude inc : md.includes()) {
                 walkIds(inc.mappingPath(), owner, first, dups, seen);
             }
@@ -359,9 +353,6 @@ final class MappingClosures {
                     continue;
                 }
                 LegacyMappingDefinition included = surfaceOf(path).orElseThrow(() -> MissProbe.neverFired("MappingClosures#3"));
-                if (included == null) {
-                    continue;
-                }
                 out.addAll(included.enumerationMappings());
                 walkEnums(included, out, seen);
             }
@@ -405,7 +396,6 @@ final class MappingClosures {
                 if (!(am instanceof AssociationMapping.Relational rel)) continue;
                 AssociationDefinition ad =
                         model.findAssociation(am.associationName()).orElseThrow(() -> MissProbe.neverFired("MappingClosures#4"));
-                if (ad == null) continue;
                 for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                     if (!(apm.body() instanceof PropertyMapping.Join join)
                             || apm.sourceSetId() == null) {

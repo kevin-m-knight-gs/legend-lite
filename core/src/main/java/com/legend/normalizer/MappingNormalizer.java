@@ -13,11 +13,9 @@ import com.legend.model.PoisonKey;
 import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
-import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassDefinition;
 import com.legend.model.CleanSheetMappingDefinition;
 import com.legend.model.ClassMapping;
-import com.legend.model.ComparisonOp;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.EnumDefinition;
 import com.legend.model.EnumerationMapping;
@@ -25,23 +23,17 @@ import com.legend.model.FilterMapping;
 import com.legend.model.FilterPointer;
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
-import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.LogicalOp;
 import com.legend.model.MappingDefinition;
 import com.legend.model.MappingInclude;
 import com.legend.model.PackageableElement;
 import com.legend.model.PropertyMapping;
 import com.legend.protocol.Realization;
-import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
 import com.legend.model.SynthHat;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CBoolean;
-import com.legend.protocol.spec.CDate;
-import com.legend.protocol.spec.CDecimal;
-import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
@@ -57,7 +49,6 @@ import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -67,8 +58,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 /**
  * Legacy Mapping DSL desugarer. Translates every legacy
  * {@link LegacyMappingDefinition} into clean-sheet function form per
@@ -452,8 +441,8 @@ public final class MappingNormalizer {
                 assocBindings,
                 md.enumerationMappingsWithIncludes(),
                 md.testSuitesSource(),
-                SetDispatch.routedTargetSets(md, model), resolvedStores,
-                ledger.facts(pp.surface(), md.raw(), model));
+                resolvedStores,
+                ledger.facts(pp.surface()));
     }
 
     // ====================================================================
@@ -552,12 +541,6 @@ public final class MappingNormalizer {
                         + " mapping=" + mappingFqn);
     }
 
-    /**
-     * A class inline body lifts to a param-less {@code (): Class[*]} function
-     * whose body is the user's expression verbatim. Kind-agnostic: Relational
-     * and Pure differ only in what the body starts from, which the lift never
-     * inspects.
-     */
     /** The DOOR-1 stamp: a clean-sheet inline binding's root table
      * reference, recognized at LIFT (the binding's construction moment)
      * by leftmost descent to the {@code #>{db.T}#} head the parser
@@ -627,6 +610,12 @@ public final class MappingNormalizer {
         return null;
     }
 
+    /**
+     * A class inline body lifts to a param-less {@code (): Class[*]} function
+     * whose body is the user's expression verbatim. Kind-agnostic: Relational
+     * and Pure differ only in what the body starts from, which the lift never
+     * inspects.
+     */
     private static FunctionDefinition liftClassInline(CleanSheetMappingDefinition md,
                                                      CleanSheetMappingDefinition.ClassBinding cb,
                                                      Realization.Inline inl,
@@ -692,22 +681,6 @@ public final class MappingNormalizer {
     // ====================================================================
 
 
-    /**
-     * Rewrite the condition's target-side reads ({@code $t.COL}) to the
-     * member-suffixed spelling ({@code $t.COL_<ord>}), collecting
-     * physical&rarr;suffixed names. Closed vocabulary, loud default —
-     * join conditions are comparisons/boolean ops over column reads and
-     * literals; anything else is a shape this route cannot suffix yet.
-     */
-
-
-    /**
-     * The ordinal of {@code setId} among the member sets of the Union
-     * operation mapping {@code prop}'s declared target class — the position
-     * of that member's thread in the synthesized left-deep concatenate
-     * (and the engine's {@code _N} key-column suffix). {@code null} when
-     * the property isn't class-typed or no local Union covers the set.
-     */
 
 
     // ====================================================================
@@ -1312,60 +1285,7 @@ public final class MappingNormalizer {
         }
     }
 
-    /** Whether the class (or a superclass) is BITEMPORAL. */
 
-
-    /** Whether the class (or a superclass) carries a temporal stereotype. */
-
-
-    /**
-     * A typed NULL for a member thread that does not carry {@code col}:
-     * cast to the pure kind of the ROUTED member's physical column (the
-     * threads must agree on the concatenate schema).
-     */
-    static ValueSpecification nullOfPhysicalKind(
-            ClassMapping.Relational routedMember, String col,
-            ResolvedMapping md, ModelBuilder model) {
-        // view-aware: routed members can be VIEW-backed (unionOfViews)
-        var rmMain = java.util.Objects.requireNonNull(routedMember.mainTable(),
-                "routed member set without ~mainTable");
-        String kind = model.knowledge().columnKind(rmMain.database(), rmMain.table(), col);
-        if (kind == null) {
-            throw new NotImplementedException(
-                    "union navigation key column '" + col + "' of table '"
-                    + routedMember.mainTable().table() + "' has no derivable"
-                    + " pure kind; mapping=" + md.qualifiedName());
-        }
-        return new AppliedFunction("cast", List.of(
-                new PureCollection(List.of()),
-                new TypeAnnotation.Named(
-                        new TypeExpression.NameRef(kind))));
-    }
-
-    /**
-     * A typed NULL for a union thread that does not map {@code prop}:
-     * {@code []->cast(@DeclaredType)} &mdash; the empty collection carries
-     * SQL NULL through the erasure lowering, the cast types the column so
-     * the concatenate's branches agree.
-     */
-    static ValueSpecification nullOfDeclaredType(@com.legend.Nullable ClassDefinition owner,
-            String prop, ModelBuilder model) {
-        TypeExpression dt = owner == null ? null
-                : model.knowledge().propertyType(owner, prop);
-        if (!(dt instanceof TypeExpression.NameRef nr)) {
-            throw new NotImplementedException(
-                    "cannot type the null of property '" + prop + "'"
-                    + (owner == null ? " (unresolved owner class)"
-                            : " on '" + owner.qualifiedName() + "'")
-                    + " — declared type is "
-                    + (dt == null ? "unknown" : "non-nominal"));
-        }
-        String castTo = nr.name();
-        return new AppliedFunction("cast", List.of(
-                new PureCollection(List.of()),
-                new TypeAnnotation.Named(
-                        new TypeExpression.NameRef(castTo))));
-    }
 
     /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
 
@@ -1401,7 +1321,7 @@ public final class MappingNormalizer {
         if (view != null) {
             return synthViewBackedMapping(md, rcm, view, model, ledger);
         }
-        return synthTableBackedMapping(md, rcm, model, ledger, null, null);
+        return synthTableBackedMapping(md, rcm, model, ledger, null);
     }
 
     /**
@@ -1687,19 +1607,8 @@ public final class MappingNormalizer {
         String viewName = rcm.mainTable().table();
         ValueSpecification viewSource = ViewRelation.viewRelationExpr(view, viewName, mainDb, model, md);
         ClassMapping.Relational overView = ViewRelation.throughFrame(rcm, view, viewName, md);
-        return synthTableBackedMapping(md, overView, model, ledger, /*backingView*/ null, viewSource);
+        return synthTableBackedMapping(md, overView, model, ledger, viewSource);
     }
-
-    /**
-     * Infer the view's single underlying physical table by scanning its
-     * non-join column expressions for {@link RelationalOperation.ColumnRef}
-     * tables (engine: {@code HelperRelationalBuilder.java:521–565} —
-     * {@code resolveMainTable}: the explicit main table, else the ROOT
-     * table of every column mapping's element, exactly one).
-     * Columns whose expression navigates a join are skipped &mdash; they
-     * reference joined tables, not the view's root. Exactly one root table
-     * must remain, else fail loudly.
-     */
 
 
 
@@ -1716,20 +1625,11 @@ public final class MappingNormalizer {
                                                               ClassMapping.Relational rcm,
                                                               ModelBuilder model,
                                                               MappingLedger ledger,
-                                                              @com.legend.Nullable String backingView,
                                                               @com.legend.Nullable ValueSpecification sourceOverride) {
-        RelationalParts parts = synthTableBackedParts(md, rcm, model, ledger, backingView,
-                sourceOverride);
+        RelationalParts parts = synthTableBackedParts(md, rcm, model, ledger, sourceOverride);
         return new AppliedFunction("map", List.of(parts.pipeline(),
                 new LambdaFunction(List.of(parts.rowBind()),
                         List.of(buildNewInstanceToOne(rcm.className(), parts.fields(), model)))));
-    }
-
-    static RelationalParts synthTableBackedParts(ResolvedMapping md,
-                                                             ClassMapping.Relational rcm,
-                                                             ModelBuilder model, MappingLedger ledger,
-                                                              @com.legend.Nullable String backingView) {
-        return synthTableBackedParts(md, rcm, model, ledger, backingView, null);
     }
 
     /**
@@ -1742,7 +1642,6 @@ public final class MappingNormalizer {
     static RelationalParts synthTableBackedParts(ResolvedMapping md,
                                                              ClassMapping.Relational rcm,
                                                              ModelBuilder model, MappingLedger ledger,
-                                                              @com.legend.Nullable String backingView,
                                                               @com.legend.Nullable ValueSpecification sourceOverride) {
         // A mapping ~filter with an EXPLICIT (INNER) join type row-explodes:
         // the engine swaps the main table for a subselect that joins the
@@ -1763,7 +1662,7 @@ public final class MappingNormalizer {
                     rcm.mainTable(), null, rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
                     rcm.propertyTargetSets(), rcm.aggregation());
-            return synthTableBackedParts(md, noFilter, model, ledger, backingView, innerSrc);
+            return synthTableBackedParts(md, noFilter, model, ledger, innerSrc);
         }
 
         var mMain = java.util.Objects.requireNonNull(rcm.mainTable(),
@@ -1778,8 +1677,7 @@ public final class MappingNormalizer {
         Pipeline p = new Pipeline(sourceOverride != null ? sourceOverride
                 : new AppliedFunction("tableReference",
                         List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
-                backingView, ledger);
-        p.ownerSet = rcm;
+                ledger);
         UnionSynthesis.classifyUnionRoutes(md, rcm, model, p);
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
@@ -1932,11 +1830,6 @@ public final class MappingNormalizer {
         return new RelationalParts(p.expr, rowBind, fields);
     }
 
-    /**
-     * The physical COLUMNS a plain PM consumes (the ~distinct projection
-     * set). False = the PM is not a plain main-table read (join/embedded) —
-     * the caller skips the narrowing select.
-     */
     /** The MAIN-TABLE columns a property mapping reads into {@code sink};
      * TRUE when the mapping is a plain read (no join slot). An embedded
      * block contributes its sub-mappings' columns (they read the owner's
@@ -2005,10 +1898,6 @@ public final class MappingNormalizer {
         }
     }
 
-    /** The ~primaryKey column NAMES (engine resolvePrimaryKey: declared
-     * mapping identity first; the table's PK is only the fallback and is
-     * resolved by the CONSUMER, which has store access). Only plain
-     * ColumnRef entries carry a name — expression keys contribute none. */
     /** The set PINS a relational set's own property mappings declare
      * (property -> target set id): the {@code prop[setId]} Join PMs and
      * the stamped property target sets. A fact on the binding, read at
@@ -2041,6 +1930,10 @@ public final class MappingNormalizer {
         return pins;
     }
 
+    /** The ~primaryKey column NAMES (engine resolvePrimaryKey: declared
+     * mapping identity first; the table's PK is only the fallback and is
+     * resolved by the CONSUMER, which has store access). Only plain
+     * ColumnRef entries carry a name — expression keys contribute none. */
     static List<String> declaredPrimaryKeyColumns(ClassMapping cm) {
         if (!(cm instanceof ClassMapping.Relational rcm)) {
             return List.of();
@@ -2360,19 +2253,10 @@ public final class MappingNormalizer {
         ValueSpecification cond = RelOpTranslator.translate(
                 ViewRelation.frameRewriteIfView(fd.condition(), mainDb, mainTable, md, model),
                 scope, terminalRow, rowBind, p.view());
-        // The absorption theory (LEFT slot + WHERE ≡ INNER) was REFUTED by
-        // the corpus referee: an (INNER) filter through a TO-MANY chain
-        // ROW-EXPLODES the parent (testInnerJoinClassMappingFilterWith-
-        // ChainedJoins expects Firm X x4 — one per matching Person row);
-        // our slot emission keeps one row per parent. Loud until the
-        // row-exploding emission is built.
-        if (jm.joinType() != null) {
-            throw new NotImplementedException("mapping ~filter with an"
-                    + " explicit (" + jm.joinType() + ") join type"
-                    + " row-explodes through to-many chains — not built yet;"
-                    + " class=" + rcm.className() + ", mapping="
-                    + md.qualifiedName());
-        }
+        // an EXPLICIT (INNER) filter never reaches here: synthTableBackedParts
+        // intercepts it first and builds the row-exploding source
+        // (innerFilteredSource) — the wall that stood here described an
+        // emission that WAS built (audit 2026-09-15 P6)
         return new AppliedFunction("filter", List.of(source,
                 new LambdaFunction(List.of(rowBind), List.of(cond))));
     }
@@ -2791,13 +2675,6 @@ public final class MappingNormalizer {
                     "JoinNavigation inside join condition");
         };
     }
-
-    /**
-     * A bare column reference to a table the join chain reaches through more
-     * than one path is irreducibly ambiguous: the legacy DSL addresses by
-     * table name, which cannot pick between two sub-rows of the same table.
-     * Fail loudly with guidance rather than resolve to an arbitrary sub-row.
-     */
 
     /**
      * Translate a {@link RelationalOperation} into a Pure value

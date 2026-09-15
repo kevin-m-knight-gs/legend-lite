@@ -11,7 +11,6 @@ import com.legend.model.ClassMapping;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.protocol.TypeExpression;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 
 /**

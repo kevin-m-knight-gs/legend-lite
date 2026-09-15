@@ -3,9 +3,6 @@
 
 package com.legend.normalizer;
 
-import com.legend.compiler.ModelBuilder;
-import com.legend.model.AssociationMapping;
-import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassMapping;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PropertyMapping;

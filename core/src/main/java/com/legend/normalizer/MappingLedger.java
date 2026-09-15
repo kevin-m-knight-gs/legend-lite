@@ -11,8 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 
 /**
  * Phase E's per-MAPPING ledger: what the synthesis of ONE mapping learns
@@ -55,8 +53,6 @@ final class MappingLedger {
     final Map<String, List<String>> operationMembers = new LinkedHashMap<>();
     /** class &rarr; the primary-key threads of an Operation union's row. */
     final Map<String, List<KeyThread>> unionKeyThreads = new LinkedHashMap<>();
-    /** bucket &rarr; witnesses of the [1]-over-nullable-column census. */
-    final Map<String, Set<String>> nullableCensus = new TreeMap<>();
     /** The classes MAPPED for this mapping (engine R1: a set in the queried
      * mapping's closure — own pre-passed record and the included mappings'
      * pre-passed records, implicit operation sets included). Never a
@@ -84,16 +80,11 @@ final class MappingLedger {
         return Set.copyOf(out);
     }
 
-    void census(String bucket, String witness) {
-        nullableCensus.computeIfAbsent(bucket, k -> new TreeSet<>()).add(witness);
-    }
-
     /** The compiled mapping's facts: what this synthesis recorded, plus
      * the SURFACE facts Phase F reads off the artifact (T4.1 step 4b). */
-    MappingDefinition.NormalizationFacts facts(LegacyMappingDefinition surface,
-            LegacyMappingDefinition md, com.legend.compiler.ModelBuilder model) {
+    MappingDefinition.NormalizationFacts facts(LegacyMappingDefinition surface) {
         return new MappingDefinition.NormalizationFacts(
-                poisons, mixedUnions, unionKeyThreads, nullableCensus,
+                poisons, mixedUnions, unionKeyThreads,
                 MappingFacts.unionMembers(surface), MappingFacts.routedTargetClasses(surface));
     }
 }

@@ -1,6 +1,5 @@
 package com.legend.normalizer;
 
-import com.legend.compiler.RelationalKinds;
 
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
@@ -521,16 +520,4 @@ final class ViewRelation {
         return condTables.size() == 1 ? condTables.iterator().next() : null;
     }
 
-    /** The RELATION expression for a {@code (db, table)} target: a VIEW
-     * frames as its own relation (Leg 4 — a view NEVER emits as a raw
-     * tableReference), a physical table is a tableReference. */
-    static ValueSpecification relationExpr(String db, String table,
-            ModelBuilder model, ResolvedMapping md) {
-        DatabaseDefinition.ViewDefinition v =
-                model.findView(db, table).orElseThrow(() -> MissProbe.neverFired("ViewRelation#8"));
-        return v != null ? viewRelationExpr(v, table, db, model, md)
-                : new AppliedFunction("tableReference",
-                        List.of(new PackageableElementPtr(db),
-                                new CString(table)));
-    }
 }

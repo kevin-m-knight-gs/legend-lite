@@ -5,7 +5,6 @@ package com.legend.normalizer;
 import com.legend.builtin.Pure;
 import com.legend.error.NotImplementedException;
 import com.legend.model.ClassMapping;
-import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PropertyMapping;
 import com.legend.model.RelationalOperation;
 import com.legend.protocol.spec.AppliedFunction;
@@ -221,13 +220,6 @@ final class GroupBySynthesis {
         // upstream's relation groupBy takes bare column names; batch 5 leg 5d)
         return new AppliedFunction(Pure.Lite.GROUP_BY_COMPUTED_KEYS, List.of(source,
                 new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
-    }
-
-    /** The aggregation step of a synthesized pipeline — the normalizer's own
-     *  computed-key emission or a bare relation groupBy. */
-    static boolean isGroupByStep(AppliedFunction af) {
-        return Pure.Lite.GROUP_BY_COMPUTED_KEYS.equals(af.function())
-                || "groupBy".equals(af.function());
     }
 
     /**

@@ -473,7 +473,7 @@ Verified zero consumers across `core`, `pct`, `nlq`, `parser-equivalence`:
 |---|---|
 | `SetDispatch` + `routedTargetSets` + the 7-arg `MappingDefinition` ctor + the stamping call | ~120 |
 | `RequiredNullableCensus` + `nullableCensus` + `ModelContext.requiredNullableCensus()` + `PureModelContext:510` + the two `DeclaredCoercions` hooks | ~180 |
-| `DynaFnArms` — `public` "so the registry's test can hold the declarations"; **no such test exists** | 56 |
+| ~~`DynaFnArms` — `public` "so the registry's test can hold the declarations"; **no such test exists**~~ **WRONG (audit fix A7):** the test exists in the `spec` module (`DynaFnRegistryTest.resolutionsHold` / `armsAreDerivedFromTheTranslatorSource`); the audit's census scanned `core` only. Kept. | 56 |
 | `NormalizedModel.liftedByOwner()` — zero production readers; documented for "the incremental-invalidation layer", which does not exist | 20 |
 
 **Dead members:** `MappingDefinition`'s 7-arg ctor (0 callers); `NormalizationFacts`' 4-arg ctor

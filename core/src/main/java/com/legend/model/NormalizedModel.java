@@ -1,8 +1,5 @@
 package com.legend.model;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,29 +51,4 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
                 ? java.util.Map.of() : java.util.Map.copyOf(legacySurfaces);
     }
 
-    /**
-     * Derived index: owner FQN &rarr; FQNs of the functions Phase E lifted
-     * from that owner's body sites, in element order.
-     *
-     * <p>Computed by grouping {@code elements}' {@code synthesizedFrom}
-     * provenance &mdash; never a constructor input, so it cannot be populated
-     * out of sync with the element list (the index/sidecar rule,
-     * {@code docs/CLEAN_SHEET_INVERSION.md} &sect;4). Nothing in phases F+
-     * reads this; it exists for the incremental-invalidation layer
-     * ("which functions came from this owner"). Recomputed per call today;
-     * memoize behind this accessor if/when an incremental layer needs it hot.
-     */
-    public Map<String, List<String>> liftedByOwner() {
-        Map<String, List<String>> byOwner = new LinkedHashMap<>();
-        for (PackageableElement el : elements) {
-            if (el instanceof FunctionDefinition fd && fd.isSynthesized()) {
-                byOwner.computeIfAbsent(java.util.Objects.requireNonNull(
-                        fd.synthesizedFrom()).ownerFqn(),
-                        k -> new ArrayList<>())
-                        .add(fd.qualifiedName());
-            }
-        }
-        byOwner.replaceAll((owner, fqns) -> List.copyOf(fqns));
-        return Collections.unmodifiableMap(byOwner);
-    }
 }

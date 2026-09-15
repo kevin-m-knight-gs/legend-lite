@@ -38,12 +38,11 @@ public record MappingDefinition(
         List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
         @com.legend.Nullable String testSuitesSource,
-        java.util.Map<String, String> routedTargetSets,
         java.util.Map<String, String> resolvedStores,
         NormalizationFacts facts)
         implements PackageableElement {
 
-    /** The common form: no per-property set-dispatch table, no store substitutions. */
+    /** The common form: no store substitutions, no facts. */
     public MappingDefinition(String qualifiedName,
             List<MappingInclude> includes,
             List<ClassBinding> classBindings,
@@ -51,20 +50,7 @@ public record MappingDefinition(
             List<EnumerationMapping> enumerationMappings,
             @com.legend.Nullable String testSuitesSource) {
         this(qualifiedName, includes, classBindings, associationBindings,
-                enumerationMappings, testSuitesSource, java.util.Map.of(), java.util.Map.of(),
-                NormalizationFacts.NONE);
-    }
-
-    /** With the set-dispatch table, no store substitutions. */
-    public MappingDefinition(String qualifiedName,
-            List<MappingInclude> includes,
-            List<ClassBinding> classBindings,
-            List<AssociationBinding> associationBindings,
-            List<EnumerationMapping> enumerationMappings,
-            @com.legend.Nullable String testSuitesSource,
-            java.util.Map<String, String> routedTargetSets) {
-        this(qualifiedName, includes, classBindings, associationBindings,
-                enumerationMappings, testSuitesSource, routedTargetSets, java.util.Map.of(),
+                enumerationMappings, testSuitesSource, java.util.Map.of(),
                 NormalizationFacts.NONE);
     }
 
@@ -84,22 +70,12 @@ public record MappingDefinition(
             java.util.Map<PoisonKey, String> poisons,
             java.util.Map<String, List<String>> mixedUnions,
             java.util.Map<String, List<KeyThread>> unionKeyThreads,
-            java.util.Map<String, java.util.Set<String>> nullableCensus,
             java.util.Map<String, List<String>> unionMembers,
             java.util.Map<String, java.util.Map<String, String>> routedTargetClasses) {
 
         public static final NormalizationFacts NONE = new NormalizationFacts(
-                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
                 java.util.Map.of(), java.util.Map.of());
-
-        /** The synthesis facts alone (T4.1 step 2); the surface facts empty. */
-        public NormalizationFacts(java.util.Map<PoisonKey, String> poisons,
-                java.util.Map<String, List<String>> mixedUnions,
-                java.util.Map<String, List<KeyThread>> unionKeyThreads,
-                java.util.Map<String, java.util.Set<String>> nullableCensus) {
-            this(poisons, mixedUnions, unionKeyThreads, nullableCensus,
-                    java.util.Map.of(), java.util.Map.of());
-        }
 
         public NormalizationFacts {
             // T4.1 step 4b — the SURFACE facts Phase F used to re-read off the
@@ -121,14 +97,6 @@ public record MappingDefinition(
             mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
             unionKeyThreads = unionKeyThreads == null
                     ? java.util.Map.of() : java.util.Map.copyOf(unionKeyThreads);
-            if (nullableCensus == null) {
-                nullableCensus = java.util.Map.of();
-            } else {
-                java.util.Map<String, java.util.Set<String>> copy = new java.util.LinkedHashMap<>();
-                nullableCensus.forEach((k, v) -> copy.put(k,
-                        java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(v))));
-                nullableCensus = java.util.Collections.unmodifiableMap(copy);
-            }
         }
     }
 
@@ -139,8 +107,6 @@ public record MappingDefinition(
         classBindings = classBindings == null ? List.of() : List.copyOf(classBindings);
         associationBindings = associationBindings == null ? List.of() : List.copyOf(associationBindings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
-        routedTargetSets = routedTargetSets == null
-                ? java.util.Map.of() : java.util.Map.copyOf(routedTargetSets);
         // original store FQN -> resolved store FQN: the engine's
         // Mapping.resolveStore for every store this mapping's include chain
         // substitutes, STAMPED at Phase E (composed from the includes' own

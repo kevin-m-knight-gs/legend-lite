@@ -231,16 +231,6 @@ final class StoreSubstitutionRewrite {
     }
 
     /**
-     * IMPORT-SCOPE store-ref qualification (the graph milestoning-union
-     * trio): a mapping spelling {@code [db]} under
-     * {@code import a::b::*} means {@code a::b::db} — global
-     * unique-simple-name resolution silently picks a SAME-NAMED shared
-     * store instead (the corpus's {@code tests::db}). Unqualified refs
-     * whose scope-qualified candidate is a REGISTERED database rewrite to
-     * the FQN; everything else is untouched (the lenient simple-name
-     * fallback still serves scope-less models).
-     */
-    /**
      * The engine's {@code Mapping.resolveStore} (legend-pure functions_Mapping.pure
      * findSubstituteStore) for EVERY mapping, computed once in INCLUDE ORDER:
      * a mapping's map composes from its OWN include pairs and the already
@@ -355,6 +345,16 @@ final class StoreSubstitutionRewrite {
                 .map(com.legend.model.DatabaseDefinition::qualifiedName).orElse(path);
     }
 
+    /**
+     * IMPORT-SCOPE store-ref qualification (the graph milestoning-union
+     * trio): a mapping spelling {@code [db]} under
+     * {@code import a::b::*} means {@code a::b::db} — global
+     * unique-simple-name resolution silently picks a SAME-NAMED shared
+     * store instead (the corpus's {@code tests::db}). Unqualified refs
+     * whose scope-qualified candidate is a REGISTERED database rewrite to
+     * the FQN; everything else is untouched (the lenient simple-name
+     * fallback still serves scope-less models).
+     */
     static LegacyMappingDefinition qualifyStoreRefs(LegacyMappingDefinition md,
             com.legend.compiler.ModelBuilder model) {
         com.legend.model.ImportScope scope = model.importsOf(md.qualifiedName());

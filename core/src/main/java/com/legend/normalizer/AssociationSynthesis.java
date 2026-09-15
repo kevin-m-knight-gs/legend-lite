@@ -9,55 +9,26 @@ import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
 import com.legend.protocol.Multiplicity;
-import com.legend.model.NormalizedModel;
-import com.legend.model.ParsedModel;
 import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ClassMapping;
-import com.legend.model.ComparisonOp;
 import com.legend.model.DatabaseDefinition;
-import com.legend.model.EnumerationMapping;
-import com.legend.model.FilterMapping;
-import com.legend.model.FilterPointer;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.LogicalOp;
-import com.legend.model.MappingDefinition;
-import com.legend.model.MappingInclude;
-import com.legend.model.PackageableElement;
 import com.legend.model.PropertyMapping;
-import com.legend.protocol.Realization;
-import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
 import com.legend.model.SynthHat;
 import com.legend.protocol.spec.AppliedFunction;
-import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CBoolean;
-import com.legend.protocol.spec.CFloat;
-import com.legend.protocol.spec.CInteger;
-import com.legend.protocol.spec.CString;
-import com.legend.protocol.spec.ColSpec;
-import com.legend.protocol.spec.ColSpecArray;
-import com.legend.protocol.spec.EnumValue;
-import com.legend.protocol.spec.KeyExpression;
 import com.legend.protocol.spec.LambdaFunction;
-import com.legend.protocol.spec.NewInstance;
-import com.legend.protocol.spec.NewInstanceCast;
-import com.legend.protocol.spec.PackageableElementPtr;
-import com.legend.protocol.spec.PureCollection;
-import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -108,7 +79,6 @@ final class AssociationSynthesis {
         Map<String, Map<String, List<PropertyMapping>>> bySet = new LinkedHashMap<>();
         for (AssociationMapping.Relational rel : rels) {
             AssociationDefinition ad = model.findAssociation(rel.associationName()).orElseThrow(() -> MissProbe.neverFired("AssociationSynthesis#1"));
-            if (ad == null) continue;
             // per (source set, property): a pair group whose TARGET class
             // is union- or inheritance-mapped (or cannot anchor a
             // predicate) is a ROUTED group — ALL its entries, single-hop
@@ -340,12 +310,6 @@ final class AssociationSynthesis {
     }
 
 
-    /**
-     * The class that <em>owns</em> association property {@code propName}: in
-     * {@code Association(p1: B, p2: A)}, property {@code p1} is declared on the
-     * class {@code p2} points at (and vice versa). Returns {@code null} if
-     * {@code propName} is neither end, or the opposite end is non-NameRef.
-     */
     /** The property's OWN end class (the navigation target), mirror of
      * {@link #associationOwnerClass}. */
     static @com.legend.Nullable String associationTargetClass(AssociationDefinition ad, String propName) {
@@ -358,6 +322,12 @@ final class AssociationSynthesis {
         return null;
     }
 
+    /**
+     * The class that <em>owns</em> association property {@code propName}: in
+     * {@code Association(p1: B, p2: A)}, property {@code p1} is declared on the
+     * class {@code p2} points at (and vice versa). Returns {@code null} if
+     * {@code propName} is neither end, or the opposite end is non-NameRef.
+     */
     static @com.legend.Nullable String associationOwnerClass(AssociationDefinition ad, String propName) {
         if (ad.property1().propertyName().equals(propName)) {
             return MappingNormalizer.nameRefOrNull(ad.property2().targetClass());

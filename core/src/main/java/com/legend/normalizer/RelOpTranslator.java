@@ -2,13 +2,11 @@ package com.legend.normalizer;
 
 import com.legend.builtin.DynaFn;
 import com.legend.builtin.Pure;
-import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
 import com.legend.protocol.TypeExpression;
 import com.legend.model.ComparisonOp;
-import com.legend.model.DatabaseDefinition;
 import com.legend.model.JoinChainElement;
 import com.legend.model.LogicalOp;
 import com.legend.model.RelationalOperation;
@@ -44,15 +42,6 @@ final class RelOpTranslator {
     private RelOpTranslator() {
     }
 
-    /**
-     * Relational dynafunctions whose PURE spelling differs from their DSL
-     * name. Every other dynafunction passes through NAME-PRESERVING; the
-     * entries here rewrite — the engine DSL exposes per-digest names
-     * (md5/sha1/sha256, its SQL-ish surface) while real pure spells the
-     * capability as ONE function + an enum: hash(text, HashType.X)
-     * (core_functions_unclassified/hash/hash.pure). Future divergent
-     * dynafunctions belong HERE, not in ad-hoc predicates.
-     */
     /** The engine's hashing dynafunctions → upstream's {@code hash(String, HashType)}. */
     private static final Map<DynaFn, String> DYNA_HASH_TYPES =
             Map.of(DynaFn.MD5, "MD5", DynaFn.SHA1, "SHA1", DynaFn.SHA256, "SHA256");
@@ -165,7 +154,6 @@ final class RelOpTranslator {
                 .toList();
     }
 
-    /** {@code cast(v, @String)} — the SQL VARCHAR coercion emission. */
     /** The dyna lane's to-one trust wrap (SQL null-propagates; the
      * lowering's erasure makes toOne free) — ONE spelling for every
      * dyna emission whose pure counterpart is strict [1]. */
@@ -182,6 +170,7 @@ final class RelOpTranslator {
                 .toList();
     }
 
+    /** {@code cast(v, @String)} — the SQL VARCHAR coercion emission. */
     private static ValueSpecification strCast(ValueSpecification v) {
         return new AppliedFunction("cast", List.of(v,
                 new TypeAnnotation.Named(
@@ -206,6 +195,12 @@ final class RelOpTranslator {
         };
     }
 
+    /**
+     * A bare column reference to a table the join chain reaches through more
+     * than one path is irreducibly ambiguous: the legacy DSL addresses by
+     * table name, which cannot pick between two sub-rows of the same table.
+     * Fail loudly with guidance rather than resolve to an arbitrary sub-row.
+     */
     private static ModelException ambiguousTableRef(String table, String column) {
         return new ModelException(LegendCompileException.Phase.NORMALIZE, 
                 "Ambiguous column reference '" + table + "." + column + "': the join "

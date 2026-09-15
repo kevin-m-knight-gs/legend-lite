@@ -42,6 +42,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("ModelNormalizer — Phase E.2 derived properties + E.3 constraints (lifted to element list)")
 class ModelNormalizerTest {
 
+    /** The synthesized functions grouped by their owner element, derived
+     * from provenance — the observation these tests make (the product had
+     * this accessor with no production reader; audit 2026-09-15 P6). */
+    private static java.util.Map<String, java.util.List<String>> liftedByOwner(NormalizedModel m) {
+        java.util.Map<String, java.util.List<String>> byOwner = new java.util.LinkedHashMap<>();
+        for (var el : m.elements()) {
+            if (el instanceof FunctionDefinition fd && fd.isSynthesized()) {
+                byOwner.computeIfAbsent(java.util.Objects.requireNonNull(fd.synthesizedFrom()).ownerFqn(),
+                        k -> new java.util.ArrayList<>()).add(fd.qualifiedName());
+            }
+        }
+        return byOwner;
+    }
+
+
     private static NormalizedModel normalize(String source) {
         return com.legend.testing.Phases.normalize(NameResolver.resolve(com.legend.testing.Own.model(source)));
     }
@@ -89,7 +104,7 @@ class ModelNormalizerTest {
         // Lifted as an ordinary top-level element; ownership lives only in
         // the derived liftedByOwner() index, never on the parser record.
         assertEquals(List.of("model::Person$prop$fullName"),
-                m.liftedByOwner().get("model::Person"),
+                liftedByOwner(m).get("model::Person"),
                 "liftedByOwner derives the class's lifted function from provenance");
 
         FunctionDefinition fn = function(m, "model::Person$prop$fullName");
@@ -165,7 +180,7 @@ class ModelNormalizerTest {
     @DisplayName("a model with no derived properties gains no $prop$ function")
     void noDerivedPropertiesAddsNothing() {
         NormalizedModel m = normalize("Class model::Person { name: String[1]; }");
-        assertFalse(m.liftedByOwner().containsKey("model::Person"),
+        assertFalse(liftedByOwner(m).containsKey("model::Person"),
                 "no derived property => nothing lifted from the class");
         for (PackageableElement el : m.elements()) {
             assertFalse(el instanceof FunctionDefinition fd && fd.isSynthesized(),
@@ -185,7 +200,7 @@ class ModelNormalizerTest {
               + "  { $p.firstName }");
 
         // Nothing was lifted for this class — the user wrote the realizing fn.
-        assertFalse(m.liftedByOwner().containsKey("model::Person"),
+        assertFalse(liftedByOwner(m).containsKey("model::Person"),
                 "a Door-4 binding lifts nothing");
         for (PackageableElement el : m.elements()) {
             assertFalse(el instanceof FunctionDefinition fd
@@ -213,7 +228,7 @@ class ModelNormalizerTest {
                 "Class model::Person { name: String[1]; "
               + "  greeting() { $this.name }: String[1]; }");
         assertEquals(List.of("model::Person$prop$greeting"),
-                m.liftedByOwner().get("model::Person"));
+                liftedByOwner(m).get("model::Person"));
         var ctx = com.legend.testing.Phases.context(m);
         var greeting = ctx.findClass("model::Person").orElseThrow().properties().stream()
                 .filter(p -> p instanceof com.legend.compiler.element.Property.Derived d
@@ -236,7 +251,7 @@ class ModelNormalizerTest {
         // Lifted top-level; the class keeps its declaration (additive).
         ClassDefinition cd = clazz(m, "model::Person");
         assertEquals(List.of("model::Person$constraint$adult"),
-                m.liftedByOwner().get("model::Person"));
+                liftedByOwner(m).get("model::Person"));
         assertEquals(1, cd.constraints().size(),
                 "constraint declaration kept on the class (additive)");
 
@@ -271,7 +286,7 @@ class ModelNormalizerTest {
               + "  greeting() { $this.name }: String[1]; "
               + "}");
 
-        assertEquals(2, m.liftedByOwner().get("model::Person").size(),
+        assertEquals(2, liftedByOwner(m).get("model::Person").size(),
                 "shared owner groups: liftedByOwner derives both hats' functions");
         // Both are reachable.
         assertEquals("greeting", function(m, "model::Person$prop$greeting")
@@ -288,7 +303,7 @@ class ModelNormalizerTest {
               + "{ x: Integer[1]; y: Integer[1]; }");
 
         assertEquals(List.of("model::Person$constraint$a", "model::Person$constraint$b"),
-                m.liftedByOwner().get("model::Person"),
+                liftedByOwner(m).get("model::Person"),
                 "declaration order preserved in the derived index");
     }
 
@@ -308,7 +323,7 @@ class ModelNormalizerTest {
 
         ServiceDefinition sd = service(m, "my::api::GetPeople");
         assertEquals(List.of("my::api::GetPeople$query"),
-                m.liftedByOwner().get("my::api::GetPeople"),
+                liftedByOwner(m).get("my::api::GetPeople"),
                 "query function lifted, ownership derived from provenance");
 
         FunctionDefinition fn = function(m, "my::api::GetPeople$query");
@@ -337,7 +352,7 @@ class ModelNormalizerTest {
               + "  execution: Single { query: my::funcs::peopleQuery; mapping: my::M; runtime: my::R; } "
               + "}");
         // The service binds to the user function — no $query lift.
-        assertFalse(m.liftedByOwner().containsKey("my::api::GetPeople"),
+        assertFalse(liftedByOwner(m).containsKey("my::api::GetPeople"),
                 "a Door-4 service query lifts nothing");
         for (PackageableElement el : m.elements()) {
             assertFalse(el instanceof FunctionDefinition fd
