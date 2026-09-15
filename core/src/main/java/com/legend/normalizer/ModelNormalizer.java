@@ -158,7 +158,7 @@ public final class ModelNormalizer {
                 }
             }
             for (DerivedPropertyDefinition dp : ad.derivedProperties()) {
-                String owner = KnowledgeLayer.qualifiedPropertyOwner(ad, dp).orElse(null);
+                String owner = KnowledgeLayer.qualifiedPropertyOwner(ad, dp).orElseThrow(() -> MissProbe.neverFired("ModelNormalizer#1"));
                 ClassDefinition cd = owner == null ? null : classes.get(owner);
                 if (owner == null || (cd != null
                         && cd.derivedProperties().stream().noneMatch(d -> d == dp))) {

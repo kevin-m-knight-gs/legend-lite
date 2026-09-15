@@ -240,7 +240,7 @@ final class UnionSynthesis {
         for (var e : routedByProp.entrySet()) {
             String prop = e.getKey();
             ClassDefinition owner = model.knowledge().hierarchyClass(ownerByProp
-                    .getOrDefault(prop, rcm.className())).orElse(null);
+                    .getOrDefault(prop, rcm.className())).orElseGet(MissProbe::miss);
             TypeExpression pt = owner == null ? null
                     : model.knowledge().propertyType(owner, prop);
             String targetClass = pt instanceof TypeExpression.NameRef nr
@@ -786,7 +786,7 @@ final class UnionSynthesis {
         if (!(cm instanceof ClassMapping.Relational r) || r.mainTable() == null) {
             return null;
         }
-        DatabaseDefinition.TableDefinition td = model.knowledge().table(r.mainTable().database(), r.mainTable().table()).orElse(null);
+        DatabaseDefinition.TableDefinition td = model.knowledge().table(r.mainTable().database(), r.mainTable().table()).orElseGet(MissProbe::miss);
         if (td == null) {
             return null;
         }
@@ -1069,7 +1069,7 @@ final class UnionSynthesis {
         if (!declared.isEmpty()) {
             return declared;
         }
-        DatabaseDefinition.TableDefinition td = model.knowledge().table(main.database(), main.table()).orElse(null);
+        DatabaseDefinition.TableDefinition td = model.knowledge().table(main.database(), main.table()).orElseGet(MissProbe::miss);
         if (td == null) {
             return List.of();   // a view-backed member: no physical key
         }

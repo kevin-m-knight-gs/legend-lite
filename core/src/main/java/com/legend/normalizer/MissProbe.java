@@ -31,4 +31,26 @@ final class MissProbe {
     static <T> @com.legend.Nullable T knownMiss(java.util.Optional<T> o) {
         return o.orElse(null);
     }
+
+    /** B5 (docs/NORMALIZER_CLEAN_SHEET_HOMEWORK_2026_09_13.md): the 37 bare
+     * {@code orElse(null)} sites of this package were censused on
+     * 2026-09-15 over the DuckDB corpus lane and the core tests. The 21
+     * that FIRED are "the miss is the answer" sites and read through this
+     * funnel ({@code orElseGet(MissProbe::miss)}): AssociationSynthesis#2,
+     * DeclaredCoercions#1–2, ImplicitInheritance#2, M2mRouteGuards#1,
+     * MappingNormalizer#1–6, RelOpTranslator#1, RequiredNullableCensus#1–2,
+     * StoreSubstitutionRewrite#1, UnionSynthesis#1–3, ViewRelation#1–3
+     * (numbered in file order at census time). The 16 that never fired
+     * are loud ({@link #neverFired}). */
+    static <T> @com.legend.Nullable T miss() {
+        return null;
+    }
+
+    /** A censused empty-answer site that NEVER fired: an empty answer here
+     * is a real model gap, never a default to ride on. */
+    static IllegalStateException neverFired(String site) {
+        return new IllegalStateException("F7.8: empty answer at " + site
+                + " (this default never fired on the 2026-09-15 B5 census; a miss here is a"
+                + " real model gap)");
+    }
 }

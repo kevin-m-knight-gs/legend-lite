@@ -187,7 +187,7 @@ final class MappingClosures {
                 if (!seen.add(inc.mappingPath())) {
                     continue;
                 }
-                LegacyMappingDefinition included = surfaceOf(inc.mappingPath()).orElse(null);
+                LegacyMappingDefinition included = surfaceOf(inc.mappingPath()).orElseThrow(() -> MissProbe.neverFired("MappingClosures#1"));
                 if (included == null) {
                     continue;   // unresolvable include is its own loud problem elsewhere
                 }
@@ -261,7 +261,7 @@ final class MappingClosures {
             if (!seen.add(mappingFqn)) {
                 return;
             }
-            LegacyMappingDefinition md = surfaceOf(mappingFqn).orElse(null);
+            LegacyMappingDefinition md = surfaceOf(mappingFqn).orElseThrow(() -> MissProbe.neverFired("MappingClosures#2"));
             if (md == null) {
                 return;
             }
@@ -357,7 +357,7 @@ final class MappingClosures {
                 if (!seen.add(path)) {
                     continue;
                 }
-                LegacyMappingDefinition included = surfaceOf(path).orElse(null);
+                LegacyMappingDefinition included = surfaceOf(path).orElseThrow(() -> MissProbe.neverFired("MappingClosures#3"));
                 if (included == null) {
                     continue;
                 }
@@ -403,7 +403,7 @@ final class MappingClosures {
             for (AssociationMapping am : md.associationMappings()) {
                 if (!(am instanceof AssociationMapping.Relational rel)) continue;
                 AssociationDefinition ad =
-                        model.findAssociation(am.associationName()).orElse(null);
+                        model.findAssociation(am.associationName()).orElseThrow(() -> MissProbe.neverFired("MappingClosures#4"));
                 if (ad == null) continue;
                 for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                     if (!(apm.body() instanceof PropertyMapping.Join join)

@@ -95,7 +95,7 @@ final class JoinChainEmission {
                 // Otherwise(...)) — without them the partial's ctor
                 // field reads a slot that was never minted
                 ClassDefinition oeOwner = model.knowledge().hierarchyClass(ownerClassFqn)
-                        .orElse(null);
+                        .orElseThrow(() -> MissProbe.neverFired("JoinChainEmission#1"));
                 TypeExpression oeType = oeOwner == null ? null
                         : model.knowledge().propertyType(oeOwner, oe.propertyName());
                 if (oeType instanceof TypeExpression.NameRef nr) {
@@ -979,7 +979,7 @@ final class JoinChainEmission {
                 scope, terminalRow, r, p.view());
         ValueSpecification src = new AppliedFunction("filter", List.of(p.expr,
                 new LambdaFunction(List.of(r), List.of(cond))));
-        DatabaseDefinition.TableDefinition td = model.knowledge().table(mainDb, mainTable).orElse(null);
+        DatabaseDefinition.TableDefinition td = model.knowledge().table(mainDb, mainTable).orElseThrow(() -> MissProbe.neverFired("JoinChainEmission#2"));
         if (td == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "main table '" + mainTable + "' not found in db '" + mainDb
@@ -1047,7 +1047,7 @@ final class JoinChainEmission {
             return out;
         }
         DatabaseDefinition.TableDefinition t =
-                model.knowledge().table(dbFqn, targetTable).orElse(null);
+                model.knowledge().table(dbFqn, targetTable).orElseThrow(() -> MissProbe.neverFired("JoinChainEmission#3"));
         if (t != null) {
             t.columns().forEach(c -> out.add(c.name()));
         }

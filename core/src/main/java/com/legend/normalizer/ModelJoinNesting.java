@@ -70,7 +70,7 @@ final class ModelJoinNesting {
             }
             String endCls = var.equals(aVar) ? classA : classB;
             AssociationDefinition nad = model.findAssociationOf(endCls, prop)
-                    .orElse(null);
+                    .orElseThrow(() -> MissProbe.neverFired("ModelJoinNesting#1"));
             if (nad == null) {
                 continue;   // not an association hop — the rewrite's
                             // ordinary loud error names it

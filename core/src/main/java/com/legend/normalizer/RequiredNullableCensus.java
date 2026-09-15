@@ -91,7 +91,7 @@ final class RequiredNullableCensus {
                 model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) {
             owner = com.legend.builtin.Pure.findNativeClass(ownerClassFqn)
-                    .orElse(null);
+                    .orElseGet(MissProbe::miss);
         }
         ClassDefinition.PropertyDefinition prop = owner == null ? null
                 : model.knowledge().propertyDef(owner, propName);
@@ -105,7 +105,7 @@ final class RequiredNullableCensus {
             return;
         }
         DatabaseDefinition.ColumnDefinition cd = db == null ? null
-                : model.knowledge().column(db, table, column).orElse(null);
+                : model.knowledge().column(db, table, column).orElseGet(MissProbe::miss);
         if (cd == null) {
             ledger.census("unresolved-column", (db == null ? "<no-db>" : db)
                     + "." + table + "." + column);

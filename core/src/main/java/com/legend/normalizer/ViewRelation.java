@@ -61,7 +61,7 @@ final class ViewRelation {
             ResolvedMapping md) {
         String table = MappingNormalizer.canonicalTable(ref.table());
         DatabaseDefinition.ViewDefinition view =
-                model.findView(ref.database(), table).orElse(null);
+                model.findView(ref.database(), table).orElseGet(MissProbe::miss);
         return view != null
                 ? viewRelationExpr(view, table, ref.database(), model, md)
                 : new AppliedFunction("tableReference", List.of(
@@ -101,7 +101,7 @@ final class ViewRelation {
         // spell <innerView>.<declaredCol>, which is exactly the inner
         // relation's output row, so the scope key stays `phys`.
         DatabaseDefinition.ViewDefinition innerView =
-                model.findView(db, phys).orElse(null);
+                model.findView(db, phys).orElseGet(MissProbe::miss);
         ValueSpecification source = innerView != null
                 ? viewRelationExpr(innerView, phys, db, model, md, expanding)
                 : new AppliedFunction("tableReference",
@@ -324,7 +324,7 @@ final class ViewRelation {
     static RelationalOperation inlineViewRefs(RelationalOperation op, String db,
             ModelBuilder model) {
         if (op instanceof RelationalOperation.ColumnRef cr) {
-            DatabaseDefinition.ViewDefinition view = model.findView(db, cr.table()).orElse(null);
+            DatabaseDefinition.ViewDefinition view = model.findView(db, cr.table()).orElseGet(MissProbe::miss);
             if (view != null) {
                 for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
                     if (vc.name().equals(cr.column())) {
@@ -448,13 +448,13 @@ final class ViewRelation {
     private static boolean joinTouches(com.legend.model.JoinChainElement el,
             String pmDb, String tableOrView, ModelBuilder model) {
         String db = el.databaseName() != null ? el.databaseName() : pmDb;
-        var found = model.findDatabase(db).orElse(null);
+        var found = model.findDatabase(db).orElseThrow(() -> MissProbe.neverFired("ViewRelation#4"));
         if (found == null) {
             return false;
         }
         var jd = found.joins().stream()
                 .filter(j -> j.name().equals(el.joinName())).findFirst()
-                .orElse(null);
+                .orElseThrow(() -> MissProbe.neverFired("ViewRelation#5"));
         if (jd == null) {
             return false;
         }
@@ -531,13 +531,13 @@ final class ViewRelation {
         }
         final JoinChainElement head = first;
         String db = head.databaseName() != null ? head.databaseName() : dbFqn;
-        var found = model.findDatabase(db).orElse(null);
+        var found = model.findDatabase(db).orElseThrow(() -> MissProbe.neverFired("ViewRelation#6"));
         if (found == null) {
             return null;
         }
         var jd = found.joins().stream()
                 .filter(j -> j.name().equals(head.joinName())).findFirst()
-                .orElse(null);
+                .orElseThrow(() -> MissProbe.neverFired("ViewRelation#7"));
         if (jd == null) {
             return null;
         }
@@ -553,7 +553,7 @@ final class ViewRelation {
     static ValueSpecification relationExpr(String db, String table,
             ModelBuilder model, ResolvedMapping md) {
         DatabaseDefinition.ViewDefinition v =
-                model.findView(db, table).orElse(null);
+                model.findView(db, table).orElseThrow(() -> MissProbe.neverFired("ViewRelation#8"));
         return v != null ? viewRelationExpr(v, table, db, model, md)
                 : new AppliedFunction("tableReference",
                         List.of(new PackageableElementPtr(db),

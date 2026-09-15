@@ -94,7 +94,7 @@ final class M2mRouteGuards {
             final String tgtSet = pb.targetSetId();
             ClassMapping routed = sets.stream()
                     .filter(cm -> setIdMatches(cm, tgtSet))
-                    .findFirst().orElse(null);
+                    .findFirst().orElseGet(MissProbe::miss);
             if (routed != null && (sets.size() == 1 || routed.root()
                     || pb.expression() instanceof com.legend.protocol.spec.Variable)) {
                 // honored routes: the sole set, the root, or the

@@ -111,7 +111,7 @@ final class DeclaredCoercions {
         if (db == null) {
             return read;
         }
-        DatabaseDefinition.ColumnDefinition cd = model.knowledge().column(db, cr.table(), cr.column()).orElse(null);
+        DatabaseDefinition.ColumnDefinition cd = model.knowledge().column(db, cr.table(), cr.column()).orElseGet(MissProbe::miss);
         String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
         if (colKind == null || colKind.equals(declared)) {
             return read;
@@ -141,7 +141,7 @@ final class DeclaredCoercions {
         // scope-block columns carry no [db] — skip (checker stays loud)
         String db = col.database();
         DatabaseDefinition.ColumnDefinition cd =
-                model.knowledge().column(db, col.table(), col.column()).orElse(null);
+                model.knowledge().column(db, col.table(), col.column()).orElseGet(MissProbe::miss);
         String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
         if (colKind == null || colKind.equals(declared)) {
             return read;

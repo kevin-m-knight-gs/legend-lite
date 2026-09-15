@@ -107,7 +107,7 @@ final class AssociationSynthesis {
         Map<String, List<PropertyMapping>> byClass = new LinkedHashMap<>();
         Map<String, Map<String, List<PropertyMapping>>> bySet = new LinkedHashMap<>();
         for (AssociationMapping.Relational rel : rels) {
-            AssociationDefinition ad = model.findAssociation(rel.associationName()).orElse(null);
+            AssociationDefinition ad = model.findAssociation(rel.associationName()).orElseThrow(() -> MissProbe.neverFired("AssociationSynthesis#1"));
             if (ad == null) continue;
             // per (source set, property): a pair group whose TARGET class
             // is union- or inheritance-mapped (or cannot anchor a
@@ -397,7 +397,7 @@ final class AssociationSynthesis {
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
         AssociationDefinition ad0 = resolveAssociation(model, md, am)
-                .orElse(null);
+                .orElseGet(MissProbe::miss);
         if (am instanceof AssociationMapping.ModelJoin mj && ad0 != null) {
             return MappingNormalizer.synthesizeModelJoinMapping(md, mj, model,
                     ad0.property1().targetClassFqn(),

@@ -376,7 +376,7 @@ final class StoreSubstitutionRewrite {
             // under unconditional qualification).
             String current = model.findDatabase(r)
                     .map(com.legend.model.DatabaseDefinition::qualifiedName)
-                    .orElse(null);
+                    .orElseGet(MissProbe::miss);
             for (String w : scope.wildcards()) {
                 String cand = w + "::" + r;
                 if (model.hasDatabaseExact(cand)) {

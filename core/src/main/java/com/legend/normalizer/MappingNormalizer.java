@@ -178,11 +178,18 @@ public final class MappingNormalizer {
                 MappingLedger ledger = new MappingLedger(
                         MappingLedger.mappedInClosure(pp, resolved));
                 try {
-                    out.add(withElement(md.qualifiedName(),
-                            () -> normalizeMapping(pp, model, lifted,
-                                    wallSink != null,
-                                    resolvedStores.getOrDefault(md.qualifiedName(),
-                                            java.util.Map.of()), ledger)));
+                    out.add(withElement(md.qualifiedName(), () -> {
+                        MappingDefinition m = normalizeMapping(pp, model, lifted,
+                                resolvedStores.getOrDefault(md.qualifiedName(),
+                                        java.util.Map.of()), ledger);
+                        // THE DRIVER'S policy (B4): a STRICT build rejects
+                        // what the engine's compiler rejects — the first
+                        // recorded error; a MODULE build keeps the poisons
+                        if (wallSink == null && !ledger.strictErrors.isEmpty()) {
+                            throw ledger.strictErrors.get(0);
+                        }
+                        return m;
+                    }));
                 } catch (ModelException e) {
                     if (wallSink == null || e.element() == null) {
                         throw e;
@@ -246,7 +253,7 @@ public final class MappingNormalizer {
     private static MappingDefinition normalizeMapping(ResolvedMapping pp,
                                                      ModelBuilder model,
                                                      List<FunctionDefinition> lifted,
-                                                     boolean tolerant, java.util.Map<String, String> resolvedStores,
+                                                     java.util.Map<String, String> resolvedStores,
                                                      MappingLedger ledger) {
         // the pre-pass (MappingPrePass) already ran for every mapping
         Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys = pp.declaredKeys();
@@ -329,8 +336,8 @@ public final class MappingNormalizer {
                                         declaredPrimaryKeyColumns(cm)));
                     } catch (NotImplementedException | ModelException e) {
                         // per-SET fault isolation, same line as per-class
-                        if (e instanceof ModelException && !tolerant) {
-                            throw e;
+                        if (e instanceof ModelException) {
+                            ledger.strictErrors.add(e);
                         }
                         ledger.poisons.putIfAbsent(cm.className() + "[" + ResolvedMapping.idOf(cm) + "]",
                                 String.valueOf(e.getMessage()));
@@ -349,10 +356,11 @@ public final class MappingNormalizer {
             } catch (NotImplementedException
                     | ModelException e) {
                 // §6's line (step 6): a USER-model error the engine rejects
-                // at compile time is rejected by a STRICT build too; only a
-                // MODULE build defers it, and a ROADMAP gap defers in both
-                if (e instanceof ModelException && !tolerant) {
-                    throw e;
+                // at compile time is rejected by a STRICT build too (the
+                // driver throws the recorded error); only a MODULE build
+                // defers it, and a ROADMAP gap defers in both
+                if (e instanceof ModelException) {
+                    ledger.strictErrors.add(e);
                 }
                 // PER-CLASS fault isolation: one class mapping using a
                 // roadmap feature must not sink the whole mapping. The
@@ -405,10 +413,9 @@ public final class MappingNormalizer {
                 // bindings stay queryable; navigating THIS association
                 // raises the recorded reason via the poison channel.
                 // TOLERANT (module) builds only — a STRICT build must
-                // reject what the engine's compiler rejects (audit 17).
-                if (!tolerant) {
-                    throw e;
-                }
+                // reject what the engine's compiler rejects (audit 17): the
+                // driver throws the recorded error
+                ledger.strictErrors.add(e);
                 ledger.poisons.putIfAbsent(
                         AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())
@@ -1391,7 +1398,7 @@ public final class MappingNormalizer {
         var vMain = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "table-backed set without ~mainTable");
         DatabaseDefinition.ViewDefinition view = model.findView(
-                vMain.database(), vMain.table()).orElse(null);
+                vMain.database(), vMain.table()).orElseGet(MissProbe::miss);
         if (view != null) {
             return synthViewBackedMapping(md, rcm, view, model, ledger);
         }
@@ -1716,7 +1723,7 @@ public final class MappingNormalizer {
         // be a view (OrgViewOnView -> OrgView -> Org) — flatten another
         // layer; the rewritten PMs now speak the inner view's columns
         DatabaseDefinition.ViewDefinition innerView =
-                model.findView(mainDb, physicalTable).orElse(null);
+                model.findView(mainDb, physicalTable).orElseGet(MissProbe::miss);
         if (innerView != null) {
             return synthViewBackedMapping(md, effective, innerView, model, ledger);
         }
@@ -2617,7 +2624,7 @@ public final class MappingNormalizer {
         // (HelperMappingBuilder.processEnumMapping); silently skipping it
         // turned typos into NULL rows in [1] slots (audit).
         List<String> knownValues = model.findEnum(em.enumName())
-                .map(EnumDefinition::values).orElse(null);
+                .map(EnumDefinition::values).orElseGet(MissProbe::miss);
         for (int i = values.size() - 1; i >= 0; i--) {
             EnumerationMapping.EnumValueMapping ev = values.get(i);
             if (knownValues != null && !knownValues.contains(ev.enumValue())) {
@@ -2722,7 +2729,7 @@ public final class MappingNormalizer {
                     yield cr;
                 }
                 var view = model.findView(cr.databaseName() != null ? cr.databaseName() : db,
-                        cr.table()).orElse(null);
+                        cr.table()).orElseGet(MissProbe::miss);
                 if (view == null) {
                     yield cr;
                 }
@@ -2806,7 +2813,7 @@ public final class MappingNormalizer {
                 return true;
             }
             DatabaseDefinition.ViewDefinition v =
-                    model.findView(db, walk).orElse(null);
+                    model.findView(db, walk).orElseGet(MissProbe::miss);
             if (v == null) {
                 return false;
             }
@@ -2974,7 +2981,7 @@ public final class MappingNormalizer {
                 v = booleanizeCaseLiterals(v);
             }
             boolean exempt = v instanceof AppliedFunction af
-                    && (com.legend.compiler.spec.CoreFn.of(af.function()).orElse(null) == com.legend.compiler.spec.CoreFn.NAVIGATE
+                    && (com.legend.compiler.spec.CoreFn.of(af.function()).orElseGet(MissProbe::miss) == com.legend.compiler.spec.CoreFn.NAVIGATE
                         || af.function().equals(Pure.Lite.LEGACY_NAVIGATE)
                         || af.function().equals(Pure.Lite.OTHERWISE)
                         || AppliedFunction.isNew(af));

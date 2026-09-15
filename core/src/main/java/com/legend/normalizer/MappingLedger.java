@@ -32,6 +32,12 @@ final class MappingLedger {
     /** "class", "class[setId]" or an association FQN &rarr; the reason
      * its binding is withheld (loud at use). */
     final Map<String, String> poisons = new LinkedHashMap<>();
+    /** The per-element errors a STRICT build surfaces (B4: the translator
+     * records, the driver alone decides): a USER-model error the engine's
+     * compiler rejects (a {@code ModelException}), or an association on
+     * roadmap machinery — in element order; a MODULE build keeps them as
+     * poisons only. */
+    final List<RuntimeException> strictErrors = new java.util.ArrayList<>();
     /** class &rarr; member set ids of a MIXED-KIND Operation union. */
     final Map<String, List<String>> mixedUnions = new LinkedHashMap<>();
     /** class &rarr; the primary-key threads of an Operation union's row. */

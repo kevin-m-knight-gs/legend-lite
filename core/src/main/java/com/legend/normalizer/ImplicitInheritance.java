@@ -129,7 +129,7 @@ final class ImplicitInheritance {
                 continue;
             }
             var ad = AssociationSynthesis.resolveAssociation(model, r, am)
-                    .orElse(null);
+                    .orElseThrow(() -> MissProbe.neverFired("ImplicitInheritance#1"));
             if (ad == null) {
                 continue;
             }
@@ -166,7 +166,7 @@ final class ImplicitInheritance {
             for (var e : routedByProp.entrySet()) {
                 String prop = e.getKey();
                 com.legend.model.ClassDefinition owner = model.knowledge().hierarchyClass(ownerByProp.getOrDefault(prop,
-                                rcm.className())).orElse(null);
+                                rcm.className())).orElseGet(MissProbe::miss);
                 com.legend.protocol.TypeExpression pt = owner == null ? null
                         : model.knowledge().propertyType(owner, prop);
                 if (!(pt instanceof com.legend.protocol.TypeExpression.NameRef nr)

@@ -1,12 +1,26 @@
 # Legacy routes as composition — the worked example (2026-09-13)
 
-## START HERE (fresh session, 2026-09-14)
+## START HERE (fresh session, 2026-09-15)
 
-**State of main.** `aa68dc289` + docs: step 1 (the several-route `legacyNavigate` primitive:
-`route(...)`, the checker, `TypedNavigate.routes`, `ClassSources.routedUnionSource`) and step 2a
-(ONE target lookup `ClassSources.navTarget(source, class, step, head)`; the eleven head-string
-sites re-pointed; rebuilds keep routes). Corpus DuckDB 108 / H2 444 EXACT, chain and CI green.
-Nothing emits routes on main yet; the union body is unchanged.
+**State of main.** The program is BUILT: steps 1 + 2a, leg 1 (every non-root set bound), 1b
+(the site sweep), 2 THE STACK (`resolver/StackBuilder` = the one union builder; every class-typed
+Join PM a route list), the audit + receipts (docs/LEG2_STACK_AUDIT_2026_09_14.md — R-key,
+R-target, R-chain), 3a (the engine's key rules on the lifts), 3b (B6: `UnionHeads` and the mixed
+union are calls to the stack; the widening is the stack's demand seam; the set-pin facts gone),
+4a (ratchet witnesses `StackRatchetWitnessTest`; structural identities), 4b (the single-table
+hierarchy = a builder pass on the `Operation.inheritance` fact; the normalizer's collapse gone),
+4c (a mixed union's Pure member binds its whole-source child as a navigate step; the mixed child
+dispatch gone), 4d (B4: the driver alone applies strict/module; B5: no bare `orElse(null)` in
+the normalizer). Every leg: DuckDB 108 / H2 444 EXACT, chain green, CI green; records in
+docs/GATES.md ("Legacy routes as composition, leg …"). Measures today: M1 1,091 (from 3,287;
+target under 700 still open — the key-thread fact and the route classification are the bulk),
+M2 1, M3 0, M4 5. Open follow-ups: M1; the plain M2M whole-source child as the same step
+(delete `GraphEmission.wholeSrcChild`); the graph-fetch derived-leaf inliner's filtered heads.
+
+**Earlier state (2026-09-14, kept for the history below).** `aa68dc289` + docs: step 1 (the
+several-route `legacyNavigate` primitive: `route(...)`, the checker, `TypedNavigate.routes`,
+`ClassSources.routedUnionSource`) and step 2a (ONE target lookup `ClassSources.navTarget(source,
+class, step, head)`; the eleven head-string sites re-pointed; rebuilds keep routes).
 
 **Parked.** Branch `wip/composition-2b` (pushed): every non-root set bound, route lists emitted,
 chains inside routes, nested reads, twenty more navigate-step sites on the one lookup. 228 LOST —
@@ -895,12 +909,12 @@ side under the queried mapping; the execution shape chosen in the lowering; ever
 loud; one implementation per question. Rows staying at 108 / 444 while the normalizer grows is
 not progress. So every batch reports, next to LOST / GAINED on both lanes:
 
-| measure | main today | target | how counted |
+| measure | main today (2026-09-14 → after leg 4d, 2026-09-15) | target | how counted |
 |---|---|---|---|
-| M1 union-synthesis lines | 3,287 (`UnionSynthesis.java`) | under 700 (route classification, the member enumeration, the same-table set collapse, the concatenate emitter, the key-thread fact, the chain-walk helpers) | `wc -l` |
-| M2 query-side union builders | 4 (the normalizer's body, `routedUnionSource`, `UnionHeads`, `mixedUnionSource`) | 1 (the stack builder; `UnionHeads` and the mixed builder fold into it in B6) | count of places that build a `TypedConcatenate` of class arms |
-| M3 navigator knowledge computed in the normalizer | 30 named functions (grep of §10 A8, A9-inbound, A15, A16, A17) | 0 (a route names a function and a join; the query side composes) | the same grep |
-| M4 quiet arms on the union path | 26 (`return; //`, `continue; //`, `putIfAbsent`, swallowed catch in `UnionSynthesis`) | 0 outside a receipted "the miss is the answer" | the same grep |
+| M1 union-synthesis lines | 3,287 → 1,091 (`UnionSynthesis.java`) | under 700 (route classification, the member enumeration, the same-table set collapse, the concatenate emitter, the key-thread fact, the chain-walk helpers) | `wc -l` |
+| M2 query-side union builders | 4 → 1 (the stack builder; `UnionHeads` and `mixedUnionSource` are its callers) | 1 (the stack builder; `UnionHeads` and the mixed builder fold into it in B6) | count of places that build a `TypedConcatenate` of class arms |
+| M3 navigator knowledge computed in the normalizer | 30 → 0 named functions (grep of §10 A8, A9-inbound, A15, A16, A17) | 0 (a route names a function and a join; the query side composes) | the same grep |
+| M4 quiet arms on the union path | 26 → 5 (`return; //`, `continue; //`, `putIfAbsent`, swallowed catch in `UnionSynthesis`; the five named in the leg 2 record) | 0 outside a receipted "the miss is the answer" | the same grep |
 
 ### 11.1 The capability, in one paragraph
 

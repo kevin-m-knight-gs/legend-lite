@@ -2845,3 +2845,37 @@ graph child no longer names `and`/`equal`/`or` — regenerated) and rerun green.
 **Next.** Leg 4d: B4 (policy out of the normalizer: the driver applies strict/tolerant, the
 normalizer reports facts) and B5 (every guard loud or documented). Follow-up: the plain M2M
 whole-source child as the same step (delete `wholeSrcChild`).
+
+## Legacy routes as composition, leg 4d — B4 policy out of the normalizer; B5 every guard loud — 2026-09-15
+
+**Why.** The clean-sheet homework's last two normalizer items (docs/NORMALIZER_CLEAN_SHEET_
+HOMEWORK_2026_09_13.md §B4, §B5): the translator branched on a `tolerant` flag at four sites
+(per-class, per-set, per-association, the set validation), deciding the build's policy itself;
+and 37 bare `orElse(null)` empty-answer sites remained beside the censused F7.8 funnel.
+
+**What landed.**
+- B4: `MappingLedger.strictErrors` — the translator RECORDS every per-element error a strict
+  build surfaces (a user-model error the engine's compiler rejects; an association on roadmap
+  machinery) beside its poison, in element order; `MappingValidation.run` returns the sets'
+  rejections; `normalizeMapping`, `MappingPrePass.prePass` and `MappingValidation.run` no longer
+  see the build mode. THE DRIVER alone applies it: `MappingNormalizer.normalize` throws a
+  mapping's first recorded error in a strict build (inside the element wrap, so the attribution
+  is unchanged), `MappingPrePass.run` the first invalid set's; a module build keeps the poisons.
+  Strict builds now finish the mapping's synthesis before throwing (the first error is the same
+  one).
+- B5: census (job tmp `b5probe.py`: every bare `orElse(null)` in the package a lazy probe; the
+  DuckDB corpus lane + the core tests): 21 of 37 sites fired — they read through the documented
+  funnel `MissProbe.miss` (the site list is on the funnel's javadoc); 16 never fired and are loud
+  (`MissProbe.neverFired`, the F7.8 spelling): AssociationSynthesis#1, ImplicitInheritance#1,
+  JoinChainEmission#1–3, MappingClosures#1–4, ModelJoinNesting#1, ModelNormalizer#1,
+  ViewRelation#4–8. No bare `orElse(null)` remains in the normalizer.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. Batch size: 18 files,
++112 / −68.
+
+**Chain.** Green on the first run. **Measures (§11.0).** M1 1,091 · M2 1 · M3 0 · M4 5.
+
+**Next.** The arc's five items are landed. Open from the arc: M1 toward 700 (the key-thread
+fact and the route classification are the bulk left in `UnionSynthesis`); the plain M2M
+whole-source child as the same navigate step (delete `wholeSrcChild`); the graph-fetch
+derived-leaf inliner's filtered heads (leg 4a's finding).

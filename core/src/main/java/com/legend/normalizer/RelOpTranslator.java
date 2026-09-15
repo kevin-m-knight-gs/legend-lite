@@ -60,7 +60,7 @@ final class RelOpTranslator {
     /** The registry entry of a mapping-expression call, or null when the engine
      *  registers no dynafunction of that name (a plain pure function call). */
     private static @com.legend.Nullable DynaFn dyna(RelationalOperation.FunctionCall call) {
-        return DynaFn.of(call.name()).orElse(null);
+        return DynaFn.of(call.name()).orElseGet(MissProbe::miss);
     }
 
     /** What the surrounding pipeline exposes to expression translation. */

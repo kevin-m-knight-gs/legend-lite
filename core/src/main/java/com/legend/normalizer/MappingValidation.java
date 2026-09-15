@@ -31,10 +31,11 @@ final class MappingValidation {
 
     private MappingValidation() {}
 
-    /** The invalid sets of {@code md} (by identity) with their reasons.
-     * Strict: the first invalid set throws. */
-    static Map<ClassMapping, String> run(ResolvedMapping r, ModelBuilder model,
-            boolean tolerant) {
+    /** The invalid sets of {@code md} (by identity) with the engine's
+     * compile-time rejection of each — recorded, never thrown here: the
+     * driver applies strict/module (B4). Mapping-level errors (duplicate
+     * ids) still throw: they are the mapping's, not a set's. */
+    static Map<ClassMapping, ModelException> run(ResolvedMapping r, ModelBuilder model) {
         LegacyMappingDefinition md = r.raw();
         // MAPPING-level errors the engine's compiler raises (R5): a class
         // mapping id taken by two distinct sets across the include closure,
@@ -49,7 +50,7 @@ final class MappingValidation {
                     "Duplicated class mappings found with ID " + dupIds
                     + " in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
         }
-        Map<ClassMapping, String> invalid = new IdentityHashMap<>();
+        Map<ClassMapping, ModelException> invalid = new IdentityHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             try {
                 switch (cm) {
@@ -58,10 +59,7 @@ final class MappingValidation {
                     default -> { }
                 }
             } catch (ModelException e) {
-                if (!tolerant) {
-                    throw e;
-                }
-                invalid.put(cm, String.valueOf(e.getMessage()));
+                invalid.put(cm, e);
             }
         }
         return invalid;

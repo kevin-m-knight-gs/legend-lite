@@ -53,7 +53,21 @@ final class MappingPrePass {
             }
             try {
                 pre.put(md.qualifiedName(), MappingNormalizer.withElement(
-                        md.qualifiedName(), () -> prePass(md, model, wallSink != null)));
+                        md.qualifiedName(), () -> {
+                            ResolvedMapping r = prePass(md, model);
+                            // VALIDATION before synthesis (step 5): the
+                            // translator records every invalid set; THE
+                            // DRIVER'S policy (B4) — a strict build rejects
+                            // the first, a module build poisons them
+                            Map<ClassMapping, ModelException> invalid =
+                                    MappingValidation.run(r, model);
+                            if (wallSink == null && !invalid.isEmpty()) {
+                                throw invalid.values().iterator().next();
+                            }
+                            Map<ClassMapping, String> reasons = new java.util.IdentityHashMap<>();
+                            invalid.forEach((cm, e) -> reasons.put(cm, String.valueOf(e.getMessage())));
+                            return r.withInvalid(reasons);
+                        }));
             } catch (ModelException e) {
                 if (wallSink == null || e.element() == null) {
                     throw e;
@@ -65,8 +79,7 @@ final class MappingPrePass {
         return pre;
     }
 
-    private static ResolvedMapping prePass(LegacyMappingDefinition authored, ModelBuilder model,
-            boolean tolerant) {
+    private static ResolvedMapping prePass(LegacyMappingDefinition authored, ModelBuilder model) {
         LegacyMappingDefinition surface = MappingClosures.of(model).surface(authored);
         detectM2MCycles(surface);
         // the sets' OWN key text, captured BEFORE the extends pre-pass
@@ -93,9 +106,7 @@ final class MappingPrePass {
         // Pre-pass: implicit inheritance OPS for unmapped routed targets
         // (association ends, routed class-typed properties) — must precede
         // the multi-hop injection (op visibility).
-        r = r.withMapping(ImplicitInheritance.implicitOpsForRoutedTargets(r, model));
-        // VALIDATION before synthesis (step 5): strict rejects, module poisons
-        return r.withInvalid(MappingValidation.run(r, model, tolerant));
+        return r.withMapping(ImplicitInheritance.implicitOpsForRoutedTargets(r, model));
     }
 
 
