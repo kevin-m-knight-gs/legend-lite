@@ -110,3 +110,26 @@ W-d union arms pinning two sets of a PLAIN class (several ids → the root only:
 dies); W-e every arm pinning the same NON-root set of a plain class (one id → alive; today's leaf
 rule would kill it — a known defect until step 4); W-f a modeled source key beside a non-modeled
 target key (per-column naming on each side).
+
+## B6 census (Leg 3b homework, 2026-09-14, full DuckDB lane at `d2dde1451`, 108 EXACT)
+
+Three counters over one run (a temporary env-guarded print, reverted):
+
+| what | count | where |
+|---|---|---|
+| `Pipelines.widenConcatenateForKeys` adding columns a union row lacks | 525 calls | `StoreResolver.resolveObject:3010` (join-key collection under ~distinct / the root's demanded joins) 195; `AssociationJoins.associationJoin:1020` (the target widened for the condition's keys) 177; `foldAssociationJoins:2010` 52; `registerExistsSubs:2195` 37; `Pipelines.materialize:450` 16; `GraphEmission.correlatedGraphChild:1350` 18 |
+| columns it adds | — | navigate SLOTS a later hop demands (`address` 114+30, `product` 90, `section`, `headquarters`), FK columns a class-level condition reads (`FIRMID` 55, `FirmID` 28, `PRODUCT_ID` 20, `tradeId` 48), metamodel keys (`node_id` 70, `mapping_fqn/em_name/enum_value` 15) |
+| `UnionHeads.material` (a `#uN` concatenate-of-chains head) | 15 rows | `projection::function::concatenate` NewTrade 10, simple Person 5 |
+| `ClassSources.mixedUnionSource` (a union with Pure members) | 14 rows | `graphFetch::tests::XStoreUnion::inMemoryAndRelational` Trade (2 and 5 members) |
+
+**What the census changes.** F14 named the widening "the other builders' debt". It is not: 525 of
+its calls serve the association, exists, aggregation and graph paths reading STACK rows — the
+columns they demand (a navigate slot, a physical FK, a metamodel key) are ones no lift projected,
+because the demand arrives after the stack was built. The widening is the resolver's demand-driven
+projection applied after the fact. Its faithful home is the stack builder's INPUT: a column demand
+the builder projects per arm from the arm's row (NULL where an arm lacks it) — the same
+demand-pruned materialization every plain source gets from `Pipelines.materialize`. That move is
+mechanical (rows unchanged by construction) and is Leg 3b's first item; the two builders' fold is
+its second (mixed: `stackOf` over the members' sources, the per-member child routes of Pure arms
+kept until a whole-source route becomes a step; union heads: one route per branch, keys aligned by
+name — the stack's route-key projection already does that).
