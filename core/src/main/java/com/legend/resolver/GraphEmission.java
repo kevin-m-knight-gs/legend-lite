@@ -2257,6 +2257,23 @@ final class GraphEmission {
                         "meta::pure::functions::collection::first"))) {
             hop = w.args().get(0);
         }
+        // a FILTERED head ($this.employees->filter(e | …)->isNotEmpty(),
+        // ->count()): the filter's predicate rides the correlated relation,
+        // inlined through the target's bindings (the shape the scalar-leaf
+        // path already serves); the head beneath it is the navigation
+        TypedLambda headFilter = null;
+        if (hop instanceof TypedFilter hf
+                && hf.predicate().parameters().size() == 1
+                && hf.predicate().body().size() == 1) {
+            headFilter = hf.predicate();
+            hop = hf.source();
+            while (hop instanceof TypedNativeCall w && w.args().size() == 1
+                    && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
+                        || w.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::first"))) {
+                hop = w.args().get(0);
+            }
+        }
         String headProp;
         List<TypedSpec> hopDates = List.of();
         boolean hopSweep = false;
@@ -2372,8 +2389,23 @@ final class GraphEmission {
                 List.of(andFold(corrBody)),
                 new ExprType(boolFn,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return new HeadRel(target, targetRow, new TypedFilter(targetPipeline, corr,
-                targetPipeline.info(), TypedFilter.Stamp.CORRELATION));
+        TypedSpec rel = new TypedFilter(targetPipeline, corr, targetPipeline.info(),
+                TypedFilter.Stamp.CORRELATION);
+        if (headFilter != null) {
+            // the user's own predicate over the element, inlined through the
+            // target's bindings — an ordinary filter (null-safe `==` and
+            // all), never the correlation stamp
+            TypedSpec pb = inlineThis(headFilter.body().get(0),
+                    headFilter.parameters().get(0), Map.of(), target.bindings(),
+                    target.classFqn(), headProp,
+                    new SubqueryEnv(target, context, target.rowVar(), targetRow));
+            rel = new TypedFilter(rel,
+                    new TypedLambda(List.of(target.rowVar()), List.of(pb),
+                            new ExprType(boolFn,
+                                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                    rel.info());
+        }
+        return new HeadRel(target, targetRow, rel);
     }
 
     /**

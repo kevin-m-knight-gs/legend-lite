@@ -56,6 +56,8 @@ class StackRatchetWitnessTest {
             Class w::SubCoordinate extends w::Coordinate { y: Integer[1]; }
             Class w::Firm { id: Integer[1]; employees: w::Emp[*];
               sameCityCount() { $this.employees->map(e | if($e.city == $e.altCity, |1, |0))->sum() } : Integer[1];
+              hasSameCityEmployee() { $this.employees->filter(e | $e.city == $e.altCity)->isNotEmpty() } : Boolean[1];
+              sameCityHeads() { $this.employees->filter(e | $e.city == $e.altCity)->count() } : Integer[1];
             }
             Class w::Emp { last: String[1]; city: String[0..1]; altCity: String[0..1]; }
             ###Relational
@@ -207,6 +209,26 @@ class StackRatchetWitnessTest {
         // The correlation (firm id = FIRM_ID) is the one equality lowered `=`.
         String tree = "#{w::Firm{id, sameCityCount()}}#";
         assertEquals("[{\"id\":1,\"sameCityCount()\":1},{\"id\":2,\"sameCityCount()\":0}]",
+                json("|w::Firm.all()->graphFetch(" + tree + ")->serialize(" + tree + ")"
+                        + "->from(w::Firms, w::RT)"));
+    }
+
+    @Test
+    @DisplayName("R-e: a FILTERED navigation head under isNotEmpty in a derived leaf")
+    void filteredHeadUnderEmptiness() throws SQLException {
+        // firm 1 has Ash (both NULL: Pure's empty == empty holds); firm 2's
+        // Cox (NY/LA) never matches — the filter rides the correlated relation
+        String tree = "#{w::Firm{id, hasSameCityEmployee()}}#";
+        assertEquals("[{\"id\":1,\"hasSameCityEmployee()\":true},{\"id\":2,\"hasSameCityEmployee()\":false}]",
+                json("|w::Firm.all()->graphFetch(" + tree + ")->serialize(" + tree + ")"
+                        + "->from(w::Firms, w::RT)"));
+    }
+
+    @Test
+    @DisplayName("R-f: a FILTERED navigation head under count in a derived leaf")
+    void filteredHeadUnderCount() throws SQLException {
+        String tree = "#{w::Firm{id, sameCityHeads()}}#";
+        assertEquals("[{\"id\":1,\"sameCityHeads()\":1},{\"id\":2,\"sameCityHeads()\":0}]",
                 json("|w::Firm.all()->graphFetch(" + tree + ")->serialize(" + tree + ")"
                         + "->from(w::Firms, w::RT)"));
     }

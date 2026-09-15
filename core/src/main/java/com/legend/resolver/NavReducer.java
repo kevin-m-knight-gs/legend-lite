@@ -53,8 +53,13 @@ final class NavReducer {
                     m.mapper().body().get(m.mapper().body().size() - 1));
         }
         if (arg instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedPropertyAccess head
-                && head.source() instanceof TypedVariable v && v.name().equals(thisVar)) {
+                && (pa.source() instanceof TypedPropertyAccess
+                        || pa.source() instanceof com.legend.compiler.spec.typed.TypedFilter)
+                && navigationOffThis(pa.source(), thisVar)) {
+            // a leaf read off the head ($this.employees.name), or off a
+            // FILTERED head ($this.employees->filter(…).name): the head
+            // (filter included) is what the correlated relation serves
+            TypedSpec head = pa.source();
             String var = "_e" + System.identityHashCode(pa);
             return new Shape(head, var, new TypedPropertyAccess(
                     new TypedVariable(var, new ExprType(
@@ -62,7 +67,27 @@ final class NavReducer {
                             Multiplicity.Bounded.ONE)),
                     pa.property(), pa.info()));
         }
+        if (arg instanceof com.legend.compiler.spec.typed.TypedFilter f
+                && navigationOffThis(f, thisVar)) {
+            // a COUNTED filtered head ($this.employees->filter(…)->count()):
+            // the element itself is the value — one row per element,
+            // projected as the literal 1
+            String var = "_e" + System.identityHashCode(f);
+            return new Shape(f, var, new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                    ExprType.one(Type.Primitive.INTEGER)));
+        }
         return null;
+    }
+
+    /** Whether {@code n} is a navigation off {@code $this} — a property
+     * access on the variable, possibly beneath a filter. */
+    private static boolean navigationOffThis(TypedSpec n, String thisVar) {
+        TypedSpec cur = n;
+        if (cur instanceof com.legend.compiler.spec.typed.TypedFilter f) {
+            cur = f.source();
+        }
+        return cur instanceof TypedPropertyAccess head
+                && head.source() instanceof TypedVariable v && v.name().equals(thisVar);
     }
 
     /** {@code rel}: the corr-filtered target relation over {@code rowVar}

@@ -3111,3 +3111,33 @@ twice (was 83 s; the 2026-09-12 checkout 58 s on the same machine); H2 23 s (was
 Batch size: 9 files, +122 / −13.
 
 **Chain.** Green on the first run, wall 223 s (the parallel chain’s 229 s pin of 2026-09-11 is back): G2 25s, G1 71s, G3 10s, G4 79s (was 117–141s), G5 34s (was 58–66s), G6 131s, G7 38s, G9 28s, G8 137s. Per-gate times ride every record from here.
+
+## Leg 6d — a filtered navigation head in a derived leaf — 2026-09-15
+
+**Why.** Leg 4a found two derived-leaf shapes the graph-fetch inliner refused: a FILTERED
+navigation head under a reducer or emptiness test (`$this.employees->filter(e | …)->isNotEmpty()`,
+`->count()`), loud as "not inlinable yet"; and `->filter(…)->first().last`, which fails at the
+database with "more than one row". Homework on the second: it is a DOCUMENTED decision, not a gap
+— `scalarLeafSubquery` projects the leaf DISTINCT with no row cap on purpose (the engine's
+graph-fetch discipline, `graphFetchCommon.pure:163`: distinct=true and more than one value is
+fatal; the old `LIMIT 1` silently picked a winner). The record of 4a is corrected here.
+
+**What landed.**
+- `GraphEmission.navHeadRelation` accepts a filtered head: the filter's predicate, inlined through
+  the target's bindings, rides the correlated relation as an ordinary filter (the user's `==` stays
+  null-safe; only the head correlation carries the CORRELATION stamp) — the same shape the
+  scalar-leaf path already served for `toOne(filter(…)).leaf`.
+- `NavReducer.shapeOf` accepts a filtered head under a reducer: a leaf read off it
+  (`filter(…).name->sum()`) and a bare count (`filter(…)->count()`, the element itself the value).
+- Witnesses R-e (`isNotEmpty` over a filtered head: firm 1 through its both-NULL employee alone)
+  and R-f (`count`), in `StackRatchetWitnessTest`; both were the first spellings of R-c and were
+  refused then.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 51 s, H2 23 s).
+Batch size: 3 files, +83 / −4.
+
+**Chain.** Green on the first run, wall 242 s (load 3.6): G2 25s, G1 75s, G3 12s, G4 89s, G5 41s, G6 138s, G7 42s, G9 34s, G8 146s. **Measures (§11.0).** M1 1,102 · M2 1 · M3 0 · M4 5.
+
+**Next.** The arc's four items are landed (6a arms as a fact; 6b/6c audit, citations, view frame;
+6d this; 6e the lane's speed). Lineage over an inheritance operation stays with the
+metamodel-as-data program (its corpus row is green).
