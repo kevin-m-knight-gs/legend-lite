@@ -3234,3 +3234,25 @@ time; a module build records both).
 **Chain.** Gates 1–7 and 9 green on the first run, wall 231 s: G2 26s, G1 69s, G3 11s, G4 87s,
 G5 36s, G6 136s, G7 40s, G9 29s; G8 141s red on the own-corpus parity floor (2434 → 2444: the two
 witnesses' models joined and matched — re-pinned) and rerun green (85 s). Batch size: 6 files.
+
+## Audit fix A3 (FIXLIST P0-4) — `~distinct` never over the raw row — 2026-09-15
+
+**Why.** FIXLIST P0-4 (PROVEN): the third `~distinct` branch emitted a bare `distinct(<row>)`
+over the full physical row whenever no main-table column was collected — a class whose properties
+are all join-terminal or join reads dedups on a row that carries the table's unique key, so nothing
+dedups. `collectMappedColumns` also answered "no column" for an Embedded block whose sub-mappings
+read plain main-table columns.
+
+**What landed.** `collectMappedColumns` walks Embedded and OtherwiseEmbedded blocks (their column
+sub-mappings are main-table reads; the fallback join keeps the block slot-carrying); the
+slot-carrying branch dedups by the mapped main-table columns PLUS every join slot — with no mapped
+column it dedups by the slots alone; the raw-row branch is gone: a `~distinct` set with no mapped
+column and no slot is a loud `NotImplementedException` (nothing to dedup by). Witnesses
+(`MappingNormalizerTest`): `distinctOverJoinReadsOnlyDedupsBySlots` (the audit's probe shape —
+two join-terminal reads — dedups BY the one slot `P_F`, never the zero-arg raw-row form) and
+`distinctOverEmbeddedBlockDedupsByItsColumns` (an embedded block's column reads join the select
+narrowing: `[NAME, CITY]`). Own-corpus parity floor 2444 → 2451 (the witnesses' models).
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s).
+
+**Chain.** Green on the first run, wall 229 s: G2 25s, G1 72s, G3 11s, G4 84s, G5 37s, G6 134s, G7 39s, G9 31s, G8 141s. Batch size: 3 files.

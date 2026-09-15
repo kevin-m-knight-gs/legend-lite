@@ -1386,6 +1386,66 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("P0-4: ~distinct over join reads only dedups by the slots, never the raw row")
+    void distinctOverJoinReadsOnlyDedupsBySlots() {
+        // audit 2026-09-15 P0-4 (proven by probe): both properties are
+        // join-terminal reads; the old third branch emitted distinct(<row>)
+        // over the physical row, whose unique ID made the dedup a no-op.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::P { firmName: String[1]; firmCity: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), CITY VARCHAR(50)) "
+                        + "  Join P_F (PT.FIRM_ID = FT.ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::P: Relational { "
+                        + "    ~distinct "
+                        + "    ~mainTable [db::DB] PT "
+                        + "    firmName: [db::DB] @P_F | FT.NAME, "
+                        + "    firmCity: [db::DB] @P_F | FT.CITY "
+                        + "  } "
+                        + ")");
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
+        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
+        AppliedFunction distinctCall = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals("distinct", distinctCall.function());
+        assertEquals(2, distinctCall.parameters().size(),
+                "distinct BY the listed columns — never the zero-arg raw-row form");
+        ColSpecArray by = (ColSpecArray) distinctCall.parameters().get(1);
+        assertEquals(List.of("P_F"), by.colSpecs().stream().map(ColSpec::name).toList(),
+                "the only dedup key is the join slot the two reads ride");
+    }
+
+    @Test
+    @DisplayName("P0-4: ~distinct over an embedded block dedups by the block's main-table columns")
+    void distinctOverEmbeddedBlockDedupsByItsColumns() {
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Addr { city: String[1]; } "
+                        + "Class model::P { name: String[1]; addr: model::Addr[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), CITY VARCHAR(50)) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::P: Relational { "
+                        + "    ~distinct "
+                        + "    ~mainTable [db::DB] PT "
+                        + "    name: PT.NAME, "
+                        + "    addr ( city: PT.CITY ) "
+                        + "  } "
+                        + ")");
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
+        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
+        AppliedFunction distinctCall = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals("distinct", distinctCall.function());
+        AppliedFunction select = (AppliedFunction) distinctCall.parameters().get(0);
+        assertEquals("select", select.function(), "plain reads: select narrows to the mapped columns first");
+        ColSpecArray cols = (ColSpecArray) select.parameters().get(1);
+        assertEquals(List.of("NAME", "CITY"), cols.colSpecs().stream().map(ColSpec::name).toList(),
+                "the embedded block's column reads are main-table reads and join the dedup key");
+    }
+
+    @Test
     @DisplayName("enumeratedColumn_inlinesEnumerationMappingAsIfChain")
     void enumeratedColumn_inlinesEnumerationMappingAsIfChain() {
         // Position 2 redesign: EnumeratedColumn is inline-expanded to a

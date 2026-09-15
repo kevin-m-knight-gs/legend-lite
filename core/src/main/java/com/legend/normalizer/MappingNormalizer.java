@@ -1897,14 +1897,17 @@ public final class MappingNormalizer {
                 p.expr = new AppliedFunction("select",
                         List.of(p.expr, new ColSpecArray(cols)));
                 p.expr = new AppliedFunction("distinct", List.of(p.expr));
-            } else if (!mappedCols.isEmpty()) {
+            } else if (!mappedCols.isEmpty() || !p.aliasToTargetTable.isEmpty()) {
                 // SLOT-CARRYING ~distinct: dedup by the mapped MAIN-TABLE
                 // columns (the unmapped PK must not defeat the dedup —
                 // engine dedups the mapped row) PLUS the slot pseudo-columns
                 // (so slot reads above the distinct still type-check); the
                 // materializer swaps each demanded slot for its prefixed
                 // physical columns (join-equality makes them dependent,
-                // dedup-neutral) and drops the undemanded ones.
+                // dedup-neutral) and drops the undemanded ones. A set whose
+                // properties are ALL join reads dedups by the slots alone —
+                // never by the raw row, whose unique key defeats the dedup
+                // (audit 2026-09-15 P0-4, proven by probe).
                 List<ColSpec> cols = new ArrayList<>(mappedCols.stream()
                         .map(c -> new ColSpec(c, null, null)).toList());
                 for (String alias : p.aliasToTargetTable.keySet()) {
@@ -1913,7 +1916,11 @@ public final class MappingNormalizer {
                 p.expr = new AppliedFunction("distinct",
                         List.of(p.expr, new ColSpecArray(cols)));
             } else {
-                p.expr = new AppliedFunction("distinct", List.of(p.expr));
+                // no mapped column and no slot: nothing to dedup BY. Loud,
+                // never distinct over the physical row.
+                throw new NotImplementedException("~distinct on '" + rcm.className()
+                        + "' maps no main-table column and carries no join slot —"
+                        + " nothing to dedup by; mapping=" + md.qualifiedName());
             }
         }
 
@@ -1939,6 +1946,12 @@ public final class MappingNormalizer {
      * set). False = the PM is not a plain main-table read (join/embedded) —
      * the caller skips the narrowing select.
      */
+    /** The MAIN-TABLE columns a property mapping reads into {@code sink};
+     * TRUE when the mapping is a plain read (no join slot). An embedded
+     * block contributes its sub-mappings' columns (they read the owner's
+     * row); its otherwise-fallback join and every join-carrying mapping
+     * answer FALSE — their reads ride a slot the dedup lists beside the
+     * columns. */
     private static boolean collectMappedColumns(PropertyMapping pm, Set<String> sink) {
         switch (pm) {
             case PropertyMapping.Column c -> sink.add(c.column());
@@ -1949,7 +1962,26 @@ public final class MappingNormalizer {
             case PropertyMapping.LocalProperty lp -> {
                 return collectMappedColumns(lp.body(), sink);
             }
-            default -> {
+            case PropertyMapping.Embedded emb -> {
+                boolean plain = true;
+                for (PropertyMapping sub : emb.propertyMappings()) {
+                    plain &= collectMappedColumns(sub, sink);
+                }
+                return plain;
+            }
+            case PropertyMapping.OtherwiseEmbedded oe -> {
+                for (PropertyMapping sub : oe.embedded()) {
+                    collectMappedColumns(sub, sink);
+                }
+                return false;
+            }
+            case PropertyMapping.Join ignored -> {
+                return false;
+            }
+            case PropertyMapping.JoinTerminalColumn ignored -> {
+                return false;
+            }
+            case PropertyMapping.InlineEmbedded ignored -> {
                 return false;
             }
         }
