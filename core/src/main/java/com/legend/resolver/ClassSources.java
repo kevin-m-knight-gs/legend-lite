@@ -694,10 +694,17 @@ public final class ClassSources {
                 return JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn, classFqn,
                         jsonUrl);
             }
+            // the recorded reason: the demanded SET's own (the per-set
+            // fault isolation arm — audit 2026-09-15 P1-1: written, never
+            // readable before), else the class's
+            java.util.Optional<String> reason = setId == null
+                    ? ctx.mappingPoison(mappingFqn, classFqn)
+                    : ctx.mappingSetPoison(mappingFqn, classFqn, setId)
+                            .or(() -> ctx.mappingPoison(mappingFqn, classFqn));
             throw new MappingResolutionException("class '" + classFqn
+                    + (setId == null ? "" : "' set '" + setId)
                     + "' is not mapped in mapping '" + mappingFqn + "'"
-                    + ctx.mappingPoison(mappingFqn, classFqn)
-                            .map(r -> " (" + r + ")").orElse(""), classFqn);
+                    + reason.map(r -> " (" + r + ")").orElse(""), classFqn);
         }
 
         // an OPERATION with several arms: the binding's FACT names them (the

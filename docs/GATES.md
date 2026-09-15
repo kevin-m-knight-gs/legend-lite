@@ -3320,3 +3320,34 @@ model recursed to a `StackOverflowError`.
 Own-corpus parity floor 2459 → 2466 (the witnesses' models).
 
 **Chain.** Green on the first run, wall 233 s: G2 25s, G1 73s, G3 11s, G4 87s, G5 37s, G6 136s, G7 41s, G9 31s, G8 143s. Batch size: 5 files.
+
+## Audit fix A6 (FIXLIST P1-1) — a sealed poison key; one collision policy; the per-set reason readable — 2026-09-15
+
+**Why.** P1-1 (VERIFIED): the poison ledger was one `Map<String, String>` with THREE key grammars
+(`class`, `class[setId]`, association FQN) and three collision policies (`put` last-wins,
+`putIfAbsent` first-wins, `merge` with `;`). The per-set key — the per-SET fault-isolation arm —
+had NO reader: the sole reader (`PureModelContext.mappingPoison`) looked up a plain class FQN, so
+a non-root set that failed synthesis recorded its reason where nothing could address it and the
+user got a bare "class X is not mapped in mapping M". For a multi-set class the generic
+".all() over multi-set mappings is a roadmap feature" text was written FIRST via `putIfAbsent`
+and masked the real cause.
+
+**What landed.**
+- `model.PoisonKey` — sealed: `ForClass(classFqn)`, `ForSet(classFqn, setId)`,
+  `ForAssociation(associationFqn)`; `NormalizationFacts.poisons` and the ledger are
+  `Map<PoisonKey, String>`, so a reader composes the writer's key or does not compile.
+- ONE write path, ONE policy: `MappingLedger.poison(key, reason)` MERGES (a prior reason is kept,
+  a new one appended) — `put`, `putIfAbsent` and the ad-hoc `merge` are gone from the seven write
+  sites (the multi-set text no longer masks a set's real cause: it lives under the set's key).
+- Readers: `ModelContext.mappingPoison` (ForClass), NEW `mappingSetPoison(mapping, class, setId)`
+  (ForSet) and `mappingAssociationPoison` (ForAssociation); `ClassSources.build`'s not-mapped
+  wall reads the DEMANDED SET's reason first (`class 'X' set 'b' is not mapped … (reason)`), the
+  association fallback reads the association key.
+- Witness `OneIndexTest.perSetPoisonIsReadableByItsKey`: a non-root set with an invalid property
+  name is walled under `ForSet(Person, b)`, readable through the context by that key; set a has
+  none; the class key carries only the multi-set text.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 54 s, H2 27 s).
+Own-corpus parity floor 2466 → 2470 (the witness's model).
+
+**Chain.** Green on the first run, wall 239 s: G2 26s, G1 70s, G3 11s, G4 89s, G5 37s, G6 142s, G7 42s, G9 29s, G8 141s. Batch size: 11 files.

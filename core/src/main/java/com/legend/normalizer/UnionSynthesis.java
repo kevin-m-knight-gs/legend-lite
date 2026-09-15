@@ -363,10 +363,9 @@ final class UnionSynthesis {
             // collector — the same predicate, never allowed to drift.
             if (poison != null) {
                 p.droppedRoutedProps.add(prop);
-                p.ledger().poisons.merge(rcm.className(),
+                p.ledger().poison(new com.legend.model.PoisonKey.ForClass(rcm.className()),
                         "property '" + prop + "' routes to " + poison
-                                + "; the property is dropped from this synthesis",
-                        (a, b) -> a + "; " + b);
+                                + "; the property is dropped from this synthesis");
                 continue;
             }
             if (routes.stream().allMatch(r -> r.targetOrdinal() == -1)) {

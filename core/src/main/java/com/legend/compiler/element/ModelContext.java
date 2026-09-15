@@ -128,8 +128,22 @@ public interface ModelContext {
     Optional<com.legend.model.RuntimeDefinition> findRuntime(
             @com.legend.Nullable String fqn);
 
-    /** Normalization-failure reason for {@code mapping::class}, when its class mapping was poisoned. */
+    /** Normalization-failure reason for {@code mapping::class}, when its
+     * class mapping (the ROOT binding) was poisoned. */
     default Optional<String> mappingPoison(String mappingFqn, String classFqn) {
+        return Optional.empty();
+    }
+
+    /** Normalization-failure reason for ONE non-root set of {@code class}
+     * in {@code mapping} — the per-set fault isolation arm's recorded
+     * reason (audit 2026-09-15 P1-1: written and never readable before). */
+    default Optional<String> mappingSetPoison(String mappingFqn, String classFqn, String setId) {
+        return Optional.empty();
+    }
+
+    /** Normalization-failure reason for an association's join synthesis
+     * in {@code mapping}. */
+    default Optional<String> mappingAssociationPoison(String mappingFqn, String associationFqn) {
         return Optional.empty();
     }
 

@@ -81,7 +81,7 @@ public record MappingDefinition(
      * contributes (bucket &rarr; witnesses).
      */
     public record NormalizationFacts(
-            java.util.Map<String, String> poisons,
+            java.util.Map<PoisonKey, String> poisons,
             java.util.Map<String, List<String>> mixedUnions,
             java.util.Map<String, List<KeyThread>> unionKeyThreads,
             java.util.Map<String, java.util.Set<String>> nullableCensus,
@@ -93,7 +93,7 @@ public record MappingDefinition(
                 java.util.Map.of(), java.util.Map.of());
 
         /** The synthesis facts alone (T4.1 step 2); the surface facts empty. */
-        public NormalizationFacts(java.util.Map<String, String> poisons,
+        public NormalizationFacts(java.util.Map<PoisonKey, String> poisons,
                 java.util.Map<String, List<String>> mixedUnions,
                 java.util.Map<String, List<KeyThread>> unionKeyThreads,
                 java.util.Map<String, java.util.Set<String>> nullableCensus) {

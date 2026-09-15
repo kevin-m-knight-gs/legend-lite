@@ -9,6 +9,7 @@ import com.legend.error.NotImplementedException;
 import com.legend.protocol.Multiplicity;
 import com.legend.model.NormalizedModel;
 import com.legend.model.ParsedModel;
+import com.legend.model.PoisonKey;
 import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
@@ -301,7 +302,7 @@ public final class MappingNormalizer {
                         // multi-set class without a UNION root: .all() is
                         // undefined (poisoned); the SET itself still
                         // realizes (H5) via the set-discriminated binding.
-                        ledger.poisons.putIfAbsent(cm.className(),
+                        ledger.poison(new PoisonKey.ForClass(cm.className()),
                                 "class is mapped through multiple set IDs;"
                                         + " .all() over multi-set mappings"
                                         + " (implicit union) is a roadmap"
@@ -309,7 +310,8 @@ public final class MappingNormalizer {
                     }
                     String invalidSet = pp.invalidReason(cm);
                     if (invalidSet != null) {
-                        ledger.poisons.putIfAbsent(cm.className() + "[" + ResolvedMapping.idOf(cm) + "]", invalidSet);
+                        ledger.poison(new PoisonKey.ForSet(cm.className(),
+                                ResolvedMapping.idOf(cm)), invalidSet);
                         continue;
                     }
                     try {
@@ -345,15 +347,15 @@ public final class MappingNormalizer {
                         if (e instanceof ModelException) {
                             ledger.strictErrors.add(e);
                         }
-                        ledger.poisons.putIfAbsent(cm.className() + "[" + ResolvedMapping.idOf(cm) + "]",
-                                String.valueOf(e.getMessage()));
+                        ledger.poison(new PoisonKey.ForSet(cm.className(),
+                                ResolvedMapping.idOf(cm)), String.valueOf(e.getMessage()));
                     }
                 }
                 continue;
             }
             String invalid = pp.invalidReason(cm);
             if (invalid != null) {
-                ledger.poisons.put(cm.className(), invalid);
+                ledger.poison(new PoisonKey.ForClass(cm.className()), invalid);
                 continue;
             }
             FunctionDefinition fn;
@@ -374,7 +376,7 @@ public final class MappingNormalizer {
                 // recorded reason (loud at use, never silent).
                 // The full message rides on the poison and surfaces via
                 // StoreResolver's 0-binder error.
-                ledger.poisons.put(cm.className(), String.valueOf(e.getMessage()));
+                ledger.poison(new PoisonKey.ForClass(cm.className()), String.valueOf(e.getMessage()));
                 continue;
             }
             lifted.add(fn);
@@ -424,10 +426,10 @@ public final class MappingNormalizer {
                 // reject what the engine's compiler rejects (audit 17): the
                 // driver throws the recorded error
                 ledger.strictErrors.add(e);
-                ledger.poisons.putIfAbsent(
+                ledger.poison(new PoisonKey.ForAssociation(
                         AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())
-                                .orElse(am.associationName()),
+                                .orElse(am.associationName())),
                         String.valueOf(e.getMessage()));
                 continue;
             }

@@ -365,7 +365,23 @@ public final class PureModelContext implements ModelContext {
     @Override
     public java.util.Optional<String> mappingPoison(String mappingFqn, String classFqn) {
         return model.findMapping(mappingFqn)
-                .map(md -> md.facts().poisons().get(classFqn));
+                .map(md -> md.facts().poisons().get(new com.legend.model.PoisonKey.ForClass(classFqn)));
+    }
+
+    @Override
+    public java.util.Optional<String> mappingSetPoison(String mappingFqn, String classFqn,
+            String setId) {
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().poisons().get(
+                        new com.legend.model.PoisonKey.ForSet(classFqn, setId)));
+    }
+
+    @Override
+    public java.util.Optional<String> mappingAssociationPoison(String mappingFqn,
+            String associationFqn) {
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().poisons().get(
+                        new com.legend.model.PoisonKey.ForAssociation(associationFqn)));
     }
 
     public java.util.Optional<com.legend.model.RuntimeDefinition> findRuntime(

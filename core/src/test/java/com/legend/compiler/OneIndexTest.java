@@ -156,9 +156,49 @@ class OneIndexTest {
                   *w::Person : Pure { ~src w::Person name: $src.name, firm: $src.firm }
                 )
                 """))).model()).context();
-        String reason = poisoned.findMapping("w::M2").orElseThrow().facts().poisons().get("w::Person");
+        String reason = poisoned.findMapping("w::M2").orElseThrow().facts().poisons()
+                .get(new com.legend.model.PoisonKey.ForClass("w::Person"));
         assertTrue(reason != null && reason.contains("w::Firm"), String.valueOf(reason));
         assertEquals(reason, poisoned.mappingPoison("w::M2", "w::Person").orElseThrow());
+    }
+
+    @Test
+    @DisplayName("P1-1: a non-root set's recorded reason is readable by its own key, and reaches the user")
+    void perSetPoisonIsReadableByItsKey() {
+        // audit 2026-09-15 P1-1: the per-set poison was written under a
+        // "class[setId]" string no reader composed. Person has two non-root
+        // sets; set b names a property Person does not declare, so the
+        // validation walls THAT set and the reason must be addressable by
+        // (class, set) — and the class key carries only the multi-set text,
+        // never a masked cause.
+        ModelContext ctx = Compiler.buildModule(Compiler.parseSources(List.of(
+                new Compiler.ModelSource("m.pure", """
+                Class w::Person { name: String[1]; firm: w::Firm[0..1]; }
+                Class w::Firm { legalName: String[1]; }
+                ###Relational
+                Database w::DB (
+                  Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER)
+                  Table FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+                  Join PersonFirm (PERSON.FIRM_ID = FIRM.ID)
+                )
+                ###Mapping
+                Mapping w::M3 (
+                  w::Person[a] : Relational { ~mainTable [w::DB] PERSON name: PERSON.NAME }
+                  w::Person[b] : Relational { ~mainTable [w::DB] PERSON name: PERSON.NAME, nope: PERSON.NAME }
+                )
+                """))).model()).context();
+        MappingDefinition md = ctx.findMapping("w::M3").orElseThrow();
+        String setReason = md.facts().poisons()
+                .get(new com.legend.model.PoisonKey.ForSet("w::Person", "b"));
+        assertTrue(setReason != null && setReason.contains("'nope'"), String.valueOf(setReason));
+        assertEquals(setReason, ctx.mappingSetPoison("w::M3", "w::Person", "b").orElseThrow(),
+                "the context reads the per-set reason by the same key the writer used");
+        assertTrue(ctx.mappingSetPoison("w::M3", "w::Person", "a").isEmpty(),
+                "set a synthesized: no reason recorded");
+        String classReason = ctx.mappingPoison("w::M3", "w::Person").orElseThrow();
+        assertTrue(classReason.contains("multiple set IDs") && !classReason.contains("'nope'"),
+                "the class key carries the multi-set text; set b's cause lives under its own key: "
+                        + classReason);
     }
 
     @Test

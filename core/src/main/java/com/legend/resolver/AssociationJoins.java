@@ -1092,7 +1092,7 @@ final class AssociationJoins {
                         // (the assoc fallback) — surface the recorded reason
                         // (class-keyed, or the per-ASSOCIATION poison)
                         + ctx.mappingPoison(cs.mappingFqn(), cs.classFqn())
-                                .or(() -> ctx.mappingPoison(cs.mappingFqn(),
+                                .or(() -> ctx.mappingAssociationPoison(cs.mappingFqn(),
                                         assoc.qualifiedName()))
                                 .map(r -> " (" + r + ")").orElse(""),
                         assoc.qualifiedName()));

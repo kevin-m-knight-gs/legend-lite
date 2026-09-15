@@ -29,9 +29,18 @@ import java.util.TreeSet;
  */
 final class MappingLedger {
 
-    /** "class", "class[setId]" or an association FQN &rarr; the reason
-     * its binding is withheld (loud at use). */
-    final Map<String, String> poisons = new LinkedHashMap<>();
+    /** {@link com.legend.model.PoisonKey} &rarr; the reason the binding is
+     * withheld (loud at use). Written ONLY through {@link #poison}: every
+     * reason is kept (a second reason for one key appends), never
+     * first-wins or last-wins (audit 2026-09-15 P1-1: three policies on
+     * one map masked real causes behind the generic multi-set text). */
+    final Map<com.legend.model.PoisonKey, String> poisons = new LinkedHashMap<>();
+
+    /** Record {@code reason} against {@code key}; a prior reason is kept
+     * and this one appended. */
+    void poison(com.legend.model.PoisonKey key, String reason) {
+        poisons.merge(key, reason, (a, b) -> a.equals(b) ? a : a + "; " + b);
+    }
     /** The per-element errors a STRICT build surfaces (B4: the translator
      * records, the driver alone decides): a USER-model error the engine's
      * compiler rejects (a {@code ModelException}), or an association on
