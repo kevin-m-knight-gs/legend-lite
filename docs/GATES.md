@@ -3436,3 +3436,52 @@ declared-keys capture. Disjoint today; a meeting would disagree.
 Own-corpus parity floor unchanged (2470).
 
 **Chain.** Green on the first run, wall 242 s: G2 25s, G1 73s, G3 11s, G4 92s, G5 39s, G6 140s, G7 45s, G9 32s, G8 143s. Batch size: 16 files.
+
+## The PARKED-WORK LEDGER — 2026-09-15
+
+**Why.** USER, on being shown the remaining audit items: "we can park xstore for now" and,
+on how to record parked work so it is not forgotten even much later, "Love that idea". A
+document alone does not survive forgetting — nothing reads a document on a schedule. The
+repo's own mechanism does: a shrink-only register enforced by a test in the chain (the
+Java-evaluation ledger, the shadow-walker census, the claims ledger).
+
+**What landed.**
+- `docs/PARKED_WORK_LEDGER.md` — one row per parked item: the date, WHO parked it, why,
+  the cost of leaving it parked, and the acceptance test that closes it. Four rules at the
+  top: a row leaves by being FIXED, never loosened; the anchor must be mechanical; a green
+  anchor is not approval.
+- `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` — every row ANCHORED: a
+  mechanical fact that holds only while the item is parked, asserted as the EXACT set of
+  product files carrying it (a new site, a removed site and a moved site all fail), with a
+  `GuardCoverage.assertFloor` on the scan scope.
+- The two first rows:
+  - **PARK-1 cross-store per-end predicates** (FIXLIST P3-1) — anchor: the wall text
+    `has direction-specific conditions` sits in exactly `MappingNormalizer.java` and
+    `XStorePureEnds.java` (which also pins the duplicated implementation). Cost recorded:
+    four engine fixtures in our own corpus manifest parse, round-trip and cannot normalize.
+  - **PARK-2 union common-subexpression pass** (FIXLIST P4-1) — anchors:
+    `extractSubqueriesAsCtes` is called from exactly `SqlPostProcessors.java` (the opt-in
+    parity path) and `new SqlWith(` is constructed in exactly `SqlRewriter.java`. Cost
+    recorded with the audit's measurement (4 scans vs 2, 2 hash joins vs 1, 2.26 ms vs
+    1.12 ms on 2,000 firms × 200,000 people), flagged as not re-run since.
+
+**The anchors were PROVEN to go red** (a guard nobody has seen fail is not a guard — the
+lesson that produced `GuardCoverage`). Three mutations, each run against
+`ParkedWorkLedgerTest` alone and reverted:
+
+| mutation | direction | verdict |
+|---|---|---|
+| the wall text renamed in ONE of its two files | evidence removed / moved | RED, PARK-1 named |
+| a THIRD product file carries the wall text | a site added | RED, PARK-1 named |
+| `extractSubqueriesAsCtes` renamed (declaration + call) | evidence removed / moved | RED, PARK-2 named |
+
+Each failure prints the row id, the anchor, the expected file set and the found one, and
+tells the reader to CLOSE the row (here and in the doc, in the same commit) or re-point it.
+Baseline green after every revert. KNOWN false positive, accepted: the anchors match raw
+file text, so a COMMENT mentioning the wall text or the extractor name also trips the row —
+blanking comments would blind the cross-store anchor, which is itself a string literal.
+
+**Rows.** No product code changed; gates 4 and 5 (the two corpus lanes) ran inside the
+chain below.
+
+**Chain.** Green on the first run, wall 221 s: G2 24s, G1 70s, G3 11s, G4 78s, G5 36s, G6 130s, G7 38s, G9 29s, G8 131s. Batch size: 2 files (1 doc, 1 test).
