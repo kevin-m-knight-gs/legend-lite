@@ -3173,3 +3173,41 @@ the `ServiceLoader` plugin seam; `GenericTypeReflection` (Pure's `genericType()`
 Batch size: 5 files, +116 / −101.
 
 **Chain.** Green on the first run, wall 228 s: G2 25s, G1 74s, G3 11s, G4 82s, G5 36s, G6 133s, G7 38s, G9 31s, G8 136s.
+
+## Legacy routes as composition, leg 6g — M4: no first-wins on the union path — 2026-09-15
+
+**Why.** USER ("are we done?" → the scorecard's two open numbers → "agreed"): the five quiet arms
+M4 has counted since leg 2. Two are receipted skips (a root route IS the un-routed navigation; a
+`~func` member has no key table) and stay. Three were first-one-wins `putIfAbsent`s — the owner
+class per routed property name (top-level and otherwise-embedded sites of `collectRoutedJoins`)
+and the per-ordinal key name in `recordKeyThreads`.
+
+**What was found.** The key-name map was DEAD: `recordKeyThreadsOf` handed `recordKeyThreads` a
+fresh map nobody read (the lift-era `NavLift.srcKeysByOrdinal` consumer died with THE STACK, leg
+2). A caller census of `UnionSynthesis` (members with no caller outside their own bodies) found
+the rest of that era: `NavLift`, `LiftChain`, `FilteredScan`, the three `suffixTargetReads`
+overloads, `rewriteTargetReads`, the private two-argument `collectRoutedJoins`, and two orphaned
+javadocs (the embedded distribution; the B3.1b link-key name — the rule lives on the link-key
+collector, line "The LINK KEYS of every relational set"). The owner map was a real quiet arm:
+routes are keyed by property NAME, so the same name routed under two owners (top-level `employees`
+on Firm and `employees` inside the embedded `address` block of Address) kept the first owner and
+resolved the second route's target against the wrong class, silently.
+
+**What landed.**
+- `UnionSynthesis.recordOwner`: one owner per routed property name is a FACT; a second, different
+  owner throws `ModelException(NORMALIZE, "property 'p' is routed under two owners, 'A' and 'B',
+  in one class mapping; routes are keyed by property name …")` — a STRICT build throws it, a
+  MODULE build walls the mapping with the reason (the existing pre-pass / per-mapping channel;
+  both collector callers, `classifyUnionRoutes` and `ImplicitInheritance`, sit on it).
+- `recordKeyThreads` loses the dead map parameter; the dead lift-era cluster above is deleted
+  (`UnionSynthesis` 1,104 → 976 lines; no caller anywhere, main or test).
+- Witness `MappingNormalizerTest.routedPropertyUnderTwoOwnersIsLoud`: strict throws naming both
+  owners; module normalizes without throwing.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s).
+
+**Chain.** Gates 1–7 and 9 green on the first run, wall 227 s: G2 25s, G1 70s, G3 10s, G4 82s,
+G5 34s, G6 136s, G7 38s, G9 28s; G8 137s red on the own-corpus parity floor (matched elements
+2429 → 2434: the witness's five elements joined the own corpus and matched — re-pinned) and rerun
+green (RERUN s). **Measures (§11.0).** M1 976 · M2 1 · M3 0 · M4 2 (both receipted skips; ZERO
+first-wins — the target "0 outside a receipted miss" is met). Batch size: 2 files, +78 / −164.

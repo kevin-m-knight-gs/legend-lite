@@ -3894,6 +3894,48 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("M4: one property name routed under two owners is loud, never first-owner-wins")
+    void routedPropertyUnderTwoOwnersIsLoud() {
+        // Firm routes `employees` at the top (owner Firm) AND inside the
+        // embedded `address` block (owner Address, whose class also has an
+        // `employees` property). The class mapping's routes are keyed by
+        // property name, so the collector cannot hold both owners: a STRICT
+        // build throws the fact; a MODULE build walls the mapping with it.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::Person  { name: String[1]; } "
+                        + "Class model::Address { street: String[1]; employees: model::Person[*]; } "
+                        + "Class model::Firm    { legalName: String[1]; employees: model::Person[*];"
+                        + "                        address: model::Address[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table T_FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), STREET VARCHAR(50)) "
+                        + "  Table T_PERSON (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER, NAME VARCHAR(50)) "
+                        + "  Join Firm_Person (T_FIRM.ID = T_PERSON.FIRM_ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  model::Person[p1]: Relational { ~mainTable [db::DB] T_PERSON name: T_PERSON.NAME } "
+                        + "  model::Person[p2]: Relational { ~mainTable [db::DB] T_PERSON name: T_PERSON.NAME } "
+                        + "  *model::Person: Operation { meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(p1, p2) } "
+                        + "  *model::Firm: Relational { "
+                        + "    ~mainTable [db::DB] T_FIRM "
+                        + "    legalName: T_FIRM.NAME, "
+                        + "    employees[p1]: [db::DB]@Firm_Person, "
+                        + "    address ( "
+                        + "      street: T_FIRM.STREET, "
+                        + "      employees[p2]: [db::DB]@Firm_Person "
+                        + "    ) "
+                        + "  } "
+                        + ")");
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> normalizeStrict(parsed));
+        assertTrue(ex.getMessage().contains("'employees' is routed under two owners"),
+                () -> "Expected the two-owner fact; got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("model::Firm") && ex.getMessage().contains("model::Address"),
+                () -> "Expected both owners named; got: " + ex.getMessage());
+        // a MODULE build keeps going: the mapping is walled with the reason
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> normalizeViaPipeline(parsed));
+    }
+
+    @Test
     @DisplayName("R2: same class mapped in two distinct LegacyMappingDefinitions is allowed")
     void sameClassInTwoMappingsIsAllowed() {
         // Each LegacyMappingDefinition is its own setId namespace; mapping the

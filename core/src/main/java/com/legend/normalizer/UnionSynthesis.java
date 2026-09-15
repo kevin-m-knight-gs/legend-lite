@@ -167,8 +167,11 @@ final class UnionSynthesis {
     /** Routed (set-pinned) Join PMs, DESCENDING into embedded bodies with
      * the owner class threaded (ledger cluster 66 — the flat scan left
      * unionRoutes blind to bridge(employees[set1], employees[set2])
-     * declared inside an embedded block). Owner recorded per property so
-     * the route's target class resolves against the EMBEDDED class. */
+     * declared inside an embedded block). ONE owner per property name so
+     * the route's target class resolves against the EMBEDDED class: the
+     * routes of a class mapping are keyed by property name, so the same
+     * name routed under two owners has no place in this synthesis — it is
+     * loud ({@link #recordOwner}), never first-owner-wins. */
     static void collectRoutedJoins(List<PropertyMapping> pms,
             String ownerCls, ResolvedMapping md, ModelBuilder model,
             Map<String, List<PropertyMapping.Join>> routedByProp,
@@ -178,7 +181,7 @@ final class UnionSynthesis {
                 case PropertyMapping.Join j when j.targetSetId() != null -> {
                     routedByProp.computeIfAbsent(j.propertyName(),
                             k -> new ArrayList<>()).add(j);
-                    ownerByProp.putIfAbsent(j.propertyName(), ownerCls);
+                    recordOwner(ownerByProp, j.propertyName(), ownerCls, md);
                 }
                 case PropertyMapping.Embedded emb -> {
                     String inner = embeddedOwner(ownerCls,
@@ -196,7 +199,7 @@ final class UnionSynthesis {
                         routedByProp.computeIfAbsent(oe.propertyName(),
                                 k -> new ArrayList<>()).add(new PropertyMapping.Join(
                                         oe.propertyName(), fj.database(), fj.joins(), pin));
-                        ownerByProp.putIfAbsent(oe.propertyName(), ownerCls);
+                        recordOwner(ownerByProp, oe.propertyName(), ownerCls, md);
                     }
                     String inner = embeddedOwner(ownerCls,
                             oe.propertyName(), model);
@@ -224,6 +227,26 @@ final class UnionSynthesis {
                 default -> {
                 }
             }
+        }
+    }
+
+    /** The owner class a routed property name resolves against — a fact
+     * with ONE value per name in a class mapping's collection. A second,
+     * different owner (the same property name routed at the top and inside
+     * an embedded block of another class) is a shape this synthesis does
+     * not key: a model error, walled with its reason in a module build and
+     * thrown in a strict one — never the first owner seen. */
+    private static void recordOwner(Map<String, String> ownerByProp, String prop,
+            String ownerCls, ResolvedMapping md) {
+        String prior = ownerByProp.get(prop);
+        if (prior == null) {
+            ownerByProp.put(prop, ownerCls);
+        } else if (!prior.equals(ownerCls)) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "property '" + prop + "' is routed under two owners, '" + prior
+                    + "' and '" + ownerCls + "', in one class mapping; routes are keyed"
+                    + " by property name, so the mapping cannot be normalized; mapping="
+                    + md.qualifiedName());
         }
     }
 
@@ -502,8 +525,7 @@ final class UnionSynthesis {
                 ms.add(m);
             }
         }
-        recordKeyThreads(md, className, ms, new LinkedHashMap<>(),
-                ownSharedKeys(ms, model), model, ledger);
+        recordKeyThreads(md, className, ms, ownSharedKeys(ms, model), model, ledger);
     }
 
     /**
@@ -639,10 +661,6 @@ final class UnionSynthesis {
     record Thread(ValueSpecification pipe, List<ColSpec> cols) {
     }
 
-    /** A member whose pipeline is exactly {@code filter(<source>, row|pred)}. */
-    record FilteredScan(ValueSpecification source, Variable row, ValueSpecification pred) {
-    }
-
     /** A member's scan source split into its innermost TABLE and the
      * navigation-slot wrappers ({@code legacyNavigate(source, slot, …)})
      * around it, innermost first. */
@@ -686,101 +704,6 @@ final class UnionSynthesis {
         }
     }
 
-    /** The embedded distribution: dotted-path leaf sets ("firm" ->
-     * {legalName}, "applicant.firm" -> {legalName}), per-path ctor classes
-     * for the root recomposition, and top props in appearance order. A
-     * top prop with ANY unprojectable leaf (join-slot sub-read) poisons
-     * WHOLE — conservative, never a silently-wrong projection. */
-    /**
-     * One lifted union navigation: the property, its target class extent,
-     * the OR'd per-entry condition {@code {s,t|...}} (source reads
-     * member-suffixed; target reads suffixed per routed target member),
-     * the target-rows typing arg, and the per-ordinal source key columns
-     * each member thread must carry.
-     */
-    record NavLift(String property, String targetClassFqn,
-            ValueSpecification targetRows, LambdaFunction condition,
-            @com.legend.Nullable LambdaFunction pairedCondition,
-            Map<Integer, Map<String, String>> srcKeysByOrdinal,
-            Map<Integer, List<LiftChain>> chainsByOrdinal) {
-    }
-
-    /** The MID hops of a chained lift entry as physical join steps,
-     * prevAlias-scoped conditions composing hop to hop. */
-    static ValueSpecification suffixTargetReads(ValueSpecification n,
-            Variable t, int ord, Map<String, String> out) {
-        return suffixTargetReads(n, t, "_" + ord, out);
-    }
-
-    /** Explicit-suffix variant: chained lifts scope their key names by
-     * PROPERTY ({@code col__prop_ord}) so two chains of one member whose
-     * mid tables share a column name never collide (V4: aT.fk1 vs
-     * gT.fk1). All consumers read the names through {@code out} /
-     * colspec-body provenance, never by pattern. */
-    static ValueSpecification suffixTargetReads(ValueSpecification n,
-            Variable t, String suffix, Map<String, String> out) {
-        return suffixTargetReads(n, t, suffix, out, null);
-    }
-
-    /**
-     * THE LINK KEY NAME (clean-sheet B3.1b): the column a navigation joins
-     * on, as the member set publishes it — named by the NAVIGATING set and
-     * the property ({@code ul_Firm_employees}; a union member navigating
-     * carries its own set id, so {@code a1_b} and {@code a2_b} pair each
-     * source member with its own target member), plus a position suffix
-     * for a condition reading several target columns. Every routed member
-     * projects its OWN physical column under the name, un-routed members a
-     * typed NULL; the navigating class reads the name and nothing else.
-     * A hand author names by meaning; the translator names by the route.
-     */
-    private static void collectRoutedJoins(List<PropertyMapping> pms, List<PropertyMapping.Join> out) {
-        for (PropertyMapping pm : pms) {
-            switch (pm) {
-                case PropertyMapping.Join j -> {
-                    if (j.targetSetId() != null) {
-                        out.add(j);
-                    }
-                }
-                case PropertyMapping.Embedded e -> collectRoutedJoins(e.propertyMappings(), out);
-                case PropertyMapping.OtherwiseEmbedded oe -> collectRoutedJoins(oe.embedded(), out);
-                case PropertyMapping.LocalProperty lp -> collectRoutedJoins(List.of(lp.body()), out);
-                default -> { }
-            }
-        }
-    }
-
-    /** Every target-side read {@code $t.col} of {@code n} replaced by
-     * {@code read.apply(col)} — the one traversal the member-column
-     * emission and the ordinal suffixing share. */
-    static ValueSpecification rewriteTargetReads(ValueSpecification n, Variable t,
-            java.util.function.Function<String, ValueSpecification> read) {
-        if (n instanceof AppliedProperty ap
-                && ap.receiver() instanceof Variable v
-                && v.name().equals(t.name())) {
-            return read.apply(ap.property());
-        }
-        return switch (n) {
-            case AppliedFunction af -> af.withParameters(
-                    af.parameters().stream().map(x ->
-                            rewriteTargetReads(x, t, read)).toList());
-            case AppliedProperty ap -> new AppliedProperty(
-                    rewriteTargetReads(ap.receiver(), t, read), ap.property());
-            case Variable v -> v;
-            case CString ignored -> n;
-            case CInteger ignored -> n;
-            case CFloat ignored -> n;
-            case CDecimal ignored -> n;
-            case CBoolean ignored -> n;
-            case CDate ignored -> n;
-            case PureCollection pc -> new PureCollection(pc.values().stream()
-                    .map(x -> rewriteTargetReads(x, t, read)).toList());
-            default -> throw new NotImplementedException(
-                    "routed join condition carries a "
-                    + n.getClass().getSimpleName()
-                    + " — its target reads cannot be rewritten yet");
-        };
-    }
-
     /**
      * THE TABLE KEY OF A SINGLE-TABLE HIERARCHY IS SHARED: a member's key
      * column that is its main table's sole PRIMARY KEY spells
@@ -813,43 +736,6 @@ final class UnionSynthesis {
             }
         }
         return key;
-    }
-
-    /** {@link #suffixTargetReads(ValueSpecification, Variable, String, Map)}
-     * with the member's table key ({@code tableKeyCol}, nullable) spelled
-     * {@code <col>__pk} instead of member-suffixed. */
-    static ValueSpecification suffixTargetReads(ValueSpecification n,
-            Variable t, String suffix, Map<String, String> out,
-            @com.legend.Nullable String tableKeyCol) {
-        if (n instanceof AppliedProperty ap
-                && ap.receiver() instanceof Variable v
-                && v.name().equals(t.name())) {
-            String suffixed = ap.property().equals(tableKeyCol)
-                    ? ap.property() + TABLE_KEY_SUFFIX : ap.property() + suffix;
-            out.put(ap.property(), suffixed);
-            return new AppliedProperty(v, suffixed);
-        }
-        return switch (n) {
-            case AppliedFunction af -> af.withParameters(
-                    af.parameters().stream().map(x ->
-                            suffixTargetReads(x, t, suffix, out, tableKeyCol)).toList());
-            case AppliedProperty ap -> new AppliedProperty(
-                    suffixTargetReads(ap.receiver(), t, suffix, out, tableKeyCol),
-                    ap.property());
-            case Variable v -> v;
-            case CString ignored -> n;
-            case CInteger ignored -> n;
-            case CFloat ignored -> n;
-            case CDecimal ignored -> n;
-            case CBoolean ignored -> n;
-            case CDate ignored -> n;
-            case PureCollection pc -> new PureCollection(pc.values().stream()
-                    .map(x -> suffixTargetReads(x, t, suffix, out, tableKeyCol)).toList());
-            default -> throw new NotImplementedException(
-                    "partial-union route join condition carries a "
-                    + n.getClass().getSimpleName()
-                    + " — not suffixable yet");
-        };
     }
 
     /**
@@ -956,14 +842,6 @@ final class UnionSynthesis {
             LambdaFunction cond) {
     }
 
-    /** A chained entry's per-member material: the mid steps plus the FINAL
-     * hop's source-key columns (on the LAST mid table, read via its slot
-     * and projected member-suffixed — engine {@code fk1_1}). */
-    record LiftChain(List<LiftMidStep> steps,
-            @com.legend.Nullable String keyAlias,
-            String keyDb, String keyTable, Map<String, String> keys) {
-    }
-
 
     /**
      * The union's OWN shared table keys (B3.1: decided from the members
@@ -1020,18 +898,15 @@ final class UnionSynthesis {
      * projects its set's PRIMARY KEY — the declared {@code ~primaryKey}
      * columns of the main table, else the table's PRIMARY KEY — as
      * {@code <col>_<ordinal>} (NULL in the other members' threads), the
-     * union's row identity across members. The projection rides the same
-     * per-ordinal key map the routed navigations use (a key a route already
-     * demanded is one column, not two; a SHARED table key is projected once
-     * as {@code <col>__pk_<table>} and is not doubled here). The
-     * {@code (name, kind)} facts are recorded on the model for the execute
-     * option that surfaces the threads as result columns
-     * ({@code ModelContext.unionKeyThreads}).
+     * union's row identity across members (a SHARED table key is projected
+     * once as {@code <col>__pk_<table>} and is not doubled here). The
+     * {@code (name, kind)} facts are recorded on the ledger; the stack
+     * builder projects the threads from them and the execute option
+     * surfaces them as result columns ({@code ModelContext.unionKeyThreads}).
      */
     private static void recordKeyThreads(ResolvedMapping md, String className,
-            List<ClassMapping> members, Map<Integer, Map<String, String>> srcKeysByOrdinal,
-            Map<List<String>, Integer> sharedKeys, ModelBuilder model,
-            MappingLedger ledger) {
+            List<ClassMapping> members, Map<List<String>, Integer> sharedKeys,
+            ModelBuilder model, MappingLedger ledger) {
         List<com.legend.model.KeyThread> threads = new ArrayList<>();
         for (int o = 0; o < members.size(); o++) {
             if (!(members.get(o) instanceof ClassMapping.Relational mr)
@@ -1045,10 +920,7 @@ final class UnionSynthesis {
                         MappingNormalizer.canonicalTable(table), col))) {
                     continue;
                 }
-                String name = col + "_" + o;
-                srcKeysByOrdinal.computeIfAbsent(o, k -> new LinkedHashMap<>())
-                        .putIfAbsent(name, col);
-                threads.add(new com.legend.model.KeyThread(name,
+                threads.add(new com.legend.model.KeyThread(col + "_" + o,
                         model.knowledge().columnKind(db, table, col), col, o));
             }
         }
