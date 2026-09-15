@@ -2760,3 +2760,48 @@ derived-leaf gaps, not stack shapes.
 
 **Next.** Leg 4b: the same-table inheritance collapse as a builder pass; 4c: a Pure member's
 whole-source route as a navigate step (the mixed child dispatch dies); 4d: B4/B5.
+
+## Legacy routes as composition, leg 4b — the single-table hierarchy as a builder pass — 2026-09-15
+
+**Why.** The normalizer still decided a query-side shape in Pure text: an inheritance operation
+whose members all sat on one bare table was synthesized as ONE Relational set with the members'
+identical base-property mappings hoisted (`synthSameTableInheritance`), and a routed navigation
+into it dropped its routes (`sameTableInheritanceMerge`, the JoinChainEmission gate). Policy in
+the normalizer, a second union shape beside the stack. The census (an instrumented DuckDB lane)
+named the one corpus mapping on that path: `inheritanceWithEmbedded` (Vehicle; the row
+`testEmbeddMappingInSubTypes`), for both the synthesis and the gate.
+
+**What landed.**
+- FACT: `ClassBinding.Operation.inheritance` — the normalizer reports the operation's kind;
+  `synthInheritance` always emits the stack (and records the members' key threads, whose shared
+  table key was already the rule).
+- `StackBuilder.collapsedTable` / `collapseOntoOneScan`: the arms of a class's INHERITANCE
+  operation that all sit on one bare table (no filter, distinct, group or projection between the
+  table and the arm) scan it ONCE — every column's per-arm reads re-root onto the first arm's row;
+  arms that agree keep the one read; a class property or embedded leaf the arms map DIFFERENTLY
+  binds nowhere on the base (a bare read is loud, a cast reads the subtype's own `stc_` column —
+  the engine's single-table cast semantics); any other disagreement is a builder bug. The same
+  pass serves the routed navigation into such a class: its per-route arms collapse onto the one
+  scan and the route keys read the one physical column.
+- DELETED: `synthSameTableInheritance`, `sharedInheritanceTable`, `sameTableInheritanceMerge`,
+  the JoinChainEmission gate.
+- The collapsed scan carries NO membership witness (every row is every arm's): a cast is a
+  same-row read of the subtype column, never a filtered head — the golden's one join for two casts
+  (`Person.vehicles->subType(@Car)` beside `->subType(@Bicycle)`); a subtype column the arms
+  disagree on (a cast to an ancestor they share) binds nowhere, like a base property.
+- `ClassSources.navTarget`: a routed step's union is the STEP's target class's — a cast to a
+  subclass reads the same union (a per-class union dropped the other arms and joined twice).
+- Witness W6/W6b (`StackDesignWitnessTest`): a two-arm single-table hierarchy scans once through
+  the extent and through two routes; a differently mapped embedded property is loud on the base.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes. The two census rows
+changed hands during the build and came back: `testEmbeddMappingInSubTypes` (a per-class routed
+union joined the property once per cast, then the membership witness made each cast a filtered
+head — five rows for three) and the lineage row `scanColumns::test::testSubType` (declined "class
+query under TypedMap" while the casts were filtered heads; plain same-row casts resolve).
+
+**Chain.** Green on the first run. **Measures (§11.0).** M1 1,091 (was 1,197; the collapse and its gate gone) ·
+M2 1 · M3 0 · M4 5.
+
+**Next.** Leg 4c: a Pure member's whole-source route as a navigate step (the mixed child dispatch
+dies); 4d: B4/B5.

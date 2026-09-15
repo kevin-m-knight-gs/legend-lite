@@ -431,12 +431,6 @@ final class JoinChainEmission {
                 List<UnionSynthesis.UnionRoute> routes = propName == null ? null
                         : p.unionRoutes.get(propName);
                 LambdaFunction navCond = condLambda;
-                // a SAME-TABLE inheritance target reached through one join
-                // has no member threads: the plain condition serves
-                if (routes != null && UnionSynthesis.sameTableInheritanceMerge(
-                        routes.isEmpty() ? md : md, model, targetClassFqn, routes)) {
-                    routes = null;
-                }
                 if (routes != null) {
                     // LEGACY ROUTES AS COMPOSITION: one navigate step carrying
                     // every route the author wrote — each names the target

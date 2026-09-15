@@ -46,6 +46,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -407,6 +408,13 @@ final class StackBuilder {
                 cols.add(c);
             }
         }
+        // a SINGLE-TABLE hierarchy scans its table once: every arm's reads
+        // re-root onto the first arm's row (collapseOntoOneScan)
+        int emitted = arms.size();
+        if (collapsedTable(mapping, classFqn, arms) != null) {
+            collapseOntoOneScan(srcs, armRows, cols, byName, classFqn, emb);
+            emitted = 1;
+        }
         // the arms projected onto one row, concatenated in member order
         List<Type.Column> rowCols = new ArrayList<>(cols.size());
         for (Col c : cols) {
@@ -414,7 +422,7 @@ final class StackBuilder {
         }
         Type.RelationType rowType = new Type.RelationType(rowCols);
         TypedSpec union = null;
-        for (int i = 0; i < arms.size(); i++) {
+        for (int i = 0; i < emitted; i++) {
             ClassSource a = srcs.get(i);
             Type.RelationType aRow = armRows.get(i);
             List<TypedFuncCol> pcols = new ArrayList<>(cols.size());
@@ -476,6 +484,116 @@ final class StackBuilder {
         }
         leaves.put(out, ls);
         return out;
+    }
+
+    /** THE SINGLE-TABLE HIERARCHY (the engine's cast semantics; the corpus
+     * row {@code inheritanceWithEmbedded}): the arms of the class's
+     * INHERITANCE operation (the binding fact) that ALL sit on one BARE
+     * table — no filter, distinct, group or projection between the table
+     * and the arm — are that table's rows ONCE, each row cast per arm; a
+     * stack would thread every physical row once per member. The shared
+     * table, or null when the arms are not that shape. */
+    private com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference collapsedTable(
+            MappingDefinition mapping, String classFqn, List<Arm> arms) {
+        if (arms.size() < 2) {
+            return null;
+        }
+        MappingDefinition.ClassBinding cb = findBinding(mapping, classFqn);
+        if (!(cb instanceof MappingDefinition.ClassBinding.Operation op) || !op.inheritance()) {
+            return null;
+        }
+        com.legend.compiler.spec.typed.TypedTableReference shared = null;
+        for (Arm a : arms) {
+            if (!(a.pipe() instanceof com.legend.compiler.spec.typed.TypedTableReference tr)) {
+                return null;
+            }
+            if (shared == null) {
+                shared = tr;
+            } else if (!tr.store().equals(shared.store()) || !tr.table().equals(shared.table())) {
+                return null;
+            }
+        }
+        return shared;
+    }
+
+    /** The collapse: every column's per-arm reads re-rooted onto the FIRST
+     * arm's row; the arms agreeing (one structural read) keep it on arm 0;
+     * a class property (or an embedded leaf) the arms map DIFFERENTLY binds
+     * nowhere on the base — a bare read is loud, a cast reads the
+     * subtype's own column (the engine's rule; the normalizer's former
+     * "identical property mappings hoist"); any other disagreement
+     * (subtype, key, route, extra) is a builder bug. */
+    private void collapseOntoOneScan(List<ClassSource> srcs, List<Type.RelationType> armRows,
+            List<Col> cols, Map<String, Col> byName, String classFqn, Embedded emb) {
+        String v0 = srcs.get(0).rowVar();
+        ExprType info0 = new ExprType(armRows.get(0), Multiplicity.Bounded.ONE);
+        Set<String> droppedTops = new LinkedHashSet<>();
+        for (Iterator<Col> it = cols.iterator(); it.hasNext();) {
+            Col c = it.next();
+            if (ClassMapping.isSubTypeColumn(c.name())
+                    && c.name().endsWith(ClassMapping.memberWitness())) {
+                // every row of the one scan is every arm's: membership is
+                // TOTAL, a cast is a same-row read, never a filtered head
+                it.remove();
+                byName.remove(c.name());
+                continue;
+            }
+            TypedSpec chosen = null;
+            boolean conflict = false;
+            for (var pe : c.perArm().entrySet()) {
+                TypedSpec v = pe.getKey() == 0 ? pe.getValue()
+                        : Pipelines.rewriteRowReads(pe.getValue(), srcs.get(pe.getKey()).rowVar(),
+                                Map.of(), Set.of(), x -> new TypedVariable(v0, info0));
+                if (chosen == null) {
+                    chosen = v;
+                } else if (!chosen.equals(v)) {
+                    conflict = true;
+                }
+            }
+            if (chosen == null) {
+                continue;   // a column no arm carries (a dead key) stays NULL
+            }
+            if (!conflict) {
+                c.perArm().clear();
+                c.perArm().put(0, chosen);
+                continue;
+            }
+            String top = embeddedTopOf(c.name(), emb);
+            if (top != null) {
+                droppedTops.add(top);
+            } else if (!ClassMapping.isSubTypeColumn(c.name())
+                    && !ctx.findProperty(classFqn, c.name()).isPresent()) {
+                throw new IllegalStateException("resolver bug: the arms of the single-table"
+                        + " hierarchy '" + classFqn + "' read '" + c.name() + "' differently");
+            }
+            // (a subtype column the arms disagree on is a cast to an ANCESTOR
+            // they share — bound nowhere, like the base's own property)
+            it.remove();
+            byName.remove(c.name());
+        }
+        // an embedded property mapped differently drops WHOLE (its other
+        // leaves with it): the base binds it nowhere
+        for (String top : droppedTops) {
+            emb.tops().remove(top);
+            for (Iterator<Col> it = cols.iterator(); it.hasNext();) {
+                Col c = it.next();
+                if (top.equals(embeddedTopOf(c.name(), emb)) || c.name().startsWith(embCol(top, ""))) {
+                    byName.remove(c.name());
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    /** The top embedded property an {@code emb__} column belongs to, or
+     * null for a plain column. */
+    private static @com.legend.Nullable String embeddedTopOf(String col, Embedded emb) {
+        for (String top : emb.tops()) {
+            if (col.startsWith(embCol(top, ""))) {
+                return top;
+            }
+        }
+        return null;
     }
 
     /** {@code value} coerced to the declared kind where the database would

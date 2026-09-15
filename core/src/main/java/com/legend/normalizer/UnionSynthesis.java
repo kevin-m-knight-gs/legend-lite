@@ -459,11 +459,9 @@ final class UnionSynthesis {
         if (members.size() == 1) {
             return MappingNormalizer.synthRelational(md, members.get(0), model, ledger);
         }
-        ValueSpecification sameTable =
-                synthSameTableInheritance(md, ih, members, model, ledger);
-        if (sameTable != null) {
-            return sameTable;
-        }
+        // a SINGLE-TABLE hierarchy (every member over one bare table) is
+        // the same stack: the builder reads the arms' shared table and
+        // scans it once (StackBuilder.collapsedTable) — no policy here
         // per-pair AssociationMapping entries land on their owning member
         // exactly like the Union-op arm (person[map1,per1]: @PersonCar on
         // the Car member — engine dispatches inheritance navigation per
@@ -493,83 +491,6 @@ final class UnionSynthesis {
         }
         recordKeyThreads(md, className, ms, new LinkedHashMap<>(),
                 ownSharedKeys(ms, model), model, ledger);
-    }
-
-    /** SINGLE-TABLE hierarchy (engine cast semantics): members that ALL
-     * share one root table and carry no ~filter read their casts
-     * SAME-ROW off the shared table — the extent is the TABLE, one
-     * source, no member union (a union would thread every physical row
-     * once per member; the corpus inheritanceWithEmbedded goldens pin
-     * per-row cast reads and ONE shared navigation join). Base-class
-     * props mapped IDENTICALLY by every member that maps them hoist
-     * into the parent source (engine merge-by-join-name folds equal
-     * per-member emissions into one); a base prop mapped DIFFERENTLY
-     * per member stays unmapped on the parent — bare reads go loud,
-     * casts read it through the same-source stc transplants. Anything
-     * outside this shape keeps the member union. */
-    private static @com.legend.Nullable ValueSpecification synthSameTableInheritance(
-            ResolvedMapping md, ClassMapping.Inheritance ih,
-            List<ClassMapping.Relational> members, ModelBuilder model,
-            MappingLedger ledger) {
-        ClassDefinition base = model.knowledge().hierarchyClass(ih.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ih.className()));
-        if (base == null) {
-            return null;
-        }
-        LegacyMappingDefinition.TableReference shared =
-                sharedInheritanceTable(members);
-        if (shared == null) {
-            return null;
-        }
-        // BASE-prop hoisting: a base-declared prop mapped by members is
-        // hoisted onto the parent source iff every member that maps it
-        // emits the IDENTICAL PropertyMapping (record equality); a
-        // differing map stays off the parent (loud on bare reads).
-        Map<String, LinkedHashSet<PropertyMapping>> baseProps =
-                new LinkedHashMap<>();
-        for (ClassMapping.Relational mr : members) {
-            for (PropertyMapping pm : mr.propertyMappings()) {
-                if (model.knowledge().propertyType(base, pm.propertyName()) != null) {
-                    baseProps.computeIfAbsent(pm.propertyName(),
-                            k -> new LinkedHashSet<>()).add(pm);
-                }
-            }
-        }
-        List<PropertyMapping> hoisted = new ArrayList<>();
-        for (LinkedHashSet<PropertyMapping> variants : baseProps.values()) {
-            if (variants.size() == 1) {
-                hoisted.add(variants.iterator().next());
-            }
-        }
-        return MappingNormalizer.synthRelational(md,
-                new ClassMapping.Relational(ih.className(), ih.setId(),
-                        null, ih.root(), shared, null, false,
-                        List.of(), List.of(), hoisted, null,
-                        java.util.Map.of(), null),
-                model, ledger);
-    }
-
-    /** The single shared root table of an inheritance member list — the
-     * SAME-TABLE gate: null when any member has its own table, a ~filter,
-     * distinct, groupBy, or a sourceUrl (those shapes keep the union). */
-    private static LegacyMappingDefinition.@com.legend.Nullable TableReference
-            sharedInheritanceTable(List<ClassMapping.Relational> members) {
-        LegacyMappingDefinition.TableReference shared = null;
-        for (ClassMapping.Relational mr : members) {
-            LegacyMappingDefinition.TableReference t = mr.mainTable() != null
-                    ? mr.mainTable()
-                    : MappingNormalizer.inferMainTableQuiet(mr);
-            if (t == null || mr.filter() != null || mr.distinct()
-                    || !mr.groupBy().isEmpty() || mr.sourceUrl() != null) {
-                return null;
-            }
-            if (shared == null) {
-                shared = t;
-            } else if (!t.database().equals(shared.database())
-                    || !t.table().equals(shared.table())) {
-                return null;
-            }
-        }
-        return shared;
     }
 
     /**
@@ -813,33 +734,6 @@ final class UnionSynthesis {
                 default -> { }
             }
         }
-    }
-
-    /** A SAME-TABLE inheritance target reached through ONE join: its body
-     * is the shared table itself (no member threads to publish a key), and
-     * every member is that table's rows, so the navigation reads the
-     * physical column plainly (the pre-B3 rule, restored). */
-    static boolean sameTableInheritanceMerge(ResolvedMapping md,
-            ModelBuilder model, @com.legend.Nullable String targetClassFqn,
-            List<UnionRoute> routes) {
-        if (targetClassFqn == null) {
-            return false;
-        }
-        ClassMapping.Inheritance ih = md.inheritanceOf(targetClassFqn);
-        if (ih == null) {
-            return false;
-        }
-        Set<String> joins = new HashSet<>();
-        for (UnionRoute r : routes) {
-            if (r.join().joins().size() != 1) {
-                return false;
-            }
-            JoinChainElement hop = r.join().joins().get(0);
-            joins.add((hop.databaseName() != null ? hop.databaseName()
-                    : r.join().database()) + "@" + hop.joinName());
-        }
-        return joins.size() == 1
-                && sharedInheritanceTable(inheritanceMembers(md, ih, model)) != null;
     }
 
     /** Every target-side read {@code $t.col} of {@code n} replaced by

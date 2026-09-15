@@ -269,14 +269,19 @@ public record MappingDefinition(
          * a union or inheritance operation's members stacked
          * ({@code m1() -> concatenate(m2())}). The kind tag says only that;
          * the arms are what the function's body calls. No physical source
-         * of its own; the arms carry theirs. */
+         * of its own; the arms carry theirs. {@code inheritance}: the
+         * operation is the class's INHERITANCE operation (its arms are the
+         * subclasses' sets) — the one fact the stack builder's same-table
+         * collapse reads (the engine's single-table hierarchy: arms over
+         * one bare table are the table's rows once, cast per row). */
         record Operation(
                 String classFqn,
                 @com.legend.Nullable String setId,
                 @com.legend.Nullable String extendsSetId,
                 boolean root,
                 String functionFqn,
-                List<String> primaryKeyColumns) implements ClassBinding {
+                List<String> primaryKeyColumns,
+                boolean inheritance) implements ClassBinding {
             public Operation {
                 Objects.requireNonNull(classFqn, "classFqn");
                 Objects.requireNonNull(functionFqn, "functionFqn");

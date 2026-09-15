@@ -320,7 +320,8 @@ public final class MappingNormalizer {
                                         cm.className(), cm.setId(),
                                         cm.extendsSetId(), /*root*/ false,
                                         setFn.qualifiedName(),
-                                        declaredPrimaryKeyColumns(cm))
+                                        declaredPrimaryKeyColumns(cm),
+                                        cm instanceof ClassMapping.Inheritance)
                                 : new MappingDefinition.ClassBinding.Pure(
                                         cm.className(), cm.setId(),
                                         cm.extendsSetId(), /*root*/ false,
@@ -380,7 +381,8 @@ public final class MappingNormalizer {
                     ? new MappingDefinition.ClassBinding.Operation(
                             cm.className(), cm.setId(), cm.extendsSetId(),
                             cm.root(), fn.qualifiedName(),
-                            declaredPrimaryKeyColumns(cm))
+                            declaredPrimaryKeyColumns(cm),
+                            cm instanceof ClassMapping.Inheritance)
                     : new MappingDefinition.ClassBinding.Pure(
                             cm.className(), cm.setId(), cm.extendsSetId(),
                             cm.root(), fn.qualifiedName(),

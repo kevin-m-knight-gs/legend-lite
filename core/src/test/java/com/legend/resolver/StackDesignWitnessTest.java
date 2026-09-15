@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The design's witnesses the corpus cannot supply (docs/LEGACY_ROUTES_AS_
@@ -57,6 +58,11 @@ class StackDesignWitnessTest {
             Class w::SubCoordinate extends w::Coordinate { y: Integer[1]; }
             Class w::Firm { id: Integer[1]; employees: w::Emp[*]; }
             Class w::Emp { last: String[1]; }
+            Class w::Vehicle { name: String[1]; mechanic: w::Mechanic[0..1]; }
+            Class w::Mechanic { name: String[1]; }
+            Class w::Car extends w::Vehicle { }
+            Class w::Bicycle extends w::Vehicle { }
+            Class w::Garage { id: Integer[1]; vehicles: w::Vehicle[*]; }
             function w::thingsFn(): meta::pure::metamodel::relation::Relation<Any>[1]
             {
               #>{w::DB.T2}#
@@ -73,6 +79,9 @@ class StackDesignWitnessTest {
               Table C2 (ID INTEGER PRIMARY KEY, X INTEGER, Y INTEGER)
               Table F (ID INTEGER PRIMARY KEY)
               Table PT (ID INTEGER PRIMARY KEY, LAST VARCHAR(64), KIND VARCHAR(8), FIRM_ID INTEGER)
+              Table G (ID INTEGER PRIMARY KEY)
+              Table V (ID INTEGER PRIMARY KEY, NAME VARCHAR(64), CAR_MECH VARCHAR(64), BIKE_MECH VARCHAR(64), G_ID INTEGER)
+              Join G_V (G.ID = V.G_ID)
               Join O_T1 (O.ID = T1.FK)
               Join O_T2 (O.ID = T2.FK)
               Join A_C1 (ADDR.COORD = C1.ID)
@@ -114,6 +123,14 @@ class StackDesignWitnessTest {
                 employees[pa]: [w::DB]@F_PT,
                 employees[pb]: [w::DB]@F_PT }
             )
+            Mapping w::SameTable (
+              *w::Vehicle : Operation { meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_() }
+              w::Car[car] : Relational { ~mainTable [w::DB] V name: V.NAME, mechanic( name: V.CAR_MECH ) }
+              w::Bicycle[bike] : Relational { ~mainTable [w::DB] V name: V.NAME, mechanic( name: V.BIKE_MECH ) }
+              *w::Garage : Relational { ~mainTable [w::DB] G id: G.ID,
+                vehicles[car]: [w::DB]@G_V,
+                vehicles[bike]: [w::DB]@G_V }
+            )
             ###Runtime
             Runtime w::RT { mappings: [w::Mixed]; }
             """.formatted(UNION_OP, UNION_OP, UNION_OP, UNION_OP, UNION_OP);
@@ -144,6 +161,10 @@ class StackDesignWitnessTest {
             st.execute("INSERT INTO F VALUES (1), (2)");
             st.execute("CREATE TABLE PT (ID INTEGER, LAST VARCHAR, KIND VARCHAR, FIRM_ID INTEGER)");
             st.execute("INSERT INTO PT VALUES (1, 'Ash', 'A', 1), (2, 'Bay', 'B', 1), (3, 'Cox', 'A', 2), (4, 'Dee', 'X', 2)");
+            st.execute("CREATE TABLE G (ID INTEGER)");
+            st.execute("INSERT INTO G VALUES (1), (2)");
+            st.execute("CREATE TABLE V (ID INTEGER, NAME VARCHAR, CAR_MECH VARCHAR, BIKE_MECH VARCHAR, G_ID INTEGER)");
+            st.execute("INSERT INTO V VALUES (1, 'v1', 'cm1', 'bm1', 1), (2, 'v2', 'cm2', 'bm2', 1), (3, 'v3', 'cm3', 'bm3', 2)");
         }
     }
 
@@ -206,6 +227,28 @@ class StackDesignWitnessTest {
         assertEquals(List.of("1|100", "2|200", "3|null"),
                 rows("|w::Address.all()->project([a|$a.id, a|$a.coordinate.x], ['aid', 'x'])"
                         + "->from(w::Subclass, w::RT)"));
+    }
+
+    @Test
+    @DisplayName("W6: a single-table hierarchy scans its table once — through the extent and through two routes")
+    void singleTableHierarchyScansOnce() throws SQLException {
+        // the inheritance operation's two arms sit on the bare table V: the
+        // extent is V's rows once (never once per arm), the identically
+        // mapped base property reads plainly
+        assertEquals(List.of("v1", "v2", "v3"),
+                rows("|w::Vehicle.all()->project([v|$v.name], ['name'])->from(w::SameTable, w::RT)"));
+        // a navigation routed to both arms joins the one scan once per row
+        assertEquals(List.of("1|v1", "1|v2", "2|v3"),
+                rows("|w::Garage.all()->project([g|$g.id, g|$g.vehicles.name], ['gid', 'name'])"
+                        + "->from(w::SameTable, w::RT)"));
+    }
+
+    @Test
+    @DisplayName("W6b: a property the arms map differently binds nowhere on the base — a bare read is loud")
+    void differentlyMappedPropertyIsLoudOnTheBase() {
+        var e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> sqlOf("|w::Vehicle.all()->project([v|$v.mechanic.name], ['m'])->from(w::SameTable, w::RT)"));
+        assertTrue(e.getMessage().contains("mechanic"), e.getMessage());
     }
 
     @Test

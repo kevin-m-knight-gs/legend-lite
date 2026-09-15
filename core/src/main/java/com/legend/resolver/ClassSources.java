@@ -343,7 +343,13 @@ public final class ClassSources {
     ClassSource navTarget(ClassSource source, String classFqn,
             com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate step, String head) {
         if (step != null && !step.routes().isEmpty()) {
-            return routedUnionSource(source.mappingFqn(), classFqn, step.routes(), source.scope());
+            // the routed union is the STEP's target class's (its routes are
+            // the navigator's, its rows carry every arm's subtype columns and
+            // membership witness): a cast to a subclass reads the same union
+            // — never a per-class union that would drop the other arms and
+            // join the property twice (the single-table hierarchy golden)
+            String cls = step.target() instanceof TypedGetAll ga ? ga.classFqn() : classFqn;
+            return routedUnionSource(source.mappingFqn(), cls, step.routes(), source.scope());
         }
         return getForNav(source.mappingFqn(), classFqn, head, source.scope());
     }
