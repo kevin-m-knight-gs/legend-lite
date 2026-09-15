@@ -56,7 +56,14 @@ class ParkedWorkLedgerTest {
             // obvious arm collapses multiplicity (it LOST a corpus row), so
             // NOTHING dispatches on the member — that is the anchor.
             "PARK-3 toString emits pure's ISO form, not the database's cast",
-            new Anchor("DynaFn\\.TO_STRING", List.of())));
+            new Anchor("DynaFn\\.TO_STRING", List.of()),
+            // PARK-4: the ~groupBy wrapper. The prune's refusal to touch a
+            // grouped select is NOT the cause (the engine projects those
+            // columns too — lifting it LOST a row); the wrapper needs a
+            // select-merge pass. The refusal is the anchor.
+            "PARK-4 the ~groupBy wrapper projects unread columns",
+            new Anchor("projections\\(\\)\\.isEmpty\\(\\) \\|\\| sel\\.distinct\\(\\)\\s*\\n\\s*\\|\\| !sel\\.groupBy\\(\\)",
+                    List.of("SubselectPrune.java"))));
 
     private record Anchor(String pattern, List<String> files) {
     }

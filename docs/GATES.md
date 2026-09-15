@@ -3609,3 +3609,40 @@ invariant with no mechanical form.
 **Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 27 s). Own-corpus parity floor 2475 → 2488 (the new witnesses' models).
 
 **Chain.** Green on the first run, wall 241 s: G2 24s, G1 76s, G3 11s, G4 92s, G5 38s, G6 142s, G7 41s, G9 33s, G8 152s. Batch size: 5 files.
+
+## Audit fix A11 (FIXLIST P4-2) — BUILT, REFUTED, PARKED as PARK-4 — 2026-09-15
+
+**Why.** The one SQL row of the audit that was agreed as contained: a `~groupBy` class
+mapping emits two SELECTs, the inner projecting columns nothing reads, where the engine's
+golden for the identical shape (`testGroupBy.pure:74-79`) is one flat `SELECT … GROUP BY`.
+Rows are correct; the audit measured ZERO runtime cost on DuckDB. Its stated root cause:
+`SubselectPrune` "refuses to prune grouped selects by rule — correct for DISTINCT,
+unnecessary for GROUP BY".
+
+**What happened.** The stated fix was built: the guard's `groupBy` clause lifted, `distinct`,
+`having` and `qualify` still refusing. The reasoning is sound in SQL — what a grouped select
+returns per group is the GROUP BY clause's business, not the projection list's — and the
+corpus REFUTED it anyway: DuckDB and H2 each LOST
+`meta::external::store::relational::modelJoins::test::testJoinWithInequalities` on the
+sql-text verdict. The engine's own golden keeps the unread projection:
+
+```
+left outer join (select "root".ENTITY_ID as ENTITY_ID, "root".name as name,
+                 "root".value as value
+                 from Entity.LegalEntity as "root" group by "root".ENTITY_ID)
+```
+
+`ENTITY_ID` is the group key, the outer query never reads it, and the engine projects it.
+Pruning it is semantically free and textually divergent. **The audit's root cause for P4-2
+is therefore wrong**, and the refusal it calls unnecessary is load-bearing for parity.
+
+**What landed.** The change is reverted. The row is recorded as parked-work **PARK-4** with
+this evidence, the real fix named (a conservative select-merge pass that folds a
+single-source subselect into its parent — the same missing machinery as PARK-2 and FIXLIST
+P4-3/P4-4, which are not scheduled), and an anchor on the prune guard's exact clause so
+anyone lifting the refusal again meets this finding. The FIXLIST row is corrected in place.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT on both lanes with the change reverted (the run WITH
+it: LOST 1 each).
+
+**Chain.** Green on the first run, wall 232 s: G2 24s, G1 72s, G3 11s, G4 85s, G5 39s, G6 133s, G7 41s, G9 34s, G8 141s. Batch size: 3 files (ledger doc, ledger test, GATES).

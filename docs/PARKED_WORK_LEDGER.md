@@ -93,6 +93,46 @@ turns this row red.
 
 ---
 
+## PARK-4 — The `~groupBy` wrapper projects columns nothing reads
+
+**Parked** 2026-09-15 (FIXLIST P4-2), after building the audit's stated fix and letting the
+corpus refute its root cause.
+
+**What happens today.** A `~groupBy` class mapping emits two SELECTs where the engine's
+golden for the identical shape (`testGroupBy.pure:74-79`) is one flat `SELECT … GROUP BY`,
+and the inner one projects columns the outer never reads. Rows are correct; the cost is text
+and parity, and the audit measured ZERO runtime cost on DuckDB.
+
+**The audit's stated root cause is WRONG.** It named `SubselectPrune`'s refusal to prune
+grouped selects, calling the refusal "correct for DISTINCT, unnecessary for GROUP BY".
+Semantically that reasoning holds — what a grouped select returns per group is the GROUP BY
+clause's business, not the projection list's — but the ENGINE KEEPS THOSE PROJECTIONS, so
+pruning them diverges from the golden text:
+
+```
+left outer join (select "root".ENTITY_ID as ENTITY_ID, "root".name as name,
+                 "root".value as value
+                 from Entity.LegalEntity as "root" group by "root".ENTITY_ID)
+```
+
+`ENTITY_ID` is the group key and the outer query never reads it; the engine projects it
+anyway. Lifting the refusal dropped it and LOST
+`testJoinWithInequalities` on both lanes (sql-text verdict). Reverted.
+
+**What the real fix is.** Collapsing the wrapper — a conservative select-merge pass that
+folds a single-source subselect into its parent — which is the same missing machinery as
+PARK-2 and FIXLIST P4-3/P4-4. `SubselectPrune` prunes columns and never collapses a wrapper.
+
+**Acceptance (what closes this row).** The `~groupBy` shape emits one flat select matching
+the engine's golden, with `testJoinWithInequalities` and the group-by family still EXACT.
+
+**Anchor.** `SubselectPrune`'s prune guard still lists `groupBy` beside `distinct` — the
+exact clause `projections().isEmpty() || sel.distinct() || !sel.groupBy()` sits in
+`SubselectPrune.java` and nowhere else. A select-merge pass, or anyone lifting the refusal
+again, moves it.
+
+---
+
 ## PARK-2 — A union read twice is built twice (no common-subexpression pass)
 
 **Parked** 2026-09-15 during the same burndown (FIXLIST P4-1).

@@ -377,7 +377,16 @@ that is an `INNER JOIN` spelled long.
 **Fix:** a CSE/CTE pass. None exists — `SqlWith` is only ever built by `SqlPostProcessors.extractCtes`,
 an opt-in parity post-processor.
 
-### P4-2 — `~groupBy` wraps and projects dead columns — the one parity regression
+### P4-2 — `~groupBy` wraps and projects dead columns — the one parity regression → **PARKED as PARK-4; the root cause below is WRONG (2026-09-15)**
+
+> **Correction (audit fix A11, docs/GATES.md).** The stated cause — `SubselectPrune`'s
+> refusal to prune grouped selects, "correct for DISTINCT, unnecessary for GROUP BY" — was
+> built and refuted by the corpus: both lanes LOST `testJoinWithInequalities`, because the
+> ENGINE ITSELF projects a grouped subselect's unread group key
+> (`select ENTITY_ID, name, value … group by ENTITY_ID`). The refusal is load-bearing for
+> parity. The wrapper needs a select-merge pass (the same missing machinery as P4-1 and
+> P4-3/P4-4). Reverted; see `docs/PARKED_WORK_LEDGER.md` PARK-4.
+
 
 Ours emits 2 SELECTs with `acct`/`prod` projected and never read; the engine's golden for the
 identical shape (`testGroupBy.pure:74-79`) is a single flat `SELECT … GROUP BY`.
