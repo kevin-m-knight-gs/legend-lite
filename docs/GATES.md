@@ -3522,3 +3522,44 @@ count of either spelling in the registry: 0), so those two arms could never fire
 **Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 55 s, H2 27 s). Witness `rootnessIsJudgedInTheOwningScope` A/B: RED on the old code (it emitted a route list), green now. Own-corpus parity floor 2470 → 2475.
 
 **Chain.** Green on the first run, wall 225 s: G2 24s, G1 70s, G3 11s, G4 81s, G5 38s, G6 130s, G7 38s, G9 32s, G8 136s. Batch size: 8 files.
+
+## Audit fix A10a (FIXLIST P3-2 / P3-3 / P3-4 / P3-5) — the small capability gaps — 2026-09-15
+
+**Why.** Four audit rows where we reject, mis-type or silently guess input the engine handles.
+P3-1 (cross-store per-end predicates) is NOT here: it is PARKED as ledger row PARK-1.
+
+**What landed.**
+- **P3-5, semi-structured extraction types.** The engine's own list
+  (`dbExtension.pure`, `processExtractFromSemiStructured`: BOOLEAN, CHAR, VARCHAR, STRING,
+  INTEGER, DECIMAL, FLOAT, DATE, DATETIME, TIMESTAMP, SEMISTRUCTURED, each optionally
+  `[]`-suffixed) was checked in the PINNED checkout, not the audit's stale one. `STRING` and
+  `DATETIME` were missing here (a `ModelException` on legal input) and `DECIMAL`/`NUMERIC`
+  answered `Float`, contradicting our own column-kind table, which spells them `Decimal`.
+  Fixed; `SEMISTRUCTURED` and the `[]` array suffix stay LOUD (a sub-document is not a
+  scalar) and the message now names the engine's list.
+- **P3-2, inline-embedded resolution.** The splice took the FIRST set in the include closure
+  whose id matched and `break`ed; the engine asserts exactly one match
+  (`mappingExtension.pure`, "Found too many or not enough matches"). Now: zero matches is
+  the existing unknown-set error, TWO OR MORE is loud and names the classes, and the
+  referenced set's class must be the declared property type or a subtype of it (the engine's
+  `RelationalInstanceSetImplementationValidator` check), else loud.
+- **P3-3, association bindings withheld with no reason.** Two paths returned null with
+  nothing recorded — an end class with no table to anchor a predicate on, and an
+  OPERATION-mapped end — so the query-side "association not mapped" wall had no reason to
+  read. `AssociationSynthesis.recordWithheld` records WHY under the association's own poison
+  key (the key A6 made readable). Not an error: the reason surfaces only if someone
+  navigates. The multi-hop path keeps returning null silently on purpose: its navigation is
+  injected as per-end Join PMs, so nothing is withheld.
+- **P3-4, `toString`: BUILT, JUDGED, PARKED.** The audit's premise is right (the engine
+  renders the dynafunction as `cast(%s as varchar)` in both our lanes;
+  `duckdbExtension.pure:284`, `h2Extension2_1_214.pure:266`), so the obvious arm was
+  written — the same `strCast` the concat arm uses. The corpus refused it: DuckDB and H2
+  each LOST `testGraphFetchMultiPrimitiveOnInlineChild`, `$.authors[0].authorId` expected
+  `[5001]`, got `5001` — the cast COLLAPSES MULTIPLICITY. Bisected to that arm alone (the
+  rest of the leg is EXACT with it removed). Reverted and recorded as ledger row **PARK-3**
+  with the evidence and the acceptance test (a cast that does not flatten); anchor:
+  `DynaFn.TO_STRING` appears in NO product file, so adding any arm turns the row red.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s), after the toString arm was reverted (it LOST 1 on each). Own-corpus parity floor unchanged (2475).
+
+**Chain.** Green on the first run, wall 235 s: G2 25s, G1 79s, G3 10s, G4 84s, G5 37s, G6 136s, G7 40s, G9 33s, G8 146s. Batch size: 6 files.

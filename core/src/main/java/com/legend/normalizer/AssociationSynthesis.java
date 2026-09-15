@@ -310,6 +310,21 @@ final class AssociationSynthesis {
     }
 
 
+    /** Record WHY no predicate binding was emitted for {@code am}, under the
+     * association's own poison key, so the query-side "association not
+     * mapped" wall can say it (audit 2026-09-15 P3-3: these paths withheld
+     * the binding with no reason and the user got a reasonless wall). Not an
+     * error: the reason surfaces only if someone navigates. */
+    private static void recordWithheld(ResolvedMapping md, AssociationMapping am,
+            ModelBuilder model, MappingLedger ledger, String reason) {
+        ledger.poison(new com.legend.model.PoisonKey.ForAssociation(
+                resolveAssociation(model, md, am)
+                        .map(a -> a.qualifiedName())
+                        .orElse(am.associationName())),
+                "no predicate binding was emitted: " + reason
+                        + "; mapping=" + md.qualifiedName());
+    }
+
     /** The property's OWN end class (the navigation target), mirror of
      * {@link #associationOwnerClass}. */
     static @com.legend.Nullable String associationTargetClass(AssociationDefinition ad, String propName) {
@@ -365,7 +380,8 @@ final class AssociationSynthesis {
 
     static @com.legend.Nullable FunctionDefinition synthesizeAssociationMapping(ResolvedMapping md,
                                                                   AssociationMapping am,
-                                                                  ModelBuilder model) {
+                                                                  ModelBuilder model,
+                                                                  MappingLedger ledger) {
         AssociationDefinition ad0 = resolveAssociation(model, md, am)
                 .orElseGet(MissProbe::miss);
         if (am instanceof AssociationMapping.ModelJoin mj && ad0 != null) {
@@ -431,6 +447,15 @@ final class AssociationSynthesis {
         // mapped in mapping"). Declaring it is not an error.
         if (anchorTableOf(md, classA, model) == null
                 || anchorTableOf(md, classB, model) == null) {
+            // WITHHELD, with the reason recorded: navigating this association
+            // is loud at resolve time, and before audit 2026-09-15 P3-3 the
+            // wall had NO reason to read — the binding simply was not there
+            recordWithheld(md, am, model, ledger, "end class '"
+                    + (anchorTableOf(md, classA, model) == null ? classA : classB)
+                    + "' has no table to anchor a (source, target) predicate on"
+                    + " (its properties live only as Join property mappings on the"
+                    + " other end); declaring the association is not an error, but"
+                    + " navigating it has no step");
             return null;
         }
         // an OPERATION-mapped end (union / inheritance) has no one table
@@ -440,6 +465,10 @@ final class AssociationSynthesis {
         // loud at demand
         if (md.unionOf(classA) != null || md.inheritanceOf(classA) != null
                 || md.unionOf(classB) != null || md.inheritanceOf(classB) != null) {
+            recordWithheld(md, am, model, ledger, "an end class is OPERATION-mapped"
+                    + " (union or inheritance), so there is no single table to anchor a"
+                    + " (source, target) predicate on — the pair entries inject onto the"
+                    + " member sets instead; a navigation that finds no step here is loud");
             return null;
         }
 

@@ -50,7 +50,13 @@ class ParkedWorkLedgerTest {
             "PARK-2 union common-subexpression pass (call site)",
             new Anchor("extractSubqueriesAsCtes\\(", List.of("SqlPostProcessors.java")),
             "PARK-2 union common-subexpression pass (construction)",
-            new Anchor("new SqlWith\\(", List.of("SqlRewriter.java"))));
+            new Anchor("new SqlWith\\(", List.of("SqlRewriter.java")),
+            // PARK-3: the relational toString renders as the DATABASE's cast
+            // in the engine; ours passes through to pure's ISO form. The
+            // obvious arm collapses multiplicity (it LOST a corpus row), so
+            // NOTHING dispatches on the member — that is the anchor.
+            "PARK-3 toString emits pure's ISO form, not the database's cast",
+            new Anchor("DynaFn\\.TO_STRING", List.of())));
 
     private record Anchor(String pattern, List<String> files) {
     }

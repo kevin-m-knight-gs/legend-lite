@@ -182,16 +182,30 @@ final class RelOpTranslator {
      *  tests spell 'VARCHAR'/'INTEGER'/...). */
     private static String pureTypeFor(String sqlType) {
         return switch (sqlType.toUpperCase(java.util.Locale.ROOT)) {
-            case "VARCHAR", "CHAR" -> "String";
+            // the engine's own list (dbExtension.pure,
+            // processExtractFromSemiStructured: BOOLEAN, CHAR, VARCHAR,
+            // STRING, INTEGER, DECIMAL, FLOAT, DATE, DATETIME, TIMESTAMP,
+            // SEMISTRUCTURED). STRING and DATETIME were missing here and
+            // DECIMAL answered "Float", contradicting our own column-kind
+            // table, which spells Decimal/Numeric as Decimal (audit
+            // 2026-09-15 P3-5).
+            case "VARCHAR", "CHAR", "STRING" -> "String";
             case "INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT" -> "Integer";
-            case "FLOAT", "DOUBLE", "REAL", "DECIMAL", "NUMERIC" -> "Float";
+            case "FLOAT", "DOUBLE", "REAL" -> "Float";
+            case "DECIMAL", "NUMERIC" -> "Decimal";
             case "BOOLEAN", "BIT" -> "Boolean";
             case "DATE" -> "StrictDate";
-            case "TIMESTAMP" -> "DateTime";
+            case "TIMESTAMP", "DATETIME" -> "DateTime";
+            // SEMISTRUCTURED (a sub-document, not a scalar) and the engine's
+            // trailing [] array suffix have no scalar pure type here: LOUD,
+            // never guessed.
             default -> throw new ModelException(
                     LegendCompileException.Phase.NORMALIZE,
                     "Unsupported SQL type '" + sqlType
-                            + "' in extractFromSemiStructured");
+                            + "' in extractFromSemiStructured (the engine's scalar list is"
+                            + " BOOLEAN, CHAR, VARCHAR, STRING, INTEGER, DECIMAL, FLOAT,"
+                            + " DATE, DATETIME, TIMESTAMP; SEMISTRUCTURED and []-suffixed"
+                            + " array element types are not realized here yet)");
         };
     }
 

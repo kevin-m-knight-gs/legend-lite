@@ -55,6 +55,44 @@ predicates removes or moves it; unifying the duplicate changes the count.
 
 ---
 
+## PARK-3 — `toString` emits pure's ISO form, not the database's cast
+
+**Parked** 2026-09-15, during the audit burndown (FIXLIST P3-4), after building the fix and
+letting the corpus judge it.
+
+**What happens today.** The relational `toString` dynafunction resolves as PURE with no
+translator arm, so the name passes through to pure's own `toString`. The engine renders the
+dynafunction as the DATABASE's text: `cast(%s as varchar)` in both our lanes
+(`duckdbExtension.pure:284`, `h2Extension2_1_214.pure:266`). For a date that is the
+difference between the database's format and pure's ISO spelling. The codebase already knew:
+the `concat` arm casts for exactly this reason.
+
+**Why it is parked rather than fixed.** The obvious arm — emit `cast(v, @String)`, the same
+`strCast` the concat arm uses — was written and run. It COLLAPSES MULTIPLICITY: a
+multi-valued argument comes back as one value.
+
+| lane | verdict with the arm |
+|---|---|
+| DuckDB | LOST 1: `testGraphFetchMultiPrimitiveOnInlineChild` — `$.authors[0].authorId` expected `[5001]`, got `5001` |
+| H2 | LOST 1, same test |
+
+Bisected: with the arm removed and the rest of the leg kept, both lanes are EXACT again. A
+correct arm has to cast WITHOUT flattening (map the cast over the collection, or decide the
+cast by the argument's multiplicity, which the dyna lane does not carry here).
+
+**Cost while parked.** A `toString` written in a mapping expression over a date yields
+pure's ISO text where the engine yields the database's. No corpus row currently exercises
+it, which is why this is a latent divergence rather than a failing row.
+
+**Acceptance (what closes this row).** A multiplicity-preserving cast arm, with
+`testGraphFetchMultiPrimitiveOnInlineChild` still EXACT and a witness for the date shape.
+
+**Anchor.** `DynaFn.TO_STRING` appears in NO product file: the enum member is declared
+unqualified in the registry and nothing dispatches on it. Adding the arm references it and
+turns this row red.
+
+---
+
 ## PARK-2 — A union read twice is built twice (no common-subexpression pass)
 
 **Parked** 2026-09-15 during the same burndown (FIXLIST P4-1).

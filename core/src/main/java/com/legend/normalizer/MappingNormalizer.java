@@ -404,7 +404,7 @@ public final class MappingNormalizer {
             // null => multi-hop association (per-end navigation above).
             FunctionDefinition fn;
             try {
-                fn = AssociationSynthesis.synthesizeAssociationMapping(md, am, model);
+                fn = AssociationSynthesis.synthesizeAssociationMapping(md, am, model, ledger);
             } catch (NotImplementedException | ModelException e) {
                 // PER-ASSOCIATION fault isolation (mirrors the per-class arm
                 // above): one XStore/ModelJoin association on roadmap
@@ -2131,27 +2131,53 @@ public final class MappingNormalizer {
             Map<String, ValueSpecification> tableScope, String defaultTable,
             Pipeline pipeline, String ownerClassFqn, ResolvedMapping md,
             ModelBuilder model) {
-        ClassMapping.Relational referenced = null;
         // the referenced set may live in an INCLUDED mapping (engine
         // resolves Inline set ids across the include closure —
-        // testMappingEmbeddedTargetIdsWithIncludes)
-        List<LegacyMappingDefinition> closure = new ArrayList<>();
-        closure.addAll(md.closure());
-        outer:
-        for (LegacyMappingDefinition m : closure) {
+        // testMappingEmbeddedTargetIdsWithIncludes). EXACTLY ONE match:
+        // the engine asserts it ("Found too many or not enough matches",
+        // mappingExtension.pure) — taking the first silently resolved two
+        // sets sharing an id across two included mappings by closure order
+        // (audit 2026-09-15 P3-2).
+        List<ClassMapping.Relational> matches = new ArrayList<>();
+        for (LegacyMappingDefinition m : md.closure()) {
             for (ClassMapping cm : m.classMappings()) {
                 if (cm instanceof ClassMapping.Relational rcm
                         && Objects.equals(ResolvedMapping.idOf(rcm), ie.setId())) {
-                    referenced = rcm;
-                    break outer;
+                    matches.add(rcm);
                 }
             }
         }
-        if (referenced == null) {
+        if (matches.isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "InlineEmbedded PM '" + ie.propertyName()
                   + "' references unknown setId '" + ie.setId()
                   + "' in mapping=" + md.qualifiedName());
+        }
+        if (matches.size() > 1) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "InlineEmbedded PM '" + ie.propertyName() + "' references setId '"
+                  + ie.setId() + "', which " + matches.size() + " class mappings of the"
+                  + " include closure declare (" + matches.stream()
+                          .map(ClassMapping::className).distinct().toList()
+                  + "); the engine requires exactly one match. Mapping="
+                  + md.qualifiedName());
+        }
+        ClassMapping.Relational referenced = matches.get(0);
+        // the referenced set's class must BE the declared property type or a
+        // subtype of it (engine RelationalInstanceSetImplementationValidator:
+        // an Inline reference to an unrelated class is rejected there, and
+        // the splice would otherwise materialize a foreign class's PMs)
+        ClassDefinition inlineOwner = MissProbe.knownMiss(
+                model.knowledge().hierarchyClass(ownerClassFqn));
+        TypeExpression declared = inlineOwner == null ? null
+                : model.knowledge().propertyType(inlineOwner, ie.propertyName());
+        if (declared instanceof TypeExpression.NameRef dn
+                && !model.knowledge().isSubtype(referenced.className(), dn.name())) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "InlineEmbedded PM '" + ie.propertyName() + "' references set '"
+                  + ie.setId() + "' of class '" + referenced.className()
+                  + "', which is not '" + dn.name() + "' or a subclass of it; mapping="
+                  + md.qualifiedName());
         }
         // THE cycle guard: an Inline reference is the only way an embedded
         // materialization can recurse (set a splices set b splices set a).
