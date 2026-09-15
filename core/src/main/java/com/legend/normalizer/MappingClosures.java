@@ -32,8 +32,9 @@ import java.util.Set;
  *
  * <p>A mapping's SURFACE is the authored mapping plus the identity sets
  * every runtime's {@link JsonModelConnection} bindings synthesize into it
- * (the engine's {@code PureModelBuilder.addRuntime} cross-bake, formerly
- * the index's own rewrite of the bound mapping) — so an INCLUDER sees an
+ * (our cross-bake of the runtime's bindings into the mapping surface — the
+ * engine keeps JsonModelConnection data in memory and never rewrites the
+ * mapping; formerly the index's own rewrite) — so an INCLUDER sees an
  * included mapping's identity sets, as it did before step 2 moved the
  * cross-bake into Phase E.
  *

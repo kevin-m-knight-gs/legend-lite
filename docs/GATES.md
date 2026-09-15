@@ -2980,3 +2980,38 @@ M1 1,102 · M2 1 · M3 0 · M4 5.
 
 **Next.** 6b: the audit of the property-mapping translator and the join-chain emitter (receipts,
 witnesses, thinning); 6c: one exact engine-source citation per rule; 6d: the two known gaps.
+
+## Legacy routes as composition, leg 6c — citations to the line; main-table inference to the receipt — 2026-09-15
+
+**Why.** docs/TRANSLATOR_AUDIT_2026_09_15.md §1: the translator cited the engine 35 times, and
+seven of those names did not exist in any tree we pin (`PureModelBuilder.inferViewMainTable`,
+`PureModelBuilder.addRuntime`, `MappingNormalizer.resolvePropertyMappingsThroughView`,
+`MappingNormalizer.synthesizeExpressionAccess`, `com.gs.legend.compiler.MappingNormalizer`) or
+pointed at stale lines (`functions.pure:190`, `pureToSQLQuery.pure:5061-5074`). Two citations the
+census first flagged resolve in legend-pure, not legend-engine (`functions_Mapping.pure:66`,
+`Mapping.resolveStore`). And the audit's F3: main-table inference differed from the engine's
+alias rule in two corners no corpus mapping exercises.
+
+**What landed.**
+- Every stale or invented citation replaced by the engine file and line at the pin, or by the
+  plain statement that the rule is ours (the view-flattening fallback; the JSON-source SQL
+  equivalent; the runtime cross-bake). The translator's class javadoc now says what the engine
+  actually does with the legacy DSL (compile to its metamodel, generate SQL from it) instead of
+  naming a class that does not exist.
+- `collectMainTables`: a computed column's direct references count whatever else the expression
+  contains (a join inside it contributes nothing — the engine's fresh alias map for a join's
+  terminal, `HelperRelationalBuilder.java:1172/1182`); an otherwise-embedded block's own
+  property mappings count like a plain embedded block's.
+- Witnesses `MainTableInferenceTest` F3a/F3b, measured red without the fix.
+- The audit document filed (053c73a38) and updated with the census correction and the fixes.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (no corpus mapping has
+either F3 shape; the witnesses are the judge).
+
+**Chain.** Gates 1–7, 9 green on the first run; gate 8 red on the own-corpus parity pin (two new
+mapping fixtures in `MainTableInferenceTest` raised the matched-element count to 2,429 —
+re-pinned) and rerun green. **Measures (§11.0).** M1 1,102 · M2 1 · M3 0 · M4 5. Citations: 0 that do
+not resolve (was 7).
+
+**Next.** 6b's thinning: the view-flattening fallback (audit F1 — five corpus mappings) absorbed
+by the frame path, then deleted; 6d: the two known gaps.

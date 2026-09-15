@@ -1016,7 +1016,7 @@ final class UnionSynthesis {
 
     /**
      * IMPORT DATA FLOW (engine {@code pureToSQLQuery_union.pure:140–150},
-     * {@code resolvePrimaryKey} functions.pure:190): every member thread
+     * {@code resolvePrimaryKey} helperFunctions.pure:439–454): every member thread
      * projects its set's PRIMARY KEY — the declared {@code ~primaryKey}
      * columns of the main table, else the table's PRIMARY KEY — as
      * {@code <col>_<ordinal>} (NULL in the other members' threads), the

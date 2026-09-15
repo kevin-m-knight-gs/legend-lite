@@ -71,8 +71,12 @@ import java.util.regex.Pattern;
 /**
  * Legacy Mapping DSL desugarer. Translates every legacy
  * {@link LegacyMappingDefinition} into clean-sheet function form per
- * {@code docs/MAPPING_LEGACY_TO_FUNCTION.md} with full feature parity to
- * engine's {@code com.gs.legend.compiler.MappingNormalizer}.
+ * {@code docs/MAPPING_LEGACY_TO_FUNCTION.md}. The engine has no such
+ * translator: it compiles the legacy DSL into its mapping metamodel
+ * ({@code HelperRelationalBuilder}, {@code RelationalCompilerExtension})
+ * and generates SQL from that metamodel ({@code pureToSQLQuery.pure}).
+ * Every rule here that shapes rows cites the engine line it follows
+ * (docs/TRANSLATOR_AUDIT_2026_09_15.md); a rule without a line is ours.
  *
  * <h2>Per class mapping</h2>
  * Synthesizes one {@code Class[*]}-returning function per
@@ -1534,15 +1538,12 @@ public final class MappingNormalizer {
             case PropertyMapping.Embedded emb ->
                     emb.propertyMappings().forEach(inner -> collectMainTables(inner, sink));
             case PropertyMapping.LocalProperty lp -> collectMainTables(lp.body(), sink);
-            case PropertyMapping.Expression ex -> {
-                // a computed column reads its columns off the main table —
-                // unless it navigates a join (those reference OTHER tables)
-                List<JoinChainEmission.JoinNavSpec> navs = new ArrayList<>();
-                JoinChainEmission.collectJoinNavigations(ex.expression(), navs);
-                if (navs.isEmpty()) {
-                    collectExprTables(ex.expression(), sink);
-                }
-            }
+            // a computed column's DIRECT column references count; a join
+            // navigation inside it contributes nothing (collectExprTables) —
+            // the engine's alias map (HelperRelationalBuilder.java:1172) takes
+            // every direct TableAliasColumn and processes a join's terminal
+            // with a fresh map (:1182)
+            case PropertyMapping.Expression ex -> collectExprTables(ex.expression(), sink);
             // DELIBERATE non-contributors (audit 15: exhaustive, no default —
             // a new PM kind must state its main-table stance here): joins
             // and join terminals reference OTHER tables; enum expressions
@@ -1551,10 +1552,11 @@ public final class MappingNormalizer {
             case PropertyMapping.JoinTerminalColumn ignored -> { }
             case PropertyMapping.EnumeratedExpression ignored -> { }
             case PropertyMapping.InlineEmbedded ignored -> { }
-            // NOTE the asymmetry with Embedded (which recurses): the old
-            // open default never recursed OtherwiseEmbedded — preserved
-            // as-is; changing main-table inference needs its own probe.
-            case PropertyMapping.OtherwiseEmbedded ignored -> { }
+            // an otherwise-embedded block's own property mappings read the
+            // owner's row exactly like a plain embedded block (the engine
+            // processes both with the class mapping's alias map)
+            case PropertyMapping.OtherwiseEmbedded oe ->
+                    oe.embedded().forEach(inner -> collectMainTables(inner, sink));
         }
     }
 
@@ -1629,7 +1631,8 @@ public final class MappingNormalizer {
             // get($row.data, 'propName') — 2-arg variant access. The only
             // `get` native is get(Variant[1], Any[1]):Variant[0..1]; the
             // single VARIANT `data` column is fanned into property values
-            // by key (engine parity: MappingNormalizer.synthesizeExpressionAccess).
+            // by key (ours: the engine reads a JsonModelConnection in memory
+            // and generates no SQL for it; this is the SQL-side equivalent).
             ValueSpecification get = new AppliedFunction("get", List.of(
                     new AppliedProperty(rowBind, "data"), new CString(prop.name())));
             // to(get(...), @Type) — typed text-extraction + cast. Engine uses
@@ -1651,9 +1654,11 @@ public final class MappingNormalizer {
     // ====================================================================
 
     /**
-     * Expand the view as a macro, faithful to the engine
-     * ({@code PureModelBuilder.inferViewMainTable} +
-     * {@code MappingNormalizer.resolvePropertyMappingsThroughView}):
+     * A view-backed set. The FRAME path (a view is a subselect —
+     * {@code pureToSQLQuery.pure:5187 ViewSelectSQLQuery}) serves every
+     * {@code frameable} shape. The rest takes the FALLBACK below, which
+     * has NO engine counterpart (the engine never flattens a view;
+     * docs/TRANSLATOR_AUDIT_2026_09_15.md F1): expand the view as a macro —
      * <ol>
      *   <li>Infer the view's single underlying physical table from its
      *       non-join column expressions ({@link #inferViewMainTable}).
@@ -1837,7 +1842,9 @@ public final class MappingNormalizer {
     /**
      * Infer the view's single underlying physical table by scanning its
      * non-join column expressions for {@link RelationalOperation.ColumnRef}
-     * tables (engine parity: {@code PureModelBuilder.inferViewMainTable}).
+     * tables (engine: {@code HelperRelationalBuilder.java:521–565} —
+     * {@code resolveMainTable}: the explicit main table, else the ROOT
+     * table of every column mapping's element, exactly one).
      * Columns whose expression navigates a join are skipped &mdash; they
      * reference joined tables, not the view's root. Exactly one root table
      * must remain, else fail loudly.
@@ -1890,7 +1897,7 @@ public final class MappingNormalizer {
         // the engine swaps the main table for a subselect that joins the
         // filter chain, applies the condition, and projects every base
         // column under its original name (getRelationalElementWithInnerJoin,
-        // pureToSQLQuery.pure:5061-5074) — one row PER MATCHING CHILD
+        // pureToSQLQuery.pure:5077; chosen at :5101) — one row PER MATCHING CHILD
         // survives (testInnerJoinClassMappingFilterWithChainedJoins expects
         // Firm X x4). The exists-shaped filter route below keeps one row
         // per parent, so it cannot serve this form.

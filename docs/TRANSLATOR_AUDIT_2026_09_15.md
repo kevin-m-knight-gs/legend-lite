@@ -20,7 +20,7 @@ Three are English words the scan caught (`Several`, `ColumnRefs`, `DYNAs`). Thre
 |---|---|---|
 | `PureModelBuilder.inferViewMainTable` | MappingNormalizer (view section javadoc) | no `PureModelBuilder` in the engine; the view's main table is `H:521–565` (`resolveMainTable` → `findMainTable` → `identifyMainTable`: the explicit `~mainTable`, else the ROOT table of every column mapping's element, exactly one or "contains multiple main tables") |
 | `PureModelBuilder.addRuntime` | MappingClosures:35 | no such class; the include closure is the engine's `Mapping.includes` walk (`mappingExtension.pure`) |
-| `functions_Mapping.pure:66` | StoreSubstitutionRewrite:244 and the leg 2 audit's R-target receipt | the function `_classMappingByIdRecursive` lives in `core/pure/mapping/mappingExtension.pure` |
+| `functions_Mapping.pure:66` / `Mapping.resolveStore` | StoreSubstitutionRewrite:244 and the leg 2 audit's R-target receipt | RESOLVE after all — in legend-pure, not legend-engine: `legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping/functions_Mapping.pure:66` (`_classMappingByIdRecursive`) and `:110` (`resolveStore`); the census searched one tree. A citation names its repository. |
 | `com.gs.legend.compiler.MappingNormalizer` | MappingNormalizer:75 (class javadoc) | no such class in legend-engine; the sentence describes our own design, not an engine artefact |
 | `functions.pure:190` (`resolvePrimaryKey`) | MappingNormalizer primary-key javadoc; UnionSynthesis | `HF:439–454` |
 | `pureToSQLQuery.pure:5061–5074` (`getRelationalElementWithInnerJoin`) | synthTableBackedParts | `P:5077` at the pin |
@@ -72,8 +72,10 @@ Rule for 6c: a citation is a file and a line at the pin, or it is not a citation
   guard); the engine counts its direct column references and excludes only the join's terminal.
   (b) `OtherwiseEmbedded` is not recursed in ours ("preserved as-is; needs its own probe"); the
   engine processes an embedded mapping's property mappings with the same alias map. No corpus
-  mapping has either shape (the lanes are EXACT either way). Fix both to the receipt, each with a
-  witness, in 6c.
+  mapping has either shape (the lanes are EXACT either way). FIXED in leg 6c to the receipt:
+  `collectMainTables` counts an expression's direct references whatever else it contains and
+  recurses an otherwise-embedded block; witnesses `MainTableInferenceTest` F3a/F3b (red without
+  the fix: "nothing to infer from").
 - **F4 (T3): resolved** — the set-level `~groupBy` is `P:5331` `applyGroupBy` on the set's own
   select (`P:5136`), so a join off a grouped set hangs off the grouped relation; the earlier
   citation of `P:6273` (`processGroupBy`) was the query-side `groupBy`, a different function.
