@@ -12,10 +12,14 @@ hierarchy = a builder pass on the `Operation.inheritance` fact; the normalizer's
 4c (a mixed union's Pure member binds its whole-source child as a navigate step; the mixed child
 dispatch gone), 4d (B4: the driver alone applies strict/module; B5: no bare `orElse(null)` in
 the normalizer). Every leg: DuckDB 108 / H2 444 EXACT, chain green, CI green; records in
-docs/GATES.md ("Legacy routes as composition, leg …"). Measures today: M1 1,091 (from 3,287;
-target under 700 still open — the key-thread fact and the route classification are the bulk),
-M2 1, M3 0, M4 5. Open follow-ups: M1; the plain M2M whole-source child as the same step
-(delete `GraphEmission.wholeSrcChild`); the graph-fetch derived-leaf inliner's filtered heads.
+docs/GATES.md ("Legacy routes as composition, leg …"). Arcs 5 and 6 followed (legs 5a, 5b, 6a–6g:
+every whole-source child a step; the single outside pin; arms as a fact; the translator audit
+docs/TRANSLATOR_AUDIT_2026_09_15.md; exact citations; the view frame rule; the filtered derived
+leaf; the speed shape fixes; the reflection ban; M4 to zero first-wins). Measures today (leg 6g,
+2026-09-15): M1 976 (from 3,287; target under 700 still open — the key-thread fact and the route
+classification are the bulk; it moves only by deleting real duplication), M2 1, M3 0, M4 2 (both
+receipted skips: a root route is the un-routed navigation, a `~func` member has no key table;
+ZERO first-wins). Open follow-up: M1 only.
 
 **Earlier state (2026-09-14, kept for the history below).** `aa68dc289` + docs: step 1 (the
 several-route `legacyNavigate` primitive: `route(...)`, the checker, `TypedNavigate.routes`,
