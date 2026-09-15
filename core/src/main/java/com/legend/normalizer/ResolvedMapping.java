@@ -158,6 +158,18 @@ final class ResolvedMapping {
         return out;
     }
 
+    /** Is {@code set} the ROOT (or sole) set of its class — the engine's
+     * {@code rootClassMappingByClass} answer? ONE owner (audit 2026-09-15
+     * P2-2: six sites counted sole-ness over different scopes; the sharpest
+     * resolved a route's set THROUGH the include closure but counted over
+     * the QUERYING mapping's own sets, so an included class with one
+     * unmarked set counted zero). Judged in the OWNING scope: the closure's
+     * roots with this mapping's own overriding. */
+    boolean isRootOrSole(ClassMapping set) {
+        ClassMapping root = roots().get(set.className());
+        return root != null && idOf(root).equals(idOf(set));
+    }
+
     /** Own enumeration mappings plus the includes', transitively. */
     List<EnumerationMapping> enumerationMappingsWithIncludes() {
         List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());

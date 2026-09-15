@@ -1677,32 +1677,17 @@ final class StackBuilder {
     // rule (a) and (c) helpers — binding facts only, no source resolved
     // (a target's source may be mid-construction: mutual navigations)
 
+    /** The class-level binding — {@link ClassSources#findBinding}, THE rule
+     * (engine R1: own beats the includes', a later include beats an earlier
+     * one, the root wins among a class's sets, a rootless multi-set class
+     * has none). This used to be a second implementation: a breadth-first
+     * walk taking the SHALLOWEST include and accepting any rootless binding,
+     * which disagreed with the rule that resolves the arm it is deciding
+     * about — and the answer decides which union arms are DEAD and read as
+     * typed NULLs (audit 2026-09-15 P2-3). */
     private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
             String classFqn) {
-        Set<String> seen = new LinkedHashSet<>();
-        ArrayDeque<MappingDefinition> work = new ArrayDeque<>();
-        work.add(mapping);
-        MappingDefinition.ClassBinding root = null;
-        while (!work.isEmpty()) {
-            MappingDefinition m = work.poll();
-            if (!seen.add(m.qualifiedName())) {
-                continue;
-            }
-            for (MappingDefinition.ClassBinding cb : m.classBindings()) {
-                if (cb.classFqn().equals(classFqn) && (cb.root() || cb.setId() == null)) {
-                    if (root == null) {
-                        root = cb;
-                    }
-                }
-            }
-            if (root != null) {
-                return root;
-            }
-            for (MappingInclude inc : m.includes()) {
-                ctx.findMapping(inc.mappingPath()).ifPresent(work::add);
-            }
-        }
-        return null;
+        return sources.findBinding(mapping, classFqn, null, new LinkedHashSet<>());
     }
 
     private static String classFqnOf(List<ClassSource> arms) {

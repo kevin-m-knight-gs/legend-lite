@@ -4177,6 +4177,44 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("P2-2: root-ness is judged in the OWNING mapping's scope, so a route to an included sole set is the un-routed navigation")
+    void rootnessIsJudgedInTheOwningScope() {
+        // audit 2026-09-15 P2-2: the route's set was resolved THROUGH the
+        // include closure while sole-ness was counted over the QUERYING
+        // mapping's own sets — an included class with one unmarked set
+        // counted zero, so the route classified as a pinned single instead
+        // of the class's root. One owner now: ResolvedMapping.isRootOrSole.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::C { name: String[1]; } "
+                        + "Class model::Firm { legalName: String[1]; members: model::C[*]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table CT (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER, NAME VARCHAR(50)) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Join F_C (FT.ID = CT.FIRM_ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping inc::I ( "
+                        + "  model::C[c1]: Relational { ~mainTable [db::DB] CT name: CT.NAME } "
+                        + ") "
+                        + "Mapping my::M ( include inc::I "
+                        + "  *model::Firm: Relational { ~mainTable [db::DB] FT "
+                        + "    legalName: FT.NAME, members[c1]: [db::DB] @F_C } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        assertTrue(poisonsOf(normalized).isEmpty(), () -> "poisons: " + poisonsOf(normalized));
+        FunctionDefinition firm = normalized.elements().stream()
+                .filter(e -> e instanceof FunctionDefinition f
+                        && f.qualifiedName().equals("my::M$class$model::Firm"))
+                .map(FunctionDefinition.class::cast).findFirst().orElseThrow();
+        AppliedFunction mapCall = (AppliedFunction) sole(firm.body());
+        AppliedFunction nav = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals(com.legend.builtin.Pure.Lite.LEGACY_NAVIGATE, nav.function());
+        assertEquals(4, nav.parameters().size(),
+                "c1 is model::C's SOLE set in the mapping that DEFINES it, so the route is"
+                        + " the class's root: the plain (source, slot, rows, cond) navigate,"
+                        + " never a route list");
+    }
+
+    @Test
     @DisplayName("M4: one property name routed under two owners is loud, never first-owner-wins")
     void routedPropertyUnderTwoOwnersIsLoud() {
         // Firm routes `employees` at the top (owner Firm) AND inside the

@@ -3485,3 +3485,40 @@ blanking comments would blind the cross-store anchor, which is itself a string l
 chain below.
 
 **Chain.** Green on the first run, wall 221 s: G2 24s, G1 70s, G3 11s, G4 78s, G5 36s, G6 130s, G7 38s, G9 29s, G8 131s. Batch size: 2 files (1 doc, 1 test).
+
+## Audit fix A9 (FIXLIST P2-2 / P2-3 / P2-4) — one root answer, one binding lookup, dyna identity by the registry — 2026-09-15
+
+**Why.** Three "one owner per decision" rows of the audit.
+
+**P2-2 — which set is ROOT.** Six sites answered it over different scopes. The sharpest,
+route classification, resolved a route's set THROUGH the include closure but counted
+sole-ness over the QUERYING mapping's own sets: an included class with one unmarked set
+counted zero, so a route to it classified as a pinned single instead of a root route, while
+`ResolvedMapping.roots()` answered correctly a hundred lines away. LANDED:
+`ResolvedMapping.isRootOrSole(set)` — the closure's roots with this mapping's own
+overriding, the engine's `rootClassMappingByClass` — and the inline count is gone.
+
+**P2-3 — find the binding in the closure.** Five implementations, four shadowing rules.
+LANDED:
+- `StackBuilder.findBinding` (breadth-first, SHALLOWEST include wins, any rootless binding
+  accepted, unknown include silently skipped) now delegates to `ClassSources.findBinding`,
+  the engine's R1 — and this answer decides which union arms are DEAD and read as typed
+  NULLs, so it must not disagree with the rule that resolves the arm.
+- `RelationalRootForm.primaryKeyColumns` walked the queried mapping's OWN bindings only; it
+  now walks the includes (own first), so a class bound by an included mapping contributes
+  its declared `~primaryKey`.
+- `GraphEmission.definingMapping0` scanned the INCLUDES BEFORE its own bindings, the
+  opposite of its own javadoc; own declarations win now.
+- `MappingDefinition.classBindingsWithIncludes`'s javadoc claimed to match the lookup rule.
+  It is an ENUMERATION, not a lookup; the javadoc says so and names the difference.
+
+**P2-4 — which dyna function a name denotes.** Null-tolerance (INNER vs LEFT+WHERE) was
+decided by `equalsIgnoreCase` against seven string literals ten lines from the typed
+registry. LANDED: identity through `DynaFn.of`. NO reachable input changes: the five real
+names (`isNull`, `sqlNull`, `coalesce`, `case`, `if`) are registry members and keep their
+verdicts; `"ifnull"` and `"nvl"` are NOT registry names at all (`DynaFn.of` returns empty,
+count of either spelling in the registry: 0), so those two arms could never fire.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 55 s, H2 27 s). Witness `rootnessIsJudgedInTheOwningScope` A/B: RED on the old code (it emitted a route list), green now. Own-corpus parity floor 2470 → 2475.
+
+**Chain.** Green on the first run, wall 225 s: G2 24s, G1 70s, G3 11s, G4 81s, G5 38s, G6 130s, G7 38s, G9 32s, G8 136s. Batch size: 8 files.

@@ -283,11 +283,14 @@ public record MappingDefinition(
 
     /**
      * This mapping's class bindings PLUS its includes' (transitively,
-     * OWN-FIRST &mdash; a local binding shadows an included one at lookup,
-     * matching {@code ClassSources.findBinding}; cycle-safe; bare include
-     * paths resolve in the includer's package). A symbol-table walk for
-     * consumers that read binding METADATA verbatim &mdash; row semantics
-     * stay in the lifted functions.
+     * OWN-FIRST; cycle-safe; bare include paths resolve in the includer's
+     * package). An ENUMERATION for consumers that read binding METADATA
+     * verbatim &mdash; row semantics stay in the lifted functions. It is
+     * NOT the lookup rule: a first match here is own-first depth-first,
+     * while {@code ClassSources.findBinding} applies the engine's R1 (the
+     * root wins among a class's sets, a LATER include beats an earlier one,
+     * a rootless multi-set class has no class-level binding). This javadoc
+     * used to claim the two matched (audit 2026-09-15 P2-3).
      */
     public List<ClassBinding> classBindingsWithIncludes(
             java.util.function.Function<String,

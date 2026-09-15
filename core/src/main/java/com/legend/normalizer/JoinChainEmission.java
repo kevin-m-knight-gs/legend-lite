@@ -1005,19 +1005,23 @@ final class JoinChainEmission {
         return switch (op) {
             case RelationalOperation.IsNull ignored -> true;
             case RelationalOperation.FunctionCall fc -> {
-                if (fc.name().equalsIgnoreCase("isNull")
-                        || fc.name().equalsIgnoreCase("sqlNull")) {
+                // IDENTITY THROUGH THE REGISTRY (audit 2026-09-15 P2-4: these
+                // were seven equalsIgnoreCase string literals ten lines from
+                // the typed registry that owns dyna names; "ifnull"/"nvl" are
+                // not registry names at all and never matched anything)
+                com.legend.builtin.DynaFn dyna = com.legend.builtin.DynaFn.of(fc.name())
+                        .orElse(null);
+                if (dyna == com.legend.builtin.DynaFn.IS_NULL
+                        || dyna == com.legend.builtin.DynaFn.SQL_NULL) {
                     yield true;
                 }
                 // audit 23: NULL-swallowing functions defeat the
                 // classification — LOUD, never a silent null-rejecting
                 // verdict (the (INNER) LEFT+WHERE realization would keep
                 // NULL-extended parents the engine's INNER join drops)
-                if (fc.name().equalsIgnoreCase("coalesce")
-                        || fc.name().equalsIgnoreCase("ifnull")
-                        || fc.name().equalsIgnoreCase("nvl")
-                        || fc.name().equalsIgnoreCase("case")
-                        || fc.name().equalsIgnoreCase("if")) {
+                if (dyna == com.legend.builtin.DynaFn.COALESCE
+                        || dyna == com.legend.builtin.DynaFn.CASE
+                        || dyna == com.legend.builtin.DynaFn.IF) {
                     throw new NotImplementedException("(INNER) mapping-"
                             + "filter condition uses '" + fc.name()
                             + "' — null-tolerance cannot be classified;"

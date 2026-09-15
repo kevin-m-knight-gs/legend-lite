@@ -215,7 +215,12 @@ public final class RelationalRootForm {
         if (mappingFqn != null && classFqn != null) {
             var mapping = ctx.findMapping(mappingFqn).orElse(null);
             if (mapping != null) {
-                for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
+                // through the INCLUDES (own first): a class bound by an
+                // included mapping declares its ~primaryKey there, and this
+                // walked the queried mapping's own bindings only — the
+                // fourth "find the binding" rule of audit 2026-09-15 P2-3
+                for (MappingDefinition.ClassBinding cb
+                        : mapping.classBindingsWithIncludes(ctx::findMapping)) {
                     if (cb.classFqn().equals(classFqn)
                             && !cb.primaryKeyColumns().isEmpty()) {
                         return dedup(cb.primaryKeyColumns());

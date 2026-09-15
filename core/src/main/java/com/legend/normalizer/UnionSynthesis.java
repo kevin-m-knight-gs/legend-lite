@@ -291,12 +291,12 @@ final class UnionSynthesis {
                 }
                 int ord = memberIds == null ? -1
                         : md.memberOrdinal(memberIds, j.targetSetId());
-                // engine rootClassMappingByClass: the * set, or the class's
-                // SOLE set (sole-ness judged in the OWNING mapping's scope)
-                boolean rootOrSole = set instanceof ClassMapping.Relational tr
-                        && (tr.root() || md.classMappings().stream()
-                                .filter(x -> x.className().equals(tr.className()))
-                                .count() == 1);
+                // engine rootClassMappingByClass — ONE owner, the resolved
+                // mapping (audit 2026-09-15 P2-2: the inline count here
+                // judged sole-ness over the QUERYING mapping's own sets
+                // while the set itself was resolved through the closure)
+                boolean rootOrSole = set instanceof ClassMapping.Relational
+                        && md.isRootOrSole(set);
                 if (ord >= 0) {
                     routes.add(new UnionRoute(ord, j));
                 } else if (memberIds != null && distinctPins > 1) {

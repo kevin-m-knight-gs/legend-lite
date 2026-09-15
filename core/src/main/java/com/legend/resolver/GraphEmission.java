@@ -3184,15 +3184,20 @@ final class GraphEmission {
         if (m == null) {
             return null;
         }
+        // OWN declarations win, then the includes — the order this method's
+        // own javadoc states and the binding lookup applies; it used to scan
+        // the includes FIRST, so a class bound in both named the include
+        // (audit 2026-09-15 P2-3)
+        if (m.classBindings().stream().anyMatch(cb -> cb.classFqn().equals(classFqn))) {
+            return mappingFqn;
+        }
         for (var inc : m.includes()) {
             String r = definingMapping0(mc, inc.mappingPath(), classFqn);
             if (r != null) {
                 return r;
             }
         }
-        return m.classBindings().stream()
-                .anyMatch(cb -> cb.classFqn().equals(classFqn))
-                ? mappingFqn : null;
+        return null;
     }
 
     /** Upstream's string concatenation — {@code string::plus(String[*])},
