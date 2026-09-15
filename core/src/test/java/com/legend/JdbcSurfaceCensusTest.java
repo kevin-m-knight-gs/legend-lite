@@ -432,6 +432,9 @@ class JdbcSurfaceCensusTest {
             // (mixed union, route into a ~func member, subclass pins, one-table
             // filtered union) are judged by rows
             "core/src/test/java/com/legend/resolver/StackDesignWitnessTest.java",
+            // the leg 3 audit's unjudged shapes as rows (root beside member,
+            // subclass pin, user null-safe equality, aggregation over a stack)
+            "core/src/test/java/com/legend/resolver/StackRatchetWitnessTest.java",
             // legacy routes as composition, step 1: the several-route navigate's
             // rows are the verdict
             "core/src/test/java/com/legend/resolver/RoutedNavigateTest.java",

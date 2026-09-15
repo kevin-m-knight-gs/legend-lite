@@ -2715,3 +2715,48 @@ Batch size: 22 files changed, 522 insertions(+), 734 deletions(-), plus the 230-
 **Next.** M1 toward 700 (the same-table inheritance collapse and the key-thread fact are the bulk
 that remains); the per-member child dispatch of Pure arms becomes a step when a whole-source route
 is one; the widening's callers move their demand to build time as the resolver's phases allow.
+
+## Legacy routes as composition, leg 4a — ratchet witnesses; the builder thinned — 2026-09-15
+
+**Why.** The leg 3b accounting named the shapes the stack handles without a judge (a root route
+beside a member route into a plain class; a union arm pinned to a SUBCLASS set of its target; the
+user's own `==` under a graph fetch beside the correlation stamp; a correlated aggregation over a
+stack parent keyed on a modeled column) and two shortcuts in the builder (target groups keyed by
+a printed identity; the union heads' OR built a second time by hand). Ratchet rows first, then the
+thinning under them.
+
+**What landed.**
+- `StackRatchetWitnessTest` (registered in the JDBC census): R-a a root route beside a member
+  route — two distinct pins resolve to the class's root, the member pin is dead (`1|T0-a`, never
+  `T1-a`); R-b a union arm pinned to a subclass set — the pin is dead, the city rows get null and
+  never the root's value through the extent (`1|100, 2|null, 3|null`); R-c the user's `==` on two
+  optional columns inside a derived leaf under a graph fetch keeps Pure's null-safe equality while
+  the head correlation lowers `=` (firm 1 counts the both-NULL employee alone); R-d one aggregate
+  per stack-parent row through the OR-of-pairs join-back (`1|Ash,Bay`, `2|Cox`).
+- R-a was RED: a routed navigation from a PLAIN source (`ClassSources.buildRoutedUnionSource`)
+  built one arm per route with no R-target. It now resolves the pins the engine's way (several
+  distinct ids → the target's root leaves; a pin outside is a dead key projected NULL) and throws
+  when no arm survives.
+- `RoutedNavigateTest` re-pinned to the same receipt: its hand-written Person has a PLAIN root
+  (the function-form mapping cannot spell an operation), so two pins into it keep the root arm
+  alone — the second pin's keys ride as typed NULLs, its rows never join (the union through
+  routes is W2/W5, where the target's root is an operation). Its old rows were this
+  resolver's pre-receipt behaviour, never an engine golden.
+- `StackBuilder`: target groups keyed by the target's structural identity (the callee, the class,
+  the node — never a printed name); `orOverRoutes` is the one OR over a route list, `UnionHeads`
+  calls it (its hand-rolled `orOfConditions`/`retarget` and the column helpers are gone);
+  `leafSetIds` shared with `ClassSources`.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes.
+
+**Findings outside the arc (recorded, not fixed).** A derived graph leaf's inliner accepts a
+plain `$this.prop` head (optionally to-one/first-wrapped), a reducer over one, and a to-one
+leaf chain; a FILTERED head (`$this.employees->filter(…)->isNotEmpty()`, `->count()`) is loud
+("not inlinable yet"), and `->filter(…)->first().last` drops the `first()` — the scalar subquery
+fails at the database with "more than one row" rather than limiting. Both are graph-fetch
+derived-leaf gaps, not stack shapes.
+
+**Chain.** Gates 2, 4–9 green on the first run; gate 1 red on `RoutedNavigateTest` (re-pinned to the receipt, above) and gate 3 on the claims ledger (`UnionHeads` no longer calls `or` — regenerated); gates 1–3 rerun green. **Measures (§11.0).** M1 1,197 (unchanged) · M2 1 · M3 0 · M4 5.
+
+**Next.** Leg 4b: the same-table inheritance collapse as a builder pass; 4c: a Pure member's
+whole-source route as a navigate step (the mixed child dispatch dies); 4d: B4/B5.

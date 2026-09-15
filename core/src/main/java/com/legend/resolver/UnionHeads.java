@@ -120,7 +120,11 @@ final class UnionHeads {
         ClassSource target = sources.stacks().stackOf(cs.mappingFqn(), spec.classFqn(), mapping,
                 arms, List.of(), false);
         Type.RelationType urow = target.rowType();
-        TypedLambda cond = orOfConditions(members, cs.rowType(), urow);
+        List<TypedNavigate.Route> routes = new ArrayList<>(arms.size());
+        for (StackBuilder.Arm a : arms) {
+            routes.add(java.util.Objects.requireNonNull(a.route()));
+        }
+        TypedLambda cond = sources.stacks().orOverRoutes(routes, cs.rowType(), urow);
         return new AssociationJoins.AssocJoin(
                 AssociationJoins.prefixFor(head, cs), target, target.pipeline(), urow,
                 cond, Map.of(), Map.of(), null, null, false);
@@ -291,45 +295,4 @@ final class UnionHeads {
                 mat.slotPrefixes(), mat.subNavs());
     }
 
-    /** {@code (s, t) | cond_0 or cond_1 ...} over the parent row and the
-     * union row (each branch condition's own params renamed). */
-    private TypedLambda orOfConditions(List<Member> members,
-            Type.RelationType srcRow, Type.RelationType urow) {
-        var one = Multiplicity.Bounded.ONE;
-        var boolOne = new ExprType(Type.Primitive.BOOLEAN, one);
-        var s = new TypedVariable("s", new ExprType(srcRow, one));
-        var t = new TypedVariable("t", new ExprType(urow, one));
-        TypedSpec or = null;
-        for (int j = 0; j < members.size(); j++) {
-            TypedLambda c = members.get(j).cond();
-            TypedSpec body = c.body().get(c.body().size() - 1);
-            TypedSpec re = retarget(body, c.parameters().get(0), s,
-                    c.parameters().get(1), t);
-            or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne);
-        }
-        return new TypedLambda(List.of("s", "t"),
-                List.of(java.util.Objects.requireNonNull(or)),
-                new ExprType(new Type.FunctionType(
-                        List.of(new Type.Param(srcRow, one), new Type.Param(urow, one)),
-                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
-    }
-
-    /** Re-point the condition's reads of its own two row variables onto
-     * {@code s} / {@code t} (Pipelines.prefixColumns with an empty column
-     * prefix — the one re-pointing walker). */
-    private static TypedSpec retarget(TypedSpec n, String sv, TypedVariable s,
-            String tv, TypedVariable t) {
-        TypedSpec onS = Pipelines.prefixColumns(n, sv, "", v -> s);
-        return Pipelines.prefixColumns(onS, tv, "", v -> t);
-    }
-
-    private com.legend.compiler.element.TypedFunction orFn() {
-        var fns = ctx.findFunction("meta::pure::functions::boolean::or")
-                .stream().filter(f -> f.parameters().size() == 2).toList();
-        if (fns.size() != 1) {
-            throw new IllegalStateException(
-                    "resolver bug: expected one 2-arg boolean::or");
-        }
-        return fns.get(0);
-    }
 }

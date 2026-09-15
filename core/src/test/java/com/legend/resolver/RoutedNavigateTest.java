@@ -31,8 +31,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * §5), the primitive on its own: a hand-written mapping whose Firm navigates
  * to a two-set Person through ONE several-route legacyNavigate — each route
  * names the target set's own function, its rows and its join as written.
- * No union publishes anything; the navigator composed it. Rows are the
- * verdict; the SQL is the keyed union join.
+ * No union publishes anything; the navigator composed it. Person's root is
+ * the PLAIN set p1, so the router's rule (R-target, docs/LEG2_STACK_AUDIT_
+ * 2026_09_14.md) resolves the two distinct pins to that root: the p2 route
+ * is dead — its keys ride the row as typed NULLs and no row of T2 ever
+ * joins (the union of both sets through routes is {@code
+ * StackDesignWitnessTest} W2/W5, where the target's root is an operation).
+ * Rows are the verdict; the SQL is the keyed join.
  */
 class RoutedNavigateTest {
 
@@ -136,32 +141,36 @@ class RoutedNavigateTest {
     }
 
     @Test
-    @DisplayName("two routes of one shape: one keyed union join, one equality, no union that learned anything")
+    @DisplayName("two routes of one shape into a plain root: one keyed join to the root arm, the other pin dead")
     void sameShapeRoutesShareOneKey() throws SQLException {
         String sql = sqlOf("u::Firm.all()->project([f|$f.id, f|$f.employees.name], ['firm', 'person'])"
                 + "->from(u::M, u::RT)");
-        assertEquals(List.of("1|A", "1|D", "2|B", "2|C"), exec(sql + " ORDER BY 1, 2"), sql);
+        // D (T2, firm 1) and C (T2, firm 2) are behind the dead p2 pin
+        assertEquals(List.of("1|A", "2|B"), exec(sql + " ORDER BY 1, 2"), sql);
         assertTrue(sql.contains("__route0_0"), sql);
         assertFalse(sql.contains(" OR "), sql);
         assertEquals(1, sql.split(" ON ").length - 1, "one join: " + sql);
-        assertTrue(sql.contains("UNION ALL"), sql);
+        assertFalse(sql.contains("UNION ALL"), "one live arm, no union: " + sql);
     }
 
     @Test
     @DisplayName("the exists path resolves the same routed target (no class-level fallback)")
     void existsThroughRoutes() throws SQLException {
-        String sql = sqlOf("u::Firm.all()->filter(f | $f.employees->exists(e | $e.name == 'D'))"
+        String sql = sqlOf("u::Firm.all()->filter(f | $f.employees->exists(e | $e.name == 'A'))"
                 + "->project([f|$f.id], ['firm'])->from(u::M, u::RT)");
         assertEquals(List.of("1"), exec(sql + " ORDER BY 1"), sql);
-        assertTrue(sql.contains("__route0_0"), sql);
+        // the dead pin's rows never satisfy the exists either
+        String dead = sqlOf("u::Firm.all()->filter(f | $f.employees->exists(e | $e.name == 'D'))"
+                + "->project([f|$f.id], ['firm'])->from(u::M, u::RT)");
+        assertEquals(List.of(), exec(dead + " ORDER BY 1"), dead);
     }
 
     @Test
-    @DisplayName("two routes of different shapes: their own keys, an OR of two")
+    @DisplayName("two routes of different shapes: their own keys, the dead pin's key a typed NULL")
     void differentShapesKeepTheirOwnKeys() throws SQLException {
         String sql = sqlOf("u::Firm.all()->project([f|$f.id, f|$f.employees.name], ['firm', 'person'])"
                 + "->from(u::M2, u::RT2)");
-        assertEquals(List.of("1|A", "2|B", "2|C"), exec(sql + " ORDER BY 1, 2"), sql);
+        assertEquals(List.of("1|A", "2|B"), exec(sql + " ORDER BY 1, 2"), sql);
         assertTrue(sql.contains("__route0_0") && sql.contains("__route1_0"), sql);
         assertTrue(sql.contains(" OR "), sql);
     }

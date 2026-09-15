@@ -376,8 +376,35 @@ public final class ClassSources {
         // operation's — so the arms' own navigations ride above it.
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException("unknown mapping '" + mappingFqn + "'", mappingFqn));
-        List<StackBuilder.Arm> arms = new ArrayList<>();
+        // R-target (the engine's receipt, docs/LEG2_STACK_AUDIT_2026_09_14.md):
+        // several distinct pinned sets resolve to the target class's ROOT
+        // under this mapping — a route to a set outside the root's leaves is
+        // DEAD (its keys ride the row as typed NULLs so the navigator's
+        // condition still types; no arm ever matches them)
+        java.util.Set<String> pinned = new LinkedHashSet<>();
         for (var r : routes) {
+            String sid = routeSetId(mapping, r.target());
+            if (sid != null) {
+                pinned.add(sid);
+            }
+        }
+        java.util.Set<String> rootLeaves = pinned.size() > 1
+                ? stacks.leafSetIds(mapping, classFqn) : null;
+        List<StackBuilder.Arm> arms = new ArrayList<>();
+        List<StackBuilder.Extra> deadKeys = new ArrayList<>();
+        for (var r : routes) {
+            String sid = routeSetId(mapping, r.target());
+            if (rootLeaves != null && sid != null && !rootLeaves.contains(sid)) {
+                Type.RelationType tRow = StackBuilder.rowOf(
+                        r.cond().functionType().params().get(1).type());
+                for (int k = 0; k < r.keyNames().size(); k++) {
+                    Type kt = tRow == null ? null : StackBuilder.pathType(tRow, r.targetReads().get(k));
+                    deadKeys.add(new StackBuilder.Extra(r.keyNames().get(k),
+                            java.util.Objects.requireNonNull(kt, "a dead route's key types"),
+                            new LinkedHashMap<>()));
+                }
+                continue;
+            }
             ClassSource m = routeTarget(mappingFqn, classFqn, r.target(), scope);
             List<ClassSource> leaves = stacks.leavesOf(m);
             for (ClassSource leaf0 : leaves != null ? leaves : List.of(m)) {
@@ -390,7 +417,24 @@ public final class ClassSources {
                         rebaseRows(r.rows(), StackBuilder.withoutNavSteps(leaf.pipeline())), r));
             }
         }
-        return stacks.stackOf(mappingFqn, classFqn, mapping, arms);
+        if (arms.isEmpty()) {
+            throw new MappingResolutionException("every route of a navigation into '" + classFqn
+                    + "' pins a set outside the class's root under mapping '" + mappingFqn
+                    + "'", classFqn);
+        }
+        return stacks.stackOf(mappingFqn, classFqn, mapping, arms, deadKeys, true);
+    }
+
+    /** The set id a route's target names (its set's function), or null for
+     * a class extent. */
+    private @com.legend.Nullable String routeSetId(MappingDefinition mapping, TypedSpec target) {
+        if (!(target instanceof com.legend.compiler.spec.typed.TypedUserCall uc)) {
+            return null;
+        }
+        MappingDefinition.ClassBinding cb = findBindingByFunction(mapping,
+                uc.callee().qualifiedName(), new LinkedHashSet<>());
+        return cb == null ? null : cb.setId() != null ? cb.setId()
+                : cb.classFqn().replace("::", "_");
     }
 
     /** The route's rows re-rooted: its base table reference (the set's main

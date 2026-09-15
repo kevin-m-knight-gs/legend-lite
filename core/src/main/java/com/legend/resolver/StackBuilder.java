@@ -1057,7 +1057,7 @@ final class StackBuilder {
         // join into distinct private sets routes to the LAST arm's set
         if (!targetIsStack && entries.size() >= 2 && steps.size() == entries.size()) {
             Set<String> ids = new LinkedHashSet<>();
-            Set<String> shapes = new LinkedHashSet<>();
+            Set<TypedSpec> shapes = new LinkedHashSet<>();
             boolean allSets = true;
             for (Entry e : entries) {
                 String sid = targetSetIdOf(mapping, e.target());
@@ -1074,9 +1074,9 @@ final class StackBuilder {
         }
         // the groups: one per target SET (or extent), each once — the OR
         // runs over every entry's condition
-        Map<String, Group> groups = new LinkedHashMap<>();
+        Map<Object, Group> groups = new LinkedHashMap<>();
         for (Entry e : entries) {
-            String id = targetIdentity(e.target());
+            Object id = targetIdentity(e.target());
             Group g = groups.get(id);
             if (g == null) {
                 g = new Group(e.target(), e.rows(), new ArrayList<>(), new LinkedHashMap<>(),
@@ -1289,6 +1289,35 @@ final class StackBuilder {
         return out;
     }
 
+    /** {@code (s, u) | OR over routes of the route's condition}: its source
+     * reads left on the parent row (renamed to {@code s}), its target reads
+     * re-pointed at the union row's keys by position — the union heads'
+     * condition (each branch a route). */
+    TypedLambda orOverRoutes(List<TypedNavigate.Route> routes, Type.RelationType srcRow,
+            Type.RelationType urow) {
+        var one = Multiplicity.Bounded.ONE;
+        var boolOne = new ExprType(Type.Primitive.BOOLEAN, one);
+        TypedVariable s = new TypedVariable("s", new ExprType(srcRow, one));
+        TypedVariable u = new TypedVariable("u", new ExprType(urow, one));
+        TypedSpec or = null;
+        Set<TypedSpec> seen = new LinkedHashSet<>();
+        for (TypedNavigate.Route r : routes) {
+            TypedLambda c = r.cond();
+            TypedSpec body = c.body().get(c.body().size() - 1);
+            Map<String, String> tMap = new LinkedHashMap<>();
+            for (int k = 0; k < r.targetReads().size(); k++) {
+                tMap.put(r.targetReads().get(k), r.keyNames().get(k));
+            }
+            TypedSpec re = renameReads(body, c.parameters().get(1), tMap, u, urow);
+            re = renameVar(re, c.parameters().get(0), s);
+            if (!seen.add(re)) {
+                continue;
+            }
+            or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
+        }
+        return lambda(s, u, java.util.Objects.requireNonNull(or), srcRow, urow);
+    }
+
     /** {@code (s, u) | OR over groups of the group's condition with its
      * source reads re-pointed at the stack's columns and its target reads
      * at the union row's keys}. */
@@ -1299,11 +1328,11 @@ final class StackBuilder {
         TypedVariable s = new TypedVariable("s", new ExprType(srcRow, one));
         TypedVariable u = new TypedVariable("u", new ExprType(urow, one));
         TypedSpec or = null;
-        Set<String> seen = new LinkedHashSet<>();
+        Set<TypedSpec> seen = new LinkedHashSet<>();
         for (Group g : gs) {
             for (Entry e : g.entries()) {
                 TypedSpec re = repoint(e, g, s, u, srcRow, urow, perPair);
-                if (!seen.add(re.toString())) {
+                if (!seen.add(re)) {
                     continue;   // two routes spelling one conjunct (a self-join's arms)
                 }
                 or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
@@ -1316,17 +1345,16 @@ final class StackBuilder {
      * set, or its extent) over the set's own rows: the plain form applies,
      * OR-ed over the groups' conditions. */
     private boolean onePlainTarget(MappingDefinition mapping, Collection<Group> groups) {
-        String identity = null;
+        Object identity = null;
         for (Group g : groups) {
             Entry e0 = g.entries().get(0);
             boolean plain = e0.target() instanceof TypedGetAll
                     || (e0.target() instanceof TypedUserCall uc
                             && rootOrSole(mapping, uc.callee().qualifiedName()));
-            if (!plain || !(g.rows() instanceof TypedGetAll || g.rows() == e0.target()
-                    || g.rows().children().isEmpty())) {
-                return false;
+            if (!plain || Pipelines.containsSlot(g.rows())) {
+                return false;   // a route joining its mids inside is not the set's own rows
             }
-            String id = targetIdentity(e0.target());
+            Object id = targetIdentity(e0.target());
             if (identity != null && !identity.equals(id)) {
                 return false;
             }
@@ -1345,7 +1373,7 @@ final class StackBuilder {
         TypedVariable s = new TypedVariable("s", new ExprType(srcRow, one));
         TypedVariable u = new TypedVariable("u", new ExprType(tRow, one));
         TypedSpec or = null;
-        Set<String> seen = new LinkedHashSet<>();
+        Set<TypedSpec> seen = new LinkedHashSet<>();
         for (Group g : gs) {
             for (Entry e : g.entries()) {
                 TypedLambda c = e.cond();
@@ -1356,7 +1384,7 @@ final class StackBuilder {
                 }
                 TypedSpec re = renameReads(body, c.parameters().get(0), sMap, s, srcRow);
                 re = renameVar(re, c.parameters().get(1), u);
-                if (!seen.add(re.toString())) {
+                if (!seen.add(re)) {
                     continue;
                 }
                 or = or == null ? re : new TypedNativeCall(orFn(), List.of(or, re), boolOne, null);
@@ -1472,9 +1500,13 @@ final class StackBuilder {
 
     /** The condition's SHAPE: target reads erased to a placeholder, source
      * reads reduced to their bare paths, the variables normalized. */
-    private static String condShape(TypedLambda cond) {
+    /** A condition's SHAPE: its body with the target reads erased and the
+     * source reads normalized — a typed node whose structural equality is
+     * the identity (two routes of one shape read the same source paths
+     * against some target column). */
+    private static TypedSpec condShape(TypedLambda cond) {
         TypedSpec body = cond.body().get(cond.body().size() - 1);
-        return String.valueOf(erase(body, cond.parameters().get(1), cond.parameters().get(0)));
+        return erase(body, cond.parameters().get(1), cond.parameters().get(0));
     }
 
     private static TypedSpec erase(TypedSpec n, String tVar, String sVar) {
@@ -1497,11 +1529,13 @@ final class StackBuilder {
         return n.withChildren(erased);
     }
 
-    private static String targetIdentity(TypedSpec target) {
+    /** A route target's IDENTITY: the set function it calls, the class it
+     * extends over, or the relation node itself (structural equality). */
+    private static Object targetIdentity(TypedSpec target) {
         return switch (target) {
             case TypedUserCall uc -> uc.callee().qualifiedName();
-            case TypedGetAll ga -> "getAll:" + ga.classFqn();
-            default -> target.getClass().getSimpleName() + "@" + System.identityHashCode(target);
+            case TypedGetAll ga -> ga.classFqn();
+            default -> target;
         };
     }
 
@@ -1581,7 +1615,7 @@ final class StackBuilder {
     /** The set ids of the LEAF sets a class resolves to under the queried
      * mapping: its root binding's members (operations expanded), or the
      * root/sole set itself; null when the class has no such binding. */
-    private @com.legend.Nullable Set<String> leafSetIds(MappingDefinition mapping,
+    @com.legend.Nullable Set<String> leafSetIds(MappingDefinition mapping,
             String classFqn) {
         MappingDefinition.ClassBinding tb = findBinding(mapping, classFqn);
         if (tb == null) {
