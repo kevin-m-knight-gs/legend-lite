@@ -341,6 +341,16 @@ final class JoinChainEmission {
             String navAlias = emitNavigate
                     ? mintNavSlotAlias(p, model, mainDb, mainTable, Objects
                             .requireNonNull(propName, "nav hop needs propName")) : null;
+            // A hop's declared join type ({@code > (INNER) @J}) is read by
+            // NOTHING here, on purpose: the engine ISOLATES a property
+            // mapping's chain in the property's own subquery, so an INNER hop
+            // never drops the parent row — it only shapes the property's
+            // value (engine testInnerJoinIsolationAtRoot / AtChild, the
+            // join-isolation family; a LEFT+filter realization LOST 22
+            // DuckDB rows: audit fix A4, docs/GATES.md 2026-09-15). The
+            // parent-level LEFT is therefore the engine's row shape, and the
+            // only INNER that changes rows is the mapping ~filter's
+            // (innerFilteredSource).
             if (emitNavigate) {
                 if (p.aliasToTargetTable.containsKey(navAlias)) {
                     prevTable = p.aliasToTargetTable.get(navAlias);
@@ -472,6 +482,20 @@ final class JoinChainEmission {
             prevTable = targetTable;
             prevAlias = slotAlias;
         }
+    }
+
+    /** The minted navigate slot of a class-typed property. A miss is LOUD:
+     * every class-typed join PM mints its slot in pass 1, so a miss means
+     * the property's navigate was never emitted — the old
+     * {@code getOrDefault(prop, prop)} read bound the physical sub-row of a
+     * same-named chain instead (audit 2026-09-15 P0-7). */
+    static String navSlotFor(Pipeline p, String propName) {
+        String slot = p.navSlotByProp.get(propName);
+        if (slot == null) {
+            throw new NotImplementedException("class-typed property '" + propName
+                    + "' has no navigate slot on this pipeline — its join was never emitted");
+        }
+        return slot;
     }
 
     /**
@@ -639,12 +663,14 @@ final class JoinChainEmission {
         boolean collides = model.knowledge().column(mainDb, tableName, propName).isPresent()
                 || propName.equals("columns")
                 || propName.equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER);
-        String alias = propName;
-        if (collides) {
-            alias = propName + "_nav";
-            while (p.aliasToTargetTable.containsKey(alias)) {
-                alias = alias + "_";
-            }
+        String alias = collides ? propName + "_nav" : propName;
+        // ALWAYS minted past every slot already on the pipeline: a physical
+        // chain whose single join is literally named like the property
+        // claimed that slot first (audit 2026-09-15 P0-7 — the loop ran
+        // only on the column-collision branch, so the class hop dedup'd
+        // onto the physical sub-row and no navigate was emitted)
+        while (p.aliasToTargetTable.containsKey(alias)) {
+            alias = alias + "_";
         }
         p.navSlotByProp.put(propName, alias);
         return alias;

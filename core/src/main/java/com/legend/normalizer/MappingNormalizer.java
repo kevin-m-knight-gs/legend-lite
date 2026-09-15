@@ -2118,8 +2118,7 @@ public final class MappingNormalizer {
                 String targetIfMapped = JoinChainEmission.classTypedTarget(ownerClassFqn,
                         j.propertyName(), model);
                 String slot = targetIfMapped != null
-                        ? pipeline.navSlotByProp.getOrDefault(
-                                j.propertyName(), j.propertyName())
+                        ? JoinChainEmission.navSlotFor(pipeline, j.propertyName())
                         : JoinChainEmission.slotFor(pipeline, j.joins());
                 yield new CtorField(j.propertyName(),
                         new AppliedProperty(rowBind, slot), false);

@@ -121,7 +121,17 @@ relation does not produce.
 `poisonReasons(parsed).isEmpty()` — strengthen it to assert `extra` is **absent** from the
 constructor. This is the test that let the bug through.
 
-### P0-6 — Per-hop `(INNER)` join types are silently discarded — **VERIFIED**
+### P0-6 — Per-hop `(INNER)` join types are silently discarded — **VERIFIED** → **ADJUDICATED AGAINST, by rows (2026-09-15)**
+
+> **Correction (audit fix A4, docs/GATES.md):** the premise "keeps parent rows the engine drops"
+> is false. The engine ISOLATES a property mapping's join chain in the property's own subquery
+> (`testInnerJoinIsolationAtRoot` / `AtChild`, `testChainedInnerJoinsMerge`, the
+> `sqlQueryMerging` family), so a per-hop `(INNER)` shapes the property's value and never drops
+> the parent row. Both realizations were built and judged by the corpus: a wall on class-typed
+> `(INNER)` hops LOST 52 DuckDB / 45 H2 rows; LEFT + a null-rejecting filter on the hop's slot LOST
+> 22 / 20 (`expected 2 element(s), got 0`). The by-demand LEFT is the engine's row shape. Pinned by
+> `innerHopIsIsolatedNeverAParentFilter` and `innerClassTypedHopStaysByDemand`. Nothing here is
+> silently discarded: the type is read by nothing on purpose, with the reason at the hop loop.
 
 `JoinChainElement.joinType` is parsed, validated (`MappingProtocolParser:1707,1726`), modelled,
 copied through `StoreSubstitutionRewrite:92,107` and `NameResolver:1445,1469`, and re-emitted by

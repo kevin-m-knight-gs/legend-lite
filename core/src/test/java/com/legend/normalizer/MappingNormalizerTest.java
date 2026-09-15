@@ -1446,6 +1446,119 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("P0-6 adjudicated: a hop declared (INNER) is ISOLATED by the engine — the parent row shape is LEFT")
+    void innerHopIsIsolatedNeverAParentFilter() {
+        // Audit 2026-09-15 P0-6 claimed a per-hop (INNER) "keeps parent rows
+        // the engine drops". Measured against the engine's own fixtures
+        // (testInnerJoinIsolationAtRoot / AtChild, testChainedInnerJoinsMerge,
+        // the sqlQueryMerging family): the engine isolates a property
+        // mapping's chain in the property's own subquery, so an INNER hop
+        // never drops the parent — a LEFT+filter realization LOST 22 DuckDB
+        // rows (docs/GATES.md, audit fix A4). The pipeline is therefore the
+        // SAME with and without the annotation, on purpose.
+        String shared =
+                "Class model::P { orgName: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, ORG_ID INTEGER) "
+                        + "  Table OT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Join P_F (PT.FIRM_ID = FT.ID) "
+                        + "  Join F_O (FT.ORG_ID = OT.ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::P: Relational { "
+                        + "    ~mainTable [db::DB] PT "
+                        + "    orgName: [db::DB] @P_F > JOINTYPE @F_O | OT.NAME "
+                        + "  } "
+                        + ")";
+        FunctionDefinition plain = soleSynth(normalizeViaPipeline(
+                com.legend.testing.Own.model(shared.replace("JOINTYPE ", ""))));
+        FunctionDefinition inner = soleSynth(normalizeViaPipeline(
+                com.legend.testing.Own.model(shared.replace("JOINTYPE", "(INNER)"))));
+        assertEquals(plain.body(), inner.body(),
+                "an (INNER) hop is isolated in the property's own subquery: no parent-row filter");
+    }
+
+    @Test
+    @DisplayName("P0-6 adjudicated: a class-typed hop declared (INNER) is the ordinary by-demand navigate")
+    void innerClassTypedHopStaysByDemand() {
+        // 38 corpus PMs carry this shape (`employees: (INNER) @Firm_Person`)
+        // and are EXACT under the by-demand navigate: the engine's isolation
+        // of the property's join keeps the parent row.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::P { name: String[1]; org: model::O[1]; } "
+                        + "Class model::O { name: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), FIRM_ID INTEGER) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, ORG_ID INTEGER) "
+                        + "  Table OT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Join P_F (PT.FIRM_ID = FT.ID) "
+                        + "  Join F_O (FT.ORG_ID = OT.ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::P: Relational { ~mainTable [db::DB] PT name: PT.NAME, "
+                        + "    org: [db::DB] @P_F > (INNER) @F_O } "
+                        + "  *model::O: Relational { ~mainTable [db::DB] OT name: OT.NAME } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        assertTrue(poisonsOf(normalized).isEmpty(), () -> "no poison: " + poisonsOf(normalized));
+        FunctionDefinition fn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::P")).findFirst().orElseThrow();
+        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
+        AppliedFunction nav = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals(com.legend.builtin.Pure.Lite.LEGACY_NAVIGATE, nav.function(),
+                "the class-typed (INNER) hop is the ordinary by-demand navigate");
+        AppliedFunction hop1 = (AppliedFunction) nav.parameters().get(0);
+        assertEquals(com.legend.builtin.Pure.Lite.JOIN_SLOT, hop1.function(),
+                "no parent-row filter is added for the hop");
+    }
+
+    @Test
+    @DisplayName("P0-7: a class-typed property never dedups onto a physical slot of the same name")
+    void classHopMintsPastAPhysicalSlotOfTheSameName() {
+        // audit 2026-09-15 P0-7: the join-terminal chain `@firm` claims the
+        // physical slot "firm"; the class-typed property `firm` used to take
+        // the dedup `continue` (no navigate) and the constructor bound the
+        // physical sub-row where a Firm instance belongs.
+        ParsedModel parsed = com.legend.testing.Own.model(
+                "Class model::P { firmName: String[1]; firm: model::F[1]; } "
+                        + "Class model::F { legalName: String[1]; } "
+                        + "\n###Relational\nDatabase db::DB ( "
+                        + "  Table PT (ID INTEGER PRIMARY KEY, FIRM_ID INTEGER) "
+                        + "  Table FT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50)) "
+                        + "  Join firm (PT.FIRM_ID = FT.ID) "
+                        + ") "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::P: Relational { ~mainTable [db::DB] PT "
+                        + "    firmName: [db::DB] @firm | FT.NAME, "
+                        + "    firm: [db::DB] @firm } "
+                        + "  *model::F: Relational { ~mainTable [db::DB] FT legalName: FT.NAME } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition fn = normalized.elements().stream()
+                .filter(e -> e instanceof FunctionDefinition f
+                        && f.qualifiedName().equals("my::M$class$model::P"))
+                .map(FunctionDefinition.class::cast).findFirst().orElseThrow();
+        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
+        LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
+        NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
+                .parameters().get(1);
+        java.util.function.UnaryOperator<ValueSpecification> unwrap = v ->
+                v instanceof AppliedFunction af && af.function().equals(Pure.Lite.TRUST_ONE)
+                        ? sole(af.parameters()) : v;
+        AppliedProperty firmRead = (AppliedProperty) unwrap.apply(ni.first("firm").value());
+        AppliedProperty nameRead = (AppliedProperty) unwrap.apply(ni.first("firmName").value());
+        String navSlot = firmRead.property();
+        String physicalSlot = ((AppliedProperty) nameRead.receiver()).property();
+        assertEquals("firm", physicalSlot, "the join-terminal chain keeps the physical slot");
+        assertEquals("firm_", navSlot, "the class hop is minted past it");
+        // and the navigate for the class hop was emitted (not dedup'd away)
+        AppliedFunction nav = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals(com.legend.builtin.Pure.Lite.LEGACY_NAVIGATE, nav.function());
+        assertEquals("firm_", ((ColSpec) nav.parameters().get(1)).name());
+    }
+
+    @Test
     @DisplayName("enumeratedColumn_inlinesEnumerationMappingAsIfChain")
     void enumeratedColumn_inlinesEnumerationMappingAsIfChain() {
         // Position 2 redesign: EnumeratedColumn is inline-expanded to a

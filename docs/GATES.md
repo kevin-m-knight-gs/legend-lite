@@ -3256,3 +3256,37 @@ narrowing: `[NAME, CITY]`). Own-corpus parity floor 2444 → 2451 (the witnesses
 **Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s).
 
 **Chain.** Green on the first run, wall 229 s: G2 25s, G1 72s, G3 11s, G4 84s, G5 37s, G6 134s, G7 39s, G9 31s, G8 141s. Batch size: 3 files.
+
+## Audit fix A4 (FIXLIST P0-6 adjudicated / P0-7 fixed) — join isolation; one slot minter rule — 2026-09-15
+
+**P0-6, adjudicated AGAINST the audit — by rows.** The audit (VERIFIED by reading, not proven)
+held that a chain hop declared `(INNER)` (`@A > (INNER) @B`) "keeps parent rows the engine drops"
+because `JoinChainEmission` never reads the hop's type. The realization was built — LEFT + a
+null-rejecting `filter(isNotEmpty($ir.<slot>.<col>))` on the hop's slot, the same equivalence the
+(INNER) mapping ~filter uses, null-tolerant conditions loud — and the lanes judged it: DuckDB LOST
+22 / H2 LOST 20 (`testInnerJoinIsolationAtRoot` "expected 2 element(s), got 0",
+`testInnerJoinIsolationAtChild`, `testChainedInnerJoinsMerge`, the `sqlQueryMerging` family, the
+milestoning context-propagation family). The dumped SQL was exactly the built shape (`WHERE
+t2.productId IS NOT NULL` at the root query) — and that is the wrong shape: the engine ISOLATES a
+property mapping's chain in the property's own subquery, so an INNER hop shapes the property's
+value and never drops the parent row. A first cut had also walled a CLASS-TYPED hop's `(INNER)`
+(38 corpus PMs: `employees: (INNER) @Firm_Person`): LOST 52 / 45. Both realizations reverted; the
+by-demand LEFT is the engine's row shape, and the only INNER that changes rows is the mapping
+~filter's (`innerFilteredSource`), which stays. Recorded at the hop loop; pinned by
+`innerHopIsIsolatedNeverAParentFilter` (the pipeline is the SAME with and without the
+annotation, on purpose) and `innerClassTypedHopStaysByDemand`. Lesson for the fixlist: a
+REPORTED/VERIFIED finding about engine semantics is a hypothesis until the corpus judges it.
+
+**P0-7, fixed.** `mintNavSlotAlias` ran its uniqueness loop only on the branch that already knew
+the property name collided with a physical column; a physical chain whose single join is named
+like the property (`firmName: @firm | FT.NAME` then `firm: @firm`) claimed the slot `firm` first,
+the class hop took the dedup `continue` (no navigate emitted) and the constructor read the physical
+sub-row through `navSlotByProp.getOrDefault(prop, prop)`. Now the alias is minted past EVERY slot on
+the pipeline, and the constructor's class-typed read goes through `navSlotFor` (a miss is loud).
+Witness `classHopMintsPastAPhysicalSlotOfTheSameName`: physical `firm`, navigate `firm_`, the
+navigate emitted.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes (DuckDB 53 s, H2 26 s) —
+after two LOST runs (52/45 with the class-typed wall, 22/20 with the hop filter), both reverted.
+
+**Chain.** Green on the first run, wall 226 s: G2 24s, G1 72s, G3 11s, G4 82s, G5 36s, G6 130s, G7 40s, G9 32s, G8 141s. Own-corpus parity floor 2451 → 2459. Batch size: 5 files.
