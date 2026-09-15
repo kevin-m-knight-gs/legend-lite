@@ -91,6 +91,7 @@ class StackDesignWitnessTest {
               Filter city (ADDR.KIND = 'C')
               Filter kindA (PT.KIND = 'A')
               Filter kindB (PT.KIND = 'B')
+              Filter kindX (PT.KIND = 'X')
             )
             ###Mapping
             Mapping w::Mixed (
@@ -123,6 +124,14 @@ class StackDesignWitnessTest {
                 employees[pa]: [w::DB]@F_PT,
                 employees[pb]: [w::DB]@F_PT }
             )
+            Mapping w::OutsidePin (
+              *w::Emp : Operation { %s(pa, pb) }
+              w::Emp[pa] : Relational { ~filter [w::DB] kindA ~mainTable [w::DB] PT last: PT.LAST }
+              w::Emp[pb] : Relational { ~filter [w::DB] kindB ~mainTable [w::DB] PT last: PT.LAST }
+              w::Emp[px] : Relational { ~filter [w::DB] kindX ~mainTable [w::DB] PT last: PT.LAST }
+              *w::Firm : Relational { ~mainTable [w::DB] F id: F.ID,
+                employees[px]: [w::DB]@F_PT }
+            )
             Mapping w::SameTable (
               *w::Vehicle : Operation { meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_() }
               w::Car[car] : Relational { ~mainTable [w::DB] V name: V.NAME, mechanic( name: V.CAR_MECH ) }
@@ -133,7 +142,7 @@ class StackDesignWitnessTest {
             )
             ###Runtime
             Runtime w::RT { mappings: [w::Mixed]; }
-            """.formatted(UNION_OP, UNION_OP, UNION_OP, UNION_OP, UNION_OP);
+            """.formatted(UNION_OP, UNION_OP, UNION_OP, UNION_OP, UNION_OP, UNION_OP);
 
     private static Connection conn;
 
@@ -249,6 +258,17 @@ class StackDesignWitnessTest {
         var e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> sqlOf("|w::Vehicle.all()->project([v|$v.mechanic.name], ['m'])->from(w::SameTable, w::RT)"));
         assertTrue(e.getMessage().contains("mechanic"), e.getMessage());
+    }
+
+    @Test
+    @DisplayName("W7: a property's only pin to a set outside the target's union is that set, never the root")
+    void singlePinOutsideTheUnionIsThatSet() throws SQLException {
+        // R-target: ONE distinct pin resolves to the pinned set (px: kind X)
+        // — never the root union (pa, pb) the old dead-route rule fell to.
+        // firm 1 has no kind-X employee; firm 2 has Dee
+        assertEquals(List.of("1|null", "2|Dee"),
+                rows("|w::Firm.all()->project([f|$f.id, f|$f.employees.last], ['fid', 'last'])"
+                        + "->from(w::OutsidePin, w::RT)"));
     }
 
     @Test

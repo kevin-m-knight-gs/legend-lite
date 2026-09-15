@@ -261,6 +261,11 @@ final class UnionSynthesis {
             }
             List<UnionRoute> routes = new ArrayList<>();
             String poison = null;
+            // R-target (docs/LEG2_STACK_AUDIT_2026_09_14.md): several distinct
+            // pins resolve to the target's root — a pin outside is dead; ONE
+            // distinct pin is that set, member of the root or not
+            long distinctPins = e.getValue().stream()
+                    .map(PropertyMapping.Join::targetSetId).distinct().count();
             for (PropertyMapping.Join j : e.getValue()) {
                 ClassMapping set = md.set(j.targetSetId());
                 if (set == null) {
@@ -277,15 +282,14 @@ final class UnionSynthesis {
                                 .count() == 1);
                 if (ord >= 0) {
                     routes.add(new UnionRoute(ord, j));
-                } else if (memberIds != null) {
-                    // the TARGET class is union-mapped and this route's set
-                    // is not among the members: the set is unreachable from
-                    // the union extent — engine consults only member
-                    // routes, so the entry is DEAD, never a root route and
-                    // never a poison (multipleChainedJoins V4: included
-                    // y2/y3 sets beside a (y0, y1) union; root/sole-ness
-                    // judged in the requesting mapping's scope would
-                    // misread them as roots)
+                } else if (memberIds != null && distinctPins > 1) {
+                    // the TARGET class is union-mapped, this route's set is
+                    // not among the members and the property pins several
+                    // sets: the router resolves to the root, so the entry
+                    // is DEAD — never a root route and never a poison
+                    // (multipleChainedJoins V4: included y2/y3 sets beside a
+                    // (y0, y1) union). A property's ONLY pin to such a set
+                    // is that set (the pinned-single route below).
                     continue;
                 } else if (rootOrSole) {
                     routes.add(new UnionRoute(-1, j));

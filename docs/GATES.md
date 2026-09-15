@@ -2911,3 +2911,32 @@ outside a union's members silently lands on the root; the receipt says that set)
 single-pin subclass retarget in `JoinChainEmission` go; the builder's R-target decides. The
 "every route pins the root → the plain navigation" rule stays: a root pin is no pin (engine), and
 the plain step is the lean shape.
+
+## Legacy routes as composition, leg 5b — one rule for a pin outside the union — 2026-09-15
+
+**Why.** Two places decided which of a property's routes are live: the translator's route
+classification (dead routes skipped at emission) and the stack builder's R-target (dead pins
+projected as NULL keys). Homework over both: the multi-pin case agrees (several distinct pins →
+the root's leaves, an outside pin dead); the translator's single-pin subclass retarget in
+`JoinChainEmission` is a lean-shape emission the receipt permits (one distinct pin → that set;
+the plain navigate is the lean form) and stays. The one genuine disagreement: a property whose
+ONLY pin names a set outside a union-mapped target's members was skipped as dead, so the
+navigation silently fell to the root union — the receipt (`_classMappingByIdRecursive` with one
+id) says that set.
+
+**What landed.**
+- `UnionSynthesis.classifyUnionRoutes`: a route into a non-member set is dead only when the
+  property pins SEVERAL distinct sets (the builder's own rule); a property's only such pin is a
+  pinned-single route to that set.
+- Witness W7 (`StackDesignWitnessTest`): `employees[px]` into a set outside the `(pa, pb)` union
+  reads px's rows (`1|null`, `2|Dee`); measured red without the fix (`1|Ash, 1|Bay, 2|Cox` — the
+  root union's rows), green with it.
+
+**Rows.** DuckDB 108 / H2 444 — EXACT (0 LOST, 0 GAINED) on both lanes: no corpus row has the
+shape; the receipt and the witness are the judge.
+
+**Chain.** Green on the first run. **Measures (§11.0).** M1 1,095 · M2 1 · M3 0 · M4 5.
+
+**Next.** The follow-up list is closed: the arc's five items and the three "do it" items are
+landed or recorded (item 2 a no-op by homework). Open elsewhere: the graph-fetch derived-leaf
+inliner's filtered heads; lineage over an inheritance operation (metamodel-as-data).
