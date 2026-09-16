@@ -144,7 +144,7 @@ class StressServiceSuitesTest {
     }
 
     /** Tests judged equal to the oracle on the first full run. Shrink-proof. */
-    private static final int MIN_PASS = 2765;   // 2702 -> 2765 (2026-09-16: divide as a double division; pins model-wide; association anchors from the join)
+    private static final int MIN_PASS = 4203;   // 2702 -> 2765 -> 4203 (2026-09-16: double division; pins model-wide; association anchors; deeper tails past association ends — F-M)
 
     /** A failure reason with its specifics elided, so alike failures count together. */
     private static String bucket(String reason) {

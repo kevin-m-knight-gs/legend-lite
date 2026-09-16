@@ -141,6 +141,10 @@ final class NavMaterializer {
         Map<String, List<List<String>>> subTails =
                 new LinkedHashMap<>();
         Map<String, Set<String>> assocSubLeaves = new LinkedHashMap<>();
+        // the DEEPER tail past an assoc-sub end ($x.book.desk.businessUnit
+        // .legalEntity.jurisdiction: [businessUnit, legalEntity, jurisdiction]
+        // past 'desk') — rides the association join as its nav tails
+        Map<String, Set<List<String>>> assocSubTails = new LinkedHashMap<>();
         Set<String> memberKeyDemand = new LinkedHashSet<>();
         // ISOLATION (batch 106): tails carrying an element-scoped pred
         // leave the slot spine — head → its sub-tails (the root's rule)
@@ -156,7 +160,8 @@ final class NavMaterializer {
                     SyntheticHeads.realHead(tail.get(0)));
             if (b == null) {
                 demandUnboundTail(temporal, t, tail, mappingFqn, targetClassFqn,
-                        chainPrefix, hopCtx, tDemand, memberKeyDemand, assocSubLeaves);
+                        chainPrefix, hopCtx, tDemand, memberKeyDemand, assocSubLeaves,
+                        assocSubTails);
                 continue;
             }
             // EMBEDDED ctor on the way to a navigate slot (batch 109): the
@@ -192,54 +197,12 @@ final class NavMaterializer {
         tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
         final TemporalContext slotCtx = hopCtx;
         final Map<String, String> midByAlias = new LinkedHashMap<>();
-        // SECOND head identities on one physical sub-slot (the 2a-x rule
-        // at sub depth): the slot materializes once for the FIRST
-        // identity; every other identity emits its OWN prefixed join
-        // from the same nav step, with its own parked pred.
+        // SECOND head identities on one physical sub-slot — extracted at
+        // the numbered seam (CodeShapeGuardrailTest)
         Map<String, String> extraSubHeads = new LinkedHashMap<>();
         Map<String, List<List<String>>> extraSubTails = new LinkedHashMap<>();
-        for (List<String> tail0 : tails) {
-            if (diverted.contains(tail0)) {
-                continue;
-            }
-            EmbeddedDrill ed2 = drillEmbedded(t, tail0);
-            List<String> tail = ed2 != null ? ed2.tail() : tail0;
-            if (tail.size() >= 2
-                    || (!tail.isEmpty()
-                            && assocs.toOneClassProp(t.classFqn(), tail.get(0)))) {
-                TypedSpec b2 = ed2 != null ? ed2.binding() : t.bindings().get(
-                        SyntheticHeads.realHead(tail.get(0)));
-                String a2 = b2 == null ? null
-                        : InnerDemand.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
-                if (a2 != null) {
-                    midByAlias.putIfAbsent(a2, tail.get(0));
-                    if (!midByAlias.get(a2).equals(tail.get(0))
-                            && synthetics.correlatedPred(tail.get(0)) != null) {
-                        // audit 23 B6: a CORRELATED second identity has no
-                        // extra-sub emission — dropping it silently reads
-                        // the FIRST identity's rows under the wrong pred
-                        throw new com.legend.error.NotImplementedException(
-                                "correlated filtered navigation '"
-                                + tail.get(0) + "' as a SECOND identity on"
-                                + " slot '" + a2 + "' is not supported yet");
-                    }
-                    if (!midByAlias.get(a2).equals(tail.get(0))) {
-                        extraSubHeads.putIfAbsent(tail.get(0), a2);
-                        List<List<String>> xt = extraSubTails.computeIfAbsent(
-                                tail.get(0), k -> new ArrayList<>());
-                        xt.add(tail.subList(1, tail.size()));
-                        for (TypedLambda sp : synthetics.allPreds(tail.get(0))) {
-                            Set<List<String>> spp = new LinkedHashSet<>();
-                            for (TypedSpec sb : sp.body()) {
-                                FlattenOps.consumedPaths(sb,
-                                        sp.parameters().get(0), spp);
-                            }
-                            xt.addAll(spp);
-                        }
-                    }
-                }
-            }
-        }
+        collectExtraSubIdentities(t, tails, diverted, tNavSteps, midByAlias,
+                extraSubHeads, extraSubTails);
         final Map<String, NavMat> subMats = new LinkedHashMap<>();
         final Map<String, String> subClsByAlias = new LinkedHashMap<>();
         // #70 PROJECTION-position composite (the JoinIsolationDeeper
@@ -333,7 +296,7 @@ final class NavMaterializer {
         TypedSpec pipe = stampSlotTargets(temporal, t, matM, slotCtx,
                 chainPrefix);
         pipe = foldAssocSubs(temporal, t, pipe, subTree, assocSubLeaves,
-                chainPrefix);
+                assocSubTails, chainPrefix);
         pipe = foldExtraSubIdentities(temporal, mappingFqn, t, pipe, subTree,
                 extraSubHeads, extraSubTails, tNavSteps, chainPrefix, hopCtx);
         pipe = foldProjectionCopies(temporal, mappingFqn, t, pipe, subTree,
@@ -342,6 +305,60 @@ final class NavMaterializer {
         pipe = foldElementReroutes(temporal, mappingFqn, t, pipe, subTree,
                 elementReroutes, tNavSteps, prefix, hopCtx);
         return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
+    }
+
+    /** SECOND head identities on one physical sub-slot (the 2a-x rule at
+     * sub depth): the slot materializes once for the FIRST identity; every
+     * other identity emits its OWN prefixed join from the same nav step,
+     * with its own parked pred. Fills {@code midByAlias} (alias → first
+     * identity), {@code extraSubHeads} and {@code extraSubTails}. */
+    private void collectExtraSubIdentities(ClassSource t, List<List<String>> tails,
+            Set<List<String>> diverted,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            Map<String, String> midByAlias, Map<String, String> extraSubHeads,
+            Map<String, List<List<String>>> extraSubTails) {
+        for (List<String> tail0 : tails) {
+            if (diverted.contains(tail0)) {
+                continue;
+            }
+            EmbeddedDrill ed2 = drillEmbedded(t, tail0);
+            List<String> tail = ed2 != null ? ed2.tail() : tail0;
+            if (tail.size() >= 2
+                    || (!tail.isEmpty()
+                            && assocs.toOneClassProp(t.classFqn(), tail.get(0)))) {
+                TypedSpec b2 = ed2 != null ? ed2.binding() : t.bindings().get(
+                        SyntheticHeads.realHead(tail.get(0)));
+                String a2 = b2 == null ? null
+                        : InnerDemand.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
+                if (a2 != null) {
+                    midByAlias.putIfAbsent(a2, tail.get(0));
+                    if (!midByAlias.get(a2).equals(tail.get(0))
+                            && synthetics.correlatedPred(tail.get(0)) != null) {
+                        // audit 23 B6: a CORRELATED second identity has no
+                        // extra-sub emission — dropping it silently reads
+                        // the FIRST identity's rows under the wrong pred
+                        throw new com.legend.error.NotImplementedException(
+                                "correlated filtered navigation '"
+                                + tail.get(0) + "' as a SECOND identity on"
+                                + " slot '" + a2 + "' is not supported yet");
+                    }
+                    if (!midByAlias.get(a2).equals(tail.get(0))) {
+                        extraSubHeads.putIfAbsent(tail.get(0), a2);
+                        List<List<String>> xt = extraSubTails.computeIfAbsent(
+                                tail.get(0), k -> new ArrayList<>());
+                        xt.add(tail.subList(1, tail.size()));
+                        for (TypedLambda sp : synthetics.allPreds(tail.get(0))) {
+                            Set<List<String>> spp = new LinkedHashSet<>();
+                            for (TypedSpec sb : sp.body()) {
+                                FlattenOps.consumedPaths(sb,
+                                        sp.parameters().get(0), spp);
+                            }
+                            xt.addAll(spp);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -554,7 +571,8 @@ final class NavMaterializer {
             List<String> tail, String mappingFqn, String targetClassFqn,
             @com.legend.Nullable String chainPrefix, TemporalContext hopCtx,
             Set<String> tDemand, Set<String> memberKeyDemand,
-            Map<String, Set<String>> assocSubLeaves) {
+            Map<String, Set<String>> assocSubLeaves,
+            Map<String, Set<List<String>>> assocSubTails) {
             // an ASSOCIATION end mapped on the MEMBER sets of this
             // union / inheritance target (no hoisted binding): the
             // outer association join reads the members' key columns
@@ -569,10 +587,13 @@ final class NavMaterializer {
             }
             // ASSOC-SUB (union V3): the tail continues through an
             // ASSOCIATION end on this target (head y is a nav slot, z
-            // on plain Y realizes via the association route). One extra
-            // hop only; deeper tails and context-less temporal targets
-            // keep their loud walls.
-            if (tail.size() == 2) {
+            // on plain Y realizes via the association route). A DEEPER
+            // tail (F-M, 2026-09-16: book.desk.businessUnit.legalEntity
+            // .jurisdiction — 1,796 stress rows) rides the association
+            // join as its nav tails: the sub-target's own slots
+            // materialize recursively and the SubNav tree carries them.
+            // Context-less temporal targets keep their loud wall.
+            if (tail.size() >= 2) {
                 // a SYNTHETIC (filter-lifted) sub-head resolves by its
                 // REAL property; associationJoin below parks the pred
                 // on the sub-target (#70 — testQualifierInLambdaDeep)
@@ -597,6 +618,11 @@ final class NavMaterializer {
                                     subClsOpt.get(), hopCtx).isEmpty()) {
                         assocSubLeaves.computeIfAbsent(tail.get(0),
                                 k -> new LinkedHashSet<>()).add(tail.get(1));
+                        if (tail.size() > 2) {
+                            assocSubTails.computeIfAbsent(tail.get(0),
+                                    k -> new LinkedHashSet<>())
+                                    .add(tail.subList(1, tail.size()));
+                        }
                     }
                 }
             }
@@ -867,14 +893,17 @@ final class NavMaterializer {
      * resolves the leaf on the joined row. */
     private TypedSpec foldAssocSubs(TemporalFrame temporal, ClassSource t,
             TypedSpec pipe, Map<String, Substitution.SubNav> subTree,
-            Map<String, Set<String>> assocSubLeaves, @com.legend.Nullable String chainPrefix) {
+            Map<String, Set<String>> assocSubLeaves,
+            Map<String, Set<List<String>>> assocSubTails,
+            @com.legend.Nullable String chainPrefix) {
         for (var e : assocSubLeaves.entrySet()) {
             String prop = e.getKey();
             String subChain = chainPrefix == null ? prop
                     : chainPrefix + "." + prop;
             AssociationJoins.AssocJoin aj = assocs.associationJoin(temporal,
                     t, prop, StoreResolver.Context.NONE, false,
-                    e.getValue(), subChain);
+                    e.getValue(), subChain,
+                    assocSubTails.getOrDefault(prop, Set.of()));
             var leftRow = com.legend.compiler.element.type.Type
                     .requireRelationSchema(pipe.info().type());
             List<com.legend.compiler.element.type.Type.Column> cols =
@@ -901,8 +930,12 @@ final class NavMaterializer {
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
+            // the join's own sub-tree (the target's slots the deeper tail
+            // demanded), composed under this end's prefix — relative to
+            // THIS target's row like every SubNav at this level
             subTree.put(prop, new Substitution.SubNav(aj.prefix(),
-                    aj.target().rowVar(), aj.target().bindings(), Map.of()));
+                    aj.target().rowVar(), aj.target().bindings(),
+                    composeSubNavPrefixes(aj.prefix(), aj.targetSubNavs())));
         }
         return pipe;
     }

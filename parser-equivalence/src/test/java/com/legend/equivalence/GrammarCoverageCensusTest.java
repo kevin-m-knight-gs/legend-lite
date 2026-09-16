@@ -149,8 +149,12 @@ class GrammarCoverageCensusTest {
         // only against THAT family's fragments (never inflate)
         List<String> specAndAuth = new ArrayList<>(specIslands);
         specAndAuth.addAll(authIslands);
+        // Athena/Aurora/MemSql/Oracle: the four vendor-spec grammars the
+        // stress-corpus batch put on this classpath (2026-09-16), driven by
+        // their t2-*.pure fixtures' specification islands like the rest
         for (String store : List.of("Databricks", "Spanner", "Trino",
-                "Redshift", "DuckDB", "BigQuery")) {
+                "Redshift", "DuckDB", "BigQuery", "Athena", "Aurora",
+                "MemSql", "Oracle")) {
             driveIsland(drives, pkg + "connection." + store + "ParserGrammar",
                     "island:conn-" + store, specAndAuth, true);
         }
@@ -674,6 +678,11 @@ class GrammarCoverageCensusTest {
             // ###BigQuery is the ACTIVATOR section (BigQueryFunction);
             // plain BigQueryParserGrammar is its connection-VALUE island
             return parserClasses.get("BigQueryFunctionParserGrammar");
+        }
+        if (section.equals("MemSql")) {
+            // the same split (2026-09-16: the MemSql spec grammar joined
+            // the classpath): ###MemSql is the activator section
+            return parserClasses.get("MemSqlFunctionParserGrammar");
         }
         // Ranked prefix match, never bare substring. Base score:
         //   6 = exact stem; 4 = section name EXTENDS the stem

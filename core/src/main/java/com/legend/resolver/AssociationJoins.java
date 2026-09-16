@@ -145,13 +145,22 @@ final class AssociationJoins {
     AssocJoin aggJoinMaterial(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
                                       Set<String> leaves,
                                       Set<List<String>> tgtNavPaths) {
+        return aggJoinMaterial(temporal, cs, head, context, leaves, tgtNavPaths, head);
+    }
+
+    /** {@code chainKey}: the association route's chain key — the DOTTED
+     *  chain when the head is a nested end of a join's target (F-M): the
+     *  temporal specs (an explicit hop date) key by it. */
+    AssocJoin aggJoinMaterial(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
+                                      Set<String> leaves,
+                                      Set<List<String>> tgtNavPaths, String chainKey) {
         // synthetic identities (#fN/#cN) bind by their REAL property — the
         // raw lookup missed the navigate-slot route and fell into the
         // association route, which errors when the property is PM-mapped
         TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(head));
         if (binding == null) {
             return associationJoin(temporal, cs, head, context, false, leaves,
-                    head, tgtNavPaths);
+                    chainKey, tgtNavPaths);
         }
         var navSteps = Pipelines.navSteps(cs.pipeline());
         // EMBEDDED head whose leaves ride ONE join slot (employeesExt
@@ -883,26 +892,15 @@ final class AssociationJoins {
         }
         targetDemand = Pipelines.closeOverConditions(target.pipeline(), targetDemand);
         var tNavSteps3 = Pipelines.navSteps(target.pipeline());
-        Set<String> tNavDemand3 = new LinkedHashSet<>();
-        Map<String, String> tailNavAliases = new java.util.LinkedHashMap<>();
-        // the tails PAST each demanded nav slot: materialized recursively
-        // (NavMaterializer) so a leaf N hops deep rides composed prefixes
-        Map<String, List<List<String>>> subTailsByAlias = new java.util.LinkedHashMap<>();
-        for (List<String> tail : navTails) {
-            String seg0 = tail.get(0);
-            TypedSpec b3 = target.bindings().get(SyntheticHeads.realHead(seg0));
-            String al3 = b3 == null ? null
-                    : InnerDemand.navSlotAlias(b3, target.rowVar(),
-                            tNavSteps3.keySet());
-            if (al3 != null) {
-                tNavDemand3.add(al3);
-                tailNavAliases.put(seg0, al3);
-                if (tail.size() > 1) {
-                    subTailsByAlias.computeIfAbsent(al3, k -> new java.util.ArrayList<>())
-                            .add(tail.subList(1, tail.size()));
-                }
-            }
-        }
+        // the target's tails: slot tails (recursive materialization) and
+        // nested ASSOCIATION tails (the navigate() rule) — extracted at the
+        // numbered seam (CodeShapeGuardrailTest)
+        TargetTails tt = collectTargetTails(temporal, target, navTails, tNavSteps3, chainKey);
+        Set<String> tNavDemand3 = tt.tNavDemand();
+        Map<String, String> tailNavAliases = tt.tailNavAliases();
+        Map<String, List<List<String>>> subTailsByAlias = tt.subTailsByAlias();
+        Map<String, Set<String>> nestedAssocReads = tt.nestedAssocReads();
+        Map<String, Set<List<String>>> nestedAssocTails = tt.nestedAssocTails();
         // EARLY predicate scan (before materialization): the association
         // CONDITION's target-side slot reads demand the target's navigate
         // steps — a ModelJoin/XStore condition navigating another
@@ -910,8 +908,6 @@ final class AssociationJoins {
         // slot, and the stock slot machinery materializes it (user rule:
         // both are just navigate()). Target-side param ONLY — demanding
         // an unread to-many step would explode target rows.
-        Map<String, Set<String>> nestedAssocReads =
-                new java.util.LinkedHashMap<>();
         String condTgtVar = scanCondTargetReads(cs, assoc, real, targetClass,
                 target, targetSlots, targetDemand, tNavSteps3.keySet(),
                 tNavDemand3, nestedAssocReads);
@@ -961,7 +957,7 @@ final class AssociationJoins {
         // the synthetic predicate reading $tgt.<assocProp>.<col> joins the
         // nested association's target into the materialized pipe, prefixed
         NestedWidening nw = widenNestedAssocs(temporal, target, context,
-                nestedAssocReads, basePipe);
+                nestedAssocReads, nestedAssocTails, basePipe, chainKey);
         basePipe = nw.pipe();
         Map<String, String> nestedPrefixByProp = nw.prefixByProp();
         Map<String, Substitution.SubNav> nestedSubNavs = nw.subNavs();
@@ -1062,11 +1058,86 @@ final class AssociationJoins {
                     deeper == null ? Map.of()
                             : NavMaterializer.composeSubNavPrefixes(pfx3, deeper.subNavs())));
         }
+        // nested association ends the tails demanded are part of the
+        // target's sub-tree too: the read walk descends them like slots
+        for (var nse : nestedSubNavs.entrySet()) {
+            tailSubNavs.putIfAbsent(nse.getKey(), nse.getValue());
+        }
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 Type.requireRelationSchema(tPipe.info().type()),
                 withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
                 tMat.slotPrefixes(), tailSubNavs, corrSub, null,
                 synthetics.isInnerValueHead(head));
+    }
+
+    /** The target-side tails of one association join, sorted by kind. */
+    record TargetTails(Set<String> tNavDemand, Map<String, String> tailNavAliases,
+            Map<String, List<List<String>>> subTailsByAlias,
+            Map<String, Set<String>> nestedAssocReads,
+            Map<String, Set<List<String>>> nestedAssocTails) {
+    }
+
+    /** Sort a join's target-side tails: a tail through the target's own
+     * navigate SLOT demands the slot (materialized recursively with the
+     * tail past it); a tail through an ASSOCIATION end of the target (no
+     * binding) joins the nested widening with its deeper tail. */
+    private TargetTails collectTargetTails(TemporalFrame temporal, ClassSource target,
+            Set<List<String>> navTails,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps3,
+            String chainKey) {
+        Set<String> tNavDemand3 = new LinkedHashSet<>();
+        Map<String, String> tailNavAliases = new java.util.LinkedHashMap<>();
+        Map<String, List<List<String>>> subTailsByAlias = new java.util.LinkedHashMap<>();
+        Map<String, Set<String>> nestedAssocReads =
+                new java.util.LinkedHashMap<>();
+        // the DEEPER tail past a nested association end (F-M, 2026-09-16:
+        // $x.book.desk.businessUnit.legalEntity.jurisdiction — 'businessUnit'
+        // and 'legalEntity' are association ends, not slots): each rides
+        // its own nested join as THAT join's nav tails — the navigate()
+        // rule recursing, one owner per level
+        Map<String, Set<List<String>>> nestedAssocTails =
+                new java.util.LinkedHashMap<>();
+        for (List<String> tail : navTails) {
+            String seg0 = tail.get(0);
+            TypedSpec b3 = target.bindings().get(SyntheticHeads.realHead(seg0));
+            String al3 = b3 == null ? null
+                    : InnerDemand.navSlotAlias(b3, target.rowVar(),
+                            tNavSteps3.keySet());
+            var nestedCls = b3 == null && tail.size() >= 2
+                    ? assocTargetClassOf(target.classFqn(), SyntheticHeads.realHead(seg0))
+                    : java.util.Optional.<String>empty();
+            // a TEMPORAL nested target needs a date it can stamp (an explicit
+            // hop spec or a propagated context) — the same gate the
+            // materializer's one-hop rule applies; otherwise the read stays
+            // on its loud wall (corpus testDerivedPropertyOnNonTemporalClass-
+            // WithMilestonedChain: 'leaves' to a temporal LeafEntity)
+            String nestedChain = chainKey + "." + seg0;   // specs key by the RAW head (identity suffix included)
+            boolean nestedStampable = nestedCls.isPresent()
+                    && (temporal.temporalStrategy(nestedCls.get()) == null
+                        || temporal.spec(nestedChain) != null
+                        || !temporal.contextAt(nestedChain, nestedCls.get(),
+                                TemporalContext.NONE).isEmpty());
+            if (nestedCls.isPresent() && nestedStampable) {
+                // an ASSOCIATION end of the target: nested widening below
+                nestedAssocReads.computeIfAbsent(seg0, k -> new LinkedHashSet<>())
+                        .add(tail.get(1));
+                if (tail.size() > 2) {
+                    nestedAssocTails.computeIfAbsent(seg0, k -> new LinkedHashSet<>())
+                            .add(tail.subList(1, tail.size()));
+                }
+                continue;
+            }
+            if (al3 != null) {
+                tNavDemand3.add(al3);
+                tailNavAliases.put(seg0, al3);
+                if (tail.size() > 1) {
+                    subTailsByAlias.computeIfAbsent(al3, k -> new java.util.ArrayList<>())
+                            .add(tail.subList(1, tail.size()));
+                }
+            }
+        }
+        return new TargetTails(tNavDemand3, tailNavAliases, subTailsByAlias,
+                nestedAssocReads, nestedAssocTails);
     }
 
     /** The compiled association predicate's material: the raw condition,
@@ -1677,15 +1748,22 @@ final class AssociationJoins {
      * the recursive navigate, exactly the chain-walk precedent (task #78). */
     private NestedWidening widenNestedAssocs(TemporalFrame temporal,
             ClassSource target, StoreResolver.Context context,
-            Map<String, Set<String>> nestedAssocReads, TypedSpec basePipe) {
+            Map<String, Set<String>> nestedAssocReads,
+            Map<String, Set<List<String>>> nestedAssocTails, TypedSpec basePipe,
+            String chainKey) {
         Map<String, String> prefixByProp = new java.util.LinkedHashMap<>();
         Map<String, Substitution.SubNav> subNavs = new java.util.LinkedHashMap<>();
         for (var ne : nestedAssocReads.entrySet()) {
             AssocJoin aj2 = aggJoinMaterial(temporal, target, ne.getKey(),
-                    context, ne.getValue(), java.util.Set.of());
+                    context, ne.getValue(),
+                    nestedAssocTails.getOrDefault(ne.getKey(), java.util.Set.of()),
+                    chainKey + "." + ne.getKey());
             String pfx = ne.getKey() + "_";
+            // the nested join's own sub-tree (deeper tails) composes under
+            // this end's prefix — relative to THIS target's row
             subNavs.put(ne.getKey(), new Substitution.SubNav(pfx,
-                    aj2.target().rowVar(), aj2.target().bindings()));
+                    aj2.target().rowVar(), aj2.target().bindings(),
+                    NavMaterializer.composeSubNavPrefixes(pfx, aj2.targetSubNavs())));
             Type.RelationType curRow = Type.requireRelationSchema(basePipe.info().type());
             java.util.List<Type.Column> wcols =
                     new java.util.ArrayList<>(curRow.columns());
